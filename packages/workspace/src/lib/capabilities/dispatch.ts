@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
+import { unavailableReason } from "./admit";
 import {
   type Capability,
   type CapabilityContext,
@@ -25,19 +26,6 @@ export interface DescribedCapability {
   /** Fields a script passes in order, before the rest. */
   positional: string[];
   summary: string;
-}
-
-/** Whether a capability exists for this call: its platform, its build, the shell's role. */
-function availableHere(
-  capability: Capability,
-  ctx: CapabilityContext,
-): boolean {
-  const { where } = capability;
-  return (
-    (where?.platforms?.includes(process.platform) ?? true) &&
-    (where?.available?.() ?? true) &&
-    (where?.roles?.includes(ctx.role) ?? true)
-  );
 }
 
 function onSurface(capability: Capability, ctx: CapabilityContext): boolean {
@@ -156,16 +144,9 @@ export async function dispatch(
       error: { kind: "failed", message: `there is no capability "${name}".` },
     };
   }
-  if (!availableHere(capability, ctx)) {
-    return {
-      error: {
-        kind: "refused",
-        message:
-          capability.where?.roles?.includes(ctx.role) === false
-            ? `only the chat has ${capability.name}. Say in your report what the chat should do with it.`
-            : `${capability.name} is not available on this computer.`,
-      },
-    };
+  const unavailable = unavailableReason(capability, ctx.role);
+  if (unavailable !== undefined) {
+    return { error: { kind: "refused", message: unavailable } };
   }
   const parsed = capability.input.safeParse(declaredKeys(capability, rawArgs));
   if (!parsed.success) {
@@ -209,7 +190,7 @@ export function describeCapabilities(
     .filter(
       (capability) =>
         capability.surfaces.script !== undefined &&
-        availableHere(capability, ctx),
+        unavailableReason(capability, ctx.role) === undefined,
     )
     .map((capability) => {
       let input = inputSchemas.get(capability);

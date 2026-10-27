@@ -35,8 +35,8 @@ import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 
 const DEFAULT_READ_LIMIT = 2000;
 const DIRECTORY_LISTING_LIMIT = 200;
@@ -360,8 +360,8 @@ async function handleMediaFile({
   });
 }
 
-export const ReadFile = setupTool({
-  inputSchema: BaseInputSchema.extend({
+export const readFileCapability = defineCapability({
+  input: z.object({
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `Path to the file to read, relative to your work folder or the full path of a file in one of the user's folders`,
     }),
@@ -380,97 +380,11 @@ export const ReadFile = setupTool({
         "Images only. Two opposite corners of a rectangle, in the pixel space the image was shown to you at -- the first size the read states, which for a large file is smaller than the file's own dimensions on disk (origin at the top-left, x right, y down). Not the file's dimensions, and not the pixel space of a magnified crop from an earlier read. Returns that region cropped from the full-resolution file and magnified.",
     }),
   }),
-  name: "read_file",
-  outputSchema: z.discriminatedUnion("state", [
-    z.object({
-      content: z.string(),
-      displayedLines: z.number(),
-      filePath: z.string(),
-      hasMoreLines: z.boolean(),
-      modifiedAt: z.number(),
-      offset: z.number(),
-      // Set when a region aimed at a place came with a file that is not an
-      // image, which is read as usual instead.
-      regionIgnored: z.literal("not-an-image").optional(),
-      state: z.literal("exists"),
-      totalLines: z.number(),
-      truncatedByBytes: z.boolean().default(false),
-    }),
-    z.object({
-      base64Data: z.string(),
-      filePath: z.string(),
-      // Absent when the image could not be measured.
-      height: z.number().optional(),
-      mimeType: z.string(),
-      modifiedAt: z.number(),
-      // Set when a region was requested: the rectangle as interpreted, after
-      // clamping, in the view's pixel space.
-      region: RegionSchema.optional(),
-      // Set when a requested rectangle could not be honored and the whole image
-      // was returned instead.
-      regionIgnored: z.enum(["no-place", "whole-image"]).optional(),
-      renderedHeight: z.number().optional(),
-      renderedWidth: z.number().optional(),
-      // Set when the rectangle asked for is not the one the result shows,
-      // either because clamping trimmed it or because it was not honored.
-      requestedRegion: RegionSchema.optional(),
-      state: z.literal("image"),
-      // The size this model renders the image at, which is smaller than the
-      // file whenever the file is over the provider's budget.
-      viewHeight: z.number().optional(),
-      viewWidth: z.number().optional(),
-      width: z.number().optional(),
-    }),
-    z.object({
-      base64Data: z.string(),
-      filePath: z.string(),
-      mimeType: z.string(),
-      modifiedAt: z.number(),
-      state: z.literal("pdf"),
-    }),
-    z.object({
-      base64Data: z.string(),
-      filePath: z.string(),
-      mimeType: z.string(),
-      modifiedAt: z.number(),
-      state: z.literal("audio"),
-    }),
-    z.object({
-      base64Data: z.string(),
-      filePath: z.string(),
-      mimeType: z.string(),
-      modifiedAt: z.number(),
-      state: z.literal("video"),
-    }),
-    z.object({
-      filePath: z.string(),
-      state: z.literal("does-not-exist"),
-      suggestions: z.array(z.string()),
-    }),
-    z.object({
-      filePath: z.string(),
-      mimeType: z.string().optional(),
-      modifiedAt: z.number(),
-      reason: z.enum([
-        "binary-file",
-        "image-too-large",
-        "truncated-image",
-        "undecodable-image",
-        "undecodable-media",
-        "undecodable-pdf",
-        "unsupported-image-format",
-      ]),
-      state: z.literal("unsupported-format"),
-    }),
-    z.object({
-      entries: z.array(z.string()),
-      filePath: z.string(),
-      state: z.literal("is-directory"),
-      truncated: z.boolean(),
-    }),
-  ]),
-}).create({
-  description: ({ model }) => dedent`
+  name: "files.read",
+  summary: "Reads a file in the work folder or one of the user's folders.",
+  surfaces: {
+    tool: {
+      description: ({ model }) => dedent`
     Reads a file from your work folder, or from one of the user's folders.
 
     Usage:
@@ -485,363 +399,465 @@ export const ReadFile = setupTool({
     - Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.
     - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
-  execute: async ({ input, partId, model, sessionId, signal, chatId }) => {
-    const region = input.region;
-    const files = await sessionToolFs({ chatId, partId, sessionId });
-    const typed = files.resolve(input.filePath);
-    if (typed.isErr()) {
-      return err(typed.error);
-    }
-    const target = await files.existing(typed.value);
-    const displayPath = files.shown(target);
-
-    // What is there, to tell a folder from a file; the read below is what
-    // the rules are asked of, as they are of `cat`.
-    const stats = await files.fs.stat(target).catch(() => undefined);
-    if (stats?.isDirectory) {
-      try {
-        const { entries, truncated } = await files.list(
-          target,
-          DIRECTORY_LISTING_LIMIT,
-        );
-        return ok({
-          entries,
-          filePath: displayPath,
-          state: "is-directory" as const,
-          truncated,
-        });
-      } catch (error) {
-        return files.failure(error, target);
-      }
-    }
-
-    let fileData: Buffer;
-    try {
-      const bytes = await files.fs.readFileBuffer(target);
-      fileData = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    } catch (error) {
-      if (!isMissing(error)) {
-        return files.failure(error, target);
-      }
-      return ok({
-        filePath: displayPath,
-        state: "does-not-exist" as const,
-        suggestions: await files.similar(target),
-      });
-    }
-    const modifiedAt = (stats ?? (await files.fs.stat(target))).mtime.getTime();
-
-    // A rectangle has nothing to crop in any other kind of file, and a model
-    // that sends one there is nearly always filling the parameter in rather
-    // than aiming it, so the file is read as usual and the result says so.
-    const regionIgnored =
-      region && aimsSomewhere(region) && !isReadableImage(getMimeType(target))
-        ? ("not-an-image" as const)
-        : undefined;
-
-    const isBinary = await isBinaryFile(fileData);
-    if (!isBinary) {
-      const content = fileData.toString("utf8");
-
-      const normalized = content.replaceAll("\r\n", "\n");
-      const lines = normalized.split("\n");
-
-      let limit = input.limit ?? DEFAULT_READ_LIMIT;
-      if (limit <= 0) {
-        limit = DEFAULT_READ_LIMIT;
-      }
-
-      const offset = Math.max(1, input.offset ?? 1);
-      const clampedOffset = Math.min(offset, Math.max(1, lines.length));
-
-      let selectedLines = lines.slice(
-        clampedOffset - 1,
-        clampedOffset - 1 + limit,
-      );
-      let hasMoreLines =
-        lines.length > clampedOffset - 1 + selectedLines.length;
-      let truncatedByBytes = false;
-
-      const processedLines = selectedLines.map((line) =>
-        line.length > MAX_LINE_LENGTH
-          ? truncateWithoutSplitting(line, MAX_LINE_LENGTH) + "..."
-          : line,
-      );
-
-      let rawContent = processedLines.join("\n");
-
-      if (Buffer.byteLength(rawContent, "utf8") > MAX_BYTES) {
-        let trimmed = [...processedLines];
-        while (
-          trimmed.length > 0 &&
-          Buffer.byteLength(trimmed.join("\n"), "utf8") > MAX_BYTES
-        ) {
-          trimmed = trimmed.slice(0, -1);
+      execute: async ({ input, partId, model, sessionId, signal, chatId }) => {
+        const region = input.region;
+        const files = await sessionToolFs({ chatId, partId, sessionId });
+        const typed = files.resolve(input.filePath);
+        if (typed.isErr()) {
+          return err(typed.error);
         }
-        selectedLines = trimmed;
-        rawContent = trimmed.join("\n");
-        hasMoreLines = true;
-        truncatedByBytes = true;
-      }
+        const target = await files.existing(typed.value);
+        const displayPath = files.shown(target);
 
-      return ok({
-        content: rawContent,
-        displayedLines: selectedLines.length,
-        filePath: displayPath,
-        hasMoreLines,
-        modifiedAt,
-        offset: clampedOffset,
-        ...(regionIgnored && { regionIgnored }),
-        state: "exists" as const,
-        totalLines: lines.length,
-        truncatedByBytes,
-      });
-    }
+        // What is there, to tell a folder from a file; the read below is what
+        // the rules are asked of, as they are of `cat`.
+        const stats = await files.fs.stat(target).catch(() => undefined);
+        if (stats?.isDirectory) {
+          try {
+            const { entries, truncated } = await files.list(
+              target,
+              DIRECTORY_LISTING_LIMIT,
+            );
+            return ok({
+              entries,
+              filePath: displayPath,
+              state: "is-directory" as const,
+              truncated,
+            });
+          } catch (error) {
+            return files.failure(error, target);
+          }
+        }
 
-    const mimeType = getMimeType(target);
-    const media = {
-      fileData,
-      fixedPath: displayPath,
-      hostPath: () => files.hostPath(target),
-      mimeType,
-      model,
-      modifiedAt,
-      signal,
-    };
+        let fileData: Buffer;
+        try {
+          const bytes = await files.fs.readFileBuffer(target);
+          fileData = Buffer.from(
+            bytes.buffer,
+            bytes.byteOffset,
+            bytes.byteLength,
+          );
+        } catch (error) {
+          if (!isMissing(error)) {
+            return files.failure(error, target);
+          }
+          return ok({
+            filePath: displayPath,
+            state: "does-not-exist" as const,
+            suggestions: await files.similar(target),
+          });
+        }
+        const modifiedAt = (
+          stats ?? (await files.fs.stat(target))
+        ).mtime.getTime();
 
-    if (isReadableImage(mimeType)) {
-      return handleMediaFile({ ...media, region, state: "image" });
-    }
+        // A rectangle has nothing to crop in any other kind of file, and a model
+        // that sends one there is nearly always filling the parameter in rather
+        // than aiming it, so the file is read as usual and the result says so.
+        const regionIgnored =
+          region &&
+          aimsSomewhere(region) &&
+          !isReadableImage(getMimeType(target))
+            ? ("not-an-image" as const)
+            : undefined;
 
-    if (mimeType === "application/pdf") {
-      return handleMediaFile({ ...media, state: "pdf" });
-    }
+        const isBinary = await isBinaryFile(fileData);
+        if (!isBinary) {
+          const content = fileData.toString("utf8");
 
-    if (mimeType.startsWith("audio/")) {
-      return handleMediaFile({ ...media, state: "audio" });
-    }
+          const normalized = content.replaceAll("\r\n", "\n");
+          const lines = normalized.split("\n");
 
-    if (mimeType.startsWith("video/")) {
-      return handleMediaFile({ ...media, state: "video" });
-    }
+          let limit = input.limit ?? DEFAULT_READ_LIMIT;
+          if (limit <= 0) {
+            limit = DEFAULT_READ_LIMIT;
+          }
 
-    return ok({
-      filePath: displayPath,
-      mimeType,
-      modifiedAt,
-      reason: "binary-file" as const,
-      state: "unsupported-format" as const,
-    });
-  },
-  readOnly: true,
-  timeoutMs: ms("15 seconds"),
-  toModelOutput: ({ output }) => {
-    if (output.state === "does-not-exist") {
-      const suggestionText =
-        output.suggestions.length > 0
-          ? `\n\nDid you mean one of these?\n${output.suggestions.join("\n")}`
-          : "";
+          const offset = Math.max(1, input.offset ?? 1);
+          const clampedOffset = Math.min(offset, Math.max(1, lines.length));
 
-      return {
-        type: "error-text",
-        value: `File \`${output.filePath}\` does not exist${suggestionText}`,
-      };
-    }
+          let selectedLines = lines.slice(
+            clampedOffset - 1,
+            clampedOffset - 1 + limit,
+          );
+          let hasMoreLines =
+            lines.length > clampedOffset - 1 + selectedLines.length;
+          let truncatedByBytes = false;
 
-    if (output.state === "is-directory") {
-      const listing =
-        output.entries.length > 0 ? output.entries.join("\n") : "(empty)";
-      const truncationNote = output.truncated
-        ? `\n\n(Results truncated: showing first ${DIRECTORY_LISTING_LIMIT} entries)`
-        : "";
-      return {
-        type: "text",
-        value: `${output.filePath} is a directory, not a file. Here are its contents:\n\n${listing}${truncationNote}`,
-      };
-    }
+          const processedLines = selectedLines.map((line) =>
+            line.length > MAX_LINE_LENGTH
+              ? truncateWithoutSplitting(line, MAX_LINE_LENGTH) + "..."
+              : line,
+          );
 
-    if (output.state === "unsupported-format") {
-      // Two failures that look alike and call for opposite responses. These
-      // bytes announced themselves as an image and then stopped early. A
-      // message that names a remedy is read as an instruction to attempt it, so
-      // naming one that cannot work here leaves the agent an unbounded errand.
-      // See docs/findings/tool-errors-that-invite-repair-loops.md.
-      //
-      // How final that is depends on the format, and saying otherwise would cap
-      // a capable model for the convenience of bounding a careless one. JPEG is
-      // decoded in scanlines, so the part that arrived still renders -- a
-      // truncated JPEG really does give back the top of the picture. PNG and
-      // WebP put their pixels in one compressed stream, and a partial copy
-      // decodes to nothing at all.
-      if (output.reason === "truncated-image") {
-        const salvageable = output.mimeType === "image/jpeg";
-        return {
-          type: "error-text",
-          value: [
-            `${output.filePath} is a truncated image: it declares its format and size, then ends before its data does.`,
-            "The missing bytes cannot be reconstructed by any tool.",
-            salvageable
-              ? "A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making."
-              : "This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that.",
-            "Do not make more than that one attempt, and do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
-          ].join(" "),
+          let rawContent = processedLines.join("\n");
+
+          if (Buffer.byteLength(rawContent, "utf8") > MAX_BYTES) {
+            let trimmed = [...processedLines];
+            while (
+              trimmed.length > 0 &&
+              Buffer.byteLength(trimmed.join("\n"), "utf8") > MAX_BYTES
+            ) {
+              trimmed = trimmed.slice(0, -1);
+            }
+            selectedLines = trimmed;
+            rawContent = trimmed.join("\n");
+            hasMoreLines = true;
+            truncatedByBytes = true;
+          }
+
+          return ok({
+            content: rawContent,
+            displayedLines: selectedLines.length,
+            filePath: displayPath,
+            hasMoreLines,
+            modifiedAt,
+            offset: clampedOffset,
+            ...(regionIgnored && { regionIgnored }),
+            state: "exists" as const,
+            totalLines: lines.length,
+            truncatedByBytes,
+          });
+        }
+
+        const mimeType = getMimeType(target);
+        const media = {
+          fileData,
+          fixedPath: displayPath,
+          hostPath: () => files.hostPath(target),
+          mimeType,
+          model,
+          modifiedAt,
+          signal,
         };
-      }
 
-      // Whereas these bytes are not recognizable as an image at all, which is
-      // as likely to be a name that lies about its contents as a damaged file.
-      // Here identifying the real format is worth a look.
-      if (output.reason === "undecodable-image") {
+        if (isReadableImage(mimeType)) {
+          return handleMediaFile({ ...media, region, state: "image" });
+        }
+
+        if (mimeType === "application/pdf") {
+          return handleMediaFile({ ...media, state: "pdf" });
+        }
+
+        if (mimeType.startsWith("audio/")) {
+          return handleMediaFile({ ...media, state: "audio" });
+        }
+
+        if (mimeType.startsWith("video/")) {
+          return handleMediaFile({ ...media, state: "video" });
+        }
+
+        return ok({
+          filePath: displayPath,
+          mimeType,
+          modifiedAt,
+          reason: "binary-file" as const,
+          state: "unsupported-format" as const,
+        });
+      },
+      readOnly: true,
+      timeoutMs: () => ms("15 seconds"),
+      toModelOutput: ({ output }) => {
+        if (output.state === "does-not-exist") {
+          const suggestionText =
+            output.suggestions.length > 0
+              ? `\n\nDid you mean one of these?\n${output.suggestions.join("\n")}`
+              : "";
+
+          return {
+            type: "error-text",
+            value: `File \`${output.filePath}\` does not exist${suggestionText}`,
+          };
+        }
+
+        if (output.state === "is-directory") {
+          const listing =
+            output.entries.length > 0 ? output.entries.join("\n") : "(empty)";
+          const truncationNote = output.truncated
+            ? `\n\n(Results truncated: showing first ${DIRECTORY_LISTING_LIMIT} entries)`
+            : "";
+          return {
+            type: "text",
+            value: `${output.filePath} is a directory, not a file. Here are its contents:\n\n${listing}${truncationNote}`,
+          };
+        }
+
+        if (output.state === "unsupported-format") {
+          // Two failures that look alike and call for opposite responses. These
+          // bytes announced themselves as an image and then stopped early. A
+          // message that names a remedy is read as an instruction to attempt it, so
+          // naming one that cannot work here leaves the agent an unbounded errand.
+          // See docs/findings/tool-errors-that-invite-repair-loops.md.
+          //
+          // How final that is depends on the format, and saying otherwise would cap
+          // a capable model for the convenience of bounding a careless one. JPEG is
+          // decoded in scanlines, so the part that arrived still renders -- a
+          // truncated JPEG really does give back the top of the picture. PNG and
+          // WebP put their pixels in one compressed stream, and a partial copy
+          // decodes to nothing at all.
+          if (output.reason === "truncated-image") {
+            const salvageable = output.mimeType === "image/jpeg";
+            return {
+              type: "error-text",
+              value: [
+                `${output.filePath} is a truncated image: it declares its format and size, then ends before its data does.`,
+                "The missing bytes cannot be reconstructed by any tool.",
+                salvageable
+                  ? "A JPEG decodes top to bottom, so the part that did arrive is still renderable: if what you need is near the top, one attempt at decoding it is worth making."
+                  : "This format stores its pixels as a single compressed stream, so a partial copy decodes to nothing -- converting it, or opening it with ffmpeg or Python, cannot change that.",
+                "Do not make more than that one attempt, and do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
+              ].join(" "),
+            };
+          }
+
+          // Whereas these bytes are not recognizable as an image at all, which is
+          // as likely to be a name that lies about its contents as a damaged file.
+          // Here identifying the real format is worth a look.
+          if (output.reason === "undecodable-image") {
+            return {
+              type: "error-text",
+              value: [
+                `Cannot read \`${output.filePath}\` as an image: nothing identifies these bytes as one.`,
+                "It may be a different format under an image's name, or not an image at all.",
+                `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${shellQuoted(output.filePath)}\` or \`file\`.`,
+                "If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again.",
+              ].join(" "),
+            };
+          }
+
+          if (output.reason === "image-too-large") {
+            return {
+              type: "error-text",
+              value: [
+                `${output.filePath} declares more than ${MAX_DECODED_PIXELS / 1_000_000} megapixels, too large to decode.`,
+                "Downscale it first, then read the smaller copy.",
+              ].join(" "),
+            };
+          }
+
+          // An image can say which of the two failures it hit, because a trailer
+          // marker settles it. A container cannot: ffprobe refusing to parse one
+          // means either the download stopped early or the bytes were never that
+          // format, and nothing cheap tells them apart. So this keeps the one
+          // useful step and bounds it, rather than the open-ended "convert it
+          // before reading" the image path had to drop.
+          if (output.reason === "undecodable-media") {
+            const mimeInfo = output.mimeType ? ` (${output.mimeType})` : "";
+            return {
+              type: "error-text",
+              value: [
+                `Cannot decode \`${output.filePath}\`${mimeInfo}: it is either incomplete or not the format its name claims.`,
+                `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${shellQuoted(output.filePath)}\`.`,
+                "If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it.",
+                "Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
+              ].join(" "),
+            };
+          }
+
+          if (output.reason === "undecodable-pdf") {
+            return {
+              type: "error-text",
+              value: [
+                `Cannot read \`${output.filePath}\` as a PDF.`,
+                "Its header or its end marker is missing, so it is truncated, incomplete, or not a PDF at all.",
+                "Fetch it again or convert it before reading.",
+              ].join(" "),
+            };
+          }
+
+          if (output.reason === "unsupported-image-format") {
+            const supportedFormatsText = SUPPORTED_IMAGE_FORMATS.map(
+              (format) => `'${format}'`,
+            ).join(", ");
+            const mimeInfo = output.mimeType ? ` (${output.mimeType})` : "";
+            return {
+              type: "error-text",
+              value: [
+                `Unsupported image format: \`${output.filePath}\`${mimeInfo}.`,
+                `Input should be ${supportedFormatsText}.`,
+                "Please convert the image to a supported format before reading.",
+              ].join(" "),
+            };
+          }
+
+          const mimeTypeInfo = output.mimeType
+            ? ` (${output.mimeType})`
+            : " with unknown MIME type";
+          return {
+            type: "error-text",
+            value: [
+              `Cannot read binary file${mimeTypeInfo}: \`${output.filePath}\`.`,
+              "Consider using command-line tools or scripts to extract or convert the file contents if needed.",
+            ].join(" "),
+          };
+        }
+
+        switch (output.state) {
+          case "audio":
+          case "image":
+          case "pdf":
+          case "video": {
+            const config = MEDIA_CONFIG[output.state];
+
+            const size =
+              output.state === "image" ? describeImageSize(output) : "";
+
+            return {
+              type: "content",
+              value: [
+                {
+                  text: `${config.label} file: \`${output.filePath}\`${size}.`,
+                  type: "text",
+                },
+                {
+                  data: { data: output.base64Data, type: "data" },
+                  mediaType: output.mimeType,
+                  type: "file",
+                },
+              ],
+            };
+          }
+        }
+
+        if (output.content === "") {
+          // Without this an empty file renders as a single blank numbered line,
+          // which is indistinguishable from a file holding one empty line.
+          return {
+            type: "text",
+            value:
+              systemNote`File \`${output.filePath}\` exists but is empty.`.trim(),
+          };
+        }
+
+        const offset = output.offset;
+        const endLine = offset + output.displayedLines - 1;
+        const remainingLines = output.totalLines - endLine;
+
+        const numberedContent = addLineNumbers(output.content, offset - 1);
+
+        const isPartial = offset > 1 || output.hasMoreLines;
+        const header = isPartial
+          ? `lines ${offset}-${endLine} (total ${output.totalLines} lines)`
+          : "entire file";
+
+        const hiddenBefore = offset - 1;
+
+        let contentBody = "";
+        if (hiddenBefore > 0) {
+          contentBody += `... ${hiddenBefore} lines not shown ...\n`;
+        }
+        contentBody += numberedContent;
+        if (output.truncatedByBytes && remainingLines > 0) {
+          contentBody += `\n... ${remainingLines} lines not shown (output capped at 50KB) ...\n\n(Use ${INPUT_PARAMS.offset} parameter to read beyond line ${endLine})`;
+        } else if (output.hasMoreLines && remainingLines > 0) {
+          contentBody += `\n... ${remainingLines} lines not shown ...\n\n(Use ${INPUT_PARAMS.offset} parameter to read beyond line ${endLine + 1})`;
+        }
+
+        const result = `<path>${output.filePath}</path>\n<content${isPartial ? ` lines="${header}"` : ""}>\n${contentBody}\n</content>`;
+        const regionNote =
+          output.regionIgnored === "not-an-image"
+            ? systemNote`${INPUT_PARAMS.region} only applies to images, and \`${output.filePath}\` is not one, so it was ignored and the file read as text. Leave ${INPUT_PARAMS.region} out when reading anything but an image.`
+            : "";
+
         return {
-          type: "error-text",
-          value: [
-            `Cannot read \`${output.filePath}\` as an image: nothing identifies these bytes as one.`,
-            "It may be a different format under an image's name, or not an image at all.",
-            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${shellQuoted(output.filePath)}\` or \`file\`.`,
-            "If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again.",
-          ].join(" "),
+          type: "text",
+          value: result + regionNote,
         };
-      }
-
-      if (output.reason === "image-too-large") {
-        return {
-          type: "error-text",
-          value: [
-            `${output.filePath} declares more than ${MAX_DECODED_PIXELS / 1_000_000} megapixels, too large to decode.`,
-            "Downscale it first, then read the smaller copy.",
-          ].join(" "),
-        };
-      }
-
-      // An image can say which of the two failures it hit, because a trailer
-      // marker settles it. A container cannot: ffprobe refusing to parse one
-      // means either the download stopped early or the bytes were never that
-      // format, and nothing cheap tells them apart. So this keeps the one
-      // useful step and bounds it, rather than the open-ended "convert it
-      // before reading" the image path had to drop.
-      if (output.reason === "undecodable-media") {
-        const mimeInfo = output.mimeType ? ` (${output.mimeType})` : "";
-        return {
-          type: "error-text",
-          value: [
-            `Cannot decode \`${output.filePath}\`${mimeInfo}: it is either incomplete or not the format its name claims.`,
-            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${shellQuoted(output.filePath)}\`.`,
-            "If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it.",
-            "Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
-          ].join(" "),
-        };
-      }
-
-      if (output.reason === "undecodable-pdf") {
-        return {
-          type: "error-text",
-          value: [
-            `Cannot read \`${output.filePath}\` as a PDF.`,
-            "Its header or its end marker is missing, so it is truncated, incomplete, or not a PDF at all.",
-            "Fetch it again or convert it before reading.",
-          ].join(" "),
-        };
-      }
-
-      if (output.reason === "unsupported-image-format") {
-        const supportedFormatsText = SUPPORTED_IMAGE_FORMATS.map(
-          (format) => `'${format}'`,
-        ).join(", ");
-        const mimeInfo = output.mimeType ? ` (${output.mimeType})` : "";
-        return {
-          type: "error-text",
-          value: [
-            `Unsupported image format: \`${output.filePath}\`${mimeInfo}.`,
-            `Input should be ${supportedFormatsText}.`,
-            "Please convert the image to a supported format before reading.",
-          ].join(" "),
-        };
-      }
-
-      const mimeTypeInfo = output.mimeType
-        ? ` (${output.mimeType})`
-        : " with unknown MIME type";
-      return {
-        type: "error-text",
-        value: [
-          `Cannot read binary file${mimeTypeInfo}: \`${output.filePath}\`.`,
-          "Consider using command-line tools or scripts to extract or convert the file contents if needed.",
-        ].join(" "),
-      };
-    }
-
-    switch (output.state) {
-      case "audio":
-      case "image":
-      case "pdf":
-      case "video": {
-        const config = MEDIA_CONFIG[output.state];
-
-        const size = output.state === "image" ? describeImageSize(output) : "";
-
-        return {
-          type: "content",
-          value: [
-            {
-              text: `${config.label} file: \`${output.filePath}\`${size}.`,
-              type: "text",
-            },
-            {
-              data: { data: output.base64Data, type: "data" },
-              mediaType: output.mimeType,
-              type: "file",
-            },
-          ],
-        };
-      }
-    }
-
-    if (output.content === "") {
-      // Without this an empty file renders as a single blank numbered line,
-      // which is indistinguishable from a file holding one empty line.
-      return {
-        type: "text",
-        value:
-          systemNote`File \`${output.filePath}\` exists but is empty.`.trim(),
-      };
-    }
-
-    const offset = output.offset;
-    const endLine = offset + output.displayedLines - 1;
-    const remainingLines = output.totalLines - endLine;
-
-    const numberedContent = addLineNumbers(output.content, offset - 1);
-
-    const isPartial = offset > 1 || output.hasMoreLines;
-    const header = isPartial
-      ? `lines ${offset}-${endLine} (total ${output.totalLines} lines)`
-      : "entire file";
-
-    const hiddenBefore = offset - 1;
-
-    let contentBody = "";
-    if (hiddenBefore > 0) {
-      contentBody += `... ${hiddenBefore} lines not shown ...\n`;
-    }
-    contentBody += numberedContent;
-    if (output.truncatedByBytes && remainingLines > 0) {
-      contentBody += `\n... ${remainingLines} lines not shown (output capped at 50KB) ...\n\n(Use ${INPUT_PARAMS.offset} parameter to read beyond line ${endLine})`;
-    } else if (output.hasMoreLines && remainingLines > 0) {
-      contentBody += `\n... ${remainingLines} lines not shown ...\n\n(Use ${INPUT_PARAMS.offset} parameter to read beyond line ${endLine + 1})`;
-    }
-
-    const result = `<path>${output.filePath}</path>\n<content${isPartial ? ` lines="${header}"` : ""}>\n${contentBody}\n</content>`;
-    const regionNote =
-      output.regionIgnored === "not-an-image"
-        ? systemNote`${INPUT_PARAMS.region} only applies to images, and \`${output.filePath}\` is not one, so it was ignored and the file read as text. Leave ${INPUT_PARAMS.region} out when reading anything but an image.`
-        : "";
-
-    return {
-      type: "text",
-      value: result + regionNote,
-    };
+      },
+      name: "read_file",
+      output: z.discriminatedUnion("state", [
+        z.object({
+          content: z.string(),
+          displayedLines: z.number(),
+          filePath: z.string(),
+          hasMoreLines: z.boolean(),
+          modifiedAt: z.number(),
+          offset: z.number(),
+          // Set when a region aimed at a place came with a file that is not an
+          // image, which is read as usual instead.
+          regionIgnored: z.literal("not-an-image").optional(),
+          state: z.literal("exists"),
+          totalLines: z.number(),
+          truncatedByBytes: z.boolean().default(false),
+        }),
+        z.object({
+          base64Data: z.string(),
+          filePath: z.string(),
+          // Absent when the image could not be measured.
+          height: z.number().optional(),
+          mimeType: z.string(),
+          modifiedAt: z.number(),
+          // Set when a region was requested: the rectangle as interpreted, after
+          // clamping, in the view's pixel space.
+          region: RegionSchema.optional(),
+          // Set when a requested rectangle could not be honored and the whole image
+          // was returned instead.
+          regionIgnored: z.enum(["no-place", "whole-image"]).optional(),
+          renderedHeight: z.number().optional(),
+          renderedWidth: z.number().optional(),
+          // Set when the rectangle asked for is not the one the result shows,
+          // either because clamping trimmed it or because it was not honored.
+          requestedRegion: RegionSchema.optional(),
+          state: z.literal("image"),
+          // The size this model renders the image at, which is smaller than the
+          // file whenever the file is over the provider's budget.
+          viewHeight: z.number().optional(),
+          viewWidth: z.number().optional(),
+          width: z.number().optional(),
+        }),
+        z.object({
+          base64Data: z.string(),
+          filePath: z.string(),
+          mimeType: z.string(),
+          modifiedAt: z.number(),
+          state: z.literal("pdf"),
+        }),
+        z.object({
+          base64Data: z.string(),
+          filePath: z.string(),
+          mimeType: z.string(),
+          modifiedAt: z.number(),
+          state: z.literal("audio"),
+        }),
+        z.object({
+          base64Data: z.string(),
+          filePath: z.string(),
+          mimeType: z.string(),
+          modifiedAt: z.number(),
+          state: z.literal("video"),
+        }),
+        z.object({
+          filePath: z.string(),
+          state: z.literal("does-not-exist"),
+          suggestions: z.array(z.string()),
+        }),
+        z.object({
+          filePath: z.string(),
+          mimeType: z.string().optional(),
+          modifiedAt: z.number(),
+          reason: z.enum([
+            "binary-file",
+            "image-too-large",
+            "truncated-image",
+            "undecodable-image",
+            "undecodable-media",
+            "undecodable-pdf",
+            "unsupported-image-format",
+          ]),
+          state: z.literal("unsupported-format"),
+        }),
+        z.object({
+          entries: z.array(z.string()),
+          filePath: z.string(),
+          state: z.literal("is-directory"),
+          truncated: z.boolean(),
+        }),
+      ]),
+    },
   },
 });
+
+export const ReadFile = modelTool(readFileCapability);
 
 /** A path as one shell word, for a command the agent is told to run. */
 function shellQuoted(file: string): string {

@@ -11,12 +11,9 @@ import { webSearch } from "../lib/web-search";
 import { readWebSearchResults } from "../lib/web-search-results";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import {
-  BaseInputSchema,
-  ProviderOutputSchema,
-  UsageOutputSchema,
-} from "./base";
-import { setupTool } from "./create-tool";
+import { ProviderOutputSchema, UsageOutputSchema } from "./base";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 
 /** The parts of a result the text budget acts on, in either backend's shape. */
 type BudgetedSearch =
@@ -117,43 +114,17 @@ const SummaryResultsSchema = z.object({
   usage: UsageOutputSchema,
 });
 
-export const WebSearch = setupTool({
-  inputSchema: BaseInputSchema.extend({
+export const webSearchCapability = defineCapability({
+  input: z.object({
     [INPUT_PARAMS.query]: z.string().meta({
       description: `The search query describing what information to find. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
   }),
-  name: "web_search",
-  outputSchema: z.discriminatedUnion("state", [
-    z.object({
-      // Which backend served the search decides what a result even is, so the
-      // two shapes stay distinct instead of collapsing into shared optional
-      // fields that only one of them ever fills in.
-      // Our endpoint refused the search for the account's plan, and another
-      // search stood in (a basic one, or the model's own provider's): what
-      // the platform said, for the chat to show.
-      platformRefusal: PlanRefusalSchema.optional(),
-      results: z.discriminatedUnion("kind", [
-        ExcerptResultsSchema,
-        SummaryResultsSchema,
-      ]),
-      state: z.literal("success"),
-    }),
-    z.object({
-      errorMessage: z.string(),
-      errorType: z.enum([
-        "api-call",
-        "invalid-query",
-        "no-search-backend",
-        "not-authenticated",
-        "payment-required",
-      ]),
-      responseBody: z.string().optional(),
-      state: z.literal("failure"),
-    }),
-  ]),
-}).create({
-  description: dedent`
+  name: "web.search",
+  summary: "Searches the web: ranked pages with the part of each that answers.",
+  surfaces: {
+    tool: {
+      description: dedent`
     Search the web for current information. Returns ranked pages with the part of each page that answers the query, source URLs, and, when the backend has them, publication dates plus each page's lead image and site icon.
 
     A result's \`Lead image:\` and \`Site icon:\` are real URLs on the source's own CDN, so use them when a deliverable wants a picture of what a result describes. They are the only images available without opening the page, and the sites most worth illustrating are the ones most likely to refuse a fetch. Never assemble an image URL yourself from a pattern you see in one.
@@ -169,112 +140,145 @@ export const WebSearch = setupTool({
 
     Results close with a \`Sources:\` list of \`[Title](URL)\`. Carry the ones you relied on into your reply, as links on what they describe or as a \`Sources:\` list of your own.
   `,
-  async *execute({ input, model, sessionId, signal, chatId }) {
-    if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
-      yield ok({
-        errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
-        errorType: "invalid-query" as const,
-        state: "failure" as const,
-      });
-      return;
-    }
+      async *execute({ input, model, sessionId, signal, chatId }) {
+        if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
+          yield ok({
+            errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
+            errorType: "invalid-query" as const,
+            state: "failure" as const,
+          });
+          return;
+        }
 
-    for await (const result of webSearch({
-      callingModel: model,
-      configs: getWorkspaceConfig().getAIProviderConfigs(),
-      prompt: input.query,
-      sessionId,
-      signal,
-      chatId,
-      workspaceConfig: getWorkspaceConfig(),
-      workspaceServerURL: getWorkspaceServerURL(),
-    })) {
-      if (signal.aborted) {
-        return;
-      }
+        for await (const result of webSearch({
+          callingModel: model,
+          configs: getWorkspaceConfig().getAIProviderConfigs(),
+          prompt: input.query,
+          sessionId,
+          signal,
+          chatId,
+          workspaceConfig: getWorkspaceConfig(),
+          workspaceServerURL: getWorkspaceServerURL(),
+        })) {
+          if (signal.aborted) {
+            return;
+          }
 
-      if (result.isErr()) {
-        yield ok({ ...result.error, state: "failure" as const });
-        return;
-      }
+          if (result.isErr()) {
+            yield ok({ ...result.error, state: "failure" as const });
+            return;
+          }
 
-      const results = result.value;
-      const { platformRefusal } = results;
-      yield ok({
-        ...(platformRefusal && { platformRefusal }),
-        results:
-          results.kind === "excerpts"
-            ? { kind: results.kind, sources: results.sources }
-            : {
-                kind: results.kind,
-                modelId: results.modelId,
-                modelIdServed: results.modelIdServed,
-                sources: results.sources,
-                text: results.text,
-                usage: results.usage,
-                provider: {
-                  displayName: results.provider.displayName,
-                  id: results.provider.id,
-                  type: results.provider.type,
-                },
-              },
-        state: "success" as const,
-      });
-    }
-  },
-  readOnly: true,
-  timeoutMs: ms("2 minutes"),
-  toModelOutput: ({ output }) => {
-    if (output.state === "failure") {
-      return {
-        type: "error-text",
-        value: output.errorMessage,
-      };
-    }
+          const results = result.value;
+          const { platformRefusal } = results;
+          yield ok({
+            ...(platformRefusal && { platformRefusal }),
+            results:
+              results.kind === "excerpts"
+                ? { kind: results.kind, sources: results.sources }
+                : {
+                    kind: results.kind,
+                    modelId: results.modelId,
+                    modelIdServed: results.modelIdServed,
+                    sources: results.sources,
+                    text: results.text,
+                    usage: results.usage,
+                    provider: {
+                      displayName: results.provider.displayName,
+                      id: results.provider.id,
+                      type: results.provider.type,
+                    },
+                  },
+            state: "success" as const,
+          });
+        }
+      },
+      readOnly: true,
+      timeoutMs: () => ms("2 minutes"),
+      toModelOutput: ({ output }) => {
+        if (output.state === "failure") {
+          return {
+            type: "error-text",
+            value: output.errorMessage,
+          };
+        }
 
-    // Every stored part is replayed through here when a turn is rebuilt, and
-    // parts are cast rather than parsed on the way out of the store, so a search
-    // recorded by a build that shaped its results differently arrives typed as
-    // today's without being it. Reading it back is what keeps that turn alive.
-    const results = readWebSearchResults(output);
-    if (!results) {
-      return {
-        type: "error-text",
-        value: "This search's results could not be read.",
-      };
-    }
+        // Every stored part is replayed through here when a turn is rebuilt, and
+        // parts are cast rather than parsed on the way out of the store, so a search
+        // recorded by a build that shaped its results differently arrives typed as
+        // today's without being it. Reading it back is what keeps that turn alive.
+        const results = readWebSearchResults(output);
+        if (!results) {
+          return {
+            type: "error-text",
+            value: "This search's results could not be read.",
+          };
+        }
 
-    const isExcerpts = results.kind === "excerpts";
-    const budgeted = budgetSearchText(results);
-    const sourcesText =
-      results.sources.length > 0
-        ? `\n\nSources:\n${results.sources.map((s) => `- ${s.title ? `[${s.title}](${s.url})` : s.url}`).join("\n")}`
-        : "";
-    const body = isExcerpts
-      ? formatExcerpts(
-          results.sources.map((source, index) => ({
-            ...source,
-            text: budgeted.texts[index] ?? "",
-          })),
-        )
-      : (budgeted.texts[0] ?? "");
+        const isExcerpts = results.kind === "excerpts";
+        const budgeted = budgetSearchText(results);
+        const sourcesText =
+          results.sources.length > 0
+            ? `\n\nSources:\n${results.sources.map((s) => `- ${s.title ? `[${s.title}](${s.url})` : s.url}`).join("\n")}`
+            : "";
+        const body = isExcerpts
+          ? formatExcerpts(
+              results.sources.map((source, index) => ({
+                ...source,
+                text: budgeted.texts[index] ?? "",
+              })),
+            )
+          : (budgeted.texts[0] ?? "");
 
-    // Our notes about what was cut come before the results, so the results
-    // end the output and nothing of ours follows text a page wrote.
-    const notes = [
-      budgeted.clipped ? SHORTENING_NOTE : undefined,
-      budgeted.droppedLines > 0
-        ? boilerplateNote(budgeted.droppedLines)
-        : undefined,
-      isExcerpts ? EXCERPTS_PREAMBLE : SUMMARY_PREAMBLE,
-    ].filter((note) => note !== undefined);
+        // Our notes about what was cut come before the results, so the results
+        // end the output and nothing of ours follows text a page wrote.
+        const notes = [
+          budgeted.clipped ? SHORTENING_NOTE : undefined,
+          budgeted.droppedLines > 0
+            ? boilerplateNote(budgeted.droppedLines)
+            : undefined,
+          isExcerpts ? EXCERPTS_PREAMBLE : SUMMARY_PREAMBLE,
+        ].filter((note) => note !== undefined);
 
-    return {
-      type: "text",
-      value: `${notes.join("\n\n")}\n\n${body}${sourcesText}`,
-    };
+        return {
+          type: "text",
+          value: `${notes.join("\n\n")}\n\n${body}${sourcesText}`,
+        };
+      },
+      name: "web_search",
+      output: z.discriminatedUnion("state", [
+        z.object({
+          // Which backend served the search decides what a result even is, so the
+          // two shapes stay distinct instead of collapsing into shared optional
+          // fields that only one of them ever fills in.
+          // Our endpoint refused the search for the account's plan, and another
+          // search stood in (a basic one, or the model's own provider's): what
+          // the platform said, for the chat to show.
+          platformRefusal: PlanRefusalSchema.optional(),
+          results: z.discriminatedUnion("kind", [
+            ExcerptResultsSchema,
+            SummaryResultsSchema,
+          ]),
+          state: z.literal("success"),
+        }),
+        z.object({
+          errorMessage: z.string(),
+          errorType: z.enum([
+            "api-call",
+            "invalid-query",
+            "no-search-backend",
+            "not-authenticated",
+            "payment-required",
+          ]),
+          responseBody: z.string().optional(),
+          state: z.literal("failure"),
+        }),
+      ]),
+    },
   },
 });
+
+export const WebSearch = modelTool(webSearchCapability);
 
 /**
  * How many of one search's results must carry a line before its later copies

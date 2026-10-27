@@ -474,23 +474,39 @@ function ownRecords<T extends { id: string }>(
 
 const TOPICS = ["pricing", "onboarding", "hiring"] as const;
 
+/**
+ * The docs this run made for each topic, every one whose title names it: a
+ * stray duplicate is a doc like any other, so a check passes when any doc
+ * of the topic satisfies it.
+ */
 function errandDocs(sessions: Session.WithMessagesAndParts[]) {
   const docs = ownRecords(DOCS, sessions);
   return TOPICS.map((topic) => ({
-    doc: docs.find((doc) => doc.title.toLowerCase().includes(topic)),
+    docs: docs.filter((doc) => doc.title.toLowerCase().includes(topic)),
     topic,
   }));
+}
+
+/** The topics no doc of which passes `check`. */
+function topicsFailing(
+  sessions: Session.WithMessagesAndParts[],
+  check: (doc: StoredDoc) => boolean,
+): string[] {
+  return errandDocs(sessions)
+    .filter(({ docs }) => !docs.some(check))
+    .map(({ topic }) => topic);
 }
 
 const madeThreeDocs: Assertion = {
   check: ({ sessions }) => {
     const text = "made a doc for each of pricing, onboarding and hiring";
-    const found = errandDocs(sessions);
-    const missing = found.filter(({ doc }) => !doc).map(({ topic }) => topic);
+    const missing = topicsFailing(sessions, () => true);
     return {
       evidence:
         missing.length === 0
-          ? found.map(({ doc }) => doc?.title).join(" | ")
+          ? errandDocs(sessions)
+              .flatMap(({ docs }) => docs.map((doc) => doc.title))
+              .join(" | ")
           : `missing: ${missing.join(", ")}`,
       passed: missing.length === 0,
       text,
@@ -502,14 +518,15 @@ const madeThreeDocs: Assertion = {
 const editedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "wrote a summary paragraph into each doc";
-    const empty = errandDocs(sessions).filter(
-      ({ doc }) => !doc || doc.text.trim().length < 40,
+    const empty = topicsFailing(
+      sessions,
+      (doc) => doc.text.trim().length >= 40,
     );
     return {
       evidence:
         empty.length === 0
           ? "all three have text"
-          : `no summary: ${empty.map(({ topic }) => topic).join(", ")}`,
+          : `no summary: ${empty.join(", ")}`,
       passed: empty.length === 0,
       text,
     };
@@ -520,19 +537,35 @@ const editedEach: Assertion = {
 const checkedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "read each doc back after editing it";
-    const unread = errandDocs(sessions).filter(
-      ({ doc }) => !doc?.readAfterEdit,
-    );
+    const unread = topicsFailing(sessions, (doc) => doc.readAfterEdit);
     return {
       evidence:
         unread.length === 0
           ? "all three read back"
-          : `not read back: ${unread.map(({ topic }) => topic).join(", ")}`,
+          : `not read back: ${unread.join(", ")}`,
       passed: unread.length === 0,
       text,
     };
   },
   text: "read each doc back after editing it",
+};
+
+/**
+ * Always passes: how many docs past one each topic got, which a correct
+ * run can still leave behind and comparing runs reads.
+ */
+const extraDocs: Assertion = {
+  check: ({ sessions }) => {
+    const extra = errandDocs(sessions).map(
+      ({ docs, topic }) => `${topic} ${Math.max(0, docs.length - 1)}`,
+    );
+    return {
+      evidence: `extra docs per title: ${extra.join(", ")}`,
+      passed: true,
+      text: "records extra docs per title",
+    };
+  },
+  text: "records extra docs per title",
 };
 
 /** The Thursday after `now` (today, when today is a Thursday), as YYYY-MM-DD in local time. */
@@ -568,13 +601,14 @@ const addedTheEvent: Assertion = {
 const draftedTheEmail: Assertion = {
   check: ({ sessions }) => {
     const text = "drafted the email to Aiko linking all three docs";
-    const docs = errandDocs(sessions).flatMap(({ doc }) => (doc ? [doc] : []));
+    const topics = errandDocs(sessions);
     const drafts = ownRecords(DRAFTS, sessions);
     const right = drafts.find(
       (draft) =>
         /^to:.*aiko@example\.com/im.test(draft.raw) &&
-        docs.length === TOPICS.length &&
-        docs.every((doc) => draft.raw.includes(doc.id)),
+        topics.every(({ docs }) =>
+          docs.some((doc) => draft.raw.includes(doc.id)),
+        ),
     );
     return {
       evidence: right
@@ -645,6 +679,7 @@ export const APP_SCRIPTING_API_EVALS = [
       checkedEach,
       addedTheEvent,
       draftedTheEmail,
+      extraDocs,
       mechanism,
     ],
     name: "app-scripting-errand-google",

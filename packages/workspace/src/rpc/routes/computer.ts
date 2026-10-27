@@ -12,6 +12,7 @@ import {
   describeComputerFiles,
   listComputerFolder,
 } from "../../lib/chat/computer";
+import { computerFileTitles } from "../../lib/chat/computer-titles";
 import {
   LocatedPathSchema,
   locateComputerPath,
@@ -95,10 +96,21 @@ const describe = base
     describeComputerFiles({ chatId: input.id, paths: input.paths }),
   );
 
+/**
+ * The titles the pages among `paths` give themselves, by host path, for a
+ * folder listed by them; a file with none, or not on this computer's disk, is
+ * left out.
+ */
+const titles = base
+  .input(z.object({ paths: z.array(z.string()).max(5000) }))
+  .output(z.record(z.string(), z.string()))
+  .handler(({ input }) => computerFileTitles(input.paths));
+
 export const computer = {
   describe,
   drives,
   list,
   locate,
   places,
+  titles,
 };

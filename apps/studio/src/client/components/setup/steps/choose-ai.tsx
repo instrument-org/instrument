@@ -170,6 +170,7 @@ export function ChooseAI({
             onSubscription={() => {
               setPage({ kind: "subscriptions" });
             }}
+            offer={offer}
             signedIn={signedIn}
           />
         );
@@ -311,24 +312,30 @@ const PAGE_DEPTH: Record<ChooseAIPage["kind"], number> = {
 };
 
 /**
- * How the person brings AI: Google, a subscription they pay for, or a key.
- * Welcome is on the folder step before it, so this page goes straight to
- * the question. Signed in to Instrument already, Google's button is See
- * plans.
+ * How the person brings AI: Instrument's own, a subscription they pay for,
+ * or a key. Welcome is on the folder step before it, so this page goes
+ * straight to the question. Signed in to Instrument already, Google's button
+ * is See plans; signed out, it offers the server's trial when there is one.
  */
 function ChoicesPage({
   google,
+  offer,
   onGoogle,
   onKey,
   onSubscription,
   signedIn,
 }: {
   google: ConnectFlow<void>;
+  offer: Offer | undefined;
   onGoogle: () => void;
   onKey: () => void;
   onSubscription: () => void;
   signedIn: boolean;
 }) {
+  const trialDays =
+    !signedIn && instrumentWayCopy(offer).isTrial
+      ? offer?.trial?.days
+      : undefined;
   const line =
     google.phase === "on-web" || (signedIn && google.waiting)
       ? "Finish choosing your plan in your browser."
@@ -339,12 +346,8 @@ function ChoicesPage({
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
-      subtitle={
-        signedIn
-          ? `You're signed in to ${APP_NAME}. Choose a plan, or use a subscription or key you already pay for.`
-          : "Sign in with Google, or use a subscription or key you already pay for."
-      }
-      title="How would you like to use AI?"
+      subtitle={`Pick your AI provider to begin. An ${APP_NAME} plan lets you pick models from OpenAI, Anthropic and more, at one affordable price.${trialDays === undefined ? "" : ` Try it free for ${String(trialDays)} days.`}`}
+      title={`Which AI should ${APP_NAME} use?`}
     >
       <div className="mt-10 flex w-95 max-w-full flex-col gap-3">
         <BrowserHandoffButton
@@ -355,7 +358,11 @@ function ChoicesPage({
           variant="default"
           waiting={google.waiting}
         >
-          {signedIn ? "See plans" : "Continue with Google"}
+          {signedIn
+            ? "See plans"
+            : trialDays === undefined
+              ? `Sign in to use ${APP_NAME} AI`
+              : `Sign in to try ${APP_NAME} AI free`}
         </BrowserHandoffButton>
         <Button
           className="h-10 w-full bg-white/30 text-base text-foreground dark:bg-white/5"

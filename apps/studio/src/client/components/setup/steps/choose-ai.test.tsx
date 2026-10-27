@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChooseAI } from "./choose-ai";
 
 const instrument = vi.hoisted(() => ({
+  offer: null as null | {
+    plans: never[];
+    trial: { cardRequired: boolean; days: number };
+  },
   signedIn: false,
   start: vi.fn<(input?: unknown) => Promise<ConnectResult | undefined>>(),
 }));
@@ -49,7 +53,7 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
-          queryFn: () => Promise.resolve(null),
+          queryFn: () => Promise.resolve(instrument.offer),
           queryKey: ["offer"],
         }),
       },
@@ -66,30 +70,47 @@ function renderChoices() {
 }
 
 beforeEach(() => {
+  instrument.offer = null;
   instrument.start.mockReset();
 });
 
 describe("ChooseAI", () => {
-  it("offers Google while signed out", async () => {
+  it("offers Instrument AI while signed out", async () => {
     instrument.signedIn = false;
     instrument.start.mockResolvedValue({ outcome: { kind: "canceled" } });
     renderChoices();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Continue with Google" }),
+      await screen.findByRole("button", {
+        name: "Sign in to use Instrument AI",
+      }),
     );
     expect(instrument.start).toHaveBeenCalledWith(undefined);
+  });
+
+  it("offers the server's trial while signed out", async () => {
+    instrument.signedIn = false;
+    instrument.offer = {
+      plans: [],
+      trial: { cardRequired: false, days: 7 },
+    };
+    renderChoices();
+    expect(
+      await screen.findByRole("button", {
+        name: "Sign in to try Instrument AI free",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Pick your AI provider to begin. An Instrument plan lets you pick models from OpenAI, Anthropic and more, at one affordable price. Try it free for 7 days.",
+      ),
+    ).toBeTruthy();
   });
 
   it("offers See plans in Google's place to an account signed in with no plan, and stays signed in after Cancel", async () => {
     instrument.signedIn = true;
     instrument.start.mockResolvedValue({ outcome: { kind: "canceled" } });
     const onDone = renderChoices();
-    expect(
-      await screen.findByText(
-        "You're signed in to Instrument. Choose a plan, or use a subscription or key you already pay for.",
-      ),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "See plans" }));
+    fireEvent.click(await screen.findByRole("button", { name: "See plans" }));
     expect(instrument.start).toHaveBeenCalledWith({ plans: true });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "See plans" })).toBeTruthy();

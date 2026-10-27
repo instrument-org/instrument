@@ -70,9 +70,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### H. The ChatGPT account store can't be read on Linux
 
-- Status: declined
+- Status: superseded `7d152d594`
 - What: every launch after sign-in logged `(chatgpt-account) Failed to read the ChatGPT account store Error: Encryption is not available` four times. No visible effect in this run, and Instrument sign-in survived restarts; a ChatGPT sign-in on Linux was not tried.
 - Declined because: Linux without a usable keyring has no encryption for Electron's `safeStorage`, which every Electron app meets the same way; the line is noise with no effect seen.
+- Note: the keyring was not the cause. After an unclean exit the problem report was built before the app was ready, when `safeStorage` cannot decrypt on any platform; finding R moved it to after ready.
 
 ### I. The in-app browser is dead for the whole first session after setup
 

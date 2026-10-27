@@ -115,6 +115,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
+  keepPreviousData,
   useMutation,
   useQueries,
   useQuery,
@@ -1133,6 +1134,38 @@ export function ComputerPage({
   const currentKey = folderKeyOf(current);
   const view =
     viewInHistory ?? folderViews[folderKeyOf(path)]?.view ?? defaultView;
+  // The List leads each page with the title it gives itself, read for the
+  // files listed while it is the layout, and again for a file once it is
+  // written.
+  const titledFiles =
+    view === "list"
+      ? items.filter(
+          (item) =>
+            item.kind === "file" && TITLED_NAME.test(hostPathOfItem(item)),
+        )
+      : [];
+  const titles = useQuery({
+    enabled: titledFiles.length > 0,
+    placeholderData: keepPreviousData,
+    queryFn: () =>
+      rpcClient.workspace.computer.titles.call({
+        paths: titledFiles.map(hostPathOfItem),
+      }),
+    queryKey: [
+      "computer-titles",
+      titledFiles.map(
+        (item) =>
+          `${hostPathOfItem(item)}\0${item.kind === "file" ? (item.updatedAt ?? "") : ""}`,
+      ),
+    ],
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const titledItems = titles.data
+    ? items.map((item) => {
+        const title = titles.data[hostPathOfItem(item)];
+        return item.kind === "file" && title ? { ...item, title } : item;
+      })
+    : items;
   // A direct arrival's layout written into its step, so back to it shows it
   // the way it was even after the folder's own or the default moves on.
   useEffect(() => {
@@ -2559,7 +2592,7 @@ export function ComputerPage({
                       : undefined
                   }
                   getHostPath={(item) => hostPathOfItem(item) || undefined}
-                  items={items}
+                  items={titledItems}
                   key={`${root}#${openings}`}
                   listColumns={listColumns}
                   listColumnWidths={listColumnWidths}
@@ -3459,6 +3492,9 @@ function withGlyph(glyphSrc: string | undefined) {
 }
 
 /** Where an item the browser is showing sits on the Mac. */
+/** The files that give themselves a title: pages and Markdown. */
+const TITLED_NAME = /\.(?:x?html?|markdown|mdx?)$/i;
+
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";

@@ -42,7 +42,7 @@ export const Route = createFileRoute("/_app/files")({
      * address, reads as absent rather than failing the route.
      */
     view: z
-      .enum(["columns", "gallery", "icons", "list"])
+      .enum(["columns", "gallery", "icons", "list", "table"])
       .optional()
       .catch(undefined),
   }),

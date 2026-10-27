@@ -245,8 +245,8 @@ export const inboxWidthAtom = atom(
  * the way a Finder window does.
  */
 export const computerViewAtom = keptAtom<
-  "columns" | "gallery" | "icons" | "list"
->("view", "computer-view.v1", "columns");
+  "columns" | "gallery" | "icons" | "list" | "table"
+>("view", "computer-view.v2", "columns");
 
 /** Off by default, the way every file browser starts: a folder of dotfiles is a folder whose own contents are harder to find. */
 export const computerHiddenFilesAtom = keptAtom<boolean>(
@@ -265,7 +265,7 @@ export const computerHiddenFilesAtom = keptAtom<boolean>(
  */
 export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>
->("view", "computer-folder-views.v1", {});
+>("view", "computer-folder-views.v2", {});
 
 /**
  * The folders opened in place in the list, by where each is on the
@@ -283,7 +283,7 @@ export interface ComputerFolderView {
   /** Absent for a folder last set before grouping, which is ungrouped. */
   group?: FileSystemGroupKey | null;
   sort: FileSystemSortState;
-  view: "columns" | "gallery" | "icons" | "list";
+  view: "columns" | "gallery" | "icons" | "list" | "table";
 }
 
 /**

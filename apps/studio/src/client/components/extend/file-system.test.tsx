@@ -32,7 +32,7 @@ function renderList() {
   const onTrash = vi.fn();
   renderWithProviders(
     <FileSystem
-      defaultView="list"
+      defaultView="table"
       items={FILES}
       onFileOpen={onFileOpen}
       onOpenSeveral={onOpenSeveral}
@@ -80,7 +80,7 @@ function renderList() {
 }
 
 describe("FileSystem", () => {
-  it.each(["icons", "list"] as const)(
+  it.each(["icons", "list", "table"] as const)(
     "holds off saying a folder still being read is empty in %s",
     (view) => {
       renderWithProviders(
@@ -97,14 +97,14 @@ describe("FileSystem", () => {
   );
 
   it("says a folder read with nothing in it is empty", () => {
-    renderWithProviders(<FileSystem defaultView="list" items={[]} />);
+    renderWithProviders(<FileSystem defaultView="table" items={[]} />);
 
     expect(screen.getByText("This folder is empty")).toBeTruthy();
   });
 
   // A file's kind reads the same whether its extension or only its type
   // says what it is, and never as the type itself.
-  it("names each file's kind in the list in words", () => {
+  it("names each file's kind in the table in words", () => {
     // The list drops columns it has no room for, and nothing is laid out here.
     const width = vi
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
@@ -114,7 +114,7 @@ describe("FileSystem", () => {
     });
     renderWithProviders(
       <FileSystem
-        defaultView="list"
+        defaultView="table"
         items={[
           { contentType: "text/plain", kind: "file", path: "task.txt" },
           { contentType: "text/plain", kind: "file", path: "2024" },
@@ -159,7 +159,7 @@ describe("FileSystem", () => {
   it("lists dotfiles once the sort menu shows hidden files", () => {
     renderWithProviders(
       <FileSystem
-        defaultView="list"
+        defaultView="table"
         items={[
           { kind: "file", path: ".env" },
           { kind: "file", path: "notes.md" },
@@ -196,7 +196,7 @@ describe("FileSystem", () => {
   it("offers the order files were opened in for a list of them, the recents", () => {
     renderWithProviders(
       <FileSystem
-        defaultView="list"
+        defaultView="table"
         items={[
           {
             kind: "file",
@@ -405,7 +405,7 @@ describe("FileSystem", () => {
         </p>
       ) : null;
 
-    it.each(["columns", "gallery", "icons", "list"] as const)(
+    it.each(["columns", "gallery", "icons", "list", "table"] as const)(
       "stands in for the whole folder on screen in %s",
       (view) => {
         renderWithProviders(
@@ -439,10 +439,10 @@ describe("FileSystem", () => {
       ).toEqual(["locked", "readme.md"]);
     });
 
-    it("says so in a line under the folder opened in place in the list", () => {
+    it("says so in a line under the folder opened in place in the table", () => {
       renderWithProviders(
         <FileSystem
-          defaultView="list"
+          defaultView="table"
           items={ITEMS}
           renderUnreadable={renderUnreadable}
         />,
@@ -534,7 +534,7 @@ describe("FileSystem", () => {
     it("names the row after what is trashed, for the page to select", () => {
       const handle = React.createRef<FileSystemHandle>();
       renderWithProviders(
-        <FileSystem defaultView="list" items={FILES} ref={handle} />,
+        <FileSystem defaultView="table" items={FILES} ref={handle} />,
       );
 
       expect(handle.current?.rowAfter(["b.txt"])).toBe("c.txt");
@@ -547,7 +547,7 @@ describe("FileSystem", () => {
       renderWithProviders(
         <FileSystem
           defaultSelectedPath="d.txt"
-          defaultView="list"
+          defaultView="table"
           items={FILES}
           ref={handle}
         />,
@@ -569,7 +569,7 @@ describe("FileSystem", () => {
       const onArrowBesideFile = vi.fn(() => true);
       renderWithProviders(
         <FileSystem
-          defaultView="list"
+          defaultView="table"
           items={FILES}
           onArrowBesideFile={onArrowBesideFile}
         />,
@@ -673,7 +673,7 @@ describe("FileSystem", () => {
       });
       renderWithProviders(
         <FileSystem
-          defaultView="list"
+          defaultView="table"
           getHostPath={(item) => `/Users/sam/${item.path}`}
           items={FILES}
         />,
@@ -743,7 +743,7 @@ describe("FileSystem", () => {
     });
   });
 
-  it("opens in the list the folders it is told are open, and says when one closes", () => {
+  it("opens in the table the folders it is told are open, and says when one closes", () => {
     const onOpenFolderChange = vi.fn();
     const items: FileSystemItem[] = [
       { kind: "folder", path: "drafts/" },
@@ -752,7 +752,7 @@ describe("FileSystem", () => {
     ];
     renderWithProviders(
       <FileSystem
-        defaultView="list"
+        defaultView="table"
         items={items}
         onOpenFolderChange={onOpenFolderChange}
         openFolders={new Set(["drafts/"])}
@@ -830,7 +830,11 @@ describe("FileSystem", () => {
 
     it("opens searched for what it was handed", () => {
       renderWithProviders(
-        <FileSystem defaultSearch="notes" defaultView="list" items={FOLDERS} />,
+        <FileSystem
+          defaultSearch="notes"
+          defaultView="table"
+          items={FOLDERS}
+        />,
       );
 
       expect(names()).toEqual(["notes.txt"]);
@@ -844,7 +848,7 @@ describe("FileSystem", () => {
       const onSearchChange = vi.fn();
       renderWithProviders(
         <FileSystem
-          defaultView="list"
+          defaultView="table"
           items={FOLDERS}
           onSearchChange={onSearchChange}
         />,
@@ -913,7 +917,7 @@ describe("the file manager's keys for going up and making a folder", () => {
       renderWithProviders(
         <FileSystem
           defaultPath="docs/"
-          defaultView="list"
+          defaultView="table"
           items={NESTED}
           onLeaveRoot={onLeaveRoot}
           onPathChange={onPathChange}
@@ -934,7 +938,7 @@ describe("the file manager's keys for going up and making a folder", () => {
       const onNewFolder = vi.fn();
       renderWithProviders(
         <FileSystem
-          defaultView="list"
+          defaultView="table"
           items={NESTED}
           onNewFolder={onNewFolder}
         />,
@@ -953,7 +957,7 @@ describe("renaming in place", () => {
   /** A list of five files that can be renamed, with the saves it was asked for. */
   function renderRenamable({
     save = () => Promise.resolve(),
-    view = "list",
+    view = "table",
   }: {
     save?: (item: FileSystemItem, name: string) => Promise<void>;
     view?: FileSystemView;
@@ -1232,5 +1236,79 @@ describe("FileSystemRowGlyph", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
       "data:image/png;base64,QUJD",
     );
+  });
+});
+
+describe("FileSystem's List", () => {
+  const PAGES: FileSystemItem[] = [
+    { kind: "file", path: "a.html", title: "Pricing against competitors" },
+    { kind: "file", path: "b.md", title: "Zendesk tiers" },
+    { kind: "file", path: "c.csv" },
+  ];
+  function renderPages(
+    props: Partial<React.ComponentProps<typeof FileSystem>> = {},
+  ) {
+    const onSelectionChange = vi.fn();
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={PAGES}
+        onSelectionChange={onSelectionChange}
+        {...props}
+      />,
+    );
+    const reported = () =>
+      (
+        onSelectionChange.mock.lastCall?.[1] as FileSystemItem[] | undefined
+      )?.map((item) => item.path);
+    return { reported };
+  }
+
+  it("leads with a file's own title over its name, and with the name and kind where it has none", () => {
+    renderPages();
+
+    expect(
+      screen
+        .getAllByRole("option")
+        .map((option) => [
+          option.querySelector("[data-file-system-name]")?.textContent,
+          option.textContent,
+        ]),
+    ).toMatchInlineSnapshot(`
+      [
+        [
+          "Pricing against competitors",
+          "htmlPricing against competitorsa.html--",
+        ],
+        [
+          "Zendesk tiers",
+          "mdZendesk tiersb.md--",
+        ],
+        [
+          "c.csv",
+          "csvc.csvCSV Document--",
+        ],
+      ]
+    `);
+  });
+
+  it("finds a file by its title", () => {
+    renderPages({ defaultSearch: "zendesk" });
+
+    expect(
+      screen
+        .getAllByRole("option")
+        .map((option) => option.dataset.fileSystemItem),
+    ).toEqual(["b.md"]);
+  });
+
+  it("jumps to a title by its first letters", () => {
+    const { reported } = renderPages();
+    const first =
+      screen.getAllByRole("option")[0] ?? expect.unreachable("no rows");
+
+    fireEvent.click(first);
+    fireEvent.keyDown(first, { key: "z" });
+    expect(reported()).toEqual(["b.md"]);
   });
 });

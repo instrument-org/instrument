@@ -77,3 +77,34 @@ it.each([
 ])("applies the options of %s", async (command, result) => {
   expect(await run(command)).toEqual(result);
 });
+
+// Unpatched, `bash --version` failed `bash: --version: invalid option` at
+// exit 2, so a model checking which bash it has learned nothing.
+it.each(["bash --version", "sh --version"])(
+  "%s prints the bash version it follows and just-bash",
+  async (command) => {
+    const result = await run(command);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(
+      /^GNU bash, version \d+\.\d+\S* \(just-bash\)\n/,
+    );
+  },
+);
+
+// Unpatched, `if then` on line 2 was reported as `Parse error at 3:1: ...
+// unexpected token `fi'`: the wrong token, at the end of the file.
+it.each([
+  [
+    "printf 'echo ok\\nif then\\n' > syntax.sh; bash -n syntax.sh",
+    "syntax.sh: line 2: syntax error near unexpected token `then'\n",
+  ],
+  [
+    "bash -c 'if then'",
+    "bash: -c: line 1: syntax error near unexpected token `then'\n",
+  ],
+])(
+  "names the script, line and token of a syntax error: %s",
+  async (command, stderr) => {
+    expect(await run(command)).toEqual({ exitCode: 2, stderr, stdout: "" });
+  },
+);

@@ -120,8 +120,7 @@ Only `find`'s start points are held to the rules as paths, and it gets no prune:
 | `pnpm`, `pnx`, `pnpx`, `npx` | the bundled pnpm (`npx` and `pnpx` are `pnpm dlx`, whose install takes pnpm's install step outside the sandbox where MXC holds commands) | all |
 | `ffmpeg`, `ffprobe` | `ffmpeg-ffprobe-static` | all |
 | `agent-browser` | the agent-browser CLI, spawned directly with its own flag policy rather than under the native sandbox | all |
-| `instrument calendar`, `instrument contacts` | the Mac helper (`instrument-mac`) | macOS |
-| `instrument mail`, `instrument notes`, `instrument messages` | `/usr/bin/osascript` running the app's own scripts, unwrapped for an app the person allowed | macOS |
+| `instrument app call apple-calendar` and the other Mac apps | the Mac apps' MCP server the app ships (`lib/mac-apps`), run as a local MCP app's server outside the sandbox; it runs the Mac helper (`instrument-mac`) for Calendar, Reminders and Contacts, and `/usr/bin/osascript` with the app's own scripts for Mail, Notes and Messages | macOS |
 | `osascript` | refused by its bare name; by its path, `/usr/bin/osascript` in the profile, where no app takes its events | macOS |
 | `shortcuts` | `/usr/bin/shortcuts`, found on the PATH like any other program, after asking for Shortcuts; the profile closes the services a shortcut runs in until it is allowed | macOS |
 | `launchctl` (macOS), `schtasks` (Windows), `crontab`, `at`, `atq`, `atrm`, `batch` | refused by their bare names, so a scheduled or background job never runs outside the sandbox. macOS's boundary is the profile's `(deny job-creation)`, which holds a job started any other way; Linux's is the read-only root and non-elevating setuid; on Windows MXC's process container is expected to refuse the Task Scheduler service, unverified | all |

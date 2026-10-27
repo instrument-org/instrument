@@ -5,8 +5,8 @@
 // - instrument-seatbelt, which starts every native command the agent runs
 //   under its Seatbelt profile, compiled once per set of rules
 //   (native/mac-helper/seatbelt);
-// - instrument-mac, the helper process behind the agent's `calendar` and
-//   `contacts` commands (Swift, native/mac-helper/Sources);
+// - instrument-mac, the helper process behind the Calendar, Reminders and
+//   Contacts apps' MCP server (Swift, native/mac-helper/Sources);
 // - instrument-mac.node, the module main loads for what macOS keys to the
 //   app itself, like notification permission, and for what the file browser
 //   asks of every folder it lists (Objective-C over Node-API,

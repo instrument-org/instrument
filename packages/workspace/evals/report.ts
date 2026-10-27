@@ -93,7 +93,7 @@ export interface RollupSummary {
 }
 
 /** What one run produced, in the form a caller can act on without re-reading. */
-export interface RunReport {
+interface RunReport {
   assertions: AssertionResult[];
   caseName: string;
   cost: RunCost;
@@ -647,7 +647,7 @@ interface Range {
 }
 
 /** One case on one model across every trial that reported it. */
-export interface CaseSpread {
+interface CaseSpread {
   assertions: { passed: number; total: number };
   caseName: string;
   /** Over the trials that could price their model requests. */
@@ -686,7 +686,7 @@ function rangeOf(values: number[]): Range | undefined {
   };
 }
 
-export function spreadOf(results: readonly RunReport[]): CaseSpread[] {
+function spreadOf(results: readonly RunReport[]): CaseSpread[] {
   const groups = new Map<string, RunReport[]>();
   for (const result of results) {
     const key = `${result.caseName}\u0000${result.modelURI ?? ""}`;

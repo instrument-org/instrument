@@ -10,6 +10,11 @@
  * carrying the whole card, so it had no turn to post a line per connection;
  * and the reply to that note names what connected and what was skipped
  * without restating the count the card already shows.
+ *
+ * `app-card-unfinished-setup` asks for a fifth app, Sheets, whose setup
+ * stopped before its guide was written, so `connect_app` cannot put it on
+ * the card. Scored: the call named it, and what the agent says after the
+ * card's note tells the user about it, so nobody takes it as connected.
  */
 import { type Session } from "../../src/schemas/session";
 import { askedOnCard } from "../../src/tools/connect-app-output";
@@ -25,7 +30,7 @@ const SKIPPED = "gcal";
 const COUNT = /\b(?:\d|one|two|three|four)\s+(?:of|out of)\s+(?:\d|four)\b/i;
 
 type Step =
-  | { kind: "card"; slugs: string[] }
+  | { kind: "card"; named: string[]; slugs: string[] }
   | { apps: string[]; kind: "note" }
   | { kind: "text"; text: string };
 
@@ -49,6 +54,7 @@ function steps(sessions: Session.WithMessagesAndParts[]): Step[] {
         ) {
           found.push({
             kind: "card",
+            named: part.input.slugs,
             slugs: askedOnCard(part.output).map((row) => row.slug),
           });
         } else if (
@@ -143,6 +149,49 @@ const reply: Assertion = {
   text: "answered the note naming what connected and what was skipped, without restating the count",
 };
 
+/** An app the user asks for whose setup never finished, so it gets no row. */
+const UNFINISHED = {
+  name: "Google Sheets",
+  slug: "gsheets",
+  word: /\bsheets\b/i,
+};
+
+const namedAllFive: Assertion = {
+  check: ({ sessions }) => {
+    const text =
+      "named all five apps, Sheets among them, in its first connect_app call";
+    const found = steps(sessions);
+    const first = found.find((step) => step.kind === "card");
+    return {
+      evidence: describe(found),
+      passed:
+        first !== undefined &&
+        [...APPS, UNFINISHED].every((app) => first.named.includes(app.slug)),
+      text,
+    };
+  },
+  text: "named all five apps, Sheets among them, in its first connect_app call",
+};
+
+const replyNamesUnfinished: Assertion = {
+  check: ({ sessions }) => {
+    const text =
+      "after the card's note, told the user about Sheets, which never reached the card";
+    const found = steps(sessions);
+    const note = found.findIndex((step) => step.kind === "note");
+    const said = found
+      .slice(note + 1)
+      .flatMap((step) => (step.kind === "text" ? [step.text] : []))
+      .join("\n");
+    return {
+      evidence: said.slice(0, 400) || describe(found),
+      passed: note !== -1 && UNFINISHED.word.test(said),
+      text,
+    };
+  },
+  text: "after the card's note, told the user about Sheets, which never reached the card",
+};
+
 export const APP_SIGN_IN_CARD_EVALS = [
   defineEval({
     apps: APPS.map(({ name, slug }) => ({
@@ -155,6 +204,26 @@ export const APP_SIGN_IN_CARD_EVALS = [
     name: "app-sign-in-card",
     prompt:
       "I'm planning next week's team offsite. Connect my Google Drive, Google Docs, Google Calendar and Gmail so you can pull the plan together. Just get them connected for now; I'll say what to do once they're in.",
+    signInsAnswerAs: { [SKIPPED]: "declined" },
+  }),
+  defineEval({
+    apps: [
+      ...APPS.map(({ name, slug }) => ({
+        kind: "sign-in" as const,
+        name,
+        slug,
+      })),
+      {
+        kind: "unfinished" as const,
+        name: UNFINISHED.name,
+        slug: UNFINISHED.slug,
+      },
+    ],
+    assertions: [namedAllFive, replyNamesUnfinished],
+    kind: "chat",
+    name: "app-card-unfinished-setup",
+    prompt:
+      "I'm planning next week's team offsite. Connect my Google Drive, Google Docs, Google Sheets, Google Calendar and Gmail so you can pull the plan together. Just get them connected for now; I'll say what to do once they're in.",
     signInsAnswerAs: { [SKIPPED]: "declined" },
   }),
 ];

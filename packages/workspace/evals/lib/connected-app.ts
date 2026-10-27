@@ -15,9 +15,11 @@ export interface AppFixture {
    * the larger issue tracker in `mcp-tracker.ts` over MCP; `web` is a site
    * the user said they are signed in to, at `url`, with no server at all;
    * `sign-in` is an app set up and not connected yet, which signs in
-   * directly, for a case that has the agent ask for it (`signInsAnswerAs`).
+   * directly, for a case that has the agent ask for it (`signInsAnswerAs`);
+   * `unfinished` is an API app whose setup stopped before its guide was
+   * written, which `connect_app` refuses to put on a card.
    */
-  kind?: "api" | "mcp" | "sign-in" | "web";
+  kind?: "api" | "mcp" | "sign-in" | "unfinished" | "web";
   /** What the user calls it, as the manifest carries it. */
   name: string;
   /**
@@ -118,6 +120,21 @@ export async function seedConnectedApps(
           url: `https://${fixture.slug}.example.invalid/mcp`,
         },
         `${fixture.name}, set up and waiting for the user to sign in.\n`,
+      );
+      continue;
+    }
+    if (fixture.kind === "unfinished") {
+      await writeApp(
+        appsDir,
+        fixture,
+        {
+          auth: { kind: "bearer" },
+          test: { path: "/me" },
+          type: "api",
+          url: `https://${fixture.slug}.example.invalid`,
+        },
+        // A prompt `app new` leaves in an API app's guide, still unanswered.
+        "What this app is for, in a sentence or two.\n",
       );
       continue;
     }

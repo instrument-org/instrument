@@ -55,8 +55,9 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### F. The agent can't read a local HTML page through its browser tab
 
-- Status: open
+- Status: not a defect
 - What: `instrument tab open` on a local `report.html` opened it as a file tab, and `instrument tab read` answered that it "is not a page". For `https://example.com` the agent opened a tab but read the page with curl and `web_fetch` instead.
+- Note: a path given to `instrument tab open` opens the file's own viewer, not a page, and `tab read` on it says so and points at reading it by its path, which the agent can since it named that path; `agent-browser open <path>` is the way to the rendered page. The `example.com` half is very likely finding I: on a first session no guest attaches, so the tab never had a page to read and the agent fell back to fetching it.
 
 ### G. A `&` inside `bash -c` in a background command never ran (low confidence)
 

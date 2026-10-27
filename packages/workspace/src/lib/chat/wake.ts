@@ -219,6 +219,8 @@ export async function wakeChatForApp(
   events: SessionMessageDataPart.AppEventDataPart["events"],
   workspaceRef: WorkspaceActorRef,
   asked: ChatId,
+  /** For an app asked for on a card with others, every app on the card as it stands. */
+  signIns?: SessionMessageDataPart.SignInProgress,
 ): Promise<void> {
   if (!resolveChat(asked)) {
     return;
@@ -227,7 +229,12 @@ export async function wakeChatForApp(
   if (sessionId === undefined || !(await chatModelURI(asked))) {
     return;
   }
-  const note = await appWakeNote({ chatId: asked, events, sessionId });
+  const note = await appWakeNote({
+    chatId: asked,
+    events,
+    sessionId,
+    signIns,
+  });
   if (note.isErr()) {
     throw note.error;
   }

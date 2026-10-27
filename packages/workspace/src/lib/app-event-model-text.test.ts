@@ -124,4 +124,73 @@ describe("the note an app event wakes the chat with", () => {
       `"- The user declined to connect Outlook (outlook). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can."`,
     );
   });
+
+  it("says a card with several apps is answered once, with what the user did on each", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [
+          {
+            account: "you@example.com",
+            event: "connected",
+            name: "Gmail",
+            slug: "gmail",
+          },
+          {
+            account: "you@example.com",
+            event: "connected",
+            name: "Google Drive",
+            slug: "drive",
+          },
+          { event: "declined", name: "Google Slides", slug: "slides" },
+        ],
+        signIns: [
+          {
+            account: "you@example.com",
+            name: "Google Drive",
+            slug: "drive",
+            standing: "connected",
+          },
+          { name: "Google Slides", slug: "slides", standing: "declined" },
+          {
+            account: "you@example.com",
+            name: "Gmail",
+            slug: "gmail",
+            standing: "connected",
+          },
+        ],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Apps changed:
+      - The user signed in to Gmail (gmail). It is connected. Use it now: \`instrument app tools gmail\`, then \`instrument app call\`. It is signed in as you@example.com.
+      - The user signed in to Google Drive (drive). It is connected. Use it now: \`instrument app tools drive\`, then \`instrument app call\`. It is signed in as you@example.com.
+      - The user declined to connect Google Slides (slides). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.
+      Every app on your sign-in card is answered, and this is the one note it sends: connected: Google Drive (drive) as you@example.com, Gmail (gmail) as you@example.com; skipped by the user: Google Slides (slides). Answer it in one message: which apps are connected, as which account where it is named, and which the user skipped.
+      Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("says where a card stands when one of its sign-ins does not connect", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [{ event: "failed", name: "Google Docs", slug: "docs" }],
+        signIns: [
+          {
+            account: "you@example.com",
+            name: "Google Drive",
+            slug: "drive",
+            standing: "connected",
+          },
+          { name: "Google Docs", slug: "docs", standing: "failed" },
+          { name: "Gmail", slug: "gmail", standing: "waiting" },
+        ],
+      }).split("\n")[4],
+    ).toMatchInlineSnapshot(
+      `"Your sign-in card as it stands: connected: Google Drive (drive) as you@example.com; did not connect: Google Docs (docs); not answered yet: Gmail (gmail). The card shows the user the count, so leave it out; you are woken once more when no app on it is waiting."`,
+    );
+  });
 });

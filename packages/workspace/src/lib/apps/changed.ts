@@ -1,8 +1,14 @@
 import { publisher } from "../../rpc/publisher";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type SignInEnd } from "./connection";
 import { loadApp } from "./store";
 import { signsInDirectly, webInsteadUrl } from "./site";
+
+type AppEventPayload = Omit<
+  SessionMessageDataPart.AppEventDataPart["events"][number],
+  "event"
+> & { event: AppEvent };
 
 /** What the user did to an app outside the conversation, which the chat is told. */
 export type AppEvent =
@@ -21,21 +27,31 @@ export type AppEvent =
  */
 export async function appChanged(
   slug: string,
-  happened?: {
-    detail?: string;
-    /** For a failed sign-in, how it ended, when that was more than an error. */
-    ended?: SignInEnd;
-    event: AppEvent;
-  },
+  happened?: Happened,
 ): Promise<void> {
   publisher.publish("app.updated", null);
   if (!happened) {
     return;
   }
+  publisher.publish("app.event", await appEventOf(slug, happened));
+}
+
+type Happened = {
+  detail?: string;
+  /** For a failed sign-in, how it ended, when that was more than an error. */
+  ended?: SignInEnd;
+  event: AppEvent;
+};
+
+/** What the chat is told of something the user did to an app, in the app's own name and account. */
+export async function appEventOf(
+  slug: string,
+  happened: Happened,
+): Promise<AppEventPayload> {
   const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
   const app = loaded.isOk() ? loaded.value : undefined;
   const manifest = app?.manifest;
-  publisher.publish("app.event", {
+  return {
     ...(manifest?.account === undefined ? {} : { account: manifest.account }),
     ...(happened.detail === undefined ? {} : { detail: happened.detail }),
     event: happened.event,
@@ -55,7 +71,7 @@ export async function appChanged(
           },
         }
       : {}),
-  });
+  };
 }
 
 function withWeb(web: string | undefined): { web?: string } {

@@ -28,6 +28,7 @@ import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
 import { answerQuestion, openAsks, openAsksOf } from "../../lib/chat/open-asks";
 import { wakeAskers } from "../../lib/chat/wake";
+import { openSignInsOf } from "../../lib/apps/sign-in-group";
 import { AskSchema } from "../../schemas/chat-state";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
@@ -392,9 +393,15 @@ const answerQuestionRoute = base
         if (!partId) {
           return;
         }
+        const signIns = await openSignInsOf(input.id, sessionId);
         await wakeAskers(
           {
-            data: { answer: input.answer, partId, question: question.question },
+            data: {
+              answer: input.answer,
+              partId,
+              question: question.question,
+              ...(signIns === undefined ? {} : { signIns }),
+            },
             type: "data-questionAnswer",
           },
           context.workspaceRef,

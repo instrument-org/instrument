@@ -673,6 +673,25 @@ export namespace SessionMessageDataPart {
   export type FromChatDataPart = z.output<typeof FromChatDataPartSchema>;
 
   /**
+   * Where each app on a sign-in card the agent put up stands, as the card
+   * draws it: connected (as an account, when one is named), declined by the
+   * user, a sign-in that ended without connecting, or still waiting. Written
+   * when the note is, so the note reads the same on every later turn.
+   */
+  export const SignInProgressSchema = z
+    .array(
+      z.object({
+        account: z.string().optional(),
+        name: z.string(),
+        slug: z.string(),
+        standing: z.enum(["connected", "declined", "failed", "waiting"]),
+      }),
+    )
+    .min(1);
+
+  export type SignInProgress = z.output<typeof SignInProgressSchema>;
+
+  /**
    * An app the user acted on outside the conversation: a sign-in finished in
    * the browser, a key saved on a card, a decline, a disconnect from the
    * app's page. Like a task event, it wakes the chat on a text-less
@@ -726,6 +745,12 @@ export namespace SessionMessageDataPart {
       ),
       /** Every app as the chat's agent knows them once told this. */
       apps: ToldAppsSchema,
+      /**
+       * For a wake about an app asked for on a card with others, every app
+       * on that card as it stands. The card wakes the chat once, when no app
+       * on it is waiting, or early for a sign-in that did not connect.
+       */
+      signIns: SignInProgressSchema.optional(),
     })
     .refine((data) => data.events.length > 0 || data.otherComputer === true, {
       message: "An app note tells an event, or the apps on another computer",
@@ -788,6 +813,12 @@ export namespace SessionMessageDataPart {
     /** The `choose` call it answers, by its part's id. */
     partId: StoreId.PartSchema,
     question: z.string(),
+    /**
+     * The apps on the chat's sign-in cards that still wait on the person,
+     * with the rest of each card as it stands, so the agent knows where the
+     * sign-ins are without saying so.
+     */
+    signIns: SignInProgressSchema.optional(),
   });
 
   export type QuestionAnswerDataPart = z.output<

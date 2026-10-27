@@ -140,10 +140,12 @@ export function appWakeNote({
   chatId,
   events,
   sessionId,
+  signIns,
 }: {
   chatId: ChatId;
   events: SessionMessageDataPart.AppEventDataPart["events"];
   sessionId: StoreId.Session;
+  signIns?: SessionMessageDataPart.SignInProgress;
 }) {
   return safeTry<SessionMessageDataPart.AppEventDataPart, Error>(
     async function* () {
@@ -165,6 +167,7 @@ export function appWakeNote({
         apps: current,
         events: [...events, ...since],
         ...(otherComputer && { otherComputer }),
+        ...(signIns === undefined ? {} : { signIns }),
       });
     },
   );

@@ -3,6 +3,10 @@ import { APP_NAME } from "@instrument-org/shared";
 
 import { APP_COMMAND } from "./shell-commands/app-command";
 import { webInsteadCommand, webInsteadStep } from "./apps/web-instead";
+import {
+  signInProgressLine,
+  signInsSettled,
+} from "./sign-in-progress-model-text";
 import { systemNote } from "./system-note";
 
 /**
@@ -58,6 +62,7 @@ export function appEventModelNote(
       ? []
       : [lines.length === 1 ? "An app changed:" : "Apps changed:", ...lines]),
     ...(data.otherComputer ? onThisComputer(data.apps) : []),
+    ...(data.signIns === undefined ? [] : [signInCardLine(data.signIns)]),
     data.carried
       ? lines.length === 0
         ? "It is only so you know: answer what the user wrote."
@@ -71,6 +76,18 @@ export function appEventModelNote(
 }
 
 type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
+
+/**
+ * The card a note's app was asked for on with others: once every app on it
+ * is answered, that this is the card's one note; before, where it stands.
+ */
+function signInCardLine(
+  progress: SessionMessageDataPart.SignInProgress,
+): string {
+  return signInsSettled(progress)
+    ? `Every app on your sign-in card is answered, and this is the one note it sends: ${signInProgressLine(progress)} Answer it in one message: which apps are connected, as which account where it is named, and which the user skipped.`
+    : `Your sign-in card as it stands: ${signInProgressLine(progress)} The card shows the user the count, so leave it out; you are woken once more when no app on it is waiting.`;
+}
 
 /**
  * A sign-in of the app's own that did not connect, and the way on from it:

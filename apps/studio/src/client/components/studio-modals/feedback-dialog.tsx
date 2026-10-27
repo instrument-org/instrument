@@ -48,7 +48,6 @@ import { type Icon } from "@phosphor-icons/react";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
-import { CameraIcon } from "@phosphor-icons/react/Camera";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
@@ -99,22 +98,6 @@ type AttachedImage = {
   /** A data URL, so a picture shown needs nothing released when it goes. */
   src: string;
 };
-
-/**
- * Once what was just rendered is on screen: two frames, or a short wait in
- * a window that is not drawing frames (one covered or out of view).
- */
-function nextPaint() {
-  return new Promise<void>((resolve) => {
-    const timeout = setTimeout(resolve, 150);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
-  });
-}
 
 function readDataUrl(file: Blob) {
   return new Promise<string>((resolve, reject) => {
@@ -202,24 +185,6 @@ export function FeedbackDialogContent({
     setImageProblems(problems);
   };
 
-  // The dialog and its backdrop hide while the window is captured, so the
-  // picture is of the app behind them.
-  const [capturing, setCapturing] = useState(false);
-  const captureScreen = async () => {
-    setCapturing(true);
-    try {
-      await nextPaint();
-      const shot = await rpcClient.problems.captureWindow.call();
-      await addImages([new File([shot], "Screenshot", { type: shot.type })]);
-    } catch (error) {
-      setImageProblems([
-        `We couldn't take a screenshot: ${error instanceof Error ? error.message : String(error)}`,
-      ]);
-    } finally {
-      setCapturing(false);
-    }
-  };
-
   // Read once per opening: what the dialog shows is what Send sends.
   const described = useQuery({
     ...rpcClient.problems.describeFeedback.queryOptions({
@@ -299,7 +264,6 @@ export function FeedbackDialogContent({
         "flex flex-col overflow-hidden",
         viewing && "gap-0 p-0",
         send.isSuccess && "items-center justify-center",
-        capturing && "invisible transition-none",
       )}
       maxHeight={DIALOG_HEIGHT}
       maxWidth={DIALOG_WIDTH}
@@ -330,7 +294,6 @@ export function FeedbackDialogContent({
         }
       }}
       onExitComplete={onExitComplete}
-      overlayClassName={capturing ? "invisible" : undefined}
       onPaste={(event) => {
         if (viewing || send.isSuccess) {
           return;
@@ -439,17 +402,6 @@ export function FeedbackDialogContent({
               >
                 <ImageIcon />
                 Add images
-              </Button>
-              <Button
-                disabled={capturing || images.length >= MAX_FEEDBACK_IMAGES}
-                onClick={() => {
-                  void captureScreen();
-                }}
-                size="sm"
-                variant="outline"
-              >
-                <CameraIcon />
-                Screenshot
               </Button>
               <input
                 accept={FEEDBACK_IMAGE_TYPES.join(",")}

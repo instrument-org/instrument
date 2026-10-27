@@ -10,7 +10,7 @@ export function TermsFooter({ className }: { className?: string }) {
         className,
       )}
     >
-      By continuing, you agree to our{" "}
+      By continuing, you agree to the{" "}
       <ExternalLink href={`${APP_URL}/terms`}>Terms of Service</ExternalLink>{" "}
       and{" "}
       <ExternalLink href={`${APP_URL}/privacy`}>Privacy Policy</ExternalLink>.

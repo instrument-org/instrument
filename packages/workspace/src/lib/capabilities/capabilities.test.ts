@@ -4,6 +4,8 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -13,12 +15,15 @@ import {
   type RecordedAppGuide,
   withAppGuideHandOffs,
 } from "../apps/guide-hand-off";
+import { runtimeLayout } from "../runtime-dir";
 import { withRaisedAsks } from "../shell-commands/raised-asks";
 import { defineSubcommands } from "../shell-commands/subcommands";
 import { cliSubcommands } from "./cli";
 import { type CapabilityScope, capabilityContexts } from "./context";
 import { type Capability, CapabilityFailure, defineCapability } from "./define";
 import { describeCapabilities, dispatch } from "./dispatch";
+import { ensureInstrumentStub, INSTRUMENT_STUB_MESSAGE } from "./stub";
+import { getWorkspaceConfig } from "../workspace-config";
 
 const scope: CapabilityScope = {
   chatId: ChatIdSchema.parse("capabilities-test"),
@@ -285,5 +290,22 @@ describe("dispatch", () => {
         positional,
       })),
     ).toEqual([{ name: "test.echo", positional: ["app"] }]);
+  });
+});
+
+describe.skipIf(process.platform === "win32")("the instrument program", () => {
+  it("tells a script that runs it how to reach instrument, and exits 127", async () => {
+    await ensureInstrumentStub();
+    const result = spawnSync(
+      path.join(
+        runtimeLayout(getWorkspaceConfig().runtimeDir).bin,
+        "instrument",
+      ),
+      ["app", "list"],
+      { encoding: "utf8" },
+    );
+    expect(result.status).toBe(127);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe(`${INSTRUMENT_STUB_MESSAGE}\n`);
   });
 });

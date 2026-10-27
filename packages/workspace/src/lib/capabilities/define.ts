@@ -73,7 +73,7 @@ export class CapabilityFailure extends Error {
 }
 
 /** How a capability reads on the `instrument` command line. */
-export interface CliSpec<Input> {
+interface CliSpec<Input> {
   /** The command and subcommand words after `instrument`, as `["app", "request"]`. */
   words: readonly [string, string];
   /** Other subcommand words that run it, as `tool` beside `tools`. */
@@ -89,7 +89,7 @@ export interface CliSpec<Input> {
 }
 
 /** How a capability reads in a script. */
-export interface ScriptSpec<Input> {
+interface ScriptSpec<Input> {
   /** Fields a script passes in order; the rest go in one object (Node) or as keywords (Python). */
   positional?: readonly (keyof Input & string)[];
 }

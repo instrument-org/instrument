@@ -91,10 +91,10 @@ const linksTheFiledIssue: Assertion = {
  * `instrument.app("<slug>")` or `instrument.apps.request(...)`, or either's
  * `instrument.call(...)`. Matched against JSON-quoted tool input.
  */
-export const SCRIPT_CALL = /\binstrument\.(?:apps?\b[.[(]|call\()/;
+const SCRIPT_CALL = /\binstrument\.(?:apps?\b[.[(]|call\()/;
 
 /** Which runtime a tool input that calls `instrument` runs in. */
-export function scriptRuntime(input: string): "node" | "python" {
+function scriptRuntime(input: string): "node" | "python" {
   return /\bimport instrument\b|(?:^|[\s;&|("])python3?\b/.test(input)
     ? "python"
     : "node";

@@ -249,6 +249,16 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
       line: appClosedLine(await latestStep(ref)),
     });
   }
+  // A turn that ended on a card no answer has reached, with no card up here:
+  // the card is in the state of the computer the task runs on, which this
+  // one does not read, and the record shows only the call it ended on. The
+  // person's Stop takes a task off its cards and says so on its session.
+  if (
+    endedOnAPermissionAsk(transcript) &&
+    !(session.isOk() && session.value.stoppedBy !== undefined)
+  ) {
+    return settle({ kind: "waiting", line: WAITING_ELSEWHERE });
+  }
   // Read whole and cut after: the line is chosen from the reply's shape, and a
   // fence cut off mid-way is a fence the excerpt cannot read.
   const said = lastAssistantTextIn(transcript);
@@ -257,6 +267,28 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   }
   const ending = await endingIn(ref, transcript);
   return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });
+}
+
+/** What a task waiting on a card raised on another computer says it waits for. */
+const WAITING_ELSEWHERE =
+  "Waiting for your permission on the computer it runs on";
+
+/**
+ * Whether the task's record ends on an `ask_permission` call that put a card
+ * up, with nothing after it: an answer would have woken the task with a
+ * message of its own.
+ */
+function endedOnAPermissionAsk(messages: SessionMessage.WithParts[]): boolean {
+  const last = messages.at(-1);
+  return (
+    last?.role === "assistant" &&
+    last.parts.some(
+      (part) =>
+        part.type === "tool-ask_permission" &&
+        part.state === "output-available" &&
+        part.output.state === "asked",
+    )
+  );
 }
 
 /**

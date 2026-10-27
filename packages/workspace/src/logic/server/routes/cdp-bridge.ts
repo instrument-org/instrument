@@ -144,13 +144,17 @@ const PASSES_CLOSED_FILE_GATE =
  * that runs in a process of its own (a cross-site iframe), never a worker or
  * anything else the page starts, and never paused at its start, so a frame
  * the person is looking at never waits on an agent that went away before
- * letting it run.
+ * letting it run. Turning it off carries no filter, which the browser refuses
+ * ("Target filter should be empty when disabling auto-attach").
  */
-const FRAME_AUTO_ATTACH = {
-  filter: [{ type: "iframe" }, { exclude: true }],
-  flatten: true,
-  waitForDebuggerOnStart: false,
-} satisfies Omit<Protocol.Target.SetAutoAttachRequest, "autoAttach">;
+function frameAutoAttach(
+  autoAttach: boolean,
+): Protocol.Target.SetAutoAttachRequest {
+  const base = { autoAttach, flatten: true, waitForDebuggerOnStart: false };
+  return autoAttach
+    ? { ...base, filter: [{ type: "iframe" }, { exclude: true }] }
+    : base;
+}
 
 /**
  * What a closing connection lets go of on a page and on each of its frames:
@@ -723,15 +727,13 @@ export function openTargetSession({
       return;
     }
     // Asked for the page's frames, the guest attaches only frames, never
-    // paused (see FRAME_AUTO_ATTACH).
+    // paused (see frameAutoAttach).
     const params =
       method === "Target.setAutoAttach"
-        ? {
-            autoAttach:
-              (message.params as undefined | { autoAttach?: unknown })
-                ?.autoAttach === true,
-            ...FRAME_AUTO_ATTACH,
-          }
+        ? frameAutoAttach(
+            (message.params as undefined | { autoAttach?: unknown })
+              ?.autoAttach === true,
+          )
         : message.params;
 
     // A local file opens at its `file://` address for the agent exactly as it
@@ -883,10 +885,7 @@ export function openTargetSession({
       workspaceConfig.browser.setAgentFileRoots(targetId, null);
       // With no agent left, nothing is watching the page's frames.
       void workspaceConfig.browser
-        .sendCommand(targetId, "Target.setAutoAttach", {
-          autoAttach: false,
-          ...FRAME_AUTO_ATTACH,
-        })
+        .sendCommand(targetId, "Target.setAutoAttach", frameAutoAttach(false))
         .catch(noop);
     }
   };

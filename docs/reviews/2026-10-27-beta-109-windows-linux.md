@@ -125,8 +125,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### Q. Waking a sleeping tab logs a refused auto-attach
 
-- Status: open
+- Status: fixed
+- Where: [cdp-bridge.ts](/packages/workspace/src/logic/server/routes/cdp-bridge.ts) (`frameAutoAttach`)
 - What: `sendCommand error … Target.setAutoAttach error=Target filter should be empty when disabling auto-attach` when a sleeping guest wakes. Also in beta 109's own logs.
+- Note: when the agent's last connection to a tab closes, the bridge turns the page's frame auto-attach off, and it sent the frames-only filter with `autoAttach: false`, which the browser refuses; an agent's own `setAutoAttach` off got the same filter. A command to a sleeping tab wakes it first, hence the wake just before each line. Turning it off now carries no filter.
 
 ## Rerun after the fixes
 

@@ -838,6 +838,30 @@ describe("openTargetSession with a frame in a process of its own", () => {
     });
   });
 
+  // The browser refuses a filter with auto-attach off: "Target filter should
+  // be empty when disabling auto-attach".
+  it("turns the page's frames off with no filter", async () => {
+    const { command, sendCommand, target } = connect();
+
+    const reply = await command(
+      "Target.setAutoAttach",
+      {
+        autoAttach: false,
+        filter: [{ type: "iframe" }],
+        flatten: true,
+        waitForDebuggerOnStart: false,
+      },
+      "page-session",
+    );
+
+    expect(reply.error).toBeUndefined();
+    expect(sendCommand).toHaveBeenCalledWith(target, "Target.setAutoAttach", {
+      autoAttach: false,
+      flatten: true,
+      waitForDebuggerOnStart: false,
+    });
+  });
+
   it("announces a frame on the page's session and sends the frame's commands and events through it", async () => {
     const { attaches, command, emit, owns, sendCommand, target, toAgent } =
       connect();
@@ -972,7 +996,6 @@ describe("openTargetSession with a frame in a process of its own", () => {
       "Target.setAutoAttach",
       {
         autoAttach: false,
-        filter: [{ type: "iframe" }, { exclude: true }],
         flatten: true,
         waitForDebuggerOnStart: false,
       },

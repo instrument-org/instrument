@@ -62,11 +62,12 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### G. The sent-link title fetch can reach this computer's network (Nit)
 
-- Status: open
+- Status: fixed
 - Where: [page-title-fetch.ts:20](/apps/studio/src/electron-main/browser-view/page-title-fetch.ts#L20), [page-title-fetch.ts:67](/apps/studio/src/electron-main/browser-view/page-title-fetch.ts#L67)
 - What: `isPublicPage` checks only the address sent, and the fetch follows redirects with no further check, so a shortened link redirecting to `http://192.168.1.1/…` gets a GET from main. The suffix check also misses a trailing dot (`http://localhost./`, `http://router.local./`), and a name resolving to a private address passes. The comment promises such pages are never asked. A Nit: only the person's own sent words start it, and the threat model leaves the network open.
 - Verification: trailing dot by probe; redirect and DNS traced.
 - Fix: `redirect: "manual"` with `isPublicPage` at each hop, and strip a trailing dot first.
+- Note: a public name that resolves to a private address still passes; checking that means resolving the name before the request, which was left out.
 
 ### H. The phone's chat list can be written empty just after launch (Nit)
 

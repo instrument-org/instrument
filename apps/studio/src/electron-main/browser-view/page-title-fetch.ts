@@ -10,6 +10,9 @@ const TIMEOUT_MS = 8000;
  */
 const MAX_BYTES = 256 * 1024;
 
+/** How many redirects a title request follows, each checked as the first. */
+const MAX_REDIRECTS = 5;
+
 /** How long a title is kept, which covers any a reader would take in. */
 const MAX_TITLE_LENGTH = 300;
 
@@ -28,7 +31,8 @@ export function isPublicPage(url: string): boolean {
   ) {
     return false;
   }
-  const host = parsed.hostname.toLowerCase();
+  // A name may end in the root's dot (`localhost.`), which is the same name.
+  const host = parsed.hostname.toLowerCase().replace(/\.$/u, "");
   if (
     !host.includes(".") ||
     host.startsWith("[") ||
@@ -62,11 +66,31 @@ export async function fetchPageTitle(
   url: string,
   userAgent: string,
 ): Promise<string | undefined> {
-  const response = await fetch(url, {
-    headers: { accept: "text/html", "user-agent": userAgent },
-    redirect: "follow",
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  let at = url;
+  let response: Response | undefined;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    response = await fetch(at, {
+      headers: { accept: "text/html", "user-agent": userAgent },
+      redirect: "manual",
+      signal,
+    });
+    const location = response.headers.get("location");
+    if (response.status < 300 || response.status >= 400 || !location) {
+      break;
+    }
+    await response.body?.cancel();
+    // A public page that sends the request on to this computer or its
+    // network is asked no further.
+    const next = URL.parse(location, at)?.href;
+    if (!next || !isPublicPage(next)) {
+      return undefined;
+    }
+    at = next;
+  }
+  if (!response) {
+    return undefined;
+  }
   const type = response.headers.get("content-type") ?? "";
   if (!response.ok || !response.body || !/html/iu.test(type)) {
     await response.body?.cancel();

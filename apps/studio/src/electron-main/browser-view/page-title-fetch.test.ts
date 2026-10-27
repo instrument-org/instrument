@@ -10,6 +10,8 @@ describe("isPublicPage", () => {
     ["http://93.184.215.14/", true],
     ["http://localhost:3000/", false],
     ["http://app.localhost/", false],
+    ["http://localhost./", false],
+    ["http://router.local./", false],
     ["http://printer.local/", false],
     ["http://intranet/", false],
     ["http://127.0.0.1:8080/", false],
@@ -51,6 +53,12 @@ describe("fetchPageTitle", () => {
         response.write("<html><head><title>A page</title></head><body>");
         return;
       }
+      if (request.url === "/elsewhere") {
+        // On to this computer, which a sent link's title never asks.
+        response.writeHead(302, { location: "/page" });
+        response.end();
+        return;
+      }
       if (request.url === "/data") {
         response.writeHead(200, { "content-type": "application/json" });
         response.end('{"title":"no"}');
@@ -74,7 +82,10 @@ describe("fetchPageTitle", () => {
     expect(await fetchPageTitle(`${origin}/page`, "test")).toBe("A page");
   });
 
-  it.each(["/data", "/missing"])("finds no title at %s", async (path) => {
-    expect(await fetchPageTitle(`${origin}${path}`, "test")).toBeUndefined();
-  });
+  it.each(["/data", "/missing", "/elsewhere"])(
+    "finds no title at %s",
+    async (path) => {
+      expect(await fetchPageTitle(`${origin}${path}`, "test")).toBeUndefined();
+    },
+  );
 });

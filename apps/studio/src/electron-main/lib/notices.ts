@@ -314,8 +314,8 @@ function signedOutNotice({
   return {
     action: { label: "Sign in again", setting: type, settings: "Providers" },
     body: isDefault
-      ? `${signIn} to keep using ${model ?? `${name}'s models`} in new chats.`
-      : `${signIn} to use ${label ? "its" : `${name}'s`} models, or dismiss this if you don't need them.`,
+      ? `${signIn} to keep using ${model ?? `${name}'s models`}.`
+      : `${signIn} to use ${label ? "its" : `${name}'s`} models.`,
     id: `signed-out-${id}-${at.toString()}`,
     kind: "account",
     publishedAt: new Date(at).toISOString(),

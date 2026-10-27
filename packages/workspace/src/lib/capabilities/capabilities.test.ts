@@ -17,8 +17,7 @@ import {
 } from "../apps/guide-hand-off";
 import { runtimeLayout } from "../runtime-dir";
 import { withRaisedAsks } from "../shell-commands/raised-asks";
-import { defineSubcommands } from "../shell-commands/subcommands";
-import { cliSubcommands } from "./cli";
+import { cliSubcommands, generatedCommand } from "./cli";
 import { type CapabilityScope, capabilityContexts } from "./context";
 import { type Capability, CapabilityFailure, defineCapability } from "./define";
 import { unavailableReason } from "./admit";
@@ -126,21 +125,22 @@ const camel = defineCapability({
 const REGISTRY: readonly Capability[] = [echo, camel, chatOnly, cliOnly];
 
 async function cli(args: string[], stdin = "") {
-  const { subcommands, usage } = cliSubcommands("test", REGISTRY);
-  const run = defineSubcommands({
-    errorPrefix: "subcommand",
-    name: "instrument test",
-    subcommands,
-    usage: usage.join("\n"),
-  });
+  const command = generatedCommand(
+    {
+      name: "instrument test",
+      scope,
+      usage: (lines) => lines.join("\n"),
+      word: "test",
+    },
+    REGISTRY,
+  );
   const fs = new InMemoryFs();
   const recorded: RecordedAppGuide[] = [];
   const asks: string[] = [];
   const result = await withRaisedAsks(asks, () =>
     withAppGuideHandOffs(recorded, () =>
-      run(
+      command.execute(
         args,
-        scope,
         createCommandContext({
           cwd: "/work",
           env: new Map(),
@@ -212,13 +212,41 @@ describe("the generated command line", () => {
   });
 
   it.each([
-    ["closed", 1, 'instrument test echo: "closed" is not connected.\n'],
-    ["asks", 1, "instrument test echo: using asks needs the person's yes.\n"],
+    ["closed", 1, 'instrument test: "closed" is not connected.\n'],
+    ["asks", 1, "instrument test: using asks needs the person's yes.\n"],
     ["mac", 2, "macOS is asking.\n"],
-    ["broken", 1, "instrument test echo: the service said no.\n"],
+    ["broken", 1, "instrument test: the service said no.\n"],
   ])("answers a call to %s with exit %d", async (app, exitCode, stderr) => {
     const result = await cli(["echo", app]);
     expect(result).toMatchObject({ exitCode, stderr, stdout: "" });
+  });
+
+  it.each([[[]], [["help"]], [["echo", "--help"]], [["-h"]]])(
+    "prints the usage for %j",
+    async (args) => {
+      const result = await cli(args);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/^ {2}instrument test echo /);
+    },
+  );
+
+  it("refuses a subcommand it does not have, with the usage", async () => {
+    const result = await cli(["frob"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(
+      /^instrument test: unknown subcommand "frob"\.\n\n {2}instrument test echo /,
+    );
+  });
+
+  it("refuses an unknown flag with the one form it takes", async () => {
+    const result = await cli(["cli-only", "--nope"]);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument test: unknown flag --nope on \`instrument test cli-only\`.
+
+        instrument test cli-only
+            Never in a script.
+      "
+    `);
   });
 
   it("raises the card a gate says is up", async () => {
@@ -245,9 +273,7 @@ describe("the generated command line", () => {
   it("says what the schema says of a missing field", async () => {
     const result = await cli(["echo"]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe(
-      "instrument test echo: an app slug is required.\n",
-    );
+    expect(result.stderr).toBe("instrument test: an app slug is required.\n");
   });
 
   it("lists each capability in the usage from its schema", async () => {

@@ -1,8 +1,7 @@
 import { type ByteString, EMPTY_BYTES, InMemoryFs } from "just-bash";
 
-import { cliSubcommands } from "../../lib/capabilities/cli";
+import { cliSubcommands, runSubcommand } from "../../lib/capabilities/cli";
 import { type CapabilityScope } from "../../lib/capabilities/context";
-import { runSubcommand } from "../../lib/shell-commands/subcommands";
 
 /**
  * One generated `instrument` subcommand as a function of its arguments, run

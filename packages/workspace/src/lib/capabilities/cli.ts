@@ -3,15 +3,15 @@ import { isPlainObject } from "radashi";
 import { z } from "zod";
 
 import { INSTRUMENT_COMMAND } from "../shell-commands/instrument-command";
-import {
-  defineSubcommands,
-  type Subcommand,
-  type SubcommandInput,
-  type SubcommandShell,
-} from "../shell-commands/subcommands";
 import { subprocessStdin } from "../shell-commands/utils";
-import { type CapabilityScope, capabilityContexts } from "./context";
 import { unavailableReason } from "./admit";
+import {
+  type ArgvSpec,
+  type CommandShell,
+  parseArgs,
+  type ParsedArgs,
+} from "./argv";
+import { type CapabilityScope, capabilityContexts } from "./context";
 import { type Capability, type Role } from "./define";
 import { dispatch } from "./dispatch";
 import { CAPABILITIES } from "./registry";
@@ -259,8 +259,8 @@ function parseJson(field: Field, text: string): unknown {
 /** The capability's raw input from what the command line gave. */
 function rawInput(
   capability: Capability,
-  input: SubcommandInput,
-  stdin: SubcommandShell["stdin"],
+  input: ParsedArgs,
+  stdin: CommandShell["stdin"],
 ): Record<string, unknown> {
   const cli = capability.surfaces.cli;
   const fields = fieldsOf(capability);
@@ -371,6 +371,22 @@ function withNewline(text: string): string {
   return text.endsWith("\n") || text === "" ? text : `${text}\n`;
 }
 
+/** One generated subcommand: what its arguments are read against, its usage, and the call. */
+interface GeneratedSubcommand {
+  argv: ArgvSpec;
+  /** Its lines of the command's usage, which a refused argument is shown. */
+  usage: string;
+  /**
+   * The call: what it prints, with its exit code. A thrown error is its
+   * refusal, which reaches the agent on stderr with exit 1.
+   */
+  run(
+    input: ParsedArgs,
+    scope: CapabilityScope,
+    shell: CommandShell,
+  ): Promise<ExecResult>;
+}
+
 /**
  * A capability as one subcommand of its `instrument` command: flags and
  * positional words from its input schema, its gate's answers as exit codes
@@ -380,24 +396,27 @@ function withNewline(text: string): string {
 function cliSubcommand(
   capability: Capability,
   registry: readonly Capability[] = CAPABILITIES,
-): Subcommand<CapabilityScope> {
+): GeneratedSubcommand {
   const positional = capability.surfaces.cli?.positional ?? [];
   const flagged = flaggedFields(capability);
   const valued = flagged.filter((field) => field.kind !== "boolean");
   return {
-    booleans: [
-      "json",
-      ...flagged
-        .filter((field) => field.kind === "boolean")
+    argv: {
+      booleans: [
+        "json",
+        ...flagged
+          .filter((field) => field.kind === "boolean")
+          .map((field) => field.flag),
+      ],
+      flags: ["out", ...valued.map((field) => field.flag)],
+      ...(takesTheRest(capability) === undefined
+        ? { positional: positional.length }
+        : {}),
+      repeatable: valued
+        .filter((field) => field.kind === "list" || field.kind === "pairs")
         .map((field) => field.flag),
-    ],
-    flags: ["out", ...valued.map((field) => field.flag)],
-    ...(takesTheRest(capability) === undefined
-      ? { positional: positional.length }
-      : {}),
-    repeatable: valued
-      .filter((field) => field.kind === "list" || field.kind === "pairs")
-      .map((field) => field.flag),
+    },
+    usage: cliUsage(capability),
     run: async (input, scope, shell): Promise<ExecResult> => {
       const ctx = capabilityContexts(scope, "cli", (named) =>
         shell.fs.readFileBuffer(shell.fs.resolvePath(shell.cwd, named)),
@@ -469,7 +488,7 @@ export function cliSubcommands(
   command: string,
   registry: readonly Capability[] = CAPABILITIES,
 ): {
-  subcommands: Record<string, Subcommand<CapabilityScope>>;
+  subcommands: Record<string, GeneratedSubcommand>;
   usage: string[];
 } {
   const own = registry.filter(
@@ -525,13 +544,61 @@ export function generatedCommand(
     );
   }
   const generated = cliSubcommands(word, registry);
-  const run = defineSubcommands<CapabilityScope>({
-    ...(bare === undefined ? {} : { bare }),
-    name,
-    subcommands: generated.subcommands,
-    usage: usage(generated.usage),
+  const whole = usage(generated.usage);
+  // `--help`, `-h` and `help`, alone or anywhere after the subcommand, print
+  // the usage; an unknown subcommand is refused with it.
+  return defineCommand(name, async (args, ctx) => {
+    const [given, ...rest] = args;
+    const chosen = given ?? bare;
+    if (
+      chosen === undefined ||
+      chosen === "help" ||
+      chosen === "--help" ||
+      chosen === "-h" ||
+      rest.includes("--help") ||
+      rest.includes("-h")
+    ) {
+      return { exitCode: 0, stderr: "", stdout: whole };
+    }
+    const subcommand = Object.hasOwn(generated.subcommands, chosen)
+      ? generated.subcommands[chosen]
+      : undefined;
+    if (!subcommand) {
+      return failure(`${name}: unknown subcommand "${chosen}".\n\n${whole}`);
+    }
+    try {
+      return await runSubcommand(subcommand, rest, scope, ctx, {
+        name: `${name} ${chosen}`,
+      });
+    } catch (error) {
+      return failure(
+        `${name}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   });
-  return defineCommand(name, (args, ctx) => run(args, scope, ctx));
+}
+
+function failure(message: string): ExecResult {
+  return { exitCode: 1, stderr: `${message}\n`, stdout: "" };
+}
+
+/**
+ * One generated subcommand run on the words after it, throwing its refusal
+ * rather than printing it: what its command runs, and what a test calls to
+ * see the refusal itself.
+ */
+export function runSubcommand(
+  subcommand: GeneratedSubcommand,
+  args: readonly string[],
+  scope: CapabilityScope,
+  shell: CommandShell,
+  { name }: { name: string },
+): Promise<ExecResult> {
+  const input = parseArgs(subcommand.argv, args, {
+    form: subcommand.usage,
+    name,
+  });
+  return subcommand.run(input, scope, shell);
 }
 
 /**

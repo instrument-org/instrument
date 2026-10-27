@@ -7,7 +7,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { chatModelURI } from "../chat-settings";
 import { readModelWindow } from "../model-window";
-import { type SubcommandShell } from "../shell-commands/subcommands";
+import { type CommandShell } from "./argv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   hostPathOf,
@@ -39,7 +39,7 @@ export interface CapabilityScope {
 }
 
 /** The ways a file is looked at: the shell's, from its folder, or a script's, by its full path. */
-type FileLook = Pick<SubcommandShell, "cwd" | "fs"> | undefined;
+type FileLook = Pick<CommandShell, "cwd" | "fs"> | undefined;
 
 /** What is at `resolved` in the shell's filesystem. */
 async function shellFileKind(

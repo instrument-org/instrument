@@ -115,7 +115,25 @@ async function answerChat(
   // that are still on their way ("Skip the rest" declines several at once)
   // find this chat waiting on nothing and wake it no second time.
   await Promise.all(others.map((app) => stopWaiting(app.slug, [chatId])));
-  await wakeChatForApp(events, workspaceRef, chatId, progress);
+  // The account a sign-in learned is on the connection, where the event,
+  // read from the manifest, does not look; told per app, so the note does
+  // not ask the agent to name an account it already has.
+  const accounts = new Map(
+    progress.flatMap((app) =>
+      app.account === undefined ? [] : [[app.slug, app.account] as const],
+    ),
+  );
+  await wakeChatForApp(
+    events.map((each) => {
+      const account = each.account ?? accounts.get(each.slug);
+      return account === undefined || each.event !== "connected"
+        ? each
+        : { ...each, account };
+    }),
+    workspaceRef,
+    chatId,
+    progress,
+  );
 }
 
 /** The card in the chat's own conversation that `slug` has its row on. */

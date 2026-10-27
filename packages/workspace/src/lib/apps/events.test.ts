@@ -198,8 +198,9 @@ async function answerRow(
 function wakes() {
   return woken.mock.calls.map(([events, , chatId, signIns]) => ({
     chatId,
-    events: (events as { event: string; slug: string }[]).map(
-      ({ event, slug }) => `${slug} ${event}`,
+    events: (events as { account?: string; event: string; slug: string }[]).map(
+      ({ account, event, slug }) =>
+        `${slug} ${event}${account === undefined ? "" : ` as ${account}`}`,
     ),
     signIns,
   }));
@@ -223,7 +224,11 @@ describe("a card asking for several apps", () => {
     expect(wakes()).toEqual([
       {
         chatId,
-        events: ["gmail connected", "drive connected", "docs declined"],
+        events: [
+          "gmail connected as you@example.com",
+          "drive connected as you@example.com",
+          "docs declined",
+        ],
         signIns: [
           {
             account: "you@example.com",
@@ -265,7 +270,7 @@ describe("a card asking for several apps", () => {
     await new Promise((resolve) => setTimeout(resolve, 40));
 
     expect(wakes().map(({ events }) => events)).toEqual([
-      ["docs declined", "drive connected", "gmail declined"],
+      ["docs declined", "drive connected as you@example.com", "gmail declined"],
     ]);
   });
 
@@ -349,4 +354,3 @@ describe("a card asking for several apps", () => {
     expect((await readConnection("docs"))?.waitingChats).toBeUndefined();
   });
 });
-

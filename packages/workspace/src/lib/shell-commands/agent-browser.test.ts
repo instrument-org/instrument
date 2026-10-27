@@ -726,6 +726,42 @@ describe("agent-browser routing", () => {
     return run;
   }
 
+  // One id per tab: the window's, which `instrument window` and `--tab` take.
+  it.each([
+    [
+      ["tab", "list"],
+      "→ [t1] Jar - https://example.com/jar\n  [t2] Bottle - https://example.com/bottle\n",
+    ],
+    [
+      ["tab", "new", "https://example.com/bottle"],
+      "https://example.com/bottle\n",
+    ],
+  ])("names tabs by the window's id after %j", async (args, printed) => {
+    const json = JSON.stringify({
+      data: {
+        tabs: [
+          { tabId: "t1", targetId: "tab_01M5Q29YA0CTZ3NQY76Z3JQWBF" },
+          {
+            active: true,
+            tabId: "t2",
+            targetId: "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B",
+          },
+        ],
+      },
+      success: true,
+    });
+    await answerAgentBrowser((given) => ({
+      exitCode: 0,
+      stderr: "",
+      stdout: given.includes("--json") ? json : printed,
+    }));
+
+    const result = await command.execute(args, commandCtx);
+
+    expect(result.stdout).not.toMatch(/\bt\d\b/);
+    expect(result.stdout).toMatchSnapshot();
+  });
+
   it("routes a bare command to the in-app browser via the instrument provider", async () => {
     const { args, env } = await spawnedWith(["open", "https://example.com"]);
 

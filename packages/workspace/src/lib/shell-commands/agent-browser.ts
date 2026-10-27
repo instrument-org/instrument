@@ -60,7 +60,12 @@ import {
   savedScreenshotPath,
 } from "./agent-browser-follow-up";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
-import { listsTabs, withTabIds } from "./agent-browser-tab-ids";
+import {
+  jsonWithTabIds,
+  newTabLine,
+  tabOutputOf,
+  withTabIds,
+} from "./agent-browser-tab-ids";
 import { recordProgramStart } from "./command-runs";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
@@ -1008,10 +1013,16 @@ export function createAgentBrowserCommand({
       });
     }
 
-    // The labels agent-browser prints for tabs are its own; the ids beside
-    // them are the ones `instrument tab` and `--tab` take.
+    // The labels agent-browser prints for tabs are its own; each tab is
+    // named instead by the id `instrument window` and `--tab` take.
     let stdout = result.stdout;
-    if (exitCode === 0 && !browserFreeRead && listsTabs(resolvedArgs)) {
+    const tabOutput =
+      exitCode === 0 && !browserFreeRead
+        ? tabOutputOf(resolvedArgs)
+        : undefined;
+    if (tabOutput === "list-json") {
+      stdout = jsonWithTabIds(stdout);
+    } else if (tabOutput !== undefined) {
       const listed = await runAgentBrowser({
         ...spawnOptions,
         args: [
@@ -1024,7 +1035,10 @@ export function createAgentBrowserCommand({
         input: undefined,
       });
       if (listed.exitCode === 0) {
-        stdout = withTabIds(stdout, listed.stdout);
+        stdout =
+          tabOutput === "list"
+            ? withTabIds(stdout, listed.stdout)
+            : `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${newTabLine(listed.stdout)}`;
       }
     }
 

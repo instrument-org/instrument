@@ -3,7 +3,7 @@
  * and leave them alone when it is one?
  *
  * The agent-browser skill describes `tab new`, `tab <id>`, `tab list` and
- * `instrument tab close`. What it cannot show is whether a model reaches for them when
+ * `tab close`, each tab by the window's tab_ id. What it cannot show is whether a model reaches for them when
  * two pages are one job, whether it snapshots again after a switch instead of
  * clicking refs from the other tab, and whether a one-page question stays one
  * page. A run has no window, so each task browses in a Chrome of its own,

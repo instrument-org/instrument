@@ -42,7 +42,7 @@ const PAGE_EXTENSIONS = new Set([".htm", ".html", ".xhtml"]);
 const MARKDOWN_EXTENSIONS = new Set([".markdown", ".md", ".mdx"]);
 
 /** Whether a file is one this reads a title out of, by its name alone. */
-export function hasOwnTitle(name: string) {
+function hasOwnTitle(name: string) {
   const extension = path.extname(name).toLowerCase();
   return PAGE_EXTENSIONS.has(extension) || MARKDOWN_EXTENSIONS.has(extension);
 }

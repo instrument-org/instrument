@@ -97,6 +97,19 @@ export function isPathLike(words: string) {
 }
 
 /**
+ * The file a typed path names, by its name alone, for a row's icon before
+ * anything is read: a last name with an extension, without a separator
+ * after it. What is really there is only known once it is looked up.
+ */
+export function typedFileName(path: TypedPath) {
+  if (path.written !== path.shown) {
+    return;
+  }
+  const name = path.shown.split(/[\\/]/).at(-1) ?? "";
+  return /^[^.].*\.[^.\s]+$/.test(name) ? name : undefined;
+}
+
+/**
  * The folders at the root of a Mac or a Linux computer, which no search
  * starts with: a path from one of them is a path.
  */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPathLike, typedPathOf } from "./typed-path";
+import { isPathLike, typedFileName, typedPathOf } from "./typed-path";
 
 describe("typedPathOf", () => {
   it.each([
@@ -68,5 +68,24 @@ describe("isPathLike", () => {
     ["github.com", false],
   ])("%j → %s", (words, expected) => {
     expect(isPathLike(words)).toBe(expected);
+  });
+});
+
+describe("typedFileName", () => {
+  it.each([
+    [
+      "~/wireframes/2026-10-27-kit-sync.html",
+      "darwin",
+      "2026-10-27-kit-sync.html",
+    ],
+    ["file:///Users/casey/Notes/plan.md", "darwin", "plan.md"],
+    ["C:\\Users\\casey\\report.pdf", "win32", "report.pdf"],
+    ["~/Documents", "darwin", undefined],
+    ["~/Projects/site.com/", "darwin", undefined],
+    ["~/.config", "darwin", undefined],
+    ["/Users/casey/archive.", "darwin", undefined],
+  ])("%s on %s is %s", (words, platform, expected) => {
+    const path = typedPathOf(words, platform);
+    expect(path && typedFileName(path)).toBe(expected);
   });
 });

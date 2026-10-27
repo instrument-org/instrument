@@ -54,6 +54,7 @@ import {
   shownTypedPath,
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
+import { typedFileName } from "@/client/lib/typed-path";
 import {
   webSearchLabel,
   webSearchUrl,
@@ -439,6 +440,7 @@ export function useCommandMenuRows({
 
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
+  const typedFile = typedPath && typedFileName(typedPath);
   const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
   const isKnownSite =
     site !== undefined &&
@@ -533,11 +535,15 @@ export function useCommandMenuRows({
             {
               items: [
                 {
-                  detail:
-                    looking === typedPath.typed
-                      ? "Looking…"
-                      : `Open on ${osConventions().computer}`,
-                  icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+                  ...(looking === typedPath.typed
+                    ? { detail: "Looking…" }
+                    : {}),
+                  icon:
+                    typedFile === undefined ? (
+                      <FileSystemFolderGlyph className="h-3 w-auto" />
+                    ) : (
+                      <FileTypeIcon className="size-4" fileName={typedFile} />
+                    ),
                   id: "open-path",
                   label: shownTypedPath(typedPath),
                   leavesItself: true,

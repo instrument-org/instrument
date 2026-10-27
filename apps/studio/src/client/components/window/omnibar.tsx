@@ -45,6 +45,7 @@ import {
 } from "@/client/lib/locate-typed-path";
 import {
   type TypedPath,
+  typedFileName,
   withoutTrailingSeparators,
 } from "@/client/lib/typed-path";
 import {
@@ -52,7 +53,7 @@ import {
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
-import { cn, osConventions } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
@@ -712,9 +713,13 @@ function useRows({
       },
     };
     const first: OmniRow = typedPath
-      ? pathRow(shownTypedPath(typedPath), () => {
-          void open.openPath(typedPath);
-        })
+      ? pathRow(
+          shownTypedPath(typedPath),
+          () => {
+            void open.openPath(typedPath);
+          },
+          typedFileName(typedPath),
+        )
       : site
         ? {
             detail: known?.title,
@@ -895,9 +900,13 @@ function useRows({
     return {
       completion: "",
       rows: [
-        pathRow(shownTypedPath(typedPath), () => {
-          void open.openPath(typedPath);
-        }),
+        pathRow(
+          shownTypedPath(typedPath),
+          () => {
+            void open.openPath(typedPath);
+          },
+          typedFileName(typedPath),
+        ),
       ],
     };
   }
@@ -966,10 +975,15 @@ function useRows({
 }
 
 /** The row that opens a path on the computer, which says it before looking. */
-function pathRow(name: string, run: () => void) {
+/** The row that opens a path; a file it names by an extension takes that file's icon. */
+function pathRow(name: string, run: () => void, fileName?: string) {
   return {
-    detail: `Open on ${osConventions().computer}`,
-    icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+    icon:
+      fileName === undefined ? (
+        <FileSystemFolderGlyph className="h-3 w-auto" />
+      ) : (
+        <FileTypeIcon className="size-4" fileName={fileName} />
+      ),
     id: "path",
     leavesItself: true,
     name,

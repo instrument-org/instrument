@@ -1132,8 +1132,12 @@ export function ComputerPage({
   const folderKeyOf = (prefix: string) =>
     isRecents ? RECENTS_ROOT : hostPathOf(prefix, rootHostPath ?? root);
   const currentKey = folderKeyOf(current);
+  // List is a folder's only when set on it by hand: what a folder never set
+  // opens in is the last of the others chosen.
   const view =
-    viewInHistory ?? folderViews[folderKeyOf(path)]?.view ?? defaultView;
+    viewInHistory ??
+    folderViews[folderKeyOf(path)]?.view ??
+    (defaultView === "list" ? "columns" : defaultView);
   // The List leads each page with the title it gives itself, read for the
   // files listed while it is the layout, and again for a file once it is
   // written.
@@ -2680,7 +2684,7 @@ export function ComputerPage({
                   onTrash={(picked) => void trash(picked)}
                   openFolders={isRecents ? undefined : openFolders}
                   onViewChange={(next) => {
-                    setDefaultView(next);
+                    if (next !== "list") setDefaultView(next);
                     keepLook({
                       group: shown.group,
                       sort: shown.sort,

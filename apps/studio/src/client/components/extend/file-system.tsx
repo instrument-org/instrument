@@ -78,8 +78,8 @@ import {
   Grid2x2,
   LoaderCircle,
   Rows3,
+  List,
   Search,
-  Table,
   X,
 } from "lucide-react";
 import * as React from "react";
@@ -544,7 +544,7 @@ function ListRowsGlyph(props: InlineRegistryIconProps) {
   return <Rows3 {...props} />;
 }
 function TableGlyph(props: InlineRegistryIconProps) {
-  return <Table {...props} />;
+  return <List {...props} />;
 }
 function normalizeFolderPath(path: string) {
   if (!path || path === "/") return "";
@@ -1817,9 +1817,9 @@ const VIEW_OPTIONS: Array<{
   value: FileSystemView;
 }> = [
   { icon: GridViewGlyph, label: "Grid", value: "icons" },
-  { icon: ListRowsGlyph, label: "List", value: "list" },
   { icon: TableGlyph, label: "Table", value: "table" },
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
+  { icon: ListRowsGlyph, label: "List", value: "list" },
 ];
 export function FileSystem({
   besideResizing = false,
@@ -3444,7 +3444,8 @@ export function FileSystem({
           // Keyed by folder: the folders left open are the folder's own.
           <FileSystemTableView key={currentPath} {...viewProps} />
         ) : view === "list" ? (
-          <FileSystemListView {...viewProps} />
+          // Keyed by folder: a folder walked into starts at its top.
+          <FileSystemListView key={currentPath} {...viewProps} />
         ) : view === "columns" ? (
           <FileSystemColumnsView {...viewProps} />
         ) : (
@@ -5961,43 +5962,63 @@ function FileSystemListView({
             />
           )}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {isRenaming ? (
-            renderNameField(entry, "-ml-0.5 h-5")
-          ) : (
-            <span
-              className="truncate text-sm leading-5 font-medium"
-              data-file-system-name=""
-            >
-              {titledName(entry)}
-            </span>
-          )}
-          <span
-            className={cn(
-              "flex min-w-0 items-center gap-1.5 text-xs leading-4",
-              secondary,
+        {entry.kind === "folder" ? (
+          // A folder has no title of its own and no kind worth a line, so
+          // its name stands alone in the row, as in the table.
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            {isRenaming ? (
+              renderNameField(entry, "-ml-0.5 h-5")
+            ) : (
+              <span
+                className="min-w-0 flex-1 truncate text-sm leading-5 font-medium"
+                data-file-system-name=""
+              >
+                {shownName(entry)}
+              </span>
             )}
-          >
-            <span className="flex size-3.5 shrink-0 items-center justify-center">
-              <FileSystemRowGlyph entry={entry} />
-            </span>
-            <span className="min-w-0 flex-1 truncate">
-              {hasTitle
-                ? shownName(entry)
-                : entry.kind === "folder"
-                  ? "Folder"
-                  : fileKindLabel(entry)}
-            </span>
-            <span className="shrink-0 tabular-nums">
+            <span className={cn("shrink-0 text-xs tabular-nums", secondary)}>
               {listCellText(entry, sortedColumn, {
-                // Its group's heading names the day by the date shown.
                 isDayNamed:
                   line.group !== undefined && groupedBy === sortedColumn,
                 short: isShort,
               })}
             </span>
           </span>
-        </span>
+        ) : (
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {isRenaming ? (
+              renderNameField(entry, "-ml-0.5 h-5")
+            ) : (
+              <span
+                className="truncate text-sm leading-5 font-medium"
+                data-file-system-name=""
+              >
+                {titledName(entry)}
+              </span>
+            )}
+            <span
+              className={cn(
+                "flex min-w-0 items-center gap-1.5 text-xs leading-4",
+                secondary,
+              )}
+            >
+              <span className="flex size-3.5 shrink-0 items-center justify-center">
+                <FileSystemRowGlyph entry={entry} />
+              </span>
+              <span className="min-w-0 flex-1 truncate">
+                {hasTitle ? shownName(entry) : fileKindLabel(entry)}
+              </span>
+              <span className="shrink-0 tabular-nums">
+                {listCellText(entry, sortedColumn, {
+                  // Its group's heading names the day by the date shown.
+                  isDayNamed:
+                    line.group !== undefined && groupedBy === sortedColumn,
+                  short: isShort,
+                })}
+              </span>
+            </span>
+          </span>
+        )}
       </div>
     );
   };

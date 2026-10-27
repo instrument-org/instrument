@@ -1,4 +1,7 @@
-import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  parseBrowserTargetId,
+} from "@instrument-org/workspace/client";
 
 /** What reconciling remembers between runs. */
 export interface GuestMemo {
@@ -6,11 +9,18 @@ export interface GuestMemo {
   closing: ReadonlySet<BrowserTargetId>;
   /** Attached guests a tab has held, so one whose tab went is told from one that never had a tab. */
   held: ReadonlySet<BrowserTargetId>;
+  /**
+   * Guests a tab has held before they attached: a tab opened and closed while
+   * its guest was still being made leaves one attaching with no tab, which is
+   * the window's to close and not an agent's page.
+   */
+  pending: ReadonlySet<BrowserTargetId>;
 }
 
 export const EMPTY_GUEST_MEMO: GuestMemo = {
   closing: new Set(),
   held: new Set(),
+  pending: new Set(),
 };
 
 /**
@@ -38,8 +48,17 @@ export function reconcileGuests({
   );
   const held = new Set(
     [...attached].filter(
-      (target) => heldIds.has(target) || memo.held.has(target),
+      (target) =>
+        heldIds.has(target) ||
+        memo.held.has(target) ||
+        memo.pending.has(target),
     ),
+  );
+  const pending = new Set(
+    [
+      ...memo.pending,
+      ...[...heldIds].flatMap((id) => parseBrowserTargetId(id) ?? []),
+    ].filter((target) => !attached.has(target)),
   );
   const close: BrowserTargetId[] = [];
   for (const target of held) {
@@ -48,5 +67,5 @@ export function reconcileGuests({
       close.push(target);
     }
   }
-  return { close, memo: { closing, held } };
+  return { close, memo: { closing, held, pending } };
 }

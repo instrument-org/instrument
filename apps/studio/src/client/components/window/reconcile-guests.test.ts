@@ -50,6 +50,14 @@ describe("reconcileGuests", () => {
     expect(reconcile([windowGuest(closed)]).close).toEqual([]);
   });
 
+  it("closes a guest that attaches after its tab was opened and closed", () => {
+    const opened = reconcile([], { heldIds: new Set([closed]) });
+    const tabGone = reconcile([], { memo: opened.memo });
+    const attaches = reconcile([windowGuest(closed)], { memo: tabGone.memo });
+
+    expect(attaches.close).toEqual([windowGuest(closed)]);
+  });
+
   it("asks for a close once while the guest stays attached, and again once it detached and came back held", () => {
     const first = reconcile([windowGuest(closed)], { memo: heldBefore });
     const second = reconcile([windowGuest(closed)], { memo: first.memo });

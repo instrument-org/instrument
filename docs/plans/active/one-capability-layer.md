@@ -1,6 +1,6 @@
 # One capability layer
 
-Status: **phase 0 done** (baseline evals on one model, below); the owner's answers are in Decisions; phases 1 to 3 not started.
+Status: **phase 1 built** (the registry, `apps.*`, both runtimes; evals below, its pass bar met but for one errand trial); phase 0 done; the owner's answers are in Decisions; phases 2 and 3 not started.
 
 ## Problem
 
@@ -52,23 +52,24 @@ Two facts from the inventory shape the design:
 The owner settled these; the design below follows them.
 
 - **One name: `instrument`.** The CLI, the Node global and the Python module are all `instrument`. The `tools` global is deleted, and no compatibility name keeps it.
-- **One generated CLI form for every app, and no hand-written subcommands.** Every capability flows through the registry and its one gate, so there is never a second way to do the same powerful thing that skips the permission path. The Mac apps' tools are `instrument app call apple-calendar add_event --title …` like any app's; nothing keeps `instrument calendar` as an alias. The rest of `instrument` (`memory`, `task`, `tab`, `x`) is generated from the registry too.
+- **One generated CLI form for every app, and no hand-written subcommands.** Every capability flows through the registry and its one gate, so there is never a second way to do the same powerful thing that skips the permission path. The Mac apps' tools are `instrument app call apple-calendar add_event '{...}'` like any app's; nothing keeps `instrument calendar` as an alias. The rest of `instrument` (`memory`, `task`, `window`, `x`) is generated from the registry too.
 - **Sends are script-callable.** Once the person granted Mail or Messages, a script sending is no worse than a bash loop sending, which the shell already allows. If sends need more protection later, it is a review of each call or each script in the shape of [auto mode](auto-mode.md), and it attaches at the registry's single gate, which every surface passes through.
 - **Scripts keep the guide check.** A script's first request to an API app throws `ReadGuideFirst` with the guide, as the CLI hands it back today, and the `app` and `node`/`python` descriptions say to read an app's guide before scripting it.
 - **A preflight ask is built only if an eval shows it helps** (phase 1).
 - **Python is synchronous first**, with calls safe from threads for fan-out.
-- **The Mac apps move into the Apps area like every other app.** Longer term, computer use on every OS goes through Apps too (see [Computer use](#computer-use)).
+- **The Mac apps move into the Apps area like every other app, as plain local MCP apps.** The EventKit helper and the AppleScript behind Mail, Notes and Messages are served by an MCP server bundled inside Instrument, and each Mac app is an ordinary local MCP app (`instrument app call apple-calendar add_event`), the same as Notion or Linear, presented in Apps as a Mac app. There is no `mac` app kind and no registry capability per tool. MCP is the boundary, so the server can later be swapped or reused (iOS, the cloud). macOS's permission prompts stay attributed to Instrument, and a denial is the gate's `card` outcome (exit 2, `CardShown`) with today's macOS card. Longer term, computer use on every OS goes through Apps too (see [Computer use](#computer-use)).
+- **`instrument tab` is `instrument window`**, renamed on its own branch; phase 3's capabilities are `window.*`.
 - **Connecting a Mac app covers every chat**, as connecting any other app does. Calendar, Mail, Messages and the rest stop asking in each chat once the person connects them in Apps; Settings › Permissions can still mark one Not allowed, and macOS keeps its own prompt. Per-chat access may come later as an opt-in setting, and it would apply to apps in general rather than to Mac apps alone.
 
 ## Proposed shape
 
 ### The registry
 
-One definition per capability, in a new `packages/workspace/src/lib/capabilities/`:
+One definition per capability, in `packages/workspace/src/lib/capabilities/` (built in phase 1; the code is the reference, and the sketch below is the shape it took):
 
 ```ts
 export interface Capability<In extends z.ZodType, Out extends z.ZodType> {
-  /** Dotted, snake_case: `apps.request`, `apps.apple-calendar.add_event`, `memory.save`. */
+  /** Dotted, snake_case: `apps.request`, `memory.save`. */
   name: string;
   /** One line, for `instrument help`, `help(instrument)` and a tool description. */
   summary: string;
@@ -111,33 +112,32 @@ Every gate in use today is one of those five outcomes: `appRefusal` is `refused`
 
 The dispatcher runs the gate for every call on every surface, so it is the one place a later check attaches: an auto-mode review of a send, a rate limit, an audit line. It sees the capability, its parsed input and the surface, and for a script call the script's path, so a review can read what the script is about to do.
 
-Apps come in two shapes in the registry:
-
-- **Built-in apps** (the Mac apps) register their tools as capabilities with Zod schemas: `apps.apple-calendar.add_event`. The CLI gets real flags for them.
-- **Workspace apps** whose schemas come from the service are two open capabilities: `apps.call { app, tool, args }` for an MCP app's tools (schemas from `apps.tools`) and `apps.request { app, method, path, params, body }` for an API app. The surfaces generate per-app sugar over them.
+Apps are one shape in the registry, two open capabilities whose schemas come from the service: `apps.call { app, tool, args }` for an MCP app's tools (schemas from `apps.tools`) and `apps.request { app, method, path, params, body }` for an API app. The surfaces generate per-app sugar over them. The Mac apps are MCP apps too (Decisions), so their tools reach every surface through `apps.call` with the schemas their bundled server sends; phase 1 dropped the planned `defineAppTool` for built-in tools, which nothing would use.
 
 ### Generated surfaces
 
 | Surface | Generated from | Shape |
 | --- | --- | --- |
-| `instrument` CLI | `input` → flags (snake_case field → `--kebab-case`; arrays repeat; objects and free JSON as a trailing JSON argument or stdin) | `instrument app call <slug> <tool>` for every app's tools, flags where the registry has the schema and JSON where the service does; `instrument app request <slug> …`; `instrument <namespace> <verb>` for the rest. Human text from `text` by default; JSON of `output` with `--json`, or when stdout is the next pipeline stage (just-bash sets `offerPipeHandoff` then). `--help` from `summary` and the schema's `.meta({ description })`. Exit 0, 1 failure, 2 a card is up. |
-| Script module, Node | registry list for this process | The `instrument` global (non-enumerable, writable, configurable, as the preload defines `tools` today): `await instrument.apps["apple-calendar"].addEvent({ title, start })`, `instrument.apps.request("google-drive", "POST", "/files", { body })`, `instrument.apps["google-drive"].post("/files", { body })`, `instrument.apps.beacon.listIssues({ state: "open" })`. Returns the parsed `output`; throws `InstrumentError` subclasses. |
-| Script module, Python | the same list | `import instrument`: `instrument.app("apple-calendar").add_event(title=..., start=...)`, `instrument.app("google-drive").post("/files", body={...})`, keyword-only arguments, dicts and lists back, exceptions `instrument.Error`, `instrument.NeedsPermission`, `instrument.CardShown`, `instrument.ReadGuideFirst`. Synchronous; calls are safe from threads, so `ThreadPoolExecutor` fans out. |
+| `instrument` CLI | `input` → flags (snake_case field → `--kebab-case`; arrays repeat; a string record is a repeated `--flag key=value`; objects and free JSON as a trailing JSON argument or stdin) | `instrument app call <slug> <tool> '<json>'` for every app's tools, the JSON the service's schema describes; `instrument app request <slug> …`; `instrument <namespace> <verb>` for the rest. Human text from `text` (or `render`, for a request's status line on stderr) by default; JSON of `output` with `--json`; `--out <file>` writes it and prints one line. The command's usage lists each from `summary` and the schema. Exit 0, 1 failure, 2 a card is up, 3 nothing sent until the app's guide is read (the guide on stderr, stdout empty). |
+| Script module, Node | registry list for this process | The `instrument` global (non-enumerable, writable, configurable): `await instrument.apps["apple-calendar"].add_event({ title, start })`, `instrument.apps.request("google-drive", "POST", "/files", { body })` (the whole response), `instrument.apps["google-drive"].post("/files", { body })` (the parsed body), `instrument.apps.beacon.list_issues({ state: "open" })`. An MCP tool keeps the service's own name. Returns the parsed `output`; throws `instrument.Error` and its subclasses. |
+| Script module, Python | the same list | `import instrument`: `instrument.app("apple-calendar").add_event(title=..., start=...)`, `instrument.app("google-drive").post("/files", body={...})` (the parsed body), `instrument.apps.request("google-drive", "POST", "/files", body={...})` (the whole response), keyword-only arguments, dicts and lists back, exceptions `instrument.Error`, `instrument.NeedsPermission`, `instrument.CardShown`, `instrument.ReadGuideFirst`. Synchronous; calls are safe from threads, so `ThreadPoolExecutor` fans out. |
 | Model tool | `surfaces.tool` only | `setupTool` built from the same schemas and `text` as `toModelOutput`. Used only where a capability has to be a tool: the turn-enders, and the existing file, web and image tools as they migrate. Nothing per-platform becomes a tool, since the tool list is the cached prefix and is the same on every computer. |
 
 Names stay one spelling per capability: snake_case in the registry, in Python and for tool words on the CLI (as MCP tools are already named), kebab-case flags, camelCase in JS. JS converts the keys the registry declares, never keys inside a pass-through payload (an API body, an MCP result), which reach the script as the service sent them.
 
-Discovery is generated too: `instrument help` lists namespaces for this shell, `instrument app tools apple-calendar` and `instrument app call apple-calendar add_event --help` print the schema, `help(instrument.app("apple-calendar").add_event)` shows a real signature (built with `inspect.Signature` from the JSON Schema the channel sends at connect), and `instrument.describe("apps.apple-calendar.add_event")` works in both runtimes.
+Discovery is generated too: `instrument help` lists namespaces for this shell, `instrument app tools apple-calendar` lists an app's tools and `instrument app tool apple-calendar add_event` prints one tool's schema, `help(instrument.apps.request)` shows a real signature (built with `inspect.Signature` from the JSON Schema the describe answer carries), and `instrument.describe("apps.request")` works in both runtimes.
 
 ### The channel
 
-The loopback channel in `node-tools-preload.ts` stays: `127.0.0.1`, a 32-byte token in an environment variable, one listener per native process, opened by the command that starts it ([`pipe-stage.ts`](../../../packages/workspace/src/lib/shell-commands/pipe-stage.ts) already takes a `toolsChannel` option, so `python` gets it the same way). What changes:
+The loopback channel `tools` used stays, in [`capabilities/channel.ts`](../../../packages/workspace/src/lib/capabilities/channel.ts): `127.0.0.1`, a 32-byte token in `INSTRUMENT_CHANNEL`, one listener per native process, opened by the command that starts it and passed to [`pipe-stage.ts`](../../../packages/workspace/src/lib/shell-commands/pipe-stage.ts) as `scriptChannel`, for `python` the same way as `node`. What changed:
 
 - The line protocol carries `{ id, capability, args }` rather than a dotted tool path, plus one `describe` request at connect that answers the capabilities and JSON Schemas this process may call.
-- The answer function is the registry's dispatcher, given the `CapabilityContext` of the bash call when the channel opens. The asker and the raised-asks collector are passed explicitly rather than read from `AsyncLocalStorage`, since a socket callback and the bash worker's main-thread hop ([`bash-worker/client.ts`](../../../packages/workspace/src/lib/bash-worker/client.ts)) do not reliably carry it.
+- The answer function is the registry's dispatcher, given the bash call's chat, session, model and role (`CapabilityScope`) when the shell is built, on the main thread where credentials are. The bash worker's hop ([`bash-worker/client.ts`](../../../packages/workspace/src/lib/bash-worker/client.ts)) answers in the exec's captured async context, and a channel on the shell's own thread snapshots the context it was opened in, so a guide handed over and a card raised reach the bash call's result. Phase 1 has no asker or raised-asks collector in the context, since no `apps.*` gate asks; one goes in with the first gate that does.
 - A reply carries `{ error: { kind, message, ask? } }` so each runtime raises the right exception class.
 
-### Example: `apps.request` and Calendar's `add_event`, defined once
+### Example: `apps.request`, defined once
+
+The sketch as planned, before phase 1. What landed is [`capabilities/apps.ts`](../../../packages/workspace/src/lib/capabilities/apps.ts). Calendar's `add_event` is an MCP tool of the bundled server (Decisions), so it needs no definition here.
 
 ```ts
 export const appsRequest = defineCapability({
@@ -165,45 +165,24 @@ export const appsRequest = defineCapability({
   run: async (input, ctx) => performApiRequest(input, ctx), // today's runRequest body, returning data
   text: (out) => renderBody(out), // status line to stderr, body to stdout, as today
 });
-
-export const calendarAddEvent = defineAppTool({
-  app: "apple-calendar", // a built-in app: its folder, its Apps tile, its guide
-  tool: "add_event",
-  summary: "Add an event to Calendar on this Mac.",
-  input: z.object({
-    title: z.string().min(1),
-    start: LocalDateTime, // today, tomorrow, 2026-10-06, 2026-10-06T14:30
-    end: LocalDateTime.optional(),
-    calendar: z.string().optional(),
-    account: z.string().optional(),
-    location: z.string().optional(),
-    notes: z.string().optional(),
-  }),
-  output: CalendarEventSchema, // the helper's JSON, parsed before it is trusted
-  surfaces: { cli: true, script: true },
-  where: { available: () => getWorkspaceConfig().macHelperBinPath !== undefined, platforms: ["darwin"] },
-  gate: macAppGate(CALENDAR_APP), // connected in Apps, not marked Not allowed in Settings, then macosAppCard
-  run: (input, ctx) => runMacHelper(["add-event", ...helperArgs(input)], CalendarEventSchema, ctx),
-  text: (event) => `Added "${event.title}" to ${event.calendar} at ${event.start}.`,
-});
 ```
 
-The same two capabilities on each surface:
+`apps.request` and Calendar's `add_event` (an MCP tool, through `apps.call`) on each surface:
 
 ```bash
 instrument app request google-drive POST /files <<'EOF'
 {"name": "Q4 plan", "mimeType": "application/vnd.google-apps.document"}
 EOF
-instrument app call apple-calendar add_event --title 'Q4 review' --start 2026-10-29T14:00 --end 2026-10-29T15:00
-instrument app call apple-calendar add_event --title 'Q4 review' --start 2026-10-29T14:00 --json | jq -r .id
+instrument app call apple-calendar add_event '{"title": "Q4 review", "start": "2026-10-29T14:00", "end": "2026-10-29T15:00"}'
+instrument app call apple-calendar add_event '{"title": "Q4 review", "start": "2026-10-29T14:00"}' --json | jq -r .id
 ```
 
 ```js
-const doc = await instrument.apps.request("google-drive", "POST", "/files", {
+const doc = await instrument.apps["google-drive"].post("/files", {
   body: { name: "Q4 plan", mimeType: "application/vnd.google-apps.document" },
 });
-await instrument.apps["google-docs"].post(`/documents/${doc.body.id}:batchUpdate`, { body: { requests } });
-await instrument.apps["apple-calendar"].addEvent({ title: "Q4 review", start: "2026-10-29T14:00" });
+await instrument.apps["google-docs"].post(`/documents/${doc.id}:batchUpdate`, { body: { requests } });
+await instrument.apps["apple-calendar"].add_event({ title: "Q4 review", start: "2026-10-29T14:00" });
 ```
 
 ```python
@@ -211,11 +190,11 @@ import instrument
 
 drive = instrument.app("google-drive")
 doc = drive.post("/files", body={"name": "Q4 plan", "mimeType": "application/vnd.google-apps.document"})
-instrument.app("google-docs").post(f"/documents/{doc['body']['id']}:batchUpdate", body={"requests": requests})
+instrument.app("google-docs").post(f"/documents/{doc['id']}:batchUpdate", body={"requests": requests})
 try:
     instrument.app("apple-calendar").add_event(title="Q4 review", start="2026-10-29T14:00")
-except instrument.NeedsPermission as asked:
-    print(asked)  # "using Calendar needs the person's yes. Ask for Calendar with ask_permission."
+except instrument.CardShown as shown:
+    print(shown)  # macOS is asking the person about Calendar; the card is up, and the turn ends after this command
 ```
 
 ## Cards and the security boundary
@@ -229,20 +208,20 @@ A script call never blocks waiting on a card. Blocking would hold a process, and
 | `refused` | exit 1 with the message | `instrument.Error` (`kind: "refused"`) | continues; the agent reports what it skipped |
 | `ask` | exit 1, "ask for X with `ask_permission`" | `NeedsPermission`, carrying `ask` | continues until the agent calls `ask_permission`, which ends it. Matches [explicit-permission-asks.md](explicit-permission-asks.md): running into a gate raises no card |
 | `card` (macOS's own answer) | exit 2 | `CardShown` | ends after the bash call returns, through the raised asks, as a command's card does today, whatever the script did after catching it |
-| `read-first` | the guide on stdout, exit 0 (today's hand-off) | `ReadGuideFirst`, whose message is the guide, recorded as the hand-off so the next run passes | continues; the agent reruns with the guide in context |
+| `read-first` | nothing sent, stdout empty, the guide on stderr, exit 3 | `ReadGuideFirst`, whose message is the guide | continues; the agent reruns with the guide in context. Either way the hand-off counts only once the bash call's output shows the printed guide whole (`appGuidesShown`), so a guide sent to `/dev/null`, filtered by a pipe or caught and dropped by a script is handed over again |
 
 A script that catches one exception keeps the rest of its work, so a fan-out that reaches one closed app still writes everything else. A second call to the same gated app in one script joins the open card (`recordAsk` already keeps one per thing) and throws again without raising another.
 
 ### What a token opens
 
-- **Exactly what the shell's own `instrument` opens in that bash call.** The context is the bash call's (chat, session, role, part); the script never names a chat or a session. A task's script cannot call `task.*`, `tab.*` or `memory.*`, because the dispatcher checks `where.roles` against the captured role.
+- **Exactly what the shell's own `instrument` opens in that bash call.** The context is the bash call's (chat, session, role, part); the script never names a chat or a session. A task's script cannot call `task.*`, `window.*` or `memory.*`, because the dispatcher checks `where.roles` against the captured role.
 - **Only capabilities marked `script`.** App setup (`apps.new`, `apps.disconnect`) and the turn-enders stay off the script surface. Sends (`apps.apple-mail.send`, `apps.apple-messages.send`) are on it, behind the same gate the CLI passes.
 - **One process, one lifetime.** The listener closes when the process exits; the token is per process.
-- **Children get nothing.** Node's preload already deletes `INSTRUMENT_TOOLS` before the script runs. Python does the same before user code: from the `.pth` line in a virtualenv (an `import` line in a `.pth` runs at startup) and from a `sitecustomize.py` in the base folder on the bare managed Python's `PYTHONPATH` (a `PYTHONPATH` folder runs no `.pth`). Skill environments ([`skill-environments.ts`](../../../packages/workspace/src/lib/skill-environments.ts)) get the same line. A program that reads the variable before it is deleted could call what the script can, which is the boundary `node` has today and the decision record accepts.
+- **Children get nothing.** Node's preload deletes `INSTRUMENT_CHANNEL` before the script runs. Python does the same before user code: from the `.pth` line in a virtualenv (an `import` line in a `.pth` runs at startup) and from a `sitecustomize.py` in its own folder ahead of the base on the bare managed Python's `PYTHONPATH` (a `PYTHONPATH` folder runs no `.pth`). Skill environments ([`skill-environments.ts`](../../../packages/workspace/src/lib/skill-environments.ts)) get the same line. A program that reads the variable before it is deleted could call what the script can, which is the boundary `node` has today and the decision record accepts.
 
 ### The `instrument` stub
 
-A small `instrument` program (a `#!/bin/sh` script, `instrument.cmd` on Windows) in the runtime folder's `bin/`, prepended to the PATH that native commands get (`resolveCommandContext` and `uvSubprocessEnv`), never to the shell's own PATH, where the builtin is found first anyway. It prints to stderr and exits 127:
+A small `instrument` program (a `#!/bin/sh` script, `instrument.cmd` on Windows) in the runtime folder's `bin/`, which the app already puts first on the PATH of every program it starts, never on the shell's own PATH, where the builtin is found first anyway. `node` and `python` write it when it differs ([`capabilities/stub.ts`](../../../packages/workspace/src/lib/capabilities/stub.ts)). It prints to stderr and exits 127:
 
 ```
 instrument: Instrument's commands run in its shell, not from a program. From Python, `import instrument` (instrument.app("google-drive").post(...)); from Node, the `instrument` global. `instrument help` in the shell lists them.
@@ -252,16 +231,18 @@ That answers the transcript's `subprocess.run(["instrument", ...])` in the words
 
 ## The Mac apps move into Apps
 
-**Decided: built-in apps.** All six Mac data apps (Calendar, Reminders, Contacts, Mail, Notes, Messages) become one built-in app kind whose tools are registry capabilities, in the Apps area like every other app. What the code said when this was weighed:
+**Decided: plain local MCP apps (option C).** All six Mac data apps (Calendar, Reminders, Contacts, Mail, Notes, Messages) are served by an MCP server bundled inside Instrument, the EventKit helper for Calendar, Reminders and Contacts and the app's own AppleScript for Mail, Notes and Messages, and each is an ordinary local MCP app: `instrument app call apple-calendar add_event '{...}'`, `instrument.apps["apple-calendar"].add_event({...})` in Node, `instrument.app("apple-calendar").add_event(...)` in Python, listed and connected in Apps like Notion or Linear and presented there as a Mac app. There is no `mac` app kind and no registry capability per tool: the tools and their schemas come from the server through `apps.call` and `apps.tools`, the way every MCP app's do.
 
+- **MCP is the boundary.** The server can later be swapped or reused (iOS, the cloud) without the agent's surfaces changing.
+- **The requirement: macOS's prompts stay Instrument's.** The server runs as the app's own helper, with the entitlements and usage strings that make macOS name Instrument when it asks, never as a separate program macOS names. A denial is the gate's `card` outcome: exit 2 on the command line, `CardShown` in a script, and today's macOS card (`macosAppCard`), raised once per thing.
 - **They were already apps everywhere except where they work.** The directory lists `apple-calendar`, `apple-mail` and the rest as entries with a `mac-app` interface ([`catalog-seed.json`](../../../packages/workspace/src/lib/apps/catalog-seed.json), `catalogWayIn` in [`way-in.ts`](../../../packages/workspace/src/lib/apps/way-in.ts)), and `app catalog` tells the agent to use `instrument calendar` instead (`nativeCommandFor`, `HELPER_COMMANDS`, `SCRIPTED_COMMANDS` in `app.ts`). Pressing Connect on one in the Apps screen dead-ends: `setUpFromDirectory` ([`set-up.ts`](../../../packages/workspace/src/lib/apps/set-up.ts)) answers `agent` for "a Mac app a task drives", so the window sends a chat message, and no app folder or tile ever appears.
 - **One namespace for scripts.** As apps, they are `instrument.apps["apple-calendar"]` beside `instrument.apps["google-calendar"]`, discovered by the same `instrument app tools <slug>`.
 - **The description moves out of every prompt.** `computerCommandsText` puts six paragraphs of Mac app usage into every session on a Mac. As apps, each has a guide read when the app is used, like any app.
-- **The open piece is small now.** The stale plan's "bundled-binary app kind" was the hard part when it was written; the helper, the entitlements and usage strings, and the gate it needed have since landed as `instrument calendar` and `contacts` ([`mac-helper.ts`](../../../packages/workspace/src/lib/shell-commands/mac-helper.ts), [mac-native-bridge.md](../../architecture/mac-native-bridge.md)). What is left is a manifest type (`type: "mac"`, naming the built-in by id), `setUpFromDirectory` writing its folder, and the Apps screen showing it.
+- **What is left is the server.** The helper, the entitlements and usage strings, and the gate it needed have landed as `instrument calendar` and `contacts` ([`mac-helper.ts`](../../../packages/workspace/src/lib/shell-commands/mac-helper.ts), [mac-native-bridge.md](../../architecture/mac-native-bridge.md)). Phase 2 puts an MCP server in front of them, a local MCP manifest per app that `setUpFromDirectory` writes, and the map from the server's macOS refusal to `card`.
 
 What it costs: the short `instrument calendar` words, and a person who removes the app's folder loses it until they add it again (today it is always there on a Mac). Connecting one covers every chat, as for any app (Decisions).
 
-The stale [mac-reminders-and-calendar-app.md](mac-reminders-and-calendar-app.md) moves to `completed/` when phase 2 lands, its status reading that the EventKit helper landed as commands and the built-in app kind is carried here. Its remaining items (update and delete, write-only access on macOS 14+, recurrence) become follow-up capabilities.
+The stale [mac-reminders-and-calendar-app.md](mac-reminders-and-calendar-app.md) moves to `completed/` when phase 2 lands, its status reading that the EventKit helper landed as commands and is served as an MCP app from here. Its remaining items (update and delete, write-only access on macOS 14+, recurrence) become follow-up tools of the server.
 
 ## Computer use
 
@@ -315,26 +296,52 @@ Not yet run: a second model, and the bash-only arm (phase 1 adds the switch). `e
 
 ### Phase 1: the registry, `apps.*`, and both runtimes
 
-- `lib/capabilities/` with `defineCapability`, `defineAppTool`, the dispatcher, the CLI generator and the channel protocol above.
-- `apps.call`, `apps.tools`, `apps.request`, `apps.list` as capabilities; `instrument app call`, `tools`, `tool`, `request`, `list` generated from them. The setup words stay hand-written until phase 3.
-- The `instrument` global in Node and `import instrument` in Python, the `describe` handshake, the Python boot line, the stub on the native PATH, and the prompt line to read an app's guide before scripting it.
-- **Deleted:** `invokeAppTool`, `AppToolInvoker`, `appToolHook`, the `tools` global and the path-based channel protocol. The `node` and `app` descriptions name the module. A decision record supersedes the `tools` part of [2026-10-12-python-and-node-run-native.md](../../decisions/2026-10-12-python-and-node-run-native.md).
-- **Evals:** phase 0 rerun (the `TOOLS_CALL` patterns also match `instrument.`); a bash-only arm per case (a harness switch that opens no channel) to compare steps, tokens and correctness; the Python cases, now scored on reaching the module. Pass bar: correctness at or above baseline, fewer steps and tokens on the fan-out, the join and the errand, the single lookup still answered without a script.
-- **Eval-gated: a preflight ask.** `instrument.require(["apple-calendar", "google-drive"])` would check, before a script does any work, every app it is about to use, and throw once naming everything that still needs the person's yes. Without it, a long script can stop at the first app that needs asking, the agent asks, the person answers, and the script runs again until it meets the next one. With it, the agent asks for everything in one step and the script runs once. Build it only if a case with two or more gated apps shows more cards or more reruns without it than the extra call costs.
+Built:
+
+- [`lib/capabilities/`](../../../packages/workspace/src/lib/capabilities/): `defineCapability`, the dispatcher (`dispatch.ts`: the capability, where it exists, its surface, the input, the gate, the work), the CLI generator (`cli.ts`), the channel and its protocol (`channel.ts`: `{ id, capability, args }`, a `describe` request, error replies by kind), and the two runtimes (`node-runtime.ts`, `python-runtime.ts`).
+- `apps.call`, `apps.tools`, `apps.request`, `apps.list` as capabilities (`apps.ts`), with `instrument app call`, `tools`, `tool`, `request` and `list` generated from them, each with `--json` and `--out`. Exit codes: 0, 1 a failure, 2 a card is up, 3 not sent until the guide is read (stdout empty, the guide on stderr). The setup words stay hand-written.
+- The `instrument` global in Node and `import instrument` in Python. Python finds it by a `.pth` in whichever virtualenv runs, the chat's or a skill's environment, and, run bare, by a `sitecustomize` ahead of it on `PYTHONPATH`; each takes `INSTRUMENT_CHANNEL` out of the environment before the script's code runs. An app's request methods (`.get`, `.post`, ...) return the parsed body, and `instrument.apps.request(...)` the whole response. The stub on the runtime `bin/`, and the prompt line to read an app's guide before scripting it.
+- **Deleted:** `invokeAppTool`, `AppToolInvoker`, `appToolHook`, the `tools` global and the path-based channel protocol. The [decision record](../../decisions/2026-10-27-scripts-reach-instrument.md) supersedes the `tools` part of the 2026-10-12 one.
+- **Not built:** `defineAppTool`, which the Mac apps as MCP apps (Decisions) leave without a user, and `instrument.require` (below).
+- The evals' bash-only arm is `pnpm eval run ... --bash-only`, which sets `INSTRUMENT_SCRIPT_CHANNEL=0`: no channel opens and the prompt names no script surface. The cases count scripts calling `instrument` by runtime (`scriptedCalls` in `app-scripting.ts`), `ReadGuideFirst` thrown, and the stub's answers.
+
+**Evals, Claude Haiku 5.5 through OpenRouter, three trials per case** (six for the errand in phase 1, below), measured as phase 0 was: model steps and the trial's total tokens as medians, steps with their range, cost summed over the trials. The phase 1 cost figures are about twice phase 0's for the same tokens (the bash-only single lookups cost $0.014 at 86K, phase 0's $0.006), so the harness's price for the model changed between the runs: compare tokens across phases, and cost only within phase 1.
+
+| Case | Phase 0 (`tools` in Node only) | Phase 1 | Bash-only arm | How phase 1 made the calls |
+| --- | --- | --- | --- | --- |
+| Beacon fan-out (MCP) | 3/3, 6 (4-7), 185K | 3/3, 6 (4-6), 186K, $0.019 | 3/3, 7 (5-8), 215K, $0.021 | a Python script with `import instrument` in 3/3 |
+| Beacon join (MCP) | 3/3, 5 (5-6), 145K | 3/3, 5 (4-5), 147K, $0.017 | 3/3, 5 (4-6), 151K, $0.018 | a `node` script in 3/3 |
+| Beacon single lookup (MCP) | 3/3, 4 (4-4), 113K | 3/3, 4 (4-4), 115K, $0.014 | 3/3, 4 (4-4), 113K, $0.014 | two `app call`s, no script, 3/3 |
+| Lantern fan-out (API) | 3/3, 7 (5-10), 214K | 3/3, 4 (3-4), 117K, $0.016 | 3/3, 7 (6-8), 223K, $0.022 | a script in 3/3, after one or two `app request`s |
+| Lantern join (API) | 3/3, 5 (4-5), 149K | 3/3, 4 (3-4), 119K, $0.016 | 3/3, 4 (4-5), 122K, $0.018 | a script in 3/3 |
+| Lantern single lookup (API) | 3/3, 3 (3-3), 86K | 3/3, 3 (3-3), 87K, $0.014 | 3/3, 3 (3-3), 86K, $0.014 | two or three `app request`s, no script, 3/3 |
+| Python fan-out over Lantern | 3/3, 11 (10-16), 361K | 3/3, 4 (3-4), 121K, $0.017 | 3/3, 11 (10-14), 356K, $0.032 | `import instrument` in 3/3, no `subprocess` |
+| Python fan-out over Beacon | 3/3, 10 (9-11), 320K | 3/3, 5 (5-6), 153K, $0.019 | 3/3, 13 (13-13), 451K, $0.037 | `import instrument` in 2/3, a `node` script in 1/3 |
+| Google errand (4 API apps) | 3/3, 12 (10-14), 420K | 5/6, 6.5 (3-17), 217K, $0.048 | 3/3, 9 (8-11), 306K, $0.029 | scripts in 6/6; `ReadGuideFirst` thrown 0 to 3 times a trial |
+
+What it says:
+
+- **The pass bar holds but for the errand's correctness.** Fewer steps and tokens on the API fan-out (7 to 4 steps, 214K to 117K), the API join (5 to 4, 149K to 119K), both Python fan-outs (11 to 4 and 10 to 5, about a third of the tokens) and the errand (12 to 6.5, 420K to 217K); both single lookups still answered with plain commands and no script. The MCP fan-out and join are unchanged from phase 0, which already had a script surface for MCP apps (`tools`), and both are cheaper than with none (the bash-only arm). The errand passed 5 of 6: the miss made a stray second Pricing doc and linked the other copy, which the assertion, taking the first doc it finds for a title, scores as unlinked. The first three errand trials alone were 2/3, 9 (5-17), 317K; three more were run because one trial took 17 steps.
+- **Python reaches the module and stops failing first.** No phase 1 Python trial ran `instrument` as a program in the Lantern or Beacon cases; the errand's 17-step trial did twice from `subprocess`, heard the stub, and moved to the module. In the bash-only arm, every Python trial reproduced phase 0's failure (`subprocess` and "not found" in 6 of 6), and 3 of 3 over Lantern also curled the stand-in.
+- **Guides are read into `/dev/null`.** In 5 of the 6 phase 1 errand trials the model ran `instrument app guide <slug> >/dev/null` (or `| head`) to get past the check. The guide never reaches the output, so it does not count as handed over and the next request throws `ReadGuideFirst` again, as designed; but it costs a rerun each time, and a script stops at one app's guide, then the next on the rerun (three in a row in two trials).
+
+**`instrument.require`: built, measured, and taken out.** Phase 1 has no gate that asks the person (an app is connected or refused, workspace-wide), so the only multi-app gate to try it on was the guide check: `instrument.require(["google-docs", "gmail", ...])` ran every app's gate before the script did any work and threw one `ReadGuideFirst` carrying every guide still to read, with a prompt line in the `node`, `python` and `app` descriptions saying to start a multi-app script with it. Six errand trials with it: 6/6, 6.5 steps (4-11), 238K. The model called it in 1 of 6 trials (that one was the intended shape: one throw with all four guides, then done in 4 steps); the other five reran one app at a time as before. Against the six without it (5/6, 6.5 (3-17), 217K) it saved nothing, so it is not in the build. The reruns it was for are real; what would reach them is the guide check meeting a script once rather than per app, or the guide reads above counting, which belongs with phase 2's eval of the Calendar card.
+
+What the plan had wrong, now corrected above: `app request`'s read-first hands the guide over on stderr and exits 3 with nothing sent (the plan had the guide on stdout, exit 0), and a hand-off counts only once the output shows the printed guide whole; the Node example's `doc.body.id` (an app's request methods return the body); camelCase tool names in Node (`listIssues`; an MCP tool keeps the service's name); `defineAppTool` (no user once the Mac apps are MCP apps); the stub's PATH (the runtime `bin/` is already first on every native command's PATH); and JSON output when stdout is piped (not built: `| jq .field` written against today's output would break).
 
 ### Phase 2: the Mac apps
 
-- The six Mac apps' tools as `defineAppTool` capabilities over the helper and the scripts, with `macAppGate` as their one gate: the app connected in Apps for the workspace, the Settings rule, then macOS's own answer. The per-chat app grants these six apps take today (`appRefusal` and `ask_permission` with `kind: "app"` for them) go; Shortcuts, which is not an app in Apps, keeps its own.
-- The `mac` app kind, `setUpFromDirectory` writing its folder, the Apps screen tile, and each app's guide from its tools' summaries.
+- An MCP server bundled inside Instrument over the Mac helper and the scripts, exposing the six apps' tools with their schemas, each app a local MCP app in the directory that `setUpFromDirectory` writes a folder for, connected for every chat once it is connected in Apps (Decisions). The gate: the app connected, the Settings rule (Not allowed is `refused`), then macOS's own answer, a denial mapped to `card` with today's macOS card. The per-chat app grants these six apps take today (`appRefusal` and `ask_permission` with `kind: "app"` for them) go; Shortcuts, which is not an app in Apps, keeps its own.
+- The Apps screen shows each as a Mac app, and each app's guide comes from its tools' descriptions.
 - **Deleted:** `createMacHelperCommand`, `instrument calendar`, `contacts`, `mail`, `notes` and `messages` with their `USAGE` strings, `MAC_APP_SUBCOMMANDS`, `nativeCommandFor` and its tables, the Mac paragraphs in `computerCommandsText`. The stale plan moves to `completed/`.
-- **Evals:** the `reach-*` cases in [`reach.ts`](../../../packages/workspace/evals/cases/reach.ts) (reminder, calendar, send-text, task-reminders, task-notes) rerun; a script case that adds three events and meets the Calendar card: the turn ends once, with no retry loop and no AppleScript fallback.
+- **Evals:** the `reach-*` cases in [`reach.ts`](../../../packages/workspace/evals/cases/reach.ts) (reminder, calendar, send-text, task-reminders, task-notes) rerun; a script case that adds three events and meets the Calendar card: the turn ends once, with no retry loop and no AppleScript fallback. Phase 1's harness carries over: `--bash-only` for the arm with no script surface, and `scriptedCalls` in `app-scripting.ts` for counting scripts that call `instrument`.
 
 ### Phase 3: the rest of `instrument`, and the model tools
 
-- `memory.*`, `tab.*`, `task.*`, `x.*` and the app setup words as capabilities with generated CLI surfaces, roles from the registry instead of `CHAT_ONLY_SUBCOMMANDS`.
+- `memory.*`, `window.*`, `task.*`, `x.*` and the app setup words as capabilities with generated CLI surfaces, roles from the registry instead of `CHAT_ONLY_SUBCOMMANDS`.
 - `web.fetch`, `web.search` and `images.generate` get a script surface beside their model tool, from one definition; `read_file`, `write_file`, `edit_file` and the turn-enders move onto `defineCapability` with `surfaces.tool` only, so a model tool is no longer a separate style.
 - **Deleted:** `defineSubcommands` and `subcommand()`; `setupTool` folds into `defineCapability`.
-- **Evals:** the memory, task-sessions, task-tabs and web-search suites rerun; a scripted fan-out over `web.fetch` against loopback pages.
+- **Evals:** the memory, task-sessions, task-tabs and web-search suites rerun; a scripted fan-out over `web.fetch` against loopback pages. `--bash-only` and `scriptedCalls` from phase 1 carry over.
 
 ## Open questions for the owner
 

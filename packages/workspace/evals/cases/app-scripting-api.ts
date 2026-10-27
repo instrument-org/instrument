@@ -401,8 +401,8 @@ const SUBPROCESS_INSTRUMENT =
 const NOT_A_PROGRAM =
   /No such file or directory: '(?:instrument|\.\/instrument)'/g;
 // What the `instrument` program on a script's PATH says before it exits 127.
-/** What every tool call printed, as text: where a refusal or the stub's answer shows. */
-function outputsText(sessions: Session.WithMessagesAndParts[]): string {
+/** What each tool call printed, as text: where a refusal or the stub's answer shows. */
+function outputs(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions
     .flatMap((session) => session.messages)
     .flatMap((message) => message.parts)
@@ -410,13 +410,13 @@ function outputsText(sessions: Session.WithMessagesAndParts[]): string {
       part.type.startsWith("tool-") && "output" in part
         ? [JSON.stringify(part.output)]
         : [],
-    )
-    .join("\n");
+    );
 }
 
 const STUB_ANSWERED =
-  /Instrument's commands run in its shell, not from a program/g;
-const READ_GUIDE_FIRST = /ReadGuideFirst/g;
+  /Instrument's commands run in its shell, not from a program/;
+// A script stopped on the guide check, as its uncaught exception prints.
+const READ_GUIDE_FIRST = /ReadGuideFirst: Not sent/;
 const LOOPBACK_CURL = /\bcurl\b[^|;]{0,200}127\.0\.0\.1/;
 
 /**
@@ -448,14 +448,17 @@ const mechanism: Assertion = {
     ).length;
     const transcript = transcriptText(sessions);
     const notFound = transcript.match(NOT_A_PROGRAM)?.length ?? 0;
-    const outputs = outputsText(sessions);
-    const stub = outputs.match(STUB_ANSWERED)?.length ?? 0;
-    const guideFirst = outputs.match(READ_GUIDE_FIRST)?.length ?? 0;
+    const printed = outputs(sessions);
+    // Tool calls that met each, counted once however often the text shows.
+    const stub = printed.filter((output) => STUB_ANSWERED.test(output)).length;
+    const guideFirst = printed.filter((output) =>
+      READ_GUIDE_FIRST.test(output),
+    ).length;
     const curl = commands.filter((command) =>
       LOOPBACK_CURL.test(command),
     ).length;
     return {
-      evidence: `bash ${commands.length}, app commands ${appCalls.length} (${requests} request, ${loops} in a loop, ${outs} to a file), scripts calling instrument ${scripted.node + scripted.python} (node ${scripted.node}, python ${scripted.python}), ReadGuideFirst thrown ${guideFirst}, python runs ${python}, scripts running instrument as a program ${subprocess} (${stub} told how by the stub, ${notFound} not found), curl to the stand-in ${curl}`,
+      evidence: `bash ${commands.length}, app commands ${appCalls.length} (${requests} request, ${loops} in a loop, ${outs} to a file), scripts calling instrument ${scripted.node + scripted.python} (node ${scripted.node}, python ${scripted.python}), calls stopped by ReadGuideFirst ${guideFirst}, python runs ${python}, scripts running instrument as a program ${subprocess} (${stub} calls told how by the stub, ${notFound} not found), curl to the stand-in ${curl}`,
       passed: true,
       text: "records the mechanism",
     };

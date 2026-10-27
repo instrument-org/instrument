@@ -33,6 +33,7 @@ import { listChatBackgroundProcesses } from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
+import { closeAgentBrowserSessionsForSessions } from "../src/lib/agent-browser-cleanup";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/open-asks";
@@ -1552,6 +1553,16 @@ export async function runEvals(
       clearInterval(askTimer);
       abortController.abort();
       await evalCase.teardown?.({ chatId: id });
+      // Every session's agent-browser daemon, as trashing a chat closes them.
+      // Nothing else does for a chat's own session, and each one holds a
+      // headless Chrome for the daemon's idle timeout after this process has
+      // exited, which across a run of many cases exhausts the machine.
+      await closeAgentBrowserSessionsForSessions(
+        [
+          sessionOfChat(id),
+          ...(await listChildTasks(id)).map((task) => task.id),
+        ].filter((session) => session !== undefined),
+      );
 
       if (outcome === "timeout") {
         stoppedBy = "timeout";

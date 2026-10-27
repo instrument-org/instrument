@@ -684,21 +684,25 @@ function Tab({
       </Reorder.Item>
     );
 
-  // A tab on its way out or being carried has nothing to say.
-  if (!tab.tooltip || isClosing || isDragging) {
+  if (!tab.tooltip) {
     return element;
   }
+  // The wrapper stays while the tab closes or is carried, so the tab stays
+  // the same element: a remount drops its collapse transition and the drag
+  // gesture in hand. A tab on its way out or being carried has nothing to say.
   return (
     <Tooltip>
       <TooltipTrigger asChild>{element}</TooltipTrigger>
-      <TooltipContent maxWidth="28rem" side="bottom">
-        <div className="font-medium break-words">{tab.tooltip.title}</div>
-        {tab.tooltip.detail ? (
-          <div className="mt-0.5 text-muted-foreground">
-            {tab.tooltip.detail}
-          </div>
-        ) : null}
-      </TooltipContent>
+      {isClosing || isDragging ? null : (
+        <TooltipContent maxWidth="28rem" side="bottom">
+          <div className="font-medium break-words">{tab.tooltip.title}</div>
+          {tab.tooltip.detail ? (
+            <div className="mt-0.5 text-muted-foreground">
+              {tab.tooltip.detail}
+            </div>
+          ) : null}
+        </TooltipContent>
+      )}
     </Tooltip>
   );
 }

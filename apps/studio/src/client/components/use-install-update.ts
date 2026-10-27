@@ -7,10 +7,19 @@ import { useState } from "react";
  * Installs the staged update, and says whether the app is restarting for it.
  * Restarting from the press on, so the check the main process makes first
  * shows as the restart it leads to rather than a flash of "Checking", and
- * until the request comes back with anything but a quit.
+ * until the request comes back with anything but a quit or the status turns
+ * to an error, which is how an install that fails after the request came
+ * back (Squirrel.Mac's, on macOS) is told.
  */
-export function useInstallUpdate() {
+export function useInstallUpdate(status: string | undefined) {
   const [restarting, setRestarting] = useState(false);
+  const [seenStatus, setSeenStatus] = useState(status);
+  if (seenStatus !== status) {
+    setSeenStatus(status);
+    if (status === "error") {
+      setRestarting(false);
+    }
+  }
   const install = async () => {
     setRestarting(true);
     const outcome = await safe(rpcClient.preferences.quitAndInstall.call());

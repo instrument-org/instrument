@@ -44,7 +44,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### E. "Restarting" stays up after an install that fails late
 
-- Status: open
+- Status: fixed
 - Where: [use-install-update.ts:14](/apps/studio/src/client/components/use-install-update.ts#L14), [use-install-update.ts:32](/apps/studio/src/client/components/use-install-update.ts#L32), [update-status.ts:260](/apps/studio/src/electron-main/lib/update-status.ts#L260)
 - What: `restarting` is set on the press and cleared only when the RPC itself returns something other than `installing`. On macOS a Squirrel failure arrives after `quitAndInstall` returned (the `failed` handler says so and publishes `error`), so the flag stays true. The next poll's `checking` resolves to `downloaded` while a build is staged, and `showsAsRestarting(true, "downloaded")` draws the pill as "Restarting" with a spinner and Settings' button as a disabled "Restarting…" for as long as the window lives. Clicking the pill still installs, but nothing invites that.
 - Verification: traced statically.

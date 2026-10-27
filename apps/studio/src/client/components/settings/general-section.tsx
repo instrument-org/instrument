@@ -129,7 +129,7 @@ function About() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
-  const { install, restarting } = useInstallUpdate();
+  const { install, restarting } = useInstallUpdate(updateState?.type);
   const asksForPassword = useInstallAsksForPassword();
   // The status the main process publishes on the way to a restart, said as
   // the restart from the press on.

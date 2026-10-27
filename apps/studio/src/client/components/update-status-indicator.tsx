@@ -108,7 +108,7 @@ export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
-  const { install, restarting } = useInstallUpdate();
+  const { install, restarting } = useInstallUpdate(updateState?.type);
   // A manual "up to date" result auto-hides after a beat so it's transient
   // feedback, not persistent chrome.
   const [dismissedNotAvailable, setDismissedNotAvailable] = useState(false);

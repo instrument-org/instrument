@@ -336,9 +336,9 @@ describe("app test and the guide skeleton", () => {
     ["render", "--mcp https://mcp.render.com/mcp --auth bearer"],
     // One whose sign-in is Instrument's own client gets the card.
     ["asana", "--mcp https://mcp.asana.com/v2/mcp\n"],
-    // One whose token takes building an app first goes to the web.
-    ["hubspot", "--web https://app.hubspot.com"],
-    // Slack, until the directory gives it a client, goes to the web too.
+    // So does HubSpot, through its sign-in client.
+    ["hubspot", "--mcp https://mcp.hubspot.com\n"],
+    // Slack, until the directory gives it a client, goes to the web.
     ["slack", "--web https://app.slack.com"],
     // So does Teams, whose Microsoft Graph sign-in needs Instrument's client.
     ["teams", "--web https://teams.microsoft.com"],

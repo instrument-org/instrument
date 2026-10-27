@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-27T14:44:07.184Z",
-  "entriesHash": "fecca74958df0802",
+  "revision": "2026-10-27T15:00:44.489Z",
+  "entriesHash": "eb5d430e9aab8b35",
   "entries": [
     {
       "slug": "ahrefs",
@@ -2171,13 +2171,13 @@
         "What contacts were added this week?",
         "Which deals have gone quiet?"
       ],
-      "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts. Reached through HubSpot's MCP server once Instrument's HubSpot client is open to everyone; until then the web app, or the REST API with a private app token.",
+      "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts. Reached through HubSpot's MCP server after you sign in with HubSpot, or through the REST API with a private app token.",
       "domain": "hubspot.com",
       "authMethods": [
         {
           "type": "oauth2",
           "label": "HubSpot sign-in",
-          "note": "Needs Instrument's own sign-in client, which isn't open to everyone yet; until then the user signs in on the web, or makes a private app token."
+          "note": "Signs in with OAuth in the browser through Instrument's own HubSpot client, so there is no key to paste."
         },
         {
           "type": "token",
@@ -2191,6 +2191,7 @@
           "name": "HubSpot MCP server",
           "endpoint": "https://mcp.hubspot.com",
           "auth": "oauth-client",
+          "clientId": "a91d9efc-35bf-45ce-b216-da9315e324c4",
           "tokenExchange": "api"
         },
         {

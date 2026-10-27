@@ -19,6 +19,7 @@ vi.mock("@/client/lib/computer-file-url", () => ({
   getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
     `http://assets.invalid${hostPath}`,
   getComputerThumbnailUrl: () => "",
+  thumbnailUrlAtSize: (url: string) => url,
 }));
 
 const TASK_ID = "quarterly-numbers" as ChatId;

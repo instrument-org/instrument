@@ -58,9 +58,11 @@ export function recordAppGuideHandOff({
 
 /**
  * The hand-offs the model is shown whole in the call's `output`, which it is
- * sent cut down to its head and tail when long: one cut away is left out, so
- * the next request hands the guide over again. One that would be cut even
- * printed alone is kept, since handing it over again could show no more.
+ * sent cut down to its head and tail when long: one cut away, or never in the
+ * output at all (its stderr sent to /dev/null, or into a pipe that filtered
+ * it), is left out, so the next request hands the guide over again. One that
+ * would be cut even printed alone is kept, since handing it over again could
+ * show no more.
  */
 export function appGuidesShown(
   recorded: readonly RecordedAppGuide[],
@@ -71,7 +73,6 @@ export function appGuidesShown(
     .filter(
       ({ printed }) =>
         printed === undefined ||
-        !shown.truncated ||
         shown.content.includes(printed.trim()) ||
         truncateMiddle(printed).truncated,
     )

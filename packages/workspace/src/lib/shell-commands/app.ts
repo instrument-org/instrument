@@ -106,6 +106,13 @@ function appsFolder() {
 }
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
+/**
+ * `request`'s exit when it sent nothing and handed back the app's guide:
+ * apart from 1 (the request failed or the service answered an error) and 2
+ * (a refusal, as macOS's in `mac-helper.ts`), so a script or an `&&` chain
+ * stops and the agent knows only a repeat is needed.
+ */
+const GUIDE_FIRST_EXIT_CODE = 3;
 const TEST_TIMEOUT_MS = ms("1 minute");
 
 // How many matches a query gets in full before the rest fall back to one line
@@ -176,8 +183,8 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       one script rather than a turn each.
   ${APP_COMMAND.name} request <slug> <METHOD> <path> [--param <k>=<v>]... ['<json body>']
       One request through an API app, the path relative to its base. The first
-      request in a task hands back the app's guide instead; read it, then
-      repeat. The body can come on stdin.
+      request in a task sends nothing: it prints the app's guide on stderr
+      and exits ${GUIDE_FIRST_EXIT_CODE}; read it, then repeat. The body can come on stdin.
   ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
       The app's guide, the body of its ${APP_FILE_NAME}. With the whole guide on stdin
       through a quoted heredoc, write it instead, leaving the setup above it
@@ -727,7 +734,9 @@ async function runGuide(args: string[], stdin: ByteString) {
     // Every later chat reads the guide, so a key written into it would be
     // in front of every one of them; refused here rather than found later by
     // `test`.
-    const secrets = [...new Set(findSecrets(written).map(({ label }) => label))];
+    const secrets = [
+      ...new Set(findSecrets(written).map(({ label }) => label)),
+    ];
     if (secrets.length > 0) {
       throw new Error(
         `guide: not written, it has a secret in it (${secrets.join(", ")}). A guide never keeps a key, token or password: write how the service works without it. The app's key is kept apart from its folder and added to each request.`,
@@ -1200,9 +1209,11 @@ async function runRequest(
     );
   }
   if (!(await guideInWindow(context, app.slug, guide))) {
-    const printed = `Before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`;
+    // On stderr, so nothing downstream of a pipe takes the guide for the
+    // response.
+    const printed = `Not sent (exit ${GUIDE_FIRST_EXIT_CODE}): before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`;
     recordAppGuideHandOff({ app: app.slug, guide, printed });
-    return ok(printed);
+    return { exitCode: GUIDE_FIRST_EXIT_CODE, stderr: printed, stdout: "" };
   }
   const params = Object.fromEntries(
     input.all("param").map((param) => {

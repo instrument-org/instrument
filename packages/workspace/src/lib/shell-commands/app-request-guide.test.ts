@@ -67,7 +67,9 @@ describe("app request and the app's guide", () => {
       ),
     );
     const command = `instrument app ${args.join(" ")}`;
-    const appGuides = appGuidesShown(recorded, result.stdout);
+    // The bash tool's output: stdout, then stderr.
+    const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+    const appGuides = appGuidesShown(recorded, output);
     const messageId = await writeMessage(chatId, session, "assistant", [
       {
         input: { command, yieldMs: 1000 },
@@ -86,7 +88,7 @@ describe("app request and the app's guide", () => {
           durationMs: 1,
           exitCode: result.exitCode,
           omittedBytes: 0,
-          output: result.stdout,
+          output,
         },
         state: "output-available",
         toolCallId: `call-${StoreId.newPartId()}`,
@@ -102,7 +104,7 @@ describe("app request and the app's guide", () => {
     options?: Parameters<typeof app>[1],
   ): Promise<boolean> {
     const result = await app(["request", slug, "GET", "/me"], options);
-    return result.stdout.startsWith(`Before the first request to "${slug}"`);
+    return result.exitCode === 3;
   }
 
   /** Draws the session's rollover boundary after `after`, as a rollover does. */
@@ -160,6 +162,28 @@ describe("app request and the app's guide", () => {
 
     expect(await handsOver(slug)).toBe(true);
     expect(await handsOver(slug)).toBe(false);
+  });
+
+  it("sends nothing the first time, printing the guide on stderr and exiting 3", async () => {
+    const slug = `guide-${chats}`;
+    await connectedApiApp(slug);
+    writeAppGuide(
+      (await loadApp(getWorkspaceConfig().appsDir, slug))._unsafeUnwrap().dir,
+      "# Guide\n\nGET /me answers who the key belongs to.",
+    );
+
+    const result = await app(["request", slug, "GET", "/me"]);
+
+    expect(result.stdout).toBe("");
+    expect(result.exitCode).toBe(3);
+    expect(result.stderr.replace(slug, "<slug>")).toMatchInlineSnapshot(`
+      "Not sent (exit 3): before the first request to "<slug>", its guide. Read it, then repeat the request.
+
+      # Guide
+
+      GET /me answers who the key belongs to.
+      "
+    `);
   });
 
   it("counts `app guide` printing the guide as handing it over", async () => {
@@ -256,6 +280,7 @@ describe("appGuidesShown", () => {
       `${guide}\n${filler(3000)}`,
       true,
     ],
+    ["an output the guide never reached", filler(10), false],
     [
       "a guide the cut took, in the output's middle",
       `${filler(3000)}\n${guide}\n${filler(3000)}`,

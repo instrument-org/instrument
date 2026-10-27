@@ -62,10 +62,10 @@ export const MIN_FREE_DISK_BYTES = 20 * 1024 ** 3;
 const DISK_RECHECK_MS = 30_000;
 
 /** How long a case waits for room before its run fails. */
-export const DISK_WAIT_TIMEOUT_MS = 30 * 60_000;
+const DISK_WAIT_TIMEOUT_MS = 30 * 60_000;
 
 /** Free bytes on the volume holding `dir`, as a process may use them. */
-export async function freeBytes(dir: string): Promise<number> {
+async function freeBytes(dir: string): Promise<number> {
   const stats = await fs.statfs(dir);
   return stats.bavail * stats.bsize;
 }

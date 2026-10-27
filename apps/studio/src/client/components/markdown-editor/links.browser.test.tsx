@@ -5,12 +5,25 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-// See openMarkdownEditor; the links plugin also asks which linked files are missing.
+// See openMarkdownEditor; the links plugin also asks which linked files are
+// missing, which is none of them unless a test names the files that are there.
+const disk = vi.hoisted(() => ({ files: null as null | Set<string> }));
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
-    files: { missing: { call: () => Promise.resolve({ missing: [] }) } },
+    files: {
+      missing: {
+        call: ({ paths }: { paths: string[] }) =>
+          Promise.resolve({
+            missing: paths.filter((path) => disk.files?.has(path) === false),
+          }),
+      },
+    },
   },
 }));
+
+afterEach(() => {
+  disk.files = null;
+});
 
 afterEach(closeMarkdownEditors);
 
@@ -105,4 +118,24 @@ it("puts the site's icon in front of a web link, and none in front of a file's",
   );
   expect(file?.querySelector("img")).toBeNull();
   expect(view.state.doc.textContent).toBe("a site and a file");
+});
+
+it("finds a link rooted at `/` under a folder above the file, as a repository's own docs write them", async () => {
+  disk.files = new Set(["/repo/apps/main.ts"]);
+  const onOpenLink = vi.fn();
+  const view = await openMarkdownEditor(
+    "[there](/apps/main.ts#L4) and [gone](/apps/gone.ts)\n",
+    { hostPath: "/repo/docs/notes.md", onOpenLink },
+  );
+  const [there, gone] = view.dom.querySelectorAll("a");
+  await vi.waitUntil(() => gone?.querySelector(".md-link-broken"));
+
+  expect(there?.querySelector(".md-link-broken")).toBeNull();
+
+  await userEvent.click(there ?? view.dom, { modifiers: ["Meta"] });
+
+  expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(
+    { kind: "path", path: "/repo/apps/main.ts" },
+    false,
+  );
 });

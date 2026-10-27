@@ -24,8 +24,9 @@ const open: EditorSession[] = [];
 export async function openMarkdownEditor(
   markdown: string,
   {
+    hostPath = "/notes.md",
     onOpenLink = vi.fn(),
-  }: Partial<Pick<EditorSessionOptions, "onOpenLink">> = {},
+  }: Partial<Pick<EditorSessionOptions, "hostPath" | "onOpenLink">> = {},
 ) {
   const frame = document.createElement("div");
   frame.className = "md-editor";
@@ -35,7 +36,7 @@ export async function openMarkdownEditor(
   frame.append(root);
   document.body.append(frame);
   const session = await createEditorSession({
-    hostPath: "/notes.md",
+    hostPath,
     initial: { content: markdown, version: "1" },
     onAsk: vi.fn(),
     onExternalChange: vi.fn(),

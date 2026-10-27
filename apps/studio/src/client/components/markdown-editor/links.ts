@@ -60,7 +60,9 @@ export function linksPlugin({
       return;
     }
     const paths = [
-      ...new Set(linkedPaths(v.state.doc, folder).map(({ path }) => path)),
+      ...new Set(
+        linkedPaths(v.state.doc, folder).flatMap(({ places }) => places),
+      ),
     ].filter((path) => all || !found.has(path));
     if (paths.length === 0) {
       return;
@@ -119,7 +121,13 @@ export function linksPlugin({
         ?.scrollIntoView({ block: "start" });
       return;
     }
-    const target = openTargetOfHref(href, folder);
+    const there = placesOfHref(href, folder).find(
+      (path) => found.get(path) === true,
+    );
+    const target =
+      there === undefined
+        ? openTargetOfHref(href, folder)
+        : { kind: "path" as const, path: there };
     if (target) {
       open(target, newTab);
     }
@@ -154,7 +162,9 @@ export function linksPlugin({
           decorations(state) {
             const decos = [
               ...linkedPaths(state.doc, folder)
-                .filter(({ path }) => found.get(path) === false)
+                .filter(({ places }) =>
+                  places.every((path) => found.get(path) === false),
+                )
                 .map(({ from, to }) =>
                   Decoration.inline(from, to, { class: "md-link-broken" }),
                 ),
@@ -265,7 +275,7 @@ export function linksPlugin({
 
 /** Every stretch of linked text in `doc` that names a path on this computer, with the path. */
 function linkedPaths(doc: PMNode, folder: string) {
-  const out: { from: number; path: string; to: number }[] = [];
+  const out: { from: number; places: string[]; to: number }[] = [];
   doc.descendants((node, pos) => {
     if (!node.isText) {
       return;
@@ -274,13 +284,47 @@ function linkedPaths(doc: PMNode, folder: string) {
       if (mark.type.name !== "link") {
         continue;
       }
-      const target = openTargetOfHref(String(mark.attrs.href ?? ""), folder);
-      if (target?.kind === "path") {
-        out.push({ from: pos, path: target.path, to: pos + node.nodeSize });
+      const places = placesOfHref(String(mark.attrs.href ?? ""), folder);
+      if (places.length > 0) {
+        out.push({ from: pos, places, to: pos + node.nodeSize });
       }
     }
   });
   return out;
+}
+
+/**
+ * The paths on this computer a link from `folder` may name, the likeliest
+ * first. A link starting with one `/` is rooted wherever its author's tool
+ * roots it: at the disk, or at a folder above the file, as GitHub reads
+ * `/docs/a.md` from the repository's top and a notes app from its vault's.
+ * So it names the disk's path first, then the same path under each folder
+ * above the file, nearest first.
+ */
+function placesOfHref(href: string, folder: string): string[] {
+  const target = openTargetOfHref(href, folder);
+  if (target?.kind !== "path") {
+    return [];
+  }
+  if (!/^\/(?!\/)/.test(href)) {
+    return [target.path];
+  }
+  let rooted: string;
+  try {
+    rooted = decodeURIComponent(new URL(href, "file:///").pathname);
+  } catch {
+    return [target.path];
+  }
+  const separator = folder.includes("\\") ? "\\" : "/";
+  const parts = folder.split(/[\\/]/);
+  const places = [target.path];
+  for (let end = parts.length; end > 0; end--) {
+    const above = parts.slice(0, end).join(separator);
+    if (above) {
+      places.push(`${above}${rooted.replaceAll("/", separator)}`);
+    }
+  }
+  return [...new Set(places)];
 }
 
 /** Every link in `doc`, by its address and the stretch of text it covers. */

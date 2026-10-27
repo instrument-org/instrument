@@ -304,6 +304,14 @@ export const DEFAULT_MAX_RUN_SECONDS = 1800;
  */
 const ENFORCEMENT_INTERVAL_MS = 15_000;
 
+/**
+ * How long a case's own stop waits for the step it stopped at to end, and how
+ * often it looks. The provider's last chunk follows the last call it asks for
+ * within moments, so this is a ceiling for a stream that stalls.
+ */
+const STEP_END_WAIT_MS = 10_000;
+const STEP_END_POLL_MS = 50;
+
 /** After a stop is issued, how long to wait for the session to actually end. */
 const STOP_GRACE_MS = 60_000;
 
@@ -836,6 +844,7 @@ export async function runEvals(
       const startedAt = Date.now();
       let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
+      let stoppingForCase = false;
       let overBudget: number | undefined;
       // What each question was asked with, by its call's part, for an answer
       // that picks one of the choices the model wrote.
@@ -1207,12 +1216,19 @@ export async function runEvals(
               enforceCaps(usage.totalTokens);
             }
 
-            if (await evalCase.shouldStop?.(part, id)) {
+            if (!stoppingForCase && (await evalCase.shouldStop?.(part, id))) {
+              stoppingForCase = true;
               stoppedBy ??= "case";
               write(
                 `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
               );
-              void call(sessionRoute.stop, { id }, { context });
+              // Once the step that made the part has ended, since the step's
+              // usage arrives in the provider's last chunk and a stop before
+              // that leaves a step the provider billed with no usage at all.
+              // The call it asked for may start meanwhile; the stop ends it.
+              void stepEnded(id, part.metadata).then(() =>
+                call(sessionRoute.stop, { id }, { context }),
+              );
             }
           }
         } catch (error) {
@@ -1991,6 +2007,32 @@ async function taskOnceStarted(
       turn,
       new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS)),
     ]);
+  }
+}
+
+/**
+ * Resolves once the assistant message `messageId` has finished, stopped or
+ * failed, or after `STEP_END_WAIT_MS` regardless.
+ */
+async function stepEnded(
+  chatId: ChatId,
+  {
+    messageId,
+    sessionId,
+  }: { messageId: StoreId.Message; sessionId: StoreId.Session },
+): Promise<void> {
+  const deadline = Date.now() + STEP_END_WAIT_MS;
+  while (Date.now() < deadline) {
+    const read = await ChatReads.transcript({
+      chatId,
+      only: new Set([messageId]),
+      sessionId,
+    });
+    const message = read.isOk() ? read.value[0] : undefined;
+    if (message?.role !== "assistant" || message.metadata.finishedAt) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, STEP_END_POLL_MS));
   }
 }
 

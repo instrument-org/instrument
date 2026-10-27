@@ -283,7 +283,10 @@ type Rollup = Awaited<ReturnType<typeof generateReport>>;
  */
 function exitCodeFor(rollup: Rollup): number {
   const capped = rollup.results.some(
-    (result) => result.stoppedBy === "budget" || result.stoppedBy === "timeout",
+    (result) =>
+      result.stoppedBy === "budget" ||
+      result.stoppedBy === "memory" ||
+      result.stoppedBy === "timeout",
   );
   return rollup.assertions.failed > 0 || rollup.erroredTasks > 0 || capped
     ? 1
@@ -785,7 +788,10 @@ function withoutOptions(args: string[], names: string[]): string[] {
  */
 function reportStopped(runs: CompletedRun[]) {
   const capped = runs.filter(
-    (run) => run.stoppedBy === "budget" || run.stoppedBy === "timeout",
+    (run) =>
+      run.stoppedBy === "budget" ||
+      run.stoppedBy === "memory" ||
+      run.stoppedBy === "timeout",
   );
   if (capped.length === 0) {
     return;
@@ -796,7 +802,7 @@ function reportStopped(runs: CompletedRun[]) {
       `${c.red}${capped.length} run(s) hit a cap${c.reset}${c.dim} -- their results are partial:${c.reset}`,
       ...capped.map(
         (run) =>
-          `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${run.stoppedBy === "budget" ? overBudgetLabel(run.overBudget) : "out of time"})${c.reset}`,
+          `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${run.stoppedBy === "budget" ? overBudgetLabel(run.overBudget) : run.stoppedBy === "memory" ? "out of memory" : "out of time"})${c.reset}`,
       ),
       "",
     ].join("\n"),

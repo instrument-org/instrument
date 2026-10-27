@@ -29,13 +29,19 @@ import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { workspaceLayout } from "../src/lib/workspace-layout";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
-import { listChatBackgroundProcesses } from "../src/lib/background-processes";
+import {
+  killChatBackgroundProcesses,
+  listChatBackgroundProcesses,
+} from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { closeAgentBrowserSessionsForSessions } from "../src/lib/agent-browser-cleanup";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
-import { outputFolderPath } from "../src/lib/chat/output-folder";
+import {
+  chatFolderTheyOpen,
+  outputFolderPath,
+} from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/open-asks";
 import { ChatReads } from "../src/lib/chat-reads";
 import { getUsageSummary } from "../src/lib/usage-summary";
@@ -84,7 +90,20 @@ import {
   resolveRegistryDir,
   write,
 } from "./utils";
-import { resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import {
+  chatDir,
+  chatOwnFolder,
+  resolveChat,
+  sessionOfChat,
+} from "../src/lib/record-folders";
+import { formatBytes } from "../src/lib/format-bytes";
+import { workDir } from "../src/lib/work-dir";
+import {
+  MAX_PROCESS_BYTES,
+  oversizedProcessesIn,
+  signal,
+  stopProcessesIn,
+} from "./lib/process-guard";
 import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
@@ -289,9 +308,10 @@ export interface TurnShape {
 /**
  * Why a run ended somewhere other than the agent deciding it was finished.
  * `unknown` is what a report over a past workspace can tell: the session was
- * stopped, and nothing recorded on the task says by what.
+ * stopped, and nothing recorded on the task says by what. `memory` is a
+ * program the agent ran growing past `MAX_PROCESS_BYTES`, which was killed.
  */
-export type RunStop = "budget" | "case" | "timeout" | "unknown";
+export type RunStop = "budget" | "case" | "memory" | "timeout" | "unknown";
 
 /** A run's spend so far, as the caps read it: `costUSD` searches included. */
 interface Spend {
@@ -346,6 +366,15 @@ export const DEFAULT_MAX_RUN_SECONDS = 1800;
  * single step that will not end.
  */
 const ENFORCEMENT_INTERVAL_MS = 15_000;
+
+/** How often a run's programs are checked against `MAX_PROCESS_BYTES`. */
+const MEMORY_CHECK_INTERVAL_MS = 5000;
+
+/** The folders a chat's programs work in: its work folder and its own. */
+function caseFolders(chatId: ChatId): string[] {
+  const own = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
+  return [workDir(chatId), ...(own === undefined ? [] : [own])];
+}
 
 /**
  * How long a case's own stop waits for the step it stopped at to end, and how
@@ -1069,6 +1098,28 @@ export async function runEvals(
         void spendOf().then(enforceCaps, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
 
+      // A program the agent ran that grows past what one machine can spare
+      // takes every other run down with it, so it is killed and the run is
+      // stopped as out of memory rather than left to finish.
+      const memoryTimer = setInterval(() => {
+        void oversizedProcessesIn(caseFolders(id)).then((oversized) => {
+          if (oversized.length === 0) {
+            return;
+          }
+          signal(
+            oversized.map(({ pid }) => pid),
+            "SIGKILL",
+          );
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Out of memory${c.reset}${c.dim}: a program it ran held ${formatBytes(Math.max(...oversized.map(({ rssBytes }) => rssBytes)))} > ${formatBytes(MAX_PROCESS_BYTES)}; killed it and stopping.${c.reset}\n`,
+          );
+          if (!stoppedBy) {
+            stoppedBy = "memory";
+            void call(sessionRoute.stop, { id }, { context });
+          }
+        }, _.noop);
+      }, MEMORY_CHECK_INTERVAL_MS);
+
       // A question the agent asked, or a folder or app it asked for, shows
       // the person a card, which the case answers the way they would: a
       // scripted pick, a yes, a no, or nothing, leaving the agent to carry on
@@ -1550,6 +1601,7 @@ export async function runEvals(
       }
 
       clearInterval(enforcementTimer);
+      clearInterval(memoryTimer);
       clearInterval(askTimer);
       abortController.abort();
       await evalCase.teardown?.({ chatId: id });
@@ -1563,6 +1615,16 @@ export async function runEvals(
           ...(await listChildTasks(id)).map((task) => task.id),
         ].filter((session) => session !== undefined),
       );
+      // And whatever else the chat left running, which outlives this process
+      // otherwise: what it started in the background, then anything still
+      // working in its folders.
+      await killChatBackgroundProcesses(id);
+      const leftRunning = await stopProcessesIn(caseFolders(id));
+      if (leftRunning > 0) {
+        write(
+          `${evalPrefix(label)}${c.dim}Stopped ${leftRunning} program(s) still running in its folders.${c.reset}\n`,
+        );
+      }
 
       if (outcome === "timeout") {
         stoppedBy = "timeout";

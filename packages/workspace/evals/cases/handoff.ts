@@ -1656,7 +1656,12 @@ async function startSignupServer() {
       body += chunk.toString();
     });
     request.on("end", () => {
-      if (request.url === "/state" || request.url === "/submit") {
+      // Only the page posts. A GET of `/state`, such as an agent reading the
+      // address with `curl`, carries no body and reports nothing.
+      if (
+        request.method === "POST" &&
+        (request.url === "/state" || request.url === "/submit")
+      ) {
         try {
           const parsed: unknown = JSON.parse(body);
           if (typeof parsed === "object" && parsed !== null) {
@@ -1674,7 +1679,9 @@ async function startSignupServer() {
           }
         } catch {
           // A real form post: the form was submitted.
-          state = { ...state, submitted: true };
+          if (request.url === "/submit") {
+            state = { ...state, submitted: true };
+          }
         }
         fs.writeFileSync(SIGNUP_STATE(), JSON.stringify(state));
       }
@@ -2882,6 +2889,9 @@ const SCENARIOS: Scenario[] = [
     slug: "document",
   },
   {
+    // details.txt is in Documents, which asks before it is read; the person
+    // allows it, since reading it is what they asked for.
+    allowsFolders: 1,
     // A page on a loopback server, filled in a real browser and not sent.
     assertions: [filledTheForm, leftItUnsubmitted],
     get prompt() {

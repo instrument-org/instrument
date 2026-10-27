@@ -168,7 +168,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  Reflect.deleteProperty(document, "fonts");
 });
 
 describe("createExcalidrawSession", () => {
@@ -222,10 +222,10 @@ describe("createExcalidrawSession", () => {
 
   it("drops a text the agent deleted once the canvas's fonts have loaded", async () => {
     let fontsIn!: () => void;
-    vi.stubGlobal("document", {
-      ...document,
-      addEventListener: () => {},
-      fonts: {
+    // jsdom has no font loading.
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: {
         load: () =>
           new Promise((resolve) => {
             fontsIn = () => {
@@ -234,7 +234,6 @@ describe("createExcalidrawSession", () => {
             };
           }),
       },
-      removeEventListener: () => {},
     });
     const { canvas, onExternalChange, session } = open(file([text("t")]));
     await vi.waitFor(() => {

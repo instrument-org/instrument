@@ -340,8 +340,13 @@ describe("app test and the guide skeleton", () => {
     ["hubspot", "--web https://app.hubspot.com"],
     // Slack, until the directory gives it a client, goes to the web too.
     ["slack", "--web https://app.slack.com"],
-    // So does Outlook, whose Microsoft Graph sign-in needs Instrument's client.
-    ["outlook", "--web https://outlook.office.com"],
+    // So does Teams, whose Microsoft Graph sign-in needs Instrument's client.
+    ["teams", "--web https://teams.microsoft.com"],
+    // Outlook signs in to Microsoft Graph with the directory's own client.
+    [
+      "outlook",
+      "--api https://graph.microsoft.com/v1.0 --auth oauth --test /me\n",
+    ],
     // One that wants a sign-in gets the card, not --auth none.
     ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
   ])("sets %s up the way it actually connects", async (slug, line) => {

@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-24T11:35:38.317Z",
-  "entriesHash": "1852f8a075f4c6f1",
+  "revision": "2026-10-27T14:44:07.184Z",
+  "entriesHash": "fecca74958df0802",
   "entries": [
     {
       "slug": "ahrefs",
@@ -3070,7 +3070,7 @@
         "Summarize the newest file shared with me",
         "What’s in my Documents folder?"
       ],
-      "description": "Microsoft's file storage, SharePoint, and Office documents. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then the web app.",
+      "description": "Microsoft's file storage, SharePoint, and Office documents. Reached through Microsoft Graph after you sign in with Microsoft, or on the web.",
       "apiGuide": {
         "endpoints": "- `GET /me`: the signed-in account.\n- `GET /me/drive`: the drive (owner, quota). `GET /me/drive/root/children`: the top folder's items.\n- `GET /me/drive/root:/Documents/Notes:/children`: a folder by path (the colons open and close the path); `GET /me/drive/root:/Documents/report.docx`: one item by path.\n- `GET /me/drive/items/{id}` and `GET /me/drive/items/{id}/children`: by ID. An item has `file` or `folder`, `name`, `size`, `lastModifiedDateTime`, `webUrl`, `parentReference`.\n- `GET /me/drive/root/search(q='words')`: search names and contents.\n- `GET /me/drive/recent`: recently used files. `GET /me/drive/sharedWithMe`: files others shared.\n- `GET /me/drive/items/{id}/content`: the file's bytes (a redirect to a download URL). Text, CSV and JSON read well; Office files are binary, so prefer `GET /me/drive/items/{id}/content?format=pdf` only when the user needs the content and nothing else will do.\n- `PUT /me/drive/root:/Documents/notes.txt:/content`: create or replace a small file (up to 4 MB) with the body as its content.\n- `POST /me/drive/items/{parent-id}/children`: a folder, body `{\"name\": \"...\", \"folder\": {}, \"@microsoft.graph.conflictBehavior\": \"rename\"}`.\n- `PATCH /me/drive/items/{id}`: rename with `{\"name\": \"...\"}`, move with `{\"parentReference\": {\"id\": \"...\"}}`. `DELETE /me/drive/items/{id}` sends it to the recycle bin.\n- `POST /me/drive/items/{id}/createLink`: a sharing link, body `{\"type\": \"view\", \"scope\": \"anonymous\"}` (`edit`, `organization` also valid).\n- Excel workbooks: `GET /me/drive/items/{id}/workbook/worksheets`, then `/worksheets/{name}/usedRange` for the values.",
         "conventions": "- OData query options go in `--param`: `--param '$top=25'`, `--param '$select=id,subject'`, `--param '$filter=...'`, `--param '$orderby=...'`. Ask for only the fields you need with `$select`; full objects are large.\n- A list answers `{\"value\": [...]}` and, when there is more, `@odata.nextLink`: a full URL. Request its path after `/v1.0` with the same query string; stop when the link is absent.\n- IDs are opaque strings; pass them back exactly as returned.\n- Dates and times are ISO 8601 in UTC unless a field says otherwise.\n- Errors answer `{\"error\": {\"code\", \"message\"}}`. 403 `ErrorAccessDenied` or `Authorization_RequestDenied` means the account or the sign-in lacks a permission; 429 carries `Retry-After` in seconds.\n- A path in the address is URL-encoded segment by segment (a space is `%20`).\n- Deleting or overwriting a file is the user's word, not yours: ask first.",
@@ -3082,7 +3082,7 @@
         {
           "type": "oauth2",
           "label": "Microsoft sign-in",
-          "note": "Needs Instrument's own Microsoft sign-in client, which isn't open to everyone yet. Personal Microsoft accounts can sign in with it; work or school accounts can once Microsoft verifies Instrument as its publisher. Until then the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Microsoft client, for personal, work, and school accounts."
         }
       ],
       "interfaces": [
@@ -3091,6 +3091,7 @@
           "name": "Microsoft Graph",
           "endpoint": "https://graph.microsoft.com/v1.0",
           "auth": "oauth-client",
+          "clientId": "eb827d4c-f05a-4857-be47-496124fa5c50",
           "tokenExchange": "api",
           "scope": "offline_access User.Read Files.ReadWrite.All",
           "authorizationParams": {
@@ -3201,7 +3202,7 @@
         "Summarize my unread email",
         "What meetings do I have this afternoon?"
       ],
-      "description": "Microsoft's mail and calendar, for work and personal accounts. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then through the Outlook or Mail app on this Mac, or the web app.",
+      "description": "Microsoft's mail and calendar, for work and personal accounts. Reached through Microsoft Graph after you sign in with Microsoft, or through the Outlook or Mail app on this Mac, or the web app.",
       "apiGuide": {
         "endpoints": "- `GET /me`: the signed-in account (displayName, mail, userPrincipalName).\n- `GET /me/mailFolders/inbox/messages`: the inbox, newest first with `$orderby=receivedDateTime desc`. Unread: `$filter=isRead eq false`. `GET /me/messages` is every folder.\n- `GET /me/messages` with `$search=\"words\"` (quotes included): full-text search; it cannot be combined with `$orderby`.\n- `GET /me/messages/{id}`: one message; `body.content` is HTML unless `body.contentType` is `text`. `conversationId` groups a thread: `$filter=conversationId eq '<id>'`.\n- `GET /me/mailFolders`: folders with their IDs; well-known names (`inbox`, `drafts`, `sentitems`, `archive`, `deleteditems`) work in place of an ID.\n- `POST /me/messages`: a draft, body `{\"subject\": \"...\", \"body\": {\"contentType\": \"Text\", \"content\": \"...\"}, \"toRecipients\": [{\"emailAddress\": {\"address\": \"a@b.com\"}}]}`. `POST /me/messages/{id}/send` sends it.\n- `POST /me/messages/{id}/createReply` (or `/createReplyAll`): a reply draft to edit and send. `POST /me/messages/{id}/reply` with `{\"comment\": \"...\"}` replies at once.\n- `POST /me/sendMail`: send at once, body `{\"message\": {...as a draft...}, \"saveToSentItems\": true}`; answers 202 with no body.\n- `PATCH /me/messages/{id}`: `{\"isRead\": true}`, `{\"categories\": [...]}`, `{\"flag\": {\"flagStatus\": \"flagged\"}}`. `POST /me/messages/{id}/move` with `{\"destinationId\": \"archive\"}`.\n- `GET /me/calendarView?startDateTime=...&endDateTime=...`: events in a window, recurring ones expanded; both bounds are required. `$orderby=start/dateTime`.\n- `GET /me/events/{id}`, `POST /me/events` (body `{\"subject\", \"start\": {\"dateTime\", \"timeZone\"}, \"end\": {...}, \"attendees\": [{\"emailAddress\": {\"address\"}, \"type\": \"required\"}], \"location\": {\"displayName\"}}`), `PATCH` and `DELETE /me/events/{id}`.\n- `POST /me/events/{id}/accept`, `/tentativelyAccept`, `/decline`: body `{\"comment\": \"...\", \"sendResponse\": true}`.\n- `GET /me/calendars`: the account's calendars; `GET /me/calendars/{id}/calendarView` for one of them.",
         "conventions": "- OData query options go in `--param`: `--param '$top=25'`, `--param '$select=id,subject'`, `--param '$filter=...'`, `--param '$orderby=...'`. Ask for only the fields you need with `$select`; full objects are large.\n- A list answers `{\"value\": [...]}` and, when there is more, `@odata.nextLink`: a full URL. Request its path after `/v1.0` with the same query string; stop when the link is absent.\n- IDs are opaque strings; pass them back exactly as returned.\n- Dates and times are ISO 8601 in UTC unless a field says otherwise.\n- Errors answer `{\"error\": {\"code\", \"message\"}}`. 403 `ErrorAccessDenied` or `Authorization_RequestDenied` means the account or the sign-in lacks a permission; 429 carries `Retry-After` in seconds.\n- Sending mail is the user's word, not yours: draft first and send only when they asked to send.\n- An event's `start` and `end` are `{\"dateTime\": \"2026-10-21T15:00:00\", \"timeZone\": \"America/Chicago\"}`; give the user's own zone when you create one. Results come back in UTC.",
@@ -3213,7 +3214,7 @@
         {
           "type": "oauth2",
           "label": "Microsoft sign-in",
-          "note": "Needs Instrument's own Microsoft sign-in client, which isn't open to everyone yet. Personal Microsoft accounts can sign in with it; work or school accounts can once Microsoft verifies Instrument as its publisher. Until then the Outlook or Mail app on this Mac, or the web app."
+          "note": "Signs in with OAuth in the browser through Instrument's own Microsoft client, for personal, work, and school accounts."
         }
       ],
       "interfaces": [
@@ -3222,6 +3223,7 @@
           "name": "Microsoft Graph",
           "endpoint": "https://graph.microsoft.com/v1.0",
           "auth": "oauth-client",
+          "clientId": "eb827d4c-f05a-4857-be47-496124fa5c50",
           "tokenExchange": "api",
           "scope": "offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite",
           "authorizationParams": {

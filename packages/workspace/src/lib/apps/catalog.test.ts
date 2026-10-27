@@ -131,18 +131,29 @@ describe("Microsoft Graph's sign-in", () => {
     resetServedAppCatalog();
   });
 
-  // The client is served only to admins; everyone else keeps the web.
-  it.each(["outlook", "onedrive", "teams"])(
-    "leaves %s on the web without the client",
+  // Teams' client is served only to admins; everyone else keeps the web.
+  it("leaves teams on the web without the client", () => {
+    expect(catalogWayIn(entry("teams")).kind).toBe("web");
+    expect(
+      catalogApiSignInClient("teams", {
+        service: "teams",
+        type: "api",
+        url: graph,
+      }),
+    ).toBeUndefined();
+  });
+
+  it.each(["outlook", "onedrive"])(
+    "signs %s in to Graph with the directory's own client",
     (slug) => {
-      expect(catalogWayIn(entry(slug)).kind).toBe("web");
+      expect(catalogWayIn(entry(slug)).kind).toBe("api");
       expect(
         catalogApiSignInClient(slug, {
           service: slug,
           type: "api",
           url: graph,
-        }),
-      ).toBeUndefined();
+        })?.clientId,
+      ).toBe("eb827d4c-f05a-4857-be47-496124fa5c50");
     },
   );
 

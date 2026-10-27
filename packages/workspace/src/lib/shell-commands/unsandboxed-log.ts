@@ -11,10 +11,11 @@
  * archive or directory (`--archive`, `--directory`, `--file`, an operand),
  * which would read past the rules. Not `--pager`, which starts `less`.
  *
- * The lists are closed and spelled exactly. `log` parses with getopt_long,
- * which takes any unambiguous prefix of a long option (`--arch` is
- * `--archive`) and clusters of short ones (`-LA`), so a prefix, a cluster or
- * an operand refuses the call. A predicate is NSPredicate syntax, whose
+ * The lists are closed and spelled exactly. `log` parses with
+ * getopt_long_only, which takes any unambiguous prefix of a long option
+ * (`--arch` is `--archive`), after one dash as after two (`-pager` is
+ * `--pager`), and clusters of short ones (`-LA`), so a prefix, a cluster, a
+ * word after one dash or an operand refuses the call. A predicate is NSPredicate syntax, whose
  * `FUNCTION`, `CAST` and `SUBQUERY` reach Objective-C methods; `log` rejects
  * them, and they are refused here before it reads them. The program runs
  * from its fixed path, root-owned and writable by no one else, with the
@@ -181,6 +182,11 @@ export function classifyLog(
       return refuse(`\`${arg}\``);
     }
     const long = arg.startsWith("--");
+    // A word after one dash is a long option to `log` when it starts one of
+    // its names, which a short letter's value glued on can't be told from.
+    if (!long && /^-[a-z][a-z-]+(?:=|$)/iu.test(arg)) {
+      return refuse(`\`${arg}\``);
+    }
     // A short flag stands alone; a short value takes the rest of the
     // argument or the next one.
     if (option.takes === "flag") {

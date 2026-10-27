@@ -79,7 +79,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### I. The macOS `log` classifier parses options as `getopt_long`, where `log` uses `getopt_long_only` (Nit)
 
-- Status: open
+- Status: fixed
 - Where: [unsandboxed-log.ts:14](/packages/workspace/src/lib/shell-commands/unsandboxed-log.ts#L14)
 - What: `log` reads `-pager` as `--pager` and `-predicate=…` as `--predicate`, while the classifier reads `-p` with attached text, so both run outside the sandbox unexamined. No allowed short letter begins a file-reading option (`-archive` is still refused) and `log` rejects FUNCTION and SUBQUERY predicates itself, so nothing reaches further today.
 - Verification: by probe (`classifyLog(["show","-pager"])` allowed) and against `/usr/bin/log`.

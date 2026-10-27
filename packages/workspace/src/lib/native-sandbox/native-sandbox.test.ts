@@ -750,6 +750,24 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
     rmSync(home, { force: true, recursive: true });
   });
 
+  it("makes a folder the app keeps read-only inside a writable one before binding it", () => {
+    const home = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "bwrap-drafts-")),
+    );
+    const workspace = path.join(home, "Instrument");
+    const drafts = path.join(workspace, "Drafts");
+    mkdirSync(workspace);
+    const args = bwrapArgs(
+      reachOver(home, [
+        { level: "allow", path: workspace, source: "grant" },
+        { level: "readOnly", path: drafts, source: "system" },
+      ]),
+    ).join(" ");
+    expect(existsSync(drafts)).toBe(true);
+    expect(args).toContain(`--ro-bind ${drafts} ${drafts}`);
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("binds the caches open, with a browser's and the updater's closed in them", () => {
     const home = realpathSync(
       mkdtempSync(path.join(os.tmpdir(), "bwrap-cache-")),

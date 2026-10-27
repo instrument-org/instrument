@@ -246,6 +246,30 @@ export function bwrapArgs(
       ours.add(closed);
     }
   }
+  // So is a folder the app keeps read-only inside any folder bound writable
+  // (the workspace's Drafts/ before its first draft), which unbound would be
+  // as writable as the folder around it.
+  const writable = entries
+    .filter((entry) => entry.access === "write")
+    .map((entry) => entry.path);
+  for (const rule of rules) {
+    if (
+      rule.source === "system" &&
+      !rule.file &&
+      !rule.dotEntries &&
+      levelAllowingEveryFolder(
+        rule.level,
+        rule,
+        dangerouslyAllowEveryFolder,
+      ) === "readOnly" &&
+      writable.some(
+        (folder) =>
+          folder !== rule.path && hostPathWithin(folder, rule.path) !== null,
+      )
+    ) {
+      ours.add(rule.path);
+    }
+  }
   // A file the user sent that is gone is not a folder to make.
   const allowedByName = new Set(
     rules

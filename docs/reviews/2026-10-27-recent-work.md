@@ -35,7 +35,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### D. On Linux the agent's programs can write `Drafts/` while it does not exist
 
-- Status: open
+- Status: fixed
 - Where: [bwrap.ts:291](/packages/workspace/src/lib/native-sandbox/bwrap.ts#L291), [workspace-fs-layout.ts:949](/packages/workspace/src/lib/workspace-fs-layout.ts#L949)
 - What: `bwrapArgs` makes a missing path before binding it only when it is in `ours` or allowed by name; otherwise it skips the rule. The workspace's top folder is not in `ours`, so the read-only `Drafts/` rule emits nothing in a workspace with no drafts yet (which has no `Drafts/` folder), and the workspace folder bound around it is writable. `python -c` making `Drafts/x/DRAFT.md` with this computer under `send` then gets the draft sent and a turn started that nobody asked for. Seatbelt denies the path whether or not it exists, MXC keeps a missing path whose parent exists, and the shell and file tools refuse by path; only bubblewrap leaks.
 - Verification: by probe (no `Drafts` entry in the bubblewrap arguments with the folder absent; `--ro-bind` with it present).

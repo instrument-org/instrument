@@ -118,8 +118,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### P. Opening a page in the Browser rail throws an uncaught undici assertion
 
-- Status: open
+- Status: fixed
+- Where: [content-blocking.ts](/apps/studio/src/electron-main/browser-view/content-blocking.ts) (`loadEngine`)
 - What: `AssertionError: assert(!this.paused)` from undici's `Parser.finish` / `onHttpSocketEnd`, twice, about 100 ms after opening example.com, shown at the next launch as "2 server exceptions". Also in beta 109's own logs, so it predates these fixes.
+- Note: not the page. Opening the browser for the first time, or a week after the last time, builds the ad blocker's engine from its published lists with Node's `fetch`, and the two from easylist.to answer `Connection: close`. When such a socket ends while backpressure has the parser paused, the undici Node bundles asserts from the socket's `end` handler, uncaught (nodejs/undici#5360, fixed upstream in undici 8.10). On the Windows test host both exceptions came about a second before `content-blocking-engine.bin` was written, in the installed app and in the preview alike; a busy-looped Node 24 fetching easylist.to reproduced the same stack once or twice in twenty rounds. The lists now come over Electron's own network stack, which undici is not part of.
 
 ### Q. Waking a sleeping tab logs a refused auto-attach
 

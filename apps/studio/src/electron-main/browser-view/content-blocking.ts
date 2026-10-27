@@ -8,6 +8,7 @@ import {
   type HeadersReceivedResponse,
   ipcMain,
   type IpcMainInvokeEvent,
+  net,
   type OnBeforeRequestListenerDetails,
   type OnHeadersReceivedListenerDetails,
   type Session,
@@ -297,7 +298,7 @@ async function loadEngine() {
   try {
     const [lists, resources] = await Promise.all([
       Promise.all(FILTER_LISTS.map((url) => fetchList(url, new Set()))),
-      fetchResources(fetch),
+      fetchResources(fetchOverChromium),
     ]);
     const fresh = FiltersEngine.parse(lists.join("\n"));
     fresh.updateResources(resources, `${resources.length}`);
@@ -309,6 +310,18 @@ async function loadEngine() {
 }
 
 /**
+ * The lists come over Electron's network stack rather than Node's `fetch`.
+ * easylist.to answers `Connection: close`, and Node's bundled undici throws an
+ * uncaught `assert(!this.paused)` from `onHttpSocketEnd` when such a socket
+ * ends while backpressure has paused its parser, which a main process busy
+ * opening the browser makes likely (nodejs/undici#5360, fixed in undici 8.10
+ * by #5474, after the undici this Electron's Node bundles).
+ */
+function fetchOverChromium(url: string) {
+  return net.fetch(url);
+}
+
+/**
  * A list's text with each `!#include` replaced by the list it names, which
  * sits beside it. `seen` keeps a list that includes itself from looping.
  */
@@ -317,7 +330,7 @@ async function fetchList(url: string, seen: Set<string>): Promise<string> {
     return "";
   }
   seen.add(url);
-  const response = await fetch(url);
+  const response = await fetchOverChromium(url);
   if (!response.ok) {
     throw new Error(`${response.status} fetching ${url}`);
   }

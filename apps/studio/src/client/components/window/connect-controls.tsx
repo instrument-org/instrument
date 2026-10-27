@@ -52,8 +52,8 @@ export function ConnectControls({
   label?: string;
   /**
    * One more control at the start of the row, which becomes its primary: a
-   * sign-in's own button steps back beside it, and the user's own browser is
-   * not offered.
+   * sign-in's own button steps back beside it, with the user's own browser
+   * still offered after it.
    */
   leading?: ReactNode;
   name: string;
@@ -306,7 +306,7 @@ export function ConnectControls({
           >
             {label ?? "Sign in here"}
           </BrowserHandoffButton>
-          {waiting || leading !== undefined ? null : (
+          {waiting ? null : (
             <Button
               disabled={busy}
               onClick={() => {

@@ -14,6 +14,7 @@ const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
     signInOnWeb: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
+    startOAuth: vi.fn<(input: { opensIn: string }) => Promise<unknown>>(),
   },
   mutation: (mutationFn = () => Promise.resolve()) => ({
     mutationOptions: (options: object) => ({ ...options, mutationFn }),
@@ -41,7 +42,12 @@ vi.mock("@/client/rpc/client", () => ({
           mutationFn: mocks.signInOnWeb,
         }),
       },
-      startOAuth: mutation(),
+      startOAuth: {
+        mutationOptions: (options: object) => ({
+          ...options,
+          mutationFn: mocks.startOAuth,
+        }),
+      },
     },
     utils: {
       openExternalLink: mutation(),
@@ -140,6 +146,7 @@ async function cardReads(): Promise<string[]> {
 beforeEach(() => {
   mocks.apps.mockReset();
   mocks.signInOnWeb.mockReset();
+  mocks.startOAuth.mockReset();
   openPage.mockReset();
 });
 
@@ -167,6 +174,7 @@ describe("the connect card after a sign-in that did not connect", () => {
           "Signing in to Outlook stopped before it finished. You can sign in on the web instead, or try again.",
           "[Sign in on the web]",
           "[Try again]",
+          "[Sign in with Safari]",
           "[Not now]",
         ],
         "expired": [
@@ -175,6 +183,7 @@ describe("the connect card after a sign-in that did not connect", () => {
           "The sign-in to Outlook timed out. You can sign in on the web instead, or try again.",
           "[Sign in on the web]",
           "[Try again]",
+          "[Sign in with Safari]",
           "[Not now]",
         ],
         "failed": [
@@ -183,6 +192,7 @@ describe("the connect card after a sign-in that did not connect", () => {
           "Instrument couldn’t connect to Outlook. You can sign in on the web instead, or try again.",
           "[Sign in on the web]",
           "[Try again]",
+          "[Sign in with Safari]",
           "[Not now]",
           "[Details]",
         ],
@@ -192,6 +202,7 @@ describe("the connect card after a sign-in that did not connect", () => {
           "Outlook won’t let this account connect directly. You can sign in to Outlook on the web instead.",
           "[Sign in on the web]",
           "[Try again]",
+          "[Sign in with Safari]",
           "[Not now]",
           "[Details]",
         ],
@@ -240,5 +251,27 @@ describe("the connect card after a sign-in that did not connect", () => {
       await screen.findByRole("button", { name: "Done signing in" }),
     ).toBeTruthy();
     expect(screen.getByText("Sign in to Outlook on the web")).toBeTruthy();
+  });
+
+  it("sends another try to the user's own browser when they pick it", async () => {
+    mocks.apps.mockResolvedValue(
+      outlook({ ended: "expired", status: "failed" }),
+    );
+    mocks.startOAuth.mockResolvedValue({ status: "started", url: "https://login.example" });
+    renderCard();
+
+    // Looked up again at the click: the row can draw again after the button
+    // first appears, leaving an earlier lookup detached.
+    await screen.findByRole("button", { name: "Sign in with Safari" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sign in with Safari" }),
+    );
+    await waitFor(() => {
+      expect(mocks.startOAuth).toHaveBeenCalled();
+    });
+    expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
+      opensIn: "external",
+    });
+    expect(openPage).not.toHaveBeenCalled();
   });
 });

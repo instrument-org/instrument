@@ -35,6 +35,28 @@ describe("pricingPerMillionTokens", () => {
       pricing: undefined,
     },
     {
+      expected: {
+        higherPriceFromPromptTokens: 100_000,
+        input: 0.1,
+        output: 0.5,
+      },
+      name: "keeps the prompt size a higher rate starts at",
+      pricing: {
+        completion: "0.0000005",
+        overrides: [{ min_prompt_tokens: 100_000, prompt: "0.0000005" }],
+        prompt: "0.0000001",
+      },
+    },
+    {
+      expected: { input: 0.1, output: 0.5 },
+      name: "ignores an override that does not raise the prompt price",
+      pricing: {
+        completion: "0.0000005",
+        overrides: [{ min_prompt_tokens: 100_000, prompt: "0.0000001" }],
+        prompt: "0.0000001",
+      },
+    },
+    {
       expected: undefined,
       name: "rejects a price that is not a number",
       pricing: { completion: "n/a", prompt: "0.000001" },

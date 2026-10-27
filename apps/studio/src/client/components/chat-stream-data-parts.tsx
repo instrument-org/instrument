@@ -144,6 +144,16 @@ export function renderDataPart({
         />
       );
     }
+    case "data-toolResultsCleared": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={`Tool results cleared: ${part.data.results} older results sent as placeholders`}
+        />
+      );
+    }
     case "data-dateChange": {
       return (
         <ModelContextDebugCard

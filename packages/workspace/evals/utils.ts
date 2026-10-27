@@ -240,11 +240,17 @@ export const modelURI = {
 export interface OpenRouterCatalog {
   /** Moving alias slug -> the build it stood for at run time. */
   aliasTargets: Map<string, string>;
+  /** A model the run asks through OpenRouter, by its slug. */
   priceFor: (slug: string) => ModelPrice | undefined;
+  /**
+   * Any model OpenRouter lists, by its slug, for the searches a run pays for
+   * whatever model it asks.
+   */
+  searchPriceFor: (slug: string) => ModelPrice | undefined;
 }
 
 /** Per-token USD, as OpenRouter states it. */
-interface ModelPrice {
+export interface ModelPrice {
   cacheRead?: number;
   cacheWrite?: number;
   completion: number;
@@ -261,10 +267,12 @@ interface ModelPrice {
  * fresh input is what remains of the total after reads and writes.
  */
 export function costOfUsage(
-  usage: Pick<
-    UsageSummary,
-    "inputTokenDetails" | "inputTokens" | "outputTokens"
-  >,
+  usage: Pick<UsageSummary, "inputTokens" | "outputTokens"> & {
+    inputTokenDetails: Pick<
+      UsageSummary["inputTokenDetails"],
+      "cacheReadTokens" | "cacheWriteTokens"
+    >;
+  },
   price: ModelPrice,
 ): number {
   const { cacheReadTokens, cacheWriteTokens } = usage.inputTokenDetails;
@@ -319,6 +327,7 @@ const NO_PRICES = new Map<string, ModelPrice>();
 const emptyOpenRouterCatalog: OpenRouterCatalog = {
   aliasTargets: new Map(),
   priceFor: (slug) => NO_PRICES.get(slug),
+  searchPriceFor: (slug) => NO_PRICES.get(slug),
 };
 
 export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
@@ -428,12 +437,10 @@ export async function fetchOpenRouterCatalog(
   // Only the models actually running through OpenRouter. Several Workers AI ids
   // are also OpenRouter slugs (`openai/gpt-oss-120b`, `zai-org/glm-5.3`), so
   // pricing them off this list bills a free run at another provider's rate.
+  // Its searches are priced off the list whatever model the run asks.
   const slugs = modelURIs
     .filter((uri) => uri.includes("provider=openrouter"))
     .map((uri) => uri.split("?")[0] ?? uri);
-  if (slugs.length === 0) {
-    return emptyOpenRouterCatalog;
-  }
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/models");
@@ -475,6 +482,10 @@ export async function fetchOpenRouterCatalog(
       // An alias carries its own pricing, so the fallback is only reached for a
       // slug the list does not know at all.
       priceFor: (slug) =>
+        slugs.length === 0
+          ? undefined
+          : (prices.get(slug) ?? prices.get(targets.get(slug) ?? "")),
+      searchPriceFor: (slug) =>
         prices.get(slug) ?? prices.get(targets.get(slug) ?? ""),
     };
   } catch {

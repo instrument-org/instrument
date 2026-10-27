@@ -4,16 +4,18 @@ import "../scripts/lib/define-globals-apply";
 
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
-import { list, sum } from "radashi";
+import { list, parallel } from "radashi";
 import { z } from "zod";
 
 import { EVALS } from "./cases";
 import {
   type CompletedRun,
+  DEFAULT_MAX_RUN_COST_USD,
   DEFAULT_MAX_RUN_SECONDS,
   DEFAULT_MAX_RUN_TOKENS,
   defineEval,
@@ -21,8 +23,9 @@ import {
   runEvals,
 } from "./harness";
 import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
+import { describeCost } from "./lib/run-cost";
 import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
-import { generateReport } from "./report";
+import { combineTrials, generateReport } from "./report";
 import {
   c,
   formatCost,
@@ -49,6 +52,7 @@ const { positionals, values } = parseArgs({
     effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
     json: { default: false, type: "boolean" },
+    "max-run-cost": { type: "string" },
     "max-run-seconds": { type: "string" },
     "max-run-tokens": { type: "string" },
     model: { multiple: true, type: "string" },
@@ -70,9 +74,14 @@ const { positionals, values } = parseArgs({
 // The report is a single line for the same reason. A failing run invoked
 // through `pnpm run` gets pnpm's own epilogue appended to stdout, which nothing
 // here can suppress, so `| head -1` has to be enough to recover the report.
+//
+// Settles once the report is handed to the OS: stdout into a pipe is written
+// asynchronously, so a `process.exit` that does not wait for it cuts the
+// report off at the pipe's buffer, 64 KB, and a parent reading the line
+// (`--repeat`) gets JSON that ends mid-string.
 const emitReport = (() => {
   if (!values.json) {
-    return (text: string) => {
+    return async (text: string) => {
       write(text);
     };
   }
@@ -82,9 +91,12 @@ const emitReport = (() => {
   process.stdout.write = ((...args: Parameters<typeof process.stderr.write>) =>
     process.stderr.write(...args)) as typeof process.stdout.write;
   setHumanOutputStream(process.stderr);
-  return (text: string) => {
-    stdoutWrite(text);
-  };
+  return (text: string) =>
+    new Promise<void>((resolve) => {
+      stdoutWrite(text, () => {
+        resolve();
+      });
+    });
 })();
 
 const subcommand = positionals[0];
@@ -92,12 +104,15 @@ const includeContextMessages = values["include-context"];
 const dryRun = values["dry-run"];
 const concurrency = Number.parseInt(values.concurrency, 10);
 const repeat = Number.parseInt(values.repeat, 10);
-// A ceiling per run, not per suite: one model failing to make progress should
+// Ceilings per run, not per suite: one model failing to make progress should
 // not be able to spend the whole budget, and stopping it leaves every other
 // run of the suite intact.
+const maxRunCostUSD = values["max-run-cost"]
+  ? Number.parseFloat(values["max-run-cost"])
+  : DEFAULT_MAX_RUN_COST_USD;
 const maxRunTokens = values["max-run-tokens"]
   ? Number.parseInt(values["max-run-tokens"], 10)
-  : DEFAULT_MAX_RUN_TOKENS;
+  : undefined;
 const maxRunSeconds = values["max-run-seconds"]
   ? Number.parseInt(values["max-run-seconds"], 10)
   : DEFAULT_MAX_RUN_SECONDS;
@@ -207,13 +222,16 @@ if (
     "  run [pattern...] Run evals matching any name pattern, then generate report\n",
   );
   process.stderr.write(
-    "                   --max-run-tokens <n> caps one run's spend (0 disables)\n",
+    `                   --max-run-cost <usd> caps one run's spend, searches included (default ${DEFAULT_MAX_RUN_COST_USD}, 0 disables)\n`,
+  );
+  process.stderr.write(
+    `                   --max-run-tokens <n> caps one run's tokens, cache reads included (default ${DEFAULT_MAX_RUN_TOKENS} for a run with no price, 0 disables)\n`,
   );
   process.stderr.write(
     "                   --max-run-seconds <n> caps one run's wall clock (0 disables)\n",
   );
   process.stderr.write(
-    "                   --repeat <n> runs every case n times per model\n",
+    "                   --repeat <n> runs every case n times per model, each in trial-<n>/<case>/,\n                   and summary.json gives each case's min/median/max cost and tokens\n",
   );
   process.stderr.write(
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
@@ -242,13 +260,16 @@ if (
 
 // Timestamped, and then stamped with the pid: comparing two conditions means
 // starting two runs at once, and several started inside the same millisecond
-// resolved to one directory and quietly overwrote each other's results.
+// resolved to one directory and quietly overwrote each other's results. A
+// trial of a `--repeat` run is handed its directory, inside its run's.
 const timestamp = `${new Date().toISOString().replaceAll(/[:.]/gu, "-")}-${process.pid}`;
-const outputDir = path.resolve(
-  import.meta.dirname,
-  "..",
-  "eval-results.local",
-  timestamp,
+const outputDir =
+  process.env.INSTRUMENT_EVAL_OUTPUT_DIR ??
+  path.resolve(import.meta.dirname, "..", "eval-results.local", timestamp);
+/** This process's trial of a `--repeat` run, which numbers its results. */
+const trialOfProcess = Number.parseInt(
+  process.env.INSTRUMENT_EVAL_TRIAL ?? "1",
+  10,
 );
 
 type Rollup = Awaited<ReturnType<typeof generateReport>>;
@@ -262,7 +283,10 @@ type Rollup = Awaited<ReturnType<typeof generateReport>>;
  */
 function exitCodeFor(rollup: Rollup): number {
   const capped = rollup.results.some(
-    (result) => result.stoppedBy === "budget" || result.stoppedBy === "timeout",
+    (result) =>
+      result.stoppedBy === "budget" ||
+      result.stoppedBy === "memory" ||
+      result.stoppedBy === "timeout",
   );
   return rollup.assertions.failed > 0 || rollup.erroredTasks > 0 || capped
     ? 1
@@ -270,6 +294,36 @@ function exitCodeFor(rollup: Rollup): number {
 }
 
 const short = (sha: string) => sha.slice(0, 12);
+
+function tokenCapLabel(): string {
+  if (maxRunTokens === undefined) {
+    return `${formatNumber(DEFAULT_MAX_RUN_TOKENS)} per run, only for a run with no price`;
+  }
+  return maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none";
+}
+
+function overBudgetLabel(spend: CompletedRun["overBudget"]): string {
+  if (!spend) {
+    return "over budget";
+  }
+  return spend.costUSD === undefined
+    ? `${formatNumber(spend.tokens)} tokens`
+    : `${formatCost(spend.costUSD)}, ${formatNumber(spend.tokens)} tokens`;
+}
+
+/**
+ * What the run cost and how that was arrived at: billed is what the
+ * provider's responses said they charged, estimated is a catalog price on
+ * tokens, and searches are always an estimate. See `RunCost`.
+ */
+function costLines(rollup: Rollup): string[] {
+  const line = describeCost(rollup.cost);
+  return line === undefined
+    ? []
+    : [
+        `${c.dim}│${c.reset}  ${c.dim}Cost       :${c.reset} ${c.yellow}${line}${c.reset}`,
+      ];
+}
 
 function printSummary({
   outputDir: out,
@@ -313,11 +367,7 @@ function printSummary({
             `${c.dim}│${c.reset}  ${c.dim}Assertions :${c.reset} ${assertions.passed === assertions.total ? c.green : c.yellow}${assertions.passed}/${assertions.total} passed (${passRate})${c.reset}`,
           ]
         : []),
-      ...(rollup.costUSD === undefined
-        ? []
-        : [
-            `${c.dim}│${c.reset}  ${c.dim}Cost       :${c.reset} ${c.yellow}~${formatCost(rollup.costUSD)}${c.reset}${c.dim} (approximate)${c.reset}`,
-          ]),
+      ...costLines(rollup),
       `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
       "",
       `${c.dim}Re-run the assertions against these same sessions, at no cost:${c.reset}`,
@@ -474,7 +524,7 @@ switch (subcommand) {
 
     printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
     if (values.json) {
-      emitReport(`${JSON.stringify(rollup)}\n`);
+      await emitReport(`${JSON.stringify(rollup)}\n`);
     }
     process.exit(exitCodeFor(rollup));
     break;
@@ -505,7 +555,8 @@ switch (subcommand) {
         `${c.dim}│${c.reset}  ${c.dim}Total runs  :${c.reset} ${c.yellow}${totalRuns}${c.reset}`,
         `${c.dim}│${c.reset}  ${c.dim}Concurrency :${c.reset} ${concurrency}`,
         `${c.dim}│${c.reset}  ${c.dim}Dry run     :${c.reset} ${dryRun ? "yes" : "no"}`,
-        `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Cost cap    :${c.reset} ${maxRunCostUSD > 0 ? `${formatCost(maxRunCostUSD)} per run` : "none"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${tokenCapLabel()}`,
         `${c.dim}│${c.reset}  ${c.dim}Time cap    :${c.reset} ${maxRunSeconds > 0 ? `${maxRunSeconds}s per run` : "none"}`,
         `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
         ...filteredEvals.map(
@@ -538,14 +589,24 @@ switch (subcommand) {
       write("\n");
     }
 
-    if (repeat > 1 && process.env.INSTRUMENT_EVAL_TRIAL === undefined) {
-      process.exit(await runTrialsApart());
+    if (
+      (repeat > 1 || filteredEvals.length > 1 || models.length > 1) &&
+      !dryRun &&
+      process.env.INSTRUMENT_EVAL_TRIAL === undefined
+    ) {
+      process.exit(
+        await runCasesApart(
+          adHocEval ? [] : filteredEvals.map((evalCase) => evalCase.name),
+        ),
+      );
     }
 
     sweepOldRuns();
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
+      firstTrial: trialOfProcess,
+      maxRunCostUSD,
       maxRunSeconds,
       maxRunTokens,
       models,
@@ -575,7 +636,7 @@ switch (subcommand) {
       printSummary({ outputDir, rollup, workspaceRootDir });
       printTranscripts({ outputDir, rollup });
       if (values.json) {
-        emitReport(`${JSON.stringify(rollup)}\n`);
+        await emitReport(`${JSON.stringify(rollup)}\n`);
       }
       process.exit(exitCodeFor(rollup));
     }
@@ -583,42 +644,88 @@ switch (subcommand) {
 }
 
 /**
- * `--repeat` runs each trial as a run of its own, in a child process with a
- * home of its own. The product reads the home from HOME, once per process, so
- * trials in one process share every file a case plants and every file a run
- * writes, and a case that checks a file's time reads another trial's. Each
- * child prints its own narration and results; this adds a line per trial and
- * the total.
+ * A run of more than one case or model, or of one case more than once, runs
+ * each case of each trial on each model as a run of its own, in a child
+ * process with a home and a workspace of its own. The product reads the
+ * home from HOME, once per process, and keeps memories in the workspace, so
+ * runs in one process share every file a case plants, every file a run
+ * writes, and every memory a case saves: a case that checks a file's time
+ * reads another's, and a
+ * memory case is scored against what the case before it remembered. Each
+ * child prints its own narration and results and writes them to
+ * `trial-<n>/<case>/` in this run's directory, `trial-<n>/<case>/<model>/`
+ * when it names more than one model; this writes the run's
+ * `summary.json` over every child, with each case's spread across its trials,
+ * and prints the spread.
  */
-async function runTrialsApart(): Promise<number> {
+async function runCasesApart(caseNames: readonly string[]): Promise<number> {
   // Always set by `lib/sandbox-home`, imported first, to the home this run
   // was given or the one it made itself.
   const baseHome = process.env.INSTRUMENT_EVAL_HOME ?? os.tmpdir();
   const script = process.argv[1] ?? "";
+  // The patterns come off and each child is named its one case; an ad hoc
+  // `--prompt` run has no patterns and keeps its arguments as they are.
+  const patterns = positionals.slice(1);
   const args = withoutOptions(process.argv.slice(2), [
     "--concurrency",
+    "--model",
     "--repeat",
-  ]).filter((arg) => arg !== "--json" && arg !== "--yes" && arg !== "-y");
-  const perTrial = Math.max(1, Math.ceil(concurrency / repeat));
-  const trials = await Promise.all(
-    list(1, repeat).map(async (trial) => {
+  ]).filter((arg) => {
+    if (arg === "--json" || arg === "--yes" || arg === "-y") {
+      return false;
+    }
+    const pattern = patterns.indexOf(arg);
+    if (pattern === -1) {
+      return true;
+    }
+    patterns.splice(pattern, 1);
+    return false;
+  });
+  const names: (string | undefined)[] =
+    caseNames.length === 0 ? [undefined] : [...caseNames];
+  // Each model too: models run one after another in a child, so a later one
+  // would find what an earlier one saved.
+  const asked = values.model ?? [];
+  const units = list(1, repeat).flatMap((trial) =>
+    names.flatMap((caseName) =>
+      asked.map((model, modelIndex) => ({
+        caseName,
+        model,
+        modelIndex,
+        trial,
+      })),
+    ),
+  );
+  const trials = await parallel(
+    Math.max(1, concurrency),
+    units,
+    async ({ caseName, model, modelIndex, trial }) => {
+      const dir = path.join(
+        `trial-${trial}`,
+        caseName ?? "",
+        asked.length > 1 ? model.replaceAll(/[^a-z0-9.-]/giu, "-") : "",
+      );
       const child = await execa(
         process.execPath,
         [
           ...process.execArgv,
           script,
           ...args,
+          ...(caseName === undefined ? [] : [caseName]),
+          "--model",
+          model,
           "--repeat",
           "1",
           "--concurrency",
-          String(perTrial),
+          "1",
           "--json",
           "--yes",
         ],
         {
           env: {
             ...process.env,
-            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}`,
+            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}${caseName === undefined ? "" : `-${caseName}`}-${modelIndex}`,
+            INSTRUMENT_EVAL_OUTPUT_DIR: path.join(outputDir, dir),
             INSTRUMENT_EVAL_TRIAL: String(trial),
           },
           reject: false,
@@ -629,27 +736,68 @@ async function runTrialsApart(): Promise<number> {
       const report = child.stdout
         .split("\n")
         .find((line) => line.startsWith("{"));
-      // The child's own `--json` report, written by this same CLI.
-      const rollup = report ? (JSON.parse(report) as Rollup) : undefined;
-      return { exitCode: child.exitCode ?? 1, rollup, trial };
-    }),
+      // The child's own `--json` report, written by this same CLI. A line
+      // that does not parse, from a child killed while it wrote, is a child
+      // that did not report, so every other child's report still counts.
+      let rollup: Rollup | undefined;
+      try {
+        rollup = report ? (JSON.parse(report) as Rollup) : undefined;
+      } catch {
+        rollup = undefined;
+      }
+      return {
+        caseName,
+        dir,
+        exitCode: child.exitCode ?? 1,
+        model: asked.length > 1 ? model : undefined,
+        rollup,
+        trial,
+      };
+    },
   );
-  const passed = sum(trials, (each) => each.rollup?.assertions.passed ?? 0);
-  const total = sum(trials, (each) => each.rollup?.assertions.total ?? 0);
+  const combined = combineTrials(trials);
+  await fs.mkdir(outputDir, { recursive: true });
+  await fs.writeFile(
+    path.join(outputDir, "summary.json"),
+    JSON.stringify(combined, null, 2),
+    "utf8",
+  );
+  const { passed, total } = combined.assertions;
+  const range = (
+    figure: { max: number; median: number; min: number } | undefined,
+    format: (value: number) => string,
+  ) =>
+    figure
+      ? `${format(figure.min)} / ${format(figure.median)} / ${format(figure.max)}`
+      : "n/a";
   write(
     [
       "",
       `${c.dim}┌─ Trials ────────────────────────────────────────────${c.reset}`,
-      ...trials.map(({ rollup, trial }) =>
-        rollup
-          ? `${c.dim}│${c.reset}  trial ${trial}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
-          : `${c.dim}│${c.reset}  trial ${trial}: ${c.yellow}no report${c.reset}`,
-      ),
+      ...trials.map(({ caseName, model, rollup, trial }) => {
+        const unit = [caseName, model]
+          .filter((part) => part !== undefined)
+          .map((part) => ` ${part}`)
+          .join("");
+        return rollup
+          ? `${c.dim}│${c.reset}  trial ${trial}${unit}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
+          : `${c.dim}│${c.reset}  trial ${trial}${unit}: ${c.yellow}no report${c.reset}`;
+      }),
       `${c.dim}│${c.reset}  all: ${passed}/${total} assertions passed`,
+      ...costLines(combined),
+      `${c.dim}├─ Spread, min / median / max ────────────────────────${c.reset}`,
+      ...combined.spread.map(
+        (one) =>
+          `${c.dim}│${c.reset}  ${c.cyan}${one.caseName}${c.reset} ${c.dim}(${one.trials} trials, ${one.assertions.passed}/${one.assertions.total} passed)${c.reset}\n${c.dim}│${c.reset}    cost ${range(one.costUSD, formatCost)}   tokens ${range(one.tokens, formatNumber)}`,
+      ),
       `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
+      `${c.dim}Results:${c.reset} ./${path.relative(process.cwd(), outputDir)}`,
       "",
     ].join("\n"),
   );
+  if (values.json) {
+    await emitReport(`${JSON.stringify(combined)}\n`);
+  }
   return trials.some((each) => each.exitCode !== 0) ? 1 : 0;
 }
 
@@ -676,7 +824,10 @@ function withoutOptions(args: string[], names: string[]): string[] {
  */
 function reportStopped(runs: CompletedRun[]) {
   const capped = runs.filter(
-    (run) => run.stoppedBy === "budget" || run.stoppedBy === "timeout",
+    (run) =>
+      run.stoppedBy === "budget" ||
+      run.stoppedBy === "memory" ||
+      run.stoppedBy === "timeout",
   );
   if (capped.length === 0) {
     return;
@@ -687,7 +838,7 @@ function reportStopped(runs: CompletedRun[]) {
       `${c.red}${capped.length} run(s) hit a cap${c.reset}${c.dim} -- their results are partial:${c.reset}`,
       ...capped.map(
         (run) =>
-          `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${run.stoppedBy === "budget" ? `${formatNumber(run.overBudget ?? 0)} tokens` : "out of time"})${c.reset}`,
+          `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${run.stoppedBy === "budget" ? overBudgetLabel(run.overBudget) : run.stoppedBy === "memory" ? "out of memory" : "out of time"})${c.reset}`,
       ),
       "",
     ].join("\n"),

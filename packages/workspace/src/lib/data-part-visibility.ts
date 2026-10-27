@@ -36,6 +36,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // summary that does not exist. The user-facing treatment belongs with the
   // summarizing compaction it would be describing.
   "data-contextRollover": "dev",
+  // Developer-mode only, like the rollover: what the model is sent of old tool
+  // results is our request assembly, and the transcript still shows them.
+  "data-toolResultsCleared": "dev",
   "data-dateChange": "dev",
   "data-environmentChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the

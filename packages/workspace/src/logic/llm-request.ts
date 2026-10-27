@@ -37,6 +37,7 @@ import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
+import { summarizeBeforePriceStep } from "../lib/price-step-summary";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { cacheSessionFor } from "../lib/fork-cache-session";
 import { ChatReads } from "../lib/chat-reads";
@@ -236,6 +237,47 @@ export const llmRequestLogic = fromPromise<
     sessionId: input.sessionId,
     signal,
     chatId: input.chatId,
+    // Asked with what the turn's own request is sent with, so the summary
+    // reads the request's prefix from the provider's cache.
+    summarize: async (messages) => {
+      const workspaceConfig = getWorkspaceConfig();
+      const fetched = await fetchAISDKModel({
+        captureException: workspaceConfig.captureException,
+        configs: workspaceConfig.getAIProviderConfigs(),
+        modelCache: workspaceConfig.modelCache,
+        modelRoutes: workspaceConfig.modelRoutes,
+        modelURI: input.model.uri,
+        workspaceServerURL: getWorkspaceServerURL(),
+      });
+      if (!fetched.ok) {
+        return undefined;
+      }
+      return summarizeBeforePriceStep({
+        headers: {
+          [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({
+            sessionId: input.sessionId,
+            chatId: input.chatId,
+          }),
+        },
+        messages,
+        model: fetched.value,
+        providerOptions: providerOptionsForModel(fetched.value, {
+          effort: workspaceConfig.reasoningEffort ?? catalogEffort(input.model),
+          reasoning: input.model.reasoning,
+        }),
+        signal,
+        activity: activityTelemetry({
+          connection: connectionFor(
+            workspaceConfig.getAIProviderConfigs(),
+            input.model.params.providerConfigId,
+          ),
+          chatId: input.chatId,
+          purpose: turnPurpose(input.chatId, input.sessionId),
+          sessionId: input.sessionId,
+        }),
+        tools,
+      });
+    },
   });
 
   if (messagesResult.isErr()) {

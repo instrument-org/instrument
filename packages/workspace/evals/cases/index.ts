@@ -12,6 +12,7 @@ import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
+import { COST_STUDY_EVALS } from "./cost-study";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
@@ -66,6 +67,7 @@ export const EVALS = [
   ...BROWSER_SELECTION_EVALS,
   ...CHAT_HISTORY_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
+  ...COST_STUDY_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,
   ...DEVELOPER_TOOLS_EVALS,
   ...DISCRETION_EVALS,

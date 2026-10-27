@@ -154,6 +154,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       const dropped = ` droppedMessages="${part.data.droppedMessages}"`;
       return `<data-contextRollover${retained}${dropped} />`;
     }
+    case "data-toolResultsCleared": {
+      return `<data-toolResultsCleared through="${part.data.through}" results="${part.data.results}" />`;
+    }
     case "data-dateChange": {
       return `<data-dateChange date="${part.data.date}" />`;
     }

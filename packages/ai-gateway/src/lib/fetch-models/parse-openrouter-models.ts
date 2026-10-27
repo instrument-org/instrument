@@ -35,6 +35,17 @@ const OpenRouterModelSchema = z.object({
   pricing: z
     .object({
       completion: z.string().nullish(),
+      // The rates a request is billed at past a prompt size. Read loosely, so
+      // an entry this client cannot read loses its step rather than the list.
+      overrides: z
+        .array(
+          z.object({
+            min_prompt_tokens: z.number().nullish().catch(undefined),
+            prompt: z.string().nullish().catch(undefined),
+          }),
+        )
+        .nullish()
+        .catch(undefined),
       prompt: z.string().nullish(),
     })
     .nullish(),

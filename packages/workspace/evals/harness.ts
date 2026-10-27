@@ -29,15 +29,26 @@ import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { workspaceLayout } from "../src/lib/workspace-layout";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
-import { listChatBackgroundProcesses } from "../src/lib/background-processes";
+import {
+  killChatBackgroundProcesses,
+  listChatBackgroundProcesses,
+} from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
+import { closeAgentBrowserSessionsForSessions } from "../src/lib/agent-browser-cleanup";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
-import { outputFolderPath } from "../src/lib/chat/output-folder";
+import {
+  chatFolderTheyOpen,
+  outputFolderPath,
+} from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/open-asks";
 import { ChatReads } from "../src/lib/chat-reads";
 import { getUsageSummary } from "../src/lib/usage-summary";
+import {
+  getUsageSummaryFromMessages,
+  type UsageSummary,
+} from "../src/lib/usage-summary-compute";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
@@ -48,8 +59,18 @@ import { type SessionMessageDataPart } from "../src/schemas/session/message-data
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
-import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
+import { platformSearchClient } from "./lib/platform-search";
+import {
+  capSpendOf,
+  type CostSource,
+  costSourceOf,
+  describeCost,
+  modelCostUSD,
+  readChatSpend,
+  type RunCost,
+  runCostOf,
+} from "./lib/run-cost";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
   answerSignIn,
@@ -64,14 +85,26 @@ import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
   c,
-  costOfUsage,
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
   resolveRegistryDir,
   write,
 } from "./utils";
-import { resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import {
+  chatDir,
+  chatOwnFolder,
+  resolveChat,
+  sessionOfChat,
+} from "../src/lib/record-folders";
+import { formatBytes } from "../src/lib/format-bytes";
+import { workDir } from "../src/lib/work-dir";
+import {
+  MAX_PROCESS_BYTES,
+  oversizedProcessesIn,
+  signal,
+  stopProcessesIn,
+} from "./lib/process-guard";
 import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
@@ -154,7 +187,15 @@ export const HOUSE_FLOOR = "anthropic/claude-haiku-5.5";
 export interface CompletedRun {
   /** Every task this run's chat started, by its session. Empty unless it forked. */
   childSessionIds: StoreId.Session[];
-  /** Approximate USD, when the model's price is known. See `formatCost`. */
+  /** How `costUSD` and `searchCostUSD` were arrived at, step by step. */
+  cost: RunCost;
+  /** Whether `costUSD` is what the provider billed, a catalog estimate, or both. */
+  costSource?: CostSource;
+  /**
+   * USD for the run's model requests: billed where each response said, else
+   * priced from the catalog. Absent when neither could price a step. Web
+   * searches are `searchCostUSD`, not this.
+   */
   costUSD?: number;
   label: string;
   metrics: RunMetrics;
@@ -163,8 +204,8 @@ export interface CompletedRun {
   modelURI: string;
   /** The eval case this run came from, so a report can find it by task id. */
   name: string;
-  /** Tokens at the moment the cap stopped this run; absent if it finished. */
-  overBudget?: number;
+  /** The run's spend at the moment a cap stopped it; absent if it finished. */
+  overBudget?: { costUSD?: number; tokens: number };
   /**
    * The build a `~<name>-latest` alias stood for when this ran. Absent for a pinned
    * model, where `modelURI` already says it.
@@ -175,6 +216,8 @@ export interface CompletedRun {
    * case, the task the run started from an empty chat.
    */
   sessionId: StoreId.Session;
+  /** USD estimated for the run's web searches, apart from `costUSD`. */
+  searchCostUSD?: number;
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   /** The chat the run is in. */
@@ -266,17 +309,41 @@ export interface TurnShape {
 /**
  * Why a run ended somewhere other than the agent deciding it was finished.
  * `unknown` is what a report over a past workspace can tell: the session was
- * stopped, and nothing recorded on the task says by what.
+ * stopped, and nothing recorded on the task says by what. `memory` is a
+ * program the agent ran growing past `MAX_PROCESS_BYTES`, which was killed.
  */
-export type RunStop = "budget" | "case" | "timeout" | "unknown";
+export type RunStop = "budget" | "case" | "memory" | "timeout" | "unknown";
+
+/** A run's spend so far, as the caps read it: `costUSD` searches included. */
+interface Spend {
+  /** Absent while neither the model nor a search could be priced. */
+  costUSD?: number;
+  /** Whether the model's own requests could be priced, searches aside. */
+  modelPriced: boolean;
+  tokens: number;
+  usage: UsageSummary;
+}
 
 /**
- * Ceiling on one run's total tokens before the harness stops it.
+ * Ceiling on one run's spend in dollars before the harness stops it: its
+ * model requests (`RunCost`, billed where the response said) and its
+ * searches together.
  *
- * Set from measurement rather than taste: the most expensive legitimate run
- * observed was around 700K, and the cheapest runaway was 1.3M. Anything past
- * this is a model that has stopped making progress, and the cost of letting it
- * continue is unbounded.
+ * Dollars rather than tokens because an agent's tokens are mostly cache
+ * reads, which bill at a tenth of a fresh token or less: a browse-and-build
+ * run passed a million tokens for about four cents, and a 35-turn
+ * conversation on Claude Haiku 5.5 passed twelve million for under a
+ * dollar. Twice that is room for a long legitimate run and a stop for a
+ * runaway before it costs real money; a pricier model's long run needs
+ * `--max-run-cost` raised.
+ */
+export const DEFAULT_MAX_RUN_COST_USD = 2;
+
+/**
+ * Ceiling on one run's total tokens, by default only for a run whose cost
+ * cannot be read (a free model, or one with no catalog price), which the
+ * dollar cap cannot see. Measured on such runs: the most expensive legitimate
+ * one was around 700K, and the cheapest runaway was 1.3M.
  */
 export const DEFAULT_MAX_RUN_TOKENS = 1_000_000;
 
@@ -298,11 +365,28 @@ export const DEFAULT_MAX_RUN_SECONDS = 1800;
  *
  * Both readings come from the stored messages, and usage only lands there when
  * an assistant message is saved -- so the total does not move within a turn,
- * however many tool calls that turn makes. The token cap therefore acts at turn
- * boundaries, and the wall-clock cap is the only thing bounding a single turn
- * that will not end.
+ * however many tool calls that turn makes. The token and cost caps therefore
+ * act at step boundaries, and the wall-clock cap is the only thing bounding a
+ * single step that will not end.
  */
 const ENFORCEMENT_INTERVAL_MS = 15_000;
+
+/** How often a run's programs are checked against `MAX_PROCESS_BYTES`. */
+const MEMORY_CHECK_INTERVAL_MS = 5000;
+
+/** The folders a chat's programs work in: its work folder and its own. */
+function caseFolders(chatId: ChatId): string[] {
+  const own = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
+  return [workDir(chatId), ...(own === undefined ? [] : [own])];
+}
+
+/**
+ * How long a case's own stop waits for the step it stopped at to end, and how
+ * often it looks. The provider's last chunk follows the last call it asks for
+ * within moments, so this is a ceiling for a stream that stalls.
+ */
+const STEP_END_WAIT_MS = 10_000;
+const STEP_END_POLL_MS = 50;
 
 /** After a stop is issued, how long to wait for the session to actually end. */
 const STOP_GRACE_MS = 60_000;
@@ -366,7 +450,8 @@ export interface EvalCase {
   assertions?: Assertion[];
   /**
    * This case's own token cap, over the run's (`--max-run-tokens`), for a
-   * long conversation whose legitimate total is past the default.
+   * long conversation whose legitimate total is past the default. It
+   * applies whether or not the run's cost can be read.
    */
   maxRunTokens?: number;
   /**
@@ -601,15 +686,25 @@ export async function runEvals(
   {
     concurrency = 8,
     dryRun = false,
+    firstTrial = 1,
+    maxRunCostUSD = DEFAULT_MAX_RUN_COST_USD,
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
-    maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
+    maxRunTokens,
     models,
     reasoningEffort,
     repeat = 1,
   }: {
     concurrency?: number;
     dryRun?: boolean;
+    /** The number of this process's first trial, for one of several processes. */
+    firstTrial?: number;
+    /** 0 disables. */
+    maxRunCostUSD?: number;
     maxRunSeconds?: number;
+    /**
+     * 0 disables. Absent, `DEFAULT_MAX_RUN_TOKENS` applies to a run only
+     * while its cost cannot be read.
+     */
     maxRunTokens?: number;
     models: string[];
     /** Asked of every model request the run makes, through the workspace config. */
@@ -715,7 +810,7 @@ export async function runEvals(
       ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
         ? {}
         : { uutilsDir: UUTILS_DIR, uutilsOutsideSandbox: true }),
-      webSearch: unavailableWebSearchClient,
+      webSearch: platformSearchClient(),
     },
   });
 
@@ -736,7 +831,7 @@ export async function runEvals(
     .flatMap((uri) => {
       const modelLabel = modelLabelFor(uri);
       return evals.flatMap((evalCase) =>
-        _.list(1, repeat).map((trial) => ({
+        _.list(firstTrial, firstTrial + repeat - 1).map((trial) => ({
           evalCase,
           modelLabel,
           trial,
@@ -833,10 +928,12 @@ export async function runEvals(
       );
 
       const abortController = new AbortController();
+      const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const startedAt = Date.now();
       let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
-      let overBudget: number | undefined;
+      let stoppingForCase = false;
+      let overBudget: CompletedRun["overBudget"];
       // What each question was asked with, by its call's part, for an answer
       // that picks one of the choices the model wrote.
       const chooseInputs = new Map<
@@ -945,17 +1042,30 @@ export async function runEvals(
       // a legitimate tool call. Measured, one run has reached millions of tokens
       // on a single question before a human noticed. The eval harness is the one
       // place that can see the running total and act on it, so it does.
-      const enforceCaps = (totalTokens: number) => {
+      const enforceCaps = ({ costUSD, modelPriced, tokens }: Spend) => {
         if (stoppedBy) {
           return;
         }
         const elapsedSeconds = (Date.now() - startedAt) / 1000;
-        const tokenCap = evalCase.maxRunTokens ?? maxRunTokens;
-        if (tokenCap > 0 && totalTokens > tokenCap) {
+        const tokenCap =
+          evalCase.maxRunTokens ??
+          maxRunTokens ??
+          (modelPriced ? 0 : DEFAULT_MAX_RUN_TOKENS);
+        if (
+          maxRunCostUSD > 0 &&
+          costUSD !== undefined &&
+          costUSD > maxRunCostUSD
+        ) {
           stoppedBy = "budget";
-          overBudget = totalTokens;
+          overBudget = { costUSD, tokens };
           process.stderr.write(
-            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatCost(costUSD)} > ${formatCost(maxRunCostUSD)}, stopping. Raise with --max-run-cost, or 0 to disable.${c.reset}\n`,
+          );
+        } else if (tokenCap > 0 && tokens > tokenCap) {
+          stoppedBy = "budget";
+          overBudget = { costUSD, tokens };
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(tokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
           );
         } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
           stoppedBy = "timeout";
@@ -970,11 +1080,45 @@ export async function runEvals(
 
       // The whole chat's spend, its tasks' included: a runaway task is as much
       // the run's as a runaway conversation.
+      const spendOf = async (): Promise<Spend> => {
+        const { billed, messages } = await readChatSpend(id);
+        const usage = getUsageSummaryFromMessages(messages);
+        const cost = runCostOf(messages, {
+          billed,
+          price,
+          priceFor: catalog.searchPriceFor,
+        });
+        return {
+          ...capSpendOf(cost),
+          tokens: usage.totalTokens,
+          usage,
+        };
+      };
       const enforcementTimer = setInterval(() => {
-        void getUsageSummary(id).then((usage) => {
-          enforceCaps(usage.totalTokens);
-        }, _.noop);
+        void spendOf().then(enforceCaps, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
+
+      // A program the agent ran that grows past what one machine can spare
+      // takes every other run down with it, so it is killed and the run is
+      // stopped as out of memory rather than left to finish.
+      const memoryTimer = setInterval(() => {
+        void oversizedProcessesIn(caseFolders(id)).then((oversized) => {
+          if (oversized.length === 0) {
+            return;
+          }
+          signal(
+            oversized.map(({ pid }) => pid),
+            "SIGKILL",
+          );
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Out of memory${c.reset}${c.dim}: a program it ran held ${formatBytes(Math.max(...oversized.map(({ rssBytes }) => rssBytes)))} > ${formatBytes(MAX_PROCESS_BYTES)}; killed it and stopping.${c.reset}\n`,
+          );
+          if (!stoppedBy) {
+            stoppedBy = "memory";
+            void call(sessionRoute.stop, { id }, { context });
+          }
+        }, _.noop);
+      }, MEMORY_CHECK_INTERVAL_MS);
 
       // A question the agent asked, or a folder or app it asked for, shows
       // the person a card, which the case answers the way they would: a
@@ -1191,12 +1335,13 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const usage = await getUsageSummary(id);
+              const spend = await spendOf();
+              const { usage } = spend;
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
                 : `${c.cyan}${toolName}${c.reset}`;
-              const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}`;
+              const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}${spend.costUSD === undefined ? "" : `${c.dim} cost=${c.reset}${formatCost(spend.costUSD)}`}`;
               const line = `${evalPrefix(label)}${toolLabel}${statsSuffix}\n`;
               if (isError) {
                 stream.write(line);
@@ -1204,15 +1349,22 @@ export async function runEvals(
                 write(line);
               }
 
-              enforceCaps(usage.totalTokens);
+              enforceCaps(spend);
             }
 
-            if (await evalCase.shouldStop?.(part, id)) {
+            if (!stoppingForCase && (await evalCase.shouldStop?.(part, id))) {
+              stoppingForCase = true;
               stoppedBy ??= "case";
               write(
                 `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
               );
-              void call(sessionRoute.stop, { id }, { context });
+              // Once the step that made the part has ended, since the step's
+              // usage arrives in the provider's last chunk and a stop before
+              // that leaves a step the provider billed with no usage at all.
+              // The call it asked for may start meanwhile; the stop ends it.
+              void stepEnded(id, part.metadata).then(() =>
+                call(sessionRoute.stop, { id }, { context }),
+              );
             }
           }
         } catch (error) {
@@ -1449,9 +1601,30 @@ export async function runEvals(
       }
 
       clearInterval(enforcementTimer);
+      clearInterval(memoryTimer);
       clearInterval(askTimer);
       abortController.abort();
       await evalCase.teardown?.({ chatId: id });
+      // Every session's agent-browser daemon, as trashing a chat closes them.
+      // Nothing else does for a chat's own session, and each one holds a
+      // headless Chrome for the daemon's idle timeout after this process has
+      // exited, which across a run of many cases exhausts the machine.
+      await closeAgentBrowserSessionsForSessions(
+        [
+          sessionOfChat(id),
+          ...(await listChildTasks(id)).map((task) => task.id),
+        ].filter((session) => session !== undefined),
+      );
+      // And whatever else the chat left running, which outlives this process
+      // otherwise: what it started in the background, then anything still
+      // working in its folders.
+      await killChatBackgroundProcesses(id);
+      const leftRunning = await stopProcessesIn(caseFolders(id));
+      if (leftRunning > 0) {
+        write(
+          `${evalPrefix(label)}${c.dim}Stopped ${leftRunning} program(s) still running in its folders.${c.reset}\n`,
+        );
+      }
 
       if (outcome === "timeout") {
         stoppedBy = "timeout";
@@ -1513,21 +1686,24 @@ export async function runEvals(
           0,
         ),
       };
-      const price = catalog.priceFor(uri.split("?")[0] ?? uri);
-      const costUSD = price
-        ? [usage, ...childUsages].reduce(
-            (sum, one) => sum + costOfUsage(one, price),
-            0,
-          )
-        : undefined;
+      const spent = await readChatSpend(id, [sessionId, ...childSessionIds]);
+      const cost = runCostOf(spent.messages, {
+        billed: spent.billed,
+        price,
+        priceFor: catalog.searchPriceFor,
+      });
+      const costUSD = modelCostUSD(cost);
+      const costLine = describeCost(cost);
 
       finishedRuns += 1;
       write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costLine === undefined ? "" : `, ${costLine}`})${c.reset}\n`,
       );
 
       return {
         childSessionIds,
+        cost,
+        costSource: costSourceOf(cost),
         costUSD,
         label,
         metrics,
@@ -1536,6 +1712,8 @@ export async function runEvals(
         name: evalCase.name,
         overBudget,
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
+        searchCostUSD:
+          cost.search.searches > 0 ? cost.search.estimatedUSD : undefined,
         sessionId,
         stoppedBy,
         chatId: id,
@@ -1609,7 +1787,7 @@ export async function sessionsFor(
  * The tasks a run started: those of its chat when the run is the chat's own
  * conversation, and none for a task case, whose session starts nothing.
  */
-async function childTasksOf(
+export async function childTasksOf(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<StoreId.Session[]> {
@@ -1991,6 +2169,32 @@ async function taskOnceStarted(
       turn,
       new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS)),
     ]);
+  }
+}
+
+/**
+ * Resolves once the assistant message `messageId` has finished, stopped or
+ * failed, or after `STEP_END_WAIT_MS` regardless.
+ */
+async function stepEnded(
+  chatId: ChatId,
+  {
+    messageId,
+    sessionId,
+  }: { messageId: StoreId.Message; sessionId: StoreId.Session },
+): Promise<void> {
+  const deadline = Date.now() + STEP_END_WAIT_MS;
+  while (Date.now() < deadline) {
+    const read = await ChatReads.transcript({
+      chatId,
+      only: new Set([messageId]),
+      sessionId,
+    });
+    const message = read.isOk() ? read.value[0] : undefined;
+    if (message?.role !== "assistant" || message.metadata.finishedAt) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, STEP_END_POLL_MS));
   }
 }
 

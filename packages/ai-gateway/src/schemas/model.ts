@@ -82,6 +82,12 @@ export namespace AIGatewayModel {
   export type Reasoning = z.output<typeof ReasoningSchema>;
 
   export const PricingSchema = z.object({
+    /**
+     * Prompt tokens from which a request is billed at a higher rate (Claude
+     * Haiku 5.5 bills every token of a prompt past 100,000 at five times the
+     * rate), when the list says so. Absent means one rate at every size.
+     */
+    higherPriceFromPromptTokens: z.number().int().positive().optional(),
     input: z.number().nonnegative(),
     output: z.number().nonnegative(),
   });

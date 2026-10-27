@@ -19,12 +19,10 @@
  * - **It did not claim a memory it does not hold.** The failure above is only
  *   dangerous because the user is told it happened.
  *
- * **`--repeat` does not work on these.** Memory lives in the run's workspace,
- * which every trial of one run shares, so the second trial onward reads the
- * first trial's memory, correctly declines to save the same fact twice, and
- * fails an assertion that is asking the wrong question. Sample these by
- * running the case several times with a fresh `INSTRUMENT_EVAL_HOME` each
- * time.
+ * Memory lives in the run's workspace, so each case of each trial runs in a
+ * process and workspace of its own (`runCasesApart` in `evals/cli.ts`):
+ * sharing one, a case reads the memory another saved, correctly declines to
+ * save the same fact twice, and fails an assertion asking the wrong question.
  *
  * **What it measured, 2026-09-19, GLM 5.3 Flash at high effort.** The
  * standing-fact case passes about one run in three; Qwen3.8 27B passed it

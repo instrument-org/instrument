@@ -7,7 +7,7 @@ import * as React from "react";
  * scroll only passes over, or a row a list keeps drawn just past its edge,
  * asks for nothing.
  */
-export const ASK_AFTER_MS = 200;
+const ASK_AFTER_MS = 200;
 
 /** Every picture asked for this session, which is on hand or on its way. */
 const asked = new Set<string>();

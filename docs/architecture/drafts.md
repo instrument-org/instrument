@@ -63,7 +63,7 @@ A launch finishes any send step 3 never reached (`finishSentDrafts`), moving wha
 
 ### A reply another device asks this one to send
 
-A phone cannot run the agent, so its Send leaves a reply naming its chat with `send:` naming the computer that last worked in the chat (its device id). That computer sends it as soon as it has it, through the same three steps (`electron-main/drafts/send-asked-drafts.ts`), on the chat's own model or else the default. Naming one device keeps two computers from both sending it. The ask holds for ten minutes from the draft's `updated`: one found later, by a launch the next day say, or one whose send fails, loses its `send` and waits in the chat's box like any other reply, so nothing goes out long after it was written or more than once.
+A phone cannot run the agent, so its Send leaves the draft with `send:` naming a computer (its device id): for a reply, the computer that last worked in its chat; for a draft that opens a chat of its own, the computer that last wrote the chat list. That computer sends it as soon as it has it, through the same three steps (`electron-main/drafts/send-asked-drafts.ts`), making the new chat first where there is none, on the chat's own model or else the default, under the draft's topic. The agent can read `Drafts/` and never write it (`layoutRules` in `workspace-fs-layout.ts`), so a draft it wrote can never ask for a turn nobody started. Naming one device keeps two computers from both sending it. The ask holds for ten minutes from the draft's `updated`: one found later, by a launch the next day say, or one whose send fails, loses its `send` and waits in the chat's box like any other reply, so nothing goes out long after it was written or more than once.
 
 ## A chat's box
 

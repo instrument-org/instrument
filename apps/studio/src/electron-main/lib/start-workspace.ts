@@ -2,6 +2,7 @@ import { openBookmarks } from "../bookmarks/serve-bookmarks";
 import { call } from "@orpc/server";
 import {
   chatModelURI,
+  StoreId,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 
@@ -44,21 +45,36 @@ export function startWorkspace(): Promise<void> {
     // loads.
     await timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
     openDrafts();
-    // A reply a phone asked this computer to send, which it sends on the
-    // chat's own model as the chat's box would.
+    // A draft a phone asked this computer to send, which it sends on the
+    // chat's own model, or a new chat's on the default, as a window would.
+    const context = { workspaceConfig, workspaceRef };
     startSendingAskedDrafts({
       apply: applyDraftOpsInMain,
       deviceId,
-      send: async ({ chatId, draftId, words }) => {
+      send: async ({ chatId, draftId, topicId, words }) => {
         const modelURI = (await chatModelURI(chatId)) ?? getDefaultModelURI();
         if (!modelURI) {
           throw new Error("No model is chosen to send with");
         }
         await call(
           workspaceRouter.message.create,
-          { fromDraft: draftId, id: chatId, modelURI, prompt: words },
-          { context: { workspaceConfig, workspaceRef } },
+          {
+            fromDraft: draftId,
+            id: chatId,
+            modelURI,
+            prompt: words,
+            ...(topicId ? { topic: topicId } : {}),
+          },
+          { context },
         );
+      },
+      startChat: async (words) => {
+        const { id } = await call(
+          workspaceRouter.chats.ensure,
+          { firstWords: words, sessionId: StoreId.newSessionId() },
+          { context },
+        );
+        return id;
       },
       watch: watchDrafts,
     });

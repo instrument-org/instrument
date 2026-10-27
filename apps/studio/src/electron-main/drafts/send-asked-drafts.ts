@@ -12,21 +12,26 @@ import { logger } from "../lib/electron-logger";
  */
 export const ASK_FRESH_MS = 10 * 60 * 1000;
 
-/** A reply to send: its chat, the draft it is, and its words. */
+/**
+ * A draft to send: its chat, the draft it is, its words, and for a draft
+ * that opens a chat of its own, the topic the new chat is filed under.
+ */
 export interface AskedReply {
   chatId: ChatId;
   draftId: string;
+  topicId?: string;
   words: string;
 }
 
 /**
- * Sends each reply another device asked this one to send: a draft naming
- * its chat whose `send` is this device's id, which a phone's Send writes,
- * naming the computer that last worked in the chat, since a phone cannot run
- * the agent. It is sent as the chat's box sends one: claimed for the chat,
- * the message written naming the draft, then the draft marked sent, so a
- * send stopped partway is finished or offered again exactly as a window's
- * is (`lib/drafts/send.ts`).
+ * Sends each draft another device asked this one to send: one whose `send`
+ * is this device's id, which a phone's Send writes, since a phone cannot run
+ * the agent. A reply names the computer that last worked in its chat; a
+ * draft that opens a chat of its own names the computer that last wrote the
+ * chat list. It is sent as a window sends one: a new chat made first
+ * (`startChat`), then the draft claimed for its chat, the message written
+ * naming the draft, and the draft marked sent, so a send stopped partway is
+ * finished or offered again exactly as a window's is (`lib/drafts/send.ts`).
  *
  * An ask older than `ASK_FRESH_MS`, or a send that fails, drops the ask and
  * leaves the reply waiting in the box like any other, so a reply is sent
@@ -37,28 +42,46 @@ export function startSendingAskedDrafts({
   deviceId,
   now = Date.now,
   send,
+  startChat,
   watch,
 }: {
   /** Changes the drafts, as a window's ops would. */
   apply: (ops: DraftOp[]) => void;
   deviceId: string;
   now?: () => number;
-  /** Writes the reply's message into its chat, which starts the agent's turn. */
+  /** Writes the draft's message into its chat, which starts the agent's turn. */
   send: (reply: AskedReply) => Promise<void>;
+  /** Makes the chat a draft of its own opens, from its first words. */
+  startChat: (words: string) => Promise<ChatId>;
   /** Hears the drafts as they are and at each change; answers the stop. */
   watch: (listener: (snapshot: DraftsSnapshot) => void) => () => void;
 }): () => void {
   const inFlight = new Set<string>();
   const log = logger.scope("sendAskedDrafts");
 
-  const sendOne = async (draft: Draft, chatId: ChatId) => {
+  const sendOne = async (draft: Draft) => {
     // Out of the store's own telling of a change, which this answers.
     await Promise.resolve();
+    let chatId: ChatId;
+    try {
+      chatId = draft.chatId ?? (await startChat(draft.words));
+    } catch (error) {
+      log.warn(`Could not start the chat ${draft.id} asked for`, error);
+      apply([{ id: draft.id, set: {}, type: "update", unset: ["sendOn"] }]);
+      return;
+    }
     apply([
       { at: now(), chatId, id: draft.id, type: "claim", words: draft.words },
     ]);
     try {
-      await send({ chatId, draftId: draft.id, words: draft.words });
+      await send({
+        chatId,
+        draftId: draft.id,
+        ...(draft.chatId === undefined && draft.topicId
+          ? { topicId: draft.topicId }
+          : {}),
+        words: draft.words,
+      });
       apply([{ id: draft.id, type: "sent" }]);
     } catch (error) {
       log.warn(
@@ -79,11 +102,9 @@ export function startSendingAskedDrafts({
 
   return watch(({ drafts }) => {
     for (const draft of drafts) {
-      const chatId = draft.chatId;
       if (
         draft.sendOn !== deviceId ||
         draft.sendingTo !== undefined ||
-        chatId === undefined ||
         inFlight.has(draft.id)
       ) {
         continue;
@@ -91,11 +112,9 @@ export function startSendingAskedDrafts({
       inFlight.add(draft.id);
       const fresh = now() - draft.updatedAt <= ASK_FRESH_MS;
       const empty = draft.words.trim() === "" && !draft.inFolder?.length;
-      void (fresh && !empty ? sendOne(draft, chatId) : dropAsk(draft)).finally(
-        () => {
-          inFlight.delete(draft.id);
-        },
-      );
+      void (fresh && !empty ? sendOne(draft) : dropAsk(draft)).finally(() => {
+        inFlight.delete(draft.id);
+      });
     }
   });
 }

@@ -32,7 +32,12 @@ function reply(fields: Partial<Draft> = {}): Draft {
  * The sender over drafts held here: each op is applied to them and the
  * sender told again, as the store tells main of its own changes.
  */
-function run(drafts: Draft[], send: (reply: AskedReply) => Promise<void>) {
+function run(
+  drafts: Draft[],
+  send: (reply: AskedReply) => Promise<void>,
+  startChat: (words: string) => Promise<ChatId> = () =>
+    Promise.reject(new Error("No chat is started in this test")),
+) {
   const applied: DraftOp[] = [];
   let listener: ((snapshot: DraftsSnapshot) => void) | undefined;
   let held = drafts;
@@ -63,6 +68,7 @@ function run(drafts: Draft[], send: (reply: AskedReply) => Promise<void>) {
     deviceId: THIS_DEVICE,
     now: () => NOW,
     send,
+    startChat,
     watch: (heard) => {
       listener = heard;
       heard({ acks: {}, drafts: held });
@@ -130,5 +136,25 @@ describe("startSendingAskedDrafts", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(applied).toEqual([]);
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it("starts the chat a draft of its own opens, then sends it there under its topic", async () => {
+    const send = vi.fn(() => Promise.resolve());
+    const startChat = vi.fn(() => Promise.resolve(CHAT));
+    const { chatId: _reply, ...newChat } = reply({ topicId: "top_weather" });
+    const applied = run([newChat], send, startChat);
+    await vi.waitFor(() => {
+      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+    });
+    expect(startChat).toHaveBeenCalledExactlyOnceWith(
+      "Will it rain on Saturday?",
+    );
+    expect(applied[0]).toMatchObject({ chatId: CHAT, type: "claim" });
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      chatId: CHAT,
+      draftId: "01KFDRAFT0000000000000001",
+      topicId: "top_weather",
+      words: "Will it rain on Saturday?",
+    });
   });
 });

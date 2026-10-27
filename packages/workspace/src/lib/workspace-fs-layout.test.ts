@@ -296,6 +296,44 @@ describe("buildBashFs", () => {
       );
     });
 
+    // The workspace folder is one every chat reaches (`folderReach`), and
+    // a draft in it can ask a computer to send it.
+    it("reads a draft in the workspace it reaches and changes none of the drafts", async () => {
+      const root = getWorkspaceConfig().rootDir;
+      const drafts = path.join(root, "Drafts");
+      await fs.mkdir(path.join(drafts, "2026-10-27"), { recursive: true });
+      await fs.writeFile(path.join(drafts, "2026-10-27", "DRAFT.md"), "words");
+      const layout = buildWorkspaceFsLayout({
+        chatHostRoot: WorkDirSchema.parse(work),
+        folders: {
+          workspace: {
+            access: "read-write",
+            id: MountedFolder.IdSchema.parse("workspace-id"),
+            path: AbsolutePathSchema.parse(root),
+          },
+        },
+        recordHostRoot: ChatDirSchema.parse(record),
+      });
+      const bash = new Bash({
+        cwd: layout.chat.shellRoot,
+        fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
+      });
+      const read = await bash.exec(
+        `cat '${shellPath(drafts)}/2026-10-27/DRAFT.md'`,
+      );
+      expect(read.stdout).toBe("words");
+      // The rest of the workspace stays the agent's to change.
+      const elsewhere = await bash.exec(
+        `echo ok > '${shellPath(root)}/notes.md'`,
+      );
+      expect(elsewhere.exitCode).toBe(0);
+      const write = await bash.exec(
+        `mkdir -p '${shellPath(drafts)}/new'; echo send > '${shellPath(drafts)}/new/DRAFT.md'`,
+      );
+      expect(write.exitCode).not.toBe(0);
+      expect(existsSync(path.join(drafts, "new", "DRAFT.md"))).toBe(false);
+    });
+
     it("writes and reads its handoff notes", async () => {
       const bash = await makeChatBash();
       const notes = `${shellPath(record)}/handoff-notes.md`;

@@ -10,7 +10,11 @@ import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import nodePath from "node:path";
 
-import { CHAT_FOLDER_NAMES, HANDOFF_NOTES_FILE_NAME } from "../constants";
+import {
+  CHAT_FOLDER_NAMES,
+  DRAFTS_FOLDER_NAME,
+  HANDOFF_NOTES_FILE_NAME,
+} from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Listings, ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { shellPath } from "./shell-path";
@@ -939,6 +943,10 @@ function layoutRules(
       system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
     ),
     ...(layout.apps ? [system("allow", layout.apps.hostRoot)] : []),
+    // The person's drafts, readable and never changed: a draft can ask a
+    // computer to send it (its `send`), so one the agent wrote would start a
+    // turn nobody asked for.
+    system("readOnly", nodePath.join(config.rootDir, DRAFTS_FOLDER_NAME)),
     system("allow", runtime.caches),
     system("allow", runtime.config),
     ...[

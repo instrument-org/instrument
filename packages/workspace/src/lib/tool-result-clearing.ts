@@ -25,10 +25,12 @@ import { getWorkspaceConfig } from "./workspace-config";
  * the provider's cache holds, between one clearing and the next: each
  * clearing costs one rebuilt prefix rather than one per step.
  *
- * What is cleared is only what a tool returned. Each call's input, everything
- * the model said or reasoned, and everything the user said are sent whole, so
- * the model still knows what it did and why. A placeholder names the tool and
- * the file its output was saved to when it was cleared. Results that carry
+ * What is cleared is what a tool returned, and the long text a call was given
+ * (a file's contents for `write_file`, a script in a command): each call's
+ * name and short arguments, everything the model said or reasoned, and
+ * everything the user said are sent whole, so the model still knows what it
+ * did and why. A placeholder names the tool and the file its output was
+ * saved to when it was cleared. Results that carry
  * instructions (a loaded skill, a guide handed over with a command's output)
  * are never cleared, since the commands that hand them over read the history
  * to decide whether the model already has them.
@@ -77,7 +79,10 @@ const MIN_CLEARED_CHARACTERS = 2_000;
 /** Tokens the placeholder that replaces a result is counted as. */
 const PLACEHOLDER_TOKENS = 90;
 
-/** A stored tool result that may be cleared. */
+/** Characters from which a string in a call's input is cleared. */
+const MIN_CLEARED_INPUT_CHARACTERS = 1_000;
+
+/** A stored tool call whose result or input may be cleared. */
 interface ClearableResult {
   messageId: StoreId.Message;
   partId: StoreId.Part;
@@ -138,6 +143,48 @@ function clearableResults(
         toolCallId: part.toolCallId,
         toolName: part.type.slice("tool-".length),
       })),
+  );
+}
+
+/**
+ * A call's input with every string in it of at least
+ * {@link MIN_CLEARED_INPUT_CHARACTERS} replaced by a line saying how long it
+ * was, and how many characters that takes out; undefined when nothing in it
+ * is that long.
+ */
+function clearedInput(
+  input: unknown,
+): { characters: number; input: Record<string, unknown> } | undefined {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return undefined;
+  }
+  let characters = 0;
+  const cleared = Object.fromEntries(
+    Object.entries(input).map(([key, value]) => {
+      if (
+        typeof value !== "string" ||
+        value.length < MIN_CLEARED_INPUT_CHARACTERS
+      ) {
+        return [key, value];
+      }
+      const stub = `[${value.length} characters cleared from context]`;
+      characters += value.length - stub.length;
+      return [key, stub];
+    }),
+  );
+  return characters === 0 ? undefined : { characters, input: cleared };
+}
+
+/** Every stored tool call in `messages`, oldest first. */
+function toolCalls(
+  messages: readonly SessionMessage.WithParts[],
+): { messageId: StoreId.Message; part: SessionMessagePart.ToolPart }[] {
+  return messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      isToolPart(part) && part.providerExecuted !== true
+        ? [{ messageId: message.id, part }]
+        : [],
+    ),
   );
 }
 
@@ -210,7 +257,7 @@ export function projectedPromptTokens({
  * not near the step, or clearing would not free enough to be worth the
  * rebuilt prefix. Clears whole messages, oldest first, from past the last
  * clearing until the estimate is under the target, and never the newest
- * {@link KEPT_NEWEST_RESULTS}.
+ * {@link KEPT_NEWEST_RESULTS} calls with something to clear.
  */
 export function nextToolResultClearing({
   priceStepTokens,
@@ -220,8 +267,11 @@ export function nextToolResultClearing({
 }: {
   priceStepTokens: number;
   projectedTokens: number;
-  /** The clearable results in the window, oldest first, with their size. */
-  results: readonly (ClearableResult & { tokens: number })[];
+  /**
+   * The calls in the window with something to clear, oldest first, with the
+   * tokens clearing each would free.
+   */
+  results: readonly { messageId: StoreId.Message; tokens: number }[];
   /** Where the clearing in force ends. */
   through: StoreId.Message | undefined;
 }): { results: number; through: StoreId.Message } | undefined {
@@ -332,12 +382,30 @@ function clearedResultText({
   return `[This ${toolName} result (${characters} characters) was cleared from context to save space. It was saved to $${FOLDER_VARIABLES.work}/${savedResultPath(partId)}: read that file if you need it again, or repeat the call if the file is missing and the call is safe to repeat.]`;
 }
 
-/** `messages` with each result named in `placeholders` sent as its text. */
+/**
+ * `messages` with each result named in `placeholders` sent as its text, and
+ * the long strings of each call in `calls` cleared from its input.
+ */
 function withToolResultsCleared(
   messages: readonly ModelMessage[],
   placeholders: ReadonlyMap<string, string>,
+  calls: ReadonlySet<string>,
 ): ModelMessage[] {
   return messages.map((message) => {
+    if (message.role === "assistant" && typeof message.content !== "string") {
+      return {
+        ...message,
+        content: message.content.map((part) => {
+          const cleared =
+            part.type === "tool-call" && calls.has(part.toolCallId)
+              ? clearedInput(part.input)
+              : undefined;
+          return cleared === undefined
+            ? part
+            : { ...part, input: cleared.input };
+        }),
+      };
+    }
     if (message.role !== "tool" || typeof message.content === "string") {
       return message;
     }
@@ -361,6 +429,10 @@ function withToolResultsCleared(
  * force, and a new one first when the request is near the model's price step
  * and recording it succeeds. A clearing that cannot be recorded is not
  * applied, so the request reads only what is stored.
+ *
+ * `summaryDue` says the request is near the step with nothing left worth
+ * clearing, which is when the conversation is summarized instead
+ * (`prepareModelMessages`).
  */
 export async function clearOldToolResults({
   chatId,
@@ -375,7 +447,7 @@ export async function clearOldToolResults({
   model: AIGatewayModel.Type;
   modelMessages: ModelMessage[];
   sessionId: StoreId.Session;
-}): Promise<ModelMessage[]> {
+}): Promise<{ messages: ModelMessage[]; summaryDue: boolean }> {
   const rendered = renderedToolResults(modelMessages);
   const tokensOf = (toolCallId: string) => {
     const result = rendered.get(toolCallId);
@@ -399,10 +471,7 @@ export async function clearOldToolResults({
       : nextToolResultClearing({
           priceStepTokens,
           projectedTokens,
-          results: results.map((result) => ({
-            ...result,
-            tokens: tokensOf(result.toolCallId) - PLACEHOLDER_TOKENS,
-          })),
+          results: savings(messages, results, tokensOf),
           through,
         });
   const newest = messages.at(-1);
@@ -435,7 +504,14 @@ export async function clearOldToolResults({
     }
   }
 
-  return withRecordedClearing({ messages, modelMessages, through });
+  return {
+    messages: withRecordedClearing({ messages, modelMessages, through }),
+    summaryDue:
+      next === undefined &&
+      priceStepTokens !== undefined &&
+      projectedTokens !== undefined &&
+      projectedTokens >= priceStepTokens * CLEAR_FROM_FRACTION,
+  };
 }
 
 /**
@@ -469,7 +545,34 @@ export function withRecordedClearing({
         }),
       ]),
   );
-  return withToolResultsCleared(modelMessages, placeholders);
+  const callsThrough = new Set(
+    toolCalls(messages)
+      .filter((call) => call.messageId <= through)
+      .map((call) => call.part.toolCallId),
+  );
+  return withToolResultsCleared(modelMessages, placeholders, callsThrough);
+}
+
+/**
+ * What clearing each call in `messages` would free, for the calls with
+ * something to clear, oldest first: its result as sent less the placeholder,
+ * when the result is clearable, and the long strings of its input.
+ */
+function savings(
+  messages: readonly SessionMessage.WithParts[],
+  results: readonly ClearableResult[],
+  tokensOf: (toolCallId: string) => number,
+): { messageId: StoreId.Message; tokens: number }[] {
+  const clearable = new Set(results.map((result) => result.toolCallId));
+  return toolCalls(messages).flatMap(({ messageId, part }) => {
+    const result = clearable.has(part.toolCallId)
+      ? tokensOf(part.toolCallId) - PLACEHOLDER_TOKENS
+      : 0;
+    const input = Math.floor(
+      (clearedInput(part.input)?.characters ?? 0) / CHARACTERS_PER_TOKEN,
+    );
+    return result + input > 0 ? [{ messageId, tokens: result + input }] : [];
+  });
 }
 
 /**

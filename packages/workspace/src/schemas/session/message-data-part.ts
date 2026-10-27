@@ -279,10 +279,27 @@ export namespace SessionMessageDataPart {
    * faithful way to describe it to a reader mid-task that is not a description
    * of our request assembly. That treatment waits for the summarizing
    * compaction it would actually be about.
+   *
+   * `summary` is the model's own account of the conversation before the
+   * boundary, on a rollover taken to keep a request under its model's price
+   * step (`summarizeBeforePriceStep`): sent with the handoff notes on every
+   * request after it, and `summaryUsage` what writing it took, its charge in
+   * `raw` as the provider reported it. Both absent on a rollover taken
+   * because the window was full.
    */
   const ContextRolloverDataPartSchema = z.object({
     droppedMessages: z.number().int().nonnegative(),
     retainedUserMessages: z.number().int().nonnegative(),
+    summary: z.string().optional(),
+    summaryUsage: z
+      .object({
+        cacheReadTokens: z.number().optional(),
+        cacheWriteTokens: z.number().optional(),
+        inputTokens: z.number().optional(),
+        outputTokens: z.number().optional(),
+        raw: z.unknown().optional(),
+      })
+      .optional(),
   });
 
   export type ContextRolloverDataPart = z.output<
@@ -291,11 +308,12 @@ export namespace SessionMessageDataPart {
 
   /**
    * The point up to which assembly sends a placeholder for each tool result
-   * rather than the result (`lib/tool-result-clearing.ts`): every result in a
-   * message up to and including `through`. Written on the newest message when
-   * the clearing is decided, and read back by every later request, so the
-   * history sent is the same until the next one. `results` is how many were
-   * cleared, for the developer card.
+   * rather than the result, and the long strings of each call's input
+   * (`lib/tool-result-clearing.ts`): every call in a message up to and
+   * including `through`. Written on the newest message when the clearing is
+   * decided, and read back by every later request, so the history sent is the
+   * same until the next one. `results` is how many calls were cleared, for
+   * the developer card.
    */
   const ToolResultsClearedDataPartSchema = z.object({
     results: z.number().int().nonnegative(),

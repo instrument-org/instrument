@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { HANDOFF_NOTES_FILE_NAME } from "../constants";
+import { CHAT_FILE_NAME, HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { handoffNotesPath } from "./chat-dir-utils";
@@ -28,6 +28,18 @@ import { shellPath } from "./workspace-fs-layout";
  */
 export function agentHandoffNotesPath(chatId: ChatId): string {
   return shellPath(notesPathFor(chatId));
+}
+
+/**
+ * The chat's whole conversation as the agent spells it: the `CHAT.md` the app
+ * writes in the chat's own folder after every reply. Undefined for a chat
+ * with no folder the person opens, which has no transcript to point at.
+ */
+export function agentTranscriptPath(chatId: ChatId): string | undefined {
+  const own = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
+  return own === undefined
+    ? undefined
+    : shellPath(AbsolutePathSchema.parse(path.join(own, CHAT_FILE_NAME)));
 }
 
 /**
@@ -78,14 +90,24 @@ const MAX_NOTES_CHARACTERS = 8000;
 export function contextRolloverNotice(
   notes: string | undefined,
   notesPath: string,
+  summarized?: { summary: string; transcriptPath: string | undefined },
 ): string {
+  const carried =
+    "The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed.";
   const preamble =
-    "This conversation ran out of context and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.";
+    summarized === undefined
+      ? `This conversation ran out of context and continued in a fresh window. ${carried} Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.`
+      : `This conversation was summarized to keep it small, and continued in a fresh window. ${carried} Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover.${summarized.transcriptPath === undefined ? "" : ` The whole conversation so far is in \`${summarized.transcriptPath}\`, if a detail the summary left out matters.`}`;
+  const summary =
+    summarized === undefined
+      ? []
+      : ["", "<summary>", summarized.summary, "</summary>"];
 
   if (notes === undefined) {
     return [
       "<context-rollover>",
       preamble,
+      ...summary,
       "",
       `No handoff notes were found at \`${notesPath}\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
       "</context-rollover>",
@@ -95,6 +117,7 @@ export function contextRolloverNotice(
   return [
     "<context-rollover>",
     preamble,
+    ...summary,
     "",
     `These are the handoff notes you left at \`${notesPath}\`. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:`,
     "",

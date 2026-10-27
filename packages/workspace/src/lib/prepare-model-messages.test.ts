@@ -1169,6 +1169,137 @@ describe("prepareModelMessages", () => {
       });
     });
 
+    describe("a model priced higher past a prompt size", () => {
+      // A window with room to spare and a price step of 1,000 prompt tokens,
+      // so a request measured at 900 is past the 85% it acts at.
+      const steppedModel = {
+        ...createMockAIGatewayModel({ contextLength: 1_000_000 }),
+        pricing: { higherPriceFromPromptTokens: 1000, input: 0.1, output: 0.5 },
+      };
+
+      /** A step that read a file `characters` long, under a call id of its own. */
+      function readStep(characters: number, inputTokens: number) {
+        const message = assistantMessageWithUsage("", inputTokens);
+        return {
+          ...message,
+          parts: [
+            SessionMessagePart.coerce({
+              input: { filePath: "./notes.txt" },
+              metadata: { ...partMetadata(message.id), endedAt: new Date() },
+              output: {
+                content: "x".repeat(characters),
+                displayedLines: 1,
+                filePath: RelativePathSchema.parse("./notes.txt"),
+                hasMoreLines: false,
+                modifiedAt: 1_234_567_890,
+                offset: 1,
+                state: "exists",
+                totalLines: 1,
+                truncatedByBytes: false,
+              },
+              state: "output-available",
+              toolCallId: StoreId.ToolCallSchema.parse(
+                `call_${message.id.slice(-8)}`,
+              ),
+              type: "tool-read_file",
+            }),
+          ],
+        };
+      }
+
+      async function prepareWith(
+        summarize: Parameters<typeof prepareModelMessages>[0]["summarize"],
+      ) {
+        const result = await prepareModelMessages({
+          agent,
+          chatId,
+          model: steppedModel,
+          sessionId,
+          signal: AbortSignal.timeout(30_000),
+          summarize,
+        });
+        return result._unsafeUnwrap();
+      }
+
+      it("clears old tool results first, and asks for no summary", async () => {
+        await save(userMessage("Read them all"));
+        for (let index = 0; index < 5; index++) {
+          await save(readStep(3000, 900));
+        }
+        const summarize = vi.fn(() => Promise.resolve(undefined));
+
+        const messages = await prepareWith(summarize);
+
+        expect(summarize).not.toHaveBeenCalled();
+        expect(
+          modelTexts(messages).filter((text) =>
+            text.includes("cleared from context to save space"),
+          ),
+        ).toHaveLength(2);
+      });
+
+      it("rolls over onto a summary written from the request itself once nothing is left to clear", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        const summarize = vi.fn((sent: ModelMessage[]) =>
+          Promise.resolve(
+            modelTexts(sent).some((text) => text.includes("turn 3"))
+              ? { summary: "The user asked a first question.", usage: {} }
+              : undefined,
+          ),
+        );
+
+        const messages = await prepareWith(summarize);
+        const notice = modelTexts(messages).find((text) =>
+          text.includes("<context-rollover>"),
+        );
+
+        expect(summarize).toHaveBeenCalledOnce();
+        expect(await storedBoundary()).toBeDefined();
+        expect(
+          modelTexts(messages).some((text) => text.includes("turn 0")),
+        ).toBe(false);
+        expect(notice).toContain(
+          "<summary>\nThe user asked a first question.\n</summary>",
+        );
+
+        // Read back from the record on every later request, with no call.
+        await save(userMessage("and again"));
+        const later = await prepareWith(undefined);
+        expect(
+          modelTexts(later).find((text) => text.includes("<context-rollover>")),
+        ).toContain("The user asked a first question.");
+      });
+
+      it("keeps the history when no summary comes back", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+
+        const messages = await prepareWith(() => Promise.resolve(undefined));
+
+        expect(await storedBoundary()).toBeUndefined();
+        expect(
+          modelTexts(messages).some((text) => text.includes("turn 0")),
+        ).toBe(true);
+      });
+
+      it("asks for nothing below 85% of the step", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 800));
+        }
+        const summarize = vi.fn(() => Promise.resolve(undefined));
+
+        await prepareWith(summarize);
+
+        expect(summarize).not.toHaveBeenCalled();
+      });
+    });
+
     describe("a model switch", () => {
       // Roomy enough that the small model's whole usable window is noise in it,
       // so what these tests turn on is which window is being read rather than

@@ -115,6 +115,37 @@ export function runCostOf(
 ): RunCost {
   const cost = emptyRunCost();
   for (const message of messages) {
+    // A summary written before a request reached its model's price step is
+    // a request of its own, recorded on the rollover it made.
+    for (const part of message.parts) {
+      if (
+        part.type !== "data-contextRollover" ||
+        part.data.summaryUsage === undefined
+      ) {
+        continue;
+      }
+      const charged = billed?.get(part.metadata.id);
+      if (charged !== undefined) {
+        cost.billedUSD += charged;
+        cost.billedSteps += 1;
+      } else if (price) {
+        const usage = part.data.summaryUsage;
+        cost.estimatedUSD += costOfUsage(
+          {
+            inputTokenDetails: {
+              cacheReadTokens: usage.cacheReadTokens ?? 0,
+              cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+            },
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0,
+          },
+          price,
+        );
+        cost.estimatedSteps += 1;
+      } else {
+        cost.unpricedSteps += 1;
+      }
+    }
     if (message.role !== "assistant" || message.metadata.synthetic) {
       continue;
     }
@@ -255,6 +286,15 @@ export async function readChatSpend(
   };
 }
 
+/** A summarized rollover's line of a session log, as far as its charge goes. */
+const LoggedSummarySchema = z.object({
+  part: z.object({
+    data: z.object({ summaryUsage: z.object({ raw: z.unknown() }) }),
+    metadata: z.object({ id: z.string() }),
+  }),
+  t: z.literal("part"),
+});
+
 /** A message line of a session log, as far as its charge goes. */
 const LoggedMessageSchema = z.object({
   message: z.object({
@@ -266,7 +306,10 @@ const LoggedMessageSchema = z.object({
   t: z.literal("message"),
 });
 
-/** Each step's charge in `sessionIds`' logs (`<session>.<device>.jsonl`), by message id. */
+/**
+ * Each step's charge in `sessionIds`' logs (`<session>.<device>.jsonl`), by
+ * message id, and each summary's, by the id of the rollover part it is on.
+ */
 async function billedFromLogs(
   chatId: ChatId,
   sessionIds: readonly StoreId.Session[],
@@ -283,14 +326,29 @@ async function billedFromLogs(
       .readFile(path.join(dir, file), "utf8")
       .catch(() => "");
     for (const line of text.split("\n")) {
-      // Parts far outnumber messages, and only a message carries usage.
-      if (!line.startsWith('{"t":"message"')) {
+      // Parts far outnumber messages, and of them only a rollover with a
+      // summary carries usage.
+      const summary =
+        line.startsWith('{"t":"part"') &&
+        line.includes('"data-contextRollover"') &&
+        line.includes('"summaryUsage"');
+      if (!line.startsWith('{"t":"message"') && !summary) {
         continue;
       }
       let json: unknown;
       try {
         json = JSON.parse(line);
       } catch {
+        continue;
+      }
+      if (summary) {
+        const logged = LoggedSummarySchema.safeParse(json);
+        const charged = logged.success
+          ? billedCostOf(logged.data.part.data.summaryUsage.raw)
+          : undefined;
+        if (logged.success && charged !== undefined) {
+          billed.set(logged.data.part.metadata.id, charged);
+        }
         continue;
       }
       const logged = LoggedMessageSchema.safeParse(json);

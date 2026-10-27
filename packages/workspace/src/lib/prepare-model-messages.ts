@@ -1,10 +1,12 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { err, ok } from "neverthrow";
+import { type ModelMessage } from "ai";
+import { err, ok, type Result } from "neverthrow";
 import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -33,6 +35,7 @@ import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import {
   agentHandoffNotesPath,
+  agentTranscriptPath,
   contextRolloverNotice,
   readHandoffNotes,
 } from "./handoff-notes";
@@ -97,19 +100,168 @@ async function withRolloverDecision({
  */
 export const TRANSIENT = { instrument: { transient: true } };
 
+/**
+ * The summary written for the rollover at `boundary`, read from the part
+ * that marks it, so every request after it sends the same one.
+ */
+function rolloverSummary(
+  history: readonly SessionMessage.WithParts[],
+  boundary: StoreId.Message | undefined,
+  chatId: ChatId,
+): { summary: string; transcriptPath: string | undefined } | undefined {
+  const part = history
+    .find((message) => message.id === boundary)
+    ?.parts.find((candidate) => candidate.type === "data-contextRollover");
+  return part?.type === "data-contextRollover" &&
+    part.data.summary !== undefined
+    ? {
+        summary: part.data.summary,
+        transcriptPath: agentTranscriptPath(chatId),
+      }
+    : undefined;
+}
+
+/**
+ * A rollover recorded at the newest message the session has: everything
+ * before it stops being sent, the user's own messages are carried across,
+ * and a `data-contextRollover` part marks the cut, with the summary when one
+ * was written. Returns the boundary and the history sent from it, or
+ * undefined when nothing was recorded, which leaves the session as it was.
+ */
+async function recordRollover({
+  chatId,
+  history,
+  model,
+  sessionId,
+  summary,
+  usable,
+}: {
+  chatId: ChatId;
+  /** Every stored message the session is sent from, oldest first. */
+  history: readonly SessionMessage.WithParts[];
+  model: AIGatewayModel.Type;
+  sessionId: StoreId.Session;
+  summary:
+    | {
+        summary: string;
+        usage: SessionMessageDataPart.ContextRolloverDataPart["summaryUsage"];
+      }
+    | undefined;
+  usable: number | undefined;
+}): Promise<
+  | { boundary: StoreId.Message; narrowed: SessionMessage.WithParts[] }
+  | undefined
+> {
+  const newest = history.at(-1);
+
+  // Applied before it is recorded, so what gets written down is a boundary
+  // that demonstrably changed the request rather than one that only should
+  // have. A boundary that drops nothing is not a smaller request by any
+  // amount; recording it would leave the session marked as having reset while
+  // sending exactly what it sent before, and the mark is what stops the next
+  // turn trying again.
+  const narrowed =
+    newest === undefined
+      ? undefined
+      : applyContextRollover({
+          messages: history,
+          rolledOverAfterMessageId: newest.id,
+        });
+  if (!newest || !narrowed || narrowed.length >= history.length) {
+    return undefined;
+  }
+
+  // The row is read here rather than taken from the boundary read before,
+  // because the row is what is written: the store is still what keeps a
+  // session, and a row written from anything but itself would carry the
+  // other side's answer for every field the boundary is not.
+  const stored = await ChatReads.session({ chatId, sessionId });
+  const saveResult = await stored.asyncAndThen((row) =>
+    ChatWrites.saveSession(
+      {
+        ...row,
+        rolledOverAfterMessageId: newest.id,
+        rolledOverUnderUsableTokens: usable,
+        // A new boundary drops the verdicts on the last one; this model's
+        // is that it holds, since it was drawn under this window.
+        rolloverWindows:
+          usable === undefined
+            ? undefined
+            : {
+                [model.canonicalId]: {
+                  lifted: false,
+                  usableTokens: usable,
+                },
+              },
+      },
+      chatId,
+    ),
+  );
+
+  // A boundary we could not record is one that would not survive the next
+  // turn, so the session keeps the history it had. The request may well be
+  // refused for size, which is the behavior this feature is replacing
+  // rather than a regression it introduces.
+  if (saveResult.isErr()) {
+    return undefined;
+  }
+
+  // Written here, behind the same successful save, so the mark in the
+  // transcript and the boundary assembly reads are recorded together or
+  // not at all. A failed part leaves the rollover itself intact: the
+  // session is still correct, it is only undrawn, and memory told on a
+  // message the cut dropped is not told again (`lastToldMemory` reads
+  // the window from this mark).
+  await ChatWrites.savePart(
+    {
+      data: {
+        droppedMessages: history.length - narrowed.length,
+        retainedUserMessages: narrowed.length,
+        ...(summary !== undefined && {
+          summary: summary.summary,
+          summaryUsage: summary.usage,
+        }),
+      },
+      metadata: {
+        createdAt: new Date(),
+        id: StoreId.newPartId(),
+        messageId: newest.id,
+        sessionId,
+      },
+      type: "data-contextRollover",
+    },
+    chatId,
+  );
+  return { boundary: newest.id, narrowed };
+}
+
 export async function prepareModelMessages({
   agent,
   model,
   sessionId,
   signal,
   chatId,
+  summarize,
 }: {
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   sessionId: StoreId.Session;
   signal: AbortSignal;
   chatId: ChatId;
-}) {
+  /**
+   * Asks the model for a summary of the conversation in `messages`, the
+   * request as it would be sent, for a rollover taken before the request
+   * reaches the model's price step. Undefined, or no summary, and none is
+   * taken.
+   */
+  summarize?: (messages: ModelMessage[]) => Promise<
+    | {
+        summary: string;
+        usage: SessionMessageDataPart.ContextRolloverDataPart["summaryUsage"];
+      }
+    | undefined
+  >;
+}): Promise<Result<ModelMessage[], unknown>> {
   const contextLength = effectiveContextLength(model);
   const usable = usableContextTokens(contextLength);
 
@@ -238,91 +390,24 @@ export async function prepareModelMessages({
 
   if (rolloverIsWarranted && contextRolloverWouldReclaim(nonContextMessages)) {
     // Reset here rather than after assembling, so the request this call is
-    // building is the smaller one. The boundary is the newest message the task
-    // has: everything before it stops being sent, the user's own messages are
-    // carried across, and the task continues in the same session rather than
-    // failing the turn.
-    const newest = allNonContextMessages.at(-1);
-
-    // Applied before it is recorded, so what gets written down is a boundary
-    // that demonstrably changed the request rather than one that only should
-    // have. A boundary that drops nothing is not a smaller request by any
-    // amount; recording it would leave the session marked as having reset while
-    // sending exactly what it sent before, and the mark is what stops the next
-    // turn trying again.
-    const narrowed =
-      newest === undefined
-        ? undefined
-        : applyContextRollover({
-            messages: allNonContextMessages,
-            rolledOverAfterMessageId: newest.id,
-          });
-
-    if (newest && narrowed && narrowed.length < allNonContextMessages.length) {
-      // The row is read here rather than taken from the boundary read above,
-      // because the row is what is written: the store is still what keeps a
-      // session, and a row written from anything but itself would carry the
-      // other side's answer for every field the boundary is not.
-      const stored = await ChatReads.session({ chatId, sessionId });
-      const saveResult = await stored.asyncAndThen((row) =>
-        ChatWrites.saveSession(
-          {
-            ...row,
-            rolledOverAfterMessageId: newest.id,
-            rolledOverUnderUsableTokens: usable,
-            // A new boundary drops the verdicts on the last one; this model's
-            // is that it holds, since it was drawn under this window.
-            rolloverWindows:
-              usable === undefined
-                ? undefined
-                : {
-                    [model.canonicalId]: {
-                      lifted: false,
-                      usableTokens: usable,
-                    },
-                  },
-          },
-          chatId,
-        ),
-      );
-
-      // A boundary we could not record is one that would not survive the next
-      // turn, so the session keeps the history it had. The request may well be
-      // refused for size, which is the behavior this feature is replacing
-      // rather than a regression it introduces.
-      if (saveResult.isOk()) {
-        rolledOverAfterMessageId = newest.id;
-        nonContextMessages = narrowed;
-        budget = computeContextBudget({
-          contextLength,
-          modelId: model.canonicalId,
-          occupancy: contextOccupancyFromMessages(nonContextMessages),
-        });
-
-        // Written here, behind the same successful save, so the mark in the
-        // transcript and the boundary assembly reads are recorded together or
-        // not at all. A failed part leaves the rollover itself intact: the
-        // session is still correct, it is only undrawn, and memory told on a
-        // message the cut dropped is not told again (`lastToldMemory` reads
-        // the window from this mark).
-        await ChatWrites.savePart(
-          {
-            data: {
-              droppedMessages:
-                allNonContextMessages.length - nonContextMessages.length,
-              retainedUserMessages: nonContextMessages.length,
-            },
-            metadata: {
-              createdAt: new Date(),
-              id: StoreId.newPartId(),
-              messageId: newest.id,
-              sessionId,
-            },
-            type: "data-contextRollover",
-          },
-          chatId,
-        );
-      }
+    // building is the smaller one, and the task continues in the same session
+    // rather than failing the turn.
+    const rolled = await recordRollover({
+      chatId,
+      history: allNonContextMessages,
+      model,
+      sessionId,
+      summary: undefined,
+      usable,
+    });
+    if (rolled !== undefined) {
+      rolledOverAfterMessageId = rolled.boundary;
+      nonContextMessages = rolled.narrowed;
+      budget = computeContextBudget({
+        contextLength,
+        modelId: model.canonicalId,
+        occupancy: contextOccupancyFromMessages(nonContextMessages),
+      });
     }
   }
 
@@ -368,7 +453,7 @@ export async function prepareModelMessages({
 
   // Sized from what each result is sent as, before any of it is filtered or
   // resized, so the bytes a clearing replaces are the ones it measured.
-  const clearedModelMessages = await clearOldToolResults({
+  const cleared = await clearOldToolResults({
     chatId,
     messages: nonContextMessages,
     model,
@@ -376,7 +461,7 @@ export async function prepareModelMessages({
     sessionId,
   });
 
-  const nonEmptyModelMessages = clearedModelMessages.filter(
+  const nonEmptyModelMessages = cleared.messages.filter(
     (message) => message.content.length > 0 || Boolean(message.providerOptions),
   );
 
@@ -435,10 +520,42 @@ export async function prepareModelMessages({
       content: contextRolloverNotice(
         await readHandoffNotes(chatId),
         agentHandoffNotesPath(chatId),
+        rolloverSummary(
+          allNonContextMessages,
+          rolledOverAfterMessageId,
+          chatId,
+        ),
       ),
       providerOptions: TRANSIENT,
       role: "user",
     });
+  }
+
+  // Near the price step with nothing left worth clearing: the model writes a
+  // summary of the conversation from this very request, so it reads the
+  // prefix from cache, and the session rolls over onto it before the request
+  // crosses the step. The request is then built again, from the boundary.
+  // After the rollover notice, so a summary written after an earlier one is
+  // written from it.
+  if (
+    summarize !== undefined &&
+    cleared.summaryDue &&
+    contextRolloverWouldReclaim(nonContextMessages)
+  ) {
+    const summary = await summarize(preparedMessages);
+    if (
+      summary !== undefined &&
+      (await recordRollover({
+        chatId,
+        history: allNonContextMessages,
+        model,
+        sessionId,
+        summary,
+        usable,
+      })) !== undefined
+    ) {
+      return prepareModelMessages({ agent, chatId, model, sessionId, signal });
+    }
   }
 
   // After the rollover notice: that one says what the window is missing and

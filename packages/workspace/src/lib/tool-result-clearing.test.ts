@@ -393,6 +393,53 @@ describe("withRecordedClearing", () => {
     expect(next.startsWith(first.slice(0, -1))).toBe(true);
   });
 
+  it("clears the long strings of each call's input up to the boundary", () => {
+    const written = [
+      {
+        ...step("a1", []),
+        parts: [
+          {
+            input: { content: "c".repeat(1_500), path: "page.html" },
+            metadata: { id: partId("prt_a1_0") },
+            output: "Wrote page.html",
+            state: "output-available",
+            toolCallId: "a1-0",
+            type: "tool-write_file",
+          },
+        ],
+      } as unknown as SessionMessage.WithParts,
+      user("u2", "a1"),
+      {
+        ...step("a3", []),
+        parts: [
+          {
+            input: { content: "d".repeat(1_500), path: "page.html" },
+            metadata: { id: partId("prt_a3_0") },
+            output: "Wrote page.html",
+            state: "output-available",
+            toolCallId: "a3-0",
+            type: "tool-write_file",
+          },
+        ],
+      } as unknown as SessionMessage.WithParts,
+    ];
+    const inputs = withRecordedClearing({
+      messages: written,
+      modelMessages: sent(written),
+      through: messageId("a1"),
+    }).flatMap((message) =>
+      message.role === "assistant" && typeof message.content !== "string"
+        ? message.content.flatMap((part) =>
+            part.type === "tool-call" ? [part.input] : [],
+          )
+        : [],
+    );
+    expect(inputs).toEqual([
+      { content: "[1500 characters cleared from context]", path: "page.html" },
+      { content: "d".repeat(1_500), path: "page.html" },
+    ]);
+  });
+
   it("changes nothing where no clearing is recorded", () => {
     const modelMessages = sent(history);
     expect(

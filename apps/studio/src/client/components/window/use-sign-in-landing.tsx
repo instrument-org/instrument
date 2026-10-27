@@ -1,3 +1,4 @@
+import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
@@ -39,8 +40,17 @@ export function useSignInLanding(openScreen: (href: string) => void) {
       const standing = app?.standing;
       if (standing === "connected") {
         settled.add(slug);
-        toast.success(`Connected ${appsBySlug.get(slug)?.name ?? slug}`, {
+        const shown = appsBySlug.get(slug);
+        toast.success(`Connected ${shown?.name ?? slug}`, {
           description: "Instrument can use it in your chats now.",
+          icon: (
+            <AppIcon
+              icon={shown?.icon}
+              name={shown?.name ?? slug}
+              site={shown?.site}
+              size="sm"
+            />
+          ),
         });
         if (!inChat) {
           openScreen(`/apps/${slug}`);

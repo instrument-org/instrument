@@ -24,8 +24,12 @@ import { writeAppFolder } from "./store";
 
 const woken = vi.hoisted(() =>
   vi.fn(
-    (_events: unknown, _ref: unknown, _chatId: string, _signIns?: unknown) =>
-      Promise.resolve(),
+    (
+      _events: unknown,
+      _ref: unknown,
+      _chatId: string,
+      _extra?: { notOnCard?: unknown; signIns?: unknown },
+    ) => Promise.resolve(),
   ),
 );
 
@@ -106,7 +110,12 @@ const GOOGLE = [
 let chats = 0;
 
 /** Writes the chat's own session with one card asking for every Google app. */
-async function chatWithCard(): Promise<{
+async function chatWithCard({
+  notAsked = [],
+}: {
+  /** Apps the call named that never reached the card, with why. */
+  notAsked?: { message: string; slug: string }[];
+} = {}): Promise<{
   chatId: ChatId;
   sessionId: StoreId.Session;
 }> {
@@ -144,7 +153,10 @@ async function chatWithCard(): Promise<{
     {
       input: {
         reason: "So I can read your files, calendar and email.",
-        slugs: GOOGLE.map(([slug]) => slug),
+        slugs: [
+          ...GOOGLE.map(([slug]) => slug),
+          ...notAsked.map(({ slug }) => slug),
+        ],
       },
       metadata: {
         createdAt: at,
@@ -154,12 +166,19 @@ async function chatWithCard(): Promise<{
         sessionId,
       },
       output: {
-        apps: GOOGLE.map(([slug, name]) => ({
-          kind: "sign-in" as const,
-          name,
-          slug,
-          state: "asked" as const,
-        })),
+        apps: [
+          ...GOOGLE.map(([slug, name]) => ({
+            kind: "sign-in" as const,
+            name,
+            slug,
+            state: "asked" as const,
+          })),
+          ...notAsked.map(({ message, slug }) => ({
+            message,
+            slug,
+            state: "failure" as const,
+          })),
+        ],
       },
       state: "output-available",
       toolCallId: "call-1",
@@ -196,13 +215,14 @@ async function answerRow(
 
 /** What each wake carried: the events by app, and the card as it stood. */
 function wakes() {
-  return woken.mock.calls.map(([events, , chatId, signIns]) => ({
+  return woken.mock.calls.map(([events, , chatId, extra]) => ({
     chatId,
     events: (events as { account?: string; event: string; slug: string }[]).map(
       ({ account, event, slug }) =>
         `${slug} ${event}${account === undefined ? "" : ` as ${account}`}`,
     ),
-    signIns,
+    ...(extra?.notOnCard === undefined ? {} : { notOnCard: extra.notOnCard }),
+    signIns: extra?.signIns,
   }));
 }
 
@@ -352,5 +372,20 @@ describe("a card asking for several apps", () => {
       { chatId, events: ["docs connected"], signIns: undefined },
     ]);
     expect((await readConnection("docs"))?.waitingChats).toBeUndefined();
+  });
+
+  it("names the apps its call could not ask for in the settling note", async () => {
+    const reason =
+      'No app is "sheets": no APP.md in Apps/ gives that as its id.';
+    await chatWithCard({ notAsked: [{ message: reason, slug: "sheets" }] });
+
+    await answerRow("drive", "connected");
+    await answerRow("docs", "declined");
+    expect(woken).not.toHaveBeenCalled();
+    await answerRow("gmail", "connected");
+
+    expect(wakes()).toEqual([
+      expect.objectContaining({ notOnCard: [{ reason, slug: "sheets" }] }),
+    ]);
   });
 });

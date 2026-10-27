@@ -249,10 +249,17 @@ function cardModelOutput(
         `- ${result.name} needs no sign-in, so it has no row. Run \`${APP_COMMAND.name} test ${result.slug}\` to connect it.`,
       );
     } else if (result.state === "failure") {
-      lines.push(`- ${result.slug} was not asked: ${result.message}`);
+      lines.push(
+        `- ${result.slug} is not on the card and is not connected: ${result.message}`,
+      );
     }
   }
   const failedAll = results.every((result) => result.state === "failure");
+  if (!failedAll && results.some((result) => result.state === "failure")) {
+    lines.push(
+      "The user cannot connect an app that is not on the card. Fix each one now and ask for it with connect_app on its own, or tell the user, in your line, that it is not connected and why.",
+    );
+  }
   return failedAll
     ? { type: "error-text", value: lines.join("\n") }
     : { type: "text", value: lines.join("\n") };

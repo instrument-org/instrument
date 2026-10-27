@@ -139,12 +139,13 @@ describe("connect_app", () => {
     });
     expect(ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }))
       .toMatchInlineSnapshot(`
-      {
-        "type": "text",
-        "value": "One card asking the user to connect Linear (linear), Notion (notion) is in the conversation, a row for each. Say one line and end your turn. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.
-      - jira was not asked: No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.",
-      }
-    `);
+        {
+          "type": "text",
+          "value": "One card asking the user to connect Linear (linear), Notion (notion) is in the conversation, a row for each. Say one line and end your turn. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.
+        - jira is not on the card and is not connected: No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.
+        The user cannot connect an app that is not on the card. Fix each one now and ask for it with connect_app on its own, or tell the user, in your line, that it is not connected and why.",
+        }
+      `);
   });
 
   it("reads a call that named one app as it always did", () => {

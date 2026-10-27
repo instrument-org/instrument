@@ -2,7 +2,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type StoreId } from "../../schemas/store-id";
-import { askedOnCard } from "../../tools/connect-app-output";
+import { askedOnCard, connectAppResults } from "../../tools/connect-app-output";
 import { ChatReads } from "../chat-reads";
 import { sessionOfChat } from "../record-folders";
 import { signInsSettled } from "../sign-in-progress-model-text";
@@ -21,6 +21,8 @@ interface CardApp {
 /** A sign-in card in a session's history. */
 interface SignInCard {
   apps: CardApp[];
+  /** The apps its call named that could not be asked, with why. */
+  notOnCard: SessionMessageDataPart.NotOnCard | undefined;
   /**
    * Whether the session was already woken with the card settled, after which
    * an answer on it is news of its own rather than the card's.
@@ -66,8 +68,20 @@ function signInCardsIn(messages: SessionMessage.WithParts[]): SignInCard[] {
       const asked = new Set(rows.map((row) => row.slug));
       for (const card of cards) {
         card.apps = card.apps.filter((app) => !asked.has(app.slug));
+        // One that made it onto a later card is that card's to report.
+        const still = card.notOnCard?.filter((app) => !asked.has(app.slug));
+        card.notOnCard = still?.length ? still : undefined;
       }
-      cards.push({ apps: rows, toldSettled: false });
+      const failed = connectAppResults(part.output).flatMap((result) =>
+        result.state === "failure"
+          ? [{ reason: result.message, slug: result.slug }]
+          : [],
+      );
+      cards.push({
+        apps: rows,
+        notOnCard: failed.length === 0 ? undefined : failed,
+        toldSettled: false,
+      });
     }
   }
   return cards.filter((card) => card.apps.length > 0);

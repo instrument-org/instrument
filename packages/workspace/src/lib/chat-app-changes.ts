@@ -139,6 +139,7 @@ export function detectChatAppChanges({
 export function appWakeNote({
   chatId,
   events,
+  notOnCard,
   sessionId,
   signIns,
 }: {
@@ -146,6 +147,7 @@ export function appWakeNote({
   events: SessionMessageDataPart.AppEventDataPart["events"];
   sessionId: StoreId.Session;
   signIns?: SessionMessageDataPart.SignInProgress;
+  notOnCard?: SessionMessageDataPart.NotOnCard;
 }) {
   return safeTry<SessionMessageDataPart.AppEventDataPart, Error>(
     async function* () {
@@ -168,6 +170,7 @@ export function appWakeNote({
         events: [...events, ...since],
         ...(otherComputer && { otherComputer }),
         ...(signIns === undefined ? {} : { signIns }),
+        ...(notOnCard === undefined ? {} : { notOnCard }),
       });
     },
   );

@@ -692,6 +692,16 @@ export namespace SessionMessageDataPart {
   export type SignInProgress = z.output<typeof SignInProgressSchema>;
 
   /**
+   * Apps the `connect_app` call behind a card named that never reached the
+   * card (no folder, an unwritten guide), each with why, as the call told it.
+   */
+  export const NotOnCardSchema = z
+    .array(z.object({ reason: z.string(), slug: z.string() }))
+    .min(1);
+
+  export type NotOnCard = z.output<typeof NotOnCardSchema>;
+
+  /**
    * An app the user acted on outside the conversation: a sign-in finished in
    * the browser, a key saved on a card, a decline, a disconnect from the
    * app's page. Like a task event, it wakes the chat on a text-less
@@ -751,6 +761,11 @@ export namespace SessionMessageDataPart {
        * on it is waiting, or early for a sign-in that did not connect.
        */
       signIns: SignInProgressSchema.optional(),
+      /**
+       * For a wake about a card, the apps its call named that never reached
+       * the card, so the reply can say they were not connected.
+       */
+      notOnCard: NotOnCardSchema.optional(),
     })
     .refine((data) => data.events.length > 0 || data.otherComputer === true, {
       message: "An app note tells an event, or the apps on another computer",

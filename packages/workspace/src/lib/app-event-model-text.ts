@@ -63,6 +63,7 @@ export function appEventModelNote(
       : [lines.length === 1 ? "An app changed:" : "Apps changed:", ...lines]),
     ...(data.otherComputer ? onThisComputer(data.apps) : []),
     ...(data.signIns === undefined ? [] : [signInCardLine(data.signIns)]),
+    ...(data.notOnCard === undefined ? [] : notOnCardLines(data.notOnCard)),
     data.carried
       ? lines.length === 0
         ? "It is only so you know: answer what the user wrote."
@@ -76,6 +77,18 @@ export function appEventModelNote(
 }
 
 type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
+
+/**
+ * The apps the card's call named that never got a row on it, which the user
+ * may take as handled unless the reply says otherwise.
+ */
+function notOnCardLines(notOnCard: SessionMessageDataPart.NotOnCard): string[] {
+  return [
+    `Never on the card, so not connected: ${notOnCard.length === 1 ? "an app" : "apps"} your connect_app call named that could not be asked for:`,
+    ...notOnCard.map(({ reason, slug }) => `- ${slug}: ${reason}`),
+    "Your reply names each of these as not connected and says what it needs, beside what the card settled; the user has not seen this.",
+  ];
+}
 
 /**
  * The card a note's app was asked for on with others: once every app on it

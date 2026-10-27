@@ -36,7 +36,8 @@ type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
  * may have something to say about it. Once the chat has heard the card
  * settle, a sign-in to an app the user skipped on it (the card's row puts
  * the chat back on the app's waiting list, `waitInChat`) wakes it on its
- * own, with that one event.
+ * own, with that one event. The settling note also names the apps the
+ * card's call could not ask for, which never had a row to answer.
  *
  * A disconnect or a removal is the user putting an app away, not answering
  * anything, so it wakes no chat; each chat hears of it on the next message
@@ -82,9 +83,15 @@ async function answerChat(
   chatId: ChatId,
 ): Promise<void> {
   const card = await cardOf(chatId, event.slug);
-  // A card of one app, or one the chat already heard settle: the user came
-  // back to an app on it they had skipped, which is news of its own.
-  if (card === undefined || card.apps.length < 2 || card.toldSettled) {
+  // A card of one app that its call asked for alone, or one the chat already
+  // heard settle: the user came back to an app on it they had skipped, which
+  // is news of its own. A call that named apps it could not ask for wakes
+  // through its card even with one row, so the note can name them.
+  if (
+    card === undefined ||
+    card.toldSettled ||
+    (card.apps.length < 2 && card.notOnCard === undefined)
+  ) {
     await wakeChatForApp([event], workspaceRef, chatId);
     return;
   }
@@ -94,7 +101,7 @@ async function answerChat(
     return;
   }
   if (event.event === "failed") {
-    await wakeChatForApp([event], workspaceRef, chatId, progress);
+    await wakeChatForApp([event], workspaceRef, chatId, { signIns: progress });
     return;
   }
   if (!signInsSettled(progress)) {
@@ -132,7 +139,10 @@ async function answerChat(
     }),
     workspaceRef,
     chatId,
-    progress,
+    {
+      ...(card.notOnCard === undefined ? {} : { notOnCard: card.notOnCard }),
+      signIns: progress,
+    },
   );
 }
 

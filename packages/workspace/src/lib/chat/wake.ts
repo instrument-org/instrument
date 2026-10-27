@@ -219,8 +219,15 @@ export async function wakeChatForApp(
   events: SessionMessageDataPart.AppEventDataPart["events"],
   workspaceRef: WorkspaceActorRef,
   asked: ChatId,
-  /** For an app asked for on a card with others, every app on the card as it stands. */
-  signIns?: SessionMessageDataPart.SignInProgress,
+  {
+    notOnCard,
+    signIns,
+  }: {
+    /** For a wake about a card, the apps its call named that never reached it. */
+    notOnCard?: SessionMessageDataPart.NotOnCard;
+    /** For an app asked for on a card with others, every app on the card as it stands. */
+    signIns?: SessionMessageDataPart.SignInProgress;
+  } = {},
 ): Promise<void> {
   if (!resolveChat(asked)) {
     return;
@@ -232,6 +239,7 @@ export async function wakeChatForApp(
   const note = await appWakeNote({
     chatId: asked,
     events,
+    notOnCard,
     sessionId,
     signIns,
   });

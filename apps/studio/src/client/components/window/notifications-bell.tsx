@@ -141,14 +141,24 @@ export function NotificationsBell() {
 /**
  * Toasts a notice marked important or critical, once: the main process says
  * whether this one may go (never toasted, nothing else toasted this launch)
- * and remembers that it did. A critical one stays until it's closed.
+ * and remembers that it did. A critical one stays until it's closed or its
+ * notice leaves the list.
  */
 function useToastLoudNotices(
   notices: BellNotice[],
   onAction: (notice: BellNotice) => void,
 ) {
   const asked = useRef(new Set<string>());
+  const shown = useRef(new Set<string>());
   useEffect(() => {
+    // A notice whose cause went away (an account signed in again, a choice
+    // made in Settings) leaves the list, and its toast goes with it.
+    for (const id of shown.current) {
+      if (!notices.some((notice) => notice.id === id)) {
+        shown.current.delete(id);
+        toast.dismiss(id);
+      }
+    }
     for (const notice of notices) {
       if (notice.severity === "info" || asked.current.has(notice.id)) {
         continue;
@@ -161,7 +171,9 @@ function useToastLoudNotices(
             return;
           }
           const show = warns(notice) ? toast.warning : toast.info;
+          shown.current.add(notice.id);
           show(notice.title, {
+            id: notice.id,
             action: notice.action && {
               label: notice.action.label,
               onClick: () => {

@@ -67,7 +67,7 @@ Twenty-five, in one patch file, carried under [decisions/2026-09-08-carry-the-fi
 | `patches/just-bash@3.6.0.patch`, printf bytes part | A byte a `printf` escape names (`\x89`, `\351`, `%b`'s `\0351`, `%c`'s first byte) is written as that byte, and output holding one goes out as bytes; upstream returned it as the character U+0080..U+00FF in text, so `printf '\x89' > f` wrote `c2 89` and `printf '\303\251'` wrote `Ã©`. Inside printf such a byte is a lone low surrogate (U+DC80..U+DCFF), as Python's `surrogateescape` holds one; `-v` gets the bytes decoded as text, and `find -printf`, which shares the escape parser, is unchanged | none offered: ours, a local diff, `printf-bytes-3.6.0.diff`; the text to open it with is below | an equivalent fix is in the version we install; the guards are the diff's own `printf.bytes.test.ts` and the `printf` case in `create-bash-env-binary-output.test.ts` |
 | `patches/just-bash@3.6.0.patch`, lenient display part | Where a statement's byte output becomes the shell's text output (`decodedTextFromResult`), bytes that are not all UTF-8 fall back to Latin-1 one stray byte at a time instead of as a whole, so `héllo` and a lone 0x89 read `héllo\u0089` rather than `hÃ©llo\u0089`. Exports the decoder as `decodeBytesToUtf8Leniently`, which `shell-commands/output-sink.ts` uses for a native program's stderr and a background run's live view, so both read what the final output reads | none offered: ours, a local diff, `lenient-display-3.6.0.diff`; the text to open it with is below | an equivalent decode is in the version we install; the guards are the diff's own `encoding.lenient-display.test.ts` and the display cases in `create-bash-env-binary-output.test.ts` |
 | `patches/just-bash@3.6.0.patch`, command start part | An `onCommandStart(name, { bundled, path, shellBuiltin })` option on `Bash`, told in `executeExternalCommand` once a name has resolved to a command and before it runs: a bundled command, a registered one, or one `resolveExternalCommand` found. `bundled` is a command of just-bash's own rather than one the embedder added, and `shellBuiltin` a name bash implements itself (`echo`, `printf`). A lookup (`type`, `command -v`, `hash`), a function, and what the interpreter answers itself are not runs and are not told. `create-bash-env.ts` records a bundled command that is not a shell builtin as a `builtin` run on the call's record (`shell-commands/command-runs.ts`); just-bash keeps its bundled commands private, so nothing else can tell them apart from ours | none offered: ours, a local diff, `command-start-3.6.0.diff` | an equivalent hook is in the version we install; the guards are the diff's own `command-start-listener.test.ts` and `create-bash-env-command-runs.test.ts` |
-| `patches/just-bash@3.6.0.patch`, shell options part | `bash` and `sh` read their options as bash does: combined letters (`-lc`, `-euo pipefail`), `-c` as a flag anywhere among them (`bash -c -l 'cmd'`), `-s`, `--` and `-`. `-l`, `-i`, `--login`, `--noprofile`, `--norc` and `--noediting` are accepted and ignored; `set`'s letters, `-o NAME` and `-O NAME` run as `set` and `shopt` on the script's first line, and an option either refuses ends the shell with status 2. 3.6.0 took `-c` only as the first argument and read anything else there as a script file, so `bash -lc 'echo hi'`, the shape models trained on other harnesses use for every command, failed with `bash: -lc: No such file or directory` at exit 127. `--help` counts only in option position, where 3.6.0 printed `bash`'s help for `bash -c 'ls --help'`. `--version` prints `GNU bash, version 5.1.0(1)-release (just-bash)` and a line saying it is not GNU bash, where 3.6.0 read it as a script file. A syntax error reads as bash's does, ``t.sh: line 2: syntax error near unexpected token `then'`` (`bash: -c` for a command string, the file for `source`), where 3.6.0 reported every one as `bash: syntax error: Parse error at L:C: …`; an empty `if`/`elif`/`while`/`until` condition fails at the word after it (3.6.0 reported `if then` at the end of the file, naming `fi`, and accepted `while do`), and a missing `fi` or `done` reads `syntax error: unexpected end of file`. `background-ampersand.ts` finds the `-c` script by the same rules | none offered: ours, a local diff, `shell-options-3.6.0.diff`; the text to open it with is below | an equivalent parser, `--version` and parse-error wording are in the version we install; the guards are the diff's own `bash.options.test.ts` and `parse-errors.test.ts` cases, and `create-bash-env-shell-options.test.ts` |
+| `patches/just-bash@3.6.0.patch`, shell options part | `bash` and `sh` read their options as bash does: combined letters (`-lc`, `-euo pipefail`), `-c` as a flag anywhere among them (`bash -c -l 'cmd'`), `-s`, `--` and `-`. `-l`, `-i`, `--login`, `--noprofile`, `--norc` and `--noediting` are accepted and ignored; `set`'s letters, `-o NAME` and `-O NAME` run as `set` and `shopt` on the script's first line, and an option either refuses ends the shell with status 2. 3.6.0 took `-c` only as the first argument and read anything else there as a script file, so `bash -lc 'echo hi'`, the shape models trained on other harnesses use for every command, failed with `bash: -lc: No such file or directory` at exit 127. `--help` counts only in option position, where 3.6.0 printed `bash`'s help for `bash -c 'ls --help'`. `--version` prints `GNU bash, version 5.1.0(1)-release (just-bash)` and a line saying it is not GNU bash, where 3.6.0 read it as a script file. A syntax error reads as bash's does, ``t.sh: line 2: syntax error near unexpected token `then'`` (`bash: -c` for a command string, the file for `source`), where 3.6.0 reported every one as `bash: syntax error: Parse error at L:C: …`; an empty `if`/`elif`/`while`/`until` condition fails at the word after it (3.6.0 reported `if then` at the end of the file, naming `fi`, and accepted `while do`), and a missing `fi` or `done` reads `syntax error: unexpected end of file`. `background-ampersand.ts` finds the `-c` script by the same rules | #715, carried as a local diff, `shell-options-3.6.0.diff`, which differs from the PR only in spelling out `BASH_VERSION` where the PR imports it (the import moves that module into a new shared chunk the patch rebuild cannot map) | an equivalent parser, `--version` and parse-error wording are in the version we install; the guards are the diff's own `bash.options.test.ts` and `parse-errors.test.ts` cases, and `create-bash-env-shell-options.test.ts` |
 
 The patch is generated rather than edited. `patches/just-bash-sources/sources.json` names the release tag and every carried part: an upstream pull request pinned to a commit, or a local diff under the same directory where a pull request has to be adapted to the version we install (`cross-mount-copy-3.6.0.diff` and `stdin-connected-3.6.0.diff` are #422 and #448 merged onto a tag that moved under them, and `stdin-bytes-3.6.0.diff` is #573 reshaped to keep 3.6.0's module graph) or where we depart from upstream on purpose (`ls-plain-listing-3.6.0.diff`). A part may name pull requests and a diff together; the diff applies after them. `pnpm scripts:rebuild-just-bash-patch` then:
 
@@ -182,6 +182,7 @@ Ours, all against `vercel-labs/just-bash`, plus the other people's PRs that over
 | #589 | `redirections`: let an embedder fail a redirect into a missing directory, through a `redirectCreatesDirectories` option that defaults to today's behavior | Yes, and it is patched locally as the twenty-first part, re-ported onto 3.6.0. Making bash's behavior the default instead is offered in the PR; it breaks six upstream tests that write into `/tmp` without making it. |
 | #597 | `fs`: `MountableFs` implements `readdirWithFileTypes`, the one filesystem in the package that did not, so a walk reads each folder once instead of stating every entry in it | Yes, and it is patched locally as the twenty-third part. A `find` over 21,000 files went from 734 ms to 101 ms on this Mac and from 8.4 s to 383 ms on the Windows host, against 26 ms for the system's own `find`; the filesystem underneath answers in 9 ms either way. |
 | #598 | `DefenseInDepthBox`: let host code assign an existing `process.env` key while a script runs, keep the receiver for an object inheriting from `process.env`, and record the write in audit mode | Yes, and it is patched locally as the `process.env` writes part. Every Claude Code start failed while a main-thread command ran. #269, ours and in 3.6.0, fixed the same throw for `DEBUG` alone, narrowed to that key at the maintainer's request, which #598 argues against. |
+| #715 | `bash`: read bash's options (`-lc`, `-euo pipefail`, `--login`, `-s`) and `--version`, and report syntax errors as bash does (``t.sh: line 2: syntax error near unexpected token `then'``) | Yes, and it is patched locally as the shell options part. Models trained on other harnesses run every command as `bash -lc '…'`, which failed at exit 127, and a syntax error named a token the script did not have on a line past its end. |
 
 #420, #422, #424, #425, #448, #449, #450, #451, #452, #501, #527, #544, #555, #570, #572, #573, #588, and #589 are patched locally, with a local diff beside #449 that departs from #390, and the external commands and `ls -l` parts, below, are carried before they are offered. See [decisions/2026-08-27-no-local-just-bash-patches.md](../decisions/2026-08-27-no-local-just-bash-patches.md) for why the rest are not, and the decisions named under Local patches for why those are.
 #420, #422, #424, #425, #448, #449, #450, #451, #452, #501, #527, #544, #555, #570, #572, #573, and #598 are patched locally, with a local diff beside #449 that departs from #390, and the external commands and `ls -l` parts, below, are carried before they are offered. See [decisions/2026-08-27-no-local-just-bash-patches.md](../decisions/2026-08-27-no-local-just-bash-patches.md) for why the rest are not, and the decisions named under Local patches for why those are.
@@ -211,75 +212,6 @@ The refused writes part is ours too. The text to open its pull request with, aga
 The printf bytes part is ours. The text to open its pull request with, against `main`:
 
 > **printf: write the byte an escape names, not a Latin-1 character.** `processEscapes` and `%b` turn a byte that is not part of a UTF-8 character into the char with its value, and printf returns its output as text, so the pipe and redirect layers UTF-8 encode it: `printf '\x89' > f` writes `c2 89`, `printf '\303\251'` writes `c3 83 c2 a9` (bash writes `c3 a9`), and `printf '%c' é` writes `c3 83`. `printf.binary.test.ts` passes only because the output boundary decodes the doubled bytes back. Such a byte is now held as a lone low surrogate (U+DC80 + byte), which no text contains, and printf returns its output through `bytesOutput` when it holds one, with the text around each byte UTF-8 encoded; output without one is text as before. An octal escape keeps its low byte (`\777` is 0xff, as in bash). `-v` stores the bytes decoded by `decodeBytesToUtf8`. `processEscapes` takes the behavior as an opt-in third argument, so `find -printf` is unchanged. Tests: `src/commands/printf/printf.bytes.test.ts`.
-
-### Not yet offered: `bash` and `sh` take bash's options, `--version`, and bash's syntax errors
-
-The shell options part is ours: option parsing, `--version`, and syntax errors worded as bash words them, in one change. On `main` it applies as the 3.6.0 diff does, `bash.ts` having gained only `newShell` there, except that `bash.ts` imports `BASH_VERSION` from `shell-metadata.ts` rather than spelling it out (the 3.6.0 diff spells it out because the import moves that module into a new shared chunk the patch rebuild cannot map), and it adds a changeset. Title and body to open its pull request with, against `main`:
-
-**fix(bash): read bash's options and --version, report syntax errors as bash**
-
-> ## Problem
->
-> ```sh
-> bash -lc 'echo hi'                # bash: -lc: No such file or directory   (exit 127)
-> bash -euo pipefail -c 'cmd'       # bash: -euo: No such file or directory  (exit 127)
-> bash --version                    # bash: --version: No such file or directory (exit 127)
-> printf 'echo ok\nif then\n' > t.sh
-> bash t.sh                         # bash: syntax error: Parse error at 3:1: syntax error near unexpected token `fi'
-> ```
->
-> Bash gives `hi`, runs `cmd` under errexit and pipefail, prints its version, and reports ``t.sh: line 2: syntax error near unexpected token `then'``.
->
-> Agent harnesses run nearly every command as `bash -lc '…'`, so a model reaches for that shape first and loses a turn learning that only `bash -c` works. A model that checks `bash --version` before using bash 4 syntax learns nothing. And the syntax error points at a token the script does not contain, on a line past its end, so a model fixing it edits the wrong line.
->
-> ## Cause
->
-> `bash.ts` takes `-c` only as `args[0]` and reads any other first word as a script path:
->
-> ```ts
-> if (args[0] === "-c" && args.length >= 2) {
-> ```
->
-> In the parser, `parseIf` never checks that the condition is non-empty, so in `if then` the `then` ends an empty condition, the body comes out empty at the end of the file, and the empty-body branch falls back to naming `fi`. `while do` and `until do` were accepted outright. `Parser.expect` words its failure as `Expected FI, got EOF`. And `Bash.exec` reports every `ParseException` as `bash: syntax error: Parse error at L:C: …`, whatever script it was reading.
->
-> The existing tests could not see the option handling, since the Oils cases that invoke `$SH` with options are marked `## SKIP`, and the parse-error tests assert only that stderr contains `syntax error`.
->
-> ## Fix
->
-> Options are read as bash reads them: every word up to the first operand, `--` or `-` that starts with `-` or `+`, letters combined, `-c` a flag that makes the first operand the script (so `bash -c -e 'cmd'` works), `-s` reading the script from stdin with every operand a positional parameter. `-l`, `-i`, `--login`, `--noprofile`, `--norc` and `--noediting` are accepted and ignored, there being no profile files or terminal; `--rcfile`/`--init-file` take and ignore a value; `--posix` and `--verbose` map to `set`. `set`'s letters, `-o NAME` and `-O NAME` run as `set`/`shopt` commands prepended to the script's first line, so `$LINENO` still counts the script's own lines and `SHELLOPTS`/`$-` follow, and a name either refuses ends the shell with status 2 before the script runs. An unknown option, or `-c` with no script, is a usage error at status 2. `--help` and `--version` count only in option position, so `bash -c 'ls --help'` runs `ls`.
->
-> `--version` prints bash's first line with just-bash where bash names the machine type, from `BASH_VERSION`, and a second line saying it is not GNU bash:
->
-> ```
-> GNU bash, version 5.1.0(1)-release (just-bash)
-> This is just-bash, a bash interpreter written in TypeScript, not GNU bash.
-> ```
->
-> A syntax error reads `NAME: line N: syntax error …`: `bash: -c` for a command string, the script's path for a file, `bash` for stdin or a top-level `exec()`, the file for `source`, `bash: eval` for `eval`. `ExecOptions` and `CommandExecOptions` gain `scriptName` to carry the name into the nested `exec`. `if`, `elif`, `while` and `until` refuse an empty condition or body at the token that came instead, and `Parser.expect` words a failure as ``syntax error near unexpected token `X'`` or, at the end of the script, `syntax error: unexpected end of file`. A shebang line keeps its newline when it is stripped, so line numbers and `$LINENO` count it.
->
-> ## Scope
->
-> Unchanged: `ParseException.message` keeps its `Parse error at L:C:` form for callers that read it; the new `reason` field holds the bare message. Exit statuses are unchanged (2 for the shell, 1 for `source` and `eval`).
->
-> Not addressed, deliberately:
->
-> - Bash's second line quoting the offending source (``t.sh: line 2: `if then'``). Easy to add from the script text; say the word.
-> - Bash runs the statements before a syntax error (`echo ok` prints first); just-bash parses the whole script before running any of it.
-> - `BASH_VERSINFO` is unset, so `${BASH_VERSINFO[0]}` is empty and a script testing `(( BASH_VERSINFO[0] >= 4 ))` decides it is on an old bash. A small follow-up if wanted.
-> - `$-` does not show `c`.
-> - Empty bodies of `for`, `select`, `{ }` and `( )` are unchanged.
->
-> ## Tests
->
-> `src/commands/bash/bash.options.test.ts` covers the option forms (accepted, applied, refused at status 2), `-s`, script files, `--help`/`--version` in and out of option position, `--version` matching `$BASH_VERSION`, and the syntax error's name, line and token for `bash -n file`, `bash file`, `bash -c`, `sh -ec`, `bash < file`, `source`, and a file with a shebang. `src/syntax/parse-errors.test.ts` pins the token and line for ten scripts (empty `if`/`elif`/`while`/`until` conditions and bodies, a missing `fi` at the end of the file, a stray `}`). Two existing assertions on the old wording are updated (`unsupported-reserved-words.test.ts`, `eval.test.ts`), and eight Oils cases lose their `## SKIP`.
->
-> The tokens and the file and `source` messages were compared against `/bin/bash` 3.2.57 on macOS. That bash numbers `-c` and `eval` lines one low (`line 1` for the second line of `-c`); the `-c` line numbers here follow bash 5, which was not run.
->
-> `pnpm --filter just-bash test:run` after a build: 16372 passed, 5 failed, 98 skipped. The same 5 fail on `main` (16322 passed), verified by running `main` without this change, not inferred: four `tar` xz cases and `package-contents.test.ts`. `test:comparison` passes (1059), as do `pnpm lint` and `typecheck`.
->
-> ---
->
-> Authored with Claude Opus 5.5
 
 ### Not yet offered: one stray byte does not turn a statement's output to Latin-1
 

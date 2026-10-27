@@ -156,7 +156,8 @@
     },
     {
       "name": "shell options",
-      "diff": "shell-options-3.6.0.diff"
+      "diff": "shell-options-3.6.0.diff",
+      "ports": [715]
     }
   ]
 }

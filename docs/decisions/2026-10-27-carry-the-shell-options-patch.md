@@ -12,7 +12,7 @@ Two smaller gaps sat beside it. `bash --version` failed, so a model checking whi
 
 ## Decision
 
-Carry one more part of `patches/just-bash@3.6.0.patch` until an equivalent is in a version we install: a local diff, `shell-options-3.6.0.diff`, with no upstream pull request yet (one is owed; the text to open it with is in [just-bash-upstream.md](../architecture/just-bash-upstream.md)). The three changes are one diff so one pull request covers them.
+Carry one more part of `patches/just-bash@3.6.0.patch` until an equivalent is in a version we install: a local diff, `shell-options-3.6.0.diff`, offered upstream as [vercel-labs/just-bash#715](https://github.com/vercel-labs/just-bash/pull/715). The three changes are one diff so one pull request covers them.
 
 `bash` and `sh` read their options as bash does: combined letters, `-c` as a flag anywhere among the options, `-s`, `--` and `-`. `-l`, `-i`, `--login`, `--noprofile`, `--norc` and `--noediting` are accepted and ignored, since the shell has no profile files and no terminal. `set`'s letters, `-o NAME` and `-O NAME` run as `set` and `shopt` on the script's first line, so `$LINENO` still counts the script's own lines, and an option either refuses ends the shell with status 2 before the script runs. `--help` counts only in option position, where before `bash -c 'ls --help'` printed `bash`'s help.
 

@@ -1324,9 +1324,7 @@ describe("FileSystem's List", () => {
     ).toEqual(["a.html"]);
 
     fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Escape" });
-    expect(
-      screen.getByRole("button", { name: "Search: HTML Document" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Search: HTML" })).toBeTruthy();
   });
 
   it("jumps to a title by its first letters", () => {

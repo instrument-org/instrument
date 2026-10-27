@@ -606,6 +606,10 @@ function shownName(entry: FileSystemEntry) {
   return entry.kind === "file" ? (entry.displayName ?? entry.name) : entry.name;
 }
 const FOLDER_KIND = "Folder";
+/** A kind as a token says it, where the field is short: "HTML" for "HTML Document". */
+function shortKind(kind: string) {
+  return kind.replace(/ (?:Document|Source)$/, "");
+}
 /** A row's kind as the Kind column names it, which search narrows by. */
 function kindOf(entry: FileSystemEntry) {
   return entry.kind === "folder" ? FOLDER_KIND : fileKindLabel(entry);
@@ -3589,8 +3593,12 @@ function FileSystemSearchField({
     if (isExpanded) inputRef.current?.focus();
   }, [inputRef, isExpanded]);
   // Offered while the field is open and empty: the kinds not yet picked.
+  // Shown on opening, put away by a pick so the rows it narrowed show, and
+  // brought back by ↓.
+  const [isOffering, setIsOffering] = React.useState(true);
+  if (!isExpanded && !isOffering) setIsOffering(true);
   const suggestions =
-    layout === "row" && isExpanded && value === ""
+    layout === "row" && isExpanded && isOffering && value === ""
       ? offeredKinds
           .filter(({ kind }) => !kinds.includes(kind))
           .map(({ kind }) => kind)
@@ -3611,6 +3619,7 @@ function FileSystemSearchField({
   const pickKind = (kind: string) => {
     onKindsChange([...kinds, kind]);
     setHighlight(-1);
+    setIsOffering(false);
   };
   const isSearched = value !== "" || kinds.length > 0;
   const input = (
@@ -3629,7 +3638,11 @@ function FileSystemSearchField({
           title={kind}
         >
           {kindGlyph(kind)}
-          <span className="min-w-0 truncate">{kind}</span>
+          {/* Several kinds are told apart by their icons alone, which the
+              field has room for; the pill names them once it closes. */}
+          {kinds.length > 1 ? null : (
+            <span className="min-w-0 truncate">{shortKind(kind)}</span>
+          )}
           <button
             aria-label={`Remove ${kind}`}
             className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
@@ -3644,9 +3657,14 @@ function FileSystemSearchField({
       ))}
       <input
         aria-label="Search files"
-        className="h-full w-full min-w-12 flex-1 rounded-[inherit] bg-transparent outline-none placeholder:text-muted-foreground"
+        className="h-full w-0 min-w-12 flex-1 rounded-[inherit] bg-transparent outline-none placeholder:text-muted-foreground"
         onChange={(event) => onValueChange(event.target.value)}
         onKeyDown={(event) => {
+          if (!isOffering && value === "" && event.key === "ArrowDown") {
+            event.preventDefault();
+            setIsOffering(true);
+            return;
+          }
           if (suggestions.length > 0 && event.key === "ArrowDown") {
             event.preventDefault();
             setHighlight((highlighted + 1) % suggestions.length);
@@ -3709,7 +3727,7 @@ function FileSystemSearchField({
     </div>
   );
   // What the search holds, said in the button it folds into.
-  const searchedLabel = [kinds.join(", "), value.trim()]
+  const searchedLabel = [kinds.map(shortKind).join(", "), value.trim()]
     .filter(Boolean)
     .join(" · ");
   if (isInline) {

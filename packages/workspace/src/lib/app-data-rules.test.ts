@@ -1113,6 +1113,9 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         return bwrapArgs(nativeReachFor(under.rules, under));
       };
       const people = [{}, { grants: [fresh.appFiles] }];
+      // A first run makes the folders the app keeps read-only inside a
+      // writable one (Drafts/), which every later run then binds.
+      people.map(argsFor);
       const two = people.map(argsFor);
       for (let i = 0; i < 1998; i++) {
         const id = `2026-10-14-chat-${String(i).padStart(4, "0")}`;

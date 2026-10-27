@@ -50,8 +50,11 @@ function hasOwnTitle(name: string) {
 async function titleOf(filePath: string): Promise<null | string> {
   if (!hasOwnTitle(filePath)) return null;
   const stat = await fs.stat(filePath);
-  // A file with a size and no blocks on disk is one iCloud evicted.
-  if (!stat.isFile() || (stat.size > 0 && stat.blocks === 0)) return null;
+  // A file with a size and no blocks on disk is one iCloud evicted. Windows
+  // reports no blocks for every file.
+  const evicted =
+    process.platform === "darwin" && stat.size > 0 && stat.blocks === 0;
+  if (!stat.isFile() || evicted) return null;
   const key = `${filePath}\0${stat.size}\0${stat.mtimeMs}`;
   if (kept.has(key)) return kept.get(key) ?? null;
   const handle = await fs.open(filePath, "r");

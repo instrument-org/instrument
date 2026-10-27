@@ -55,6 +55,14 @@ export function requestQuit() {
 }
 
 /**
+ * Reports a quit no one asked for in the app (`unattended-quit.ts`), which
+ * tears down without asking. The `before-quit` that follows is a repeat.
+ */
+export function requestUnattendedQuit() {
+  quit?.send({ type: "unattendedQuitRequested" });
+}
+
+/**
  * Opt a dev build back into the running-agent prompt, which it otherwise skips
  * so hot reload is never blocked on a dialog nobody sees. In memory only, so a
  * relaunch drops it and a forgotten toggle cannot strand a later rebuild.

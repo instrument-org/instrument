@@ -78,6 +78,7 @@ import {
   requestQuitApproval,
   withdrawQuitApproval,
 } from "./lib/quit";
+import { registerUnattendedQuit } from "./lib/unattended-quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
 import { getWorkspaceRun } from "./lib/workspace-run";
 import { startWorkspace } from "./lib/start-workspace";
@@ -183,6 +184,8 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  registerUnattendedQuit();
+
   // A workspace this build will not open is said in a window of its own, and
   // nothing else starts: no stores, no workspace, no other window.
   const refusal = getWorkspaceRefusal();

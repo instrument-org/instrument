@@ -15,6 +15,11 @@ export const BROWSER_SESSIONS_CLOSE_MS = 3000;
  * of its own that every path shares and that latches once given, and the
  * teardown runs once however many `before-quit`s arrive while it does.
  *
+ * A quit no one asked for in the app (a signal, a logout, a shutdown) is
+ * unattended: nobody is there to answer a prompt, and the system ends the
+ * process soon after asking, so it skips approval, even one already on screen,
+ * and goes straight to teardown.
+ *
  * Teardown closes the agent browser sessions (bounded on its own), then tears
  * down the browser views and stops the services. One deadline over everything
  * means a step that hangs still ends in an exit.
@@ -44,7 +49,8 @@ export const quitMachine = setup({
     events: {} as
       | { type: "approvalRequested" }
       | { type: "approvalWithdrawn" }
-      | { type: "quitRequested" },
+      | { type: "quitRequested" }
+      | { type: "unattendedQuitRequested" },
   },
 }).createMachine({
   context: { quitAfterApproval: false },
@@ -59,6 +65,7 @@ export const quitMachine = setup({
           actions: assign({ quitAfterApproval: true }),
           target: "approving",
         },
+        unattendedQuitRequested: "tearingDown",
       },
     },
     approving: {
@@ -84,6 +91,7 @@ export const quitMachine = setup({
       },
       on: {
         quitRequested: { actions: assign({ quitAfterApproval: true }) },
+        unattendedQuitRequested: "tearingDown",
       },
     },
     approved: {
@@ -96,6 +104,7 @@ export const quitMachine = setup({
         // so the next close asks again rather than skipping the prompt.
         approvalWithdrawn: "idle",
         quitRequested: "tearingDown",
+        unattendedQuitRequested: "tearingDown",
       },
       tags: ["approved"],
     },

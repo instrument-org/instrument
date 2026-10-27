@@ -389,6 +389,8 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         // Killing background processes is the slowest step, and its bound is
         // derived rather than restated here: a hand-picked number would go
         // quietly wrong the next time the termination grace moves.
+        // A logout or shutdown waits on it too, and systemd gives a stopping
+        // session 90 s by default before it kills what is left.
         teardown:
           BROWSER_SESSIONS_CLOSE_MS +
           BACKGROUND_PROCESS_TEARDOWN_MS +

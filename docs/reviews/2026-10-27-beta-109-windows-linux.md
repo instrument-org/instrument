@@ -24,7 +24,7 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### A. Quitting by signal with work running never quits or tears down
 
-- Status: open
+- Status: fixed
 - Where: [create-workspace-actor.ts:352](/apps/studio/src/electron-main/lib/create-workspace-actor.ts#L352)
 - What: on Linux, SIGTERM (what a logout or shutdown sends) reaches `before-quit`, and the packaged build's quit approval opens the "Quit with work running?" dialog, which nobody answers. Both stops with a job running were SIGKILLed after the 10 s grace with no `Quit teardown` line, so tasks were not stopped with a record and teardown never ran. An idle stop tears down and exits in 2 s. A quit no one asked for in the app should skip the prompt.
 

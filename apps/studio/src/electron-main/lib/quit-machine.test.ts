@@ -49,7 +49,11 @@ function createHarness({
     approve: approveSpy,
     calls,
     send: (
-      type: "approvalRequested" | "approvalWithdrawn" | "quitRequested",
+      type:
+        | "approvalRequested"
+        | "approvalWithdrawn"
+        | "quitRequested"
+        | "unattendedQuitRequested",
     ) => {
       actor.send({ type });
     },
@@ -153,6 +157,43 @@ describe("quit machine", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(h.actor.getSnapshot().hasTag("approved")).toBe(true);
+  });
+
+  it("tears down without asking on a quit no one asked for in the app", async () => {
+    const h = createHarness();
+    h.send("unattendedQuitRequested");
+    // The before-quit that the same signal or shutdown goes on to raise.
+    h.send("quitRequested");
+    await vi.runAllTimersAsync();
+
+    expect(h.approve).not.toHaveBeenCalled();
+    expect(h.stopServices).toHaveBeenCalledOnce();
+    expect(h.calls).toEqual(["teardown browser views", "exit"]);
+  });
+
+  it("stops waiting on a prompt already open when the quit turns unattended", async () => {
+    const h = createHarness({ approve: () => new Promise(() => {}) });
+    h.send("quitRequested");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.value()).toBe("approving");
+
+    h.send("unattendedQuitRequested");
+    await vi.runAllTimersAsync();
+
+    expect(h.calls).toEqual(["teardown browser views", "exit"]);
+    expect(h.actor.getSnapshot().status).toBe("done");
+  });
+
+  it("tears down on an unattended quit after an approval that was waiting", async () => {
+    const h = createHarness();
+    h.send("approvalRequested");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.value()).toBe("approved");
+
+    h.send("unattendedQuitRequested");
+    await vi.runAllTimersAsync();
+
+    expect(h.calls).toContain("exit");
   });
 
   it("ignores a second quit during teardown", async () => {

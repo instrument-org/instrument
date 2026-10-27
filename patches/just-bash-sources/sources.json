@@ -153,6 +153,10 @@
     {
       "name": "command start",
       "diff": "command-start-3.6.0.diff"
+    },
+    {
+      "name": "shell options",
+      "diff": "shell-options-3.6.0.diff"
     }
   ]
 }

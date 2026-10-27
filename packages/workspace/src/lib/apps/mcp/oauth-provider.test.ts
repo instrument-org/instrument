@@ -6,7 +6,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { serveRegisteredClient } from "../../../test/helpers/serve-registered-client";
-import { resetServedAppCatalog } from "../catalog";
+import { applyServedAppCatalog, resetServedAppCatalog } from "../catalog";
+import seed from "../catalog-seed.json";
 
 import { type OriginBound } from "../origin-bound";
 import {
@@ -376,11 +377,36 @@ describe("a registered client whose secret our API holds", () => {
   }
 
   beforeEach(() => {
-    // Only admins are served the client for now; the seed carries the rest.
-    serveRegisteredClient(
-      "gmail",
-      "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
-    );
+    // A hosted server whose client asks for its own scopes and page
+    // parameters, as a directory serving one would give it.
+    const served = {
+      ...seed,
+      entries: seed.entries.map((entry) =>
+        entry.slug === "gmail"
+          ? {
+              ...entry,
+              interfaces: [
+                {
+                  auth: "oauth-client",
+                  authorizationParams: {
+                    access_type: "offline",
+                    prompt: "consent",
+                  },
+                  clientId:
+                    "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+                  endpoint: serverUrl,
+                  format: "mcp",
+                  name: "Gmail MCP server",
+                  scope:
+                    "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+                  tokenExchange: "api",
+                },
+              ],
+            }
+          : entry,
+      ),
+    };
+    expect(applyServedAppCatalog(served)).toBe("used");
   });
 
   afterEach(() => {

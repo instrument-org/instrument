@@ -49,18 +49,147 @@ describe("catalogEntryForApp", () => {
   });
 });
 
-describe("a Google product the directory gives no client", () => {
+describe("Google's REST APIs", () => {
+  const apis = [
+    ["gmail", "https://gmail.googleapis.com/gmail/v1", "/users/me/profile"],
+    [
+      "google-calendar",
+      "https://www.googleapis.com/calendar/v3",
+      "/users/me/calendarList?maxResults=1",
+    ],
+    [
+      "google-drive",
+      "https://www.googleapis.com/drive/v3",
+      "/about?fields=user",
+    ],
+    [
+      "google-docs",
+      "https://docs.googleapis.com/v1",
+      "/documents/195j9eDD3ccgjQRttHhJPymLJUCOUjs-jmwTrekvdjFE",
+    ],
+    [
+      "google-sheets",
+      "https://sheets.googleapis.com/v4",
+      "/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+    ],
+    [
+      "google-slides",
+      "https://slides.googleapis.com/v1",
+      "/presentations/1EAYk18WDjIG-zp_0vLm3CsfQh_i8eXc67Jo2O9C6Vuc",
+    ],
+  ] as const;
+  const entry = (slug: string) => {
+    const found = getAppCatalog().find((candidate) => candidate.slug === slug);
+    if (!found) {
+      throw new Error(`No ${slug} in the directory`);
+    }
+    return found;
+  };
+
+  afterEach(() => {
+    resetServedAppCatalog();
+  });
+
   // The client is served only to admins; the seed says how its sign-in goes.
-  it.each([
-    "https://gmailmcp.googleapis.com/mcp/v1",
-    "https://calendarmcp.googleapis.com/mcp/v1",
-    "https://drivemcp.googleapis.com/mcp/v1",
-    "https://docsmcp.googleapis.com/mcp/v1",
-    "https://sheetsmcp.googleapis.com/mcp/v1",
-    "https://slidesmcp.googleapis.com/mcp/v1",
-  ])("still needs a client at %s", (endpoint) => {
-    expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
-    expect(catalogRegisteredClient(endpoint)).toBeUndefined();
+  it.each(apis)(
+    "leaves %s off its API without the client",
+    (slug, endpoint) => {
+      expect(catalogWayIn(entry(slug)).kind).not.toBe("api");
+      expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
+      expect(
+        catalogApiSignInClient(slug, {
+          service: slug,
+          type: "api",
+          url: endpoint,
+        }),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each(apis)(
+    "signs %s in to its API with the client",
+    (slug, endpoint, test) => {
+      serveRegisteredClient(slug, "google-client");
+      expect(catalogWayIn(entry(slug))).toEqual({
+        auth: "oauth",
+        endpoint,
+        kind: "api",
+        test,
+      });
+    },
+  );
+
+  it("asks Google for each product's own scopes and a refresh token", () => {
+    const slugs = apis.map(([slug]) => slug);
+    serveRegisteredClient(slugs, "google-client");
+    expect(
+      apis.map(([slug, url]) =>
+        catalogApiSignInClient(slug, { service: slug, type: "api", url }),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent",
+          },
+          "clientId": "google-client",
+          "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+          "service": "gmail",
+        },
+        {
+          "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent",
+          },
+          "clientId": "google-client",
+          "scope": "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy",
+          "service": "google-calendar",
+        },
+        {
+          "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent",
+          },
+          "clientId": "google-client",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
+          "service": "google-drive",
+        },
+        {
+          "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent",
+          },
+          "clientId": "google-client",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents",
+          "service": "google-docs",
+        },
+        {
+          "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent",
+          },
+          "clientId": "google-client",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets",
+          "service": "google-sheets",
+        },
+        {
+          "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent",
+          },
+          "clientId": "google-client",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/presentations",
+          "service": "google-slides",
+        },
+      ]
+    `);
   });
 });
 

@@ -680,7 +680,7 @@ describe("app new refuses what cannot connect", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "is not Gmail's MCP server; the directory has gmailmcp.googleapis.com",
+      "the directory lists no hosted MCP server for Gmail, so https://gmail.mcp.google.com/mcp is not one",
     );
   });
 

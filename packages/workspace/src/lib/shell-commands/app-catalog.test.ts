@@ -1,9 +1,14 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
+import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
+import {
+  getAppCatalog,
+  resetServedAppCatalog,
+  searchAppCatalog,
+} from "../apps/catalog";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -136,6 +141,26 @@ describe("app catalog", () => {
       expect(text).not.toContain("<base-url>");
     },
   );
+
+  // Google's sign-in client is served only to admins, and for them each
+  // Google product is set up on its REST API with a sign-in.
+  describe("with Google's sign-in client", () => {
+    afterEach(resetServedAppCatalog);
+
+    it.each([
+      [
+        "gmail",
+        "instrument app new gmail --name 'Gmail' --api https://gmail.googleapis.com/gmail/v1 --auth oauth --test /users/me/profile",
+      ],
+      [
+        "google-drive",
+        "instrument app new google-drive --name 'Google Drive' --api https://www.googleapis.com/drive/v3 --auth oauth --test /about?fields=user",
+      ],
+    ])("sets %s up on its API", async (slug, line) => {
+      serveRegisteredClient(slug, "google-client");
+      expect(await catalog(slug)).toContain(`set up: ${line}\n`);
+    });
+  });
 
   // The listing reaches the model through a command's output, which is kept as
   // a head and a tail with the middle dropped. Every entry in full ran to 43KB

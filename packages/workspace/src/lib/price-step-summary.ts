@@ -28,8 +28,19 @@ Cover, in plain text under 1,500 words:
 - What is in progress and what remains to do next.
 </summarize-conversation>`;
 
-/** Room for the summary the instruction asks for, and no more. */
-const SUMMARY_MAX_OUTPUT_TOKENS = 4_000;
+/**
+ * Room for the summary the instruction asks for and then some: measured on
+ * Haiku 5.5, summaries ran to 1,700 to 4,000 tokens, and 3 of 17 stopped at
+ * a cap of 4,000.
+ */
+const SUMMARY_MAX_OUTPUT_TOKENS = 8_000;
+
+/**
+ * Said after a summary the cap cut off, since what it lost is its end, the
+ * work in progress and what remains, which the next window needs most.
+ */
+const CUT_OFF_NOTE =
+  "[This summary was cut off at its length limit. The conversation's transcript has what it does not cover.]";
 
 /**
  * The model's summary of the conversation in `messages`, which are the
@@ -78,10 +89,12 @@ export async function summarizeBeforePriceStep({
         ({ execute: _execute, ...definition }) => definition,
       ),
     });
-    const summary = result.text.trim();
-    if (summary === "") {
+    const text = result.text.trim();
+    if (text === "") {
       return undefined;
     }
+    const summary =
+      result.finishReason === "length" ? `${text}\n\n${CUT_OFF_NOTE}` : text;
     const usage = result.totalUsage;
     return {
       summary,

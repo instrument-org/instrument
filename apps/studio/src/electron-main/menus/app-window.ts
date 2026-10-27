@@ -332,10 +332,20 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
   ];
 }
 
+/**
+ * A chord's menu row, answered only while a window is focused. This menu is
+ * up with no window focused too (menus/index.ts), where the app window may
+ * be minimized or held off screen, and a chord there would act on a window
+ * nobody can see: Cmd+W on its last tab closes it.
+ */
 function menuItems(chords: WindowChord[]): MenuItemConstructorOptions[] {
   return chords.map(({ accelerator, label, run, visible }) => ({
     accelerator,
-    click: run,
+    click: (_item, focusedWindow) => {
+      if (focusedWindow) {
+        run();
+      }
+    },
     label,
     ...(visible === false ? { visible } : {}),
   }));

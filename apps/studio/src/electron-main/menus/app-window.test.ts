@@ -13,8 +13,16 @@ vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
 }));
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
-vi.mock("./other-window", () => ({}));
-vi.mock("./utils", () => ({}));
+vi.mock("./other-window", () => ({
+  createOtherWindowViewMenu: () => ({ label: "View", submenu: [] }),
+}));
+vi.mock("./utils", () => ({
+  createAppMenu: () => ({ label: "App" }),
+  createDevToolsMenu: () => [],
+  createEditMenu: () => ({ label: "Edit" }),
+  createHelpMenu: () => ({ label: "Help" }),
+  createWindowMenu: () => [],
+}));
 
 const PLATFORM = process.platform;
 
@@ -122,4 +130,27 @@ describe("a window chord that is also a code editor's key", () => {
       expect(window.press(nextChat)).toBe("nextChat");
     },
   );
+});
+
+describe("a window chord from the menu", () => {
+  it("does nothing with no window focused, as with the window held off screen", async () => {
+    vi.resetModules();
+    const { createAppWindowMenu } = await import("./app-window");
+    const closeTab = createAppWindowMenu()
+      .flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []))
+      .find((item) => item.label === "Close Tab");
+    // Electron types the click's arguments as real menu items and windows;
+    // stand-ins are enough to tell focused from not.
+    const click = closeTab?.click as
+      | ((item: unknown, window: unknown, event: unknown) => void)
+      | undefined;
+    expect(click).toBeDefined();
+
+    publish.mockClear();
+    click?.({}, undefined, {});
+    expect(publish).not.toHaveBeenCalled();
+
+    click?.({}, {}, {});
+    expect(publish).toHaveBeenCalledWith("window.command", "closeTab");
+  });
 });

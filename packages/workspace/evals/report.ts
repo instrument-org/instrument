@@ -1,13 +1,20 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { getChatInfos } from "../src/lib/chat-info";
 import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { SessionMessage } from "../src/schemas/session/message";
 import { ChatReads } from "../src/lib/chat-reads";
-import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import { chatFolderTheyOpen } from "../src/lib/chat/output-folder";
+import {
+  chatDir,
+  chatOwnFolder,
+  resolveChat,
+  sessionOfChat,
+} from "../src/lib/record-folders";
 import {
   ChatRecords,
   installChatRecords,
@@ -404,17 +411,38 @@ export async function generateReport({
       JSON.stringify(stats, null, 2),
       "utf8",
     );
-    // What the run made, and beside it the chat's records.
+    // What the run made, and beside it the chat's records, copied rather
+    // than linked: the run's workspace is removed once the run is reported
+    // (`workspace-cleanup.ts`). The work folder's interpreter scratch is left
+    // out, since it is caches rather than anything the run made.
     await fs
-      .symlink(workDir(chatId), path.join(taskOutputDir, "task"))
+      .cp(workDir(chatId), path.join(taskOutputDir, "task"), {
+        filter: (source) =>
+          path.basename(source) !== CHAT_FOLDER_NAMES.tmp ||
+          path.dirname(source) !== workDir(chatId),
+        recursive: true,
+      })
       .catch(() => {
         return;
       });
     await fs
-      .symlink(chatDir(chatId), path.join(taskOutputDir, "record"))
+      .cp(chatDir(chatId), path.join(taskOutputDir, "record"), {
+        recursive: true,
+      })
       .catch(() => {
         return;
       });
+    // And the chat's own folder under `Chats/`, where its finished work goes.
+    const ownFolder = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
+    if (ownFolder !== undefined) {
+      await fs
+        .cp(ownFolder, path.join(taskOutputDir, "chat-folder"), {
+          recursive: true,
+        })
+        .catch(() => {
+          return;
+        });
+    }
 
     if (!evalCase) {
       process.stderr.write(

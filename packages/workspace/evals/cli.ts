@@ -25,6 +25,13 @@ import {
 import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
 import { describeCost } from "./lib/run-cost";
 import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
+import {
+  formatGB,
+  MIN_FREE_DISK_BYTES,
+  removeWorkspace,
+  waitForDisk,
+  workspaceVerdict,
+} from "./lib/workspace-cleanup";
 import { combineTrials, generateReport } from "./report";
 import {
   c,
@@ -49,6 +56,7 @@ const { positionals, values } = parseArgs({
   options: {
     concurrency: { default: "8", type: "string" },
     "dry-run": { default: false, type: "boolean" },
+    "keep-workspace": { default: false, type: "boolean" },
     effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
     json: { default: false, type: "boolean" },
@@ -246,6 +254,9 @@ if (
     "                   --json prints the report as one line on stdout (see summary.json)\n",
   );
   process.stderr.write(
+    "                   --keep-workspace keeps each run's temp workspace, to score it again with `report`\n",
+  );
+  process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
   );
   process.stderr.write(
@@ -326,10 +337,13 @@ function costLines(rollup: Rollup): string[] {
 }
 
 function printSummary({
+  kept,
   outputDir: out,
   rollup,
   workspaceRootDir,
 }: {
+  /** Whether the workspace is still there to score again. */
+  kept: boolean;
   outputDir: string;
   rollup: Rollup;
   workspaceRootDir: string;
@@ -342,7 +356,7 @@ function printSummary({
     [
       "",
       `${c.dim}┌─ Eval Results ──────────────────────────────────────${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Workspace  :${c.reset} ${workspaceRootDir}`,
+      `${c.dim}│${c.reset}  ${c.dim}Workspace  :${c.reset} ${kept ? workspaceRootDir : `${workspaceRootDir} (removed)`}`,
       `${c.dim}│${c.reset}  ${c.dim}Results    :${c.reset} ${relativeOutputDir}`,
       ...(rollup.modelURIs.length > 0
         ? rollup.modelURIs.map(
@@ -370,8 +384,14 @@ function printSummary({
       ...costLines(rollup),
       `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
       "",
-      `${c.dim}Re-run the assertions against these same sessions, at no cost:${c.reset}`,
-      `  pnpm eval report ${workspaceRootDir}`,
+      ...(kept
+        ? [
+            `${c.dim}Re-run the assertions against these same sessions, at no cost:${c.reset}`,
+            `  pnpm eval report ${workspaceRootDir}`,
+          ]
+        : [
+            `${c.dim}The workspace is removed; run with --keep-workspace to score these sessions again with \`pnpm eval report\`.${c.reset}`,
+          ]),
       "",
     ].join("\n"),
   );
@@ -522,7 +542,12 @@ switch (subcommand) {
       workspaceRootDir: absoluteWorkspaceDir,
     });
 
-    printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
+    printSummary({
+      kept: true,
+      outputDir,
+      rollup,
+      workspaceRootDir: absoluteWorkspaceDir,
+    });
     if (values.json) {
       await emitReport(`${JSON.stringify(rollup)}\n`);
     }
@@ -602,6 +627,22 @@ switch (subcommand) {
     }
 
     sweepOldRuns();
+    if (!dryRun) {
+      try {
+        await waitForDisk({
+          onWait: (free) => {
+            write(
+              `${c.yellow}Waiting for disk space${c.reset}${c.dim}: ${formatGB(free)} free on the disk holding ${os.tmpdir()}, under the ${formatGB(MIN_FREE_DISK_BYTES)} a case needs. Checking every 30 seconds.${c.reset}\n`,
+            );
+          },
+        });
+      } catch (error) {
+        write(
+          `${c.red}${error instanceof Error ? error.message : String(error)}${c.reset}\n`,
+        );
+        process.exit(1);
+      }
+    }
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
@@ -621,19 +662,49 @@ switch (subcommand) {
         `\n${c.green}All evals complete.${c.reset} ${c.dim}Generating report...${c.reset}\n`,
       );
 
-      const rollup = await generateReport({
-        evalCases: filteredEvals,
-        includeContextMessages,
-        outputDir,
-        runs,
-        workspaceRootDir,
-      });
+      let rollup: Rollup;
+      try {
+        rollup = await generateReport({
+          evalCases: filteredEvals,
+          includeContextMessages,
+          outputDir,
+          runs,
+          workspaceRootDir,
+        });
+      } catch (error) {
+        const verdict = workspaceVerdict({
+          keep: values["keep-workspace"],
+          recordsCopied: false,
+        });
+        if (!verdict.remove) {
+          write(
+            `${c.yellow}Workspace ${verdict.reason}:${c.reset} ${workspaceRootDir}\n`,
+          );
+        }
+        throw error;
+      }
       removePreparedSkills(workspaceRootDir);
       if (process.env.APP_CLAUDE_CODE_PATH) {
         await removeClaudeAccountLeftovers();
       }
 
-      printSummary({ outputDir, rollup, workspaceRootDir });
+      const verdict = workspaceVerdict({
+        keep: values["keep-workspace"],
+        recordsCopied: true,
+      });
+      const removed =
+        verdict.remove && (await removeWorkspace(workspaceRootDir));
+      if (verdict.remove && !removed) {
+        write(
+          `${c.yellow}Workspace could not be removed:${c.reset} ${workspaceRootDir}\n`,
+        );
+      }
+      printSummary({
+        kept: !removed,
+        outputDir,
+        rollup,
+        workspaceRootDir,
+      });
       printTranscripts({ outputDir, rollup });
       if (values.json) {
         await emitReport(`${JSON.stringify(rollup)}\n`);

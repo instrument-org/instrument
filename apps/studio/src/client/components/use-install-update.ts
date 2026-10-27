@@ -1,5 +1,6 @@
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 /**
@@ -37,4 +38,17 @@ export function showsAsRestarting(
       status === "downloaded" ||
       status === "installing")
   );
+}
+
+/**
+ * Whether installing will ask for the person's password, which a Linux package
+ * does, so the button that starts it can say so first.
+ */
+export function useInstallAsksForPassword() {
+  const { data } = useQuery(
+    rpcClient.updates.installAsksForPassword.queryOptions({
+      staleTime: Infinity,
+    }),
+  );
+  return data ?? false;
 }

@@ -12,6 +12,7 @@ import { formatRelativeTime } from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import {
   showsAsRestarting,
+  useInstallAsksForPassword,
   useInstallUpdate,
 } from "@/client/components/use-install-update";
 import { rpcClient } from "@/client/rpc/client";
@@ -158,16 +159,13 @@ export function UpdateStatusIndicator() {
       if (updateState?.type === "downloaded") {
         const [error, result] = await install();
         if (error) {
-          // Settings' update section holds the retry and manual-download recourse.
-          toast.error("Couldn't install the update", {
-            action: {
-              label: "Open Settings",
-              onClick: () => {
-                openSettings({ tab: "General" });
-              },
-            },
-            cause: error,
-          });
+          toastInstallFailure(error);
+          return;
+        }
+        // A failed install, a declined password prompt among them, leaves the
+        // app running on the version it had.
+        if (result.type === "failed") {
+          toastInstallFailure(new Error(result.message));
           return;
         }
         // The badge has no copy beside it, so a pre-install check that found a
@@ -424,6 +422,20 @@ function notesQuery(version: string | undefined) {
  * to get first. The notes are fetched as soon as the pill shows, so the card
  * opens with them.
  */
+function toastInstallFailure(cause: unknown) {
+  // Settings' update section holds the retry and manual-download recourse.
+  toast.error("Couldn't install the update", {
+    action: {
+      label: "Open Settings",
+      onClick: () => {
+        openSettings({ tab: "General" });
+      },
+    },
+    cause,
+    description: "You can try again whenever you're ready.",
+  });
+}
+
 function UpdateReadyCard({
   children,
   onRestart,
@@ -455,6 +467,7 @@ function UpdateReadyCardBody({
   const { data: notes, isPending } = useQuery(notesQuery(version));
   const appTabs = useAppTabs();
   const now = useNow();
+  const asksForPassword = useInstallAsksForPassword();
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
@@ -493,6 +506,11 @@ function UpdateReadyCardBody({
             We couldn't load the notes for this version yet.
           </p>
         )
+      )}
+      {asksForPassword && (
+        <p className="text-xs text-muted-foreground">
+          Your computer will ask for your password to install the update.
+        </p>
       )}
       <div className="flex items-center justify-between">
         <Button

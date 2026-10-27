@@ -99,6 +99,7 @@ vi.mock("@/electron-main/stores/machine/state", () => ({
 const {
   createStudioAppUpdater,
   deferInstallOnQuit,
+  installAsksForPassword,
   isDebInstall,
   publishedSha512,
   stagedArtifactProblem,
@@ -138,6 +139,28 @@ function packagedAs(packageType: string | undefined) {
     value: resources,
   });
 }
+
+describe("installAsksForPassword", () => {
+  it.each([
+    { expected: true, packageType: "deb\n", platform: "linux" },
+    { expected: true, packageType: "rpm\n", platform: "linux" },
+    { expected: true, packageType: "pacman\n", platform: "linux" },
+    // An AppImage build ships no marker and replaces itself.
+    { expected: false, packageType: undefined, platform: "linux" },
+    { expected: false, packageType: "", platform: "linux" },
+    { expected: false, packageType: "deb", platform: "darwin" },
+    { expected: false, packageType: "rpm", platform: "win32" },
+  ] satisfies {
+    expected: boolean;
+    packageType: string | undefined;
+    platform: NodeJS.Platform;
+  }[])(
+    "is $expected for $packageType on $platform",
+    ({ expected, packageType, platform }) => {
+      expect(installAsksForPassword({ packageType, platform })).toBe(expected);
+    },
+  );
+});
 
 describe("isDebInstall", () => {
   it.each([

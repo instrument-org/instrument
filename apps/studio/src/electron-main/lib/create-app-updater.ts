@@ -23,6 +23,9 @@ export interface AppUpdaterHandle {
   checkAfterWake: () => void;
   checkForUpdates: (options?: { notify?: boolean }) => Promise<void>;
   getStatus: () => AppUpdaterStatus | null;
+  // Whether installing asks for the person's password, so the app can say so
+  // before they start it.
+  installAsksForPassword: boolean;
   pollForUpdates: () => void;
   quitAndInstall: () => Promise<InstallOutcome>;
 }
@@ -91,6 +94,7 @@ export function createAppUpdater({
   farewell,
   getCurrentVersion,
   withdrawQuit,
+  installAsksForPassword,
   installNotice,
   log,
   publish,
@@ -104,6 +108,7 @@ export function createAppUpdater({
   // for the person to see the app restarting rather than vanish mid-click.
   farewell?: () => Promise<void>;
   getCurrentVersion: () => string;
+  installAsksForPassword: boolean;
   // Platform copy shown while the install runs, where it takes long enough to
   // need explaining.
   installNotice: string | undefined;
@@ -563,6 +568,7 @@ export function createAppUpdater({
     },
     checkForUpdates,
     getStatus: () => status,
+    installAsksForPassword,
 
     pollForUpdates: () => {
       polling = true;

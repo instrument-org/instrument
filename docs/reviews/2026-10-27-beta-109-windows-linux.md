@@ -43,7 +43,7 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### D. A deb update asks for an administrator password with the app gone from the screen
 
-- Status: open
+- Status: fixed
 - What: "Install now" runs `pkexec dpkg -i`, so for over a minute the only thing on screen was polkit's password dialog, with no app window and no "Restarting" state. Someone who cancels or doesn't know the password gets no word from the app. The relaunched app came back up outside the test host's service, which may only matter to the test tooling.
 
 ### E. Preview builds receive no `instrument://` links on Linux

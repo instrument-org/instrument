@@ -27,6 +27,7 @@ import { Progress } from "@/client/components/ui/progress";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
   showsAsRestarting,
+  useInstallAsksForPassword,
   useInstallUpdate,
 } from "@/client/components/use-install-update";
 import {
@@ -129,6 +130,7 @@ function About() {
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
   const { install, restarting } = useInstallUpdate();
+  const asksForPassword = useInstallAsksForPassword();
   // The status the main process publishes on the way to a restart, said as
   // the restart from the press on.
   const showRestarting = showsAsRestarting(restarting, updateState?.type);
@@ -229,6 +231,8 @@ function About() {
             {isLinux()
               ? `Version ${version} is ready to install. Installing takes a few minutes, and ${APP_NAME} restarts when it's done.`
               : `Version ${version} is ready to install. ${APP_NAME} restarts when you install it.`}
+            {asksForPassword &&
+              " Your computer will ask for your password first."}
           </div>
         );
       }

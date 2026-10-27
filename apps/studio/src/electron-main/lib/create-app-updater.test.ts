@@ -67,6 +67,7 @@ function createHarness({
   const updater = createAppUpdater({
     confirmQuit,
     getCurrentVersion: () => currentVersion,
+    installAsksForPassword: false,
     installNotice: undefined,
     log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
     publish: (status) => published.push(status),

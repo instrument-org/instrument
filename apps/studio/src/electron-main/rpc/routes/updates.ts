@@ -15,5 +15,9 @@ const live = {
 };
 
 export const updates = {
+  // Fixed for the life of the process, by how the app was installed.
+  installAsksForPassword: base.handler(
+    ({ context }) => context.appUpdater.installAsksForPassword,
+  ),
   live,
 };

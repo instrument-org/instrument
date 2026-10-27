@@ -154,6 +154,10 @@ export function createStudioAppUpdater({
       withdrawQuit?.();
     },
     getCurrentVersion: () => app.getVersion(),
+    installAsksForPassword: installAsksForPassword({
+      packageType: readPackageType(),
+      platform: os.platform(),
+    }),
     installNotice: getInstallNotice(),
     log: scopedLogger,
     publish: (status) => {
@@ -188,6 +192,25 @@ export function isDebInstall({
   platform: NodeJS.Platform;
 }) {
   return platform === "linux" && packageType?.trim() === "deb";
+}
+
+/**
+ * Whether installing an update asks for the person's password: a Linux
+ * package (deb, rpm or pacman, by the same marker as `isDebInstall`), which
+ * installs as root through `pkexec`. An AppImage replaces itself, and macOS
+ * and Windows install without asking.
+ */
+export function installAsksForPassword({
+  packageType,
+  platform,
+}: {
+  packageType: string | undefined;
+  platform: NodeJS.Platform;
+}) {
+  return (
+    platform === "linux" &&
+    ["deb", "pacman", "rpm"].includes(packageType?.trim() ?? "")
+  );
 }
 
 // The debug lines worth keeping: the proxy-server lifecycle and, on macOS, the

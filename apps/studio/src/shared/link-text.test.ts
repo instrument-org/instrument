@@ -49,6 +49,7 @@ describe("splitLinks", () => {
     ["ends a sentence", "see https://example.com/a.", "."],
     ["ends a clause", "see https://example.com/a, then", ", then"],
     ["is quoted", "see https://example.com/a?", "?"],
+    ["closes inline code", "see https://example.com/a`", "`"],
   ])("leaves punctuation that %s outside the link", (_case, text, tail) => {
     expect(shape(text)).toBe(
       `see <https://example.com/a -> https://example.com/a>${tail}`,

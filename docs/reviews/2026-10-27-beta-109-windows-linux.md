@@ -102,6 +102,32 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 - What: toasts register as `electron.app.Instrument` and `electron.app.Instrument Preview (<name>)`. A guess, not checked: the app never calls `app.setAppUserModelId`.
 - Note: confirmed. The installer stamps the build's appId (`com.finalpoint.instrument`, or `com.finalpoint.instrument.preview.<name>`) on its shortcuts, and the Windows test host's desktop shortcuts still carry it, but Electron's toast setup rewrites the Start menu's `<product name>.lnk` with the process's own ID the first time it runs, so every Start menu shortcut of a build that had run read `electron.app.…`. The packaged app on Windows now takes the appId, so the shortcut the installer wrote and the one Electron keeps agree.
 
+### N. A task's toast doesn't show on Windows while the app has never been in front
+
+- Status: open
+- Where: [agent-completion-notifications.ts:228](/apps/studio/src/electron-main/lib/agent-completion-notifications.ts#L228)
+- What: in the rerun, with the default "Not focused" setting, a finished task's toast never reached Windows' notification store while the app sat behind Chrome without having been the foreground window that session (twice, once per launch). Bringing the app forward once and back behind Chrome made the next one arrive, and "Always" always did. The likely cause is `BrowserWindow.getFocusedWindow()` answering non-null for a window Windows never activated. Medium confidence; seen from a scheduled-task launch, which a launch at login or one held back by Windows' foreground lock would resemble.
+
+### O. A link followed by inline code's closing backtick keeps the backtick
+
+- Status: fixed
+- Where: [link-text.ts:28](/apps/studio/src/shared/link-text.ts#L28)
+- What: a message with `` `agent-browser open https://example.com` `` made a link to ``example.com` `` and its title lookup failed (`host: 'example.com`'`).
+
+### P. Opening a page in the Browser rail throws an uncaught undici assertion
+
+- Status: open
+- What: `AssertionError: assert(!this.paused)` from undici's `Parser.finish` / `onHttpSocketEnd`, twice, about 100 ms after opening example.com, shown at the next launch as "2 server exceptions". Also in beta 109's own logs, so it predates these fixes.
+
+### Q. Waking a sleeping tab logs a refused auto-attach
+
+- Status: open
+- What: `sendCommand error … Target.setAutoAttach error=Target filter should be empty when disabling auto-attach` when a sleeping guest wakes. Also in beta 109's own logs.
+
+## Rerun after the fixes
+
+A fresh preview of b2f9926a8 on the Windows test host: I passed in the same first session (the Browser rail and `agent-browser open` both loaded example.com), J passed for the address bar though Chrome's history still keeps an untitled row with the spent token, L read "preview", and M put Settings' test toast and the Start menu shortcut under the build's own app ID. The Linux rerun of A, B, I and L is recorded when it finishes.
+
 ## Not covered
 
 - Files on Windows (This PC, network share, exFAT), visible chat folders, crash report and shutdown, Controlled Folder Access: left out of this pass's scope.

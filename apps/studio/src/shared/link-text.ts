@@ -24,8 +24,9 @@ const BARE_LINK = new RegExp(
   "giu",
 );
 
-// What a sentence puts after a link rather than inside one.
-const TRAILING_PUNCTUATION = /[.,;:!?'"]+$/u;
+// What a sentence puts after a link rather than inside one, the backtick
+// closing inline code included.
+const TRAILING_PUNCTUATION = /[.,;:!?'"`]+$/u;
 
 /**
  * Split a line into the links it carries and the text around them.

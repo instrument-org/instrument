@@ -171,6 +171,37 @@ async function recordRollover({
     return undefined;
   }
 
+  const mark = () =>
+    ChatWrites.savePart(
+      {
+        data: {
+          droppedMessages: history.length - narrowed.length,
+          retainedUserMessages: narrowed.length,
+          ...(summary !== undefined && {
+            summary: summary.summary,
+            summaryUsage: summary.usage,
+          }),
+        },
+        metadata: {
+          createdAt: new Date(),
+          id: StoreId.newPartId(),
+          messageId: newest.id,
+          sessionId,
+        },
+        type: "data-contextRollover",
+      },
+      chatId,
+    );
+
+  // A summary is what the turns before the boundary are sent as, so it is
+  // written before the boundary, and a summary that could not be written
+  // draws none: the session keeps sending its whole history rather than
+  // dropping turns with nothing in their place. A boundary that then fails
+  // leaves the mark without one, which drops nothing.
+  if (summary !== undefined && (await mark()).isErr()) {
+    return undefined;
+  }
+
   // The row is read here rather than taken from the boundary read before,
   // because the row is what is written: the store is still what keeps a
   // session, and a row written from anything but itself would carry the
@@ -206,32 +237,15 @@ async function recordRollover({
     return undefined;
   }
 
-  // Written here, behind the same successful save, so the mark in the
-  // transcript and the boundary assembly reads are recorded together or
-  // not at all. A failed part leaves the rollover itself intact: the
-  // session is still correct, it is only undrawn, and memory told on a
-  // message the cut dropped is not told again (`lastToldMemory` reads
-  // the window from this mark).
-  await ChatWrites.savePart(
-    {
-      data: {
-        droppedMessages: history.length - narrowed.length,
-        retainedUserMessages: narrowed.length,
-        ...(summary !== undefined && {
-          summary: summary.summary,
-          summaryUsage: summary.usage,
-        }),
-      },
-      metadata: {
-        createdAt: new Date(),
-        id: StoreId.newPartId(),
-        messageId: newest.id,
-        sessionId,
-      },
-      type: "data-contextRollover",
-    },
-    chatId,
-  );
+  // Without a summary the mark is written here, behind the successful
+  // save, so the mark in the transcript and the boundary assembly reads are
+  // recorded together or not at all. A failed part leaves the rollover
+  // itself intact: the session is still correct, it is only undrawn, and
+  // memory told on a message the cut dropped is not told again
+  // (`lastToldMemory` reads the window from this mark).
+  if (summary === undefined) {
+    await mark();
+  }
   return { boundary: newest.id, narrowed };
 }
 

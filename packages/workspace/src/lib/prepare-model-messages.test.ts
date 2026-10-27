@@ -3,6 +3,7 @@ import type { ModelMessage } from "ai";
 import { subMinutes } from "date-fns";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { errAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import type { SessionMessage } from "../schemas/session/message";
@@ -17,6 +18,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { ChatReads } from "./chat-reads";
 import { ChatWrites } from "./chat-writes";
+import { TypedError } from "./errors";
 import { prepareModelMessages } from "./prepare-model-messages";
 import { SESSION_CONTEXT_VERSION } from "./session-baseline";
 import { chatDir } from "./record-folders";
@@ -1271,6 +1273,33 @@ describe("prepareModelMessages", () => {
         expect(
           modelTexts(later).find((text) => text.includes("<context-rollover>")),
         ).toContain("The user asked a first question.");
+      });
+
+      it("draws no boundary when the summary cannot be written", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        const savePart = ChatWrites.savePart.bind(ChatWrites);
+        const spy = vi
+          .spyOn(ChatWrites, "savePart")
+          .mockImplementation((part, id) =>
+            part.type === "data-contextRollover"
+              ? errAsync(new TypedError.Storage("Write failed"))
+              : savePart(part, id),
+          );
+        try {
+          const messages = await prepareWith(() =>
+            Promise.resolve({ summary: "Lost.", usage: {} }),
+          );
+
+          expect(await storedBoundary()).toBeUndefined();
+          expect(
+            modelTexts(messages).some((text) => text.includes("turn 0")),
+          ).toBe(true);
+        } finally {
+          spy.mockRestore();
+        }
       });
 
       it("keeps the history when no summary comes back", async () => {

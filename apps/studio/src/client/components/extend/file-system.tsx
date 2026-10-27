@@ -3169,7 +3169,7 @@ export function FileSystem({
       sort={sort}
     />
   );
-  const searchField = (layout: "compact" | "full" | "minimal") => (
+  const searchField = (layout: "compact" | "full" | "minimal" | "row") => (
     <FileSystemSearchField
       inputRef={searchInputRef}
       isExpanded={isSearchExpanded}
@@ -3263,23 +3263,33 @@ export function FileSystem({
                   event.preventDefault();
                 }}
               >
-                {toolbarInto.tail === undefined
-                  ? viewSelect
-                  : viewTabs("flex gap-0")}
-                {sortMenu}
-                {/* With the folder alone, its menu and search follow sort,
-                    beside the rows they act on and where search stands
-                    beside a file; beside a file, search alone, at the
-                    section's end. */}
-                {toolbarInto.tail === undefined ? (
-                  <>
-                    <span className="flex-1" />
-                    {searchField("compact")}
-                  </>
+                {/* Search, while it has the keyboard, takes the folder's
+                    controls' place, the way the Finder's toolbar opens its
+                    field over the items beside it; Esc or a click away gives
+                    them back. */}
+                {isSearchExpanded ? (
+                  searchField("row")
                 ) : (
                   <>
-                    {renderHeaderActions ? renderHeaderActions() : null}
-                    {searchField("compact")}
+                    {toolbarInto.tail === undefined
+                      ? viewSelect
+                      : viewTabs("flex gap-0")}
+                    {sortMenu}
+                    {/* With the folder alone, its menu and search follow
+                        sort, beside the rows they act on and where search
+                        stands beside a file; beside a file, search alone, at
+                        the section's end. */}
+                    {toolbarInto.tail === undefined ? (
+                      <>
+                        <span className="flex-1" />
+                        {searchField("row")}
+                      </>
+                    ) : (
+                      <>
+                        {renderHeaderActions ? renderHeaderActions() : null}
+                        {searchField("row")}
+                      </>
+                    )}
                   </>
                 )}
               </div>,
@@ -3504,7 +3514,7 @@ function FileSystemSearchField({
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   isExpanded: boolean;
-  layout: "compact" | "full" | "minimal";
+  layout: "compact" | "full" | "minimal" | "row";
   onExpandedChange: (isExpanded: boolean) => void;
   onValueChange: (value: string) => void;
   value: string;
@@ -3597,24 +3607,65 @@ function FileSystemSearchField({
       </div>
     );
   }
+  // Searched, the button says for what, so a folder showing less than it has
+  // says why at a glance.
+  const searchedButton = (onPress?: () => void) => (
+    <button
+      aria-label={`Search: ${value}`}
+      className={cn(
+        TOOLBAR_CONTROL_CLASSNAME,
+        "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
+      )}
+      onClick={onPress}
+      title={`Search: ${value}`}
+      type="button"
+    >
+      <Search className="size-3.5 shrink-0" />
+      <span className="truncate">{value}</span>
+    </button>
+  );
+  if (layout === "row") {
+    // A button until asked for; asked for, the field across the row the
+    // folder's controls stood in, which folds back into the button, naming
+    // what it holds, once the keyboard leaves it.
+    if (!isExpanded) {
+      return value ? (
+        searchedButton(() => onExpandedChange(true))
+      ) : (
+        <button
+          aria-label="Search"
+          className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+          onClick={() => onExpandedChange(true)}
+          title="Search"
+          type="button"
+        >
+          <Search className="size-4" />
+        </button>
+      );
+    }
+    return (
+      <div
+        className="flex min-w-32 flex-1 items-center"
+        onBlur={(event) => {
+          if (
+            !(
+              event.relatedTarget instanceof Node &&
+              event.currentTarget.contains(event.relatedTarget)
+            )
+          ) {
+            onExpandedChange(false);
+          }
+        }}
+      >
+        {input}
+      </div>
+    );
+  }
   return (
     <Popover onOpenChange={onExpandedChange} open={isExpanded}>
       <PopoverTrigger asChild>
-        {/* Searched, the button says for what, so a folder showing less than
-            it has says why at a glance. */}
         {value ? (
-          <button
-            aria-label={`Search: ${value}`}
-            className={cn(
-              TOOLBAR_CONTROL_CLASSNAME,
-              "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
-            )}
-            title={`Search: ${value}`}
-            type="button"
-          >
-            <Search className="size-3.5 shrink-0" />
-            <span className="truncate">{value}</span>
-          </button>
+          searchedButton()
         ) : (
           <button
             aria-label="Search"

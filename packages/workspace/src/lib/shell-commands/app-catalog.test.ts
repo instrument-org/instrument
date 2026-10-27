@@ -1,5 +1,5 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
@@ -48,41 +48,53 @@ async function catalogOnMac(...words: string[]) {
 }
 
 describe("app catalog", () => {
-  // The helper is the only way into Reminders, so a build without it says
-  // there is none rather than naming a command it lacks.
+  // The Mac's own apps are set up on the server the app ships for each, on
+  // a Mac whose build carries it, and the helper's apps also need the
+  // helper; anywhere else there is no way in, which the line says.
   it.each([
     [
-      undefined,
+      "apple-reminders",
+      { server: true },
       "set up: none: Instrument has no way into Reminders in this build",
     ],
-    ["/app/bin/instrument-mac", "do it with the `instrument calendar` command"],
-  ])("sends Reminders through the helper when it is %s", async (bin, line) => {
+    [
+      "apple-reminders",
+      { helper: true, server: true },
+      "set up: instrument app new apple-reminders --name 'Reminders' --local apple-reminders --runtime bundled, then connect_app",
+    ],
+    [
+      "apple-mail",
+      { server: true },
+      "set up: instrument app new apple-mail --name 'Mail' --local apple-mail --runtime bundled, then connect_app",
+    ],
+    [
+      "apple-notes",
+      {},
+      "set up: none: Instrument has no way into Notes in this build",
+    ],
+  ])("sets %s up as the build allows (%o)", async (slug, has, line) => {
     const config = getWorkspaceConfig();
-    const { macHelperBinPath: _absent, ...without } = config;
-    setWorkspaceConfig(
-      bin === undefined
-        ? without
-        : { ...config, macHelperBinPath: AbsolutePathSchema.parse(bin) },
-    );
+    const {
+      macAppsServer: _server,
+      macHelperBinPath: _helper,
+      ...without
+    } = config;
+    setWorkspaceConfig({
+      ...without,
+      ...("helper" in has && {
+        macHelperBinPath: AbsolutePathSchema.parse("/app/bin/instrument-mac"),
+      }),
+      ...("server" in has && {
+        macAppsServer: {
+          args: ["/app/mac-apps.js"],
+          command: "/app/Instrument",
+        },
+      }),
+    });
     try {
-      expect(await catalog("apple-reminders")).toContain(line);
+      expect(await catalogOnMac(slug)).toContain(line);
     } finally {
       setWorkspaceConfig(config);
-    }
-  });
-
-  it.each([
-    ["apple-mail", "instrument mail"],
-    ["apple-notes", "instrument notes"],
-    ["apple-messages", "instrument messages"],
-  ])("sends %s through the `%s` command on a Mac", async (slug, command) => {
-    vi.stubGlobal("process", { ...process, platform: "darwin" });
-    try {
-      expect(await catalog(slug)).toContain(
-        `do it with the \`${command}\` command`,
-      );
-    } finally {
-      vi.unstubAllGlobals();
     }
   });
 
@@ -223,18 +235,19 @@ describe("app catalog", () => {
     ).toEqual([]);
   });
 
-  it("works the Mac's own apps with nothing to connect", async () => {
-    const text = await catalogOnMac("apple notes");
-    expect(text).toContain("set up: nothing to connect");
-    expect(text).not.toContain("account is added");
-  });
-
   it("reaches Gmail through Mail until its sign-in client clears", async () => {
-    const text = await catalogOnMac("gmail");
-    expect(text).toContain(
-      "set up: nothing to connect, and no `instrument app new`: when the user asks for something in Mail",
-    );
-    expect(text).toContain("only when its account is added to Mail");
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      macAppsServer: { args: ["/app/mac-apps.js"], command: "/app/Instrument" },
+    });
+    try {
+      expect(await catalogOnMac("gmail")).toContain(
+        "set up: through Mail on this Mac when its account is added there, which is `instrument app catalog apple-mail`",
+      );
+    } finally {
+      setWorkspaceConfig(config);
+    }
   });
 
   // A query names a service, so an entry that is the thing asked for comes

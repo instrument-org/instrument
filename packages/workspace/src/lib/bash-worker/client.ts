@@ -134,6 +134,9 @@ export function createRemoteBash(
             answerChannel({
               chatId: options.chatId,
               ...(options.model === undefined ? {} : { model: options.model }),
+              ...(options.callPartId === undefined
+                ? {}
+                : { partId: options.callPartId }),
               role: options.role ?? "task",
               sessionId: options.sessionId,
             }),

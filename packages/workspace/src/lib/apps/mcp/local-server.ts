@@ -1,4 +1,4 @@
-import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { APP_NAME, WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { execa } from "execa";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
@@ -11,6 +11,7 @@ import { commandLineToolsEnv } from "../../command-line-tools-env";
 import { nodeBuildEnvFor, uvBuildEnvFor } from "../../tool-isolation-env";
 import { shellPathReady } from "../../login-shell-path";
 import { getWorkspaceConfig } from "../../workspace-config";
+import { macAppNamed } from "../../mac-apps/apps";
 import { type LocalMcpAppManifest } from "../manifest";
 import { workspaceMachineDir } from "../../workspace-machine-dir";
 
@@ -38,6 +39,9 @@ const INSTALL_TIMEOUT_MS = 120_000;
  * show, because the manifest cannot name one.
  */
 export function describeLocalLaunch(manifest: LocalMcpAppManifest): string {
+  if (manifest.runtime === "bundled") {
+    return `${APP_NAME}'s own server for ${macAppNamed(manifest.package)?.name ?? manifest.package}`;
+  }
   const registry = manifest.runtime === "node" ? "npm" : "PyPI";
   const args =
     manifest.args && manifest.args.length > 0
@@ -71,6 +75,9 @@ export async function prepareLocalServer({
   // process's PATH, so the first launch after startup waits for the login
   // shell's.
   await shellPathReady();
+  if (manifest.runtime === "bundled") {
+    return bundledLaunch(manifest);
+  }
   if (manifest.runtime === "python") {
     return ok({
       args: ["tool", "run", manifest.package, ...(manifest.args ?? [])],
@@ -88,6 +95,36 @@ export async function prepareLocalServer({
     args: [installed.value, ...(manifest.args ?? [])],
     command: process.execPath,
     env: { ...getWorkspaceConfig().nodeExecEnv },
+  });
+}
+
+/**
+ * How one of the servers the app ships starts: the Mac apps' server, run as
+ * Node by the app's own executable, as a child of the app like every local
+ * server, with the helper's path where the build carries it. None for a
+ * server this build or this computer lacks.
+ */
+function bundledLaunch(
+  manifest: LocalMcpAppManifest,
+): Result<LocalServerLaunch, string> {
+  const app = macAppNamed(manifest.package);
+  const { macAppsServer, macHelperBinPath, nodeExecEnv } = getWorkspaceConfig();
+  if (
+    app === undefined ||
+    macAppsServer === undefined ||
+    (app.through === "helper" && macHelperBinPath === undefined)
+  ) {
+    return err(
+      `This build has no way into ${app?.name ?? manifest.package} on this computer.`,
+    );
+  }
+  return ok({
+    args: [...macAppsServer.args, app.server],
+    command: macAppsServer.command,
+    env: {
+      ...nodeExecEnv,
+      ...(macHelperBinPath && { INSTRUMENT_MAC_HELPER: macHelperBinPath }),
+    },
   });
 }
 

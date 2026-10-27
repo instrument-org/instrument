@@ -235,14 +235,14 @@ const MACOS_PERMISSION_APPS: ReadonlySet<string> = new Set([
  * Raises the chat's card for what macOS says about `app`, which the
  * person's rules already allow, when it keeps the app out: refused, with
  * the way to the setting, or not asked yet, which the card has macOS ask
- * beside it. Answers what the agent is told instead of running into it, or
- * undefined when macOS lets the app in or can't say.
+ * beside it. Answers the card's id and what the agent is told instead of
+ * running into it, or undefined when macOS lets the app in or can't say.
  */
 export async function macosAppCard(
-  asker: Asker | undefined,
+  asker: Asker,
   app: MacApp,
   { known }: { known?: "denied" } = {},
-): Promise<string | undefined> {
+): Promise<{ askId: string; message: string } | undefined> {
   // A command asks this while its script runs, where just-bash keeps
   // timers from being set; asking macOS sets the app's own.
   const standing =
@@ -251,15 +251,17 @@ export async function macosAppCard(
   if (standing !== "denied" && standing !== "not-asked") {
     return undefined;
   }
-  if (asker !== undefined) {
-    await recordAsk(asker, "app", app.name, {
-      allowed: "allowed",
-      status: standing === "denied" ? "macos-refused" : "macos-asking",
-    });
-  }
-  return standing === "denied"
-    ? `macOS itself keeps ${APP_NAME} out of ${app.name}, not the person's settings. They now see a card that opens the setting, and their answer wakes you; stop here and say what you're waiting for.`
-    : `macOS asks the person before ${APP_NAME} first uses ${app.name}. They now see a card beside the system's prompt, and their answer wakes you; stop here and say what you're waiting for.`;
+  const askId = await recordAsk(asker, "app", app.name, {
+    allowed: "allowed",
+    status: standing === "denied" ? "macos-refused" : "macos-asking",
+  });
+  return {
+    askId,
+    message:
+      standing === "denied"
+        ? `macOS itself keeps ${APP_NAME} out of ${app.name}, not the person's settings. They now see a card that opens the setting, and their answer wakes you; stop here and say what you're waiting for.`
+        : `macOS asks the person before ${APP_NAME} first uses ${app.name}. They now see a card beside the system's prompt, and their answer wakes you; stop here and say what you're waiting for.`,
+  };
 }
 
 /** What macOS last said about each app, by bundle id, for when it can't say now. */

@@ -18,7 +18,9 @@ import {
   accountCanWrite,
   systemOwnedNote,
 } from "../lib/permissions/account-can-write";
+import { MAC_APPS } from "../lib/mac-apps/apps";
 import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
+import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { chatRules } from "../lib/permissions/chat-rules";
 import { reachOf } from "../lib/permissions/rules";
 import { askableFolder, closedNote } from "../lib/permissions/rules-fs";
@@ -40,7 +42,7 @@ import { setupTool } from "./create-tool";
 export const AskPermission = setupTool({
   inputSchema: BaseInputSchema.extend({
     kind: z.enum(["app", "folder"]).meta({
-      description: "A folder, or a Mac app such as Messages or Shortcuts.",
+      description: "A folder, or a Mac app such as Shortcuts.",
     }),
     reason: z.string().trim().min(1).max(300).meta({
       description:
@@ -48,7 +50,7 @@ export const AskPermission = setupTool({
     }),
     target: z.string().trim().min(1).meta({
       description:
-        "For a folder, its full path, or the path of a file in it. For an app, its name as macOS shows it: 'Messages'.",
+        "For a folder, its full path, or the path of a file in it. For an app, its name as macOS shows it: 'Shortcuts'.",
     }),
   }),
   name: "ask_permission",
@@ -262,6 +264,15 @@ async function appToAsk(
   if (bundleId === undefined) {
     return {
       message: `No app called ${JSON.stringify(given)} is on this computer.`,
+      state: "refused",
+    };
+  }
+  // One of the Mac's own apps is an app in Apps, which connecting covers
+  // every chat for; its tools raise macOS's card themselves.
+  const inApps = MAC_APPS.find((each) => each.bundleId === bundleId);
+  if (inApps !== undefined) {
+    return {
+      message: `${inApps.name} is an app in Apps rather than something to ask for here. Use it with \`${APP_COMMAND.name} call ${inApps.server}\`; if it isn't connected, \`${APP_COMMAND.name} catalog ${inApps.server}\` has its set-up line, then connect_app.`,
       state: "refused",
     };
   }

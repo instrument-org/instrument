@@ -410,12 +410,12 @@ describe("macOS refusing the app", () => {
   it("leaves any other failure unmarked", async () => {
     const { backend } = recording({
       exitCode: 1,
-      stderr: "There is no calendar named Wrk.",
+      stderr: "There is no calendar named Work.",
       stdout: "",
     });
     const client = await connect("apple-calendar", backend);
     const result = await client.callTool({
-      arguments: { calendar: "Wrk" },
+      arguments: { calendar: "Work" },
       name: "list_events",
     });
     expect(result.isError).toBe(true);

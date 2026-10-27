@@ -54,6 +54,8 @@ export interface McpConnectionError {
 
 interface McpCallResult {
   isError: boolean;
+  /** The result's `_meta`, as the server sent it. */
+  meta: unknown;
   /** The tool's `structuredContent`, where the server sent one: the result as data rather than prose. */
   structured?: object;
   text: string;
@@ -95,6 +97,7 @@ export async function callMcpTool(
     : undefined;
   return {
     isError: result.isError === true,
+    meta: result._meta,
     structured,
     // A server should send the text form too, but one that sends only the
     // data still has said something.

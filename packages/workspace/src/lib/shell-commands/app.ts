@@ -50,15 +50,13 @@ import {
 import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
+import { macAppNamed } from "../mac-apps/apps";
+import { bundledMacAppHere } from "../apps/mac-app";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "./app-command";
-import { CALENDAR_COMMAND, CONTACTS_COMMAND } from "./mac-helper";
-import { MAIL_COMMAND } from "./mail";
-import { MESSAGES_COMMAND } from "./messages";
-import { NOTES_COMMAND } from "./notes";
 import {
   defineSubcommands,
   type Subcommand,
@@ -101,7 +99,7 @@ function appUsage(generated: string[]) {
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
-  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--service <directory-slug>] [--force]
+  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python|bundled] [--mac-app <bundle-id>] [--test <path>] [--service <directory-slug>] [--force]
       Write the app's ${APP_FILE_NAME} in the apps folder, from the directory's entry
       for the service when it has one: the setup as front matter over the
       guide. <slug> is the \`id\` in it, which every ${APP_COMMAND.name} subcommand names the
@@ -116,7 +114,9 @@ function appUsage(generated: string[]) {
       the base64 happens here, so the user pastes the key exactly as the service
       gave it to them and is never asked to encode or prefix anything.
       --local names an MCP server that runs on this machine, installed from npm
-      (--runtime node, the default) or PyPI (--runtime python): it defaults to
+      (--runtime node, the default) or PyPI (--runtime python), or one of the
+      Mac's own apps' servers ${APP_NAME} ships (--runtime bundled, the line
+      \`${APP_COMMAND.name} catalog\` gives for one): it defaults to
       no key, takes env:<VAR> when the server reads one from its environment,
       and the user has to allow it to run before it does. When it drives an
       app on this Mac, --mac-app takes that app's bundle identifier
@@ -221,32 +221,6 @@ const SETUP_SUBCOMMANDS = {
   }),
 } satisfies Record<string, Subcommand<AppCommandContext>>;
 
-/** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
-const HELPER_COMMANDS: Record<string, string> = {
-  "com.apple.AddressBook": CONTACTS_COMMAND.name,
-  "com.apple.iCal": CALENDAR_COMMAND.name,
-  "com.apple.reminders": CALENDAR_COMMAND.name,
-};
-
-/** Mac apps the app's own scripts drive, by bundle id, with the task command that reaches each. */
-const SCRIPTED_COMMANDS: Record<string, string> = {
-  "com.apple.MobileSMS": MESSAGES_COMMAND.name,
-  "com.apple.Notes": NOTES_COMMAND.name,
-  "com.apple.mail": MAIL_COMMAND.name,
-};
-
-/** The task command that reaches a Mac app, where this build has one: a script's on macOS, the helper's where the build carries it. */
-function nativeCommandFor(bundleId: string): string | undefined {
-  const scripted =
-    process.platform === "darwin" ? SCRIPTED_COMMANDS[bundleId] : undefined;
-  return (
-    scripted ??
-    (getWorkspaceConfig().macHelperBinPath === undefined
-      ? undefined
-      : HELPER_COMMANDS[bundleId])
-  );
-}
-
 /** The catalog, as lines: what each service is and how it is reached. */
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
@@ -269,8 +243,8 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
           )
           .join("; ");
   const way = catalogWayIn(entry);
-  const native =
-    way.kind === "mac-app" ? nativeCommandFor(way.bundleId) : undefined;
+  const macApp =
+    way.kind === "mac-app" ? bundledMacAppHere(way.bundleId) : undefined;
   const start = `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}'`;
   const howTo =
     way.kind === "mcp"
@@ -280,11 +254,13 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? native === undefined
+            ? macApp === undefined
               ? entry.family === "apple"
                 ? `none: ${APP_NAME} has no way into ${way.name} in this build, so tell the user that rather than looking for another way in.`
                 : `${start} --web ${entry.home ?? `https://${entry.domain}`}  (${APP_NAME} has no way into ${way.name} in this build, so ${entry.name} is worked on its site)`
-              : `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name}, which reads every account added there. The first time a chat uses ${way.name} the person is asked to allow it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+              : entry.family === "apple"
+                ? `${APP_COMMAND.name} new ${entry.slug} --name '${macApp.name}' --local ${macApp.server} --runtime bundled, then connect_app: ${APP_NAME}'s own way into ${macApp.name}, which reads every account added there.`
+                : `through ${macApp.name} on this Mac when its account is added there, which is \`${APP_COMMAND.name} catalog ${macApp.server}\`; otherwise \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`
             : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
@@ -576,7 +552,7 @@ async function runNew(input: SubcommandInput) {
     input.value("mac-app") !== undefined
   ) {
     throw new Error(
-      `a Mac app needs no app folder and no \`${APP_COMMAND.name} new\`: \`${APP_COMMAND.name} catalog <name>\` says which command reaches it, when one does.`,
+      `--mac-app goes with --local: \`${APP_COMMAND.name} catalog <name>\` has the set-up line for a Mac app ${APP_NAME} reaches itself.`,
     );
   }
   if ([mcp, api, local, web].filter(Boolean).length !== 1) {
@@ -630,12 +606,24 @@ async function runNew(input: SubcommandInput) {
   const test = input.value("test") ?? directoryTest;
   const serverArgs = input.all("arg");
   const runtime = input.value("runtime")?.trim() ?? "node";
-  if (local && runtime !== "node" && runtime !== "python") {
+  if (
+    local &&
+    runtime !== "node" &&
+    runtime !== "python" &&
+    runtime !== "bundled"
+  ) {
     throw new Error(
-      `--runtime takes node (an npm package) or python (a PyPI one), and defaults to node (got "${runtime}").`,
+      `--runtime takes node (an npm package), python (a PyPI one) or bundled (a Mac app's server ${APP_NAME} ships), and defaults to node (got "${runtime}").`,
     );
   }
-  const macApp = input.value("mac-app")?.trim();
+  const bundled =
+    local && runtime === "bundled" ? macAppNamed(local) : undefined;
+  if (bundled && bundledMacAppHere(bundled.bundleId) === undefined) {
+    throw new Error(
+      `${APP_NAME} has no way into ${bundled.name} on this computer, so tell the user that rather than looking for another way in.`,
+    );
+  }
+  const macApp = input.value("mac-app")?.trim() ?? bundled?.bundleId;
   if (macApp && !local) {
     throw new Error(
       "--mac-app goes with --local: only a server that runs on this machine drives a Mac app.",
@@ -682,7 +670,7 @@ async function runNew(input: SubcommandInput) {
     );
   }
   await refuseWhatCannotConnect(slug, name, manifest);
-  const guide = guideSkeleton(manifest, entry);
+  const guide = guideSkeleton(manifest, entry, slug);
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
     existing.isOk() && existing.value.manifest.type !== manifest.type;
@@ -799,6 +787,7 @@ async function refuseWhatCannotConnect(
   }
   if (
     manifest.type === "mcp-local" &&
+    manifest.runtime !== "bundled" &&
     (await packageExists(manifest.package, manifest.runtime)) === "missing"
   ) {
     throw new Error(

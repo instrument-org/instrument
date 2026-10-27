@@ -307,7 +307,7 @@ function cliSubcommand(
       .filter((field) => field.kind === "list" || field.kind === "pairs")
       .map((field) => field.flag),
     run: async (input, scope, shell): Promise<ExecResult> => {
-      const ctx = capabilityContexts(scope, "cli")(shell.signal);
+      const ctx = capabilityContexts(scope, "cli")(shell.signal, shell);
       const answer = await dispatch(
         capability.name,
         rawInput(capability, input, shell.stdin),

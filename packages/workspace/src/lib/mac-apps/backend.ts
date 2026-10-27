@@ -31,6 +31,15 @@ export interface MacAppBackend {
  */
 const OSASCRIPT_PATH = "/usr/bin/osascript";
 
+/** What a program needs of the server's environment. */
+const PASSED_ENV: ReadonlySet<string> = new Set([
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "TMPDIR",
+  "USER",
+]);
+
 /** Enough for a long list of messages or notes. */
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
@@ -46,10 +55,9 @@ function run(
   signal: AbortSignal | undefined,
 ): Promise<RunResult> {
   const env = Object.fromEntries(
-    ["HOME", "LANG", "LC_ALL", "TMPDIR", "USER"].flatMap((name) => {
-      const value = process.env[name];
-      return value === undefined ? [] : [[name, value]];
-    }),
+    Object.entries(process.env).filter(
+      ([name, value]) => value !== undefined && PASSED_ENV.has(name),
+    ),
   );
   return new Promise((resolve) => {
     execFile(

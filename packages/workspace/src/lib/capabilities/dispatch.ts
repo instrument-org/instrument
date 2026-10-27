@@ -184,6 +184,11 @@ export async function dispatch(
     }
     return { capability, input, output: await capability.run(input, ctx) };
   } catch (error) {
+    // A card the work itself met is up as a gate's is, and ends the turn
+    // the same way.
+    if (error instanceof CapabilityFailure && error.askId !== undefined) {
+      recordRaisedAsk(error.askId);
+    }
     return {
       error: {
         kind: error instanceof CapabilityFailure ? error.kind : "failed",

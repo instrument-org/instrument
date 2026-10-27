@@ -47,7 +47,13 @@ export function boundTo<T>(
   return stored?.origin === origin ? stored.value : undefined;
 }
 
-function packageName(runtime: "node" | "python", spec: string): string {
+function packageName(
+  runtime: "bundled" | "node" | "python",
+  spec: string,
+): string {
+  if (runtime === "bundled") {
+    return spec;
+  }
   if (runtime === "node") {
     // A scoped name starts with "@", so the version separator is the "@"
     // after the first character.

@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { omit } from "radashi";
 import { z } from "zod";
 
+import { MAC_APPS } from "../mac-apps/apps";
+
 // An app's `id` is its identity everywhere (the `app` command, the connection
 // record, the credential store, the UI), so keep it to a safe, predictable
 // set.
@@ -100,6 +102,13 @@ const PACKAGE_SPEC = {
     /^[\da-z](?:[\w.-]*[\da-z])?(?:\[[\w,.-]+\])?(?:[!<=>~]=?[\w.*+-]+)?$/i,
 } as const;
 
+/** Whether `spec` is one package to fetch for `runtime`, or for `bundled` one of the servers the app ships. */
+function isPackageFor(runtime: "bundled" | "node" | "python", spec: string) {
+  return runtime === "bundled"
+    ? MAC_APPS.some((app) => app.server === spec)
+    : PACKAGE_SPEC[runtime].test(spec);
+}
+
 export function isLoopbackHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return (
@@ -192,7 +201,9 @@ export type McpAppManifest = z.output<typeof McpAppManifestSchema>;
 
 // An "mcp-local" app: an MCP server that runs on this machine over stdio,
 // installed from a package registry and launched with the runtime the app
-// carries. Tools are discovered and called exactly as a hosted server's are.
+// carries, or, with runtime "bundled", one of the servers the app ships
+// (the Mac's own apps), named by `package`. Tools are discovered and called
+// exactly as a hosted server's are.
 const LocalMcpAppManifestSchema = z
   .strictObject({
     account: AccountSchema,
@@ -210,13 +221,12 @@ const LocalMcpAppManifestSchema = z
       })
       .optional(),
     package: z.string().min(1),
-    runtime: z.enum(["node", "python"]),
+    runtime: z.enum(["bundled", "node", "python"]),
     service: ServiceSchema,
     type: z.literal("mcp-local"),
   })
-  .refine((value) => PACKAGE_SPEC[value.runtime].test(value.package), {
-    message:
-      'package must be one package to install: an npm name for the node runtime ("@scope/name", optionally "@version"), a PyPI name for python. Paths, flags, and shell characters are refused; put arguments in "args".',
+  .refine((value) => isPackageFor(value.runtime, value.package), {
+    message: `package must be one package to install: an npm name for the node runtime ("@scope/name", optionally "@version"), a PyPI name for python, or for bundled one of ${MAC_APPS.map((app) => app.server).join(", ")}. Paths, flags, and shell characters are refused; put arguments in "args".`,
     path: ["package"],
   });
 

@@ -48,7 +48,10 @@ export async function withAppMcpClient<T>({
   const connection = await readConnection(slug);
   if (connection?.approvedManifestHash !== manifestHash) {
     return err({
-      message: `Running ${manifest.package} on this machine needs the user's go-ahead. Ask with connect_app; they see what would run and allow it.`,
+      message:
+        manifest.runtime === "bundled"
+          ? `Connecting ${slug} needs the user's go-ahead. Ask with connect_app; they connect it on the card.`
+          : `Running ${manifest.package} on this machine needs the user's go-ahead. Ask with connect_app; they see what would run and allow it.`,
       reason: "unapproved",
     });
   }

@@ -386,9 +386,14 @@ export interface WorkspaceConfig {
   // sandbox (`shell-commands/unsandboxed-uutils.ts`). Off, every call runs
   // sandboxed, which is what a test gets unless it asks.
   uutilsOutsideSandbox?: boolean;
-  // The bundled Mac helper behind the `instrument calendar` and `instrument contacts` commands and
-  // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
+  // The bundled Mac helper behind the Calendar, Reminders and Contacts apps'
+  // server and iCloud Drive's app folders; absent off macOS and in builds that
+  // do not carry it.
   macHelperBinPath?: AbsolutePath;
+  // How the Mac apps' MCP server the app ships starts (`lib/mac-apps/main.ts`):
+  // a program and the arguments ahead of the server's name, run with
+  // `nodeExecEnv`. Absent off macOS, where no app is `runtime: bundled`.
+  macAppsServer?: { args: string[]; command: string };
   // The Seatbelt launcher (`instrument-seatbelt`) native commands start
   // through on macOS, applying a profile compiled once per set of rules;
   // absent, they start through sandbox-exec.

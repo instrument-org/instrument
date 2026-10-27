@@ -165,13 +165,31 @@ describe("ask_permission", () => {
     "asks for a Mac app by its name",
     async () => {
       const chatId = createMockChatConfig(
+        ChatIdSchema.parse("ask-permission-shortcuts"),
+        { model },
+      );
+      expect(await ask(chatId, "app", "Shortcuts")).toEqual({
+        kind: "app",
+        state: "asked",
+        target: "Shortcuts",
+      });
+    },
+  );
+
+  // Connecting one of these in Apps covers every chat, so a chat has nothing
+  // of its own to ask for.
+  it.runIf(process.platform === "darwin")(
+    "sends one of the Mac apps in Apps to its app",
+    async () => {
+      const chatId = createMockChatConfig(
         ChatIdSchema.parse("ask-permission-messages"),
         { model },
       );
-      expect(await ask(chatId, "app", "Messages")).toEqual({
-        kind: "app",
-        state: "asked",
-        target: "Messages",
+      expect(await ask(chatId, "app", "Messages")).toMatchObject({
+        message: expect.stringContaining(
+          "`instrument app call apple-messages`",
+        ),
+        state: "refused",
       });
     },
   );

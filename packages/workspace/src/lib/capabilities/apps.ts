@@ -10,6 +10,12 @@ import {
 } from "../apps/connection";
 import { APP_FILE_NAME } from "../apps/app-file";
 import { isMcpManifest } from "../apps/manifest";
+import {
+  bundledMacApp,
+  macosRefusalCard,
+  withReadableFiles,
+} from "../apps/mac-app";
+import { macosAppCard } from "../permissions/macos";
 import { redactorFor, requireAppCredential } from "../apps/credential-origin";
 import { appGuideHandedOver } from "../apps/guide-hand-off";
 import { callMcpTool, clientRefused, listMcpTools } from "../apps/mcp/client";
@@ -189,8 +195,23 @@ function firstSentence(text: string): string {
   return sentence.length > 160 ? `${sentence.slice(0, 157)}...` : sentence;
 }
 
+/**
+ * `apps.call`'s gate: the app connected, an MCP app, and for one of the
+ * Mac's own apps, macOS letting Instrument in. Where macOS says no, or has
+ * not been asked yet, its card goes up and the call is not made.
+ */
+async function callGate(slug: string, ctx: CapabilityContext): Promise<Gate> {
+  const app = await connectedApp(slug, "mcp");
+  if ("kind" in app) {
+    return app;
+  }
+  const macApp = bundledMacApp(app.manifest);
+  const card = macApp ? await macosAppCard(ctx.asker, macApp) : undefined;
+  return card ? { ...card, kind: "card" } : { kind: "allowed" };
+}
+
 export const appsCall = defineCapability({
-  gate: ({ app }) => connectedAppGate(app, "mcp"),
+  gate: ({ app }, ctx) => callGate(app, ctx),
   input: z.object({
     app: AppField,
     tool: z
@@ -218,13 +239,26 @@ export const appsCall = defineCapability({
         "refused",
       );
     }
+    const macApp = bundledMacApp(manifest);
+    // A file a Mac app reads is read outside every sandbox, so it is held
+    // to the chat's folders first and handed over by its full path.
+    const sent = macApp
+      ? await withReadableFiles(macApp, tool, args, ctx.readableFile).catch(
+          (error: unknown) => {
+            throw new CapabilityFailure(
+              error instanceof Error ? error.message : String(error),
+              "refused",
+            );
+          },
+        )
+      : args;
     const credential = await requireAppCredential(app.slug, manifest);
     const redact = await redactorFor(app.slug, manifest, credential);
     const result = await withAppMcpClient({
       credential,
       manifest,
       manifestHash: app.manifestHash,
-      run: (client) => callMcpTool(client, { args, name: tool }),
+      run: (client) => callMcpTool(client, { args: sent, name: tool }),
       signal: withTimeout(ctx.signal, REQUEST_TIMEOUT_MS),
       slug: app.slug,
     });
@@ -247,7 +281,15 @@ export const appsCall = defineCapability({
             : (next[result.error.reason] ?? "");
       throw new CapabilityFailure(`${redact(result.error.message)}${hint}`);
     }
-    const { isError, structured, text } = result.value;
+    const { isError, meta, structured, text } = result.value;
+    // macOS's refusal, as the app's own server names it, is its card, never
+    // the tool's words.
+    const card = macApp
+      ? await macosRefusalCard({ app: macApp, asker: ctx.asker, isError, meta })
+      : undefined;
+    if (card) {
+      throw new CapabilityFailure(card.message, "card", card.askId);
+    }
     if (isError) {
       throw new CapabilityFailure(
         `${redact(text)}\n${refusalHint(app.slug, tool)}`,

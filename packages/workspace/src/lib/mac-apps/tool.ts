@@ -34,6 +34,8 @@ export interface ToolContext {
 
 /** One tool of a Mac app, with its input checked before it runs. */
 export interface MacAppTool {
+  /** Its arguments by name, in the order its schema lists them, and whether each may be left out. */
+  args: { name: string; optional: boolean }[];
   call: (args: unknown, context: ToolContext) => Promise<ToolAnswer>;
   description: string;
   /**
@@ -67,6 +69,10 @@ export function defineTool<
   const input = z.strictObject(spec.input);
   const output = z.object(spec.output);
   return {
+    args: Object.entries(spec.input).map(([name, schema]) => ({
+      name,
+      optional: z.safeParse(schema, undefined).success,
+    })),
     call: async (args, context) => {
       const parsed = input.safeParse(args);
       if (!parsed.success) {

@@ -76,6 +76,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [AI usage panel](active/ai-usage-panel.md): a request log in Settings | planned, not started |
 | [Window notices](active/window-notices.md): a bell in the window bar for damaged chats, error reports and the like | proposed, not started |
 | [Reminders and Calendar app](active/mac-reminders-and-calendar-app.md): a built-in app on macOS | planned, not started |
+| [One capability layer](active/one-capability-layer.md): each capability defined once, with the `instrument` command, the script modules and model tools generated from it | proposed, nothing built |
 
 ### Development, testing, and dependencies
 

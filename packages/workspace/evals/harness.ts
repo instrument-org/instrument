@@ -48,8 +48,8 @@ import { type SessionMessageDataPart } from "../src/schemas/session/message-data
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
-import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
+import { platformSearchClient } from "./lib/platform-search";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
   answerSignIn,
@@ -715,7 +715,7 @@ export async function runEvals(
       ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
         ? {}
         : { uutilsDir: UUTILS_DIR, uutilsOutsideSandbox: true }),
-      webSearch: unavailableWebSearchClient,
+      webSearch: platformSearchClient(),
     },
   });
 

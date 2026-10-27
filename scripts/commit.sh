@@ -14,6 +14,13 @@
 # between is never undone: the commit is built again on the new tip. A
 # <path>=<copy> whose file the new tip changed fails instead, since the copy
 # was made from the older version.
+#
+#   scripts/commit.sh --amend <sha> -F <message-file> [--] [<path>...]
+#
+# Replaces <sha>, the branch tip, with a commit of the new message and, when
+# paths are named, those paths as the working tree has them. It refuses once
+# anything has landed on top of <sha> or <sha> has been pushed, since either
+# would mean rewriting work that is no longer only yours to rewrite.
 set -euo pipefail
 
 fail() {
@@ -21,12 +28,19 @@ fail() {
   exit 1
 }
 
-[[ "${1:-}" == "-F" && -n "${2:-}" ]] || fail "usage: scripts/commit.sh -F <message-file> [--] <path>..."
+usage="usage: scripts/commit.sh [--amend <sha>] -F <message-file> [--] <path>..."
+amend=""
+if [[ "${1:-}" == "--amend" ]]; then
+  [[ -n "${2:-}" ]] || fail "$usage"
+  amend=$(git rev-parse --verify --quiet "$2^{commit}") || fail "$2 is not a commit"
+  shift 2
+fi
+[[ "${1:-}" == "-F" && -n "${2:-}" ]] || fail "$usage"
 message=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
 [[ -s "$message" ]] || fail "$2 is empty or missing"
 shift 2
 [[ "${1:-}" == "--" ]] && shift
-(($# > 0)) || fail "name the paths to commit"
+[[ -n "$amend" ]] || (($# > 0)) || fail "name the paths to commit"
 
 # Paths come relative to where this runs; git wants them from the top.
 top=$(git rev-parse --show-toplevel)
@@ -51,6 +65,38 @@ subject=$(head -1 "$message")
 sign=()
 if [[ "$(git config --bool commit.gpgsign || true)" == "true" ]]; then
   sign=(-S)
+fi
+
+if [[ -n "$amend" ]]; then
+  [[ "$(git rev-parse HEAD)" == "$amend" ]] ||
+    fail "$(git rev-parse --short "$amend") is not the branch tip any more; something landed on top of it, so make a new commit instead"
+  if upstream=$(git rev-parse --verify --quiet '@{upstream}') &&
+    git merge-base --is-ancestor "$amend" "$upstream"; then
+    fail "$(git rev-parse --short "$amend") is already pushed; make a new commit instead"
+  fi
+  parent=$(git rev-parse --verify --quiet "$amend^") || fail "cannot amend a root commit"
+  export GIT_INDEX_FILE="$index_dir/index"
+  git read-tree "$amend"
+  if [[ -n "$specs" ]]; then
+    while IFS=$'\t' read -r file copy; do
+      if [[ -z "$copy" ]]; then
+        git update-index --add --remove -- "$file"
+      else
+        mode=$(git ls-tree "$amend" -- "$file" | cut -d' ' -f1)
+        git update-index --add --cacheinfo "${mode:-100644},$(git hash-object -w -- "$copy"),$file"
+      fi
+    done <<< "$specs"
+  fi
+  commit=$(git commit-tree ${sign[@]+"${sign[@]}"} "$(git write-tree)" -p "$parent" -F "$message")
+  unset GIT_INDEX_FILE
+  # Moves the branch only if it is still at the commit being replaced.
+  git update-ref -m "commit (amend): $subject" HEAD "$commit" "$amend" 2> /dev/null ||
+    fail "the branch moved while amending; make a new commit instead"
+  if [[ -n "$specs" ]]; then
+    tr '\n' '\0' <<< "$paths" | xargs -0 git reset -q --
+  fi
+  git log -1 --format='commit: %h %s (replaces '"$(git rev-parse --short "$amend")"')' "$commit"
+  exit 0
 fi
 
 for attempt in 1 2 3 4 5; do

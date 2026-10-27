@@ -321,7 +321,7 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
       return {
         action: { kind: "switch", label: "Switch", model: status.newer },
         dismissible: true,
-        text: `A newer version, ${status.newer.name.trim()}, is out`,
+        text: `A newer version of your model is available. Switch to ${status.newer.name.trim()}?`,
         tone: "offer",
       };
     }

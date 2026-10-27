@@ -44,7 +44,7 @@ describe("readModelStatus and noticeFor", () => {
           "status": "loading",
         },
         "newer release listed": {
-          "notice": "[offer, ×] A newer version, Claude Sonnet 5.5, is out → Switch",
+          "notice": "[offer, ×] A newer version of your model is available. Switch to Claude Sonnet 5.5? → Switch",
           "status": "newer",
         },
         "newer release, offer dismissed": {

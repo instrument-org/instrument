@@ -549,6 +549,11 @@ function BillingNote({
     <ReplyNote
       action={
         <>
+          {step.changeModel && (
+            <ReplyNoteButton onClick={context.openModelPicker}>
+              Change model
+            </ReplyNoteButton>
+          )}
           {action && (
             <ReplyNoteButton
               disabled={action.kind === "sign-in" && isBusy}
@@ -558,6 +563,7 @@ function BillingNote({
                 action.kind === "sign-in" ||
                 action.kind === "start-trial" ||
                 action.kind === "update-card" ||
+                action.kind === "upgrade" ||
                 action.kind === "website"
               }
               onClick={() => {
@@ -568,11 +574,6 @@ function BillingNote({
                 <FcGoogle className="size-3.5 rounded-full bg-white p-px" />
               )}
               {action.label}
-            </ReplyNoteButton>
-          )}
-          {step.changeModel && (
-            <ReplyNoteButton onClick={context.openModelPicker}>
-              Change model
             </ReplyNoteButton>
           )}
         </>
@@ -631,6 +632,9 @@ function PlanAccountNote({
     <ReplyNote
       action={
         <>
+          <ReplyNoteButton onClick={context.openModelPicker}>
+            Change model
+          </ReplyNoteButton>
           {stop.kind === "usage-limit" && (
             <ReplyNoteButton
               onClick={() => {
@@ -648,9 +652,6 @@ function PlanAccountNote({
               See usage
             </ReplyNoteButton>
           )}
-          <ReplyNoteButton onClick={context.openModelPicker}>
-            Change model
-          </ReplyNoteButton>
         </>
       }
       data-plan-account-note={stop.kind}

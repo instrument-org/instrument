@@ -19,6 +19,20 @@ describe("ampersandUse", () => {
     ["for f in *.mp4; do ffmpeg -i $f $f.mp3 & done", "refused"],
     ["echo $(sleep 1 &)", "refused"],
     ["if true; then", "none"],
+    ["bash -c 'echo a && echo b'", "none"],
+    ["bash -c 'echo \"a & b\"'", "none"],
+    ["bash -c 'pnpm dev' &", "trailing"],
+    ["/bin/bash -c 'sleep 5 & echo after'", "none"],
+    ["bash -c 'sleep 5 & echo after'", "refused"],
+    ["sh -c 'pnpm dev &'", "refused"],
+    ["bash -c 'pnpm dev &' &", "refused"],
+    ['bash -c "sleep $N & echo after"', "refused"],
+    ["bash -c \"bash -c 'sleep 5 &'\"", "refused"],
+    ["eval 'sleep 5 &'", "refused"],
+    [
+      `bash -c 'sh -c "sleep 900" & python3 spawn_tree.py & while true; do date >> bg.log; sleep 5; done'`,
+      "refused",
+    ],
   ])("%s is %s", (command, use) => {
     expect(ampersandUse(command)).toBe(use);
   });

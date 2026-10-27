@@ -60,8 +60,9 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### G. A `&` inside `bash -c` in a background command never ran (low confidence)
 
-- Status: open
+- Status: fixed
 - What: `bash -c 'sh -c "sleep 900" & python3 … & while true; do date >> bg.log; sleep 5; done'` showed as running in `jobs`, but `bg.log` was never created on the host. Possibly the just-bash `bash -c` running the inner `&` in the foreground. Not reproduced.
+- Note: reproduced on macOS with `run-bash`. A bare `bash -c` or `sh -c` is just-bash's own interpreter, which parses `&` and runs the statement in the foreground like any other, so `sh -c "sleep 900"` held the loop for 15 minutes. `/bin/bash -c` is the computer's bash and backgrounds as expected. The bash tool already refused a non-trailing `&` at the top of a call, but did not look inside a script handed to `bash -c`, `sh -c` or `eval`; it now refuses an `&` there too ([background-ampersand.ts](/packages/workspace/src/lib/background-ampersand.ts)).
 
 ### H. The ChatGPT account store can't be read on Linux
 

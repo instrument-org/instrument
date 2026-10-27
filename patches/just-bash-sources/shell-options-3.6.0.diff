@@ -37,7 +37,7 @@ new file mode 100644
 index 0000000..e84a0a5
 --- /dev/null
 +++ b/packages/just-bash/src/commands/bash/bash.options.test.ts
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,223 @@
 +import { describe, expect, it } from "vitest";
 +import { Bash } from "../../Bash.js";
 +
@@ -167,6 +167,22 @@ index 0000000..e84a0a5
 +    expect(result.exitCode).toBe(2);
 +  });
 +
++  it.each([
++    "bash -o bogus",
++    "bash -O bogus",
++  ])("refuses %s with no script at status 2", async (command) => {
++    const result = await run(command);
++    expect(result.stderr).toContain("bogus");
++    expect(result.exitCode).toBe(2);
++  });
++
++  it("takes a shopt name with digits", async () => {
++    expect(await run("bash -O compat31 -c 'echo ran'")).toEqual({
++      stdout: "ran\n",
++      stderr: "",
++      exitCode: 0,
++    });
++  });
 +  it.each([
 +    "bash --version",
 +    "sh --version",
@@ -344,7 +360,7 @@ index 2ecda5a..0f407c7 100644
    },
  };
  
-@@ -76,61 +54,209 @@ export const bashCommand: RuntimeCommand = {
+@@ -76,61 +54,213 @@ export const bashCommand: RuntimeCommand = {
  export const shCommand: RuntimeCommand = {
    name: "sh",
  
@@ -388,7 +404,7 @@ index 2ecda5a..0f407c7 100644
 +  "--norc",
 +]);
 +const LONG_OPTIONS_WITH_VALUE = new Set(["--init-file", "--rcfile"]);
-+const OPTION_NAME = /^[A-Za-z][A-Za-z_-]*$/;
++const OPTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 +
 +interface Invocation {
 +  /** `-c`: the first operand is the script, the second `$0`. */
@@ -558,7 +574,11 @@ index 2ecda5a..0f407c7 100644
      }
 -  },
 -};
-+    // No stdin - return success (interactive mode not supported)
++    // No stdin - interactive mode is not supported, but the options still
++    // apply, so one set or shopt refuses still ends the shell with status 2.
++    if (setup.length > 0) {
++      return executeScript("", shell, operands, ctx, setup, shell);
++    }
 +    return { stdout: "", stderr: "", exitCode: 0 };
 +  }
 +
@@ -597,7 +617,7 @@ index 2ecda5a..0f407c7 100644
  ): Promise<ExecResult> {
    if (!ctx.exec) {
      return {
-@@ -154,15 +280,25 @@ async function executeScript(
+@@ -154,15 +284,25 @@ async function executeScript(
      positionalEnv[String(i + 1)] = arg;
    });
  
@@ -625,7 +645,7 @@ index 2ecda5a..0f407c7 100644
    // Execute the script as-is, preserving newlines for proper parsing
    // The parser needs to see the original structure to correctly handle
    // multi-line constructs like (( ... )) vs ( ( ... ) )
-@@ -175,6 +311,7 @@ async function executeScript(
+@@ -175,6 +315,7 @@ async function executeScript(
          env: positionalEnv,
          cwd: ctx.cwd,
          signal: ctx.signal,
@@ -633,7 +653,7 @@ index 2ecda5a..0f407c7 100644
        })
      : await ctx.exec(scriptToRun, {
          env: positionalEnv,
-@@ -182,6 +319,7 @@ async function executeScript(
+@@ -182,6 +323,7 @@ async function executeScript(
          stdin: latin1FromBytes(ctx.stdin),
          stdinKind: "bytes",
          signal: ctx.signal,

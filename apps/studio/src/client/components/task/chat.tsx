@@ -12,7 +12,7 @@ import {
   takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
-import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
+import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
@@ -28,7 +28,6 @@ import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -333,7 +332,7 @@ export function ChatConversation({
   });
 
   const isActiveTab = useIsActiveTab();
-  const outputFolder = useOutputFolder();
+  const filesHref = useAtomValue(filesHrefAtom);
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   // The reply the box is writing into, where it is writing into a chat's:
   // the message says which draft it came from, and the draft goes once that
@@ -440,7 +439,7 @@ export function ChatConversation({
           appWindow.openScreen(APPS_HREF, { ownTab: true });
         },
         onOpenComputer: () => {
-          appWindow.openScreen(outputFolderHref(outputFolder), {
+          appWindow.openScreen(filesHref, {
             ownTab: true,
           });
         },

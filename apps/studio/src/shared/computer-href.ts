@@ -29,7 +29,8 @@ export const COMPUTER_ROOT = "computer:";
  * the path on the Mac, which is what the view is rooted by, and every other
  * way into a folder in this window -- a place on the home page, a path typed
  * into the omnibar -- arrives at the same address. `select` names something
- * in the folder to open with selected: a file shown in its folder.
+ * in the folder to open with selected: a file shown in its folder. `path`
+ * opens a folder under the root instead, as a prefix: `Documents/`.
  *
  * Written the way the router writes a search, which quotes a value it would
  * otherwise read back as JSON, so a file named `2024` or `true` is selected
@@ -37,7 +38,7 @@ export const COMPUTER_ROOT = "computer:";
  */
 export function folderHref(
   hostPath: string,
-  { select }: { select?: string } = {},
+  { path = "", select }: { path?: string; select?: string } = {},
 ) {
-  return `/files${defaultStringifySearch({ path: "", root: hostPath, select })}`;
+  return `/files${defaultStringifySearch({ path, root: hostPath, select })}`;
 }

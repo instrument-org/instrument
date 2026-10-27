@@ -9,6 +9,7 @@ import {
   type AppPlace,
   chatFiltersAtom,
   chatGroupAtom,
+  filesFolderAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
   chatsOutOf,
@@ -117,7 +118,7 @@ import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { chatHref, chatOfGroup, chatOfHref } from "./window-href";
+import { chatHref, chatOfGroup, chatOfHref, matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -349,6 +350,7 @@ function WindowShell({
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
+  const setFilesFolder = useSetAtom(filesFolderAtom);
   const setChatFilters = useSetAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
@@ -390,6 +392,17 @@ function WindowShell({
     }
     setChatGroup(chatOfHref(activeHref) ?? null);
   }, [activeHref, isChat, setChatGroup]);
+
+  // The folder a tab last stood in is where Files in the rail takes a tab.
+  // A file's address names where it was opened from rather than the folder
+  // on screen, so one with a file open leaves the folder as it was.
+  useEffect(() => {
+    const screen = matchScreen(activeHref);
+    if (screen.kind !== "computer" || screen.file !== undefined) {
+      return;
+    }
+    setFilesFolder(folderHref(screen.root, { path: screen.path }));
+  }, [activeHref, setFilesFolder]);
 
   const compose = useCompose(rowWidth);
   // The chats floating on screen, which show where they stand themselves, so
@@ -679,7 +692,7 @@ function WindowShell({
    * row is narrow enough that it stepped aside. Peeked out already, the list
    * stays where it is drawn rather than sliding in again under it. The
    * place the tab is already in takes it back to its root (the inbox, the
-   * Instrument folder, the browser's start, the apps), except that a chat
+   * home folder, the browser's start, the apps), except that a chat
    * with its inbox put away gets the inbox back first and stays open. A
    * place asked for in a tab of its own waits behind, the way a bookmark
    * middle-clicked in a browser does.

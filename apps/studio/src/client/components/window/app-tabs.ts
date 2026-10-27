@@ -4,6 +4,7 @@ import {
   APPS_HREF,
   BROWSER_HREF,
   chatGroupAtom,
+  filesHrefAtom,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -22,7 +23,7 @@ import {
   selectTab,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
+import { folderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
@@ -146,7 +147,7 @@ export function placeOfHref(href: string): AppPlace | undefined {
 export function useAppTabs() {
   const [model, setModel] = useAtom(appTabsAtom);
   const lastChat = useAtomValue(chatGroupAtom);
-  const outputFolder = useOutputFolder();
+  const lastFolder = useAtomValue(filesHrefAtom);
   const activeRouter = getTabRouter(model.selectedId);
 
   /**
@@ -233,15 +234,21 @@ export function useAppTabs() {
       );
     },
     go,
-    /** The tab up to a place, at the chat it last had open unless asked for the place's root, the inbox. */
+    /** The tab up to a place, at the chat or folder it last had open unless asked for the place's root. */
     goToPlace: (
       place: AppPlace,
       { behind = false, newTab = false, root = false } = {},
     ) => {
-      go(placeHrefOf(place, root ? null : lastChat, outputFolder), {
-        behind,
-        newTab,
-      });
+      go(
+        placeHrefOf(place, {
+          lastChat: root ? null : lastChat,
+          lastFolder: root ? folderHref("~") : lastFolder,
+        }),
+        {
+          behind,
+          newTab,
+        },
+      );
     },
     model,
     navigate,
@@ -275,13 +282,12 @@ export function useAppTabs() {
 
 /**
  * Where the rail takes a tab for a place: the chat at the one it last had
- * open, the computer at the Instrument folder, the browser's start, and the
+ * open, Files at the folder it last stood in, the browser's start, and the
  * apps. With no chat named, the chat is the inbox.
  */
 function placeHrefOf(
   place: AppPlace,
-  lastChat: null | string,
-  outputFolder: string | undefined,
+  { lastChat, lastFolder }: { lastChat: null | string; lastFolder: string },
 ): string {
   switch (place) {
     case "apps": {
@@ -295,7 +301,7 @@ function placeHrefOf(
       return chat ? chatHref(chat) : INBOX_HREF;
     }
     case "files": {
-      return outputFolderHref(outputFolder);
+      return lastFolder;
     }
   }
 }

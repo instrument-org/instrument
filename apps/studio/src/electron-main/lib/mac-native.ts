@@ -61,6 +61,15 @@ export function macHelperBinPath(): string | undefined {
 }
 
 /**
+ * The Mac apps' MCP server, built beside the main process's own entry
+ * (`electron.vite.config.ts`), which the app runs as Node by its own
+ * executable.
+ */
+export function macAppsServerPath(): string {
+  return path.join(app.getAppPath(), "out", "main", "mac-apps-server.js");
+}
+
+/**
  * The launcher every native command starts through under Seatbelt
  * (`native/mac-helper/seatbelt`), when this build carries it.
  */

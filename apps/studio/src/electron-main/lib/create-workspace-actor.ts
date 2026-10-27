@@ -12,6 +12,7 @@ import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   finderEntries,
   macAppAccess,
+  macAppsServerPath,
   macHelperBinPath,
   macosPromptOnScreen,
   seatbeltHelperPath,
@@ -129,7 +130,16 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       // Files refuses what the viewers' file channel refuses, by one rule.
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
       ...(process.platform === "darwin"
-        ? { macAppAccess, macosPromptOnScreen }
+        ? {
+            macAppAccess,
+            // The Mac apps' MCP server, run as Node by this executable, so
+            // macOS holds the app responsible for it and what it starts.
+            macAppsServer: {
+              args: [macAppsServerPath()],
+              command: process.execPath,
+            },
+            macosPromptOnScreen,
+          }
         : {}),
       macHelperBinPath: macHelperBinPath(),
       seatbeltHelperPath: seatbeltHelperPath(),

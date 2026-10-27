@@ -24,10 +24,11 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### A. Quitting by signal with work running never quits or tears down
 
-- Status: open
+- Status: fixed
 - Where: [create-workspace-actor.ts:352](/apps/studio/src/electron-main/lib/create-workspace-actor.ts#L352)
 - What: on Linux, SIGTERM (what a logout or shutdown sends) reaches `before-quit`, and the packaged build's quit approval opens the "Quit with work running?" dialog, which nobody answers. Both stops with a job running were SIGKILLed after the 10 s grace with no `Quit teardown` line, so tasks were not stopped with a record and teardown never ran. An idle stop tears down and exits in 2 s. A quit no one asked for in the app should skip the prompt.
 - Note: the first fix (`registerUnattendedQuit`, SIGTERM/SIGINT/SIGHUP through `process.on` once the app is ready) passed its unit tests and failed in the packaged Linux preview: no `Unattended quit` line, and the process's caught-signal mask still showed Chromium's one-shot shutdown handler, which calls the ordinary quit and waits on the prompt.
+- Packaged run: a Linux preview of the fix, with a background job and a task running, logged `Unattended quit: SIGTERM`, then `Quit teardown: started` through `exiting` and exited within a second, the job gone and the task recorded as "Interrupted when the app closed"; SIGINT the same, and idle SIGTERM and SIGHUP exited within a second after `Unattended quit`.
 
 ### B. An `instrument://file/` link does nothing on Linux
 

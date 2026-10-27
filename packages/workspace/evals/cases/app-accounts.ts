@@ -35,8 +35,8 @@ function connectedSlugs(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
       message.parts.flatMap((part) =>
-        part.type === "tool-connect_app" && part.input?.slug
-          ? [part.input.slug]
+        part.type === "tool-connect_app"
+          ? (part.input?.slugs ?? []).filter((slug) => slug !== undefined)
           : [],
       ),
     ),

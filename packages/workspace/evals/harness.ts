@@ -77,6 +77,7 @@ import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
 import { makeToolBinIn } from "../scripts/lib/tool-bin-dir";
 import { newDeviceId } from "../src/lib/records/device-id";
+import { askedOnCard } from "../src/tools/connect-app-output";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 /** The Seatbelt launcher the same build makes, which native commands start through. */
@@ -1151,11 +1152,13 @@ export async function runEvals(
 
             if (
               part.type === "tool-connect_app" &&
-              part.state === "output-available" &&
-              part.output.state === "asked" &&
-              part.output.kind === "sign-in"
+              part.state === "output-available"
             ) {
-              signInCards.add(part.output.slug);
+              for (const row of askedOnCard(part.output)) {
+                if (row.kind === "sign-in") {
+                  signInCards.add(row.slug);
+                }
+              }
             }
 
             if (

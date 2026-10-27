@@ -31,6 +31,7 @@ type SignInDestination = "app" | "external";
  */
 export function ConnectControls({
   alongside,
+  compact = false,
   describesDestination = true,
   dismissible = false,
   kind,
@@ -43,6 +44,12 @@ export function ConnectControls({
 }: {
   /** One more control at the end of the row: the app's page puts its way to ask the agent here. */
   alongside?: ReactNode;
+  /**
+   * For a sign-in, the two buttons a row of a card with several apps has
+   * room for: the sign-in in the window's browser, and "Skip" when
+   * `dismissible`. `primary` lights the sign-in as the one to press next.
+   */
+  compact?: { primary: boolean } | false;
   /** Whether a sign-in says where it signs in; off where a line above already explains the buttons. */
   describesDestination?: boolean;
   /** Whether "Not now" is offered: a card asks a question, a row does not. */
@@ -277,6 +284,40 @@ export function ConnectControls({
           ) : null}
           {alongside}
         </div>
+      </div>
+    );
+  }
+
+  if (kind === "sign-in" && compact) {
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        <BrowserHandoffButton
+          disabled={busy}
+          onCancel={() => {
+            setWaiting(false);
+            cancelOAuth.mutate({ slug });
+          }}
+          onStart={() => {
+            signIn("app");
+          }}
+          size="sm"
+          variant={compact.primary ? "brand" : "default"}
+          waiting={waiting}
+        >
+          {label ?? "Sign in"}
+        </BrowserHandoffButton>
+        {dismissible && !waiting ? (
+          <Button
+            disabled={busy}
+            onClick={() => {
+              dismiss.mutate({ slug });
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            Skip
+          </Button>
+        ) : null}
       </div>
     );
   }

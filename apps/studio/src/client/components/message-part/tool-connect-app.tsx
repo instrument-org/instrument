@@ -11,12 +11,18 @@ import { toast } from "@/client/lib/toast";
 import { osConventions } from "@/client/lib/utils";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  askedOnCard,
+  type ConnectAppResult,
+  connectAppResults,
+  type SessionMessagePart,
+} from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
+import { ConnectAppGroupCard } from "./tool-connect-app-group";
 
 type ConnectAppPart = Extract<
   SessionMessagePart.ToolPart,
@@ -37,30 +43,37 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
   if (part.state !== "output-available") {
     return null;
   }
-  if (part.output.state === "failure" || part.output.state === "connected") {
-    return (
-      <ToolCard>
-        <ToolCardSection collapsedHeight={256}>
-          <p className="text-sm text-muted-foreground">
-            {part.output.state === "failure"
-              ? part.output.message
-              : `${part.output.name} is already connected.`}
-          </p>
-        </ToolCardSection>
-      </ToolCard>
-    );
+  const results = connectAppResults(part.output);
+  const rows = askedOnCard(part.output);
+  // A card for every app that needs the user, several to a card; one app's
+  // card has room for all of its controls.
+  if (rows.length > 1) {
+    return <ConnectAppGroupCard reason={part.input.reason} rows={rows} />;
   }
-  return <ConnectCard output={part.output} reason={part.input.reason} />;
+  const asked = rows[0] ?? results.find((result) => result.state === "asked");
+  if (asked !== undefined) {
+    return <ConnectCard output={asked} reason={part.input.reason} />;
+  }
+  return (
+    <ToolCard>
+      <ToolCardSection collapsedHeight={256}>
+        {results.map((result) => (
+          <p className="text-sm text-muted-foreground" key={result.slug}>
+            {result.state === "failure"
+              ? result.message
+              : `${result.name} is already connected.`}
+          </p>
+        ))}
+      </ToolCardSection>
+    </ToolCard>
+  );
 }
 
 function ConnectCard({
   output,
   reason,
 }: {
-  output: Extract<
-    Extract<ConnectAppPart, { state: "output-available" }>["output"],
-    { state: "asked" }
-  >;
+  output: Extract<ConnectAppResult, { state: "asked" }>;
   reason: string;
 }) {
   const { name, runs, site, slug } = output;

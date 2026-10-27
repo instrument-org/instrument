@@ -103,10 +103,11 @@ const ChooseInputSchema = z.object({
 });
 
 /** What a `connect_app` card asked for. */
-const ConnectInputSchema = z.object({
-  reason: z.string().optional(),
-  slug: z.string(),
-});
+const ConnectInputSchema = z.union([
+  z.object({ reason: z.string().optional(), slugs: z.array(z.string()) }),
+  // A call recorded before one call could name several apps.
+  z.object({ reason: z.string().optional(), slug: z.string() }),
+]);
 
 /** One line the fold holds: a call, or a thought when there is no call. */
 interface WorkLine {
@@ -366,8 +367,9 @@ function card(part: SessionMessagePart.ToolPart): string | undefined {
   if (!asked.success) {
     return undefined;
   }
-  const { reason, slug } = asked.data;
-  return `Asked to connect ${slug}.${reason === undefined ? "" : ` ${reason}`}`;
+  const { reason } = asked.data;
+  const slugs = "slugs" in asked.data ? asked.data.slugs : [asked.data.slug];
+  return `Asked to connect ${slugs.join(", ")}.${reason === undefined ? "" : ` ${reason}`}`;
 }
 
 /**

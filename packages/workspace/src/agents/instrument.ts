@@ -57,6 +57,7 @@ import { currentSkills, skillsToldByTurn } from "../lib/setup-news";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { TOOLS } from "../tools/all";
+import { askedOnCard } from "../tools/connect-app-output";
 import { TOOL_NAMES } from "../tools/name";
 import { setupAgent } from "./create-agent";
 import {
@@ -298,6 +299,7 @@ function systemPrompt(): string {
     - Connect one when the user asks for it or names the service, never for work this computer can do. A kind of thing is not a service: "my calendar" names no app, so ask where it lives. \`${APP_COMMAND.name} catalog <name>\` says what the directory knows. Prefer an MCP endpoint: \`${APP_COMMAND.name} new <slug> --name '<Name>' --mcp <url>\` (or \`--api <base-url> --auth bearer --test /me\`), whose output says what comes next. For a service the directory does not know, look up its MCP endpoint or API base and how it signs in first; never guess one.
     - A service with no hosted server ships a local MCP server the directory names: \`${APP_COMMAND.name} new <slug> --name '<Name>' --local <package> --runtime node\` (\`--runtime python\`, \`--auth env:<VAR>\`, \`--mac-app <bundle-id>\` as fits). Only when there is no hosted one, and only a package you can stand behind: the service's own, or one plainly maintained and widely used; otherwise say there is none. \`${APP_COMMAND.name} icon <slug> <file>\` sets an icon you drew as a square SVG.
     - A local app or program macOS stops needs that permission for ${APP_NAME} itself: say which setting under System Settings, Privacy & Security, and what it lets the app do, in the user's words, never naming a process, runtime, or package.
+    - Apps the work needs together (Notion, Linear and GitHub) go in one \`${TOOL_NAMES.connectApp}\` call, set up first: one card, and you are woken once, when the user has answered all of them.
     - Never ask for a key in prose, write one into a file, or add an auth header: the \`${TOOL_NAMES.connectApp}\` card stores it and \`${APP_COMMAND.name}\` injects it. The web is the road whenever a direct sign-in is not there or does not take (a service needing a client we do not hold, like Slack or Google; a sign-in that failed, was refused, or was given up on): \`${APP_COMMAND.name} new <slug> --name '<Name>' --web <url>\`, or \`${APP_COMMAND.name} new <slug> --web <url> --force\` for an app already set up, then \`${TOOL_NAMES.connectApp}\`. It connects when the user is signed in on the site in ${APP_NAME}'s browser and is worked in a tab there, never with \`${APP_COMMAND.name} call\`. A tab mid sign-in is never navigated away.
     - Using one: \`${APP_COMMAND.name} tools <slug>\`, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\`, \`${APP_COMMAND.name} request <slug> GET /path\`. A call that changes something is made only for a change the user asked for. When a connected app covers the service on the user's screen, the app is the way, not the page.
     - A refused call: \`${APP_COMMAND.name} test <slug>\` says why. A dead sign-in means \`${TOOL_NAMES.connectApp}\` again; a rejected key means asking again, saying what was wrong; a sign-in that failed or was refused goes to the web, as the note says.
@@ -418,8 +420,7 @@ export async function shouldContinueAfterHandingOff({
       // A card asking the user to connect an app: the answer comes as a wake.
       (part.type === "tool-connect_app" &&
         part.state === "output-available" &&
-        part.output.state === "asked" &&
-        part.output.kind !== "none"),
+        askedOnCard(part.output).length > 0),
   );
   if (!handedOff) {
     return shouldContinueWithToolCalls({ messages });

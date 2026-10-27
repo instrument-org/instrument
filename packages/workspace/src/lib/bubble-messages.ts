@@ -3,6 +3,7 @@ import { isEqual } from "radashi";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
+import { connectAppResults } from "../tools/connect-app-output";
 import { dataPartVisibility } from "./data-part-visibility";
 
 /**
@@ -71,12 +72,15 @@ function keepsPart(part: SessionMessagePart.Type, composing: boolean) {
     case "tool-choose": {
       return part.state !== "input-streaming";
     }
-    // A sign-in card draws once the call names the app, unless the tool
-    // refused it, which is the agent's to fix rather than the user's to read.
+    // A sign-in card draws once the call names its apps, unless the tool
+    // refused every one, which is the agent's to fix rather than the user's to read.
     case "tool-connect_app": {
       return (
         part.state === "output-error" ||
-        (part.state === "output-available" && part.output.state !== "failure")
+        (part.state === "output-available" &&
+          connectAppResults(part.output).some(
+            (result) => result.state !== "failure",
+          ))
       );
     }
     // An image call that ran into a sign-in or the account's plan, and a

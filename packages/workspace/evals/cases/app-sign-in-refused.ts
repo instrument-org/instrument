@@ -11,6 +11,7 @@
  * sign-in, and it never told the user they declined.
  */
 import { type Session } from "../../src/schemas/session";
+import { connectAppResults } from "../../src/tools/connect-app-output";
 import { type Assertion, defineEval } from "../harness";
 
 const SLUG = "linear";
@@ -41,16 +42,17 @@ function steps(sessions: Session.WithMessagesAndParts[]): Step[] {
           }
         } else if (
           part.type === "tool-connect_app" &&
-          part.input?.slug === SLUG &&
           part.state === "output-available"
         ) {
-          found.push({
-            card:
-              part.output.state === "asked"
-                ? part.output.kind
-                : part.output.state,
-            kind: "card",
-          });
+          const result = connectAppResults(part.output).find(
+            (each) => each.slug === SLUG,
+          );
+          if (result) {
+            found.push({
+              card: result.state === "asked" ? result.kind : result.state,
+              kind: "card",
+            });
+          }
         } else if (part.type === "tool-bash") {
           const command = String(part.input?.command ?? "");
           if (TO_WEB.test(command)) {

@@ -23,6 +23,7 @@ vi.mock(import("../lib/chat/children"), async (importOriginal) => ({
 const model = createMockAIGatewayModel();
 const LISBON = ChatIdSchema.parse("2026-10-08-lisbon");
 const PORTO = ChatIdSchema.parse("2026-10-09-porto");
+const INPUT = { reason: "So I can read your issues.", slugs: ["linear"] };
 const manifest = {
   auth: { kind: "oauth" },
   type: "mcp",
@@ -53,14 +54,14 @@ beforeEach(async () => {
   });
 });
 
-async function ask(chatId: typeof LISBON) {
+async function ask(chatId: typeof LISBON, slugs = ["linear"]) {
   const result = await runTool(ConnectApp, {
     chatId,
     input: {
       activity: "Connecting Linear",
       explanation: "To read issues",
       reason: "So I can read your issues.",
-      slug: "linear",
+      slugs,
     },
     model,
     signal: AbortSignal.timeout(10_000),
@@ -92,10 +93,78 @@ describe("connect_app", () => {
     await getWorkspaceConfig().apps.connections.set("linear", connected);
 
     expect(await ask(LISBON)).toEqual({
-      name: "Linear",
-      slug: "linear",
-      state: "connected",
+      apps: [{ name: "Linear", slug: "linear", state: "connected" }],
     });
     expect(await readConnection("linear")).toEqual(connected);
+  });
+
+  it("puts every app it names on one card, waiting on each, and says why one was not asked", async () => {
+    await writeAppFolder({
+      appsDir: getWorkspaceConfig().appsDir,
+      guide: "",
+      manifest: { ...manifest, url: "https://mcp.notion.com/mcp" },
+      name: "Notion",
+      slug: AppSlugSchema.parse("notion"),
+    });
+    const output = await ask(LISBON, ["linear", "notion", "linear", "jira"]);
+
+    expect(output).toMatchInlineSnapshot(`
+      {
+        "apps": [
+          {
+            "kind": "sign-in",
+            "name": "Linear",
+            "site": "https://linear.app",
+            "slug": "linear",
+            "state": "asked",
+          },
+          {
+            "kind": "sign-in",
+            "name": "Notion",
+            "site": "https://notion.com",
+            "slug": "notion",
+            "state": "asked",
+          },
+          {
+            "message": "No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.",
+            "slug": "jira",
+            "state": "failure",
+          },
+        ],
+      }
+    `);
+    expect(await readConnection("notion")).toMatchObject({
+      status: "needs-sign-in",
+      waitingChats: [LISBON],
+    });
+    expect(ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }))
+      .toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "One card asking the user to connect Linear (linear), Notion (notion) is in the conversation, a row for each. Say one line and end your turn. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.
+      - jira was not asked: No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.",
+      }
+    `);
+  });
+
+  it("reads a call that named one app as it always did", () => {
+    const one = {
+      kind: "sign-in",
+      name: "Linear",
+      slug: "linear",
+      state: "asked",
+    } as const;
+    const said = (
+      output: Parameters<typeof ConnectApp.toModelOutput>[0]["output"],
+    ) => ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" });
+
+    // A record from before a call could name several apps, and a call now.
+    expect(said(one)).toEqual(said({ apps: [one] }));
+    expect(said(one)).toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "A card asking the user to sign in to Linear is in the conversation. Say one line and end your turn: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.",
+      }
+    `);
   });
 });

@@ -13,6 +13,7 @@ import { ToolConnectApp } from "./tool-connect-app";
 const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
+    dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     signInOnWeb: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     startOAuth: vi.fn<(input: { opensIn: string }) => Promise<unknown>>(),
   },
@@ -29,7 +30,12 @@ vi.mock("@/client/rpc/client", () => ({
     apps: {
       allow: mutation(),
       cancelOAuth: mutation(),
-      dismiss: mutation(),
+      dismiss: {
+        mutationOptions: (options: object) => ({
+          ...options,
+          mutationFn: mocks.dismiss,
+        }),
+      },
       live: {
         catalog: query("catalog", () => Promise.resolve([])),
         list: query("apps", mocks.apps),
@@ -107,7 +113,7 @@ function renderCard() {
     <WindowContext.Provider value={window}>
       <ToolConnectApp
         part={{
-          input: { reason: "So I can read your mail.", slug: "outlook" },
+          input: { reason: "So I can read your mail.", slugs: ["outlook"] },
           metadata: {
             createdAt: new Date(1),
             endedAt: new Date(2),
@@ -115,6 +121,7 @@ function renderCard() {
             messageId: StoreId.newMessageId(),
             sessionId: StoreId.newSessionId(),
           },
+          // Stored bare, as a call before cards with several apps did.
           output: {
             kind: "sign-in",
             name: "Outlook",
@@ -145,6 +152,7 @@ async function cardReads(): Promise<string[]> {
 
 beforeEach(() => {
   mocks.apps.mockReset();
+  mocks.dismiss.mockReset();
   mocks.signInOnWeb.mockReset();
   mocks.startOAuth.mockReset();
   openPage.mockReset();
@@ -257,7 +265,10 @@ describe("the connect card after a sign-in that did not connect", () => {
     mocks.apps.mockResolvedValue(
       outlook({ ended: "expired", status: "failed" }),
     );
-    mocks.startOAuth.mockResolvedValue({ status: "started", url: "https://login.example" });
+    mocks.startOAuth.mockResolvedValue({
+      status: "started",
+      url: "https://login.example",
+    });
     renderCard();
 
     // Looked up again at the click: the row can draw again after the button
@@ -273,5 +284,148 @@ describe("the connect card after a sign-in that did not connect", () => {
       opensIn: "external",
     });
     expect(openPage).not.toHaveBeenCalled();
+  });
+});
+
+const GOOGLE = [
+  ["drive", "Google Drive"],
+  ["docs", "Google Docs"],
+  ["gmail", "Gmail"],
+] as const;
+
+/** The Google apps as the Apps list draws them, each standing as given. */
+function google(standings: Record<string, string>) {
+  return {
+    apps: GOOGLE.map(([slug, name]) => {
+      const standing = standings[slug] ?? "needs-sign-in";
+      return {
+        authKind: "oauth",
+        connection: {
+          ...(standing === "connected" ? { account: "you@example.com" } : {}),
+          status: standing,
+          updatedAt: 1,
+        },
+        credentialOrigin: `https://${slug}.example.com`,
+        dir: `/apps/${name}`,
+        endpoint: `https://${slug}.example.com/mcp`,
+        hasCredential: false,
+        name,
+        slug,
+        standing,
+        type: "mcp",
+      };
+    }),
+  };
+}
+
+function renderGroupCard() {
+  const window = {
+    ask: vi.fn(),
+    browser: {} as BrowserTabsHandle,
+    focusComposer: vi.fn(),
+    openPage,
+    openPath: vi.fn(),
+    openScreen: vi.fn(),
+  } satisfies WindowContextValue;
+  return renderWithProviders(
+    <WindowContext.Provider value={window}>
+      <ToolConnectApp
+        part={{
+          input: {
+            reason: "So I can read your files and email.",
+            slugs: GOOGLE.map(([slug]) => slug),
+          },
+          metadata: {
+            createdAt: new Date(1),
+            endedAt: new Date(2),
+            id: StoreId.newPartId(),
+            messageId: StoreId.newMessageId(),
+            sessionId: StoreId.newSessionId(),
+          },
+          output: {
+            apps: GOOGLE.map(([slug, name]) => ({
+              kind: "sign-in" as const,
+              name,
+              slug,
+              state: "asked" as const,
+            })),
+          },
+          state: "output-available",
+          toolCallId: "call-2",
+          type: "tool-connect_app",
+        }}
+      />
+    </WindowContext.Provider>,
+  );
+}
+
+/** The card's lines and buttons, in the order they read. */
+function groupReads(): string[] {
+  return [
+    ...screen
+      .getAllByText(/./, { selector: "p, span.truncate, span.text-xs" })
+      .map((line) => line.textContent ?? ""),
+    ...screen
+      .getAllByRole("button")
+      .map((button) => `[${button.textContent ?? ""}]`),
+  ];
+}
+
+describe("the card asking for several apps", () => {
+  it("counts what is connected, lights the next sign-in, and offers to skip the rest", async () => {
+    mocks.apps.mockResolvedValue(google({ drive: "connected" }));
+    renderGroupCard();
+
+    await screen.findByText("1 of 3 connected");
+    expect(groupReads()).toMatchInlineSnapshot(`
+      [
+        "Sign in to 3 apps",
+        "So I can read your files and email.",
+        "1 of 3 connected",
+        "Google Drive",
+        "Connected as you@example.com",
+        "Google Docs",
+        "Gmail",
+        "2 sign-ins are left. I’ll pick up when you’re done.",
+        "[Sign in]",
+        "[Skip]",
+        "[Sign in]",
+        "[Skip]",
+        "[Skip the rest]",
+      ]
+    `);
+  });
+
+  it("skips every app still open with Skip the rest", async () => {
+    mocks.apps.mockResolvedValue(google({ drive: "connected" }));
+    mocks.dismiss.mockResolvedValue(undefined);
+    renderGroupCard();
+
+    await screen.findByText("1 of 3 connected");
+    fireEvent.click(screen.getByRole("button", { name: "Skip the rest" }));
+    await waitFor(() => {
+      expect(mocks.dismiss).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.dismiss.mock.calls.map(([input]) => input.slug)).toEqual([
+      "docs",
+      "gmail",
+    ]);
+  });
+
+  it("folds to one line once every app is answered, keeping a way to sign in to the skipped one", async () => {
+    mocks.apps.mockResolvedValue(
+      google({ docs: "declined", drive: "connected", gmail: "connected" }),
+    );
+    renderGroupCard();
+
+    await screen.findByText("2 apps connected");
+    expect(groupReads()).toMatchInlineSnapshot(`
+      [
+        "2 apps connected",
+        "You skipped Google Docs. You can still sign in to it here.",
+        "Google Docs",
+        "[Sign in]",
+      ]
+    `);
   });
 });

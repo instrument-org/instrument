@@ -9,6 +9,12 @@ export {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
+export {
+  askedOnCard,
+  type CardRow,
+  type ConnectAppResult,
+  connectAppResults,
+} from "./tools/connect-app-output";
 export { isChatTranscript } from "./lib/chat-folders/chat-transcript";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { topicModelNote } from "./lib/topic-model-text";

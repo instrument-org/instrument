@@ -74,8 +74,12 @@ function secondTurn(sessions: Session.WithMessagesAndParts[]): Step[] {
             kind: "note",
             otherComputer: part.data.otherComputer === true,
           });
-        } else if (part.type === "tool-connect_app" && part.input?.slug) {
-          steps.push({ kind: "connect", slug: part.input.slug });
+        } else if (part.type === "tool-connect_app" && part.input?.slugs) {
+          for (const slug of part.input.slugs) {
+            if (slug !== undefined) {
+              steps.push({ kind: "connect", slug });
+            }
+          }
         } else if (part.type === "tool-bash") {
           const command = String(part.input?.command ?? "");
           const result = [

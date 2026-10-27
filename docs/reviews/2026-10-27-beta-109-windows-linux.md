@@ -121,7 +121,7 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 - Status: fixed
 - Where: [content-blocking.ts](/apps/studio/src/electron-main/browser-view/content-blocking.ts) (`loadEngine`)
 - What: `AssertionError: assert(!this.paused)` from undici's `Parser.finish` / `onHttpSocketEnd`, twice, about 100 ms after opening example.com, shown at the next launch as "2 server exceptions". Also in beta 109's own logs, so it predates these fixes.
-- Note: not the page. Opening the browser for the first time, or a week after the last time, builds the ad blocker's engine from its published lists with Node's `fetch`, and the two from easylist.to answer `Connection: close`. When such a socket ends while backpressure has the parser paused, the undici Node bundles asserts from the socket's `end` handler, uncaught (nodejs/undici#5360, fixed upstream in undici 8.10). On the Windows test host both exceptions came about a second before `content-blocking-engine.bin` was written, in the installed app and in the preview alike; a busy-looped Node 24 fetching easylist.to reproduced the same stack once or twice in twenty rounds. The lists now come over Electron's own network stack, which undici is not part of.
+- Note: not the page. Opening the browser for the first time, or a week after the last time, builds the ad blocker's engine from its published lists with Node's `fetch`, and the two from easylist.to answer `Connection: close`. When such a socket ends while backpressure has the parser paused, the undici Node bundles asserts from the socket's `end` handler, uncaught (nodejs/undici#5360, fixed upstream in undici 8.10). On the Windows test host both exceptions came about a second before `content-blocking-engine.bin` was written, in the installed app and in the preview alike; a busy-looped Node 24 fetching easylist.to reproduced the same stack three times in 55 rounds. The lists now come over Electron's own network stack, which undici is not part of.
 
 ### Q. Waking a sleeping tab logs a refused auto-attach
 
@@ -136,6 +136,18 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 - Where: [register-crash-diagnostics.ts](/apps/studio/src/electron-main/lib/register-crash-diagnostics.ts) (`registerCrashDiagnostics`)
 - What: found in the log sweep. Every launch whose previous session did not exit cleanly logged `(chatgpt-account) Failed to read the ChatGPT account store Error: Encryption is not available` four times, on Windows as well as Linux, where `safeStorage` always works once the app is ready: 4 per unclean launch in beta 103, 109 and the preview on the Windows test host, 12 for 3 on the Linux test host, which is the line H saw and put down to a missing keyring. The problem report for that session was composed at module load, before ready, and its redactor asks the ChatGPT store who is signed in, so the report was redacted without that account's email or name.
 - Note: the report is now composed once the app is ready. The Instrument account's own email is still unknown at that point, which is S.
+
+### S. The report of an unclean exit is redacted without the Instrument account
+
+- Status: open
+- Where: [get-signed-in-user.ts:39](/apps/studio/src/electron-main/lib/get-signed-in-user.ts#L39) (`knownSignedInPeople`)
+- What: found reading R's cause. The redactor learns the Instrument account's email and name only from the in-memory query cache of `users.getMe`, which nothing fills until the app asks the API after ready, so the problem recorded for an unclean exit at launch leaves that account's email and name in its details and events wherever the log tail or an exception carries them. Grok accounts are not asked at all. The session store keeps only tokens, so the likely fix is to redact again when a report is shown or sent, by which time `getMe` has answered.
+
+### T. An unreadable key store logs a full stack on every read
+
+- Status: open
+- Where: [chatgpt-account.ts:340](/apps/studio/src/electron-main/lib/chatgpt-account.ts#L340), [grok-account.ts:262](/apps/studio/src/electron-main/lib/grok-account.ts#L262), [provider-configs.ts:67](/apps/studio/src/electron-main/stores/workspace/provider-configs.ts#L67), [app-credentials.ts:58](/apps/studio/src/electron-main/stores/workspace/app-credentials.ts#L58), the session store's `decodeSessionFile`
+- What: found in the log sweep. A Linux preview started on a data folder carried over from an earlier preview, whose keys were encrypted under the other build's keyring entry, logged 296 errors in its first two minutes, every one `Error while decrypting the ciphertext provided to safeStorage.decryptString` with its stack: conf reads and decrypts the file again on every `get`, and each store's `deserialize` logs each failure. The setup was the test's doing, but a reset keyring or a changed Windows password does the same to a real install. Each store could log an unreadable file once per launch; whether the app should also say the sign-ins were lost is a separate question.
 
 ## Rerun after the fixes
 

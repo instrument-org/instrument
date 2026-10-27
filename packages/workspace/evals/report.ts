@@ -411,36 +411,39 @@ export async function generateReport({
       JSON.stringify(stats, null, 2),
       "utf8",
     );
-    // What the run made, and beside it the chat's records, copied rather
-    // than linked: the run's workspace is removed once the run is reported
-    // (`workspace-cleanup.ts`). The work folder's interpreter scratch is left
-    // out, since it is caches rather than anything the run made.
-    await fs
-      .cp(workDir(chatId), path.join(taskOutputDir, "task"), {
-        filter: (source) =>
-          path.basename(source) !== CHAT_FOLDER_NAMES.tmp ||
-          path.dirname(source) !== workDir(chatId),
-        recursive: true,
-      })
-      .catch(() => {
-        return;
-      });
-    await fs
-      .cp(chatDir(chatId), path.join(taskOutputDir, "record"), {
-        recursive: true,
-      })
-      .catch(() => {
-        return;
-      });
-    // And the chat's own folder under `Chats/`, where its finished work goes.
+    // What the run made, and beside it the chat's records and its own folder
+    // under `Chats/`, where its finished work goes, copied rather than
+    // linked: the run's workspace is removed once the run is reported
+    // (`workspace-cleanup.ts`). A folder the run never made is skipped, and
+    // any other failure fails the report, which keeps the workspace. The
+    // work folder's interpreter scratch is left out, since it is caches
+    // rather than anything the run made, and a link is copied as it reads.
     const ownFolder = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
-    if (ownFolder !== undefined) {
+    for (const [source, name] of [
+      [workDir(chatId), "task"],
+      [chatDir(chatId), "record"],
+      ...(ownFolder === undefined ? [] : [[ownFolder, "chat-folder"]]),
+    ] as const) {
       await fs
-        .cp(ownFolder, path.join(taskOutputDir, "chat-folder"), {
+        .cp(source, path.join(taskOutputDir, name), {
+          filter: (entry) =>
+            path.basename(entry) !== CHAT_FOLDER_NAMES.tmp ||
+            path.dirname(entry) !== workDir(chatId),
           recursive: true,
+          verbatimSymlinks: true,
         })
-        .catch(() => {
-          return;
+        .catch((error: unknown) => {
+          if (
+            !(
+              error instanceof Error &&
+              "code" in error &&
+              error.code === "ENOENT" &&
+              "path" in error &&
+              error.path === source
+            )
+          ) {
+            throw error;
+          }
         });
     }
 

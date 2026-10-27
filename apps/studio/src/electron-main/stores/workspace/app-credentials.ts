@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import { keyFileDeserializer } from "@/electron-main/lib/key-file";
 import { is } from "@electron-toolkit/utils";
 import { type StoredAppCredential } from "@instrument-org/workspace/electron";
 import { safeStorage } from "electron";
@@ -33,39 +34,13 @@ const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
     APP_CREDENTIALS_STORE = new Store<AppCredentialsStore>({
       cwd: workspaceKeysDir(),
       defaults: defaultStore,
-      deserialize: (value) => {
-        if (is.dev) {
-          const parsed = AppCredentialsStoreSchema.safeParse(JSON.parse(value));
-          if (parsed.success) {
-            return parsed.data;
-          }
-          logger.error("Failed to parse app credentials", parsed.error);
-          return defaultStore;
-        }
-
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          return defaultStore;
-        }
-
-        let jsonData: unknown;
-        try {
-          const decryptedValue = safeStorage.decryptString(
-            Buffer.from(value, "base64"),
-          );
-          jsonData = JSON.parse(decryptedValue);
-        } catch (error) {
-          logger.error("Failed to decrypt or parse JSON", error);
-          return defaultStore;
-        }
-
-        const parsed = AppCredentialsStoreSchema.safeParse(jsonData);
-        if (parsed.success) {
-          return parsed.data;
-        }
-        logger.error("Failed to parse app credentials", parsed.error);
-        return defaultStore;
-      },
+      deserialize: keyFileDeserializer({
+        fallback: () => ({ credentials: {} }),
+        log: logger,
+        lost: "the keys saved for apps",
+        name: "the app credential store",
+        parse: (json) => AppCredentialsStoreSchema.parse(json),
+      }),
       fileExtension: is.dev ? "json" : "json.enc",
       name: "app-credentials",
       serialize: (value) => {

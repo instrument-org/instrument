@@ -46,3 +46,49 @@ export function encodeKeyFile(json: string): string | undefined {
   }
   return safeStorage.encryptString(json).toString("base64");
 }
+
+/**
+ * A key store's `deserialize`: `parse` reads the decoded JSON, and a file
+ * that can't be decoded or parsed answers `fallback()`, empty. The store
+ * reads its file again on every `get`, so a failed file is remembered by its
+ * contents: the failure is logged once, with `lost` (what the person finds
+ * missing) in the line, and the same contents answer `fallback()` without
+ * being decrypted again until the file changes, which saving to the store
+ * (signing in again, adding the key again) does.
+ */
+export function keyFileDeserializer<T>({
+  fallback,
+  log,
+  lost,
+  name,
+  parse,
+}: {
+  fallback: () => T;
+  log: { error: (...data: unknown[]) => void };
+  /** What reads as gone while the file can't be read: "ChatGPT sign-ins". */
+  lost: string;
+  /** The store, as a log line names it: "the ChatGPT account store". */
+  name: string;
+  parse: (json: unknown) => T;
+}): (value: string) => T {
+  let unreadable: string | undefined;
+  return (value) => {
+    if (value === unreadable) {
+      return fallback();
+    }
+    try {
+      return parse(JSON.parse(decodeKeyFile(value)));
+    } catch (error) {
+      // Before the app is ready no file can be decrypted, so only a failure
+      // with encryption available says the file itself is unreadable.
+      if (is.dev || safeStorage.isEncryptionAvailable()) {
+        unreadable = value;
+      }
+      log.error(
+        `Can't read ${name}, so ${lost} read as gone until they are saved again. A key file encrypted by another build of the app, or before this computer's keyring was reset, can't be decrypted here.`,
+        error,
+      );
+      return fallback();
+    }
+  };
+}

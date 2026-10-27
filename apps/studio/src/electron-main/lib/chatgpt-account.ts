@@ -4,7 +4,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
-  decodeKeyFile,
+  keyFileDeserializer,
   encodeKeyFile,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
@@ -342,14 +342,13 @@ function getStore(): Store<StoreShape> {
     STORE = new Store<StoreShape>({
       cwd: workspaceKeysDir(),
       defaults,
-      deserialize: (value) => {
-        try {
-          return StoreSchema.parse(JSON.parse(decodeKeyFile(value)));
-        } catch (error) {
-          log.error("Failed to read the ChatGPT account store", error);
-          return defaults;
-        }
-      },
+      deserialize: keyFileDeserializer({
+        fallback: () => ({ registrations: {} }),
+        log,
+        lost: "its ChatGPT sign-ins",
+        name: "the ChatGPT account store",
+        parse: (json) => StoreSchema.parse(json),
+      }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.chatgptAccount,
       serialize: (value) => {

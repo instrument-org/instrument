@@ -1,7 +1,7 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
-  decodeKeyFile,
+  keyFileDeserializer,
   encodeKeyFile,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
@@ -59,24 +59,13 @@ export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
     PROVIDER_CONFIGS_STORE = new Store<ProviderConfigsStore>({
       cwd: workspaceKeysDir(),
       defaults: defaultStore,
-      deserialize: (value) => {
-        let jsonData: unknown;
-        try {
-          jsonData = JSON.parse(decodeKeyFile(value));
-        } catch (error) {
-          logger.error("Failed to decrypt or parse JSON", error);
-          return defaultStore;
-        }
-
-        const parsed = ProviderConfigsStoreSchema.safeParse(jsonData);
-
-        if (parsed.success) {
-          return parsed.data;
-        }
-
-        logger.error("Failed to parse provider configs", parsed.error);
-        return defaultStore;
-      },
+      deserialize: keyFileDeserializer({
+        fallback: () => ({ disabled: [], providers: [] }),
+        log: logger,
+        lost: "its provider keys",
+        name: "the provider key store",
+        parse: (json) => ProviderConfigsStoreSchema.parse(json),
+      }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.providerConfigs,
       serialize: (value) => {

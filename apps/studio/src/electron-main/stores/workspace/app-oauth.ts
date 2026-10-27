@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import { keyFileDeserializer } from "@/electron-main/lib/key-file";
 import { is } from "@electron-toolkit/utils";
 import {
   type McpOAuthStore,
@@ -52,24 +53,14 @@ function getStore(): Store<AppOAuthStoreShape> {
     STORE = new Store<AppOAuthStoreShape>({
       cwd: workspaceKeysDir(),
       defaults,
-      deserialize: (value) => {
-        if (is.dev) {
-          return JSON.parse(value) as AppOAuthStoreShape;
-        }
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          return defaults;
-        }
-        try {
-          const decrypted = safeStorage.decryptString(
-            Buffer.from(value, "base64"),
-          );
-          return JSON.parse(decrypted) as AppOAuthStoreShape;
-        } catch (error) {
-          logger.error("Failed to decrypt the app OAuth store", error);
-          return defaults;
-        }
-      },
+      deserialize: keyFileDeserializer({
+        fallback: () => ({ flows: {} }),
+        log: logger,
+        lost: "the apps' sign-ins",
+        name: "the app OAuth store",
+        // What this store wrote, so read back as its own shape.
+        parse: (json) => json as AppOAuthStoreShape,
+      }),
       fileExtension: is.dev ? "json" : "json.enc",
       name: "app-oauth",
       serialize: (value) => {

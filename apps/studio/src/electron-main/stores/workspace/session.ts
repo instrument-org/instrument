@@ -5,6 +5,7 @@ import {
   encodeKeyFile,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
+  keyFileDeserializer,
   keyFileName,
 } from "@/electron-main/lib/key-file";
 import { buildDefaultPlatformApiBaseUrl } from "@/electron-main/platform-api/base-url";
@@ -126,10 +127,13 @@ export const getSessionStore = (): Store<SessionState> => {
   if (SESSION_STORE === null) {
     SESSION_STORE = new Store<SessionState>({
       cwd: workspaceKeysDir(),
-      deserialize: (value) => {
-        const decoded = decodeSessionFile(value);
-        return decoded === undefined ? {} : parseSessionState(decoded);
-      },
+      deserialize: keyFileDeserializer({
+        fallback: () => ({}),
+        log: logger,
+        lost: "the Instrument sign-ins",
+        name: "the session store",
+        parse: parseSessionState,
+      }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.session,
       serialize: (value) => {

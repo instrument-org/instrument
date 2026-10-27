@@ -147,9 +147,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### T. An unreadable key store logs a full stack on every read
 
-- Status: open
+- Status: fixed
 - Where: [chatgpt-account.ts:340](/apps/studio/src/electron-main/lib/chatgpt-account.ts#L340), [grok-account.ts:262](/apps/studio/src/electron-main/lib/grok-account.ts#L262), [provider-configs.ts:67](/apps/studio/src/electron-main/stores/workspace/provider-configs.ts#L67), [app-credentials.ts:58](/apps/studio/src/electron-main/stores/workspace/app-credentials.ts#L58), the session store's `decodeSessionFile`
 - What: found in the log sweep. A Linux preview started on a data folder carried over from an earlier preview, whose keys were encrypted under the other build's keyring entry, logged 296 errors in its first two minutes, every one `Error while decrypting the ciphertext provided to safeStorage.decryptString` with its stack: conf reads and decrypts the file again on every `get`, and each store's `deserialize` logs each failure. The setup was the test's doing, but a reset keyring or a changed Windows password does the same to a real install. Each store could log an unreadable file once per launch; whether the app should also say the sign-ins were lost is a separate question.
+- Note: every key store (provider keys, the session, ChatGPT and Grok accounts, app credentials and app sign-ins) now reads through one `keyFileDeserializer` in [key-file.ts](/apps/studio/src/electron-main/lib/key-file.ts), which remembers a file it could not read by its contents: one log line, saying what reads as gone and why, then the same file answers empty without being decrypted again until it changes. The app acts signed out of what the file kept, and the file stays on disk untouched; signing in again or adding the key again writes over it, and that reads back. The app still says nothing on screen about the lost sign-ins.
 
 ## Rerun after the fixes
 

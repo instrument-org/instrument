@@ -588,18 +588,10 @@ textarea.md-input {
   text-underline-offset: 2px;
   font-weight: 500;
 }
-/* A link to a file that is not there (links.ts): a wavy red underline, as a misspelling gets. */
+/* A link to a file that is not there (links.ts): the link drawn in red, its
+   underline straight so it never reads as the spellchecker's mark. */
 .md-editor .milkdown .ProseMirror a:has(> .md-link-broken) {
-  text-decoration: none;
-}
-.md-editor .milkdown .ProseMirror .md-link-broken {
-  text-decoration: underline wavy;
-  text-decoration-color: color-mix(
-    in srgb,
-    var(--destructive) 70%,
-    transparent
-  );
-  text-underline-offset: 3px;
+  color: var(--destructive);
 }
 /* A link into the app (links.ts) as the chip Studio's Markdown draws it as:
    a muted box around the kind's glyph and the words, with no underline. */

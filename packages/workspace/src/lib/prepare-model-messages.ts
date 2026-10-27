@@ -101,6 +101,17 @@ async function withRolloverDecision({
 export const TRANSIENT = { instrument: { transient: true } };
 
 /**
+ * Model turns that have to pass after a summary that came to nothing before
+ * another is asked for. Each attempt is a request over the whole prefix, so
+ * one that keeps failing (the provider refuses it, the model calls a tool
+ * instead of writing) would otherwise double the cost of every step. Kept
+ * in memory, by the turn count in the window when it failed: an attempt
+ * records nothing, so nothing on disk depends on it.
+ */
+const SUMMARY_RETRY_TURNS = 4;
+const failedSummaryAt = new Map<StoreId.Session, number>();
+
+/**
  * The summary written for the rollover at `boundary`, read from the part
  * that marks it, so every request after it sends the same one.
  */
@@ -551,10 +562,14 @@ export async function prepareModelMessages({
   // crosses the step. The request is then built again, from the boundary.
   // After the rollover notice, so a summary written after an earlier one is
   // written from it.
+  const turns = nonContextMessages.filter(
+    (message) => message.role === "assistant",
+  ).length;
   if (
     summarize !== undefined &&
     cleared.summaryDue &&
-    contextRolloverWouldReclaim(nonContextMessages)
+    contextRolloverWouldReclaim(nonContextMessages) &&
+    turns >= (failedSummaryAt.get(sessionId) ?? 0) + SUMMARY_RETRY_TURNS
   ) {
     const summary = await summarize(preparedMessages);
     if (
@@ -568,8 +583,10 @@ export async function prepareModelMessages({
         usable,
       })) !== undefined
     ) {
+      failedSummaryAt.delete(sessionId);
       return prepareModelMessages({ agent, chatId, model, sessionId, signal });
     }
+    failedSummaryAt.set(sessionId, turns);
   }
 
   // After the rollover notice: that one says what the window is missing and

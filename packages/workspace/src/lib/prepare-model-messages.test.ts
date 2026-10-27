@@ -1316,6 +1316,25 @@ describe("prepareModelMessages", () => {
         ).toBe(true);
       });
 
+      it("waits four model turns before asking again after a summary came to nothing", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        const summarize = vi.fn(() => Promise.resolve(undefined));
+
+        await prepareWith(summarize);
+        await save(assistantMessageWithUsage("turn 4", 900));
+        await prepareWith(summarize);
+        expect(summarize).toHaveBeenCalledOnce();
+
+        for (let index = 5; index < 8; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await prepareWith(summarize);
+        expect(summarize).toHaveBeenCalledTimes(2);
+      });
+
       it("asks for nothing below 85% of the step", async () => {
         await save(userMessage("First question"));
         for (let index = 0; index < 4; index++) {

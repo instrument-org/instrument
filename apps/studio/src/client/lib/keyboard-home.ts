@@ -117,14 +117,15 @@ function first(root: HTMLElement, selector: string) {
   );
 }
 
-/** Drawn, and not in a part of the screen put out of reach (`inert`). */
+/**
+ * Drawn, and not in a part of the screen put out of reach (`inert`).
+ * Opacity does not count: a popover or menu fades in from zero, and the
+ * keyboard its opening put in it is not gone.
+ */
 function isShown(element: HTMLElement) {
   return (
     element.closest("[inert]") === null &&
-    element.checkVisibility({
-      opacityProperty: true,
-      visibilityProperty: true,
-    })
+    element.checkVisibility({ visibilityProperty: true })
   );
 }
 

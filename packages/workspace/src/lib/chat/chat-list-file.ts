@@ -112,7 +112,9 @@ export function startChatListFile({
     config.deviceId,
     CHAT_LIST_FILE_NAME,
   );
-  let latest: readonly Chat[] = [];
+  // Unread until the live list first answers, when a turn's end has nothing
+  // to write yet: an empty list would show a phone no chats.
+  let latest: readonly Chat[] | undefined;
   let written: ChatListRow[] | undefined;
   let timer: NodeJS.Timeout | undefined;
 
@@ -127,6 +129,9 @@ export function startChatListFile({
 
   const write = async () => {
     timer = undefined;
+    if (latest === undefined) {
+      return;
+    }
     const contents = chatListFile(latest, {
       device: config.deviceId,
       writtenAt: new Date(),

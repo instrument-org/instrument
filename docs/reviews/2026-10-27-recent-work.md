@@ -71,7 +71,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### H. The phone's chat list can be written empty just after launch (Nit)
 
-- Status: open
+- Status: fixed
 - Where: [chat-list-file.ts:119](/packages/workspace/src/lib/chat/chat-list-file.ts#L119)
 - What: a `session.done` before the live list first yields (a resumed background job) fires `write()` with `latest = []` and `written` undefined, so `chat-list.json` gets `chats: []` and a fresh `writtenAt`, and a phone taking the newest file shows no chats until the first real read rewrites it.
 - Verification: traced statically.

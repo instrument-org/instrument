@@ -478,6 +478,47 @@ describe("app test and the guide skeleton", () => {
       "app new github --name 'GitHub' --api https://api.github.com --auth bearer --test /user",
     );
   });
+
+  it.each([
+    ["github", []],
+    ["my-github", ["--service", "github"]],
+  ])(
+    "takes the directory's key test when %s leaves out --test",
+    async (slug, extra) => {
+      const result = await app(
+        "new",
+        slug,
+        "--name",
+        "GitHub",
+        "--api",
+        "https://api.github.com/",
+        "--auth",
+        "bearer",
+        ...extra,
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(await manifestOf(slug)).toMatchObject({
+        test: { path: "/user" },
+      });
+    },
+  );
+
+  it("still needs --test for an API at an address the directory does not have", async () => {
+    const result = await app(
+      "new",
+      "github",
+      "--name",
+      "GitHub",
+      "--api",
+      "https://github.example.com/api/v3",
+      "--auth",
+      "bearer",
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("an API app needs --test <path>");
+  });
 });
 
 describe("app new with a key already stored", () => {

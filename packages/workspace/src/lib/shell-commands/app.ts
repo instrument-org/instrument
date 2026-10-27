@@ -137,7 +137,8 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       theirs to rename. An
       MCP app's guide is done as written; an API app's may leave prompts to
       answer with \`${APP_COMMAND.name} guide\`. An MCP app defaults to oauth (a one-click sign-in, no key);
-      an API app to bearer, and needs --test, a cheap GET that proves the key.
+      an API app to bearer, and needs --test, a cheap GET that proves the key
+      (the directory's own, for a service it has, when left out).
       A key the service documents as HTTP Basic credentials takes basic (the key
       alone) or basic:<user> (the key as the password behind a fixed username);
       the base64 happens here, so the user pastes the key exactly as the service
@@ -993,7 +994,17 @@ async function runNew(input: SubcommandInput) {
       return [key.trim(), value];
     }),
   );
-  const test = input.value("test");
+  // The directory's own check for the service, where the app is at the
+  // address the directory has for it, the one its set-up line gives.
+  const directoryTest =
+    api !== undefined &&
+    entry?.interfaces.some(
+      (surface) =>
+        surface.endpoint?.replace(/\/+$/, "") === api.replace(/\/+$/, ""),
+    )
+      ? entry.apiGuide?.test
+      : undefined;
+  const test = input.value("test") ?? directoryTest;
   const serverArgs = input.all("arg");
   const runtime = input.value("runtime")?.trim() ?? "node";
   if (local && runtime !== "node" && runtime !== "python") {

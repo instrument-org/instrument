@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { askOfOutsideLink, createLinkGate } from "./outside-links";
+import {
+  askOfOutsideLink,
+  createLinkGate,
+  openOutsideLink,
+} from "./outside-links";
 
 // A link from outside can come from any site the person visits, so it puts
 // something in front of them and nothing more: no path past a plain
@@ -73,6 +77,18 @@ describe("askOfOutsideLink", () => {
     });
   });
 
+  it.each([
+    "instrument://file/home/linux-user/e2e/stats.py",
+    "instrument://file//home/linux-user/e2e/stats.py",
+  ])("opens a Linux home path from %s", async (url) => {
+    expect(
+      await askOfOutsideLink(url, {
+        hostPaths: path.posix,
+        isRefused: allowed,
+      }),
+    ).toEqual({ hostPath: "/home/linux-user/e2e/stats.py", type: "openFile" });
+  });
+
   // The address itself takes a step up, encoded or not, before anything
   // reads it, so the path judged is the one it leads to.
   it.each([
@@ -121,6 +137,70 @@ describe("askOfOutsideLink", () => {
         isRefused: () => Promise.resolve(true),
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("openOutsideLink", () => {
+  const open = async (
+    url: string,
+    {
+      gate = () => true,
+      waiting = 0,
+    }: { gate?: (url: string) => boolean; waiting?: number } = {},
+  ) => {
+    const asked: unknown[] = [];
+    const logged: string[] = [];
+    await openOutsideLink(url, {
+      ask: (ask) => asked.push(ask),
+      gate,
+      log: (line) => logged.push(line),
+      waiting: () => waiting,
+    });
+    return { asked, logged };
+  };
+
+  it("says what each link came to, by its noun alone", async () => {
+    expect(await open("instrument://new?text=private%20words"))
+      .toMatchInlineSnapshot(`
+      {
+        "asked": [
+          {
+            "type": "newChat",
+            "words": "private words",
+          },
+        ],
+        "logged": [
+          "A new link asks the window to newChat",
+        ],
+      }
+    `);
+    expect(await open("instrument://chat")).toMatchInlineSnapshot(`
+      {
+        "asked": [],
+        "logged": [
+          "A chat link opens nothing: it names nothing here, or a path that is not plainly this computer's or that the app refuses",
+        ],
+      }
+    `);
+    expect(await open("instrument://new?text=again", { gate: () => false }))
+      .toMatchInlineSnapshot(`
+      {
+        "asked": [],
+        "logged": [
+          "Let a new link go: the same link again, or too many this minute",
+        ],
+      }
+    `);
+    expect(
+      await open("instrument://file/home/linux-user/a.md", { waiting: 10 }),
+    ).toMatchInlineSnapshot(`
+      {
+        "asked": [],
+        "logged": [
+          "Let a file link go: 10 asks already wait for the window",
+        ],
+      }
+    `);
   });
 });
 

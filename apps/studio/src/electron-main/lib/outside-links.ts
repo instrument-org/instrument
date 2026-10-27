@@ -121,28 +121,54 @@ async function isFolder(hostPath: string) {
 }
 
 /** The ones a link is let through by, for this process. */
-const gate = createLinkGate();
+const processGate = createLinkGate();
 
 /**
  * Opens what a link from outside names, through `ask`, which puts it in
- * front of the person once the window can show it.
+ * front of the person once the window can show it. Every link says in the
+ * log what came of it, by its noun alone, since a `new` link's words and a
+ * file's path are the person's.
  */
 export async function openOutsideLink(
   url: string,
   {
     ask,
+    gate = processGate,
+    log,
     waiting,
   }: {
     ask: (ask: AppWindowAsk) => void;
+    gate?: (url: string) => boolean;
+    log: (line: string) => void;
     /** How many asks wait for the window now. */
     waiting: () => number;
   },
 ) {
-  if (waiting() >= WAITING_MAX || !gate(url)) {
+  const noun = nounOf(url);
+  if (waiting() >= WAITING_MAX) {
+    log(
+      `Let a ${noun} link go: ${WAITING_MAX} asks already wait for the window`,
+    );
+    return;
+  }
+  if (!gate(url)) {
+    log(`Let a ${noun} link go: the same link again, or too many this minute`);
     return;
   }
   const asked = await askOfOutsideLink(url);
-  if (asked) {
-    ask(asked);
+  if (!asked) {
+    log(
+      `A ${noun} link opens nothing: it names nothing here, or a path that is not plainly this computer's or that the app refuses`,
+    );
+    return;
   }
+  log(`A ${noun} link asks the window to ${asked.type}`);
+  ask(asked);
+}
+
+/** The noun a link leads with, which is all of it the log keeps. */
+function nounOf(url: string) {
+  return URL.canParse(url)
+    ? new URL(url).host.toLowerCase() || "bare"
+    : "malformed";
 }

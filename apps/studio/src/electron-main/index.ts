@@ -17,6 +17,7 @@ import {
 } from "@/electron-main/lib/claude-account";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
+import { logger } from "@/electron-main/lib/electron-logger";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { openOutsideLink } from "@/electron-main/lib/outside-links";
 import { setupStateKnown } from "@/electron-main/lib/setup-state";
@@ -437,6 +438,11 @@ function handleDeepLink(url: string) {
     ask: (ask) => {
       focusForegroundWindow();
       askAppWindow(ask);
+    },
+    log: (line) => {
+      // Scoped here, not at the top: a launch's own link comes through
+      // before the module has finished evaluating.
+      logger.scope("outside-link").info(line);
     },
     waiting: () => waitingAppWindowAsks().length,
   });

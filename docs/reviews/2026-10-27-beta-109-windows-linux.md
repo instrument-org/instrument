@@ -30,9 +30,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### B. An `instrument://file/` link does nothing on Linux
 
-- Status: open
+- Status: not a defect
 - Where: [outside-links.ts:110](/apps/studio/src/electron-main/lib/outside-links.ts#L110) (a guess: the `openFile` path from here to the window's `openFile` handler)
 - What: with the installed app running, `gio open instrument://file/~/e2e-b109/stats.py` (an existing file, folder never refused) opened no tab, toast or window and logged nothing, while a new-chat link in the same session landed in the composer.
+- Note: the link never reached the app. Sent as `systemd-run --user gio open …`, the unit's main process is `gio`, which returns as soon as it has started the app's second launch; the unit then stops and systemd kills that launch before it hands the link over. Rerun on the installed beta.109, file, folder and new-chat links all did nothing that way, and all opened when sent with `-p ExitType=cgroup` or by running the app with the link directly. The path reads correctly on Linux, and a link a browser or another app opens is not killed this way. Every link that reaches the app now logs what came of it under `(outside-link)`, and the Linux test skill says how to send one.
 
 ### C. Closing the only tab quits the app on Linux
 

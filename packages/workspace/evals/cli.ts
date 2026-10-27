@@ -74,9 +74,14 @@ const { positionals, values } = parseArgs({
 // The report is a single line for the same reason. A failing run invoked
 // through `pnpm run` gets pnpm's own epilogue appended to stdout, which nothing
 // here can suppress, so `| head -1` has to be enough to recover the report.
+//
+// Settles once the report is handed to the OS: stdout into a pipe is written
+// asynchronously, so a `process.exit` that does not wait for it cuts the
+// report off at the pipe's buffer, 64 KB, and a parent reading the line
+// (`--repeat`) gets JSON that ends mid-string.
 const emitReport = (() => {
   if (!values.json) {
-    return (text: string) => {
+    return async (text: string) => {
       write(text);
     };
   }
@@ -86,9 +91,12 @@ const emitReport = (() => {
   process.stdout.write = ((...args: Parameters<typeof process.stderr.write>) =>
     process.stderr.write(...args)) as typeof process.stdout.write;
   setHumanOutputStream(process.stderr);
-  return (text: string) => {
-    stdoutWrite(text);
-  };
+  return (text: string) =>
+    new Promise<void>((resolve) => {
+      stdoutWrite(text, () => {
+        resolve();
+      });
+    });
 })();
 
 const subcommand = positionals[0];
@@ -513,7 +521,7 @@ switch (subcommand) {
 
     printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
     if (values.json) {
-      emitReport(`${JSON.stringify(rollup)}\n`);
+      await emitReport(`${JSON.stringify(rollup)}\n`);
     }
     process.exit(exitCodeFor(rollup));
     break;
@@ -617,7 +625,7 @@ switch (subcommand) {
       printSummary({ outputDir, rollup, workspaceRootDir });
       printTranscripts({ outputDir, rollup });
       if (values.json) {
-        emitReport(`${JSON.stringify(rollup)}\n`);
+        await emitReport(`${JSON.stringify(rollup)}\n`);
       }
       process.exit(exitCodeFor(rollup));
     }
@@ -715,7 +723,7 @@ async function runTrialsApart(): Promise<number> {
     ].join("\n"),
   );
   if (values.json) {
-    emitReport(`${JSON.stringify(combined)}\n`);
+    await emitReport(`${JSON.stringify(combined)}\n`);
   }
   return trials.some((each) => each.exitCode !== 0) ? 1 : 0;
 }

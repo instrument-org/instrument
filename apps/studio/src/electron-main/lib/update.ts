@@ -433,8 +433,10 @@ const RESTART_HOLD_MS = 700;
 const FADE_MS = 200;
 const FADE_STEPS = 10;
 // Brings the windows back should the quit not come, so a stalled install
-// never leaves the app running unseen.
-const FADE_RESTORE_MS = 10_000;
+// never leaves the app running unseen. Well past the quit teardown's own
+// deadline (about 11 s, `teardown` in create-workspace-actor.ts), so an
+// install started with work running stays faded until the app is gone.
+const FADE_RESTORE_MS = 30_000;
 
 async function fadeOutBeforeInstall() {
   await sleep(RESTART_HOLD_MS);

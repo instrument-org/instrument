@@ -86,7 +86,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### J. Faded windows come back before an install's quit finishes (Nit)
 
-- Status: open
+- Status: fixed
 - Where: [update.ts:437](/apps/studio/src/electron-main/lib/update.ts#L437)
 - What: `FADE_RESTORE_MS` (10 s) is shorter than the quit teardown's deadline (about 11 s plus the hold and fade), so an install started with work running brings the windows back at full opacity just before the app exits. Cosmetic.
 - Verification: traced statically.

@@ -371,10 +371,22 @@ function createBrowserViewManager(): BrowserViewManager {
     const history = recordHistory(entry, guest);
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
+        const from = guest.getURL();
         lastLoads.delete(entry);
         focusGuard.onNavigationStart(targetId);
         markNavigated(entry, details.url);
         history.start(details.url);
+        // A file the app sends the page on to (the next file in a folder
+        // being walked) is a page of its own, muted until a person uses it
+        // like a page opened in a new tab; a link the page follows is not,
+        // and neither is the file reloaded where it is.
+        if (
+          !details.initiator &&
+          isFileUrl(details.url) &&
+          details.url.replace(/#.*$/, "") !== from.replace(/#.*$/, "")
+        ) {
+          guest.setAudioMuted(true);
+        }
       }
     });
     guest.on("did-redirect-navigation", (details) => {

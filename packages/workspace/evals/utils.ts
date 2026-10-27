@@ -244,7 +244,7 @@ export interface OpenRouterCatalog {
 }
 
 /** Per-token USD, as OpenRouter states it. */
-interface ModelPrice {
+export interface ModelPrice {
   cacheRead?: number;
   cacheWrite?: number;
   completion: number;
@@ -261,10 +261,12 @@ interface ModelPrice {
  * fresh input is what remains of the total after reads and writes.
  */
 export function costOfUsage(
-  usage: Pick<
-    UsageSummary,
-    "inputTokenDetails" | "inputTokens" | "outputTokens"
-  >,
+  usage: Pick<UsageSummary, "inputTokens" | "outputTokens"> & {
+    inputTokenDetails: Pick<
+      UsageSummary["inputTokenDetails"],
+      "cacheReadTokens" | "cacheWriteTokens"
+    >;
+  },
   price: ModelPrice,
 ): number {
   const { cacheReadTokens, cacheWriteTokens } = usage.inputTokenDetails;

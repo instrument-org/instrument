@@ -14,6 +14,7 @@ import { z } from "zod";
 import { EVALS } from "./cases";
 import {
   type CompletedRun,
+  DEFAULT_MAX_RUN_COST_USD,
   DEFAULT_MAX_RUN_SECONDS,
   DEFAULT_MAX_RUN_TOKENS,
   defineEval,
@@ -21,6 +22,7 @@ import {
   runEvals,
 } from "./harness";
 import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
+import { describeCost } from "./lib/run-cost";
 import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
 import { generateReport } from "./report";
 import {
@@ -49,6 +51,7 @@ const { positionals, values } = parseArgs({
     effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
     json: { default: false, type: "boolean" },
+    "max-run-cost": { type: "string" },
     "max-run-seconds": { type: "string" },
     "max-run-tokens": { type: "string" },
     model: { multiple: true, type: "string" },
@@ -92,12 +95,15 @@ const includeContextMessages = values["include-context"];
 const dryRun = values["dry-run"];
 const concurrency = Number.parseInt(values.concurrency, 10);
 const repeat = Number.parseInt(values.repeat, 10);
-// A ceiling per run, not per suite: one model failing to make progress should
+// Ceilings per run, not per suite: one model failing to make progress should
 // not be able to spend the whole budget, and stopping it leaves every other
 // run of the suite intact.
+const maxRunCostUSD = values["max-run-cost"]
+  ? Number.parseFloat(values["max-run-cost"])
+  : DEFAULT_MAX_RUN_COST_USD;
 const maxRunTokens = values["max-run-tokens"]
   ? Number.parseInt(values["max-run-tokens"], 10)
-  : DEFAULT_MAX_RUN_TOKENS;
+  : undefined;
 const maxRunSeconds = values["max-run-seconds"]
   ? Number.parseInt(values["max-run-seconds"], 10)
   : DEFAULT_MAX_RUN_SECONDS;
@@ -207,7 +213,10 @@ if (
     "  run [pattern...] Run evals matching any name pattern, then generate report\n",
   );
   process.stderr.write(
-    "                   --max-run-tokens <n> caps one run's spend (0 disables)\n",
+    `                   --max-run-cost <usd> caps one run's spend, searches included (default ${DEFAULT_MAX_RUN_COST_USD}, 0 disables)\n`,
+  );
+  process.stderr.write(
+    `                   --max-run-tokens <n> caps one run's tokens, cache reads included (default ${DEFAULT_MAX_RUN_TOKENS} for a run with no price, 0 disables)\n`,
   );
   process.stderr.write(
     "                   --max-run-seconds <n> caps one run's wall clock (0 disables)\n",
@@ -271,6 +280,36 @@ function exitCodeFor(rollup: Rollup): number {
 
 const short = (sha: string) => sha.slice(0, 12);
 
+function tokenCapLabel(): string {
+  if (maxRunTokens === undefined) {
+    return `${formatNumber(DEFAULT_MAX_RUN_TOKENS)} per run, only for a run with no price`;
+  }
+  return maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none";
+}
+
+function overBudgetLabel(spend: CompletedRun["overBudget"]): string {
+  if (!spend) {
+    return "over budget";
+  }
+  return spend.costUSD === undefined
+    ? `${formatNumber(spend.tokens)} tokens`
+    : `${formatCost(spend.costUSD)}, ${formatNumber(spend.tokens)} tokens`;
+}
+
+/**
+ * What the run cost and how that was arrived at: billed is what the
+ * provider's responses said they charged, estimated is a catalog price on
+ * tokens, and searches are always an estimate. See `RunCost`.
+ */
+function costLines(rollup: Rollup): string[] {
+  const line = describeCost(rollup.cost);
+  return line === undefined
+    ? []
+    : [
+        `${c.dim}│${c.reset}  ${c.dim}Cost       :${c.reset} ${c.yellow}${line}${c.reset}`,
+      ];
+}
+
 function printSummary({
   outputDir: out,
   rollup,
@@ -313,11 +352,7 @@ function printSummary({
             `${c.dim}│${c.reset}  ${c.dim}Assertions :${c.reset} ${assertions.passed === assertions.total ? c.green : c.yellow}${assertions.passed}/${assertions.total} passed (${passRate})${c.reset}`,
           ]
         : []),
-      ...(rollup.costUSD === undefined
-        ? []
-        : [
-            `${c.dim}│${c.reset}  ${c.dim}Cost       :${c.reset} ${c.yellow}~${formatCost(rollup.costUSD)}${c.reset}${c.dim} (approximate)${c.reset}`,
-          ]),
+      ...costLines(rollup),
       `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
       "",
       `${c.dim}Re-run the assertions against these same sessions, at no cost:${c.reset}`,
@@ -505,7 +540,8 @@ switch (subcommand) {
         `${c.dim}│${c.reset}  ${c.dim}Total runs  :${c.reset} ${c.yellow}${totalRuns}${c.reset}`,
         `${c.dim}│${c.reset}  ${c.dim}Concurrency :${c.reset} ${concurrency}`,
         `${c.dim}│${c.reset}  ${c.dim}Dry run     :${c.reset} ${dryRun ? "yes" : "no"}`,
-        `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Cost cap    :${c.reset} ${maxRunCostUSD > 0 ? `${formatCost(maxRunCostUSD)} per run` : "none"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${tokenCapLabel()}`,
         `${c.dim}│${c.reset}  ${c.dim}Time cap    :${c.reset} ${maxRunSeconds > 0 ? `${maxRunSeconds}s per run` : "none"}`,
         `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
         ...filteredEvals.map(
@@ -546,6 +582,7 @@ switch (subcommand) {
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
+      maxRunCostUSD,
       maxRunSeconds,
       maxRunTokens,
       models,
@@ -687,7 +724,7 @@ function reportStopped(runs: CompletedRun[]) {
       `${c.red}${capped.length} run(s) hit a cap${c.reset}${c.dim} -- their results are partial:${c.reset}`,
       ...capped.map(
         (run) =>
-          `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${run.stoppedBy === "budget" ? `${formatNumber(run.overBudget ?? 0)} tokens` : "out of time"})${c.reset}`,
+          `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${run.stoppedBy === "budget" ? overBudgetLabel(run.overBudget) : "out of time"})${c.reset}`,
       ),
       "",
     ].join("\n"),

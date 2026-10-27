@@ -29,6 +29,7 @@ import {
   type RunMetrics,
   type RunStop,
   childSessionsOf,
+  childTasksOf,
   sessionsFor,
 } from "./harness";
 import {
@@ -36,8 +37,23 @@ import {
   gitProvenance,
   systemPromptDigest,
 } from "./provenance";
-import { buildReportWorkspaceConfig, c, write } from "./utils";
+import {
+  buildReportWorkspaceConfig,
+  c,
+  fetchOpenRouterCatalog,
+  type OpenRouterCatalog,
+  write,
+} from "./utils";
 import { readRunRecord } from "./lib/run-record";
+import {
+  addRunCosts,
+  type CostSource,
+  costSourceOf,
+  modelCostUSD,
+  readChatSpend,
+  type RunCost,
+  runCostOf,
+} from "./lib/run-cost";
 import { renderUserView } from "./lib/user-view";
 import { StoreId } from "../src/schemas/store-id";
 import { type ChatId } from "../src/schemas/chat-id";
@@ -49,7 +65,10 @@ interface RollupSummary {
     passed: number;
     total: number;
   };
-  /** Approximate, and only for models whose price was known. See `formatCost`. */
+  /** Every run's `RunCost` added up. */
+  cost: RunCost;
+  costSource?: CostSource;
+  /** The runs' model requests, searches apart. See `CompletedRun.costUSD`. */
   costUSD?: number;
   /** Tasks where at least one model request failed (rate limit, credits, ...). */
   erroredTasks: number;
@@ -66,6 +85,8 @@ interface RollupSummary {
     systemPromptSha256: string[];
   };
   results: RunReport[];
+  /** Estimated, apart from `costUSD`. See `RunCost.search`. */
+  searchCostUSD?: number;
   /** Tasks the harness or the case ended on purpose. Not a failure. */
   stoppedTasks: number;
   tasks: number;
@@ -75,6 +96,8 @@ interface RollupSummary {
 interface RunReport {
   assertions: AssertionResult[];
   caseName: string;
+  cost: RunCost;
+  costSource?: CostSource;
   costUSD?: number;
   /** Model requests that genuinely failed. A deliberate stop is not one. */
   erroredRequests: number;
@@ -87,6 +110,7 @@ interface RunReport {
   outputDir: string;
   passed: number;
   resolvedModelId?: string;
+  searchCostUSD?: number;
   stoppedBy?: RunStop;
   /** The system prompt this task was scored against. See `provenance`. */
   systemPromptSha256?: string;
@@ -202,6 +226,7 @@ export async function generateReport({
     write("No tasks found in workspace.\n");
     return {
       assertions: { failed: 0, pass_rate: 0, passed: 0, total: 0 },
+      cost: addRunCosts([]),
       erroredTasks: 0,
       modelURIs: [],
       provenance: {
@@ -223,9 +248,9 @@ export async function generateReport({
   let rollupFailed = 0;
   let rollupErroredTasks = 0;
   let rollupStoppedTasks = 0;
-  let rollupCost = 0;
   const rollupPromptDigests = new Set<string>();
-  let sawPrice = false;
+  // Prices for runs this process did not watch, fetched once per model.
+  const catalogs = new Map<string, Promise<OpenRouterCatalog>>();
   const rollupModelURIs = new Set<string>();
   const results: RunReport[] = [];
   // A case run several times against one model would otherwise write every
@@ -343,10 +368,29 @@ export async function generateReport({
       rollupStoppedTasks += 1;
     }
 
-    if (run?.costUSD !== undefined) {
-      rollupCost += run.costUSD;
-      sawPrice = true;
+    let cost = run?.cost;
+    if (!cost) {
+      const modelKey = taskModelURI ?? "";
+      const catalog =
+        catalogs.get(modelKey) ??
+        fetchOpenRouterCatalog(taskModelURI ? [taskModelURI] : []);
+      catalogs.set(modelKey, catalog);
+      const { priceFor } = await catalog;
+      const spent = await readChatSpend(chatId, [
+        rootSession.id,
+        ...(await childTasksOf(chatId, rootSession.id)),
+      ]);
+      cost = runCostOf(spent.messages, {
+        billed: spent.billed,
+        price: taskModelURI
+          ? priceFor(taskModelURI.split("?")[0] ?? taskModelURI)
+          : undefined,
+        priceFor,
+      });
     }
+    const costUSD = modelCostUSD(cost);
+    const searchCostUSD =
+      cost.search.searches > 0 ? cost.search.estimatedUSD : undefined;
 
     await fs.writeFile(
       path.join(taskOutputDir, "session.md"),
@@ -396,12 +440,15 @@ export async function generateReport({
       path.join(taskOutputDir, "eval-case.json"),
       JSON.stringify(
         {
-          costUSD: run?.costUSD,
+          cost,
+          costSource: costSourceOf(cost),
+          costUSD,
           metrics: run?.metrics,
           modelURI: taskModelURI,
           name: caseName,
           treeUsage: run?.treeUsage,
           resolvedModelId: run?.resolvedModelId,
+          searchCostUSD,
           stoppedBy,
           systemPromptSha256,
           chatId: task.id,
@@ -493,7 +540,9 @@ export async function generateReport({
     results.push({
       assertions: assertionResults,
       caseName,
-      costUSD: run?.costUSD,
+      cost,
+      costSource: costSourceOf(cost),
+      costUSD,
       erroredRequests: apiErrors.length,
       failed: assertionResults.filter((r) => !r.passed).length,
       label,
@@ -502,6 +551,7 @@ export async function generateReport({
       outputDir: relativeDir,
       passed: assertionResults.filter((r) => r.passed).length,
       resolvedModelId: run?.resolvedModelId,
+      searchCostUSD,
       stoppedBy,
       systemPromptSha256,
       chatId: task.id,
@@ -512,6 +562,7 @@ export async function generateReport({
   }
 
   const rollupTotal = rollupPassed + rollupFailed;
+  const rollupCost = addRunCosts(results.map((result) => result.cost));
   const rollup: RollupSummary = {
     assertions: {
       failed: rollupFailed,
@@ -519,7 +570,9 @@ export async function generateReport({
       passed: rollupPassed,
       total: rollupTotal,
     },
-    costUSD: sawPrice ? rollupCost : undefined,
+    cost: rollupCost,
+    costSource: costSourceOf(rollupCost),
+    costUSD: modelCostUSD(rollupCost),
     erroredTasks: rollupErroredTasks,
     modelURIs: [...rollupModelURIs],
     provenance: {
@@ -528,6 +581,10 @@ export async function generateReport({
       systemPromptSha256: [...rollupPromptDigests].sort(),
     },
     results,
+    searchCostUSD:
+      rollupCost.search.searches > 0
+        ? rollupCost.search.estimatedUSD
+        : undefined,
     stoppedTasks: rollupStoppedTasks,
     tasks: tasks.length,
   };

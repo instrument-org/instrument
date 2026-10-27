@@ -38,6 +38,10 @@ import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/open-asks";
 import { ChatReads } from "../src/lib/chat-reads";
 import { getUsageSummary } from "../src/lib/usage-summary";
+import {
+  getUsageSummaryFromMessages,
+  type UsageSummary,
+} from "../src/lib/usage-summary-compute";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
@@ -50,6 +54,15 @@ import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { platformSearchClient } from "./lib/platform-search";
+import {
+  type CostSource,
+  costSourceOf,
+  describeCost,
+  modelCostUSD,
+  readChatSpend,
+  type RunCost,
+  runCostOf,
+} from "./lib/run-cost";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
   answerSignIn,
@@ -64,7 +77,6 @@ import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
   c,
-  costOfUsage,
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
@@ -154,7 +166,15 @@ export const HOUSE_FLOOR = "anthropic/claude-haiku-5.5";
 export interface CompletedRun {
   /** Every task this run's chat started, by its session. Empty unless it forked. */
   childSessionIds: StoreId.Session[];
-  /** Approximate USD, when the model's price is known. See `formatCost`. */
+  /** How `costUSD` and `searchCostUSD` were arrived at, step by step. */
+  cost: RunCost;
+  /** Whether `costUSD` is what the provider billed, a catalog estimate, or both. */
+  costSource?: CostSource;
+  /**
+   * USD for the run's model requests: billed where each response said, else
+   * priced from the catalog. Absent when neither could price a step. Web
+   * searches are `searchCostUSD`, not this.
+   */
   costUSD?: number;
   label: string;
   metrics: RunMetrics;
@@ -163,8 +183,8 @@ export interface CompletedRun {
   modelURI: string;
   /** The eval case this run came from, so a report can find it by task id. */
   name: string;
-  /** Tokens at the moment the cap stopped this run; absent if it finished. */
-  overBudget?: number;
+  /** The run's spend at the moment a cap stopped it; absent if it finished. */
+  overBudget?: { costUSD?: number; tokens: number };
   /**
    * The build a `~<name>-latest` alias stood for when this ran. Absent for a pinned
    * model, where `modelURI` already says it.
@@ -175,6 +195,8 @@ export interface CompletedRun {
    * case, the task the run started from an empty chat.
    */
   sessionId: StoreId.Session;
+  /** USD estimated for the run's web searches, apart from `costUSD`. */
+  searchCostUSD?: number;
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   /** The chat the run is in. */
@@ -270,13 +292,33 @@ export interface TurnShape {
  */
 export type RunStop = "budget" | "case" | "timeout" | "unknown";
 
+/** A run's spend so far, as the caps read it: `costUSD` searches included. */
+interface Spend {
+  costUSD?: number;
+  tokens: number;
+  usage: UsageSummary;
+}
+
 /**
- * Ceiling on one run's total tokens before the harness stops it.
+ * Ceiling on one run's spend in dollars before the harness stops it: its
+ * model requests (`RunCost`, billed where the response said) and its
+ * searches together.
  *
- * Set from measurement rather than taste: the most expensive legitimate run
- * observed was around 700K, and the cheapest runaway was 1.3M. Anything past
- * this is a model that has stopped making progress, and the cost of letting it
- * continue is unbounded.
+ * Dollars rather than tokens because an agent's tokens are mostly cache
+ * reads, which bill at a tenth of a fresh token or less: a browse-and-build
+ * run passed a million tokens for about four cents, and a 35-turn
+ * conversation on Claude Haiku 5.5 passed twelve million for under a
+ * dollar. Twice that is room for a long legitimate run and a stop for a
+ * runaway before it costs real money; a pricier model's long run needs
+ * `--max-run-cost` raised.
+ */
+export const DEFAULT_MAX_RUN_COST_USD = 2;
+
+/**
+ * Ceiling on one run's total tokens, by default only for a run whose cost
+ * cannot be read (a free model, or one with no catalog price), which the
+ * dollar cap cannot see. Measured on such runs: the most expensive legitimate
+ * one was around 700K, and the cheapest runaway was 1.3M.
  */
 export const DEFAULT_MAX_RUN_TOKENS = 1_000_000;
 
@@ -298,9 +340,9 @@ export const DEFAULT_MAX_RUN_SECONDS = 1800;
  *
  * Both readings come from the stored messages, and usage only lands there when
  * an assistant message is saved -- so the total does not move within a turn,
- * however many tool calls that turn makes. The token cap therefore acts at turn
- * boundaries, and the wall-clock cap is the only thing bounding a single turn
- * that will not end.
+ * however many tool calls that turn makes. The token and cost caps therefore
+ * act at step boundaries, and the wall-clock cap is the only thing bounding a
+ * single step that will not end.
  */
 const ENFORCEMENT_INTERVAL_MS = 15_000;
 
@@ -374,7 +416,8 @@ export interface EvalCase {
   assertions?: Assertion[];
   /**
    * This case's own token cap, over the run's (`--max-run-tokens`), for a
-   * long conversation whose legitimate total is past the default.
+   * long conversation whose legitimate total is past the default. It
+   * applies whether or not the run's cost can be read.
    */
   maxRunTokens?: number;
   /**
@@ -609,15 +652,22 @@ export async function runEvals(
   {
     concurrency = 8,
     dryRun = false,
+    maxRunCostUSD = DEFAULT_MAX_RUN_COST_USD,
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
-    maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
+    maxRunTokens,
     models,
     reasoningEffort,
     repeat = 1,
   }: {
     concurrency?: number;
     dryRun?: boolean;
+    /** 0 disables. */
+    maxRunCostUSD?: number;
     maxRunSeconds?: number;
+    /**
+     * 0 disables. Absent, `DEFAULT_MAX_RUN_TOKENS` applies to a run only
+     * while its cost cannot be read.
+     */
     maxRunTokens?: number;
     models: string[];
     /** Asked of every model request the run makes, through the workspace config. */
@@ -841,11 +891,12 @@ export async function runEvals(
       );
 
       const abortController = new AbortController();
+      const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const startedAt = Date.now();
       let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
       let stoppingForCase = false;
-      let overBudget: number | undefined;
+      let overBudget: CompletedRun["overBudget"];
       // What each question was asked with, by its call's part, for an answer
       // that picks one of the choices the model wrote.
       const chooseInputs = new Map<
@@ -954,17 +1005,30 @@ export async function runEvals(
       // a legitimate tool call. Measured, one run has reached millions of tokens
       // on a single question before a human noticed. The eval harness is the one
       // place that can see the running total and act on it, so it does.
-      const enforceCaps = (totalTokens: number) => {
+      const enforceCaps = ({ costUSD, tokens }: Spend) => {
         if (stoppedBy) {
           return;
         }
         const elapsedSeconds = (Date.now() - startedAt) / 1000;
-        const tokenCap = evalCase.maxRunTokens ?? maxRunTokens;
-        if (tokenCap > 0 && totalTokens > tokenCap) {
+        const tokenCap =
+          evalCase.maxRunTokens ??
+          maxRunTokens ??
+          (costUSD === undefined ? DEFAULT_MAX_RUN_TOKENS : 0);
+        if (
+          maxRunCostUSD > 0 &&
+          costUSD !== undefined &&
+          costUSD > maxRunCostUSD
+        ) {
           stoppedBy = "budget";
-          overBudget = totalTokens;
+          overBudget = { costUSD, tokens };
           process.stderr.write(
-            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatCost(costUSD)} > ${formatCost(maxRunCostUSD)}, stopping. Raise with --max-run-cost, or 0 to disable.${c.reset}\n`,
+          );
+        } else if (tokenCap > 0 && tokens > tokenCap) {
+          stoppedBy = "budget";
+          overBudget = { costUSD, tokens };
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(tokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
           );
         } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
           stoppedBy = "timeout";
@@ -979,10 +1043,26 @@ export async function runEvals(
 
       // The whole chat's spend, its tasks' included: a runaway task is as much
       // the run's as a runaway conversation.
+      const spendOf = async (): Promise<Spend> => {
+        const { billed, messages } = await readChatSpend(id);
+        const usage = getUsageSummaryFromMessages(messages);
+        const cost = runCostOf(messages, {
+          billed,
+          price,
+          priceFor: catalog.priceFor,
+        });
+        const modelUSD = modelCostUSD(cost);
+        return {
+          costUSD:
+            modelUSD === undefined
+              ? undefined
+              : modelUSD + cost.search.estimatedUSD,
+          tokens: usage.totalTokens,
+          usage,
+        };
+      };
       const enforcementTimer = setInterval(() => {
-        void getUsageSummary(id).then((usage) => {
-          enforceCaps(usage.totalTokens);
-        }, _.noop);
+        void spendOf().then(enforceCaps, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
 
       // A question the agent asked, or a folder or app it asked for, shows
@@ -1200,12 +1280,13 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const usage = await getUsageSummary(id);
+              const spend = await spendOf();
+              const { usage } = spend;
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
                 : `${c.cyan}${toolName}${c.reset}`;
-              const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}`;
+              const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}${spend.costUSD === undefined ? "" : `${c.dim} cost=${c.reset}${formatCost(spend.costUSD)}`}`;
               const line = `${evalPrefix(label)}${toolLabel}${statsSuffix}\n`;
               if (isError) {
                 stream.write(line);
@@ -1213,7 +1294,7 @@ export async function runEvals(
                 write(line);
               }
 
-              enforceCaps(usage.totalTokens);
+              enforceCaps(spend);
             }
 
             if (!stoppingForCase && (await evalCase.shouldStop?.(part, id))) {
@@ -1529,21 +1610,24 @@ export async function runEvals(
           0,
         ),
       };
-      const price = catalog.priceFor(uri.split("?")[0] ?? uri);
-      const costUSD = price
-        ? [usage, ...childUsages].reduce(
-            (sum, one) => sum + costOfUsage(one, price),
-            0,
-          )
-        : undefined;
+      const spent = await readChatSpend(id, [sessionId, ...childSessionIds]);
+      const cost = runCostOf(spent.messages, {
+        billed: spent.billed,
+        price,
+        priceFor: catalog.priceFor,
+      });
+      const costUSD = modelCostUSD(cost);
+      const costLine = describeCost(cost);
 
       finishedRuns += 1;
       write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costLine === undefined ? "" : `, ${costLine}`})${c.reset}\n`,
       );
 
       return {
         childSessionIds,
+        cost,
+        costSource: costSourceOf(cost),
         costUSD,
         label,
         metrics,
@@ -1552,6 +1636,8 @@ export async function runEvals(
         name: evalCase.name,
         overBudget,
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
+        searchCostUSD:
+          cost.search.searches > 0 ? cost.search.estimatedUSD : undefined,
         sessionId,
         stoppedBy,
         chatId: id,
@@ -1625,7 +1711,7 @@ export async function sessionsFor(
  * The tasks a run started: those of its chat when the run is the chat's own
  * conversation, and none for a task case, whose session starts nothing.
  */
-async function childTasksOf(
+export async function childTasksOf(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<StoreId.Session[]> {

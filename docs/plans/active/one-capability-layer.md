@@ -58,6 +58,7 @@ The owner settled these; the design below follows them.
 - **A preflight ask is built only if an eval shows it helps** (phase 1).
 - **Python is synchronous first**, with calls safe from threads for fan-out.
 - **The Mac apps move into the Apps area like every other app.** Longer term, computer use on every OS goes through Apps too (see [Computer use](#computer-use)).
+- **Connecting a Mac app covers every chat**, as connecting any other app does. Calendar, Mail, Messages and the rest stop asking in each chat once the person connects them in Apps; Settings › Permissions can still mark one Not allowed, and macOS keeps its own prompt. Per-chat access may come later as an opt-in setting, and it would apply to apps in general rather than to Mac apps alone.
 
 ## Proposed shape
 
@@ -181,7 +182,7 @@ export const calendarAddEvent = defineAppTool({
   output: CalendarEventSchema, // the helper's JSON, parsed before it is trusted
   surfaces: { cli: true, script: true },
   where: { available: () => getWorkspaceConfig().macHelperBinPath !== undefined, platforms: ["darwin"] },
-  gate: macAppGate(CALENDAR_APP), // the app connected in Apps, appRefusal, then macosAppCard
+  gate: macAppGate(CALENDAR_APP), // connected in Apps, not marked Not allowed in Settings, then macosAppCard
   run: (input, ctx) => runMacHelper(["add-event", ...helperArgs(input)], CalendarEventSchema, ctx),
   text: (event) => `Added "${event.title}" to ${event.calendar} at ${event.start}.`,
 });
@@ -258,7 +259,7 @@ That answers the transcript's `subprocess.run(["instrument", ...])` in the words
 - **The description moves out of every prompt.** `computerCommandsText` puts six paragraphs of Mac app usage into every session on a Mac. As apps, each has a guide read when the app is used, like any app.
 - **The open piece is small now.** The stale plan's "bundled-binary app kind" was the hard part when it was written; the helper, the entitlements and usage strings, and the gate it needed have since landed as `instrument calendar` and `contacts` ([`mac-helper.ts`](../../../packages/workspace/src/lib/shell-commands/mac-helper.ts), [mac-native-bridge.md](../../architecture/mac-native-bridge.md)). What is left is a manifest type (`type: "mac"`, naming the built-in by id), `setUpFromDirectory` writing its folder, and the Apps screen showing it.
 
-What it costs: the short `instrument calendar` words, and a person who removes the app's folder loses it until they add it again (today it is always there on a Mac). How the person's yes is scoped in Apps is open question A.
+What it costs: the short `instrument calendar` words, and a person who removes the app's folder loses it until they add it again (today it is always there on a Mac). Connecting one covers every chat, as for any app (Decisions).
 
 The stale [mac-reminders-and-calendar-app.md](mac-reminders-and-calendar-app.md) moves to `completed/` when phase 2 lands, its status reading that the EventKit helper landed as commands and the built-in app kind is carried here. Its remaining items (update and delete, write-only access on macOS 14+, recurrence) become follow-up capabilities.
 
@@ -323,7 +324,7 @@ Not yet run: a second model, and the bash-only arm (phase 1 adds the switch). `e
 
 ### Phase 2: the Mac apps
 
-- The six Mac apps' tools as `defineAppTool` capabilities over the helper and the scripts, with `macAppGate` as their one gate.
+- The six Mac apps' tools as `defineAppTool` capabilities over the helper and the scripts, with `macAppGate` as their one gate: the app connected in Apps for the workspace, the Settings rule, then macOS's own answer. The per-chat app grants these six apps take today (`appRefusal` and `ask_permission` with `kind: "app"` for them) go; Shortcuts, which is not an app in Apps, keeps its own.
 - The `mac` app kind, `setUpFromDirectory` writing its folder, the Apps screen tile, and each app's guide from its tools' summaries.
 - **Deleted:** `createMacHelperCommand`, `instrument calendar`, `contacts`, `mail`, `notes` and `messages` with their `USAGE` strings, `MAC_APP_SUBCOMMANDS`, `nativeCommandFor` and its tables, the Mac paragraphs in `computerCommandsText`. The stale plan moves to `completed/`.
 - **Evals:** the `reach-*` cases in [`reach.ts`](../../../packages/workspace/evals/cases/reach.ts) (reminder, calendar, send-text, task-reminders, task-notes) rerun; a script case that adds three events and meets the Calendar card: the turn ends once, with no retry loop and no AppleScript fallback.
@@ -337,4 +338,4 @@ Not yet run: a second model, and the bash-only arm (phase 1 adds the switch). `e
 
 ## Open questions for the owner
 
-A. **How far a yes to a Mac app reaches, now that it lives in Apps.** Every other app is connected once for the workspace. A Mac app today asks in each chat. In Apps, either connecting Calendar covers every chat (one model for every app, and the person's yes reaches chats they never looked at), or Calendar's tile says it asks in each chat and connecting it only makes it available (a second consent model inside the one Apps area).
+None open. The owner's answers are in [Decisions](#decisions).

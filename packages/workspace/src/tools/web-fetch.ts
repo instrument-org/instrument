@@ -16,7 +16,10 @@ import {
   readCachedPage,
 } from "../lib/web-fetch-cache";
 import { RelativePathSchema } from "../schemas/paths";
-import { defineCapability } from "../lib/capabilities/define";
+import {
+  CapabilityFailure,
+  defineCapability,
+} from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
 import { TOOL_NAMES } from "./name";
 import { workDir } from "../lib/work-dir";
@@ -97,8 +100,34 @@ export const webFetchCapability = defineCapability({
     }),
   }),
   name: "web.fetch",
+  output: z.object({
+    /** Set only when the page came from the local cache of recent fetches. */
+    cached_age_ms: z.number().optional(),
+    content_type: z.string(),
+    format: z.enum(FETCH_FORMATS),
+    text: z.string(),
+    truncated: z.boolean(),
+    url: z.string(),
+  }),
+  async run(input, ctx) {
+    const page = await fetchPage(input, ctx.signal);
+    if (!page.ok) {
+      throw new CapabilityFailure(page.error);
+    }
+    return {
+      ...(page.cachedAgeMs === undefined
+        ? {}
+        : { cached_age_ms: page.cachedAgeMs }),
+      content_type: page.contentType,
+      format: page.appliedFormat,
+      text: page.text,
+      truncated: page.truncated,
+      url: page.finalUrl,
+    };
+  },
   summary: "Fetches an http(s) URL as Markdown or its raw text.",
   surfaces: {
+    script: { positional: [INPUT_PARAMS.url] },
     tool: {
       description: dedent`
     Fetch the contents of an http(s) URL and return it as Markdown (default) or raw HTML.
@@ -111,36 +140,20 @@ export const webFetchCapability = defineCapability({
     This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the chat's folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
   `,
       async execute({ input, partId, signal, chatId }) {
-        const parsedUrl = parseHttpUrl(input.url);
-        if (!parsedUrl) {
-          return ok({
-            errorMessage: "URL must be an http:// or https:// address.",
-            state: "failure" as const,
-          });
+        const result = await fetchPage(input, signal);
+        if (!result.ok) {
+          return ok({ errorMessage: result.error, state: "failure" as const });
         }
-
-        const format: FetchFormat = input.format ?? "markdown";
-        const timeoutMs = (input.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000;
-        const url = parsedUrl.toString();
-
-        try {
-          const result = await fetchTextual({
-            format,
-            maxAgeSeconds: input.maxAgeSeconds,
-            maxCharacters: input.maxCharacters ?? DEFAULT_TEXT_CHARACTERS,
-            signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
-            url,
-          });
-
-          let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
-          if (result.ok && result.spillText !== undefined) {
-            spillFilePath = RelativePathSchema.parse(
-              path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.txt`),
-            );
-            const absoluteSpillPath = absolutePathJoin(
-              workDir(chatId),
-              spillFilePath,
-            );
+        let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
+        if (result.spillText !== undefined) {
+          spillFilePath = RelativePathSchema.parse(
+            path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.txt`),
+          );
+          const absoluteSpillPath = absolutePathJoin(
+            workDir(chatId),
+            spillFilePath,
+          );
+          try {
             await fs.mkdir(path.dirname(absoluteSpillPath), {
               recursive: true,
             });
@@ -152,38 +165,23 @@ export const webFetchCapability = defineCapability({
               }),
               { encoding: "utf8", signal },
             );
-          }
-
-          return result.ok
-            ? ok({
-                cachedAgeMs: result.cachedAgeMs,
-                contentType: result.contentType,
-                format: result.appliedFormat,
-                spillFilePath,
-                state: "success" as const,
-                text: result.text,
-                truncated: result.truncated,
-                url: result.finalUrl,
-              })
-            : ok({ errorMessage: result.error, state: "failure" as const });
-        } catch (error) {
-          if (signal.aborted) {
+          } catch (error) {
             return ok({
-              errorMessage: "Fetch was cancelled.",
+              errorMessage: `Failed to fetch ${result.finalUrl}: ${error instanceof Error ? error.message : "unknown error"}.`,
               state: "failure" as const,
             });
           }
-          const reason =
-            error instanceof Error && error.name === "TimeoutError"
-              ? "request timed out"
-              : error instanceof Error
-                ? error.message
-                : "unknown error";
-          return ok({
-            errorMessage: `Failed to fetch ${url}: ${reason}.`,
-            state: "failure" as const,
-          });
         }
+        return ok({
+          cachedAgeMs: result.cachedAgeMs,
+          contentType: result.contentType,
+          format: result.appliedFormat,
+          spillFilePath,
+          state: "success" as const,
+          text: result.text,
+          truncated: result.truncated,
+          url: result.finalUrl,
+        });
       },
       readOnly: true,
       timeoutMs: () => ms("2 minutes"),
@@ -241,9 +239,55 @@ export const webFetchCapability = defineCapability({
       ]),
     },
   },
+  text: (page) => renderWebContent({ content: page.text, url: page.url }),
 });
 
 export const WebFetch = modelTool(webFetchCapability);
+
+/**
+ * One fetch as the tool and a script both make it: an http(s) URL only,
+ * every redirect checked, under the call's signal and its timeout, with a
+ * failure said in a sentence rather than thrown.
+ */
+async function fetchPage(
+  input: {
+    format?: FetchFormat;
+    maxAgeSeconds?: number;
+    maxCharacters?: number;
+    timeout?: number;
+    url: string;
+  },
+  signal: AbortSignal | undefined,
+): Promise<FetchTextualResult> {
+  const parsedUrl = parseHttpUrl(input.url);
+  if (!parsedUrl) {
+    return { error: "URL must be an http:// or https:// address.", ok: false };
+  }
+  const timeout = AbortSignal.timeout(
+    (input.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000,
+  );
+  const url = parsedUrl.toString();
+  try {
+    return await fetchTextual({
+      format: input.format ?? "markdown",
+      maxAgeSeconds: input.maxAgeSeconds,
+      maxCharacters: input.maxCharacters ?? DEFAULT_TEXT_CHARACTERS,
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      url,
+    });
+  } catch (error) {
+    if (signal?.aborted) {
+      return { error: "Fetch was cancelled.", ok: false };
+    }
+    const reason =
+      error instanceof Error && error.name === "TimeoutError"
+        ? "request timed out"
+        : error instanceof Error
+          ? error.message
+          : "unknown error";
+    return { error: `Failed to fetch ${url}: ${reason}.`, ok: false };
+  }
+}
 
 type FetchTextualResult =
   | {

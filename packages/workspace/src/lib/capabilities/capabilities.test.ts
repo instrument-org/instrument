@@ -110,7 +110,18 @@ const cliOnly = defineCapability({
   text: () => "done",
 });
 
-const REGISTRY: readonly Capability[] = [echo, chatOnly, cliOnly];
+/** Declares its fields in camelCase, as a model tool's capability does. */
+const camel = defineCapability({
+  input: z.object({ maxCharacters: z.number().optional(), url: z.string() }),
+  name: "test.camel",
+  output: z.json(),
+  run: (input) => Promise.resolve(z.json().parse(input)),
+  summary: "Hands its input back.",
+  surfaces: { script: { positional: ["url"] } },
+  text: (output) => JSON.stringify(output),
+});
+
+const REGISTRY: readonly Capability[] = [echo, camel, chatOnly, cliOnly];
 
 async function cli(args: string[], stdin = "") {
   const { subcommands, usage } = cliSubcommands("test", REGISTRY);
@@ -263,6 +274,18 @@ describe("dispatch", () => {
     expect(answer).toMatchObject({ output: { start_time: "today" } });
   });
 
+  it("gives a Python script's snake_case field the camelCase name a tool's capability declares", async () => {
+    const answer = await dispatch(
+      "test.camel",
+      { max_characters: 5, url: "https://example.com" },
+      script,
+      REGISTRY,
+    );
+    expect(answer).toMatchObject({
+      output: { maxCharacters: 5, url: "https://example.com" },
+    });
+  });
+
   it("frames the guide for a script, which runs again rather than repeating a command", async () => {
     const answer = await dispatch(
       "test.echo",
@@ -329,7 +352,10 @@ describe("dispatch", () => {
         name,
         positional,
       })),
-    ).toEqual([{ name: "test.echo", positional: ["app"] }]);
+    ).toEqual([
+      { name: "test.echo", positional: ["app"] },
+      { name: "test.camel", positional: ["url"] },
+    ]);
   });
 });
 

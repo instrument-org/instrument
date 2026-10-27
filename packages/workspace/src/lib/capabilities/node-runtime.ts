@@ -132,6 +132,8 @@ if (globalThis.instrument === undefined && channelAt !== undefined) {
   const callNamed = async (name, given) => {
     const shape = (await describe()).find((each) => each.name === name);
     if (shape === undefined) return call(name, given[0]);
+    // One object alone is the fields themselves: fetch({ url }) as well as fetch(url).
+    if (given.length === 1 && isObject(given[0])) return call(name, given[0]);
     const args = {};
     shape.positional.forEach((field, index) => {
       if (given[index] !== undefined) args[field] = given[index];

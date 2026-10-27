@@ -2,6 +2,7 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { dedent } from "radashi";
 import { PlanRefusalSchema } from "@instrument-org/shared";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
@@ -11,9 +12,14 @@ import { webSearch } from "../lib/web-search";
 import { readWebSearchResults } from "../lib/web-search-results";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { type ChatId } from "../schemas/chat-id";
+import { type StoreId } from "../schemas/store-id";
 import { ProviderOutputSchema, UsageOutputSchema } from "./base";
-import { defineCapability } from "../lib/capabilities/define";
-import { modelTool } from "../lib/capabilities/tool";
+import {
+  CapabilityFailure,
+  defineCapability,
+} from "../lib/capabilities/define";
+import { modelTool, recordedResult } from "../lib/capabilities/tool";
 
 /** The parts of a result the text budget acts on, in either backend's shape. */
 type BudgetedSearch =
@@ -121,8 +127,56 @@ export const webSearchCapability = defineCapability({
     }),
   }),
   name: "web.search",
+  output: z.object({
+    /** Ranked pages with an excerpt each, or a search model's summary of them. */
+    kind: z.enum(["excerpts", "summary"]),
+    sources: z.array(
+      z.object({
+        author: z.string().optional(),
+        favicon: z.string().optional(),
+        image: z.string().optional(),
+        published_date: z.string().optional(),
+        text: z.string().optional(),
+        title: z.string().optional(),
+        url: z.string(),
+      }),
+    ),
+    /** The summary, where the search was summarized. */
+    text: z.string().optional(),
+  }),
+  async run({ query }, ctx) {
+    const last = await recordedResult(
+      searchOutputs({
+        chatId: ctx.chatId,
+        model: await ctx.callingModel(),
+        query,
+        sessionId: ctx.sessionId,
+        signal: ctx.signal ?? new AbortController().signal,
+      }),
+    );
+    const output = last?.isOk() ? last.value : undefined;
+    if (output === undefined) {
+      throw new CapabilityFailure("The search was cancelled.");
+    }
+    if (output.state === "failure") {
+      throw new CapabilityFailure(output.errorMessage);
+    }
+    const { results } = output;
+    return results.kind === "excerpts"
+      ? {
+          kind: results.kind,
+          sources: results.sources.map(({ publishedDate, ...source }) => ({
+            ...source,
+            ...(publishedDate === undefined
+              ? {}
+              : { published_date: publishedDate }),
+          })),
+        }
+      : { kind: results.kind, sources: results.sources, text: results.text };
+  },
   summary: "Searches the web: ranked pages with the part of each that answers.",
   surfaces: {
+    script: { positional: [INPUT_PARAMS.query] },
     tool: {
       description: dedent`
     Search the web for current information. Returns ranked pages with the part of each page that answers the query, source URLs, and, when the backend has them, publication dates plus each page's lead image and site icon.
@@ -140,59 +194,8 @@ export const webSearchCapability = defineCapability({
 
     Results close with a \`Sources:\` list of \`[Title](URL)\`. Carry the ones you relied on into your reply, as links on what they describe or as a \`Sources:\` list of your own.
   `,
-      async *execute({ input, model, sessionId, signal, chatId }) {
-        if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
-          yield ok({
-            errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
-            errorType: "invalid-query" as const,
-            state: "failure" as const,
-          });
-          return;
-        }
-
-        for await (const result of webSearch({
-          callingModel: model,
-          configs: getWorkspaceConfig().getAIProviderConfigs(),
-          prompt: input.query,
-          sessionId,
-          signal,
-          chatId,
-          workspaceConfig: getWorkspaceConfig(),
-          workspaceServerURL: getWorkspaceServerURL(),
-        })) {
-          if (signal.aborted) {
-            return;
-          }
-
-          if (result.isErr()) {
-            yield ok({ ...result.error, state: "failure" as const });
-            return;
-          }
-
-          const results = result.value;
-          const { platformRefusal } = results;
-          yield ok({
-            ...(platformRefusal && { platformRefusal }),
-            results:
-              results.kind === "excerpts"
-                ? { kind: results.kind, sources: results.sources }
-                : {
-                    kind: results.kind,
-                    modelId: results.modelId,
-                    modelIdServed: results.modelIdServed,
-                    sources: results.sources,
-                    text: results.text,
-                    usage: results.usage,
-                    provider: {
-                      displayName: results.provider.displayName,
-                      id: results.provider.id,
-                      type: results.provider.type,
-                    },
-                  },
-            state: "success" as const,
-          });
-        }
-      },
+      execute: ({ chatId, input, model, sessionId, signal }) =>
+        searchOutputs({ chatId, model, query: input.query, sessionId, signal }),
       readOnly: true,
       timeoutMs: () => ms("2 minutes"),
       toModelOutput: ({ output }) => {
@@ -276,9 +279,91 @@ export const webSearchCapability = defineCapability({
       ]),
     },
   },
+  text: ({ sources, text }) =>
+    [
+      text,
+      ...sources.map((source) =>
+        [
+          source.title ? `[${source.title}](${source.url})` : source.url,
+          source.text,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
 });
 
 export const WebSearch = modelTool(webSearchCapability);
+
+/** One search as the tool records it: the results, or why there are none. */
+async function* searchOutputs({
+  chatId,
+  model,
+  query,
+  sessionId,
+  signal,
+}: {
+  chatId: ChatId;
+  model: AIGatewayModel.Type;
+  query: string;
+  sessionId: StoreId.Session;
+  signal: AbortSignal;
+}) {
+  const input = { query };
+  if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
+    yield ok({
+      errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
+      errorType: "invalid-query" as const,
+      state: "failure" as const,
+    });
+    return;
+  }
+
+  for await (const result of webSearch({
+    callingModel: model,
+    configs: getWorkspaceConfig().getAIProviderConfigs(),
+    prompt: input.query,
+    sessionId,
+    signal,
+    chatId,
+    workspaceConfig: getWorkspaceConfig(),
+    workspaceServerURL: getWorkspaceServerURL(),
+  })) {
+    if (signal.aborted) {
+      return;
+    }
+
+    if (result.isErr()) {
+      yield ok({ ...result.error, state: "failure" as const });
+      return;
+    }
+
+    const results = result.value;
+    const { platformRefusal } = results;
+    yield ok({
+      ...(platformRefusal && { platformRefusal }),
+      results:
+        results.kind === "excerpts"
+          ? { kind: results.kind, sources: results.sources }
+          : {
+              kind: results.kind,
+              modelId: results.modelId,
+              modelIdServed: results.modelIdServed,
+              sources: results.sources,
+              text: results.text,
+              usage: results.usage,
+              provider: {
+                displayName: results.provider.displayName,
+                id: results.provider.id,
+                type: results.provider.type,
+              },
+            },
+      state: "success" as const,
+    });
+  }
+}
 
 /**
  * How many of one search's results must carry a line before its later copies

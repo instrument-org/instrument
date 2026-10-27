@@ -7,6 +7,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { APP_NAME, PlanRefusalSchema } from "@instrument-org/shared";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
@@ -20,9 +21,14 @@ import { prepareSourceImage } from "../lib/prepare-source-image";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { type ChatId } from "../schemas/chat-id";
+import { type StoreId } from "../schemas/store-id";
 import { ProviderOutputSchema, UsageOutputSchema } from "./base";
-import { defineCapability } from "../lib/capabilities/define";
-import { modelTool } from "../lib/capabilities/tool";
+import {
+  CapabilityFailure,
+  defineCapability,
+} from "../lib/capabilities/define";
+import { modelTool, recordedResult } from "../lib/capabilities/tool";
 
 const INPUT_PARAMS = {
   allowOverwrite: "allowOverwrite",
@@ -77,8 +83,54 @@ export const generateImageCapability = defineCapability({
     }),
   }),
   name: "images.generate",
+  output: z.object({
+    images: z.array(
+      z.object({
+        height: z.number().optional(),
+        /** Relative to the work folder, or the full path in a folder of the user's. */
+        path: z.string(),
+        size_bytes: z.number(),
+        width: z.number().optional(),
+      }),
+    ),
+    model: z.string(),
+    /** The path asked for was taken, so the image was saved under a new name. */
+    renamed: z.boolean(),
+  }),
+  async run(input, ctx) {
+    const last = await recordedResult(
+      imageFrames({
+        chatId: ctx.chatId,
+        input,
+        model: await ctx.callingModel(),
+        sessionId: ctx.sessionId,
+        signal: ctx.signal ?? new AbortController().signal,
+      }),
+    );
+    if (last === undefined) {
+      throw new CapabilityFailure("The image was cancelled.");
+    }
+    if (last.isErr()) {
+      throw new CapabilityFailure(last.error.message);
+    }
+    const output = last.value;
+    if (output.state === "failure") {
+      throw new CapabilityFailure(failureForModel(output));
+    }
+    return {
+      images: output.images.map(({ filePath, height, sizeBytes, width }) => ({
+        ...(height === undefined ? {} : { height }),
+        path: filePath,
+        size_bytes: sizeBytes,
+        ...(width === undefined ? {} : { width }),
+      })),
+      model: output.modelId,
+      renamed: output.renamedToAvoidOverwrite,
+    };
+  },
   summary: "Makes an image with an AI image model and saves it.",
   surfaces: {
+    script: { positional: [INPUT_PARAMS.prompt] },
     tool: {
       description: dedent`
     AI image synthesis and semantic image editing. This is not the general tool for creating image files.
@@ -100,243 +152,8 @@ export const generateImageCapability = defineCapability({
 
     The ${INPUT_PARAMS.parameters} the selected image model takes (its size, quality and the like) are in your system information, or in the latest note that changed them.
   `,
-      async *execute({ input, partId, model, sessionId, signal, chatId }) {
-        const files = await sessionToolFs({ chatId, partId, sessionId });
-        const typed = files.resolve(input.filePath);
-        if (typed.isErr()) {
-          yield err(typed.error);
-          return;
-        }
-        // Strip extension if mistakenly provided
-        const parsedPath = path.posix.parse(typed.value);
-
-        // A folder the rules keep closed refuses here, before the model is paid
-        // for, with the note that says what to ask for.
-        try {
-          await files.fs.mkdir(parsedPath.dir, { recursive: true });
-        } catch (error) {
-          yield await files.failure(error, parsedPath.dir);
-          return;
-        }
-
-        // Auto-version the path unless allowOverwrite is set, so iterating on the
-        // same filePath doesn't clobber an earlier image. Resolved once before
-        // streaming so this call's partial frames don't bump its own final frame.
-        let pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
-        let renamedToAvoidOverwrite = false;
-        if (!input.allowOverwrite) {
-          // Match on name without extension: the output extension is model-derived,
-          // so a prior foo.jpg must block a new foo.png.
-          const existingNames = await readExistingBaseNames(
-            files.fs,
-            parsedPath.dir,
-          );
-          const { name, renamed } = await findAvailableName({
-            isTaken: (candidate) => existingNames.has(candidate),
-            name: parsedPath.name,
-          });
-          renamedToAvoidOverwrite = renamed;
-          pathWithoutExt = path.posix.join(parsedPath.dir, name);
-        }
-
-        let sourceImageBuffers: Buffer[] | undefined;
-        const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
-        if (input.sourceImages && input.sourceImages.length > 0) {
-          const resolvedSources = [];
-          for (const inputPath of input.sourceImages) {
-            // Sources are read like read_file reads, through the shell's
-            // filesystem.
-            const typedSource = files.resolve(inputPath);
-            if (typedSource.isErr()) {
-              yield err(typedSource.error);
-              return;
-            }
-            const source = await files.existing(typedSource.value);
-            const displayPath = files.shown(source);
-            let bytes: Uint8Array;
-            try {
-              bytes = await files.fs.readFileBuffer(source);
-            } catch (error) {
-              yield isMissing(error)
-                ? executeError(`Source image not found: ${displayPath}`)
-                : await files.failure(error, source);
-              return;
-            }
-            resolvedSources.push({ bytes: Buffer.from(bytes), displayPath });
-            const stats = await files.fs.stat(source);
-            sourceImages.push({
-              filePath: displayPath,
-              modifiedAt: stats.mtime.getTime(),
-            });
-          }
-          // A file the model cannot decode is worth catching here rather than in
-          // the provider's reply, which names the offending image by position and
-          // arrives a whole request later.
-          const prepared = Result.combine(
-            await Promise.all(
-              resolvedSources.map(({ bytes, displayPath }) =>
-                prepareSourceImage({ bytes, displayPath, signal }),
-              ),
-            ),
-          );
-          if (prepared.isErr()) {
-            yield executeError(prepared.error);
-            return;
-          }
-          sourceImageBuffers = prepared.value;
-        }
-
-        // Each frame overwrites the same path so the UI preview fills in place.
-        const writeFrame = (
-          frameImages: { base64: string; mediaType: string }[],
-        ) =>
-          Promise.all(
-            frameImages.map(async (image, index) => {
-              const mimeExt = mime.extension(image.mediaType);
-              // Fall back to png because most image models default to it
-              const ext = typeof mimeExt === "string" ? mimeExt : "png";
-
-              // Create unique filename for multiple images
-              const filename =
-                frameImages.length > 1
-                  ? `${pathWithoutExt}-${index + 1}.${ext}`
-                  : `${pathWithoutExt}.${ext}`;
-
-              const imageBuffer = Buffer.from(image.base64, "base64");
-
-              await files.fs.writeFile(filename, imageBuffer);
-              const stats = await files.fs.stat(filename);
-
-              // Try to get image dimensions, but don't fail if it doesn't work
-              let dimensions: { height?: number; width?: number } = {};
-              try {
-                const size = imageSize(imageBuffer);
-                dimensions = {
-                  height: size.height,
-                  width: size.width,
-                };
-              } catch {
-                // Ignore failed image size calculation
-              }
-
-              return {
-                filePath: normalizePath(files.shown(filename)),
-                ...dimensions,
-                modifiedAt: stats.mtime.getTime(),
-                sizeBytes: imageBuffer.length,
-              };
-            }),
-          );
-
-        let lastPartialWriteMs = 0;
-
-        for await (const chunk of generateImageStream({
-          callingModel: model,
-          configs: getWorkspaceConfig().getAIProviderConfigs(),
-          count: 1,
-          parameters: input.parameters,
-          prompt: input.prompt,
-          sessionId,
-          signal,
-          sourceImages: sourceImageBuffers,
-          chatId,
-          workspaceConfig: getWorkspaceConfig(),
-          workspaceServerURL: getWorkspaceServerURL(),
-        })) {
-          if (chunk.isErr()) {
-            const generateError = chunk.error;
-
-            switch (generateError.type) {
-              case "workspace-no-image-provider-error": {
-                waitForSignIn(chatId, sessionId);
-                yield ok({
-                  errorMessage: `Making images needs a free ${APP_NAME} account.`,
-                  errorType: "no-image-model" as const,
-                  state: "failure" as const,
-                });
-                return;
-              }
-              case "workspace-image-refused-error": {
-                const { refusal } = generateError;
-                yield ok({
-                  errorMessage:
-                    refusal.code === "usage-limit-exceeded"
-                      ? `Your ${APP_NAME} usage has run out for now.`
-                      : `Your ${APP_NAME} account needs a plan to make images.`,
-                  errorType: "refused" as const,
-                  refusal,
-                  state: "failure" as const,
-                });
-                return;
-              }
-              case "workspace-api-call-error": {
-                yield ok({
-                  errorMessage: generateError.message,
-                  errorType: "api-call" as const,
-                  responseBody: generateError.responseBody,
-                  state: "failure" as const,
-                });
-                return;
-              }
-              case "workspace-provider-limitation-error": {
-                yield ok({
-                  errorMessage: generateError.message,
-                  errorType: "provider-limitation" as const,
-                  state: "failure" as const,
-                });
-                return;
-              }
-              default: {
-                generateError satisfies never;
-                yield executeError(JSON.stringify(generateError));
-                return;
-              }
-            }
-          }
-
-          const {
-            appliedParameters,
-            config,
-            images,
-            kind,
-            modelId,
-            modelIdServed,
-            quality,
-            usage,
-          } = chunk.value;
-
-          if (kind === "partial") {
-            const now = Date.now();
-            if (now - lastPartialWriteMs < PARTIAL_THROTTLE_MS) {
-              continue;
-            }
-            lastPartialWriteMs = now;
-          }
-
-          const writtenImages = await writeFrame(images);
-
-          yield ok({
-            appliedParameters,
-            images: writtenImages,
-            modelId,
-            modelIdServed,
-            ...(quality && { quality }),
-            provider: {
-              displayName: config.displayName,
-              id: config.id,
-              type: config.type,
-            },
-            renamedToAvoidOverwrite,
-            sourceImages,
-            state: "success" as const,
-            usage: {
-              inputTokens: usage?.inputTokens,
-              outputTokens: usage?.outputTokens,
-              totalTokens: usage?.totalTokens,
-            },
-          });
-        }
-      },
+      execute: ({ chatId, input, model, partId, sessionId, signal }) =>
+        imageFrames({ chatId, input, model, partId, sessionId, signal }),
       readOnly: false,
       // Image generation (esp. high-quality gpt-image-2.5) can run for several
       // minutes; streaming previews keep the user informed while it works.
@@ -435,9 +252,269 @@ export const generateImageCapability = defineCapability({
       ]),
     },
   },
+  text: ({ images }) => images.map((image) => image.path).join("\n"),
 });
 
 export const GenerateImage = modelTool(generateImageCapability);
+
+/**
+ * One generation as the tool records it, a frame at a time as the model
+ * streams them, each written over the last: the images and what made them,
+ * or why there are none.
+ */
+async function* imageFrames({
+  chatId,
+  input,
+  model,
+  partId,
+  sessionId,
+  signal,
+}: {
+  chatId: ChatId;
+  input: {
+    allowOverwrite?: boolean;
+    filePath: string;
+    parameters?: Record<string, boolean | number | string>;
+    prompt: string;
+    sourceImages?: string[];
+  };
+  model: AIGatewayModel.Type;
+  /** The tool call, where a call made it; a script's call has none. */
+  partId?: StoreId.Part;
+  sessionId: StoreId.Session;
+  signal: AbortSignal;
+}) {
+  const files = await sessionToolFs({ chatId, partId, sessionId });
+  const typed = files.resolve(input.filePath);
+  if (typed.isErr()) {
+    yield err(typed.error);
+    return;
+  }
+  // Strip extension if mistakenly provided
+  const parsedPath = path.posix.parse(typed.value);
+
+  // A folder the rules keep closed refuses here, before the model is paid
+  // for, with the note that says what to ask for.
+  try {
+    await files.fs.mkdir(parsedPath.dir, { recursive: true });
+  } catch (error) {
+    yield await files.failure(error, parsedPath.dir);
+    return;
+  }
+
+  // Auto-version the path unless allowOverwrite is set, so iterating on the
+  // same filePath doesn't clobber an earlier image. Resolved once before
+  // streaming so this call's partial frames don't bump its own final frame.
+  let pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
+  let renamedToAvoidOverwrite = false;
+  if (!input.allowOverwrite) {
+    // Match on name without extension: the output extension is model-derived,
+    // so a prior foo.jpg must block a new foo.png.
+    const existingNames = await readExistingBaseNames(files.fs, parsedPath.dir);
+    const { name, renamed } = await findAvailableName({
+      isTaken: (candidate) => existingNames.has(candidate),
+      name: parsedPath.name,
+    });
+    renamedToAvoidOverwrite = renamed;
+    pathWithoutExt = path.posix.join(parsedPath.dir, name);
+  }
+
+  let sourceImageBuffers: Buffer[] | undefined;
+  const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
+  if (input.sourceImages && input.sourceImages.length > 0) {
+    const resolvedSources = [];
+    for (const inputPath of input.sourceImages) {
+      // Sources are read like read_file reads, through the shell's
+      // filesystem.
+      const typedSource = files.resolve(inputPath);
+      if (typedSource.isErr()) {
+        yield err(typedSource.error);
+        return;
+      }
+      const source = await files.existing(typedSource.value);
+      const displayPath = files.shown(source);
+      let bytes: Uint8Array;
+      try {
+        bytes = await files.fs.readFileBuffer(source);
+      } catch (error) {
+        yield isMissing(error)
+          ? executeError(`Source image not found: ${displayPath}`)
+          : await files.failure(error, source);
+        return;
+      }
+      resolvedSources.push({ bytes: Buffer.from(bytes), displayPath });
+      const stats = await files.fs.stat(source);
+      sourceImages.push({
+        filePath: displayPath,
+        modifiedAt: stats.mtime.getTime(),
+      });
+    }
+    // A file the model cannot decode is worth catching here rather than in
+    // the provider's reply, which names the offending image by position and
+    // arrives a whole request later.
+    const prepared = Result.combine(
+      await Promise.all(
+        resolvedSources.map(({ bytes, displayPath }) =>
+          prepareSourceImage({ bytes, displayPath, signal }),
+        ),
+      ),
+    );
+    if (prepared.isErr()) {
+      yield executeError(prepared.error);
+      return;
+    }
+    sourceImageBuffers = prepared.value;
+  }
+
+  // Each frame overwrites the same path so the UI preview fills in place.
+  const writeFrame = (frameImages: { base64: string; mediaType: string }[]) =>
+    Promise.all(
+      frameImages.map(async (image, index) => {
+        const mimeExt = mime.extension(image.mediaType);
+        // Fall back to png because most image models default to it
+        const ext = typeof mimeExt === "string" ? mimeExt : "png";
+
+        // Create unique filename for multiple images
+        const filename =
+          frameImages.length > 1
+            ? `${pathWithoutExt}-${index + 1}.${ext}`
+            : `${pathWithoutExt}.${ext}`;
+
+        const imageBuffer = Buffer.from(image.base64, "base64");
+
+        await files.fs.writeFile(filename, imageBuffer);
+        const stats = await files.fs.stat(filename);
+
+        // Try to get image dimensions, but don't fail if it doesn't work
+        let dimensions: { height?: number; width?: number } = {};
+        try {
+          const size = imageSize(imageBuffer);
+          dimensions = {
+            height: size.height,
+            width: size.width,
+          };
+        } catch {
+          // Ignore failed image size calculation
+        }
+
+        return {
+          filePath: normalizePath(files.shown(filename)),
+          ...dimensions,
+          modifiedAt: stats.mtime.getTime(),
+          sizeBytes: imageBuffer.length,
+        };
+      }),
+    );
+
+  let lastPartialWriteMs = 0;
+
+  for await (const chunk of generateImageStream({
+    callingModel: model,
+    configs: getWorkspaceConfig().getAIProviderConfigs(),
+    count: 1,
+    parameters: input.parameters,
+    prompt: input.prompt,
+    sessionId,
+    signal,
+    sourceImages: sourceImageBuffers,
+    chatId,
+    workspaceConfig: getWorkspaceConfig(),
+    workspaceServerURL: getWorkspaceServerURL(),
+  })) {
+    if (chunk.isErr()) {
+      const generateError = chunk.error;
+
+      switch (generateError.type) {
+        case "workspace-no-image-provider-error": {
+          waitForSignIn(chatId, sessionId);
+          yield ok({
+            errorMessage: `Making images needs a free ${APP_NAME} account.`,
+            errorType: "no-image-model" as const,
+            state: "failure" as const,
+          });
+          return;
+        }
+        case "workspace-image-refused-error": {
+          const { refusal } = generateError;
+          yield ok({
+            errorMessage:
+              refusal.code === "usage-limit-exceeded"
+                ? `Your ${APP_NAME} usage has run out for now.`
+                : `Your ${APP_NAME} account needs a plan to make images.`,
+            errorType: "refused" as const,
+            refusal,
+            state: "failure" as const,
+          });
+          return;
+        }
+        case "workspace-api-call-error": {
+          yield ok({
+            errorMessage: generateError.message,
+            errorType: "api-call" as const,
+            responseBody: generateError.responseBody,
+            state: "failure" as const,
+          });
+          return;
+        }
+        case "workspace-provider-limitation-error": {
+          yield ok({
+            errorMessage: generateError.message,
+            errorType: "provider-limitation" as const,
+            state: "failure" as const,
+          });
+          return;
+        }
+        default: {
+          generateError satisfies never;
+          yield executeError(JSON.stringify(generateError));
+          return;
+        }
+      }
+    }
+
+    const {
+      appliedParameters,
+      config,
+      images,
+      kind,
+      modelId,
+      modelIdServed,
+      quality,
+      usage,
+    } = chunk.value;
+
+    if (kind === "partial") {
+      const now = Date.now();
+      if (now - lastPartialWriteMs < PARTIAL_THROTTLE_MS) {
+        continue;
+      }
+      lastPartialWriteMs = now;
+    }
+
+    const writtenImages = await writeFrame(images);
+
+    yield ok({
+      appliedParameters,
+      images: writtenImages,
+      modelId,
+      modelIdServed,
+      ...(quality && { quality }),
+      provider: {
+        displayName: config.displayName,
+        id: config.id,
+        type: config.type,
+      },
+      renamedToAvoidOverwrite,
+      sourceImages,
+      state: "success" as const,
+      usage: {
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        totalTokens: usage?.totalTokens,
+      },
+    });
+  }
+}
 
 /**
  * What the agent is told of a failure. Where the person has something to do

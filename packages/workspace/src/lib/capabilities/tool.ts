@@ -125,3 +125,18 @@ export function modelTool<
   // `ToolInputSchema<In>` names, and the rest comes from `spec` as typed.
   return agentTool as AgentTool<Name, ToolInputSchema<In>, Stored>;
 }
+
+/**
+ * What a tool's call records when it yields as it goes: its last result, or
+ * nothing when it stopped before one. A script calling the same work gets
+ * this, since it has no part to show the rest on.
+ */
+export async function recordedResult<T>(
+  results: AsyncIterable<T>,
+): Promise<T | undefined> {
+  let last: T | undefined;
+  for await (const result of results) {
+    last = result;
+  }
+  return last;
+}

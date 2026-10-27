@@ -38,10 +38,15 @@ function snakeCase(key: string): string {
   return key.replaceAll(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
+function camelCase(key: string): string {
+  return key.replaceAll(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
 /**
  * The arguments with each top-level key the capability does not declare
- * spelled as one it does, in snake_case: a Node script's `startTime` for
- * `start_time`. Keys inside a value are the caller's and stay as they are.
+ * spelled as one it does: a Node script's `startTime` for `start_time`, a
+ * Python script's `max_characters` for a model tool's `maxCharacters`. Keys
+ * inside a value are the caller's and stay as they are.
  */
 function declaredKeys(capability: Capability, args: unknown): unknown {
   if (!isPlainObject(args)) {
@@ -49,11 +54,15 @@ function declaredKeys(capability: Capability, args: unknown): unknown {
   }
   const { shape } = capability.input;
   return Object.fromEntries(
-    Object.entries(args).map(([key, value]) =>
-      Object.hasOwn(shape, key) || !Object.hasOwn(shape, snakeCase(key))
-        ? [key, value]
-        : [snakeCase(key), value],
-    ),
+    Object.entries(args).map(([key, value]) => {
+      if (Object.hasOwn(shape, key)) {
+        return [key, value];
+      }
+      const declared = [snakeCase(key), camelCase(key)].find((spelling) =>
+        Object.hasOwn(shape, spelling),
+      );
+      return [declared ?? key, value];
+    }),
   );
 }
 

@@ -383,6 +383,49 @@ function statusLine(method: string, response: Response) {
 const TRUNCATED_NOTE =
   "[Body truncated: the response was larger than the cap, so request less or paginate]\n";
 
+/** Whether the session's model has this guide, as a bash call in its window handed it over. */
+async function guideInWindow(
+  app: AppInfo,
+  guide: string,
+  ctx: CapabilityContext,
+): Promise<boolean> {
+  const messages = await ctx.modelWindow();
+  return (
+    messages !== undefined && appGuideHandedOver(messages, app.slug, guide)
+  );
+}
+
+/**
+ * Every other connected API app whose guide the model does not have, for a
+ * script stopped on one app's guide: a script that uses several reads them
+ * all at the first stop rather than one per rerun.
+ */
+async function otherGuidesToRead(
+  slug: string,
+  ctx: CapabilityContext,
+): Promise<{ app: string; guide: string }[]> {
+  const config = getWorkspaceConfig();
+  const [{ apps }, connections] = await Promise.all([
+    listApps(config.appsDir),
+    config.apps.connections.list(),
+  ]);
+  const others = apps.filter(
+    (app) =>
+      app.slug !== slug &&
+      app.manifest.type === "api" &&
+      isConnected(connections[app.slug], app.manifestHash),
+  );
+  const guides = await Promise.all(
+    others.map(async (app) => {
+      const guide = await readAppGuide(app.dir);
+      return guide === null || (await guideInWindow(app, guide, ctx))
+        ? []
+        : [{ app: app.slug, guide }];
+    }),
+  );
+  return guides.flat();
+}
+
 export const appsRequest = defineCapability({
   async gate({ app: slug }, ctx: CapabilityContext): Promise<Gate> {
     const app = await connectedApp(slug, "api");
@@ -398,11 +441,18 @@ export const appsRequest = defineCapability({
         message: `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
       };
     }
-    const messages = await ctx.modelWindow();
-    return messages !== undefined &&
-      appGuideHandedOver(messages, app.slug, guide)
-      ? { kind: "allowed" }
-      : { app: app.slug, guide, kind: "read-first" };
+    if (await guideInWindow(app, guide, ctx)) {
+      return { kind: "allowed" };
+    }
+    return {
+      guides: [
+        { app: app.slug, guide },
+        ...(ctx.surface === "script"
+          ? await otherGuidesToRead(app.slug, ctx)
+          : []),
+      ],
+      kind: "read-first",
+    };
   },
   input: z.object({
     app: AppField,

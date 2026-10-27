@@ -22,6 +22,8 @@ import { addChildTask } from "../chat/children";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { getWorkspaceConfig } from "../workspace-config";
+import { capabilityContexts } from "../capabilities/context";
+import { dispatch } from "../capabilities/dispatch";
 import { createAppCommand } from "./app";
 
 // A request's address check resolves the host, so the suite answers DNS.
@@ -195,7 +197,7 @@ describe("app request and the app's guide", () => {
     expect(result.stdout).toBe("");
     expect(result.exitCode).toBe(3);
     expect(result.stderr.replace(slug, "<slug>")).toMatchInlineSnapshot(`
-      "Not sent (exit 3): before the first request to "<slug>", its guide. Read it, then repeat the request.
+      "Not sent (exit 3): before the first request to "<slug>", its guide. Read it, then repeat the request. A guide counts as read only where its output is shown: this one, or \`instrument app guide <slug>\` printed whole. One sent to /dev/null or cut with head does not count, and the next request stops here again.
 
       # Guide
 
@@ -298,6 +300,35 @@ describe("app request and the app's guide", () => {
 
     expect(await handsOver(slug, { model: "roomy" })).toBe(false);
     expect(await handsOver(slug, { model: "small" })).toBe(true);
+  });
+
+  it("hands a script every connected API app's unread guide at its first stop, and the shell only the one it asked", async () => {
+    const first = `guide-${chats}`;
+    const second = `guide-${chats}-b`;
+    await connectedApiApp(first);
+    await connectedApiApp(second);
+    const ask = (surface: "cli" | "script") =>
+      dispatch(
+        "apps.request",
+        { app: first, method: "GET", path: "/me" },
+        capabilityContexts({ chatId, role: "task", sessionId }, surface)(),
+      );
+
+    const script = await ask("script");
+    expect("error" in script && script.error.kind).toBe("read-first");
+    const message = "error" in script ? script.error.message : "";
+    expect(message).toContain(`--- the guide to "${first}" ---`);
+    expect(message).toContain(`--- the guide to "${second}" ---`);
+    expect(message).toContain(
+      "One sent to /dev/null or cut with head does not count",
+    );
+
+    const shell = await ask("cli");
+    const one = "error" in shell ? shell.error.message : "";
+    expect(one).toMatch(
+      /^Not sent \(exit 3\): before the first request to "[^"]+", its guide\./,
+    );
+    expect(one).not.toContain(second);
   });
 
   it("counts writing the guide as having it", async () => {

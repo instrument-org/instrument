@@ -40,8 +40,8 @@ export type Gate =
     }
   /** A card is already up (macOS's own question); the turn ends after the bash call. */
   | { askId: string; kind: "card"; message: string }
-  /** The app's guide, handed over before the session's first request to it. */
-  | { app: string; guide: string; kind: "read-first" };
+  /** Apps' guides, handed over before the session's first request to each. */
+  | { guides: { app: string; guide: string }[]; kind: "read-first" };
 
 /** How an error reply names what went wrong, which picks the exception a script gets. */
 export type CapabilityErrorKind =

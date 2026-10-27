@@ -46,8 +46,19 @@ const echo = defineCapability({
           : app === "mac"
             ? { askId: "ask-1", kind: "card", message: "macOS is asking." }
             : app === "guided"
-              ? { app, guide: "# Guide\n\nPages are 25.", kind: "read-first" }
-              : { kind: "allowed" },
+              ? {
+                  guides: [{ app, guide: "# Guide\n\nPages are 25." }],
+                  kind: "read-first",
+                }
+              : app === "both"
+                ? {
+                    guides: [
+                      { app: "docs", guide: "# Docs\n\nPOST /documents." },
+                      { app: "gmail", guide: "# Gmail\n\nDrafts only." },
+                    ],
+                    kind: "read-first",
+                  }
+                : { kind: "allowed" },
     ),
   input: z.object({
     app: z.string({ error: "an app slug is required." }),
@@ -201,7 +212,7 @@ describe("the generated command line", () => {
     expect(result.exitCode).toBe(3);
     expect(result.stdout).toBe("");
     expect(result.stderr).toMatchInlineSnapshot(`
-      "Not sent (exit 3): before the first request to "guided", its guide. Read it, then repeat the request.
+      "Not sent (exit 3): before the first request to "guided", its guide. Read it, then repeat the request. A guide counts as read only where its output is shown: this one, or \`instrument app guide <slug>\` printed whole. One sent to /dev/null or cut with head does not count, and the next request stops here again.
 
       # Guide
 
@@ -260,6 +271,30 @@ describe("dispatch", () => {
         message: expect.stringMatching(/^Not sent: .* run the script again\./),
       },
     });
+  });
+
+  it("hands every guide in the error over in one, each recorded", async () => {
+    const recorded: RecordedAppGuide[] = [];
+    const answer = await withAppGuideHandOffs(recorded, () =>
+      dispatch("test.echo", { app: "both" }, script, REGISTRY),
+    );
+    expect("error" in answer && answer.error.message).toMatchInlineSnapshot(`
+      "Not sent: before the first request to "docs" and "gmail", the connected API apps whose guides are not read yet. Read them, then run the script again. A guide counts as read only where its output is shown: this one, or \`instrument app guide <slug>\` printed whole. One sent to /dev/null or cut with head does not count, and the next request stops here again.
+
+      --- the guide to "docs" ---
+
+      # Docs
+
+      POST /documents.
+
+      --- the guide to "gmail" ---
+
+      # Gmail
+
+      Drafts only.
+      "
+    `);
+    expect(recorded.map(({ app }) => app)).toEqual(["docs", "gmail"]);
   });
 
   it("refuses what the shell's role does not have", async () => {

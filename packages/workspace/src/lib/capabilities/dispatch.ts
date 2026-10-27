@@ -80,6 +80,37 @@ function issueText(issue: z.core.$ZodIssue): string {
     : issue.message;
 }
 
+/**
+ * What a call that sent nothing says: the guides to read before it is made
+ * again, and that a guide counts only where its output is shown.
+ */
+function guidesMessage(
+  guides: readonly { app: string; guide: string }[],
+  surface: CapabilityContext["surface"],
+): string {
+  const next =
+    surface === "cli"
+      ? "Not sent (exit 3): before the first request to"
+      : "Not sent: before the first request to";
+  const then =
+    surface === "cli" ? "repeat the request" : "run the script again";
+  const shown =
+    "A guide counts as read only where its output is shown: this one, or `instrument app guide <slug>` printed whole. One sent to /dev/null or cut with head does not count, and the next request stops here again.";
+  const [only] = guides;
+  if (guides.length === 1 && only) {
+    return `${next} "${only.app}", its guide. Read it, then ${then}. ${shown}\n\n${only.guide.trimEnd()}\n`;
+  }
+  const names = new Intl.ListFormat("en", { type: "conjunction" }).format(
+    guides.map(({ app }) => `"${app}"`),
+  );
+  return `${next} ${names}, the connected API apps whose guides are not read yet. Read them, then ${then}. ${shown}\n\n${guides
+    .map(
+      ({ app, guide }) =>
+        `--- the guide to "${app}" ---\n\n${guide.trimEnd()}\n`,
+    )
+    .join("\n")}`;
+}
+
 /** A gate's answer as the error the surface reports, with what it leaves behind. */
 function gateError(
   gate: Exclude<Gate, { kind: "allowed" }>,
@@ -94,20 +125,12 @@ function gateError(
       recordRaisedAsk(gate.askId);
       return { kind: "card", message: gate.message };
     case "read-first": {
-      const next =
-        ctx.surface === "cli"
-          ? "Not sent (exit 3): before the first request to"
-          : "Not sent: before the first request to";
-      const then =
-        ctx.surface === "cli" ? "repeat the request" : "run the script again";
-      const message = `${next} "${gate.app}", its guide. Read it, then ${then}.\n\n${gate.guide.trimEnd()}\n`;
+      const message = guidesMessage(gate.guides, ctx.surface);
       // A hand-off counts once the model is shown it whole in the bash
       // call's output, which is where an uncaught exception prints it.
-      recordAppGuideHandOff({
-        app: gate.app,
-        guide: gate.guide,
-        printed: message,
-      });
+      for (const { app, guide } of gate.guides) {
+        recordAppGuideHandOff({ app, guide, printed: message });
+      }
       return { kind: "read-first", message };
     }
     case "refused":

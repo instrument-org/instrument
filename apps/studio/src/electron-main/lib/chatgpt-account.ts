@@ -190,6 +190,15 @@ export function chatGPTAccountUser():
     : undefined;
 }
 
+/** Everyone a ChatGPT account kept here names, signed in or not. */
+export function chatGPTAccountPeople(): { email: string; name?: string }[] {
+  return registrations().flatMap((registration) =>
+    registration.email
+      ? [{ email: registration.email, name: registration.name }]
+      : [],
+  );
+}
+
 export function chatGPTAccountsStatus(): ChatGPTAccountsStatus {
   const all = registrations();
   return {

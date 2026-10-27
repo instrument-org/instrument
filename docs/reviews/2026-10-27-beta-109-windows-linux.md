@@ -140,9 +140,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### S. The report of an unclean exit is redacted without the Instrument account
 
-- Status: open
+- Status: fixed
 - Where: [get-signed-in-user.ts:39](/apps/studio/src/electron-main/lib/get-signed-in-user.ts#L39) (`knownSignedInPeople`)
 - What: found reading R's cause. The redactor learns the Instrument account's email and name only from the in-memory query cache of `users.getMe`, which nothing fills until the app asks the API after ready, so the problem recorded for an unclean exit at launch leaves that account's email and name in its details and events wherever the log tail or an exception carries them. Grok accounts are not asked at all. The session store keeps only tokens, so the likely fix is to redact again when a report is shown or sent, by which time `getMe` has answered.
+- Note: a waiting problem is now redacted again whenever the bell reads it and before it is sent automatically, with everyone signed in at that moment: the Instrument account asked for (10 s at most), every ChatGPT and Grok account kept, and the Claude account as Claude Code names it. The dialog sends what the bell handed it, so Show details and Send stay one string. An automatic send while signed in to an account that could not be named waits in the bell. The problem's title, the uncaught throw's message, was not redacted at all and now is.
 
 ### T. An unreadable key store logs a full stack on every read
 

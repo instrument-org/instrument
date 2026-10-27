@@ -1,6 +1,9 @@
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
-import { knownSignedInPeople } from "@/electron-main/lib/get-signed-in-user";
+import {
+  knownSignedInPeople,
+  signedInPeople,
+} from "@/electron-main/lib/get-signed-in-user";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import {
@@ -57,6 +60,36 @@ const LOG_TAIL_BYTES = 16 * 1024;
 /** The problems from earlier sessions still waiting on the person. */
 export function listPendingProblems(): PendingProblem[] {
   return getProblemsStore().get("pending");
+}
+
+/**
+ * The waiting problems as the bell offers them and a report sends them,
+ * redacted again with everyone signed in now. A problem is recorded at
+ * launch, before the Instrument account has been asked who it is, so what
+ * was taken out then may have missed an account; what the dialog shows is
+ * what this answers, and so is what it sends.
+ */
+export async function pendingProblemsAsShown(): Promise<PendingProblem[]> {
+  const pending = listPendingProblems();
+  if (pending.length === 0) {
+    return pending;
+  }
+  return redactPending(pending, (await signedInPeople()).people);
+}
+
+function redactPending(
+  problems: readonly PendingProblem[],
+  people: ReportKnownValues["people"],
+): PendingProblem[] {
+  const redactor = reportRedactor({ people });
+  return problems.map((problem) => ({
+    ...problem,
+    details: redactor.text(problem.details),
+    title: redactor.text(problem.title),
+    ...(problem.events && {
+      events: problem.events.map((event) => redactEvent(redactor, event)),
+    }),
+  }));
 }
 
 function writePendingProblems(problems: PendingProblem[]) {
@@ -146,7 +179,13 @@ export function recordEndedSession(session: EndedSession) {
     surface: problem.kind,
     version: session.previousVersion,
   });
-  addPendingProblem({ ...problem, details, events, lastAt: session.endedAt });
+  addPendingProblem({
+    ...problem,
+    details,
+    events,
+    lastAt: session.endedAt,
+    title: reportRedactor({}).text(problem.title),
+  });
 }
 
 /**
@@ -158,7 +197,18 @@ export async function sendPendingAutomatically() {
   if (!getMachinePreferences().get("sendErrorReportsAutomatically")) {
     return;
   }
-  for (const problem of listPendingProblems()) {
+  const pending = listPendingProblems();
+  if (pending.length === 0) {
+    return;
+  }
+  const { people, unknownAccount } = await signedInPeople();
+  if (unknownAccount) {
+    // Sent now, the report could still name the account; it waits in the
+    // bell, where it is redacted again once the account is known.
+    log.info("Holding reports back until the account is known");
+    return;
+  }
+  for (const problem of redactPending(pending, people)) {
     try {
       await sendReport({
         automatic: true,
@@ -193,6 +243,7 @@ export function describeProblem({
   ended,
   found = [],
   lead,
+  people,
   surface,
   version = app.getVersion(),
 }: {
@@ -200,6 +251,8 @@ export function describeProblem({
   /** What the app found about the condition a report is about. */
   found?: string[];
   lead?: ExceptionEvent;
+  /** Everyone signed in, when the caller has asked; otherwise those known now. */
+  people?: ReportKnownValues["people"];
   surface: string;
   version?: string;
 }): { details: string; events: ExceptionEvent[] } {
@@ -216,7 +269,7 @@ export function describeProblem({
   const tail = readLogLines(LOG_TAIL_BYTES).slice(-LOG_TAIL_LINES);
   const logLines =
     tail.length > 0 ? ["Last log lines:", ...tail].join("\n") : undefined;
-  const redactor = reportRedactor();
+  const redactor = reportRedactor({ people });
   const compose = (events: readonly ExceptionEvent[]) =>
     redactor.text(
       [
@@ -255,13 +308,14 @@ export function describeProblem({
 type ReportRedactor = ReturnType<typeof createReportRedactor>;
 
 /**
- * What a report takes out, from what this computer knows without waiting:
- * the accounts signed in, the home folder and the login, and whatever the
- * caller adds.
+ * What a report takes out: the accounts signed in (those known without
+ * waiting, unless the caller asked), the home folder and the login, and
+ * whatever the caller adds.
  */
-function reportRedactor(
-  extra: Pick<ReportKnownValues, "chatId" | "memories"> = {},
-): ReportRedactor {
+function reportRedactor({
+  people = knownSignedInPeople(),
+  ...extra
+}: Pick<ReportKnownValues, "chatId" | "memories" | "people">): ReportRedactor {
   let login: string | undefined;
   try {
     login = os.userInfo().username;
@@ -272,7 +326,7 @@ function reportRedactor(
     ...extra,
     home: os.homedir(),
     login,
-    people: knownSignedInPeople(),
+    people,
   });
 }
 
@@ -527,6 +581,7 @@ export async function describeFeedback(
   const redactor = reportRedactor({
     chatId,
     memories: await listMemories(memoryDir()),
+    people: (await signedInPeople()).people,
   });
   const chat = chatId
     ? await describeChatFeedback(chatId, redactor)

@@ -13,12 +13,22 @@ import { type EndedSession } from "./problem-reports";
 // Loaded fresh for each test, so its store opens in that test's folder.
 let reports: typeof import("./problem-reports");
 
-const { electronApp, publish, stored, userData } = vi.hoisted(() => ({
-  electronApp: { isPackaged: true },
-  publish: vi.fn(),
-  stored: { events: [] as ExceptionEvent[] },
-  userData: { dir: "" },
-}));
+const { electronApp, preferences, publish, signedIn, stored, userData } =
+  vi.hoisted(() => ({
+    electronApp: { isPackaged: true },
+    preferences: { sendErrorReportsAutomatically: false },
+    publish: vi.fn(),
+    signedIn: {
+      later: [] as { email: string; name?: string }[],
+      now: [{ email: "sam.rivera@example.com", name: "Sam Rivera" }] as {
+        email: string;
+        name?: string;
+      }[],
+      unknownAccount: false,
+    },
+    stored: { events: [] as ExceptionEvent[] },
+    userData: { dir: "" },
+  }));
 
 vi.mock("./exception-store", () => ({
   listExceptionEvents: () => stored.events,
@@ -34,10 +44,14 @@ vi.mock("@instrument-org/workspace/electron", () => ({
   memoryDir: () => "/no-memory",
 }));
 
+// `now` is who is known without asking, `later` who asking adds.
 vi.mock("@/electron-main/lib/get-signed-in-user", () => ({
-  knownSignedInPeople: () => [
-    { email: "sam.rivera@example.com", name: "Sam Rivera" },
-  ],
+  knownSignedInPeople: () => signedIn.now,
+  signedInPeople: () =>
+    Promise.resolve({
+      people: [...signedIn.now, ...signedIn.later],
+      unknownAccount: signedIn.unknownAccount,
+    }),
 }));
 
 vi.mock("electron", () => ({
@@ -51,7 +65,12 @@ vi.mock("electron", () => ({
 }));
 vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: { publish } }));
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
-  getMachinePreferences: () => ({ get: () => false }),
+  getMachinePreferences: () => ({
+    get: (key: keyof typeof preferences) => preferences[key],
+  }),
+}));
+vi.mock("@/electron-main/platform-api/base-url", () => ({
+  platformApiBaseUrl: () => "https://api.example.test",
 }));
 vi.mock("@/electron-main/platform-api/headers", () => ({
   getPlatformApiHeaders: () => ({}),
@@ -116,6 +135,10 @@ describe("problem reports", () => {
     reports = await import("./problem-reports");
     electronApp.isPackaged = true;
     return () => {
+      signedIn.later = [];
+      signedIn.unknownAccount = false;
+      preferences.sendErrorReportsAutomatically = false;
+      vi.unstubAllGlobals();
       fs.rmSync(userData.dir, { force: true, recursive: true });
     };
   });
@@ -265,6 +288,57 @@ describe("problem reports", () => {
       "Sync for [name] <[email]> failed with [secret: GitHub token]";
     expect(details).toContain(expected);
     expect(events[0]?.exceptions.at(-1)?.value).toBe(expected);
+  });
+
+  it("takes an account learned after launch out of a waiting problem, in what the bell shows", async () => {
+    const message = "Sync for Robin Okafor <robin@example.org> failed";
+    ended({ crashRecord: crashEvent(THROW, message) });
+    // Recorded before the account was known, so it is still there on disk.
+    expect(reports.listPendingProblems()[0]?.details).toContain(
+      "robin@example.org",
+    );
+
+    signedIn.later = [{ email: "robin@example.org", name: "Robin Okafor" }];
+    const [shown] = await reports.pendingProblemsAsShown();
+
+    const expected = "Sync for [name] <[email]> failed";
+    expect(shown?.details).toContain(expected);
+    expect(shown?.details).not.toContain("robin");
+    expect(shown?.title).toBe(`Error: ${expected}`);
+    expect(shown?.events?.[0]?.exceptions.at(-1)?.value).toBe(expected);
+  });
+
+  it("sends a waiting problem automatically as the bell would show it", async () => {
+    const send = vi.fn((_url: URL, _init: RequestInit) =>
+      Promise.resolve(Response.json({ id: "r1" })),
+    );
+    vi.stubGlobal("fetch", send);
+    preferences.sendErrorReportsAutomatically = true;
+    ended({
+      crashRecord: crashEvent(THROW, "Sync for robin@example.org failed"),
+    });
+    signedIn.later = [{ email: "robin@example.org" }];
+
+    await reports.sendPendingAutomatically();
+
+    const body = send.mock.calls[0]?.[1].body;
+    expect(typeof body).toBe("string");
+    expect(body).toContain("Sync for [email] failed");
+    expect(body).not.toContain("robin@example.org");
+    expect(reports.listPendingProblems()).toEqual([]);
+  });
+
+  it("holds a problem back from sending automatically while the account is unknown", async () => {
+    const send = vi.fn();
+    vi.stubGlobal("fetch", send);
+    preferences.sendErrorReportsAutomatically = true;
+    signedIn.unknownAccount = true;
+    ended({ crashRecord: crashEvent() });
+
+    await reports.sendPendingAutomatically();
+
+    expect(send).not.toHaveBeenCalled();
+    expect(reports.listPendingProblems()).toHaveLength(1);
   });
 });
 

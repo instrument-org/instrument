@@ -185,6 +185,15 @@ export function grokAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
   });
 }
 
+/** Everyone a Grok account kept here names, signed in or not. */
+export function grokAccountPeople(): { email: string; name?: string }[] {
+  return registrations().flatMap((registration) =>
+    registration.email
+      ? [{ email: registration.email, name: registration.name }]
+      : [],
+  );
+}
+
 export function grokAccountsStatus(): GrokAccountsStatus {
   const all = registrations();
   return {

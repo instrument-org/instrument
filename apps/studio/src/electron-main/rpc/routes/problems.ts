@@ -7,7 +7,7 @@ import {
   FeedbackImageRefusedError,
   FeedbackTooLargeError,
   feedbackReportInput,
-  listPendingProblems,
+  pendingProblemsAsShown,
   readFeedbackImages,
   sendReport,
 } from "@/electron-main/lib/problem-reports";
@@ -20,6 +20,7 @@ import { findExceptionEvent } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { signedInPeople } from "@/electron-main/lib/get-signed-in-user";
 import { describeCondition } from "@/electron-main/lib/notices";
 import {
   ConditionSchema,
@@ -29,10 +30,20 @@ import {
 import { z } from "zod";
 
 const live = {
-  // The problems from earlier sessions waiting in the bell.
+  // The problems from earlier sessions waiting in the bell, read again when
+  // an account signs in or out, since that changes what they leave out.
   pending: base.handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("problems.updated", { signal });
-    yield* liveRead({ changes: [changes], read: listPendingProblems });
+    const changes = [
+      "problems.updated",
+      "session.apiBearerToken.updated",
+      "chatgpt-account.updated",
+      "grok-account.updated",
+      "claude-account.updated",
+    ] as const;
+    yield* liveRead({
+      changes: changes.map((name) => publisher.subscribe(name, { signal })),
+      read: pendingProblemsAsShown,
+    });
   }),
 };
 
@@ -52,11 +63,12 @@ const describe = base
       surface: z.string(),
     }),
   )
-  .handler(({ input }) => {
+  .handler(async ({ input }) => {
+    const { people } = await signedInPeople();
     if (input.condition) {
       const { fingerprint, found } = describeCondition(input.condition);
       return {
-        ...describeProblem({ found, surface: input.surface }),
+        ...describeProblem({ found, people, surface: input.surface }),
         fingerprint,
       };
     }
@@ -64,7 +76,7 @@ const describe = base
       ? findExceptionEvent(input.exception)
       : undefined;
     return {
-      ...describeProblem({ lead, surface: input.surface }),
+      ...describeProblem({ lead, people, surface: input.surface }),
       fingerprint: lead ? `error:${lead.fingerprint}` : undefined,
     };
   });

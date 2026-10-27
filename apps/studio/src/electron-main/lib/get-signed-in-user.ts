@@ -1,4 +1,12 @@
-import { chatGPTAccountUser } from "@/electron-main/lib/chatgpt-account";
+import {
+  chatGPTAccountPeople,
+  chatGPTAccountUser,
+} from "@/electron-main/lib/chatgpt-account";
+import {
+  claudeAccountStatus,
+  claudeAccountStatusKnown,
+} from "@/electron-main/lib/claude-account";
+import { grokAccountPeople } from "@/electron-main/lib/grok-account";
 import {
   platformApiQueryClient,
   platformApiRpcClient,
@@ -31,18 +39,72 @@ export async function getSignedInUser(): Promise<
   }
 }
 
+type Person = { email: string; name?: string };
+
+/**
+ * How long a report waits to learn who is signed in before going with what
+ * it already knows.
+ */
+const PEOPLE_WAIT_MS = 10_000;
+
 /**
  * Every account signed in that is known without a request, for a report to
- * take out of what it sends: the Instrument account as last fetched, and the
- * ChatGPT account signed in for a plan.
+ * take out of what it sends: the Instrument account as last fetched, every
+ * ChatGPT and Grok account kept here, and the Claude account as Claude Code
+ * last named it.
  */
-export function knownSignedInPeople(): { email: string; name?: string }[] {
+export function knownSignedInPeople(): Person[] {
   const me = platformApiQueryClient.getQueryData(
     platformApiRpcClient.users.getMe.queryKey(),
   );
-  const chatGPT = chatGPTAccountUser();
+  const claude = claudeAccountStatus();
   return [
     ...(me ? [{ email: me.email, name: me.name }] : []),
-    ...(chatGPT ? [chatGPT] : []),
+    ...chatGPTAccountPeople(),
+    ...grokAccountPeople(),
+    ...(claude.kind === "signed-in" && claude.email
+      ? [{ email: claude.email }]
+      : []),
   ];
+}
+
+/**
+ * The same, once the Instrument account has been asked for and Claude Code
+ * has been read, each given `PEOPLE_WAIT_MS` at most. `unknownAccount` says
+ * the app is signed in to Instrument but could not learn whose account it is.
+ */
+export async function signedInPeople(): Promise<{
+  people: Person[];
+  unknownAccount: boolean;
+}> {
+  const settled = <T>(work: Promise<T>) => {
+    const done = work.catch(() => undefined);
+    return Promise.race([
+      done,
+      new Promise<undefined>((resolve) => {
+        const timer = setTimeout(resolve, PEOPLE_WAIT_MS);
+        void done.then(() => clearTimeout(timer));
+      }),
+    ]);
+  };
+  const signedIn = hasToken();
+  await Promise.all([
+    signedIn
+      ? settled(
+          platformApiQueryClient.fetchQuery({
+            ...platformApiRpcClient.users.getMe.queryOptions(),
+            retry: false,
+          }),
+        )
+      : undefined,
+    settled(claudeAccountStatusKnown()),
+  ]);
+  return {
+    people: knownSignedInPeople(),
+    unknownAccount:
+      signedIn &&
+      platformApiQueryClient.getQueryData(
+        platformApiRpcClient.users.getMe.queryKey(),
+      ) === undefined,
+  };
 }

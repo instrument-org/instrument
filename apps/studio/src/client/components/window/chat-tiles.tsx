@@ -26,6 +26,7 @@ import {
 } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
+import { useSeenSrc } from "@/client/lib/use-seen-src";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -794,23 +795,33 @@ function ScreenPicture({
       input: location.kind === "file" ? { path: location.path } : skipToken,
     }),
   );
+  const picture =
+    location.kind === "file"
+      ? getComputerThumbnailUrl({
+          hostPath: location.path,
+          size: 512,
+          theme: resolvedTheme,
+          ...(info ? { version: info.modifiedAt } : {}),
+        })
+      : "";
+  const { ref, src } = useSeenSrc(
+    picture && failed !== picture ? picture : undefined,
+  );
   if (location.kind === "file") {
-    const picture = getComputerThumbnailUrl({
-      hostPath: location.path,
-      size: 512,
-      theme: resolvedTheme,
-      ...(info ? { version: info.modifiedAt } : {}),
-    });
     // A picture that failed is tried again once the file changes.
     if (picture && failed !== picture) {
-      return (
+      return src ? (
         <FittedPicture
           mark={mark}
           onError={() => {
             setFailed(picture);
           }}
-          src={picture}
+          src={src}
         />
+      ) : (
+        <span ref={ref}>
+          <FileTypeIcon className="size-8" fileName={location.name} />
+        </span>
       );
     }
     return <FileTypeIcon className="size-8" fileName={location.name} />;

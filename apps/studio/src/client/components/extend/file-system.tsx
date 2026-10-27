@@ -1,4 +1,6 @@
+import { thumbnailUrlAtSize } from "@/client/lib/computer-file-url";
 import { displayLocale } from "@/client/lib/display-locale";
+import { useSeenSrc } from "@/client/lib/use-seen-src";
 import {
   FileThumbnail,
   useNaturalAspectRatio,
@@ -6106,6 +6108,19 @@ export function FileSystemRowGlyph({
       > & { kind: "file"; name: string });
 }) {
   const [, setFailed] = React.useState(false);
+  const coverUrl =
+    entry.kind === "file" &&
+    (entry.previewIsIcon ||
+      mimeTypeForFile(entry).startsWith("image/") ||
+      /\.(?:ai|psd)$/i.test(entry.name))
+      ? filePreviewUrls(entry)[0]
+      : undefined;
+  // Drawn sixteen points square, so the smallest picture the app draws, and
+  // only once the row has been on screen a moment, as every thumbnail is.
+  const glyphUrl = coverUrl && thumbnailUrlAtSize(coverUrl, 64);
+  const { ref, src } = useSeenSrc(
+    glyphUrl && !failedRowThumbnails.has(glyphUrl) ? glyphUrl : undefined,
+  );
   if (entry.kind === "folder") {
     return (
       <FileSystemFolderGlyph
@@ -6114,14 +6129,18 @@ export function FileSystemRowGlyph({
       />
     );
   }
-  const coverUrl =
-    entry.previewIsIcon ||
-    mimeTypeForFile(entry).startsWith("image/") ||
-    /\.(?:ai|psd)$/i.test(entry.name)
-      ? filePreviewUrls(entry)[0]
-      : undefined;
-  if (!coverUrl || failedRowThumbnails.has(coverUrl)) {
+  if (!glyphUrl || failedRowThumbnails.has(glyphUrl)) {
     return <FileTypeIcon className="size-4" fileName={entry.name} />;
+  }
+  if (!src) {
+    return (
+      <span
+        className="flex size-4 shrink-0 items-center justify-center"
+        ref={ref}
+      >
+        <FileTypeIcon className="size-4" fileName={entry.name} />
+      </span>
+    );
   }
   if (entry.previewIsIcon) {
     return (
@@ -6131,10 +6150,10 @@ export function FileSystemRowGlyph({
         className="size-4 shrink-0 object-contain"
         draggable={false}
         onError={() => {
-          failedRowThumbnails.add(coverUrl);
+          failedRowThumbnails.add(src);
           setFailed(true);
         }}
-        src={coverUrl}
+        src={src}
       />
     );
   }
@@ -6145,10 +6164,10 @@ export function FileSystemRowGlyph({
       className="max-h-4 max-w-4 rounded-[1.5px] bg-white object-contain shadow-[0_0_0_0.5px_color-mix(in_oklab,var(--color-foreground)_35%,transparent)]"
       draggable={false}
       onError={() => {
-        failedRowThumbnails.add(coverUrl);
+        failedRowThumbnails.add(src);
         setFailed(true);
       }}
-      src={coverUrl}
+      src={src}
     />
   );
 }

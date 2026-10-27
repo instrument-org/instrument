@@ -1,3 +1,4 @@
+import { useSeenSrc } from "@/client/lib/use-seen-src";
 import * as React from "react";
 
 type ThumbnailFile = {
@@ -30,12 +31,6 @@ const revealedPreviewImageUrls = new Set<string>();
 // (the HTTP cache after a reload, mostly), so it is shown as it is rather than
 // faded in over a placeholder that was only up for a frame or two.
 const INSTANT_REVEAL_MS = 300;
-// How long a picture's box has to stay on screen before it asks for its
-// picture. A picture asked for is drawn whether or not anyone is still there
-// to see it (the app cannot tell a request it serves that nobody wants it any
-// more), so a row a scroll only passes over, or a row a list keeps drawn just
-// past its edge, asks for nothing.
-const ASK_AFTER_MS = 200;
 // The shape of every preview image that has loaded this session, width over
 // height by URL. A file's own shape is not in its manifest, so the box a
 // preview is drawn in starts as a page and takes the image's shape once the
@@ -132,44 +127,9 @@ export function FileThumbnail({
   const [failedPreviewImageUrl, setFailedPreviewImageUrl] = React.useState<
     string | null
   >(null);
-  // Whether the box is on screen; where nothing can say, as in a test, it is.
-  const boxRef = React.useRef<HTMLDivElement | null>(null);
-  const [isOnScreen, setIsOnScreen] = React.useState(
-    () => typeof IntersectionObserver === "undefined",
-  );
-  React.useEffect(() => {
-    const box = boxRef.current;
-    if (!box || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => {
-      setIsOnScreen(entry?.isIntersecting ?? false);
-    });
-    observer.observe(box);
-    return () => observer.disconnect();
-  }, []);
-  // The picture asked for: at once where it has been shown before, and so is
-  // on hand, otherwise once the box has been on screen for ASK_AFTER_MS.
-  const [settledPreviewImageUrl, setSettledPreviewImageUrl] = React.useState<
-    string | null
-  >(null);
-  const askedPreviewImageUrl =
-    previewImageUrl &&
-    (settledPreviewImageUrl === previewImageUrl ||
-      revealedPreviewImageUrls.has(previewImageUrl))
-      ? previewImageUrl
-      : null;
-  React.useEffect(() => {
-    if (
-      !previewImageUrl ||
-      !isOnScreen ||
-      askedPreviewImageUrl === previewImageUrl
-    ) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setSettledPreviewImageUrl(previewImageUrl);
-    }, ASK_AFTER_MS);
-    return () => window.clearTimeout(timer);
-  }, [askedPreviewImageUrl, isOnScreen, previewImageUrl]);
+  // Asked for once the box has been on screen a moment (useSeenSrc).
+  const { ref: boxRef, src: askedPreviewImageUrl } =
+    useSeenSrc(previewImageUrl);
   const imageFailed = Boolean(
     previewImageUrl && failedPreviewImageUrl === previewImageUrl,
   );

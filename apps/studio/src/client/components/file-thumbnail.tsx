@@ -1,6 +1,7 @@
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
+import { useSeenSrc } from "@/client/lib/use-seen-src";
 import { cn } from "@/client/lib/utils";
 import { type ReactNode, useState } from "react";
 import { tv } from "tailwind-variants";
@@ -208,24 +209,29 @@ function ThumbnailPicture({
   });
   const [failed, setFailed] = useState<string>();
   const [loaded, setLoaded] = useState<string>();
+  const { ref, src } = useSeenSrc(
+    picture && failed !== picture ? picture : undefined,
+  );
   if (!picture || failed === picture) {
     return fallback;
   }
   return (
-    <div className="relative shrink-0">
+    <div className="relative shrink-0" ref={ref}>
       <ThumbnailFrame isActive={isActive} variant="primary">
-        <img
-          alt=""
-          className="size-full object-cover object-top"
-          draggable={false}
-          onError={() => {
-            setFailed(picture);
-          }}
-          onLoad={() => {
-            setLoaded(picture);
-          }}
-          src={picture}
-        />
+        {src ? (
+          <img
+            alt=""
+            className="size-full object-cover object-top"
+            draggable={false}
+            onError={() => {
+              setFailed(picture);
+            }}
+            onLoad={() => {
+              setLoaded(picture);
+            }}
+            src={src}
+          />
+        ) : null}
       </ThumbnailFrame>
       {/* The file's mark over the frame while its picture is drawn, after a
           moment, so a picture already on hand never shows it. */}

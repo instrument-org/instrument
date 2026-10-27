@@ -68,6 +68,20 @@ export function getComputerThumbnailUrl({
 }
 
 /**
+ * A thumbnail URL from {@link getComputerThumbnailUrl} at another size, for
+ * a place that draws the same picture smaller than it was asked for; any
+ * other URL as it is.
+ */
+export function thumbnailUrlAtSize(url: string, size: 64 | 512 | 1024) {
+  const parsed = URL.parse(url);
+  if (!parsed?.searchParams.has("thumbnail")) {
+    return url;
+  }
+  parsed.searchParams.set("thumbnail", String(size));
+  return parsed.href;
+}
+
+/**
  * The host path a channel URL names, or nothing for a URL of any other
  * origin: the inverse of {@link getComputerFileUrl}, for a link a document
  * wrote relative to itself and resolved against the document's own URL. The

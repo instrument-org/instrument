@@ -1216,25 +1216,91 @@ describe("the keyboard", () => {
 });
 
 describe("FileSystemRowGlyph", () => {
+  /** An observer that says everything it watches is on screen, as a row in view would be. */
+  function seeEverything() {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(private readonly onChange: IntersectionObserverCallback) {}
+        disconnect() {
+          // Nothing to release.
+        }
+        observe(target: Element) {
+          this.onChange(
+            // Only `isIntersecting` and `target` are read.
+            [{ isIntersecting: true, target } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          );
+        }
+        takeRecords() {
+          return [];
+        }
+        unobserve() {
+          // See `disconnect`.
+        }
+      },
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+  }
+
   it.each([
     ["artwork.ai", "application/postscript"],
     ["ARTWORK.AI", undefined],
     ["artwork.psd", "image/vnd.adobe.photoshop"],
     ["artwork.psd", undefined],
-  ])("shows the artwork thumbnail for %s (%s)", (name, contentType) => {
+  ])(
+    "shows the artwork thumbnail for %s (%s) once on screen a moment",
+    (name, contentType) => {
+      seeEverything();
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const { container } = renderWithProviders(
+        <FileSystemRowGlyph
+          entry={{
+            contentType,
+            kind: "file",
+            name,
+            previewImageUrl: `data:image/png;base64,QUJD#${name}-${String(contentType)}`,
+          }}
+        />,
+      );
+
+      expect(container.querySelector("img")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(container.querySelector("img")?.getAttribute("src")).toBe(
+        `data:image/png;base64,QUJD#${name}-${String(contentType)}`,
+      );
+    },
+  );
+
+  it("asks for the small picture of a file on this computer", () => {
+    seeEverything();
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const { container } = renderWithProviders(
       <FileSystemRowGlyph
         entry={{
-          contentType,
           kind: "file",
-          name,
-          previewImageUrl: "data:image/png;base64,QUJD",
+          name: "photo.png",
+          previewImageUrl:
+            "instrument://computer-x/photo.png?version=1&thumbnail=512&theme=dark",
         }}
       />,
     );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
 
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      "data:image/png;base64,QUJD",
+      "instrument://computer-x/photo.png?version=1&thumbnail=64&theme=dark",
     );
   });
 });

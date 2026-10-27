@@ -5,6 +5,7 @@ import {
   getComputerThumbnailUrl,
 } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
+import { useSeenSrc } from "@/client/lib/use-seen-src";
 import { type ReactNode, useState } from "react";
 
 /** How much smaller than life a document is drawn in its thumbnail. */
@@ -42,18 +43,23 @@ export function FileThumbnail({
     version,
   });
   const [failed, setFailed] = useState<string>();
+  const { ref, src } = useSeenSrc(
+    picture && failed !== picture ? picture : undefined,
+  );
   if (picture && failed !== picture) {
     return (
-      <div className={cn("pointer-events-none", THUMBNAIL_BOX_CLASS)}>
-        <img
-          alt=""
-          className="size-full object-cover object-top"
-          draggable={false}
-          onError={() => {
-            setFailed(picture);
-          }}
-          src={picture}
-        />
+      <div className={cn("pointer-events-none", THUMBNAIL_BOX_CLASS)} ref={ref}>
+        {src ? (
+          <img
+            alt=""
+            className="size-full object-cover object-top"
+            draggable={false}
+            onError={() => {
+              setFailed(picture);
+            }}
+            src={src}
+          />
+        ) : null}
       </div>
     );
   }

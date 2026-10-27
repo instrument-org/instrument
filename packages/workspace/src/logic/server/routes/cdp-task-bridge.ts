@@ -376,7 +376,13 @@ export function handleTaskCdpClient(
       const made = await browser
         .createTarget(targetId, getBrowserSessionDir())
         .then(() => true)
-        .catch(() => false);
+        .catch((error: unknown) => {
+          console.warn(
+            `A task's new page did not open (targetId=${targetId}):`,
+            error,
+          );
+          return false;
+        });
       if (!made) {
         refuse(id, "The browser did not open a page. Try again.");
         return;

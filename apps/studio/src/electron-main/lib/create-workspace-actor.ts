@@ -53,7 +53,7 @@ import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
 
-import { createBrowserViewManager } from "../browser-view/manager";
+import { getBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
@@ -110,7 +110,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   setBashWorkerFactory(createBashWorker);
   warmBashWorker();
 
-  const browserViewManager = createBrowserViewManager();
+  const browserViewManager = getBrowserViewManager();
 
   const actor = createActor(workspaceMachine, {
     input: {

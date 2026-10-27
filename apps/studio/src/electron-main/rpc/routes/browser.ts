@@ -39,7 +39,7 @@ import { z } from "zod";
 // the UI derives "live" from `attached`. Single source of truth for both, so
 // there's no separate polled endpoint.
 function currentTargets(): BrowserGuestTarget[] {
-  return getBrowserViewManager()?.getTargets() ?? [];
+  return getBrowserViewManager().getTargets();
 }
 
 const events = {
@@ -140,7 +140,7 @@ const live = {
 const syncFocus = base
   .input(z.object({ focused: z.boolean(), targetId: BrowserTargetIdSchema }))
   .handler(({ input }) => {
-    getBrowserViewManager()?.setGuestFocus(input.targetId, input.focused);
+    getBrowserViewManager().setGuestFocus(input.targetId, input.focused);
   });
 
 // Whether a slot shows a guest or the pool parks it, reported by the pool on
@@ -148,11 +148,11 @@ const syncFocus = base
 const syncGuestShown = base
   .input(z.object({ shown: z.boolean(), targetId: BrowserTargetIdSchema }))
   .handler(({ input }) => {
-    getBrowserViewManager()?.setGuestShown(input.targetId, input.shown);
+    getBrowserViewManager().setGuestShown(input.targetId, input.shown);
   });
 
 const syncHostFocus = base.handler(() => {
-  getBrowserViewManager()?.setHostFocus();
+  getBrowserViewManager().setHostFocus();
 });
 
 // The size the pool actually applied to a parked guest. Reported whenever it
@@ -200,7 +200,7 @@ const setEmulatedDevice = base
     }),
   )
   .handler(({ input }) => {
-    getBrowserViewManager()?.setEmulatedDevice(input.targetId, input.device);
+    getBrowserViewManager().setEmulatedDevice(input.targetId, input.device);
   });
 
 /**
@@ -304,11 +304,10 @@ const continueDespiteCertificate = base
   .input(z.object({ targetId: BrowserTargetIdSchema, url: z.string() }))
   .output(z.object({ continued: z.boolean() }))
   .handler(({ input }) => ({
-    continued:
-      getBrowserViewManager()?.continueDespiteCertificate(
-        input.targetId,
-        input.url,
-      ) ?? false,
+    continued: getBrowserViewManager().continueDespiteCertificate(
+      input.targetId,
+      input.url,
+    ),
   }));
 
 /**
@@ -317,9 +316,7 @@ const continueDespiteCertificate = base
  */
 const lastLoad = base
   .input(z.object({ targetId: BrowserTargetIdSchema }))
-  .handler(
-    ({ input }) => getBrowserViewManager()?.lastLoadOf(input.targetId) ?? null,
-  );
+  .handler(({ input }) => getBrowserViewManager().lastLoadOf(input.targetId));
 
 /** The engine's answer: the words asked about, then what it would finish them as. */
 const SuggestionsSchema = z.tuple(

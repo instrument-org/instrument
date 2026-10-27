@@ -72,10 +72,11 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### I. The in-app browser is dead for the whole first session after setup
 
-- Status: open
+- Status: fixed
 - Where: [app-window.ts:303](/apps/studio/src/electron-main/windows/app-window.ts#L303), [create-workspace-actor.ts:113](/apps/studio/src/electron-main/lib/create-workspace-actor.ts#L113)
 - What: on a first launch the app window opens during setup, before any workspace exists, so `getBrowserViewManager()` is still undefined when the window binds itself as the browser's host. The manager is created later with the workspace and never binds the window already open, so no guest ever attaches: the Browser rail hangs on "Opening browser…" and `agent-browser open` fails after about 15 s with "The browser did not open a page". Quitting and relaunching fixes it. Seen on Windows; nothing in the path is platform-specific, and finding F on Linux may be the same thing.
 - Note: [cdp-task-bridge.ts:375](/packages/workspace/src/logic/server/routes/cdp-task-bridge.ts#L375) drops the `createTarget` error without logging it, so main.log had nothing for the agent's attempts.
+- Note: the browser manager is the app's, made by whichever of the window and the workspace asks for it first, so the order setup opens them in doesn't matter. A workspace switch or move relaunches the app, so it never met this.
 
 ### J. The sign-in callback leaves its token in the browser's address bar and history
 

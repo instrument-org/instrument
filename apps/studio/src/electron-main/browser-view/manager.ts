@@ -90,9 +90,9 @@ const AGENT_NAVIGATION_TAIL_MS = 2000;
 
 export interface BrowserViewManager {
   // Register the `<webview>` attach lifecycle on a window's webContents.
-  // Called once the window exists; the manager itself is created earlier. Each
-  // window that mounts guests binds under its own name, and gets only the
-  // guests meant for it.
+  // Called once the window exists, whether or not a workspace has started:
+  // the manager is the app's, so a window opened during setup hosts the
+  // guests of the workspace setup starts.
   bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
   // Every recorded target and whether its guest has attached yet. The renderer
@@ -163,7 +163,7 @@ const describeTabScript = (guestId: number) => `(() => {
   return onScreen ? "shown" : "offscreen";
 })()`;
 
-export function createBrowserViewManager(): BrowserViewManager {
+function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
   // The app window's renderer, which mounts every guest.
   let hostContents: null | WebContents = null;
@@ -858,7 +858,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     return true;
   }
 
-  managerInstance = {
+  return {
     bindHost,
     browser,
     continueDespiteCertificate,
@@ -893,11 +893,16 @@ export function createBrowserViewManager(): BrowserViewManager {
       notifyEntriesChanged();
     },
   };
-  return managerInstance;
 }
 
-export function getBrowserViewManager(): BrowserViewManager | undefined {
-  return managerInstance;
+/**
+ * The app's one browser manager, made by whichever asks first: the window
+ * binding itself as the guests' host, or the workspace taking the browser
+ * its agents drive. Neither waits on the other, so a window that opens before
+ * any workspace (a first launch's setup) still hosts the workspace's guests.
+ */
+export function getBrowserViewManager(): BrowserViewManager {
+  return (managerInstance ??= createBrowserViewManager());
 }
 
 /**

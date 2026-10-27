@@ -300,7 +300,7 @@ export function openAppWindow(): BrowserWindow {
   // Every browser guest, the user's tabs and the tasks' pages alike, is
   // mounted by this window's pool and driven by the manager, so a task can be
   // handed a tab by target id.
-  getBrowserViewManager()?.bindHost(appWindow.webContents);
+  getBrowserViewManager().bindHost(appWindow.webContents);
 
   loadWindowURL(appWindow.webContents, studioURL("/chats/"));
 

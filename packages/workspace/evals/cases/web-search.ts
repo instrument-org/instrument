@@ -3,9 +3,13 @@ import { type Assertion, defineEval } from "../harness";
 
 // A search through our web_search tool leaves its tool part; one a model ran
 // itself, as a Claude account does with Claude Code's WebSearch, leaves only
-// the sources it found.
+// the sources it found; one a script made leaves the script.
 const isSearchEvidence = (part: SessionMessagePart.Type) =>
-  part.type === "tool-web_search" || part.type === "source-url";
+  part.type === "tool-web_search" ||
+  part.type === "source-url" ||
+  (part.type.startsWith("tool-") &&
+    "input" in part &&
+    /\binstrument\.web\.search\b/.test(JSON.stringify(part.input)));
 
 const stopOnWebSearch = (part: SessionMessagePart.Type) =>
   (part.type === "tool-web_search" &&

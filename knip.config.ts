@@ -96,6 +96,8 @@ const config: KnipConfig = {
         "evals/lib/pin-openrouter-model.ts!",
         "evals/lib/retry-workers-ai-rate-limits.ts!",
         "scripts/*.ts!",
+        // Started by path as the Mac apps' stand-in server, by the tests and the evals.
+        "src/test/helpers/mac-apps-stand-in.ts",
       ],
       ignore: ["fixtures/**/*"],
       ignoreBinaries: [

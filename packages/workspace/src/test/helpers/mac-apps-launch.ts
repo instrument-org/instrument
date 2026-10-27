@@ -25,15 +25,17 @@ const CallSchema = z.object({
 /**
  * The stand-in Mac apps' server (`mac-apps-stand-in.ts`) as a workspace's
  * `macAppsServer`, keeping its state in `dir`: what it is started with, the
- * calls it has had, and which servers answer as macOS refusing them.
+ * calls it has had, which servers answer as macOS refusing them, and what
+ * the calls added.
  */
 export function macAppsStandIn(dir: string) {
   mkdirSync(dir, { recursive: true });
   const stateFile = path.join(dir, "state.json");
   const log = path.join(dir, "calls.jsonl");
+  const store = path.join(dir, "store.json");
   writeFileSync(log, "");
   const refuse = (servers: string[]) => {
-    writeFileSync(stateFile, JSON.stringify({ log, refuse: servers }));
+    writeFileSync(stateFile, JSON.stringify({ log, refuse: servers, store }));
   };
   refuse([]);
   return {

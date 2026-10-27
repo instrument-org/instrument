@@ -75,6 +75,11 @@ import {
 } from "./lib/run-cost";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
+  connectMacApp,
+  macAppsStandIn,
+} from "../src/test/helpers/mac-apps-launch";
+import { getWorkspaceConfig } from "../src/lib/workspace-config";
+import {
   answerSignIn,
   cardOnlySignIns,
   endSignIn,
@@ -452,6 +457,15 @@ export interface EvalCase {
   apps?: AppFixture[];
   assertions?: Assertion[];
   /**
+   * The Mac's own apps connected before the run, by their bundled server's
+   * name (`apple-calendar`), on the stand-in server
+   * (`src/test/helpers/mac-apps-stand-in.ts`): the real tools, answering from
+   * no one's real data, so a run meets no macOS prompt and leaves nothing in
+   * the person's Calendar or Mail. `refused` are answered as macOS keeping
+   * Instrument out of them. Like `apps`, one set serves every case in a run.
+   */
+  macApps?: { connected: string[]; refused?: string[] };
+  /**
    * This case's own token cap, over the run's (`--max-run-tokens`), for a
    * long conversation whose legitimate total is past the default. It
    * applies whether or not the run's cost can be read.
@@ -786,6 +800,12 @@ export async function runEvals(
   };
   const standInWindow = createStandInWindow();
   const stopStandInWindow = standInWindow.listen();
+  const macAppsStandInFor = evals.some((evalCase) => evalCase.macApps)
+    ? macAppsStandIn(path.join(workspaceRootDir, "mac-apps"))
+    : undefined;
+  macAppsStandInFor?.refuse(
+    _.unique(evals.flatMap((evalCase) => evalCase.macApps?.refused ?? [])),
+  );
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
@@ -812,6 +832,7 @@ export async function runEvals(
       ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
         ? { macHelperBinPath: MAC_HELPER_BIN }
         : {}),
+      ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
       modelCache: noopModelCache,
       ...(evals.some((evalCase) => evalCase.nativeSandbox)
         ? { nativeSandbox: true }
@@ -905,6 +926,14 @@ export async function runEvals(
   for (const app of declaredApps) {
     write(
       `${c.dim}App       :${c.reset} ${app.slug} ${c.dim}connected${c.reset}\n`,
+    );
+  }
+  for (const server of _.unique(
+    runs.flatMap((run) => run.evalCase.macApps?.connected ?? []),
+  )) {
+    await connectMacApp(getWorkspaceConfig().appsDir, server);
+    write(
+      `${c.dim}App       :${c.reset} ${server} ${c.dim}connected, on the stand-in server${c.reset}\n`,
     );
   }
 

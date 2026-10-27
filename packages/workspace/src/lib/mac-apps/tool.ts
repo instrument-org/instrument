@@ -20,7 +20,7 @@ export class MacosRefused extends Error {
 }
 
 /** A tool's answer: the data, and the text a person or the agent reads. */
-export interface ToolAnswer {
+interface ToolAnswer {
   structured: Record<string, unknown>;
   text: string;
 }

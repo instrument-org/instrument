@@ -93,7 +93,7 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### L. A preview's version pill says "prod"
 
-- Status: open
+- Status: fixed
 - What: the pill reads "prod 2.0.0-beta.109" beside the "Preview · b109-131" chip.
 
 ### M. Windows toasts carry Electron's default app identity

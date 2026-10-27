@@ -38,7 +38,7 @@ import {
   type Features,
 } from "@/shared/features";
 import { SHORTCUTS } from "@/shared/shortcuts";
-import { PORTS } from "@instrument-org/shared";
+import { APP_FLAVOR, PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { BugIcon } from "@phosphor-icons/react/Bug";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
@@ -170,7 +170,13 @@ export function DevPanel() {
     return null;
   }
 
-  const envLabel = appEnvironment?.isPackaged === true ? "prod" : "dev";
+  // A preview is packaged too, but it is a build of its own, never the
+  // shipping app; the identity chip beside the pill names which one.
+  const envLabel = !isPackaged
+    ? "dev"
+    : APP_FLAVOR.kind === "preview"
+      ? "preview"
+      : "prod";
   const instanceTag =
     appEnvironment === undefined ? "" : instanceLabel(appEnvironment);
 
@@ -222,7 +228,11 @@ export function DevPanel() {
                   env
                 </span>
                 <span className="font-mono text-[9px] text-dev-700/80 dark:text-dev-300/70">
-                  {appEnvironment?.isPackaged ? "production" : "development"}
+                  {!isPackaged
+                    ? "development"
+                    : APP_FLAVOR.kind === "preview"
+                      ? "preview"
+                      : "production"}
                 </span>
                 <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
                   build

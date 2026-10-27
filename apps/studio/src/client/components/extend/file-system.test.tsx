@@ -1302,6 +1302,33 @@ describe("FileSystem's List", () => {
     ).toEqual(["b.md"]);
   });
 
+  it("narrows to a kind picked under the search field, and names it once the field closes", async () => {
+    const lead = document.createElement("div");
+    document.body.append(lead);
+    onTestFinished(() => lead.remove());
+    renderPages({ toolbarInto: { lead, tail: null } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    const kinds = await screen.findByRole("listbox", { name: "Kinds" });
+    expect(
+      [...kinds.querySelectorAll('[role="option"]')].map(
+        (option) => option.textContent,
+      ),
+    ).toEqual(["CSV Document", "HTML Document", "Markdown Document"]);
+
+    fireEvent.click(screen.getByRole("option", { name: "HTML Document" }));
+    expect(
+      screen
+        .getAllByRole("option")
+        .flatMap((option) => option.dataset.fileSystemItem ?? []),
+    ).toEqual(["a.html"]);
+
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Escape" });
+    expect(
+      screen.getByRole("button", { name: "Search: HTML Document" }),
+    ).toBeTruthy();
+  });
+
   it("jumps to a title by its first letters", () => {
     const { reported } = renderPages();
     const first =

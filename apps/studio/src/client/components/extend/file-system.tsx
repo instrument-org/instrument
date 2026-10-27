@@ -35,6 +35,7 @@ import {
 import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
@@ -603,6 +604,11 @@ function entryKindLabel(entry: FileSystemEntry) {
 /** The name an entry is shown by: the system's, where it leaves the extension off. */
 function shownName(entry: FileSystemEntry) {
   return entry.kind === "file" ? (entry.displayName ?? entry.name) : entry.name;
+}
+const FOLDER_KIND = "Folder";
+/** A row's kind as the Kind column names it, which search narrows by. */
+function kindOf(entry: FileSystemEntry) {
+  return entry.kind === "folder" ? FOLDER_KIND : fileKindLabel(entry);
 }
 // A file's kind in words, never its MIME type: by the system's name for it,
 // then its extension, then its type, which names a file with no extension
@@ -1938,8 +1944,15 @@ export function FileSystem({
   );
   const searchInputRef = React.useRef<HTMLInputElement | null>(null);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
+  // The kinds search narrows to, by their names in the Kind column; none is
+  // every kind.
+  const [searchKinds, setSearchKinds] = React.useState<readonly string[]>([]);
   const searchQuery = normalizeSearchQuery(searchInput);
-  const isSearching = searchQuery.length > 0;
+  const isSearching = searchQuery.length > 0 || searchKinds.length > 0;
+  const clearSearch = React.useCallback(() => {
+    changeSearch("");
+    setSearchKinds([]);
+  }, [changeSearch]);
   const [internalSort, setInternalSort] = React.useState(DEFAULT_SORT);
   const sort = sortProp ?? internalSort;
   const setSort = (next: FileSystemSortState) => {
@@ -1987,17 +2000,42 @@ export function FileSystem({
       }
     };
     // A file's own title matches too, where the List has read one.
-    const matchesQuery = (path: string) =>
+    const matchesWords = (path: string) =>
       path.slice(currentPath.length).toLowerCase().includes(searchQuery) ||
       index.files.get(path)?.title?.toLowerCase().includes(searchQuery) ===
         true;
+    const matchesKind = (path: string) => {
+      const entry = index.files.get(path) ?? index.folders.get(path);
+      return entry !== undefined && searchKinds.includes(kindOf(entry));
+    };
+    const matchesQuery = (path: string) =>
+      (searchQuery === "" || matchesWords(path)) &&
+      (searchKinds.length === 0 || matchesKind(path));
     for (const path of [...index.files.keys(), ...index.folders.keys()]) {
       if (path === currentPath) continue;
       if (currentPath && !path.startsWith(currentPath)) continue;
       if (matchesQuery(path)) markVisible(path);
     }
     return visible;
-  }, [currentPath, index, isSearching, searchQuery]);
+  }, [currentPath, index, isSearching, searchKinds, searchQuery]);
+  // The kinds search offers: those the folder on screen has, folders first,
+  // then the most common.
+  const offeredKinds = (() => {
+    const counts = new Map<string, number>();
+    for (const entry of index.children.get(currentPath) ?? []) {
+      const kind = kindOf(entry);
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+    return [...counts]
+      .sort(
+        ([leftKind, left], [rightKind, right]) =>
+          Number(rightKind === FOLDER_KIND) -
+            Number(leftKind === FOLDER_KIND) ||
+          right - left ||
+          leftKind.localeCompare(rightKind),
+      )
+      .map(([kind]) => kind);
+  })();
   const visibleIndex = React.useMemo(() => {
     if (!visiblePaths) return index;
     const children = new Map<string, FileSystemEntry[]>();
@@ -2305,12 +2343,12 @@ export function FileSystem({
         return { index: stack.length - 1, stack };
       });
       // Navigation exits search, like Finder.
-      changeSearch("");
+      clearSearch();
       setIsSearchExpanded(false);
       selectEntry(null);
       ensureChildren(path);
     },
-    [changeSearch, ensureChildren, selectEntry],
+    [clearSearch, ensureChildren, selectEntry],
   );
   React.useEffect(() => {
     ensureChildren(currentPath);
@@ -3173,8 +3211,11 @@ export function FileSystem({
     <FileSystemSearchField
       inputRef={searchInputRef}
       isExpanded={isSearchExpanded}
+      kinds={searchKinds}
       layout={layout}
+      offeredKinds={offeredKinds}
       onExpandedChange={setIsSearchExpanded}
+      onKindsChange={setSearchKinds}
       onValueChange={changeSearch}
       value={searchInput}
     />
@@ -3365,16 +3406,18 @@ export function FileSystem({
                 ? {
                     label: "Clear search",
                     onPress: () => {
-                      changeSearch("");
+                      clearSearch();
                       setIsSearchExpanded(false);
                     },
                   }
                 : undefined
             }
             label={
-              isSearching
-                ? `Nothing here matches “${searchInput.trim()}”.`
-                : "This folder is empty"
+              !isSearching
+                ? "This folder is empty"
+                : searchInput.trim()
+                  ? `Nothing here matches “${searchInput.trim()}”.`
+                  : "Nothing here is that kind."
             }
           />
         ) : view === "icons" ? (
@@ -3507,15 +3550,23 @@ export const TOOLBAR_ICON_BUTTON_CLASSNAME = cn(
 function FileSystemSearchField({
   inputRef,
   isExpanded,
+  kinds,
   layout,
+  offeredKinds,
   onExpandedChange,
+  onKindsChange,
   onValueChange,
   value,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
   isExpanded: boolean;
+  /** The kinds the search narrows to, shown as tokens before the words. */
+  kinds: readonly string[];
   layout: "compact" | "full" | "minimal" | "row";
+  /** The kinds the folder has, offered under the field while it has no words. */
+  offeredKinds: readonly string[];
   onExpandedChange: (isExpanded: boolean) => void;
+  onKindsChange: (kinds: readonly string[]) => void;
   onValueChange: (value: string) => void;
   value: string;
 }) {
@@ -3523,20 +3574,79 @@ function FileSystemSearchField({
   React.useEffect(() => {
     if (isExpanded) inputRef.current?.focus();
   }, [inputRef, isExpanded]);
+  // Offered while the field is open and empty: the kinds not yet picked.
+  const suggestions =
+    layout === "row" && isExpanded && value === ""
+      ? offeredKinds.filter((kind) => !kinds.includes(kind))
+      : [];
+  const [highlight, setHighlight] = React.useState(-1);
+  const highlighted =
+    highlight >= 0 && highlight < suggestions.length ? highlight : -1;
+  const pickKind = (kind: string) => {
+    onKindsChange([...kinds, kind]);
+    setHighlight(-1);
+  };
+  const isSearched = value !== "" || kinds.length > 0;
   const input = (
     <div
       className={cn(
         TOOLBAR_CONTROL_CLASSNAME,
-        "relative flex min-w-0 flex-1 items-center text-sm text-foreground transition-shadow outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background",
+        "relative flex min-w-0 flex-1 items-center gap-1 overflow-hidden pr-6 pl-2 text-sm text-foreground transition-shadow outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background",
         isInline && "max-w-56",
       )}
     >
-      <Search className="pointer-events-none absolute left-2 size-3.5 text-muted-foreground" />
+      <Search className="pointer-events-none size-3.5 shrink-0 text-muted-foreground" />
+      {kinds.map((kind) => (
+        <span
+          className="flex h-5 shrink-0 items-center gap-0.5 rounded-sm bg-foreground/10 pr-0.5 pl-1.5 text-xs"
+          key={kind}
+        >
+          {kind}
+          <button
+            aria-label={`Remove ${kind}`}
+            className="flex size-4 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
+            onClick={() => onKindsChange(kinds.filter((each) => each !== kind))}
+            // The field keeps the keyboard, so it stays open.
+            onMouseDown={(event) => event.preventDefault()}
+            type="button"
+          >
+            <X className="size-2.5" />
+          </button>
+        </span>
+      ))}
       <input
         aria-label="Search files"
-        className="h-full w-full min-w-0 rounded-[inherit] bg-transparent pr-6 pl-7 outline-none placeholder:text-muted-foreground"
+        className="h-full w-full min-w-8 flex-1 rounded-[inherit] bg-transparent outline-none placeholder:text-muted-foreground"
         onChange={(event) => onValueChange(event.target.value)}
         onKeyDown={(event) => {
+          if (suggestions.length > 0 && event.key === "ArrowDown") {
+            event.preventDefault();
+            setHighlight((highlighted + 1) % suggestions.length);
+            return;
+          }
+          if (suggestions.length > 0 && event.key === "ArrowUp") {
+            event.preventDefault();
+            setHighlight(
+              highlighted <= 0 ? suggestions.length - 1 : highlighted - 1,
+            );
+            return;
+          }
+          const picked = suggestions[highlighted];
+          if (event.key === "Enter" && picked !== undefined) {
+            event.preventDefault();
+            pickKind(picked);
+            return;
+          }
+          if (
+            event.key === "Backspace" &&
+            value === "" &&
+            kinds.length > 0 &&
+            event.currentTarget.selectionStart === 0
+          ) {
+            event.preventDefault();
+            onKindsChange(kinds.slice(0, -1));
+            return;
+          }
           if (event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();
@@ -3547,20 +3657,22 @@ function FileSystemSearchField({
             event.currentTarget.blur();
           }
         }}
-        placeholder="Search"
+        placeholder={kinds.length > 0 ? "" : "Search"}
         ref={inputRef}
         role="searchbox"
         type="text"
         value={value}
       />
-      {value ? (
+      {isSearched ? (
         <button
           aria-label="Clear search"
           className="absolute right-1 flex size-5 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => {
             onValueChange("");
+            onKindsChange([]);
             inputRef.current?.focus();
           }}
+          onMouseDown={(event) => event.preventDefault()}
           type="button"
         >
           <X className="size-3" />
@@ -3568,6 +3680,10 @@ function FileSystemSearchField({
       ) : null}
     </div>
   );
+  // What the search holds, said in the button it folds into.
+  const searchedLabel = [kinds.join(", "), value.trim()]
+    .filter(Boolean)
+    .join(" · ");
   if (isInline) {
     // A magnifying glass until asked for, the way the Finder's toolbar keeps
     // its search: the field opens in its place, and closes again when the
@@ -3611,17 +3727,17 @@ function FileSystemSearchField({
   // says why at a glance.
   const searchedButton = (onPress?: () => void) => (
     <button
-      aria-label={`Search: ${value}`}
+      aria-label={`Search: ${searchedLabel}`}
       className={cn(
         TOOLBAR_CONTROL_CLASSNAME,
         "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
       )}
       onClick={onPress}
-      title={`Search: ${value}`}
+      title={`Search: ${searchedLabel}`}
       type="button"
     >
       <Search className="size-3.5 shrink-0" />
-      <span className="truncate">{value}</span>
+      <span className="truncate">{searchedLabel}</span>
     </button>
   );
   if (layout === "row") {
@@ -3629,7 +3745,7 @@ function FileSystemSearchField({
     // folder's controls stood in, which folds back into the button, naming
     // what it holds, once the keyboard leaves it.
     if (!isExpanded) {
-      return value ? (
+      return isSearched ? (
         searchedButton(() => onExpandedChange(true))
       ) : (
         <button
@@ -3644,27 +3760,61 @@ function FileSystemSearchField({
       );
     }
     return (
-      <div
-        className="flex min-w-32 flex-1 items-center"
-        onBlur={(event) => {
-          if (
-            !(
-              event.relatedTarget instanceof Node &&
-              event.currentTarget.contains(event.relatedTarget)
-            )
-          ) {
-            onExpandedChange(false);
-          }
-        }}
-      >
-        {input}
-      </div>
+      <Popover open={suggestions.length > 0}>
+        <PopoverAnchor asChild>
+          <div
+            className="flex min-w-32 flex-1 items-center"
+            onBlur={(event) => {
+              if (
+                !(
+                  event.relatedTarget instanceof Node &&
+                  event.currentTarget.contains(event.relatedTarget)
+                )
+              ) {
+                onExpandedChange(false);
+              }
+            }}
+          >
+            {input}
+          </div>
+        </PopoverAnchor>
+        {/* The kinds the folder has, picked with the arrows and Return or a
+            click, while the keyboard stays in the field. */}
+        <PopoverContent
+          align="start"
+          className="w-(--radix-popover-trigger-width) min-w-48 p-1"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          sideOffset={6}
+        >
+          <div className="px-2 pt-1 pb-1 text-xs text-muted-foreground">
+            Show only
+          </div>
+          <div role="listbox" aria-label="Kinds">
+            {suggestions.map((kind, at) => (
+              <div
+                aria-selected={at === highlighted}
+                className={cn(
+                  "flex h-7 items-center rounded-md px-2 text-sm",
+                  at === highlighted && "bg-accent",
+                )}
+                key={kind}
+                onClick={() => pickKind(kind)}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setHighlight(at)}
+                role="option"
+              >
+                {kind}
+              </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     );
   }
   return (
     <Popover onOpenChange={onExpandedChange} open={isExpanded}>
       <PopoverTrigger asChild>
-        {value ? (
+        {isSearched ? (
           searchedButton()
         ) : (
           <button

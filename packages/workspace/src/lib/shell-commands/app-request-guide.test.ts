@@ -4,7 +4,7 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
@@ -24,7 +24,20 @@ import { ChatWrites } from "../chat-writes";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 
+// A request's address check resolves the host, so the suite answers DNS.
+vi.mock("node:dns/promises", () => ({
+  default: {
+    lookup: vi.fn(() =>
+      Promise.resolve([{ address: "93.184.216.34", family: 4 }]),
+    ),
+  },
+}));
+
 let chats = 0;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("app request and the app's guide", () => {
   let chatId: ReturnType<typeof ChatIdSchema.parse>;
@@ -182,6 +195,36 @@ describe("app request and the app's guide", () => {
       # Guide
 
       GET /me answers who the key belongs to.
+      "
+    `);
+  });
+
+  it("prints a long body whole on stdout, for jq", async () => {
+    const slug = `guide-${chats}`;
+    await connectedApiApp(slug);
+    expect(await handsOver(slug)).toBe(true);
+    const body = JSON.stringify(
+      { slides: Array.from({ length: 5000 }, (_, i) => ({ id: `s${i}` })) },
+      null,
+      2,
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(body, {
+            headers: { "content-type": "application/json" },
+          }),
+        ),
+      ),
+    );
+
+    const result = await app(["request", slug, "POST", "/presentations"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(`${body}\n`);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "POST https://api.unknown.invalid/v1/presentations -> 200 (application/json)
       "
     `);
   });

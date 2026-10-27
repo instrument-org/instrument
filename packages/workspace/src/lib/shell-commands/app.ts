@@ -71,7 +71,6 @@ import {
   recordAppGuideHandOff,
 } from "../apps/guide-hand-off";
 import { readModelWindow } from "../model-window";
-import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "./app-command";
@@ -184,7 +183,8 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
   ${APP_COMMAND.name} request <slug> <METHOD> <path> [--param <k>=<v>]... ['<json body>']
       One request through an API app, the path relative to its base. The first
       request in a task sends nothing: it prints the app's guide on stderr
-      and exits ${GUIDE_FIRST_EXIT_CODE}; read it, then repeat. The body can come on stdin.
+      and exits ${GUIDE_FIRST_EXIT_CODE}; read it, then repeat. The response body alone is
+      stdout, whole, for jq. The body can come on stdin.
   ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
       The app's guide, the body of its ${APP_FILE_NAME}. With the whole guide on stdin
       through a quoted heredoc, write it instead, leaving the setup above it
@@ -1251,16 +1251,14 @@ async function runRequest(
     throw new Error(redactCredential(result.error.message, credential));
   }
   const response = result.value;
-  const bodyText = redactCredential(response.bodyText, credential);
-  const { content, omittedLines, truncated } = truncateMiddle(bodyText);
-  const note =
-    truncated || response.truncated
-      ? `[Body truncated${truncated ? `: ${omittedLines} lines omitted from the middle` : ""}${response.truncated ? "; the response was larger than the cap, so request less or paginate" : ""}]\n`
-      : "";
+  const note = response.truncated
+    ? "[Body truncated: the response was larger than the cap, so request less or paginate]\n"
+    : "";
   const statusLine = `${method} ${redactCredential(response.url, credential)} -> ${response.status}${response.contentType ? ` (${response.contentType})` : ""}\n`;
-  const shown = `${truncated ? content : bodyText}\n`;
-  // The body alone is stdout, so it pipes into jq or rg as the service sent
-  // it; the status line and any truncation note are ours and go to stderr.
+  const shown = `${redactCredential(response.bodyText, credential)}\n`;
+  // The body alone is stdout, whole, so it pipes into jq or rg as the service
+  // sent it; the status line and any truncation note are ours and go to
+  // stderr. What the model reads of a long one is the bash tool's to cut.
   return response.status >= 400
     ? { exitCode: 1, stderr: `${statusLine}${shown}${note}`, stdout: "" }
     : { exitCode: 0, stderr: `${statusLine}${note}`, stdout: shown };

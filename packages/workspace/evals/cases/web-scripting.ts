@@ -265,6 +265,10 @@ function outputsText(sessions: Session.WithMessagesAndParts[]): string {
     .join("\n");
 }
 
+/** A script fetching with its runtime's own client: Python's urllib, requests or httpx, Node's fetch. */
+const OWN_HTTP_CLIENT =
+  /\burllib\b|\bimport requests\b|\brequests\.get\b|\bhttpx\b|(?<![.\w])fetch\(/;
+
 const LOOPBACK_CURL = /\bcurl\b[^|;]{0,200}127\.0\.0\.1/;
 
 /**
@@ -287,8 +291,11 @@ const mechanism: Assertion = {
       LOOPBACK_CURL.test(command),
     ).length;
     const misfires = outputsText(sessions).match(SCRIPT_MISFIRE)?.length ?? 0;
+    const ownFetch = toolInputs(sessions).filter(
+      (input) => !SCRIPT_WEB_CALL.test(input) && OWN_HTTP_CLIENT.test(input),
+    ).length;
     return {
-      evidence: `web_fetch calls ${toolFetches(sessions).length}, bash ${commands.length}, scripts calling instrument.web ${scripted.node + scripted.python} (node ${scripted.node}, python ${scripted.python}), curl to the site ${curl}, script misfires ${misfires}`,
+      evidence: `web_fetch calls ${toolFetches(sessions).length}, bash ${commands.length}, scripts calling instrument.web ${scripted.node + scripted.python} (node ${scripted.node}, python ${scripted.python}), scripts with their own HTTP client ${ownFetch}, curl to the site ${curl}, script misfires ${misfires}`,
       passed: true,
       text: "records the mechanism",
     };
@@ -408,12 +415,45 @@ const ONE_PATH: Assertion = {
   text: "keeps to one way of fetching each page, with no misfired script",
 };
 
+/** A script asked for runs without a misfired call to `instrument` along the way. */
+const SCRIPT_RAN_CLEAN: Assertion = {
+  check: ({ sessions }) => {
+    const misfires = outputsText(sessions).match(SCRIPT_MISFIRE) ?? [];
+    return {
+      evidence:
+        misfires.length === 0
+          ? "no misfires"
+          : [...new Set(misfires)].join("; "),
+      passed: misfires.length === 0,
+      text: "runs its script with no misfired call to instrument",
+    };
+  },
+  text: "runs its script with no misfired call to instrument",
+};
+
 export const WEB_SCRIPTING_EVALS = [
   defineEval({
     assertions: [NAMES_THE_CHEAPEST, LISTS_FREE_SHIPPING, mechanism],
     name: "web-scripting-fans-out-over-pages",
     get prompt() {
       return `Our supplier's catalog is at ${CATALOG.base}/catalog, a page per product. Which three products are cheapest (with prices), and which ones ship free?`;
+    },
+    setup: () => CATALOG.serve(),
+    teardown: () => {
+      CATALOG.stop();
+    },
+  }),
+  defineEval({
+    assertions: [
+      NAMES_THE_CHEAPEST,
+      LISTS_FREE_SHIPPING,
+      SCRIPT_RAN_CLEAN,
+      mechanism,
+    ],
+    // Asked for a script, where Python has its own ways to fetch a page too.
+    name: "web-scripting-python-script",
+    get prompt() {
+      return `Write a Python script that reads every product page in our supplier's catalog at ${CATALOG.base}/catalog and prints the three cheapest products with their prices and the ones that ship free. Run it and tell me what it found.`;
     },
     setup: () => CATALOG.serve(),
     teardown: () => {

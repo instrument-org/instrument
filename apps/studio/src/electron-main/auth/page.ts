@@ -362,6 +362,11 @@ export function renderAuthPage(
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script>
+          // A callback's query carries its one-time token and state, which
+          // the address bar and the back button would otherwise keep.
+          history.replaceState(null, "", location.pathname);
+        </script>
         <link rel="icon" href="/favicon.ico" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
         <script src="/tailwind.js"></script>

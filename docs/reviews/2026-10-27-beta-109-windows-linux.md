@@ -82,7 +82,7 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### J. The sign-in callback leaves its token in the browser's address bar and history
 
-- Status: open
+- Status: fixed
 - What: after Google sign-in, Chrome on Windows keeps `127.0.0.1:<port>/auth/callback/instrument?state=…&token=…` in its address bar and history. First seen on 10-12 in Brave and still there.
 
 ### K. Setup's model step repeats the provider's name

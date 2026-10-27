@@ -41,7 +41,12 @@ import {
   isDevInstanceColor,
 } from "@/shared/dev-instance-colors";
 import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
+import {
+  APP_BUNDLE_ID,
+  APP_NAME,
+  APP_FLAVOR,
+  APP_PROTOCOL,
+} from "@instrument-org/shared";
 import {
   BrowserWindow,
   app,
@@ -123,6 +128,14 @@ if (gotTheLock) {
   ]);
 
   app.setAsDefaultProtocolClient(APP_PROTOCOL);
+
+  // Windows attributes toasts and taskbar buttons by the process's
+  // AppUserModelID, and shows a toast only for one a Start menu shortcut
+  // carries. The installer stamps the build's appId on its shortcuts, each
+  // preview's its own, so the running app takes the same.
+  if (process.platform === "win32" && app.isPackaged) {
+    app.setAppUserModelId(APP_BUNDLE_ID);
+  }
 
   registerCrashDiagnostics(app);
 

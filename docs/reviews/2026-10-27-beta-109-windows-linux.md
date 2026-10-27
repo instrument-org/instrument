@@ -98,8 +98,9 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### M. Windows toasts carry Electron's default app identity
 
-- Status: open
+- Status: fixed
 - What: toasts register as `electron.app.Instrument` and `electron.app.Instrument Preview (<name>)`. A guess, not checked: the app never calls `app.setAppUserModelId`.
+- Note: confirmed. The installer stamps the build's appId (`com.finalpoint.instrument`, or `com.finalpoint.instrument.preview.<name>`) on its shortcuts, and the Windows test host's desktop shortcuts still carry it, but Electron's toast setup rewrites the Start menu's `<product name>.lnk` with the process's own ID the first time it runs, so every Start menu shortcut of a build that had run read `electron.app.…`. The packaged app on Windows now takes the appId, so the shortcut the installer wrote and the one Electron keeps agree.
 
 ## Not covered
 

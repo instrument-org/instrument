@@ -40,7 +40,7 @@ import {
   type EditorView,
   type NodeViewConstructor,
 } from "@milkdown/kit/prose/view";
-import { $prose, $remark, $view } from "@milkdown/kit/utils";
+import { $prose, $view } from "@milkdown/kit/utils";
 
 import { installBlockHandle } from "./block-handle";
 import {
@@ -129,28 +129,6 @@ const BLOCK_NAMES: Record<string, string> = {
 };
 
 const ASK_ICON = `<span class="md-ask">${instrumentMark(14)}<span>Ask</span></span>`;
-
-interface MdImage {
-  title?: null | string;
-  type: string;
-}
-interface MdParent {
-  children?: (MdImage & MdParent)[];
-}
-
-/** Gives every image under `n` a string title where it has none. */
-function fillImageTitles(n: MdImage & MdParent) {
-  if (n.type === "image" && (n.title === null || n.title === undefined)) {
-    n.title = "";
-  }
-  for (const child of n.children ?? []) {
-    fillImageTitles(child);
-  }
-}
-const imageTitlePlugin = () => fillImageTitles;
-
-/** Commonmark's image node requires a string title; remark gives null when there is none, and the parser throws. */
-const imageTitleFix = $remark("imageTitleFix", () => imageTitlePlugin);
 
 export async function createEditorSession(options: EditorSessionOptions) {
   const { hostPath, initial, root } = options;
@@ -735,7 +713,6 @@ export async function createEditorSession(options: EditorSessionOptions) {
     }));
   });
   editor.editor
-    .use(imageTitleFix)
     .use(codeBlockInfo)
     .use(sessionPlugin)
     .use(imageTags)

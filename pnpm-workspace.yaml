@@ -88,30 +88,6 @@ minimumReleaseAgeExclude:
   - "@orpc/standard-server-peer@1.15.2"
   - "@orpc/standard-server@1.15.2"
   - "@orpc/tanstack-query@1.15.2"
-  # The Markdown editor spike is written against this exact Milkdown release.
-  - "@milkdown/components@7.22.2"
-  - "@milkdown/core@7.22.2"
-  - "@milkdown/crepe@7.22.2"
-  - "@milkdown/ctx@7.22.2"
-  - "@milkdown/exception@7.22.2"
-  - "@milkdown/kit@7.22.2"
-  - "@milkdown/plugin-block@7.22.2"
-  - "@milkdown/plugin-clipboard@7.22.2"
-  - "@milkdown/plugin-cursor@7.22.2"
-  - "@milkdown/plugin-diff@7.22.2"
-  - "@milkdown/plugin-history@7.22.2"
-  - "@milkdown/plugin-indent@7.22.2"
-  - "@milkdown/plugin-listener@7.22.2"
-  - "@milkdown/plugin-slash@7.22.2"
-  - "@milkdown/plugin-streaming@7.22.2"
-  - "@milkdown/plugin-tooltip@7.22.2"
-  - "@milkdown/plugin-trailing@7.22.2"
-  - "@milkdown/plugin-upload@7.22.2"
-  - "@milkdown/preset-commonmark@7.22.2"
-  - "@milkdown/preset-gfm@7.22.2"
-  - "@milkdown/prose@7.22.2"
-  - "@milkdown/transformer@7.22.2"
-  - "@milkdown/utils@7.22.2"
   # The agent's sandbox, taken five days after release with its patch rebuilt
   # and verified against it. Exact version, so later just-bash releases still
   # wait out the guard; the entry goes inert once 3.6.0 passes the cutoff and
@@ -137,7 +113,7 @@ overrides:
   "neverthrow>@rollup/rollup-linux-x64-gnu": "-"
 
 patchedDependencies:
-  "@milkdown/plugin-block@7.22.2": patches/@milkdown__plugin-block@7.22.2.patch
+  "@milkdown/plugin-block@7.22.3": patches/@milkdown__plugin-block@7.22.3.patch
   conf@14.0.0: patches/conf@14.0.0.patch
   ffmpeg-ffprobe-static@7.1.0-rc.1: patches/ffmpeg-ffprobe-static@7.1.0-rc.1.patch
   just-bash@3.6.0: patches/just-bash@3.6.0.patch

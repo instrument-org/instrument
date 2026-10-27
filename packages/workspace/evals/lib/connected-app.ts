@@ -13,9 +13,11 @@ export interface AppFixture {
   /**
    * `api` (the default) serves the small REST tracker below; `mcp` serves
    * the larger issue tracker in `mcp-tracker.ts` over MCP; `web` is a site
-   * the user said they are signed in to, at `url`, with no server at all.
+   * the user said they are signed in to, at `url`, with no server at all;
+   * `sign-in` is an app set up and not connected yet, which signs in
+   * directly, for a case that has the agent ask for it (`signInsAnswerAs`).
    */
-  kind?: "api" | "mcp" | "web";
+  kind?: "api" | "mcp" | "sign-in" | "web";
   /** What the user calls it, as the manifest carries it. */
   name: string;
   /**
@@ -104,6 +106,19 @@ export async function seedConnectedApps(
         `Worked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
       );
       await recordConnected(fixture.slug, { apps, appsDir });
+      continue;
+    }
+    if (fixture.kind === "sign-in") {
+      await writeApp(
+        appsDir,
+        fixture,
+        {
+          auth: { kind: "oauth" },
+          type: "mcp",
+          url: `https://${fixture.slug}.example.invalid/mcp`,
+        },
+        `${fixture.name}, set up and waiting for the user to sign in.\n`,
+      );
       continue;
     }
     if (fixture.kind === "mcp") {

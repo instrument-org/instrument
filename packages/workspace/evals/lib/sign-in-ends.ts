@@ -9,6 +9,8 @@ import {
   type SignInEnd,
 } from "../../src/lib/apps/connection";
 import { type McpOAuthStore } from "../../src/lib/apps/mcp/oauth-provider";
+import { loadApp } from "../../src/lib/apps/store";
+import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type OriginBound } from "../../src/lib/apps/origin-bound";
 import { type WorkspaceAppsConfig } from "../../src/types";
 
@@ -55,6 +57,34 @@ export async function endSignIn(
     ...(ended ? { ended } : {}),
     event: "failed",
   });
+}
+
+/**
+ * Answers an app's sign-in card the way the user does in the app: a sign-in
+ * that connected as `account`, or Skip. The connection is recorded and the
+ * chats waiting on it hear it through the real app-event path.
+ */
+export async function answerSignIn(
+  slug: string,
+  answer: "connected" | "declined",
+  { account, appsDir }: { account: string; appsDir: string },
+): Promise<void> {
+  if (answer === "declined") {
+    await recordConnection(slug, { status: "declined" });
+    await appChanged(slug, { event: "declined" });
+    return;
+  }
+  const loaded = await loadApp(AbsolutePathSchema.parse(appsDir), slug);
+  if (loaded.isErr()) {
+    throw new Error(`${slug}: ${loaded.error.message}`);
+  }
+  await recordConnection(slug, {
+    account,
+    connectedAt: Date.now(),
+    manifestHash: loaded.value.manifestHash,
+    status: "connected",
+  });
+  await appChanged(slug, { event: "connected" });
 }
 
 function memoryOAuthStore(): McpOAuthStore {

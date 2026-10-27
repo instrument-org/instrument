@@ -52,6 +52,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
+  answerSignIn,
   cardOnlySignIns,
   endSignIn,
   type SignInOutcome,
@@ -323,6 +324,9 @@ const STOP_CHAT_AFTER_MS = 3000;
  */
 const TREE_QUIET_MS = 6000;
 
+/** How long between one sign-in answered on a card and the next (`signInsAnswerAs`). */
+const SIGN_IN_GAP_MS = 2000;
+
 /** How often the tree is sampled while waiting for it to go quiet. */
 const TREE_POLL_MS = 500;
 
@@ -389,6 +393,14 @@ export interface EvalCase {
    * the card can start and nobody finishes.
    */
   signInsEndAs?: SignInOutcome;
+  /**
+   * Every sign-in card row the conversation's agent puts up is answered once
+   * its turn settles, one at a time a couple of seconds apart, the way a
+   * person works down a card: connected (as `you@example.com`), or skipped,
+   * by slug, connected where the map names nothing. Through the real
+   * app-event path, so whatever the answers wake is what the run scores.
+   */
+  signInsAnswerAs?: Record<string, "connected" | "declined">;
   files?: FileUpload.Type[];
   /**
    * How many folder cards the user allows in this chat, in the order they
@@ -634,7 +646,9 @@ export async function runEvals(
 
   const appsConfig = {
     ...createMemoryAppsConfig(),
-    ...(evals.some((evalCase) => evalCase.signInsEndAs)
+    ...(evals.some(
+      (evalCase) => evalCase.signInsEndAs ?? evalCase.signInsAnswerAs,
+    )
       ? { oauth: cardOnlySignIns() }
       : {}),
   };
@@ -1256,6 +1270,21 @@ export async function runEvals(
             `${evalPrefix(label)}${c.dim}Sign-in to ${slug} ends: ${evalCase.signInsEndAs.ended ?? "failed"}${c.reset}\n`,
           );
           await endSignIn(slug, evalCase.signInsEndAs);
+        }
+        signInCards.clear();
+      }
+
+      if (evalCase.signInsAnswerAs && !stoppedBy && outcome !== "timeout") {
+        for (const slug of signInCards) {
+          await new Promise((resolve) => setTimeout(resolve, SIGN_IN_GAP_MS));
+          const answer = evalCase.signInsAnswerAs[slug] ?? "connected";
+          write(
+            `${evalPrefix(label)}${c.dim}Sign-in to ${slug}: ${answer}${c.reset}\n`,
+          );
+          await answerSignIn(slug, answer, {
+            account: "you@example.com",
+            appsDir: workspaceLayout(workspaceRootDir).appsDir,
+          });
         }
         signInCards.clear();
       }

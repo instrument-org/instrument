@@ -127,6 +127,7 @@ beforeEach(async () => {
 async function app(...args: string[]) {
   return createAppCommand({
     chatId,
+    role: "task",
     sessionId: StoreId.newSessionId(),
   }).execute(
     args,
@@ -145,7 +146,7 @@ describe("app call --out", () => {
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Wrote issues.json: the tool's structured result, an object with keys "issues", "total", 56 bytes.
+      "Wrote issues.json: JSON, an object with keys "issues", "total", 56 bytes.
       "
     `);
     expect(
@@ -157,7 +158,7 @@ describe("app call --out", () => {
   });
 
   it.each([
-    ["json_text", "JSON text, an array of 3"],
+    ["json_text", "JSON, an array of 3"],
     ["prose", "text, 2 lines"],
   ])("writes %s's text as the service sent it", async (tool, shape) => {
     const result = await app("call", slug, tool, "--out", "out.txt");
@@ -173,11 +174,24 @@ describe("app call --out", () => {
     expect(await fs.exists("/Users/sam/chat/out.json")).toBe(false);
   });
 
-  it("prints the result as the service sent it without --out", async () => {
+  it("prints a structured result as JSON without --out", async () => {
     const result = await app("call", slug, "issues");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("2 issues: one, two\n");
+    expect(JSON.parse(result.stdout)).toEqual({
+      issues: ["one", "two"],
+      total: 2,
+    });
+  });
+
+  it("prints prose as the service sent it", async () => {
+    const result = await app("call", slug, "prose");
+    expect(result.stdout).toBe("line one\nline two\n");
+  });
+
+  it("prints the whole result as JSON with --json", async () => {
+    const result = await app("call", slug, "prose", "--json");
+    expect(result.stdout).toBe('"line one\\nline two"\n');
   });
 });
 
@@ -196,7 +210,7 @@ describe("app call in a pipeline", () => {
   });
 });
 
-describe("node tools.*", () => {
+describe("node instrument.apps", () => {
   async function script(code: string, id = chatId) {
     await mkdir(chatDir(id), { recursive: true });
     const bash = await createLocalBashEnv({
@@ -210,7 +224,7 @@ EOF`);
 
   it("hands a structured result back as a value", async () => {
     const result = await script(
-      `const { issues, total } = await tools.${slug}.issues({});
+      `const { issues, total } = await instrument.apps.${slug}.issues({});
 console.log(total, issues.join("+"));`,
     );
     expect(result.stderr).toBe("");
@@ -222,7 +236,7 @@ console.log(total, issues.join("+"));`,
     ["prose", "console.log(typeof r, r.split('\\n').length)", "string 2\n"],
   ])("hands %s's text back parsed where it is JSON", async (tool, use, out) => {
     const result = await script(
-      `const r = await tools["${slug}"].${tool}();
+      `const r = await instrument.apps["${slug}"].${tool}();
 ${use}`,
     );
     expect(result.stderr).toBe("");
@@ -231,13 +245,13 @@ ${use}`,
 
   it("throws a refusal into the script", async () => {
     const result = await script(
-      `try { await tools.${slug}.broken({ project: 1 }); } catch (error) { console.log(error.message); }`,
+      `try { await instrument.apps.${slug}.broken({ project: 1 }); } catch (error) { console.log(error.name, error.message); }`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`
-      "tools.tracker.broken: project is required
-      The tool refused the call. If the arguments were the problem, \`instrument app tool tracker broken\` shows the JSON it takes.
-      "
-    `);
+  "InstrumentError project is required
+  The tool refused the call. If the arguments were the problem, \`instrument app tool tracker broken\` shows the JSON it takes.
+  "
+`);
   });
 });

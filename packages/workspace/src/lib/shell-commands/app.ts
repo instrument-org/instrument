@@ -1,15 +1,16 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { findSecrets } from "@instrument-org/shared/secrets";
 import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
-import { type ByteString, defineCommand, EMPTY_BYTES } from "just-bash";
+import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 import { basename } from "node:path";
-import { isPlainObject } from "radashi";
 
 import { appChanged } from "../apps/changed";
 import { recordSetupTouch } from "../setup-changes";
-import { type ChatId } from "../../schemas/chat-id";
-import { type StoreId } from "../../schemas/store-id";
+import { appsFolder, requireApp, withTimeout } from "../capabilities/apps";
+import { cliSubcommands } from "../capabilities/cli";
+import { type CapabilityScope } from "../capabilities/context";
+import { scriptSurfaceOpen } from "../capabilities/script-surface";
 import {
   type AppCatalogEntry,
   catalogApiSignInClient,
@@ -23,12 +24,7 @@ import {
   searchAppCatalogByMeaning,
   serviceManifestFields,
 } from "../apps/catalog";
-import {
-  describeConnection,
-  isConnected,
-  nameAppAccount,
-  readConnection,
-} from "../apps/connection";
+import { nameAppAccount } from "../apps/connection";
 import { APP_FILE_NAME } from "../apps/app-file";
 import {
   APP_MANIFEST_EXAMPLE,
@@ -36,22 +32,13 @@ import {
   AppManifestSchema,
   type AppSlug,
   AppSlugSchema,
-  isMcpManifest,
 } from "../apps/manifest";
 import {
   credentialMovedMessage,
   lookupAppCredential,
-  redactorFor,
-  requireAppCredential,
 } from "../apps/credential-origin";
-import { callMcpTool, clientRefused, listMcpTools } from "../apps/mcp/client";
-import { withAppMcpClient } from "../apps/mcp/run";
-import { SignInAgainError } from "../apps/mcp/tool-auth";
 import { credentialOrigin } from "../apps/origin-bound";
-import { performSignedInRequest } from "../apps/api-oauth";
-import { performAppRequest, redactCredential } from "../apps/request";
 import {
-  type AppInfo,
   guidePlaceholdersLeft,
   guideSkeleton,
   listApps,
@@ -63,14 +50,8 @@ import {
 import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
-import { webInsteadUrl } from "../apps/site";
-import { webInsteadCommand } from "../apps/web-instead";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
-import {
-  appGuideHandedOver,
-  recordAppGuideHandOff,
-} from "../apps/guide-hand-off";
-import { readModelWindow } from "../model-window";
+import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "./app-command";
@@ -80,6 +61,7 @@ import { MESSAGES_COMMAND } from "./messages";
 import { NOTES_COMMAND } from "./notes";
 import {
   defineSubcommands,
+  type Subcommand,
   type SubcommandInput,
   type SubcommandShell,
   subcommand,
@@ -89,29 +71,9 @@ import { subprocessStdin } from "./utils";
 
 export { APP_COMMAND } from "./app-command";
 
-/** What `app` needs from the `bash` call it runs inside. */
-export interface AppCommandContext {
-  /** The chat the call belongs to: which apps it may reach. */
-  chatId: ChatId;
-  /** The session running the call, whose history says which guides it has. */
-  sessionId: StoreId.Session;
-  /** The canonical id of the model the call answers to, whose window the session recorded a verdict for. */
-  model?: string;
-}
+/** What `app` needs from the `bash` call it runs inside: its chat, session, model and role. */
+export type AppCommandContext = CapabilityScope;
 
-/** The apps folder as the shell spells it. */
-function appsFolder() {
-  return shellPath(getWorkspaceConfig().appsDir);
-}
-
-const REQUEST_TIMEOUT_MS = ms("2 minutes");
-/**
- * `request`'s exit when it sent nothing and handed back the app's guide:
- * apart from 1 (the request failed or the service answered an error) and 2
- * (a refusal, as macOS's in `mac-helper.ts`), so a script or an `&&` chain
- * stops and the agent knows only a repeat is needed.
- */
-const GUIDE_FIRST_EXIT_CODE = 3;
 const TEST_TIMEOUT_MS = ms("1 minute");
 
 // How many matches a query gets in full before the rest fall back to one line
@@ -119,10 +81,20 @@ const TEST_TIMEOUT_MS = ms("1 minute");
 // same wall of text the bare listing used to be.
 const CATALOG_DETAIL_LIMIT = 10;
 
-// How many of a result's top-level keys `call --out` names in its one line.
-const CALL_KEYS_SHOWN = 10;
+/** The usage's lines on scripts, where a script reaches `instrument`. */
+const SCRIPTS_USAGE = `  In a script, the same calls return values, and a refusal throws. In
+  ${NODE_COMMAND.name} code, the \`instrument\` global: \`await instrument.apps["<slug>"].<tool>({...})\`,
+  \`await instrument.apps["<slug>"].get("<path>", { params })\` (\`post\`, \`put\`, \`patch\`,
+  \`delete\` take \`{ body }\`). In Python, \`import instrument\`: \`instrument.app("<slug>").<tool>(...)\`,
+  \`instrument.app("<slug>").get("<path>", params={...})\`, \`.post("<path>", body={...})\`.
+  For many calls, or calls that feed each other, in one script rather than a
+  turn each. Read an app's guide with \`${APP_COMMAND.name} guide <slug>\` before scripting
+  it: a script's first request to an API app throws ReadGuideFirst with the
+  guide instead of sending.`;
 
-const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
+/** The command's usage, with the subcommands the registry generates in it. */
+function appUsage(generated: string[]) {
+  return `Usage: ${APP_COMMAND.name} <subcommand> ...
 
   ${APP_COMMAND.name} catalog [words]
       The directory: services it knows, each with its endpoints (an MCP server
@@ -164,29 +136,9 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       The red/green loop: manifest, guide, key or sign-in, a scan for secrets in
       the folder, then the service for real. A pass connects the app; a failure
       says what to fix. A manifest edited after a pass has to pass again.
-  ${APP_COMMAND.name} list
-      Every app in the workspace and where it stands.
-  ${APP_COMMAND.name} tools <slug>
-      An MCP app's tools, a line each. Long for a big app; pipe it through rg.
-  ${APP_COMMAND.name} tool <slug> <name>
-      One tool in full: what it does and the JSON it takes.
-  ${APP_COMMAND.name} call <slug> <tool> ['<json>'] [--out <file>]
-      Run one tool. Arguments as a JSON object, inline or on stdin through a
-      quoted heredoc. --out writes the result to that file instead, as JSON
-      where the service answered with data, and prints only a line saying
-      what landed: for a result to work through with jq, node, or python
-      rather than read whole.
-      In ${NODE_COMMAND.name} code (\`${NODE_COMMAND.name} -e '<code>'\` or a script file),
-      \`await tools.<slug>.<tool>({...})\` makes the same call and returns the
-      result as a value (\`tools["<slug>"]\` for a slug with a hyphen),
-      throwing a refusal: for many calls, or calls that feed each other, in
-      one script rather than a turn each.
-  ${APP_COMMAND.name} request <slug> <METHOD> <path> [--param <k>=<v>]... ['<json body>']
-      One request through an API app, the path relative to its base. The first
-      request in a task sends nothing: it prints the app's guide on stderr
-      and exits ${GUIDE_FIRST_EXIT_CODE}; read it, then repeat. The response body alone is
-      stdout, whole, for jq. The body can come on stdin.
-  ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
+  These take --json, for the whole result as JSON, and --out <file>, to write it there:
+${generated.join("\n")}
+${scriptSurfaceOpen() ? `${SCRIPTS_USAGE}\n` : ""}  ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
       The app's guide, the body of its ${APP_FILE_NAME}. With the whole guide on stdin
       through a quoted heredoc, write it instead, leaving the setup above it
       alone: how an API app's prompts get answered.
@@ -208,86 +160,66 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
 
 ${APP_MANIFEST_EXAMPLE}
 `;
+}
 
 export function createAppCommand(context: AppCommandContext) {
+  const generated = cliSubcommands("app");
+  const runApp = defineSubcommands<AppCommandContext>({
+    name: APP_COMMAND.name,
+    subcommands: { ...generated.subcommands, ...SETUP_SUBCOMMANDS },
+    usage: appUsage(generated.usage),
+  });
   return defineCommand(APP_COMMAND.name, (args, ctx) =>
     runApp(args, context, ctx),
   );
 }
 
-const runApp = defineSubcommands<AppCommandContext>({
-  name: APP_COMMAND.name,
-  subcommands: {
-    account: subcommand({
-      booleans: ["clear"],
-      run: (input) => runAccount(input),
-    }),
-    call: subcommand({
-      flags: ["out"],
-      run: (input, _context, shell) => runCall(input, shell),
-    }),
-    catalog: subcommand({
-      run: ({ positional }, _, { signal }) => runCatalog(positional, signal),
-    }),
-    disconnect: subcommand({
-      positional: 1,
-      run: ({ positional }) => runDisconnect(positional),
-    }),
-    guide: subcommand({
-      positional: 1,
-      run: ({ positional }, _context, { stdin }) => runGuide(positional, stdin),
-    }),
-    icon: subcommand({
-      positional: 2,
-      run: ({ positional }, _context, shell) => runIcon(positional, shell),
-    }),
-    list: subcommand({ positional: 0, run: () => runList() }),
-    new: subcommand({
-      booleans: ["force"],
-      flags: [
-        "api",
-        "arg",
-        "auth",
-        "header",
-        "local",
-        "mac-app",
-        "mcp",
-        "name",
-        "runtime",
-        "service",
-        "sign-in",
-        "test",
-        "web",
-      ],
-      repeatable: ["arg", "header"],
-      run: (input) => runNew(input),
-    }),
-    request: subcommand({
-      flags: ["param"],
-      repeatable: ["param"],
-      run: (input, context, { signal, stdin }) =>
-        runRequest(input, context, stdin, signal),
-    }),
-    test: subcommand({
-      positional: 1,
-      run: ({ positional }, _context, { signal }) =>
-        runTest(positional, signal),
-    }),
-    // `instrument app tools linear save_comment` is how the singular gets reached for,
-    // so the two mean the same thing.
-    tool: subcommand({
-      positional: 2,
-      run: ({ positional }, _context, { signal }) =>
-        runTools(positional, signal, positional[1]),
-    }),
-    tools: subcommand({
-      positional: 2,
-      run: ({ positional }, _context, { signal }) =>
-        runTools(positional, signal, positional[1]),
-    }),
-  },
-  usage: USAGE,
-});
+/** The words that set an app up, written by hand until they join the registry. */
+const SETUP_SUBCOMMANDS = {
+  account: subcommand({
+    booleans: ["clear"],
+    run: (input) => runAccount(input),
+  }),
+  catalog: subcommand({
+    run: ({ positional }, _, { signal }) => runCatalog(positional, signal),
+  }),
+  disconnect: subcommand({
+    positional: 1,
+    run: ({ positional }) => runDisconnect(positional),
+  }),
+  guide: subcommand({
+    positional: 1,
+    run: ({ positional }, _context, { stdin }) => runGuide(positional, stdin),
+  }),
+  icon: subcommand({
+    positional: 2,
+    run: ({ positional }, _context, shell) => runIcon(positional, shell),
+  }),
+  new: subcommand({
+    booleans: ["force"],
+    flags: [
+      "api",
+      "arg",
+      "auth",
+      "header",
+      "local",
+      "mac-app",
+      "mcp",
+      "name",
+      "runtime",
+      "service",
+      "sign-in",
+      "test",
+      "web",
+    ],
+    repeatable: ["arg", "header"],
+    run: (input) => runNew(input),
+  }),
+  test: subcommand({
+    positional: 1,
+    run: ({ positional }, _context, { signal }) => runTest(positional, signal),
+  }),
+} satisfies Record<string, Subcommand<AppCommandContext>>;
 
 /** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
 const HELPER_COMMANDS: Record<string, string> = {
@@ -382,296 +314,8 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
   ].join("\n");
 }
 
-/** The first sentence of a description, on one line, capped for a listing. */
-function firstSentence(text: string): string {
-  const flat = text.replaceAll(/\s+/g, " ").trim();
-  const end = flat.search(/[.!?](?:\s|$)/);
-  const sentence = end === -1 ? flat : flat.slice(0, end + 1);
-  return sentence.length > 160 ? `${sentence.slice(0, 157)}...` : sentence;
-}
-
-/** JSON from an inline argument or stdin, as an object. */
-function jsonFrom(
-  inline: string | undefined,
-  stdin: ByteString,
-  what: string,
-): Record<string, unknown> {
-  const piped = subprocessStdin(stdin)?.toString("utf8").trim();
-  const raw = (piped || inline || "").trim();
-  if (!raw) {
-    return {};
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    throw new Error(
-      `${what} must be a JSON object: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`${what} must be a JSON object.`);
-  }
-  return parsed as Record<string, unknown>;
-}
-
-/**
- * Whether the session's model has the app's guide in front of it: a shell
- * call in the window it is sent handed this guide over (`guide-hand-off.ts`).
- * Read from the session's history, so it travels with the chat, a rollover
- * that cut it hands it over again, and so does an edit to it since.
- */
-async function guideInWindow(
-  { chatId, model, sessionId }: AppCommandContext,
-  app: string,
-  guide: string,
-): Promise<boolean> {
-  const messages = await readModelWindow({ chatId, model, sessionId });
-  return messages !== undefined && appGuideHandedOver(messages, app, guide);
-}
-
 function ok(stdout: string) {
   return { exitCode: 0, stderr: "", stdout };
-}
-
-/**
- * The app a subcommand names. With `connected`,
- * only one whose connection record is current, so a call never goes out on a
- * manifest nobody tested.
- */
-async function requireApp(
-  rawSlug: string | undefined,
-  { connected }: { connected: boolean },
-): Promise<AppInfo> {
-  if (!rawSlug) {
-    throw new Error(
-      `an app slug is required. See \`${APP_COMMAND.name} list\`.`,
-    );
-  }
-  const loaded = await loadApp(getWorkspaceConfig().appsDir, rawSlug);
-  if (loaded.isErr()) {
-    throw new Error(loaded.error.message);
-  }
-  const app = loaded.value;
-  if (connected) {
-    const connection = await readConnection(app.slug);
-    if (!isConnected(connection, app.manifestHash)) {
-      throw new Error(
-        `"${app.slug}" is ${describeConnection(connection, app.manifestHash)}.`,
-      );
-    }
-  }
-  return app;
-}
-
-/**
- * One MCP tool call with every check `call` makes: the app is connected on
- * the manifest that passed its test, it is an MCP app, and its credential
- * is here. A failed connection throws with what to do
- * next; a refusal comes back with `isError` for the caller to report. Nothing
- * in the result is redacted yet; `redact` does that.
- */
-async function callAppTool({
-  args,
-  signal,
-  slug,
-  tool,
-}: {
-  /** The tool's arguments, read once the app is known to take a call. */
-  args: () => Record<string, unknown>;
-  signal: AbortSignal | undefined;
-  slug: string | undefined;
-  tool: string | undefined;
-}) {
-  const app = await requireApp(slug, { connected: true });
-  const manifest = app.manifest;
-  if (manifest.type === "web") {
-    throw new Error(webAppRefusal(app.slug, manifest.url));
-  }
-  if (!isMcpManifest(manifest)) {
-    throw new Error(
-      `"${app.slug}" is an API app; make requests with \`${APP_COMMAND.name} request\`.`,
-    );
-  }
-  if (!tool) {
-    throw new Error(
-      `call takes the tool's name after the slug. See \`${APP_COMMAND.name} tools ${app.slug}\`.`,
-    );
-  }
-  const params = args();
-  const credential = await requireAppCredential(app.slug, manifest);
-  const redact = await redactorFor(app.slug, app.manifest, credential);
-  const result = await withAppMcpClient({
-    credential,
-    manifest,
-    manifestHash: app.manifestHash,
-    run: (client) => callMcpTool(client, { args: params, name: tool }),
-    signal: withTimeout(signal, REQUEST_TIMEOUT_MS),
-    slug: app.slug,
-  });
-  if (result.isErr()) {
-    const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, manifest))}\`, then connect_app`;
-    const next: Partial<Record<typeof result.error.reason, string>> = {
-      forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.`,
-      unauthorized:
-        manifest.auth.kind === "oauth"
-          ? ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app, and if that sign-in fails or is refused, sign in on the web instead: ${web}.`
-          : ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.`,
-    };
-    // A sign-in the server will never take from this client, or one whose
-    // message already says what to do, needs nothing more said.
-    const hint =
-      result.error.cause instanceof SignInAgainError
-        ? ""
-        : clientRefused(result.error.cause)
-          ? ` The server refuses ${APP_NAME}'s sign-in client, so signing in again meets the same refusal. Sign in on the web instead: ${web}.`
-          : (next[result.error.reason] ?? "");
-    throw new Error(`${redact(result.error.message)}${hint}`);
-  }
-  return { ...result.value, app, redact, tool };
-}
-
-/** What follows a tool's refusal, wherever it is reported. */
-function refusalHint(slug: string, tool: string): string {
-  return `The tool refused the call. If the arguments were the problem, \`${APP_COMMAND.name} tool ${slug} ${tool}\` shows the JSON it takes.`;
-}
-
-async function runCall(input: SubcommandInput, shell: SubcommandShell) {
-  const { signal, stdin } = shell;
-  const [slug, rawTool, inline] = input.positional;
-  const out = input.value("out");
-  const { app, isError, redact, structured, text, tool } = await callAppTool({
-    args: () => jsonFrom(inline, stdin, "The tool's arguments"),
-    signal,
-    slug,
-    tool: rawTool,
-  });
-  // A refusal is printed either way: it is short, and the agent has to read
-  // it to fix the call, so there is nothing for a file to hold.
-  if (out !== undefined && !isError) {
-    const body = redact(
-      structured ? JSON.stringify(structured, null, 2) : text,
-    );
-    try {
-      await shell.fs.writeFile(
-        shell.fs.resolvePath(shell.cwd, out),
-        `${body}\n`,
-      );
-    } catch (error) {
-      throw new Error(
-        `cannot write ${out}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    return ok(
-      `Wrote ${out}: ${describeCallResult(body, structured !== undefined)}, ${Buffer.byteLength(body)} bytes.\n`,
-    );
-  }
-  return isError
-    ? {
-        exitCode: 1,
-        stderr: `${redact(text)}\n${refusalHint(app.slug, tool)}\n`,
-        stdout: "",
-      }
-    : ok(`${redact(text)}\n`);
-}
-
-/**
- * The `tools` global a `node` script gets: `tools.<slug>.<tool>(args)`
- * makes the call `call` would, through the same checks, and hands the script
- * a value rather than text to read: the structured result where the service
- * sent one, else its text parsed as JSON, else the text itself. A refusal or
- * a failed connection throws inside the script with the words `call` prints.
- * The string returned is that value as JSON, which the script's preload parses.
- */
-export async function invokeAppTool(
-  path: string,
-  argsJson: string,
-  signal?: AbortSignal,
-): Promise<string> {
-  // A slug has no dots, so everything past the first is the tool's name.
-  const dot = path.indexOf(".");
-  const slug = dot === -1 ? path : path.slice(0, dot);
-  const tool = dot === -1 ? undefined : path.slice(dot + 1);
-  try {
-    const result = await callAppTool({
-      args: () => jsonFrom(argsJson, EMPTY_BYTES, "The tool's argument"),
-      signal,
-      slug,
-      tool: tool || undefined,
-    });
-    const { redact, structured, text } = result;
-    if (result.isError) {
-      throw new Error(
-        `${redact(text)}\n${refusalHint(result.app.slug, result.tool)}`,
-      );
-    }
-    if (structured) {
-      return JSON.stringify(redactValue(structured, redact));
-    }
-    const redacted = redact(text);
-    try {
-      JSON.parse(redacted);
-      return redacted;
-    } catch {
-      return JSON.stringify(redacted);
-    }
-  } catch (error) {
-    throw new Error(
-      `tools.${path}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-}
-
-/** Every string in a JSON value, keys included, run through `redact`. */
-function redactValue(
-  value: unknown,
-  redact: (text: string) => string,
-): unknown {
-  if (typeof value === "string") {
-    return redact(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => redactValue(item, redact));
-  }
-  if (isPlainObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        redact(key),
-        redactValue(item, redact),
-      ]),
-    );
-  }
-  return value;
-}
-
-/**
- * What `call --out` wrote, in a few words of our own: enough to aim jq at it
- * without opening it. Key names are the service's, so they are quoted and cut
- * short rather than passed through.
- */
-function describeCallResult(body: string, structured: boolean): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    return `text, ${body.split("\n").length} lines`;
-  }
-  const kind = structured ? "the tool's structured result" : "JSON text";
-  if (Array.isArray(parsed)) {
-    return `${kind}, an array of ${parsed.length}`;
-  }
-  if (!isPlainObject(parsed)) {
-    return kind;
-  }
-  const keys = Object.keys(parsed);
-  const shown = keys
-    .slice(0, CALL_KEYS_SHOWN)
-    .map((key) => JSON.stringify(key.slice(0, 40)));
-  const more =
-    keys.length > CALL_KEYS_SHOWN
-      ? ` and ${keys.length - CALL_KEYS_SHOWN} more`
-      : "";
-  return `${kind}, an object with keys ${shown.join(", ")}${more}`;
 }
 
 async function runCatalog(args: string[], signal: AbortSignal | undefined) {
@@ -822,27 +466,6 @@ async function runAccount(input: SubcommandInput) {
   return ok(
     `${app.slug} is ${app.name} (${named}) wherever it appears now.${moved}\n`,
   );
-}
-
-async function runList() {
-  const config = getWorkspaceConfig();
-  const [{ apps, invalid }, connections] = await Promise.all([
-    listApps(config.appsDir),
-    config.apps.connections.list(),
-  ]);
-  if (apps.length === 0 && invalid.length === 0) {
-    return ok(
-      `No apps yet. \`${APP_COMMAND.name} catalog <name>\` to look one up, \`${APP_COMMAND.name} new\` to write its folder.\n`,
-    );
-  }
-  const lines = apps.map(
-    (app) =>
-      `${app.slug}  ${app.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
-  );
-  for (const entry of invalid) {
-    lines.push(`${entry.slug}  broken manifest: ${entry.message}`);
-  }
-  return ok(`${lines.join("\n")}\n`);
 }
 
 /**
@@ -1184,97 +807,6 @@ async function refuseWhatCannotConnect(
   }
 }
 
-async function runRequest(
-  input: SubcommandInput,
-  context: AppCommandContext,
-  stdin: ByteString,
-  signal: AbortSignal | undefined,
-) {
-  const [slug, rawMethod, requestPath, inlineBody] = input.positional;
-  const app = await requireApp(slug, { connected: true });
-  if (app.manifest.type === "web") {
-    throw new Error(webAppRefusal(app.slug, app.manifest.url));
-  }
-  if (app.manifest.type !== "api") {
-    throw new Error(
-      `"${app.slug}" is an MCP app; use \`${APP_COMMAND.name} tools\` and \`${APP_COMMAND.name} call\`.`,
-    );
-  }
-  const method = (rawMethod ?? "").toUpperCase();
-  if (!["DELETE", "GET", "PATCH", "POST", "PUT"].includes(method)) {
-    throw new Error(
-      "request takes a method after the slug: GET, POST, PUT, PATCH, or DELETE.",
-    );
-  }
-  if (!requestPath) {
-    throw new Error(
-      "request takes a path after the method, relative to the base URL.",
-    );
-  }
-  // The guide is the app's only documentation, so it enters the context
-  // before the first real request the session makes.
-  const guide = await readAppGuide(app.dir);
-  if (guide === null) {
-    throw new Error(
-      `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
-    );
-  }
-  if (!(await guideInWindow(context, app.slug, guide))) {
-    // On stderr, so nothing downstream of a pipe takes the guide for the
-    // response.
-    const printed = `Not sent (exit ${GUIDE_FIRST_EXIT_CODE}): before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`;
-    recordAppGuideHandOff({ app: app.slug, guide, printed });
-    return { exitCode: GUIDE_FIRST_EXIT_CODE, stderr: printed, stdout: "" };
-  }
-  const params = Object.fromEntries(
-    input.all("param").map((param) => {
-      const index = param.indexOf("=");
-      if (index <= 0) {
-        throw new Error(`--param takes <key>=<value> (got "${param}").`);
-      }
-      return [param.slice(0, index), param.slice(index + 1)];
-    }),
-  );
-  const piped = subprocessStdin(stdin)?.toString("utf8").trim();
-  const body = piped || inlineBody?.trim() || undefined;
-  const request = {
-    body,
-    manifest: app.manifest,
-    method,
-    params,
-    path: requestPath,
-    signal: withTimeout(signal, REQUEST_TIMEOUT_MS),
-  };
-  // A signed-in API sends its access token, and the token it sent is what
-  // is kept out of what the agent reads.
-  let credential: null | string;
-  let result: Awaited<ReturnType<typeof performAppRequest>>;
-  if (app.manifest.auth.kind === "oauth") {
-    ({ result, token: credential } = await performSignedInRequest({
-      ...request,
-      slug: app.slug,
-    }));
-  } else {
-    credential = await requireAppCredential(app.slug, app.manifest);
-    result = await performAppRequest({ ...request, credential });
-  }
-  if (result.isErr()) {
-    throw new Error(redactCredential(result.error.message, credential));
-  }
-  const response = result.value;
-  const note = response.truncated
-    ? "[Body truncated: the response was larger than the cap, so request less or paginate]\n"
-    : "";
-  const statusLine = `${method} ${redactCredential(response.url, credential)} -> ${response.status}${response.contentType ? ` (${response.contentType})` : ""}\n`;
-  const shown = `${redactCredential(response.bodyText, credential)}\n`;
-  // The body alone is stdout, whole, so it pipes into jq or rg as the service
-  // sent it; the status line and any truncation note are ours and go to
-  // stderr. What the model reads of a long one is the bash tool's to cut.
-  return response.status >= 400
-    ? { exitCode: 1, stderr: `${statusLine}${shown}${note}`, stdout: "" }
-    : { exitCode: 0, stderr: `${statusLine}${note}`, stdout: shown };
-}
-
 async function runTest(args: string[], signal: AbortSignal | undefined) {
   const app = await requireApp(args[0], { connected: false });
   const report = await runAppTest({
@@ -1284,60 +816,6 @@ async function runTest(args: string[], signal: AbortSignal | undefined) {
   });
   const text = `${formatAppTestReport(report)}\n`;
   return report.passed ? ok(text) : { exitCode: 1, stderr: text, stdout: "" };
-}
-
-async function runTools(
-  args: string[],
-  signal: AbortSignal | undefined,
-  only?: string,
-) {
-  const app = await requireApp(args[0], { connected: true });
-  const manifest = app.manifest;
-  if (manifest.type === "web") {
-    throw new Error(webAppRefusal(app.slug, manifest.url));
-  }
-  if (!isMcpManifest(manifest)) {
-    throw new Error(
-      `"${app.slug}" is an API app and has no tools; read its guide with \`${APP_COMMAND.name} guide ${app.slug}\` and make requests.`,
-    );
-  }
-  const credential = await requireAppCredential(app.slug, manifest);
-  const redact = await redactorFor(app.slug, app.manifest, credential);
-  const result = await withAppMcpClient({
-    credential,
-    manifest,
-    manifestHash: app.manifestHash,
-    run: (client) => listMcpTools(client),
-    signal: withTimeout(signal, REQUEST_TIMEOUT_MS),
-    slug: app.slug,
-  });
-  if (result.isErr()) {
-    throw new Error(redact(result.error.message));
-  }
-  if (only !== undefined) {
-    const tool = result.value.find((candidate) => candidate.name === only);
-    if (!tool) {
-      throw new Error(
-        `"${app.slug}" has no tool "${only}". \`${APP_COMMAND.name} tools ${app.slug}\` lists them.`,
-      );
-    }
-    return ok(
-      `${tool.name}\n${redact(tool.description).trim()}\n\ninput: ${redact(JSON.stringify(tool.inputSchema, null, 2))}\n\n\`${APP_COMMAND.name} call ${app.slug} ${tool.name} '<json>'\` runs it.\n`,
-    );
-  }
-  // A line each: a big app lists dozens, and the schemas would make the
-  // listing longer than a turn should read. `instrument app tool` has the whole of one.
-  const lines = result.value.map(
-    (tool) => `- ${tool.name}: ${firstSentence(redact(tool.description))}`,
-  );
-  return ok(
-    `${result.value.length} tools on ${app.slug}. \`${APP_COMMAND.name} tool ${app.slug} <name>\` shows one with the JSON it takes; \`${APP_COMMAND.name} call ${app.slug} <name> '<json>'\` runs it, and in ${NODE_COMMAND.name} code (\`${NODE_COMMAND.name} -e '<code>'\`) \`await ${toolsAccessor(app.slug)}.<name>({...})\` returns it as a value.\n${lines.join("\n")}\n`,
-  );
-}
-
-/** How a `node` script names an app on its `tools` global. */
-function toolsAccessor(slug: string): string {
-  return slug.includes("-") ? `tools["${slug}"]` : `tools.${slug}`;
 }
 
 /**
@@ -1364,15 +842,4 @@ function summarizeCatalogEntry(entry: AppCatalogEntry): string {
             ? "mac-app"
             : "web";
   return `  ${entry.slug.padEnd(17)} ${label.padEnd(9)} ${entry.tagline}`;
-}
-
-/** Why `call`, `tools`, and `request` refuse a web app, and how it is worked instead. */
-function webAppRefusal(slug: string, url: string): string {
-  return `"${slug}" is a web app: the user is signed in to it in ${APP_NAME}'s browser, and no \`${APP_COMMAND.name}\` call reaches it. Work it in a tab: open ${url}, where the sign-in holds, or use a tab already open there.`;
-}
-
-/** The call's own signal, bounded by a timeout so a hung service cannot hold a turn. */
-function withTimeout(signal: AbortSignal | undefined, timeoutMs: number) {
-  const timeout = AbortSignal.timeout(timeoutMs);
-  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }

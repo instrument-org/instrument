@@ -35,7 +35,8 @@ import {
 } from "./shell-commands/agent-browser";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { createXCommand, X_COMMAND } from "./shell-commands/x";
-import { type AppToolInvoker, appToolHook } from "./app-tool-hook";
+import { answerChannel, type ChannelAnswer } from "./capabilities/channel";
+import { scriptSurfaceOpen } from "./capabilities/script-surface";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   createFgCommand,
@@ -408,16 +409,18 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
 /**
  * What a custom command is built from: the task, the layout of the shell
  * it runs in, which says what each folder it reaches is, and what answers a
- * script's app tool calls.
+ * script's `instrument` calls.
  */
 interface CustomCommandContext {
+  answerScript: ChannelAnswer;
   layout: WorkspaceFsLayout;
   chatId: ChatId;
-  invokeTool: AppToolInvoker;
 }
 
 interface CustomCommandDef {
   description: string;
+  /** What the description adds where a script reaches `instrument`. */
+  scripting?: string;
   factory: (context: CustomCommandContext) => ReturnType<typeof defineCommand>;
   // When false, the command is available (including via `which`) but omitted
   // from the agent-facing description to discourage its use.
@@ -477,9 +480,11 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: NODE_COMMAND.description,
-    factory: ({ chatId, invokeTool }) => createNodeCommand(chatId, invokeTool),
+    factory: ({ answerScript, chatId }) =>
+      createNodeCommand(chatId, answerScript),
     listInDescription: true,
     name: NODE_COMMAND.name,
+    scripting: NODE_COMMAND.scripting,
   },
   {
     description: "Refuses AppleScript the agent writes.",
@@ -546,13 +551,16 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: PYTHON_COMMAND.description,
-    factory: ({ layout, chatId }) => createPythonCommand(chatId, layout),
+    factory: ({ answerScript, layout, chatId }) =>
+      createPythonCommand(chatId, layout, answerScript),
     listInDescription: true,
     name: PYTHON_COMMAND.name,
+    scripting: PYTHON_COMMAND.scripting,
   },
   {
     description: PYTHON3_COMMAND.description,
-    factory: ({ layout, chatId }) => createPython3Command(chatId, layout),
+    factory: ({ answerScript, layout, chatId }) =>
+      createPython3Command(chatId, layout, answerScript),
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
@@ -810,7 +818,10 @@ export function createBashDescription() {
         cmd.listInDescription &&
         cmd.platforms === undefined &&
         cmd.available === undefined,
-    ).map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ).map(
+      (cmd) =>
+        `  ${cmd.name} - ${cmd.description}${cmd.scripting && scriptSurfaceOpen() ? ` ${cmd.scripting}` : ""}`,
+    ),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     `  ${X_COMMAND.name} - ${X_COMMAND.description}`,
     ...CHAT_COMMAND_LINES,
@@ -940,13 +951,13 @@ export async function createLocalBashEnv({
   standIn,
   chatId,
   model,
-  invokeTool = appToolHook,
+  answerScript = answerChannel({ chatId, model, role, sessionId }),
 }: BashEnvOptions & {
   /**
-   * Answers a `node` script's `tools.<slug>.<tool>()`; the bash worker
-   * sets one that makes the call on the main thread, where credentials are.
+   * Answers what a script's `instrument` asks; the bash worker sets one
+   * that answers on the main thread, where credentials are.
    */
-  invokeTool?: AppToolInvoker;
+  answerScript?: ChannelAnswer;
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
@@ -974,14 +985,14 @@ export async function createLocalBashEnv({
   // thing on the user's screen is the chat's `window`: a task's reply is read
   // by the chat, and a pane of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
-    cmd.factory({ chatId, invokeTool, layout }),
+    cmd.factory({ answerScript, chatId, layout }),
   );
   const instrumentCommand = createInstrumentCommand({
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       {
         ...APP_COMMAND,
-        command: createAppCommand({ chatId, model, sessionId }),
+        command: createAppCommand({ chatId, model, role, sessionId }),
       },
       { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       {
@@ -1012,7 +1023,7 @@ export async function createLocalBashEnv({
           ]
         : []),
       ...macAppSubcommands().map(({ factory, summary, word }) => ({
-        command: factory({ chatId, invokeTool, layout }),
+        command: factory({ answerScript, chatId, layout }),
         summary,
         word,
       })),

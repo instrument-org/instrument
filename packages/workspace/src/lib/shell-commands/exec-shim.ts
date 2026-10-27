@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
-import { type ToolsChannel } from "../node-tools-preload";
+import { type ScriptChannel } from "../capabilities/channel";
 
 import {
   launchNative,
@@ -99,8 +99,8 @@ export async function execShim(
   file: string,
   args: string[],
   options: ShimOptions & {
-    /** Where the program calls tools, closed once it exits. */
-    toolsChannel?: ToolsChannel;
+    /** Where the program calls `instrument`, closed once it exits. */
+    scriptChannel?: ScriptChannel;
     /**
      * Run outside the native sandbox: only for a command the person allowed
      * to act on its own, such as a script to an app they allowed.
@@ -116,7 +116,7 @@ export async function execShim(
   const sink = currentShellOutputSink();
   const {
     cancelSignal,
-    toolsChannel,
+    scriptChannel,
     ownEnvOnly,
     unsandboxed,
     ...subprocessOptions
@@ -128,7 +128,7 @@ export async function execShim(
     if (!(error instanceof NativeSandboxUnavailableError)) {
       throw error;
     }
-    toolsChannel?.close();
+    scriptChannel?.close();
     // 126, the shell's "found but could not run".
     return {
       exitCode: 126,
@@ -171,7 +171,7 @@ export async function execShim(
     stripFinalNewline: false,
   });
   if (cancelSignal) {
-    toolsChannel?.attach(cancelSignal);
+    scriptChannel?.attach(cancelSignal);
   }
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
@@ -180,7 +180,7 @@ export async function execShim(
     ? collectAndForward(subprocess.readable({ from: "all" }), sink)
     : undefined;
   const result = await subprocess;
-  toolsChannel?.close();
+  scriptChannel?.close();
   await streamed;
   await finishTreeTermination?.();
   const stderr = decodeForDisplay(asBuffer(result.stderr));

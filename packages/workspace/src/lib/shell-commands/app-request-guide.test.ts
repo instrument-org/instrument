@@ -69,7 +69,12 @@ describe("app request and the app's guide", () => {
   ) {
     const recorded: RecordedAppGuide[] = [];
     const result = await withAppGuideHandOffs(recorded, () =>
-      createAppCommand({ chatId, model, sessionId: session }).execute(
+      createAppCommand({
+        chatId,
+        model,
+        role: "task",
+        sessionId: session,
+      }).execute(
         args,
         createCommandContext({
           cwd: "/Users/me/chat",
@@ -222,7 +227,8 @@ describe("app request and the app's guide", () => {
     const result = await app(["request", slug, "POST", "/presentations"]);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe(`${body}\n`);
+    expect(result.stdout.endsWith("\n")).toBe(true);
+    expect(JSON.parse(result.stdout)).toEqual(JSON.parse(body));
     expect(result.stderr).toMatchInlineSnapshot(`
       "POST https://api.unknown.invalid/v1/presentations -> 200 (application/json)
       "

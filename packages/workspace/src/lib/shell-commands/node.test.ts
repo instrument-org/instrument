@@ -24,7 +24,7 @@ const mockCtx = createCommandContext({
 });
 
 /** What every `node` but `node --version` is started with ahead of its own arguments. */
-const PRELOAD = ["--import", expect.stringMatching(/tools-preload\.mjs$/)];
+const PRELOAD = ["--import", expect.stringMatching(/preload\.mjs$/)];
 
 describe("nodeCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));

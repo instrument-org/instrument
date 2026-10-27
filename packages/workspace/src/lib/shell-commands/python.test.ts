@@ -10,7 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { runtimeLayout } from "../runtime-dir";
 import { venvPython } from "../uv";
+import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { createPythonCommand, pythonScript } from "./python";
 import { chatLayout } from "../../test/helpers/chat-layout";
@@ -82,7 +84,7 @@ describe("python", () => {
     );
   });
 
-  it("points the bare interpreter at the base packages, which no venv holds the link to", async () => {
+  it("points the bare interpreter at instrument and the base packages, which no venv holds the link to", async () => {
     const { execa } = await import("execa");
     const { pythonToRun } = await import("../venv");
     const { pythonBaseDir } = await import("../python-base");
@@ -100,13 +102,20 @@ describe("python", () => {
 
     await command.execute(["-c", "import matplotlib"], mockCtx);
 
+    const { preload } = runtimeLayout(getWorkspaceConfig().runtimeDir);
     expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.anything(),
       expect.objectContaining({
         env: expect.objectContaining({
           PYTHONNOUSERSITE: "1",
-          PYTHONPATH: "/runtime/python-base/abc",
+          // The folder whose `sitecustomize` takes the channel first, then
+          // the one with `instrument` in it.
+          PYTHONPATH: [
+            path.join(preload, "python-site"),
+            path.join(preload, "python"),
+            "/runtime/python-base/abc",
+          ].join(path.delimiter),
         }),
       }),
     );

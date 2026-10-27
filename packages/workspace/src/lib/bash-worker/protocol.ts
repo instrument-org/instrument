@@ -8,6 +8,10 @@ import { type BashExecResult, type ExecOptions } from "just-bash";
 import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
+import {
+  type ChannelReply,
+  type ChannelRequest,
+} from "../capabilities/channel";
 import { type BashEnvOptions } from "../create-bash-env";
 import { type Asker } from "../chat/asks";
 import { type SetupTouch } from "../setup-changes";
@@ -104,8 +108,8 @@ export type FromWorker =
       state: "settled" | "started";
       type: "tree";
     }
-  /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
-  | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
+  /** What a script's `instrument` asks, answered on main where app credentials are. */
+  | { callId: number; id: number; request: ChannelRequest; type: "capability" }
   | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath }
   /** A skill's Python environment, built on main, which builds each one once. */
   | {
@@ -140,8 +144,7 @@ export type ToWorker =
   | { callId: number; error: WireError; type: "call-error" }
   | { callId: number; result: WireResult; type: "call-result" }
   | { id: number; type: "abort" }
-  | { callId: number; error: WireError; type: "tool-error" }
-  | { callId: number; type: "tool-result"; value: string }
+  | { callId: number; reply: ChannelReply; type: "capability-reply" }
   | {
       requestId: number;
       result: undefined | VenvError;

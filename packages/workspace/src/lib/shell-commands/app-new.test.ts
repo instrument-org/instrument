@@ -47,6 +47,7 @@ async function app(...args: string[]) {
 async function appWithStdin(stdin: string | undefined, ...args: string[]) {
   return createAppCommand({
     chatId,
+    role: "task",
     sessionId: StoreId.newSessionId(),
   }).execute(
     args,
@@ -591,6 +592,7 @@ describe("app icon", () => {
     await taskFs.writeFile(`${CHAT_FOLDER}/${file}`, svg);
     return createAppCommand({
       chatId,
+      role: "task",
       sessionId: StoreId.newSessionId(),
     }).execute(
       ["icon", slug, file],

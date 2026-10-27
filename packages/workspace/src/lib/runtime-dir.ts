@@ -60,8 +60,9 @@ export function runtimeLayout(runtimeDir: string) {
     installConfig: path.join(runtimeDir, "install", "config"),
     /**
      * What the app loads into the programs a chat runs, which native
-     * commands only read: the `tools` preload every `node` imports. The app
-     * writes it, so no chat can change what another chat's programs load.
+     * commands only read: the preload every `node` imports and the
+     * `instrument` module every `python` finds. The app writes it, so no
+     * chat can change what another chat's programs load.
      */
     preload: path.join(runtimeDir, "preload"),
     /**

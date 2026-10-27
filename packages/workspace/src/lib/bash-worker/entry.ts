@@ -10,6 +10,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { parentPort } from "node:worker_threads";
 
 import { type WorkspaceConfig } from "../../types";
+import {
+  type ChannelReply,
+  type ChannelRequest,
+} from "../capabilities/channel";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setVenvCreator, type VenvError } from "../venv";
 import { setPythonEnvironmentBuilder } from "../skill-environments";
@@ -59,10 +63,7 @@ const calls = new Map<
   number,
   { reject: (error: Error) => void; resolve: (result: WireResult) => void }
 >();
-const toolCalls = new Map<
-  number,
-  { reject: (error: Error) => void; resolve: (value: string) => void }
->();
+const capabilityCalls = new Map<number, (reply: ChannelReply) => void>();
 const chunkAcks = new Map<number, () => void>();
 const venvRequests = new Map<number, (result: undefined | VenvError) => void>();
 const environmentRequests = new Map<
@@ -168,14 +169,9 @@ port.on("message", (message: ToWorker) => {
       void runExec(message);
       return;
     }
-    case "tool-error": {
-      toolCalls.get(message.callId)?.reject(fromWireError(message.error));
-      toolCalls.delete(message.callId);
-      return;
-    }
-    case "tool-result": {
-      toolCalls.get(message.callId)?.resolve(message.value);
-      toolCalls.delete(message.callId);
+    case "capability-reply": {
+      capabilityCalls.get(message.callId)?.(message.reply);
+      capabilityCalls.delete(message.callId);
       return;
     }
     case "venv-result": {
@@ -232,8 +228,7 @@ async function runExec({
   try {
     const bash = await createLocalBashEnv({
       ...bashEnv,
-      invokeTool: (path, argsJson, signal) =>
-        invokeTool({ argsJson, id, path, signal }),
+      answerScript: (request, signal) => answerOnMain({ id, request, signal }),
       standIn: (name) => standIn(id, name),
     });
     const run = () =>
@@ -263,40 +258,29 @@ function sendChunk(id: number, text: string) {
 }
 
 /**
- * A `node` script's app tool call, made on the main thread. An abort of the
- * command's signal stops it there, as it does a proxied command.
+ * What a script's `instrument` asks, answered on the main thread. An abort
+ * of the command's signal stops the call there, as it does a proxied command.
  */
-function invokeTool({
-  argsJson,
+function answerOnMain({
   id,
-  path,
+  request,
   signal,
 }: {
-  argsJson: string;
   id: number;
-  path: string;
+  request: ChannelRequest;
   signal: AbortSignal | undefined;
 }) {
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<ChannelReply>((resolve) => {
     const callId = nextCallId++;
     const onAbort = () => {
       post({ callId, type: "call-abort" });
     };
-    const settle = () => {
+    capabilityCalls.set(callId, (reply) => {
       signal?.removeEventListener("abort", onAbort);
-    };
-    toolCalls.set(callId, {
-      reject: (error) => {
-        settle();
-        reject(error);
-      },
-      resolve: (value) => {
-        settle();
-        resolve(value);
-      },
+      resolve(reply);
     });
     signal?.addEventListener("abort", onAbort, { once: true });
-    post({ argsJson, callId, id, path, type: "tool" });
+    post({ callId, id, request, type: "capability" });
   });
 }
 

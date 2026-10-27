@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { type Worker, type WorkerOptions } from "node:worker_threads";
 import { omit, pick } from "radashi";
 
-import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
+import { answerChannel, type ChannelAnswer } from "../capabilities/channel";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { ensureVenv } from "../venv";
 import { ensurePythonEnvironmentHere } from "../skill-environments";
@@ -57,8 +57,8 @@ interface PendingExec {
    * command sees the turn and output sink it would have seen on this thread.
    */
   inContext: <R>(callback: () => R) => R;
-  /** Makes a `node` script's app tool calls for the task the shell belongs to. */
-  invokeTool: AppToolInvoker;
+  /** Answers what a script's `instrument` asks, for the bash call the exec is. */
+  answerScript: ChannelAnswer;
   /** The main-thread shell proxied commands run in, built on first use. */
   mainBash?: Promise<BashRunner>;
   mainBashFactory: () => Promise<BashRunner>;
@@ -109,7 +109,8 @@ export function bashWorkerEnabled(): boolean {
 export function createRemoteBash(
   options: BashEnvOptions,
   mainBashFactory: () => Promise<BashRunner>,
-  invokeTool: AppToolInvoker = appToolHook,
+  /** What answers a script's `instrument`, where not the registry's dispatcher for the exec. */
+  answerScript?: ChannelAnswer,
 ): BashRunner {
   return {
     exec: (command, { signal, ...execOptions }: ExecOptions = {}) =>
@@ -128,10 +129,17 @@ export function createRemoteBash(
           }
         };
         const entry: PendingExec = {
+          answerScript:
+            answerScript ??
+            answerChannel({
+              chatId: options.chatId,
+              ...(options.model === undefined ? {} : { model: options.model }),
+              role: options.role ?? "task",
+              sessionId: options.sessionId,
+            }),
           calls: new Map(),
           commandRuns: currentCommandRuns(),
           inContext: AsyncLocalStorage.snapshot(),
-          invokeTool,
           mainBashFactory,
           reject: (error) => {
             settle();
@@ -317,8 +325,8 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       );
       return;
     }
-    case "tool": {
-      await runProxiedTool(instance, message);
+    case "capability": {
+      await runProxiedCapability(instance, message);
       return;
     }
     case "tree": {
@@ -453,10 +461,10 @@ async function runProxiedCall(
   }
 }
 
-/** Makes one `node` script's app tool call for the worker, in the exec's async context. */
-async function runProxiedTool(
+/** Answers what one script's `instrument` asks for the worker, in the exec's async context. */
+async function runProxiedCapability(
   instance: WorkerInstance,
-  message: Extract<FromWorker, { type: "tool" }>,
+  message: Extract<FromWorker, { type: "capability" }>,
 ) {
   const entry = instance.pending.get(message.id);
   // In `calls` beside the proxied commands, so the worker's `call-abort`
@@ -464,23 +472,32 @@ async function runProxiedTool(
   const controller = new AbortController();
   entry?.calls.set(message.callId, controller);
   try {
-    if (!entry) {
-      throw new Error(
-        `tools.${message.path}: the shell that ran this has already finished`,
-      );
-    }
-    const signal = entry.signal
-      ? AbortSignal.any([controller.signal, entry.signal])
-      : controller.signal;
-    const value = await entry.inContext(() =>
-      entry.invokeTool(message.path, message.argsJson, signal),
-    );
-    instance.post({ callId: message.callId, type: "tool-result", value });
+    const reply = entry
+      ? await entry.inContext(() =>
+          entry.answerScript(
+            message.request,
+            entry.signal
+              ? AbortSignal.any([controller.signal, entry.signal])
+              : controller.signal,
+          ),
+        )
+      : {
+          error: {
+            kind: "failed" as const,
+            message: "the shell that ran this script has already finished.",
+          },
+        };
+    instance.post({ callId: message.callId, reply, type: "capability-reply" });
   } catch (error) {
     instance.post({
       callId: message.callId,
-      error: toWireError(error),
-      type: "tool-error",
+      reply: {
+        error: {
+          kind: "failed",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      },
+      type: "capability-reply",
     });
   } finally {
     entry?.calls.delete(message.callId);

@@ -736,8 +736,15 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
       const report = child.stdout
         .split("\n")
         .find((line) => line.startsWith("{"));
-      // The child's own `--json` report, written by this same CLI.
-      const rollup = report ? (JSON.parse(report) as Rollup) : undefined;
+      // The child's own `--json` report, written by this same CLI. A line
+      // that does not parse, from a child killed while it wrote, is a child
+      // that did not report, so every other child's report still counts.
+      let rollup: Rollup | undefined;
+      try {
+        rollup = report ? (JSON.parse(report) as Rollup) : undefined;
+      } catch {
+        rollup = undefined;
+      }
       return {
         caseName,
         dir,

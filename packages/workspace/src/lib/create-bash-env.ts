@@ -112,8 +112,11 @@ import {
   PYTHON_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
-import { createTabCommand } from "./shell-commands/tab";
-import { TAB_COMMAND } from "./shell-commands/tab-command";
+import { createWindowCommand, windowArgsOfTab } from "./shell-commands/window";
+import {
+  TAB_ALIAS_WORD,
+  WINDOW_COMMAND,
+} from "./shell-commands/window-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { createTaskCommand } from "./shell-commands/task/command";
 import {
@@ -736,15 +739,15 @@ export interface BashEnvOptions {
 export type BashRunner = Pick<Bash, "exec">;
 
 /**
- * What the chat runs beside a task's shell, listed in every shell's
- * description: it is the same in a fork, which keeps the tool definitions
- * the provider cache is keyed on the same as the chat's, and the fork is
- * told these are not there.
+ * The chat's own commands, listed in every shell's description: it is the
+ * same in a fork, which keeps the tool definitions the provider cache is
+ * keyed on the same as the chat's. Each description says which of its forms
+ * are the chat's alone, and a task's shell refuses those.
  */
 const CHAT_COMMAND_LINES = [
   `  ${TASK_COMMAND.name} - ${TASK_COMMAND.description}`,
   `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
-  `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
+  `  ${WINDOW_COMMAND.name} - ${WINDOW_COMMAND.description}`,
 ];
 
 /**
@@ -905,15 +908,13 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a task's `instrument` says of the chat's own subcommands: the task
- * reports to the chat, which has them.
+ * What a task's `instrument` says of the subcommand only the chat has: the
+ * task reports to the chat, and there are no tasks within a task.
  */
-const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
-  [MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
-    command.word,
-    "only the chat has this. Say in your report what the chat should do with it.",
-  ]),
-);
+const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = {
+  [TASK_COMMAND.word]:
+    "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+};
 
 /**
  * The agent's shell: in the bash worker when the host set one up (see
@@ -971,14 +972,21 @@ export async function createLocalBashEnv({
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
   // What sets the chat's shell apart from a task's: its `instrument` has
-  // `task`, `memory` and `tab` beside the `app` every shell has, and the
-  // Mac app commands every shell on macOS has. Putting a thing on the user's
-  // screen is the chat's `tab`: a task's reply is read by the chat, and a pane
-  // of the task's own has nobody looking.
+  // `task`, and its `memory` and `window` change things, where a task's only
+  // read them; `app` and the Mac app commands are every shell's. Putting a
+  // thing on the user's screen is the chat's `window`: a task's reply is read
+  // by the chat, and a pane of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
     cmd.factory({ chatId, invokeTool, layout }),
   );
   const instrumentCommand = createInstrumentCommand({
+    aliases: [
+      {
+        to: WINDOW_COMMAND.word,
+        translate: windowArgsOfTab,
+        word: TAB_ALIAS_WORD,
+      },
+    ],
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       {
@@ -986,21 +994,22 @@ export async function createLocalBashEnv({
         command: createAppCommand({ chatId, model, sessionId }),
       },
       { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
+      {
+        ...MEMORY_COMMAND,
+        command: createMemoryCommand({ chatId, role }),
+      },
+      {
+        ...WINDOW_COMMAND,
+        command: createWindowCommand({
+          callPartId,
+          chatId,
+          layout,
+          role,
+          sessionId,
+        }),
+      },
       ...(role === "chat"
         ? [
-            {
-              ...MEMORY_COMMAND,
-              command: createMemoryCommand({ chatId }),
-            },
-            {
-              ...TAB_COMMAND,
-              command: createTabCommand({
-                callPartId,
-                chatId,
-                layout,
-                sessionId,
-              }),
-            },
             {
               ...TASK_COMMAND,
               command: createTaskCommand({

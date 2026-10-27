@@ -10,18 +10,32 @@ export interface InstrumentSubcommand {
 }
 
 /**
+ * A word a subcommand went by before: its calls run as the subcommand's, in
+ * its forms, with a note naming the form they ran as.
+ */
+export interface InstrumentAlias {
+  /** The subcommand's word. */
+  to: string;
+  /** The alias's arguments as the subcommand's. */
+  translate: (args: readonly string[]) => string[];
+  word: string;
+}
+
+/**
  * `instrument`: each of Instrument's own commands as a word after it, run
  * with the rest of the arguments. A bare `instrument`, `help`, `--help` or
  * `-h` lists them; `instrument <word> help` is that command's own usage.
  *
- * `missing` names the subcommands this shell leaves out (a task's has none
- * of the chat's own), so asking for one says why rather than that it does
- * not exist.
+ * `missing` names the subcommands this shell leaves out (a task's has no
+ * `task`), so asking for one says why rather than that it does not exist.
+ * `aliases` are left out of the list.
  */
 export function createInstrumentCommand({
+  aliases = [],
   missing = {},
   subcommands,
 }: {
+  aliases?: InstrumentAlias[];
   missing?: Record<string, string>;
   subcommands: InstrumentSubcommand[];
 }): Command {
@@ -47,6 +61,16 @@ ${subcommands.map((each) => `  ${each.word.padEnd(width)}  ${each.summary}`).joi
     if (found) {
       return found.command.execute(rest, ctx);
     }
+    const alias = aliases.find((each) => each.word === word);
+    const target = subcommands.find((each) => each.word === alias?.to);
+    if (alias && target) {
+      const translated = alias.translate(rest);
+      const result = await target.command.execute(translated, ctx);
+      return {
+        ...result,
+        stderr: `${name} ${alias.word} is now ${name} ${alias.to}; this ran \`${[name, alias.to, ...translated].map(shellWord).join(" ")}\`.\n${result.stderr}`,
+      };
+    }
     const why = Object.hasOwn(missing, word) ? missing[word] : undefined;
     return {
       exitCode: 1,
@@ -56,4 +80,11 @@ ${subcommands.map((each) => `  ${each.word.padEnd(width)}  ${each.summary}`).joi
       stdout: "",
     };
   });
+}
+
+/** An argument as it would be typed, quoted where the shell would need it. */
+function shellWord(arg: string): string {
+  return /^[\w@%+=:,./-]+$/.test(arg)
+    ? arg
+    : `'${arg.replaceAll("'", `'\\''`)}'`;
 }

@@ -138,7 +138,7 @@ interface PageContext {
 /** How much of what is selected goes with a message. */
 const SELECTION_MAX = 2000;
 
-/** The most of a page `instrument tab read` hands back, which bounds what crosses to the sandbox. */
+/** The most of a page `instrument window read` hands back, which bounds what crosses to the sandbox. */
 const PAGE_TEXT_MAX = 200_000;
 
 const PageWordsSchema = z.object({

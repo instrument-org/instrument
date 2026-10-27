@@ -4,6 +4,7 @@ import { type BrowserTargetId, parseBrowserTargetId } from "../../../types";
 import { askWindow, tabHolders } from "../../chat/window-tab";
 import { resolveChat } from "../../record-folders";
 import { TASK_COMMAND } from "../task-command";
+import { WINDOW_COMMAND } from "../window-command";
 import { isLocalAddress } from "../../local-page-address";
 
 type ChatTab = NonNullable<WindowTabAnswer["tabs"]>[number];
@@ -55,8 +56,8 @@ function notTheChatsTab(tab: string, chatTabs: readonly ChatTab[]): string {
     ? `"${tab}" is agent-browser's label for a tab, not its id.`
     : parseBrowserTargetId(tab) === null
       ? `"${tab}" is not a tab id; tab ids start with tab_.`
-      : `Tab ${tab} is not one of this chat's tabs. A tab of the user's that the note on their message named outside this chat comes in with \`instrument tab request ${tab}\`.`;
-  return `${why}${own} \`instrument tab list\` names them.`;
+      : `Tab ${tab} is not one of this chat's tabs. A tab of the user's that the note on their message named outside this chat comes in with \`${WINDOW_COMMAND.name} request ${tab}\`.`;
+  return `${why}${own} \`${WINDOW_COMMAND.name} list\` names them.`;
 }
 
 /** Several tab ids, each resolved, without repeats; `closedIsFine` for ids only being let go of. */
@@ -93,7 +94,7 @@ async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
   const targetId = parseBrowserTargetId(tab);
   if (targetId === null) {
     throw new Error(
-      `"${tab}" is not a tab id; tab ids start with tab_, and \`instrument tab list\` names this chat's.`,
+      `"${tab}" is not a tab id; tab ids start with tab_, and \`${WINDOW_COMMAND.name} list\` names this chat's.`,
     );
   }
   return targetId;

@@ -891,7 +891,7 @@ export namespace SessionMessageDataPart {
     tab: z.string().optional(),
     /**
      * Whether that tab is the person's own, outside the chat: one the chat
-     * may ask them for (`tab request`), not one it may name or hand a task.
+     * may ask them for (`window request`), not one it may name or hand a task.
      */
     theirs: z.boolean().optional(),
     /** The chat's other tabs, on screen or not. */

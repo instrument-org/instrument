@@ -1,4 +1,4 @@
-import { defineCommand } from "just-bash";
+import { defineCommand, type ExecResult } from "just-bash";
 
 import {
   type WindowTabAction,
@@ -19,40 +19,45 @@ import {
   type SubcommandShell,
   subcommand,
 } from "./subcommands";
-import { TAB_COMMAND } from "./tab-command";
+import { WINDOW_COMMAND, WINDOW_IS_THE_CHATS } from "./window-command";
 import { recordRaisedAsk } from "./raised-asks";
 import { recordAsk } from "../chat/asks";
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 
-const TAB_NAME = TAB_COMMAND.name;
+const NAME = WINDOW_COMMAND.name;
 
 const NO_WINDOW = "the window did not answer, so no tab changed.";
 
-const USAGE = `Usage: ${TAB_NAME} list | ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id> | ${TAB_NAME} read <id> | ${TAB_NAME} request <id> --reason '<one sentence to the user>'`;
+const USAGE = `Usage: ${NAME} list | ${NAME} read <id> | ${NAME} show <url, path or id>... | ${NAME} show <url or path> --in <id> | ${NAME} close <id>... | ${NAME} request <id> --reason '<one sentence to the user>'`;
 
 /**
- * The conversation's hands on the window's tabs. The window keeps the tabs
- * and does the work; the command checks what it can on this side (that a
- * path is one the window can show, which task is at work in a tab) and
- * reports, one line per tab, what the window did.
+ * What is in front of the person: the chat's tabs in their window. The
+ * window keeps the tabs and does the work; the command checks what it can on
+ * this side (that a path is one the window can show, which task is at work
+ * in a tab) and reports, one line per tab, what the window did.
  *
- * Every ask names the chat the command ran in, when it ran in one, so a tab
- * opened goes beside that chat and an id is looked up among that chat's tabs.
+ * Every ask names the chat the command ran in, so a tab opened goes beside
+ * that chat and an id is looked up among that chat's tabs. A task reads the
+ * window (`list`, `read`) and changes nothing in it: the chat arranges what
+ * the person sees.
  */
-export function createTabCommand({
+export function createWindowCommand({
   callPartId,
   chatId,
   layout,
+  role,
   sessionId,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
   /** The bash call it runs in, which a card it raises names as the ask. */
   callPartId?: StoreId.Part;
   chatId: ChatId;
-  /** The chat's shell layout: a local page outside it is not the chat's to read. */
+  /** The shell's layout: a local page outside it is not the session's to read. */
   layout: WorkspaceFsLayout;
-  /** The chat's own session, which a card it raises wakes. */
+  /** Whose shell it is: a task's only reads the window. */
+  role: "chat" | "task";
+  /** The session the command runs in, which a card it raises wakes. */
   sessionId: StoreId.Session;
   timeoutMs?: number;
 }) {
@@ -68,29 +73,43 @@ export function createTabCommand({
       : "";
   };
 
-  const runTab = defineSubcommands<undefined>({
-    name: TAB_NAME,
+  /** A subcommand that changes the window, which a task's shell refuses. */
+  const changes = (run: () => Promise<ExecResult | string>) =>
+    role === "chat" ? run() : fail(WINDOW_IS_THE_CHATS);
+
+  const runWindow = defineSubcommands<undefined>({
+    name: NAME,
     subcommands: {
-      close: subcommand({ run: ({ positional }) => close(positional) }),
+      close: subcommand({
+        run: ({ positional }) => changes(() => close(positional)),
+      }),
       list: subcommand({ positional: 0, run: () => list() }),
       request: subcommand({
         flags: ["reason"],
         positional: 1,
-        run: (input) => request(input.positional[0], input.value("reason")),
-      }),
-      open: subcommand({
-        run: ({ positional }, _, ctx) => open(positional, ctx),
-      }),
-      replace: subcommand({
-        run: ({ positional }, _, ctx) => replace(positional, ctx),
+        run: (input) =>
+          changes(() => request(input.positional[0], input.value("reason"))),
       }),
       read: subcommand({ run: ({ positional }) => read(positional) }),
-      show: subcommand({ run: ({ positional }) => show(positional) }),
+      show: subcommand({
+        flags: ["in"],
+        run: (input, _, ctx) =>
+          changes(() => {
+            const into = input.value("in");
+            return into === undefined
+              ? show(input.positional, ctx)
+              : replace(into, input.positional, ctx);
+          }),
+      }),
     },
     usage: USAGE,
   });
 
-  /** The chat's tabs, one line each: the id every other subcommand and `--tab` take, then what it shows and who is at work in it. */
+  /**
+   * The chat's tabs, one line each, as what is in the window: the id every
+   * other subcommand and `--tab` take, whether it is in front, what it
+   * shows, and which task is at work in it.
+   */
   async function list() {
     const answer = await ask({ kind: "list" });
     if (!answer) {
@@ -101,7 +120,7 @@ export function createTabCommand({
     }
     const tabs = answer.tabs ?? [];
     if (tabs.length === 0) {
-      return `This chat has no tabs. \`${TAB_NAME} open <url>\` opens one.\n`;
+      return `This chat has no tabs in the window.${role === "chat" ? ` \`${NAME} show <url>\` opens one.` : ""}\n`;
     }
     const holders = await tabHolders(chatId);
     return `${tabs
@@ -109,9 +128,11 @@ export function createTabCommand({
         const holder = holders.get(tab.id);
         const shows =
           tab.kind === "page"
-            ? `"${tab.title || tab.url}" ${tab.url}`
+            ? tab.title
+              ? `${tab.title} · ${tab.url}`
+              : tab.url
             : "a screen of the app, not a page";
-        return `${tab.id}  ${shows}${holder ? `  (task ${holder.id} is working in it)` : ""}`;
+        return `${tab.id}  ${tab.front ? "in front" : "behind  "}  ${shows}${holder ? `  task ${holder.id} is working in it` : ""}`;
       })
       .join("\n")}\n`;
   }
@@ -133,7 +154,7 @@ export function createTabCommand({
     const own = await ask({ kind: "list" });
     if (own?.tabs?.some((tab) => tab.id === tabId)) {
       return fail(
-        `tab ${tabId} is already this chat's: \`${TAB_NAME} read ${tabId}\` reads it, and \`instrument task new --tab ${tabId}\` hands it to a task.`,
+        `tab ${tabId} is already this chat's: \`${NAME} read ${tabId}\` reads it, and \`instrument task new --tab ${tabId}\` hands it to a task.`,
       );
     }
     const answer = await ask({ kind: "theirs", tabId });
@@ -171,9 +192,9 @@ export function createTabCommand({
       const holder = await holderClause(tabId);
       const answer = await ask({ kind: "close", tabId });
       if (!answer) {
-        failures.push(`${TAB_NAME}: ${NO_WINDOW}`);
+        failures.push(`${NAME}: ${NO_WINDOW}`);
       } else if (answer.error) {
-        failures.push(`${TAB_NAME}: ${answer.error}`);
+        failures.push(`${NAME}: ${answer.error}`);
       } else {
         lines.push(`Closed tab ${tabId}.${holder}`);
       }
@@ -181,13 +202,28 @@ export function createTabCommand({
     return report(lines, failures);
   }
 
-  async function open(rest: string[], ctx: SubcommandShell) {
+  /**
+   * Puts each argument in front, in turn: a tab the chat has by its id comes
+   * forward, and a page, file or folder opens in a tab of its own.
+   */
+  async function show(rest: string[], ctx: SubcommandShell) {
     if (rest.length === 0) {
-      return fail(`nothing to open. ${USAGE}`);
+      return fail(`nothing to show. ${USAGE}`);
     }
     const lines: string[] = [];
     const failures: string[] = [];
     for (const arg of rest) {
+      if (isTabId(arg)) {
+        const answer = await ask({ kind: "show", tabId: arg });
+        if (!answer) {
+          failures.push(`${NAME}: ${NO_WINDOW}`);
+        } else if (answer.error) {
+          failures.push(`${NAME}: ${answer.error}`);
+        } else {
+          lines.push(`Tab ${arg} is in front.`);
+        }
+        continue;
+      }
       const target = await targetOf(arg, ctx);
       if ("error" in target) {
         failures.push(target.error);
@@ -195,7 +231,7 @@ export function createTabCommand({
       }
       const answer = await ask({ kind: "open", show: true, target });
       if (answer?.error) {
-        failures.push(`${TAB_NAME}: ${answer.error}`);
+        failures.push(`${NAME}: ${answer.error}`);
         continue;
       }
       const tabId = answer?.tabId;
@@ -203,16 +239,17 @@ export function createTabCommand({
       // With no window to answer the page still counts as opened: it is
       // the tab's id that is missing, not the page.
       lines.push(
-        `Opened ${describeTarget(target)}${tabId ? ` (tab ${tabId})` : ""}`,
+        `Opened ${describeTarget(target)} in front${tabId ? ` (tab ${tabId})` : ""}`,
       );
     }
     return report(lines, failures);
   }
 
-  async function replace(rest: string[], ctx: SubcommandShell) {
-    const [tabId, arg, ...extra] = rest;
-    if (!tabId || !arg || extra.length > 0) {
-      return fail(`replace takes one tab id and one url or path. ${USAGE}`);
+  /** Shows something else in a tab the chat has, in its place. */
+  async function replace(tabId: string, rest: string[], ctx: SubcommandShell) {
+    const [arg, ...extra] = rest;
+    if (!arg || extra.length > 0 || isTabId(arg)) {
+      return fail(`--in takes one url or path to show in the tab. ${USAGE}`);
     }
     const target = await targetOf(arg, ctx);
     if ("error" in target) {
@@ -232,25 +269,6 @@ export function createTabCommand({
       // A tab that changes kind, a page becoming a file's tab or the
       // reverse, comes back under a new id, which is the one to use next.
       stdout: `Tab ${tabId} now shows ${describeTarget(target)}${answer.tabId && answer.tabId !== tabId ? `, as tab ${answer.tabId}` : ""}.${holder}\n`,
-    };
-  }
-
-  async function show(rest: string[]) {
-    const [tabId, ...extra] = rest;
-    if (!tabId || extra.length > 0) {
-      return fail(`show takes one tab id. ${USAGE}`);
-    }
-    const answer = await ask({ kind: "show", tabId });
-    if (!answer) {
-      return fail(NO_WINDOW);
-    }
-    if (answer.error) {
-      return fail(answer.error);
-    }
-    return {
-      exitCode: 0,
-      stderr: "",
-      stdout: `Tab ${tabId} is on the user's screen.\n`,
     };
   }
 
@@ -299,9 +317,7 @@ export function createTabCommand({
     );
   }
 
-  return defineCommand(TAB_COMMAND.name, (args, ctx) =>
-    runTab(args, undefined, ctx),
-  );
+  return defineCommand(NAME, (args, ctx) => runWindow(args, undefined, ctx));
 }
 
 function describeTarget(target: WindowTabTarget) {
@@ -313,7 +329,33 @@ function outsideFile(tabId: string) {
 }
 
 function fail(message: string) {
-  return { exitCode: 1, stderr: `${TAB_NAME}: ${message}\n`, stdout: "" };
+  return { exitCode: 1, stderr: `${NAME}: ${message}\n`, stdout: "" };
+}
+
+/** Whether an argument names a tab rather than a page, file or folder to show. */
+function isTabId(arg: string): boolean {
+  return /^tab_[0-9A-Za-z]+$/.test(arg);
+}
+
+/**
+ * An `instrument tab ...` call, from before the command was the window's, as
+ * the `instrument window ...` call that does the same: `open` and `show` are
+ * `show`, and `replace <id> <target>` is `show <target> --in <id>`.
+ */
+export function windowArgsOfTab(args: readonly string[]): string[] {
+  const [verb, ...rest] = args;
+  if (verb === "open") {
+    return ["show", ...rest];
+  }
+  if (verb === "replace") {
+    const [tabId, ...targets] = rest;
+    return [
+      "show",
+      ...targets,
+      ...(tabId === undefined ? [] : ["--in", tabId]),
+    ];
+  }
+  return [...args];
 }
 
 function isUrl(arg: string): boolean {
@@ -355,10 +397,10 @@ async function targetOf(
   try {
     stat = await ctx.fs.stat(path);
   } catch {
-    return { error: `${TAB_NAME}: "${arg}" does not exist.` };
+    return { error: `${NAME}: "${arg}" does not exist.` };
   }
   if (!stat.isFile && !stat.isDirectory) {
-    return { error: `${TAB_NAME}: "${arg}" is not a file or a folder.` };
+    return { error: `${NAME}: "${arg}" is not a file or a folder.` };
   }
   return {
     kind: "path",

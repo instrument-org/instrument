@@ -1259,16 +1259,20 @@ describe("listChats", () => {
       {
         commands: [
           'instrument app call notion search \'{"query":"groceries"}\'',
-          "instrument tab open https://www.instacart.com/store",
+          "instrument window show https://www.instacart.com/store",
         ],
         minute: 2,
       },
     );
+    // An earlier build's form of the same command, in a stored transcript.
     await agentSays(
       chatId,
       sessionId,
       "Updated.\n\n```files\n/Users/sam/Instrument/groceries/list.md\n/Users/sam/Instrument/groceries/prices.csv\n```",
-      { minute: 3 },
+      {
+        commands: ["instrument tab open https://www.costco.com/"],
+        minute: 3,
+      },
     );
 
     const [chat] = await listChats();
@@ -1279,7 +1283,7 @@ describe("listChats", () => {
         "/Users/sam/Instrument/groceries/list.md",
         "/Users/sam/Instrument/groceries/prices.csv",
       ],
-      sites: ["www.instacart.com"],
+      sites: ["www.instacart.com", "www.costco.com"],
     });
   });
 

@@ -1,17 +1,19 @@
 /**
  * Does the conversation arrange the user's tabs the way it is told to?
  *
- * The conversation acts on the window's tabs with `tab` (open, replace, close,
- * show), browses pages of its own with `agent-browser`, and hands a tab the
- * user has open to a fork with `instrument task new --tab`. `instrument tab open` is for showing the
- * user something and never a step in starting work. Every case here starts from a note
- * naming the tabs the user has open, answered by the harness's stand-in
- * window, and scores the commands the conversation ran.
+ * The conversation acts on the window's tabs with `instrument window` (show,
+ * close, request), browses pages of its own with `agent-browser`, and hands a
+ * tab the user has open to a fork with `instrument task new --tab`. Showing a
+ * new page is for putting something in front of the user and never a step in
+ * starting work. Every case here starts from a note naming the tabs the user
+ * has open, answered by the harness's stand-in window, and scores the
+ * commands the conversation ran, in the window's forms or the `instrument tab`
+ * forms an earlier build taught.
  *
  * - **A new page is the browser's to open.** The failure that prompted this: a
- *   conversation ran `open` and `instrument task new` in one command, told the task the
- *   tab id would come from `open`, and passed no `--tab`, so the task had
- *   nothing and stopped.
+ *   conversation opened a page and ran `instrument task new` in one command,
+ *   told the task the tab id would come from the open, and passed no
+ *   `--tab`, so the task had nothing and stopped.
  * - **A page on screen is handed over, not opened again.**
  * - **Closing is exact.** It closes the tabs named, and nothing else of the
  *   user's.
@@ -63,14 +65,54 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
-/** The `tab <verb>` invocations in a command, each with its arguments. */
-function tabCalls(command: string): { args: string[]; verb: string }[] {
+/** A command's words after `instrument window` or `instrument tab`, as the shell splits them. */
+function shellWords(text: string): string[] {
+  return [...text.matchAll(/'([^']*)'|"((?:\\.|[^"\\])*)"|(\S+)/g)].map(
+    (match) => match[1] ?? match[2] ?? match[3] ?? "",
+  );
+}
+
+/**
+ * The `instrument window <verb>` invocations in a command, each with its
+ * arguments, `--in` and its tab apart. An earlier build's `instrument tab`
+ * reads as the window form it became: `open` and `show` are `show`, and
+ * `replace <id> <target>` is `show <target> --in <id>`.
+ */
+function windowCalls(
+  command: string,
+): { args: string[]; into?: string; verb: string }[] {
   return [
-    ...command.matchAll(/(?:^|[\n;&|])\s*instrument\s+tab\s+(\w+)([^\n;&|]*)/g),
-  ].map((match) => ({
-    args: (match[2] ?? "").trim().split(/\s+/).filter(Boolean),
-    verb: match[1] ?? "",
-  }));
+    ...command.matchAll(
+      /(?:^|[\n;&|])\s*instrument\s+(window|tab)\s+(\w+)([^\n;&|]*)/g,
+    ),
+  ].map((match) => {
+    const words = shellWords(match[3] ?? "");
+    const verb = match[2] ?? "";
+    if (match[1] === "tab" && (verb === "open" || verb === "show")) {
+      return { args: words, verb: "show" };
+    }
+    if (match[1] === "tab" && verb === "replace") {
+      const [into, ...targets] = words;
+      return { args: targets, ...(into && { into }), verb: "show" };
+    }
+    const at = words.indexOf("--in");
+    const into = at === -1 ? undefined : words[at + 1];
+    return {
+      args:
+        at === -1 ? words : words.filter((_, i) => i !== at && i !== at + 1),
+      ...(into && { into }),
+      verb,
+    };
+  });
+}
+
+/** Whether a call opened something new in a tab of its own, rather than acting on a tab by its id. */
+function opensNew(call: { args: string[]; into?: string; verb: string }) {
+  return (
+    call.verb === "show" &&
+    call.into === undefined &&
+    call.args.some((arg) => !arg.startsWith("tab_"))
+  );
 }
 
 const STARTS_A_TASK = /(?:^|[\n;&|])\s*instrument task new\b/;
@@ -118,8 +160,7 @@ const neverOpenedToHandOver: Assertion = {
     const commands = bashCommands(sessions);
     const both = commands.filter(
       (command) =>
-        STARTS_A_TASK.test(command) &&
-        tabCalls(command).some(({ verb }) => verb === "open"),
+        STARTS_A_TASK.test(command) && windowCalls(command).some(opensNew),
     );
     return {
       evidence:
@@ -213,14 +254,14 @@ function pointedAtPage(tabId: string, url: string): Assertion {
   return {
     check: ({ sessions }) => {
       const shown = bashCommands(sessions)
-        .flatMap(tabCalls)
+        .flatMap(windowCalls)
         .filter((call) => call.verb === "show" && call.args.includes(tabId));
       const said = replies(sessions);
       const linked = said.includes(`](${url}`);
       return {
         evidence:
           shown.length > 0
-            ? `instrument tab show ${tabId}`
+            ? `instrument window show ${tabId}`
             : linked
               ? `linked ${url}`
               : said.slice(-600) || "no reply",
@@ -243,40 +284,42 @@ function homeWith(
   };
 }
 
-function neverRanTab(verb: string): Assertion {
-  const text = `Never ran tab ${verb}`;
-  return {
-    check: ({ sessions }) => {
-      const calls = bashCommands(sessions)
-        .flatMap(tabCalls)
-        .filter((call) => call.verb === verb);
-      return {
-        evidence:
-          calls.length > 0
-            ? calls
-                .map((call) => `tab ${verb} ${call.args.join(" ")}`)
-                .join("\n")
-            : "none",
-        passed: calls.length === 0,
-        text,
-      };
-    },
-    text,
-  };
-}
+/** Never opened a page, file or folder in a new tab; showing a tab already open is fine. */
+const neverOpenedNew: Assertion = {
+  check: ({ sessions }) => {
+    const calls = bashCommands(sessions).flatMap(windowCalls).filter(opensNew);
+    return {
+      evidence:
+        calls.length > 0
+          ? calls.map((call) => `window show ${call.args.join(" ")}`).join("\n")
+          : "none",
+      passed: calls.length === 0,
+      text: "Never opened a new tab",
+    };
+  },
+  text: "Never opened a new tab",
+};
 
-function ranTab(
+function ranWindow(
   verb: string,
-  { exactly, matching }: { exactly?: string[]; matching?: RegExp } = {},
+  {
+    exactly,
+    matching,
+    opening,
+  }: { exactly?: string[]; matching?: RegExp; opening?: boolean } = {},
 ): Assertion {
   const text = exactly
-    ? `Ran tab ${verb} on exactly ${exactly.join(", ")}`
-    : `Ran tab ${verb}${matching ? ` on ${String(matching)}` : ""}`;
+    ? `Ran window ${verb} on exactly ${exactly.join(", ")}`
+    : `Ran window ${verb}${matching ? ` on ${String(matching)}` : ""}`;
   return {
     check: ({ sessions }) => {
       const calls = bashCommands(sessions)
-        .flatMap(tabCalls)
-        .filter((call) => call.verb === verb);
+        .flatMap(windowCalls)
+        .filter(
+          (call) =>
+            call.verb === verb &&
+            (opening === undefined || opensNew(call) === opening),
+        );
       const args = calls.flatMap((call) => call.args);
       const passed = exactly
         ? exactly.every((id) => args.includes(id)) &&
@@ -288,7 +331,7 @@ function ranTab(
         evidence:
           calls.length > 0
             ? calls
-                .map((call) => `tab ${verb} ${call.args.join(" ")}`)
+                .map((call) => `window ${verb} ${call.args.join(" ")}`)
                 .join("\n")
             : bashCommands(sessions).join("\n---\n") || "no commands",
         passed,
@@ -346,7 +389,7 @@ export const WINDOW_TABS_EVALS = [
     // What is on the page exists only in the user's tab, so the tab itself
     // is what the work needs, and asking for it is the way to it.
     assertions: [
-      ranTab("request", { matching: new RegExp(`^${THEIR_TAB}$`) }),
+      ranWindow("request", { matching: new RegExp(`^${THEIR_TAB}$`) }),
       handedOnlyChatTabs,
     ],
     kind: "chat",
@@ -371,7 +414,7 @@ export const WINDOW_TABS_EVALS = [
 
   defineEval({
     // The user's tab is driven by a fork it is handed to.
-    assertions: [handedTab(JAR_TAB), neverRanTab("open")],
+    assertions: [handedTab(JAR_TAB), neverOpenedNew],
     kind: "chat",
     name: "window-tabs-hands-open-page",
     prompt: "follow five links from this page, one after another",
@@ -397,7 +440,7 @@ export const WINDOW_TABS_EVALS = [
   defineEval({
     assertions: [
       startedNoTask,
-      ranTab("close", { exactly: [EXAMPLE_TAB, IANA_TAB] }),
+      ranWindow("close", { exactly: [EXAMPLE_TAB, IANA_TAB] }),
     ],
     kind: "chat",
     name: "window-tabs-close-named",
@@ -416,8 +459,8 @@ export const WINDOW_TABS_EVALS = [
   defineEval({
     assertions: [
       startedNoTask,
-      ranTab("show", { exactly: [JAR_TAB] }),
-      neverRanTab("open"),
+      ranWindow("show", { exactly: [JAR_TAB], opening: false }),
+      neverOpenedNew,
     ],
     kind: "chat",
     name: "window-tabs-show-open",
@@ -431,7 +474,7 @@ export const WINDOW_TABS_EVALS = [
   defineEval({
     // A page, which only means something on screen: a few lines of text the
     // conversation can fairly quote instead.
-    assertions: [ranTab("open", { matching: /\.html$/ })],
+    assertions: [ranWindow("show", { matching: /\.html$/ })],
     followUps: ["Put it on my screen."],
     kind: "chat",
     name: "window-tabs-show-result",

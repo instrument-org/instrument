@@ -467,22 +467,29 @@ export function useOpeners({
       return { tabId: theirs.id };
     }
     if (action.kind === "list") {
-      return group === undefined
-        ? { error: "only a chat has tabs to list." }
-        : {
-            tabs: windowTabs.allTabs
-              .filter((entry) => entry.group === group)
-              .map((entry) =>
-                entry.kind === "page"
-                  ? {
-                      id: entry.id,
-                      kind: "page" as const,
-                      title: entry.title ?? "",
-                      url: entry.url ?? "about:blank",
-                    }
-                  : { id: entry.id, kind: "screen" as const },
-              ),
-          };
+      if (group === undefined) {
+        return { error: "only a chat has tabs to list." };
+      }
+      // In front is the tab the chat has up, while the chat is on screen.
+      const front =
+        windowTabs.groupOnScreen === group
+          ? windowTabs.selectedTabIn(group)?.id
+          : undefined;
+      return {
+        tabs: windowTabs.allTabs
+          .filter((entry) => entry.group === group)
+          .map((entry) => ({
+            ...(entry.id === front && { front: true }),
+            ...(entry.kind === "page"
+              ? {
+                  id: entry.id,
+                  kind: "page" as const,
+                  title: entry.title ?? "",
+                  url: entry.url ?? "about:blank",
+                }
+              : { id: entry.id, kind: "screen" as const }),
+          })),
+      };
     }
     const tab = windowTabs.allTabs.find(
       (entry) =>
@@ -532,7 +539,7 @@ export function useOpeners({
         const text = await browser?.readPageText(tab.id);
         return text === undefined
           ? {
-              error: `tab ${tab.id} has no page loaded to read; \`instrument tab show ${tab.id}\` loads it.`,
+              error: `tab ${tab.id} has no page loaded to read; \`instrument window show ${tab.id}\` loads it.`,
             }
           : { tabId: tab.id, text };
       }

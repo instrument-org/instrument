@@ -168,7 +168,7 @@ describe("createBashDescription", () => {
             "instrument x",
             "instrument task",
             "instrument memory",
-            "instrument tab",
+            "instrument window",
           ],
         }
       `);
@@ -261,8 +261,8 @@ describe("instrument", () => {
 
         app     Connect services and call their tools.
         memory  What you keep about the user for every chat.
-        tab     List, open, show, read and close this chat's tabs, or ask for one of the user's.
         task    Start, message, stop and read your tasks.
+        window  What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
         x       Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
@@ -318,28 +318,53 @@ describe("instrument", () => {
         const listed = (await bash.exec("instrument")).stdout
           .split("\n")
           .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
-        expect(listed).toEqual(["app", ...words, "x"]);
+        expect(listed).toEqual(
+          ["app", ...words, "memory", "window", "x"].toSorted(),
+        );
       } finally {
         setWorkspaceConfig(config);
       }
     },
   );
 
-  it("gives a task only `app`, and says the rest are the chat's", async () => {
+  it("gives a task reading forms of `memory` and `window`, and says `task` is the chat's", async () => {
     const bash = await shell("instrument-task", "task");
     expect((await bash.exec("instrument")).stdout).toMatchInlineSnapshot(`
       "Usage: instrument <command> ...
 
-        app  Connect services and call their tools.
-        x    Search posts on X through the user's Grok account.
+        app     Connect services and call their tools.
+        memory  What you keep about the user for every chat.
+        window  What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
+        x       Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "
     `);
-    const result = await bash.exec("instrument memory save x <<< 'y'");
+    const saved = await bash.exec("instrument memory save x <<< 'y'");
+    expect(saved.exitCode).toBe(1);
+    expect(saved.stderr).toMatchInlineSnapshot(`
+      "instrument memory: only the chat saves and forgets memories. Say in your report what the chat should remember or forget.
+      "
+    `);
+    expect((await bash.exec("instrument memory list")).exitCode).toBe(0);
+    const started = await bash.exec("instrument task new --name x <<< 'y'");
+    expect(started.exitCode).toBe(1);
+    expect(started.stderr).toMatchInlineSnapshot(`
+      "instrument task: only the chat starts and steers tasks. Do the work here, and say in your report what is left.
+      "
+    `);
+  });
+
+  // Stored conversations hold calls in the form the command had before.
+  it("runs `instrument tab` as `instrument window`, naming the form it ran as", async () => {
+    const bash = await shell("instrument-tab-alias", "task");
+    const result = await bash.exec(
+      "instrument tab replace tab_01M5Q0AAAAAAAAAAAAAAAAAAAA 'https://example.com/a b'",
+    );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument memory: only the chat has this. Say in your report what the chat should do with it.
+      "instrument tab is now instrument window; this ran \`instrument window show 'https://example.com/a b' --in tab_01M5Q0AAAAAAAAAAAAAAAAAAAA\`.
+      instrument window: only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.
       "
     `);
   });

@@ -59,6 +59,7 @@ export function createExcalidrawSession(options: {
   const { api, hostPath } = options;
   let disk = { scene: options.initial.scene, version: options.initial.version };
   let destroyed = false;
+  let closing = false;
   let seenVersion = sceneVersion(api.getSceneElementsIncludingDeleted());
   // The board's settings as the canvas had them when it last matched the
   // file: what differs from these is the person's change to write. Read off
@@ -102,6 +103,9 @@ export function createExcalidrawSession(options: {
 
   async function save() {
     const text = canvasText();
+    // What `text` was made from: a change made while the write is out is
+    // still the person's to write next.
+    const settings = settingsOf(canvas.appState);
     if (text === disk.scene.text) {
       options.onStatus("saved");
       return;
@@ -113,7 +117,7 @@ export function createExcalidrawSession(options: {
       path: hostPath,
     });
     if (result.ok) {
-      syncedSettings = settingsOf(canvas.appState);
+      syncedSettings = settings;
       disk = {
         scene: readScene(text, restore) ?? disk.scene,
         version: result.version,
@@ -135,6 +139,15 @@ export function createExcalidrawSession(options: {
     return state.cursorButton === "down" || state.newElement !== null;
   };
 
+  /**
+   * The canvas after a merge changed it: read back off Excalidraw, which
+   * indexes what it takes, or as handed to it once the board is closing,
+   * when Excalidraw has already emptied its scene.
+   */
+  function settleCanvas(handed: typeof canvas) {
+    canvas = closing ? handed : readCanvas();
+  }
+
   function mergeIn(content: string, version: string) {
     const theirs = readScene(content, restore);
     // Half written, or not a drawing: the next write is read instead.
@@ -143,12 +156,12 @@ export function createExcalidrawSession(options: {
     }
     const merged = mergeScene({
       base: disk.scene.elements,
-      ours: api.getSceneElementsIncludingDeleted() as unknown as readonly SceneElement[],
+      ours: canvas.elements as unknown as readonly SceneElement[],
       theirs: theirs.elements,
     });
-    const files = newFiles({ ours: api.getFiles(), theirs: theirs.files });
+    const files = newFiles({ ours: canvas.files, theirs: theirs.files });
     // The agent's settings, where the person left theirs as they were.
-    const canvasSettings = settingsOf(api.getAppState());
+    const canvasSettings = settingsOf(canvas.appState);
     const personChanged = changedSettings(syncedSettings, canvasSettings);
     const agentChanged = Object.fromEntries(
       Object.entries(
@@ -157,19 +170,32 @@ export function createExcalidrawSession(options: {
     );
     disk = { scene: theirs, version };
     if (files.length > 0) {
-      api.addFiles(files as unknown as Parameters<Api["addFiles"]>[0]);
-      canvas = readCanvas();
+      const added = files as unknown as Parameters<Api["addFiles"]>[0];
+      api.addFiles(added);
+      settleCanvas({
+        ...canvas,
+        files: {
+          ...canvas.files,
+          ...Object.fromEntries(added.map((file) => [file.id, file])),
+        },
+      });
     }
     if (Object.keys(agentChanged).length > 0) {
       syncedSettings = { ...syncedSettings, ...agentChanged };
       seenSettings = JSON.stringify(
         settingsOf({ ...canvasSettings, ...agentChanged }),
       );
+      const appState = agentChanged as Parameters<
+        Api["updateScene"]
+      >[0]["appState"];
       api.updateScene({
-        appState: agentChanged as Parameters<Api["updateScene"]>[0]["appState"],
+        appState,
         captureUpdate: CaptureUpdateAction.NEVER,
       });
-      canvas = readCanvas();
+      settleCanvas({
+        ...canvas,
+        appState: { ...canvas.appState, ...appState },
+      });
     }
     if (merged.changed.length > 0) {
       seenVersion = sceneVersion(merged.elements);
@@ -179,7 +205,10 @@ export function createExcalidrawSession(options: {
         captureUpdate: CaptureUpdateAction.NEVER,
         elements: merged.elements as unknown as CanvasElements,
       });
-      canvas = readCanvas();
+      settleCanvas({
+        ...canvas,
+        elements: merged.elements as unknown as typeof canvas.elements,
+      });
       options.onExternalChange({
         changed: merged.changed.length,
         conflicts: merged.conflicts,
@@ -276,6 +305,12 @@ export function createExcalidrawSession(options: {
         elements: measured,
       });
       canvas = readCanvas();
+      // The file read again with the fonts in, so the merge's base measures
+      // as the canvas now does and a resized text is no edit of the person's.
+      disk = {
+        ...disk,
+        scene: readScene(disk.scene.text, restore) ?? disk.scene,
+      };
     }
   }
   void remeasureTextOnceFontsLoad();
@@ -287,6 +322,7 @@ export function createExcalidrawSession(options: {
       if (destroyed) {
         return;
       }
+      closing = true;
       stopFlushOnLeave();
       clearTimeout(busyTimer);
       await saves.flush();

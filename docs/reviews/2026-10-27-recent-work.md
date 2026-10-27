@@ -17,7 +17,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### B. Closing a drawing while its save conflicts merges against the emptied canvas
 
-- Status: open
+- Status: fixed
 - Where: [excalidraw-session.ts:146](/apps/studio/src/client/components/excalidraw-editor/excalidraw-session.ts#L146), [excalidraw-session.ts:292](/apps/studio/src/client/components/excalidraw-editor/excalidraw-session.ts#L292)
 - What: `16c7ef2d5` moved saving onto the `canvas` snapshot because Excalidraw empties its scene on unmount before the close's flush runs. `mergeIn` still reads the person's side from the live API (`getSceneElementsIncludingDeleted`, `getFiles`, `getAppState`). When the agent wrote the file and the person's last edit is still in the debounce at close, `destroy()` flushes, the write comes back stale, and `mergeScene` runs with `ours = []`. If the agent only edited or deleted elements, nothing is "changed", `canvas` keeps the person's pre-merge copies and the resave writes them over the agent's edits and brings back what it deleted. If the agent added an element, `canvas = readCanvas()` reads the empty scene plus the additions, and the person's last edit is lost.
 - Verification: traced statically; the empty-scene premise is `16c7ef2d5`'s own.
@@ -26,7 +26,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### C. On the first drawing opened, an element the agent deletes comes back
 
-- Status: open
+- Status: fixed
 - Where: [excalidraw-session.ts:241](/apps/studio/src/client/components/excalidraw-editor/excalidraw-session.ts#L241), [scene-sync.ts:243](/apps/studio/src/client/components/excalidraw-editor/scene-sync.ts#L243)
 - What: `remeasureTextOnceFontsLoad` resizes every text once the fonts load, but the merge base (`disk.scene.elements`) was restored before the fonts and is not re-derived. Until the next successful save, every text differs from its base by width and height. An agent deleting a text then hits "the agent dropped an element the person was changing", which keeps it, counts a conflict, and writes it back, with a "your changes were kept" toast for an edit the person never made. An agent rewording a text gets a false conflict on its size the same way.
 - Verification: the merge half by probe (base width 10, canvas 12, theirs `[]` gives the element kept and one conflict); the remeasure resizing is traced statically and stated by its own comment.
@@ -53,7 +53,7 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### F. A drawing's background or grid change made during a save is dropped
 
-- Status: open
+- Status: fixed
 - Where: [excalidraw-session.ts:116](/apps/studio/src/client/components/excalidraw-editor/excalidraw-session.ts#L116)
 - What: after the write resolves, `syncedSettings = settingsOf(canvas.appState)` reads the canvas as it is now, not as `text` was built at line 104. A background change while the write is in flight becomes the synced value, the next `canvasText()` sees no settings change, and the status says "saved" with the change never written. Elements are unaffected.
 - Verification: confirmed by reading.

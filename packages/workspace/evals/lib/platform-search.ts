@@ -31,6 +31,12 @@ export function platformSearchClient(): WebSearchClient {
     JSON.parse(fs.readFileSync(file, "utf8")),
   );
   return async ({ input, signal }) => {
+    // A request that never got a readable answer, as the result says it.
+    const failed = (error: unknown) => ({
+      errorMessage: `Web search request failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+      errorType: "request-failed" as const,
+      ok: false as const,
+    });
     let response: Response;
     try {
       response = await fetch(`${account.api}/search`, {
@@ -45,13 +51,14 @@ export function platformSearchClient(): WebSearchClient {
         signal,
       });
     } catch (error) {
-      return {
-        errorMessage: `Web search request failed: ${error instanceof Error ? error.message : "unknown error"}.`,
-        errorType: "request-failed",
-        ok: false,
-      };
+      return failed(error);
     }
-    const responseBody = await response.text();
+    let responseBody: string;
+    try {
+      responseBody = await response.text();
+    } catch (error) {
+      return failed(error);
+    }
     if (!response.ok) {
       return {
         errorMessage: `Web search failed with status ${response.status}.`,
@@ -65,9 +72,15 @@ export function platformSearchClient(): WebSearchClient {
         responseBody,
       };
     }
-    const parsed = WebSearchResponseSchema.safeParse(
-      JSON.parse(responseBody) as unknown,
-    );
+    let json: unknown;
+    try {
+      json = JSON.parse(responseBody);
+    } catch {
+      // Not JSON, such as a proxy's error page: read as the unexpected
+      // response it is.
+      json = undefined;
+    }
+    const parsed = WebSearchResponseSchema.safeParse(json);
     return parsed.success
       ? { data: parsed.data, ok: true }
       : {

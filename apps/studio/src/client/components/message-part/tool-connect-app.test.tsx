@@ -379,14 +379,14 @@ describe("the card asking for several apps", () => {
     await screen.findByText("1 of 3 connected");
     expect(groupReads()).toMatchInlineSnapshot(`
       [
-        "Sign in to 3 apps",
+        "Connect 3 apps",
         "So I can read your files and email.",
         "1 of 3 connected",
         "Google Drive",
         "Connected as you@example.com",
         "Google Docs",
         "Gmail",
-        "2 sign-ins are left. I’ll pick up when you’re done.",
+        "Waiting on 2 more.",
         "[Sign in]",
         "[Skip]",
         "[Sign in]",
@@ -422,7 +422,7 @@ describe("the card asking for several apps", () => {
     expect(groupReads()).toMatchInlineSnapshot(`
       [
         "2 apps connected",
-        "You skipped Google Docs. You can still sign in to it here.",
+        "You skipped Google Docs.",
         "Google Docs",
         "[Sign in]",
       ]

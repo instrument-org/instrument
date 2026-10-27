@@ -108,7 +108,7 @@ export function ConnectAppGroupCard({
             </p>
             {skipped.length > 0 ? (
               <p className="text-xs leading-5 text-muted-foreground">
-                {`You skipped ${LIST.format(skipped.map((row) => row.name))}. You can still sign in to ${skipped.length === 1 ? "it" : "them"} here.`}
+                {`You skipped ${LIST.format(skipped.map((row) => row.name))}.`}
               </p>
             ) : null}
           </div>
@@ -143,7 +143,7 @@ export function ConnectAppGroupCard({
       <div className="px-4 py-3">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{`Sign in to ${rows.length} apps`}</p>
+            <p className="text-sm font-medium">{`Connect ${rows.length} apps`}</p>
             <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
           </div>
           <span className="shrink-0 text-xs font-medium text-foreground/80">
@@ -183,7 +183,7 @@ export function ConnectAppGroupCard({
       })}
       <div className="flex min-h-11 items-center justify-between gap-3 border-t border-border bg-muted/40 px-4 py-1.5">
         <span className="text-xs text-muted-foreground">
-          {`${left.length === 1 ? "One sign-in is left." : `${left.length} sign-ins are left.`} I’ll pick up when you’re done.`}
+          {`Waiting on ${left.length} more.`}
         </span>
         <Button
           // Only once each app's standing is read, so nothing connected is skipped.
@@ -212,13 +212,13 @@ function rowLine(
       return "Skipped";
     }
     case "failed": {
-      return "This sign-in didn’t go through. You can try again.";
+      return "The sign-in didn’t go through.";
     }
     case "removed": {
       return "This app was removed.";
     }
     case "stale": {
-      return "Connected, then changed. Instrument will test it again.";
+      return "It changed since it connected, so Instrument will test it again.";
     }
     case "waiting": {
       return "Finish signing in in your browser.";

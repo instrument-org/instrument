@@ -590,7 +590,7 @@ switch (subcommand) {
     }
 
     if (
-      (repeat > 1 || filteredEvals.length > 1) &&
+      (repeat > 1 || filteredEvals.length > 1 || models.length > 1) &&
       !dryRun &&
       process.env.INSTRUMENT_EVAL_TRIAL === undefined
     ) {
@@ -644,15 +644,17 @@ switch (subcommand) {
 }
 
 /**
- * A run of more than one case, or of one case more than once, runs each case
- * of each trial as a run of its own, in a child process with a home and a
- * workspace of its own. The product reads the home from HOME, once per
- * process, and keeps memories in the workspace, so cases in one process
- * share every file a case plants, every file a run writes, and every memory
- * a case saves: a case that checks a file's time reads another's, and a
+ * A run of more than one case or model, or of one case more than once, runs
+ * each case of each trial on each model as a run of its own, in a child
+ * process with a home and a workspace of its own. The product reads the
+ * home from HOME, once per process, and keeps memories in the workspace, so
+ * runs in one process share every file a case plants, every file a run
+ * writes, and every memory a case saves: a case that checks a file's time
+ * reads another's, and a
  * memory case is scored against what the case before it remembered. Each
  * child prints its own narration and results and writes them to
- * `trial-<n>/<case>/` in this run's directory; this writes the run's
+ * `trial-<n>/<case>/` in this run's directory, `trial-<n>/<case>/<model>/`
+ * when it names more than one model; this writes the run's
  * `summary.json` over every child, with each case's spread across its trials,
  * and prints the spread.
  */
@@ -666,6 +668,7 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
   const patterns = positionals.slice(1);
   const args = withoutOptions(process.argv.slice(2), [
     "--concurrency",
+    "--model",
     "--repeat",
   ]).filter((arg) => {
     if (arg === "--json" || arg === "--yes" || arg === "-y") {
@@ -680,14 +683,28 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
   });
   const names: (string | undefined)[] =
     caseNames.length === 0 ? [undefined] : [...caseNames];
+  // Each model too: models run one after another in a child, so a later one
+  // would find what an earlier one saved.
+  const asked = values.model ?? [];
   const units = list(1, repeat).flatMap((trial) =>
-    names.map((caseName) => ({ caseName, trial })),
+    names.flatMap((caseName) =>
+      asked.map((model, modelIndex) => ({
+        caseName,
+        model,
+        modelIndex,
+        trial,
+      })),
+    ),
   );
   const trials = await parallel(
     Math.max(1, concurrency),
     units,
-    async ({ caseName, trial }) => {
-      const dir = path.join(`trial-${trial}`, caseName ?? "");
+    async ({ caseName, model, modelIndex, trial }) => {
+      const dir = path.join(
+        `trial-${trial}`,
+        caseName ?? "",
+        asked.length > 1 ? model.replaceAll(/[^a-z0-9.-]/giu, "-") : "",
+      );
       const child = await execa(
         process.execPath,
         [
@@ -695,6 +712,8 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
           script,
           ...args,
           ...(caseName === undefined ? [] : [caseName]),
+          "--model",
+          model,
           "--repeat",
           "1",
           "--concurrency",
@@ -705,7 +724,7 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
         {
           env: {
             ...process.env,
-            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}${caseName === undefined ? "" : `-${caseName}`}`,
+            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}${caseName === undefined ? "" : `-${caseName}`}-${modelIndex}`,
             INSTRUMENT_EVAL_OUTPUT_DIR: path.join(outputDir, dir),
             INSTRUMENT_EVAL_TRIAL: String(trial),
           },
@@ -719,7 +738,14 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
         .find((line) => line.startsWith("{"));
       // The child's own `--json` report, written by this same CLI.
       const rollup = report ? (JSON.parse(report) as Rollup) : undefined;
-      return { caseName, dir, exitCode: child.exitCode ?? 1, rollup, trial };
+      return {
+        caseName,
+        dir,
+        exitCode: child.exitCode ?? 1,
+        model: asked.length > 1 ? model : undefined,
+        rollup,
+        trial,
+      };
     },
   );
   const combined = combineTrials(trials);
@@ -741,8 +767,11 @@ async function runCasesApart(caseNames: readonly string[]): Promise<number> {
     [
       "",
       `${c.dim}┌─ Trials ────────────────────────────────────────────${c.reset}`,
-      ...trials.map(({ caseName, rollup, trial }) => {
-        const unit = caseName === undefined ? "" : ` ${caseName}`;
+      ...trials.map(({ caseName, model, rollup, trial }) => {
+        const unit = [caseName, model]
+          .filter((part) => part !== undefined)
+          .map((part) => ` ${part}`)
+          .join("");
         return rollup
           ? `${c.dim}│${c.reset}  trial ${trial}${unit}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
           : `${c.dim}│${c.reset}  trial ${trial}${unit}: ${c.yellow}no report${c.reset}`;

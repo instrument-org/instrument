@@ -11,6 +11,8 @@ import {
   isDictating,
   useDictation,
 } from "@/client/hooks/use-dictation";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { featurePause } from "@/client/lib/billing";
 import {
   appendDictatedText,
   appendDictatedTextWithin,
@@ -402,16 +404,30 @@ export function useDictatedText({
 }
 
 /**
+ * Whether this account can dictate now: signed in, and billing not refusing
+ * it. Before billing's status is read, it can, as `featurePause` leaves it.
+ */
+function useCanDictate() {
+  const { data: status, isSignedOut } = useBillingStatus();
+  return !isSignedOut && !featurePause(status, "dictation", new Date());
+}
+
+/**
  * A textarea with dictation along its foot, inside the box: the microphone at
  * the right, and while recording, the words being heard along the foot with
  * the wave, Cancel and Stop together at its right. What is already in the box stays, editable, and gets the new
- * words after it.
+ * words after it. With no way to dictate, it is a plain textarea: the way to
+ * sign in or a plan is the composer's microphone, not this box's.
  */
 export function DictatedTextarea({
   className,
   dictation,
   ...props
 }: React.ComponentProps<typeof Textarea> & { dictation: Dictation }) {
+  const canDictate = useCanDictate();
+  if (!canDictate && !isDictating(dictation.phase)) {
+    return <Textarea className={className} {...props} />;
+  }
   return (
     <div className="relative">
       <Textarea className={cn("pb-10", className)} {...props} />

@@ -39,6 +39,9 @@ vi.mock(import("@/client/hooks/use-dictation"), async (importOriginal) => ({
   ...(await importOriginal()),
   useDictation: (await import("@/tests/idle-dictation")).idleDictation,
 }));
+vi.mock("@/client/hooks/use-billing-status", () => ({
+  useBillingStatus: () => ({ isSignedOut: false }),
+}));
 vi.mock(import("./use-topic-backfill"), async (importOriginal) => ({
   ...(await importOriginal()),
   useTopicBackfill: () => [],

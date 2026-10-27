@@ -227,6 +227,24 @@ function focusGuest(targetId: BrowserTargetId) {
 const HEIR_WAIT_MS = 5000;
 
 /**
+ * The color a page paints behind its content: its root's or its body's
+ * background, or, where both show through, the canvas its color scheme
+ * gives it (Chromium's own white, or its dark #121212). Read without
+ * touching the page's document.
+ */
+const PAGE_BACKDROP_SCRIPT = `(() => {
+  for (const element of [document.documentElement, document.body]) {
+    const color = element ? getComputedStyle(element).backgroundColor : "";
+    if (color && color !== "transparent" && !/^rgba\\(.*,\\s*0\\)$/.test(color)) {
+      return color;
+    }
+  }
+  const scheme = document.documentElement ? getComputedStyle(document.documentElement).colorScheme : "";
+  const dark = /\\bdark\\b/.test(scheme) && (!/\\blight\\b/.test(scheme) || matchMedia("(prefers-color-scheme: dark)").matches);
+  return dark ? "rgb(18, 18, 18)" : "rgb(255, 255, 255)";
+})()`;
+
+/**
  * Pages opened in place of what the person was in, by target, with when
  * their claim on the keyboard lapses. The view a link was followed from
  * goes away with the caret in it, and a browser keeps the keyboard in the
@@ -924,6 +942,26 @@ function ensureWebview(
   // A new document has nothing of its own open until it says so.
   webview.addEventListener("did-navigate", () => {
     layeredPages.delete(targetId);
+  });
+
+  // A file's page keeps the color it paints behind itself on its element, so
+  // the moment between one file's document going and the next one's first
+  // paint (a folder of pages walked with the arrows) shows that color, which
+  // the next page most often shares, rather than the surface behind the page.
+  webview.addEventListener("did-stop-loading", () => {
+    if (!webview.getURL().startsWith("file:")) {
+      return;
+    }
+    webview
+      .executeJavaScript(PAGE_BACKDROP_SCRIPT)
+      .then((color) => {
+        if (typeof color === "string" && color !== "") {
+          webview.style.backgroundColor = color;
+        }
+      })
+      .catch(() => {
+        // A page gone, or one refusing the script, keeps the color it had.
+      });
   });
 
   container.append(webview);

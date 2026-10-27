@@ -5,18 +5,42 @@ import { type AIGatewayModel } from "../schemas/model";
  * write a negative number where the price is not known. Dollars per million
  * tokens is the unit every price sheet uses, so that is what a model carries.
  * Either side missing means the model is not priced rather than half priced.
+ *
+ * A model billed at a higher rate past a prompt size lists that rate under
+ * `overrides`, from `min_prompt_tokens`; the smallest size where the prompt
+ * price rises is kept as `higherPriceFromPromptTokens`.
  */
 export function pricingPerMillionTokens(
   pricing:
     | null
     | undefined
-    | { completion?: null | string; prompt?: null | string },
+    | {
+        completion?: null | string;
+        overrides?:
+          | null
+          | { min_prompt_tokens?: null | number; prompt?: null | string }[];
+        prompt?: null | string;
+      },
 ): AIGatewayModel.Pricing | undefined {
   const input = perMillionTokens(pricing?.prompt);
   const output = perMillionTokens(pricing?.completion);
-  return input === undefined || output === undefined
-    ? undefined
-    : { input, output };
+  if (input === undefined || output === undefined) {
+    return undefined;
+  }
+  const steps = (pricing?.overrides ?? []).flatMap((override) => {
+    const from = override.min_prompt_tokens;
+    const price = perMillionTokens(override.prompt);
+    return typeof from === "number" &&
+      Number.isInteger(from) &&
+      from > 0 &&
+      price !== undefined &&
+      price > input
+      ? [from]
+      : [];
+  });
+  return steps.length === 0
+    ? { input, output }
+    : { higherPriceFromPromptTokens: Math.min(...steps), input, output };
 }
 
 function perMillionTokens(perToken: null | string | undefined) {

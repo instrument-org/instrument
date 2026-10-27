@@ -27,7 +27,13 @@ interface OpenRouterShapedModel {
     sourceModelId?: string;
   };
   name: string;
-  pricing?: null | { completion?: null | string; prompt?: null | string };
+  pricing?: null | {
+    completion?: null | string;
+    overrides?:
+      | null
+      | { min_prompt_tokens?: null | number; prompt?: null | string }[];
+    prompt?: null | string;
+  };
   reasoning?: null | {
     default_effort?: null | string;
     default_enabled?: boolean | null;

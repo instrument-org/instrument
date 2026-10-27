@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../../src/schemas/session/message";
 import {
+  capSpendOf,
+  emptyRunCost,
   billedCostOf,
   costSourceOf,
   describeCost,
@@ -169,5 +171,37 @@ describe("runCostOf", () => {
     );
     expect(cost.unpricedSteps).toBe(1);
     expect(modelCostUSD(cost)).toBeUndefined();
+  });
+});
+
+describe("capSpendOf", () => {
+  it.each([
+    {
+      cost: { billedSteps: 2, billedUSD: 0.5, searches: 0, searchUSD: 0 },
+      expected: { costUSD: 0.5, modelPriced: true },
+      name: "the model's cost alone",
+    },
+    {
+      cost: { billedSteps: 0, billedUSD: 0, searches: 3, searchUSD: 2.5 },
+      expected: { costUSD: 2.5, modelPriced: false },
+      name: "priced searches on a model with no price",
+    },
+    {
+      cost: { billedSteps: 1, billedUSD: 0.5, searches: 1, searchUSD: 0.25 },
+      expected: { costUSD: 0.75, modelPriced: true },
+      name: "both together",
+    },
+    {
+      cost: { billedSteps: 0, billedUSD: 0, searches: 0, searchUSD: 0 },
+      expected: { costUSD: undefined, modelPriced: false },
+      name: "nothing it could price",
+    },
+  ])("counts $name", ({ cost, expected }) => {
+    const run = emptyRunCost();
+    run.billedSteps = cost.billedSteps;
+    run.billedUSD = cost.billedUSD;
+    run.search.searches = cost.searches;
+    run.search.estimatedUSD = cost.searchUSD;
+    expect(capSpendOf(run)).toEqual(expected);
   });
 });

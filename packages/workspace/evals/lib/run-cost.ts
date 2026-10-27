@@ -213,6 +213,31 @@ export function runCostOf(
   return cost;
 }
 
+/**
+ * What a run has spent as `--max-run-cost` reads it: the model's requests
+ * and the searches that could be priced, each counted whether or not the
+ * other could, since a run on a model with no price still pays for every
+ * search. `modelPriced` says whether the model's own requests are in it,
+ * which is what decides whether the token cap stands in for it.
+ */
+export function capSpendOf(cost: RunCost): {
+  costUSD?: number;
+  modelPriced: boolean;
+} {
+  const modelUSD = modelCostUSD(cost);
+  const searchUSD =
+    cost.search.searches > cost.search.unpriced
+      ? cost.search.estimatedUSD
+      : undefined;
+  return {
+    costUSD:
+      modelUSD === undefined && searchUSD === undefined
+        ? undefined
+        : (modelUSD ?? 0) + (searchUSD ?? 0),
+    modelPriced: modelUSD !== undefined,
+  };
+}
+
 /** The model requests' dollars, absent when no step could be priced. */
 export function modelCostUSD(cost: RunCost): number | undefined {
   return cost.billedSteps + cost.estimatedSteps > 0

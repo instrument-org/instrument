@@ -62,6 +62,7 @@ import { type ChatId } from "../src/schemas/chat-id";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { platformSearchClient } from "./lib/platform-search";
 import {
+  capSpendOf,
   type CostSource,
   costSourceOf,
   describeCost,
@@ -315,7 +316,10 @@ export type RunStop = "budget" | "case" | "memory" | "timeout" | "unknown";
 
 /** A run's spend so far, as the caps read it: `costUSD` searches included. */
 interface Spend {
+  /** Absent while neither the model nor a search could be priced. */
   costUSD?: number;
+  /** Whether the model's own requests could be priced, searches aside. */
+  modelPriced: boolean;
   tokens: number;
   usage: UsageSummary;
 }
@@ -1038,7 +1042,7 @@ export async function runEvals(
       // a legitimate tool call. Measured, one run has reached millions of tokens
       // on a single question before a human noticed. The eval harness is the one
       // place that can see the running total and act on it, so it does.
-      const enforceCaps = ({ costUSD, tokens }: Spend) => {
+      const enforceCaps = ({ costUSD, modelPriced, tokens }: Spend) => {
         if (stoppedBy) {
           return;
         }
@@ -1046,7 +1050,7 @@ export async function runEvals(
         const tokenCap =
           evalCase.maxRunTokens ??
           maxRunTokens ??
-          (costUSD === undefined ? DEFAULT_MAX_RUN_TOKENS : 0);
+          (modelPriced ? 0 : DEFAULT_MAX_RUN_TOKENS);
         if (
           maxRunCostUSD > 0 &&
           costUSD !== undefined &&
@@ -1082,14 +1086,10 @@ export async function runEvals(
         const cost = runCostOf(messages, {
           billed,
           price,
-          priceFor: catalog.priceFor,
+          priceFor: catalog.searchPriceFor,
         });
-        const modelUSD = modelCostUSD(cost);
         return {
-          costUSD:
-            modelUSD === undefined
-              ? undefined
-              : modelUSD + cost.search.estimatedUSD,
+          ...capSpendOf(cost),
           tokens: usage.totalTokens,
           usage,
         };
@@ -1690,7 +1690,7 @@ export async function runEvals(
       const cost = runCostOf(spent.messages, {
         billed: spent.billed,
         price,
-        priceFor: catalog.priceFor,
+        priceFor: catalog.searchPriceFor,
       });
       const costUSD = modelCostUSD(cost);
       const costLine = describeCost(cost);

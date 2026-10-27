@@ -58,7 +58,7 @@ import { renderUserView } from "./lib/user-view";
 import { StoreId } from "../src/schemas/store-id";
 import { type ChatId } from "../src/schemas/chat-id";
 
-interface RollupSummary {
+export interface RollupSummary {
   assertions: {
     failed: number;
     pass_rate: number;
@@ -93,7 +93,7 @@ interface RollupSummary {
 }
 
 /** What one run produced, in the form a caller can act on without re-reading. */
-interface RunReport {
+export interface RunReport {
   assertions: AssertionResult[];
   caseName: string;
   cost: RunCost;
@@ -116,6 +116,8 @@ interface RunReport {
   systemPromptSha256?: string;
   chatId: string;
   totalTokens: number;
+  /** 1-based: which of a `--repeat` run's trials this was. */
+  trial: number;
   /** This task plus every task it started, for runs this process watched. */
   treeTokens?: number;
   treeUsage?: CompletedRun["treeUsage"];
@@ -452,6 +454,7 @@ export async function generateReport({
           stoppedBy,
           systemPromptSha256,
           chatId: task.id,
+          trial: known?.trial ?? 1,
         },
         null,
         2,
@@ -556,6 +559,7 @@ export async function generateReport({
       systemPromptSha256,
       chatId: task.id,
       totalTokens: stats.totalTokens,
+      trial: known?.trial ?? 1,
       treeTokens: run?.treeUsage.totalTokens,
       treeUsage: run?.treeUsage,
     });
@@ -633,4 +637,163 @@ function truncate(text: string): string {
   return text.length <= MAX_CONSOLE_EVIDENCE
     ? text
     : `${text.slice(0, MAX_CONSOLE_EVIDENCE)}...`;
+}
+
+/** The least, the middle, and the most of one figure across a case's trials. */
+interface Range {
+  max: number;
+  median: number;
+  min: number;
+}
+
+/** One case on one model across every trial that reported it. */
+export interface CaseSpread {
+  assertions: { passed: number; total: number };
+  caseName: string;
+  /** Over the trials that could price their model requests. */
+  costUSD?: Range;
+  modelURI?: string;
+  /** Trials that hit a cap or a case stop, by what stopped them. */
+  stopped: Partial<Record<RunStop, number>>;
+  /** This task plus every task it started, where known. */
+  tokens: Range;
+  trials: number;
+}
+
+/**
+ * A `--repeat` run's trials as one report: every trial's results, each
+ * filed under its own trial's directory and numbered, and the spread of
+ * each case's cost and tokens across them.
+ */
+export interface TrialsSummary extends RollupSummary {
+  spread: CaseSpread[];
+  trials: { exitCode: number; reported: boolean; trial: number }[];
+}
+
+function rangeOf(values: number[]): Range | undefined {
+  if (values.length === 0) {
+    return undefined;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return {
+    max: sorted.at(-1) ?? 0,
+    median:
+      sorted.length % 2 === 1
+        ? (sorted[middle] ?? 0)
+        : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2,
+    min: sorted[0] ?? 0,
+  };
+}
+
+export function spreadOf(results: readonly RunReport[]): CaseSpread[] {
+  const groups = new Map<string, RunReport[]>();
+  for (const result of results) {
+    const key = `${result.caseName}\u0000${result.modelURI ?? ""}`;
+    groups.set(key, [...(groups.get(key) ?? []), result]);
+  }
+  return [...groups.values()].map((group) => {
+    const [first] = group;
+    const stopped: CaseSpread["stopped"] = {};
+    for (const result of group) {
+      if (result.stoppedBy) {
+        stopped[result.stoppedBy] = (stopped[result.stoppedBy] ?? 0) + 1;
+      }
+    }
+    return {
+      assertions: {
+        passed: group.reduce((sum, result) => sum + result.passed, 0),
+        total: group.reduce(
+          (sum, result) => sum + result.passed + result.failed,
+          0,
+        ),
+      },
+      caseName: first?.caseName ?? "",
+      costUSD: rangeOf(
+        group.flatMap((result) =>
+          result.costUSD === undefined
+            ? []
+            : [result.costUSD + (result.searchCostUSD ?? 0)],
+        ),
+      ),
+      modelURI: first?.modelURI,
+      stopped,
+      tokens: rangeOf(
+        group.map((result) => result.treeTokens ?? result.totalTokens),
+      ) ?? { max: 0, median: 0, min: 0 },
+      trials: group.length,
+    };
+  });
+}
+
+/**
+ * Each trial's own report, made in a directory of its own under the run's
+ * (`trial-<n>/`), as one: results keep their trial number and point into
+ * that directory, and the totals are over every trial.
+ */
+export function combineTrials(
+  trials: readonly {
+    exitCode: number;
+    rollup?: RollupSummary;
+    trial: number;
+  }[],
+): TrialsSummary {
+  const rollups = trials.flatMap(({ rollup, trial }) =>
+    rollup ? [{ rollup, trial }] : [],
+  );
+  const results = rollups.flatMap(({ rollup, trial }) =>
+    rollup.results.map((result) => ({
+      ...result,
+      outputDir: path.join(`trial-${String(trial)}`, result.outputDir),
+      trial,
+    })),
+  );
+  const passed = rollups.reduce(
+    (sum, { rollup }) => sum + rollup.assertions.passed,
+    0,
+  );
+  const failed = rollups.reduce(
+    (sum, { rollup }) => sum + rollup.assertions.failed,
+    0,
+  );
+  const cost = addRunCosts(results.map((result) => result.cost));
+  return {
+    assertions: {
+      failed,
+      pass_rate: passed + failed > 0 ? passed / (passed + failed) : 0,
+      passed,
+      total: passed + failed,
+    },
+    cost,
+    costSource: costSourceOf(cost),
+    costUSD: modelCostUSD(cost),
+    erroredTasks: rollups.reduce(
+      (sum, { rollup }) => sum + rollup.erroredTasks,
+      0,
+    ),
+    modelURIs: [...new Set(rollups.flatMap(({ rollup }) => rollup.modelURIs))],
+    provenance: {
+      generatedAt: new Date().toISOString(),
+      git: rollups[0]?.rollup.provenance.git,
+      systemPromptSha256: [
+        ...new Set(
+          rollups.flatMap(({ rollup }) => rollup.provenance.systemPromptSha256),
+        ),
+      ].sort(),
+    },
+    results,
+    searchCostUSD:
+      cost.search.searches > 0 ? cost.search.estimatedUSD : undefined,
+    spread: spreadOf(results),
+    stoppedTasks: rollups.reduce(
+      (sum, { rollup }) => sum + rollup.stoppedTasks,
+      0,
+    ),
+    tasks: rollups.reduce((sum, { rollup }) => sum + rollup.tasks, 0),
+    trials: trials.map(({ exitCode, rollup, trial }) => ({
+      exitCode,
+      reported: rollup !== undefined,
+      trial,
+    })),
+  };
 }

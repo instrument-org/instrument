@@ -4,11 +4,12 @@ import "../scripts/lib/define-globals-apply";
 
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
-import { list, sum } from "radashi";
+import { list } from "radashi";
 import { z } from "zod";
 
 import { EVALS } from "./cases";
@@ -24,7 +25,7 @@ import {
 import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
 import { describeCost } from "./lib/run-cost";
 import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
-import { generateReport } from "./report";
+import { combineTrials, generateReport } from "./report";
 import {
   c,
   formatCost,
@@ -222,7 +223,7 @@ if (
     "                   --max-run-seconds <n> caps one run's wall clock (0 disables)\n",
   );
   process.stderr.write(
-    "                   --repeat <n> runs every case n times per model\n",
+    "                   --repeat <n> runs every case n times per model, each trial in trial-<n>/,\n                   and summary.json gives each case's min/median/max cost and tokens\n",
   );
   process.stderr.write(
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
@@ -251,13 +252,16 @@ if (
 
 // Timestamped, and then stamped with the pid: comparing two conditions means
 // starting two runs at once, and several started inside the same millisecond
-// resolved to one directory and quietly overwrote each other's results.
+// resolved to one directory and quietly overwrote each other's results. A
+// trial of a `--repeat` run is handed its directory, inside its run's.
 const timestamp = `${new Date().toISOString().replaceAll(/[:.]/gu, "-")}-${process.pid}`;
-const outputDir = path.resolve(
-  import.meta.dirname,
-  "..",
-  "eval-results.local",
-  timestamp,
+const outputDir =
+  process.env.INSTRUMENT_EVAL_OUTPUT_DIR ??
+  path.resolve(import.meta.dirname, "..", "eval-results.local", timestamp);
+/** This process's trial of a `--repeat` run, which numbers its results. */
+const trialOfProcess = Number.parseInt(
+  process.env.INSTRUMENT_EVAL_TRIAL ?? "1",
+  10,
 );
 
 type Rollup = Awaited<ReturnType<typeof generateReport>>;
@@ -582,6 +586,7 @@ switch (subcommand) {
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
+      firstTrial: trialOfProcess,
       maxRunCostUSD,
       maxRunSeconds,
       maxRunTokens,
@@ -624,8 +629,9 @@ switch (subcommand) {
  * home of its own. The product reads the home from HOME, once per process, so
  * trials in one process share every file a case plants and every file a run
  * writes, and a case that checks a file's time reads another trial's. Each
- * child prints its own narration and results; this adds a line per trial and
- * the total.
+ * child prints its own narration and results and writes them to `trial-<n>/`
+ * in this run's directory; this writes the run's `summary.json` over every
+ * trial, with each case's spread across them, and prints the spread.
  */
 async function runTrialsApart(): Promise<number> {
   // Always set by `lib/sandbox-home`, imported first, to the home this run
@@ -656,6 +662,7 @@ async function runTrialsApart(): Promise<number> {
           env: {
             ...process.env,
             INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}`,
+            INSTRUMENT_EVAL_OUTPUT_DIR: path.join(outputDir, `trial-${trial}`),
             INSTRUMENT_EVAL_TRIAL: String(trial),
           },
           reject: false,
@@ -671,8 +678,21 @@ async function runTrialsApart(): Promise<number> {
       return { exitCode: child.exitCode ?? 1, rollup, trial };
     }),
   );
-  const passed = sum(trials, (each) => each.rollup?.assertions.passed ?? 0);
-  const total = sum(trials, (each) => each.rollup?.assertions.total ?? 0);
+  const combined = combineTrials(trials);
+  await fs.mkdir(outputDir, { recursive: true });
+  await fs.writeFile(
+    path.join(outputDir, "summary.json"),
+    JSON.stringify(combined, null, 2),
+    "utf8",
+  );
+  const { passed, total } = combined.assertions;
+  const range = (
+    figure: { max: number; median: number; min: number } | undefined,
+    format: (value: number) => string,
+  ) =>
+    figure
+      ? `${format(figure.min)} / ${format(figure.median)} / ${format(figure.max)}`
+      : "n/a";
   write(
     [
       "",
@@ -683,10 +703,20 @@ async function runTrialsApart(): Promise<number> {
           : `${c.dim}│${c.reset}  trial ${trial}: ${c.yellow}no report${c.reset}`,
       ),
       `${c.dim}│${c.reset}  all: ${passed}/${total} assertions passed`,
+      ...costLines(combined),
+      `${c.dim}├─ Spread, min / median / max ────────────────────────${c.reset}`,
+      ...combined.spread.map(
+        (one) =>
+          `${c.dim}│${c.reset}  ${c.cyan}${one.caseName}${c.reset} ${c.dim}(${one.trials} trials, ${one.assertions.passed}/${one.assertions.total} passed)${c.reset}\n${c.dim}│${c.reset}    cost ${range(one.costUSD, formatCost)}   tokens ${range(one.tokens, formatNumber)}`,
+      ),
       `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
+      `${c.dim}Results:${c.reset} ./${path.relative(process.cwd(), outputDir)}`,
       "",
     ].join("\n"),
   );
+  if (values.json) {
+    emitReport(`${JSON.stringify(combined)}\n`);
+  }
   return trials.some((each) => each.exitCode !== 0) ? 1 : 0;
 }
 

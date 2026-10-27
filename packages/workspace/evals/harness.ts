@@ -652,6 +652,7 @@ export async function runEvals(
   {
     concurrency = 8,
     dryRun = false,
+    firstTrial = 1,
     maxRunCostUSD = DEFAULT_MAX_RUN_COST_USD,
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
     maxRunTokens,
@@ -661,6 +662,8 @@ export async function runEvals(
   }: {
     concurrency?: number;
     dryRun?: boolean;
+    /** The number of this process's first trial, for one of several processes. */
+    firstTrial?: number;
     /** 0 disables. */
     maxRunCostUSD?: number;
     maxRunSeconds?: number;
@@ -794,7 +797,7 @@ export async function runEvals(
     .flatMap((uri) => {
       const modelLabel = modelLabelFor(uri);
       return evals.flatMap((evalCase) =>
-        _.list(1, repeat).map((trial) => ({
+        _.list(firstTrial, firstTrial + repeat - 1).map((trial) => ({
           evalCase,
           modelLabel,
           trial,

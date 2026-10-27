@@ -107,9 +107,10 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 
 ### N. A task's toast doesn't show on Windows while the app has never been in front
 
-- Status: open
+- Status: fixed
 - Where: [agent-completion-notifications.ts:228](/apps/studio/src/electron-main/lib/agent-completion-notifications.ts#L228)
 - What: in the rerun, with the default "Not focused" setting, a finished task's toast never reached Windows' notification store while the app sat behind Chrome without having been the foreground window that session (twice, once per launch). Bringing the app forward once and back behind Chrome made the next one arrive, and "Always" always did. The likely cause is `BrowserWindow.getFocusedWindow()` answering non-null for a window Windows never activated. Medium confidence; seen from a scheduled-task launch, which a launch at login or one held back by Windows' foreground lock would resemble.
+- Note: confirmed. A window that asks to come forward (`show()` or `focus()`) while another app holds the foreground is refused the foreground but still made its thread's active window, and from then on `BrowserWindow.getFocusedWindow()`, `win.isFocused()` and the page's `document.hasFocus()` all say focused, with no blur, until the window is brought forward and left. On the test host, a bare Electron window that called `focus()` behind Chrome read focused on all three for as long as it was watched while `GetForegroundWindow()` named Chrome, and the preview, started behind Chrome, read `document.hasFocus()` true with Chrome in front and showed no toast for a finished turn. No Electron or page signal tells the two apart, so on Windows, when Electron says focused, the app asks the OS which process owns the foreground window (a PowerShell start, about 350 ms) before holding a toast back.
 
 ### O. A link followed by inline code's closing backtick keeps the backtick
 

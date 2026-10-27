@@ -14,7 +14,8 @@ import {
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, type InferRouterOutputs } from "@orpc/server";
-import { BrowserWindow, Notification } from "electron";
+import { isAppInFront } from "@/electron-main/windows/app-in-front";
+import { Notification } from "electron";
 import { sleep } from "radashi";
 
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
@@ -103,7 +104,14 @@ export function startAgentCompletionNotifications({
     id: ChatId;
     sessionId: StoreId.Session;
   }) {
-    if (!canShowAgentCompletionNotification({ canRevealChat })) {
+    // Whether the app is in front is asked last, once the reads below are
+    // done: on Windows the answer costs a process start.
+    if (
+      !canShowAgentCompletionNotification({
+        canRevealChat,
+        inFront: false,
+      })
+    ) {
       return;
     }
 
@@ -132,9 +140,12 @@ export function startAgentCompletionNotifications({
       return;
     }
 
-    // Reading the chat is asynchronous, so the window may have regained
-    // focus while it was in flight.
-    if (!canShowAgentCompletionNotification({ canRevealChat })) {
+    if (
+      !canShowAgentCompletionNotification({
+        canRevealChat,
+        inFront: await isAppInFront(),
+      })
+    ) {
       return;
     }
 
@@ -220,12 +231,14 @@ function bodyOf(messages: Messages): string | undefined {
 
 function canShowAgentCompletionNotification({
   canRevealChat,
+  inFront,
 }: {
   canRevealChat: () => boolean;
+  inFront: boolean;
 }) {
   return shouldShowAgentCompletionNotification({
     canRevealChat: canRevealChat(),
-    isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
+    isAppWindowFocused: inFront,
     isSupported: Notification.isSupported(),
     mode: getWorkspacePreferences().get("agentCompletionNotifications"),
   });

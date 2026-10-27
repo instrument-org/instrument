@@ -1,8 +1,12 @@
 import { useGuest } from "@/client/hooks/use-browser-targets";
-import { goGuest, onPageThumb } from "@/client/lib/browser-pool";
+import { getGuest, goGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isPageEditAddress } from "@instrument-org/shared";
-import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  type BrowserTargetId,
+} from "@instrument-org/workspace/client";
+import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
 
 import { useWindow } from "./context";
@@ -83,7 +87,16 @@ export function useHostedPageNavigation(
       if (shown === undefined) {
         return;
       }
-      const next = hostedPageStep(guest.url(), { fileUrl: shown });
+      const url = guest.url();
+      // A file the host sent the page to is the tab staying where it is,
+      // however late it lands: walking a folder sends the next file before
+      // the last has arrived. The page's history starts there, as a page
+      // opened there would, so back from it is the tab's.
+      if (tookHostLoad(target, url)) {
+        guest.clearHistory();
+        return;
+      }
+      const next = hostedPageStep(url, { fileUrl: shown });
       if (!next) {
         return;
       }
@@ -108,6 +121,35 @@ export function useHostedPageNavigation(
 }
 
 /**
+ * The addresses a host sent each page to, oldest first, until the page's
+ * navigation to each lands. Few are ever waiting, but a page whose host never
+ * watches it (Quick Look's) keeps only the latest.
+ */
+const hostLoads = new Map<BrowserTargetId, string[]>();
+const HOST_LOADS_KEPT = 8;
+/** How long a page put away for a file of another kind is kept for the next page. */
+const PARKED_PAGE_MS = 30_000;
+
+function noteHostLoad(target: BrowserTargetId, url: string) {
+  const loads = [...(hostLoads.get(target) ?? []), url];
+  hostLoads.set(target, loads.slice(-HOST_LOADS_KEPT));
+}
+
+/**
+ * Whether the page's navigation to `url` is one its host sent it on, taking
+ * it and every one sent before it, which the page has gone past.
+ */
+function tookHostLoad(target: BrowserTargetId, url: string) {
+  const loads = hostLoads.get(target) ?? [];
+  const at = loads.findIndex((sent) => sameDocument(sent, url));
+  if (at === -1) {
+    return false;
+  }
+  hostLoads.set(target, loads.slice(at + 1));
+  return true;
+}
+
+/**
  * Two addresses of one document: the same but for a fragment, or one file
  * however its path was escaped.
  */
@@ -123,8 +165,8 @@ function sameDocument(a: string, b: string) {
  * A page drawn inside a surface rather than as a tab of its own (a file's
  * page in its viewer, the page under Quick Look): a page tab in the
  * surface's own group at `url`, the one tab that group keeps, drawn into the
- * element handed to `setSlot`, and closed when `url` goes or the surface
- * does. A tab handed to `release` outlives the surface, for a page that has
+ * element handed to `setSlot`, and closed a while after `url` goes
+ * (`PARKED_PAGE_MS`) or when the surface does. A tab handed to `release` outlives the surface, for a page that has
  * gone on to be a tab of the window's.
  *
  * While the window's browser has not arrived (a window opening on a file),
@@ -154,17 +196,54 @@ export function useHostedPage({
   useEffect(() => {
     tabIdsNow.current = tabIdsKey.split("\n").filter(Boolean);
   }, [tabIdsKey]);
-  // One page at a time: the one opened replaces any before it.
+  // One page at a time: the one opened replaces any before it. A page
+  // already up goes on to the next address in its own guest, rather than a
+  // guest being made for each file a folder is walked through.
+  const parked = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (url !== undefined && !browser) {
       return;
     }
-    const kept =
-      url === undefined || !browser
-        ? undefined
-        : browser.openOrFocus(url, { group });
+    window.clearTimeout(parked.current);
+    parked.current = undefined;
+    const current = allTabs.find(
+      (tab) =>
+        tab.group === group &&
+        tab.kind === "page" &&
+        tabIdsNow.current.includes(tab.id),
+    );
+    let kept: string | undefined;
+    if (url !== undefined && browser) {
+      if (current?.kind !== "page") {
+        kept = browser.openOrFocus(url, { group });
+      } else {
+        // A page kept from the last launch at this address is taken up as
+        // it is. The guest's own address goes first, since one kept while
+        // a file of another kind was shown is blank.
+        const shown =
+          getGuest(browserTargetOf(current.id))?.url() || current.url;
+        if (shown === undefined || !sameDocument(shown, url)) {
+          noteHostLoad(browserTargetOf(current.id), url);
+          browser.navigateTab(current.id, url);
+        }
+        kept = current.id;
+      }
+    } else if (url === undefined && current) {
+      // A page put away for a file of another kind keeps its guest a while,
+      // blank so nothing of it plays on out of sight, for the next page in a
+      // folder being walked to go on in.
+      const { id } = current;
+      kept = id;
+      getGuest(browserTargetOf(id))?.load("about:blank").catch(noop);
+      parked.current = window.setTimeout(() => {
+        parked.current = undefined;
+        hostLoads.delete(browserTargetOf(id));
+        close(id);
+      }, PARKED_PAGE_MS);
+    }
     for (const id of tabIdsNow.current) {
       if (id !== kept) {
+        hostLoads.delete(browserTargetOf(id));
         close(id);
       }
     }
@@ -173,7 +252,9 @@ export function useHostedPage({
   }, [url, group, hasBrowser]);
   useEffect(
     () => () => {
+      window.clearTimeout(parked.current);
       for (const id of tabIdsNow.current) {
+        hostLoads.delete(browserTargetOf(id));
         close(id);
       }
     },

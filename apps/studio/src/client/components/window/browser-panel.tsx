@@ -315,6 +315,13 @@ export function BrowserPanel({
   // The target whose page crashed again each time it was opened, so the
   // panel stopped opening it and says so; stamped like `failure`.
   const [crashed, setCrashed] = useState<BrowserTargetId | null>(null);
+  // A tab sent on to another address (a file's page beside a folder being
+  // walked) is opened there afresh rather than shown as still crashed.
+  const [crashedUrl, setCrashedUrl] = useState(restoreUrl);
+  if (crashedUrl !== restoreUrl) {
+    setCrashedUrl(restoreUrl);
+    setCrashed(null);
+  }
   // The guest comes up at the address the tab remembers, which a guest that
   // was discarded or crashed no longer has.
   const openHere = () => {

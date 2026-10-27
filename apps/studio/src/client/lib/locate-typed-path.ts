@@ -52,13 +52,10 @@ export function missedPathNotice(missed: MissedPath) {
   if (missed.kind === "missing") {
     return `There’s nothing at ${shown}.`;
   }
-  if (missed.code === undefined) {
-    return `${shown} isn’t a place on this computer.`;
-  }
   // Windows has no code of its own for a share that can't be reached, so
   // the read fails as UNKNOWN; on a share, that is what it nearly always is.
   const why =
-    FAILURES[missed.code] ??
+    (missed.code === undefined ? undefined : FAILURES[missed.code]) ??
     (missed.code === "UNKNOWN" && missed.path.startsWith("\\\\")
       ? "The network share it’s on isn’t answering."
       : undefined);

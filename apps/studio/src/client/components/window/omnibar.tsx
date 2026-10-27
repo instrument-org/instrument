@@ -879,16 +879,16 @@ function useRows({
     return {
       completion,
       ...(listing.isError
-        ? { empty: `Nothing at “${folderName}”` }
+        ? { empty: `There’s nothing at “${folderName}”.` }
         : listed?.kind === "refused"
           ? {
               empty:
                 listed.reason === "app"
-                  ? `Instrument keeps “${folderName}” private`
+                  ? `“${folderName}” has Instrument’s own files, so it stays closed.`
                   : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
             }
           : listed
-            ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }
+            ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”.` }
             : {}),
       rows,
     };

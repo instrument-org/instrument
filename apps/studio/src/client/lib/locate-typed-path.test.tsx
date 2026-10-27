@@ -29,6 +29,12 @@ describe("missedPathNotice", () => {
       { code: "UNKNOWN", kind: "failed", path: "/Volumes/odd" },
       "Instrument couldn’t open “/Volumes/odd”.",
     ],
+    // A path that never parsed, or a look that never answered, may still
+    // be there, so it is said as a failure to open.
+    [
+      { kind: "failed", path: "/Volumes/odd" },
+      "Instrument couldn’t open “/Volumes/odd”.",
+    ],
   ])("says %o as %s", (missed, notice) => {
     expect(missedPathNotice(missed)).toBe(notice);
   });

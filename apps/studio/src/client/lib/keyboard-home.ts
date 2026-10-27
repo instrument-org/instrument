@@ -175,8 +175,13 @@ export function installKeyboardHome() {
         event.button === 0 && event.target instanceof Element
           ? event.target.closest("button")
           : null;
-      // A button that drags, as a tab of the strip does, needs the press.
-      if (button && !button.closest('[draggable="true"]')) {
+      // A button that drags, as a tab of the strip does, needs the press, and
+      // so does a tab of a tab list, which is picked on it.
+      if (
+        button &&
+        !button.closest('[draggable="true"]') &&
+        button.getAttribute("role") !== "tab"
+      ) {
         event.preventDefault();
         pressedButton = true;
       }

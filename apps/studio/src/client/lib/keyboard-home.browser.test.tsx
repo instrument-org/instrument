@@ -26,6 +26,28 @@ const frames = (count: number) =>
     step(count);
   });
 
+it("lets a tab of a tab list have the press it is picked on, and no other button", () => {
+  document.body.innerHTML = `
+    <button type="button" role="tab">Grid</button>
+    <button type="button">Sort</button>
+  `;
+  const [tab, button] = document.querySelectorAll("button");
+  if (!tab || !button) {
+    throw new Error("fixture missing");
+  }
+  const press = (target: Element) => {
+    const event = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    });
+    target.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  expect([press(tab), press(button)]).toEqual([false, true]);
+});
+
 it("leaves the keyboard in a popover a button opens while it fades in", async () => {
   document.body.innerHTML = `
     <div data-app-tab-active>

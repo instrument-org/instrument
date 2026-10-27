@@ -158,6 +158,12 @@ export async function fileThumbnail(
       if (!isFolder && (await isRefusedByMacos(hostPath))) {
         return null;
       }
+      // A file the app draws itself that drew nothing this once (a load that
+      // ran out of time on a busy machine, a file caught half written) is
+      // asked again next time rather than marked as having no picture.
+      if (isRendered) {
+        return null;
+      }
       await fs.writeFile(none, "");
       return null;
     }
@@ -437,6 +443,8 @@ async function withTurn<T>(work: () => Promise<T>): Promise<T> {
     return await work();
   } finally {
     running -= 1;
-    waiting.shift()?.();
+    // Newest first: a folder scrolled through asks for every row it settles
+    // on, and the rows it stops on, asked for last, are the ones on screen.
+    waiting.pop()?.();
   }
 }

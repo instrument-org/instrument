@@ -199,6 +199,58 @@ describe("fileThumbnail", () => {
     expect(renderPicture).toHaveBeenCalledTimes(2);
   });
 
+  it("draws the newest ask first once every turn is taken", async () => {
+    const names = ["a", "b", "c", "d", "older", "newer"];
+    const files = await Promise.all(
+      names.map(async (name) => {
+        const each = path.join(root, `${name}.rtf`);
+        await fs.writeFile(each, name);
+        return each;
+      }),
+    );
+    const drawnOrder: string[] = [];
+    const held: (() => void)[] = [];
+    createThumbnailFromPath.mockImplementation(async (asked: string) => {
+      drawnOrder.push(path.basename(asked, ".rtf"));
+      if (held.length < 4) {
+        await new Promise<void>((resolve) => held.push(resolve));
+      }
+      return picture(asked);
+    });
+    const asks = files
+      .slice(0, 4)
+      .map((each) => fileThumbnail(each, 64, { dir }));
+    await vi.waitFor(() => {
+      expect(held).toHaveLength(4);
+    });
+    // One after the other, each in line before the next is asked for: an ask
+    // looks in the store before it waits for a turn.
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+    for (const each of files.slice(4)) {
+      asks.push(fileThumbnail(each, 64, { dir }));
+      await settle();
+    }
+    for (const release of held) release();
+    await Promise.all(asks);
+    expect(drawnOrder.slice(4)).toEqual(["newer", "older"]);
+  });
+
+  it("tries a page again that drew nothing once, rather than remembering it has no picture", async () => {
+    const page = path.join(root, "page.html");
+    await fs.writeFile(page, "<p>hi</p>");
+    renderPicture
+      .mockRejectedValueOnce(new Error("load ran out of time"))
+      .mockResolvedValueOnce({
+        complete: true,
+        image: picture("page", { height: 1024, width: 798 }),
+      });
+    createThumbnailFromPath.mockRejectedValue(new Error("no thumbnail"));
+    expect(await fileThumbnail(page, 512, { dir })).toBeNull();
+    expect((await fileThumbnail(page, 512, { dir }))?.bytes.toString()).toBe(
+      "page 399x512",
+    );
+  });
+
   it("leaves a file the app cannot draw to the system", async () => {
     const code = path.join(root, "main.ts");
     await fs.writeFile(code, "export {};");

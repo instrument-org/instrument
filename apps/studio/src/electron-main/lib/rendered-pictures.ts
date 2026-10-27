@@ -604,7 +604,9 @@ async function withWindow<T>(
     throw error;
   } finally {
     taken.busy = false;
-    waiting.shift()?.();
+    // Newest first, as the thumbnails' own turns go: what was asked for last
+    // is what is on screen.
+    waiting.pop()?.();
     if (drawers.every((entry) => !entry.busy)) {
       idleClose = setTimeout(closeAll, IDLE_CLOSE_MS);
     }

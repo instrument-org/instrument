@@ -292,6 +292,28 @@ describe("BashTool", () => {
       expect(value).toContain("[... ");
     });
 
+    it("shows the start and end of one line over the byte cap", () => {
+      const result = BashTool.toModelOutput({
+        input: { command: "curl", yieldMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "curl",
+          commands: ["curl"],
+          durationMs: 30,
+          output: `{"a":"${"x".repeat(30 * 1024)}"}`,
+        },
+        toolCallId: "1",
+      });
+      const value = (result as { value: string }).value;
+      expect(
+        value.split("\n").find((line) => line.startsWith("[Output truncated")),
+      ).toMatchInlineSnapshot(
+        `"[Output truncated: showing first 10.0 KB and last 10.0 KB of 30.0 KB (1 lines total, 0 omitted).]"`,
+      );
+      expect(value).toContain(`{"a":"xxxx`);
+      expect(value).toContain(`xxxx"}`);
+    });
+
     it("includes spillFilePath in truncation notice when provided", () => {
       const line = "x".repeat(199) + "\n";
       const longOutput = line.repeat(300);

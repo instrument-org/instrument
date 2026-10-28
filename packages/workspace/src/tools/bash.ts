@@ -62,11 +62,7 @@ import {
 import { withRaisedAsks } from "../lib/shell-commands/raised-asks";
 import { systemNote } from "../lib/system-note";
 import { sessionToolFs } from "../lib/tool-fs";
-import {
-  TRUNCATE_HEAD_BYTES,
-  TRUNCATE_TAIL_BYTES,
-  truncateMiddle,
-} from "../lib/truncate-buffer";
+import { truncateMiddle } from "../lib/truncate-buffer";
 import { RelativePathSchema } from "../schemas/paths";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
@@ -561,15 +557,22 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
   value: string;
 } {
   {
-    const { content, omittedLines, totalBytes, totalLines, truncated } =
-      truncateMiddle(output.output);
+    const {
+      content,
+      keptHeadBytes,
+      keptTailBytes,
+      omittedLines,
+      totalBytes,
+      totalLines,
+      truncated,
+    } = truncateMiddle(output.output);
 
     const displayOutput = truncated ? content : output.output;
 
     let truncationNotice = "";
     if (truncated) {
-      const headKB = formatBytes(TRUNCATE_HEAD_BYTES);
-      const tailKB = formatBytes(TRUNCATE_TAIL_BYTES);
+      const headKB = formatBytes(keptHeadBytes);
+      const tailKB = formatBytes(keptTailBytes);
       const stats =
         `showing first ${headKB} and last ${tailKB} of ${formatBytes(totalBytes)}` +
         ` (${totalLines} lines total, ${omittedLines} omitted)`;

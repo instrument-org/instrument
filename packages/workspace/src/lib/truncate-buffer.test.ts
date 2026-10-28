@@ -85,6 +85,114 @@ describe("truncateMiddle", () => {
   });
 });
 
+describe("long lines", () => {
+  const cut = (text: string) => {
+    const { content, keptHeadBytes, keptTailBytes, omittedLines, truncated } =
+      truncateMiddle(text, { headBytes: 20, tailBytes: 20 });
+    return { content, keptHeadBytes, keptTailBytes, omittedLines, truncated };
+  };
+
+  it("fills the windows from one line over both windows", () => {
+    expect(cut("a".repeat(30) + "b".repeat(30))).toMatchInlineSnapshot(`
+      {
+        "content": "aaaaaaaaaaaaaaaaaaaa[... 20 bytes omitted ...]bbbbbbbbbbbbbbbbbbbb",
+        "keptHeadBytes": 20,
+        "keptTailBytes": 20,
+        "omittedLines": 0,
+        "truncated": true,
+      }
+    `);
+  });
+
+  it("fills the windows from a long first line", () => {
+    expect(cut(`${"a".repeat(60)}\nshort\nend`)).toMatchInlineSnapshot(`
+      {
+        "content": "aaaaaaaaaaaaaaaaaaaa[... 30 bytes omitted ...]aaaaaaaaaa
+      short
+      end",
+        "keptHeadBytes": 20,
+        "keptTailBytes": 20,
+        "omittedLines": 0,
+        "truncated": true,
+      }
+    `);
+  });
+
+  it("fills the windows from a long last line", () => {
+    expect(cut(`start\nshort\n${"z".repeat(60)}`)).toMatchInlineSnapshot(`
+      {
+        "content": "start
+      short
+      [... 40 bytes omitted ...]zzzzzzzzzzzzzzzzzzzz",
+        "keptHeadBytes": 11,
+        "keptTailBytes": 20,
+        "omittedLines": 0,
+        "truncated": true,
+      }
+    `);
+  });
+
+  it("fills the windows from short lines around a long one", () => {
+    expect(cut(`one\ntwo\n${"m".repeat(60)}\nthree\nfour`))
+      .toMatchInlineSnapshot(`
+      {
+        "content": "one
+      two
+      mmmmmmmmmmmm[... 48 bytes omitted ...]
+      three
+      four",
+        "keptHeadBytes": 20,
+        "keptTailBytes": 10,
+        "omittedLines": 0,
+        "truncated": true,
+      }
+    `);
+  });
+
+  it("fills the windows from a carriage-return progress bar", () => {
+    expect(cut(`${"progress 10%\r".repeat(8)}done\n`)).toMatchInlineSnapshot(`
+      {
+        "content": "progress 10%
+      progres[... 68 bytes omitted ...]0%
+      progress 10%
+      done",
+        "keptHeadBytes": 20,
+        "keptTailBytes": 20,
+        "omittedLines": 0,
+        "truncated": true,
+      }
+    `);
+  });
+
+  it("keeps whole lines when the window is more than half full", () => {
+    const text = `${"a".repeat(12)}\n${"b".repeat(40)}\n${"c".repeat(12)}`;
+    expect(cut(text).content).toBe(
+      `${"a".repeat(12)}\n[... 1 lines omitted ...]\n${"c".repeat(12)}`,
+    );
+  });
+
+  it("cuts a long line at character boundaries", () => {
+    const { content } = truncateMiddle("🙂".repeat(1000), {
+      headBytes: 1023,
+      tailBytes: 1023,
+    });
+    expect(sanitizeSurrogates(content)).toBe(content);
+    expect(content).not.toContain("�");
+    expect(content).toBe(
+      `${"🙂".repeat(255)}[... 1960 bytes omitted ...]${"🙂".repeat(255)}`,
+    );
+  });
+
+  it("shows 20 KB of one 1 MB line by default", () => {
+    const result = truncateMiddle("x".repeat(1024 * 1024));
+    expect(result.keptHeadBytes).toBe(TRUNCATE_HEAD_BYTES);
+    expect(result.keptTailBytes).toBe(TRUNCATE_TAIL_BYTES);
+    expect(result.content).toContain(
+      `[... ${1024 * 1024 - 20 * 1024} bytes omitted ...]`,
+    );
+  });
+});
+
 describe("character boundaries", () => {
   // Every emoji here is two UTF-16 code units and four UTF-8 bytes. Cut one in
   // half and what is left is either a code unit with no UTF-8 encoding or a

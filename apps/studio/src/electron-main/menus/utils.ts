@@ -10,18 +10,47 @@ import { shortcutMenuItem } from "./shortcuts";
 
 const IS_MAC = process.platform === "darwin";
 
+let updateReady = false;
+
+/**
+ * Records whether an update is ready to install, which the app menu's update
+ * item names. Answers whether that changed, so the menu is rebuilt only then.
+ */
+export function setMenuUpdateReady(ready: boolean): boolean {
+  if (ready === updateReady) {
+    return false;
+  }
+  updateReady = ready;
+  return true;
+}
+
+/**
+ * The app menu's update item: it checks for updates, or, while one is ready,
+ * installs it as the Update pill does.
+ */
+export function updateMenuItem(ready: boolean): MenuItemConstructorOptions {
+  return ready
+    ? {
+        click: () => {
+          publisher.publish("updates.trigger-install", null);
+        },
+        label: "Restart to Update",
+      }
+    : {
+        click: () => {
+          publisher.publish("updates.trigger-check", null);
+        },
+        label: "Check for Updates…",
+      };
+}
+
 export function createAppMenu(): MenuItemConstructorOptions {
   return {
     label: app.getName(),
     role: "appMenu" as const,
     submenu: [
       { role: "about" as const },
-      {
-        click: () => {
-          publisher.publish("updates.trigger-check", null);
-        },
-        label: "Check for Updates…",
-      },
+      updateMenuItem(updateReady),
       { type: "separator" },
       shortcutMenuItem("settings"),
       { type: "separator" },

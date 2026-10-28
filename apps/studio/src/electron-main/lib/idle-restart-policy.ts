@@ -5,14 +5,20 @@ import ms from "ms";
  * starting value, to be tuned once restarts are seen in use.
  */
 export const IDLE_RESTART = {
-  /** How long every blocker must stay clear before a restart. */
-  quietMs: ms("10 minutes"),
-  /** How long the person has been away from the computer for a restart to go unseen. */
-  personAwayMs: ms("10 minutes"),
-  /** How long an update has waited before a restart may happen in view. */
-  seenAfterWaitingMs: ms("24 hours"),
-  /** The least time between an automatic restart and one in view. */
-  seenSpacingMs: ms("24 hours"),
+  /** How long the screen must stay locked for a restart. */
+  lockedMs: ms("1 minute"),
+  /** How long no window may be showing (closed, hidden or minimized) for a restart. */
+  noWindowMs: ms("5 minutes"),
+  /** How long the computer must go without input for a restart. */
+  personAwayMs: ms("15 minutes"),
+  /** How long an update may wait for one of those before the backstop. */
+  backstopAfterMs: ms("3 days"),
+  /** How long every blocker must stay clear before the backstop restarts in view. */
+  backstopQuietMs: ms("10 minutes"),
+  /** The least time between two automatic restarts of any kind. */
+  spacingMs: ms("1 hour"),
+  /** How long a check of what is running may take before it counts as busy. */
+  checkTimeoutMs: ms("10 seconds"),
   /** How often the facts are read again while an update waits. */
   recheckMs: ms("30 seconds"),
   /** Attempts at one target from one running version before giving up on it. */
@@ -33,11 +39,23 @@ export type IdleRestartFacts = {
     | { stagedSince: number; type: "ready"; version: string };
   /** Attempts already made at the staged version from the running one. */
   attempts: number;
-  /** Agents, jobs and dictation; `unknown` when they could not be counted. */
+  /**
+   * Agents, jobs, dictation, and the microphone or camera where the system
+   * says; `unknown` when a check failed or took too long.
+   */
   work: "busy" | "idle" | "unknown";
   windows: { focused: boolean; fullScreen: boolean; shown: boolean };
-  person: { awayMs: number; locked: boolean };
+  /** No input for this long; locked since then, or not locked. */
+  person: { awayMs: number; lockedSince: number | undefined };
   lastAutomaticRestartAt: number | undefined;
+};
+
+/** What the readings so far add up to: since when each condition has held. */
+export type IdleRestartState = {
+  /** Since when every blocker has been clear. */
+  quietSince: number | undefined;
+  /** Since when no window has been showing. */
+  noWindowSince: number | undefined;
 };
 
 type IdleRestartBlocker =
@@ -45,23 +63,24 @@ type IdleRestartBlocker =
   | "focused"
   | "full-screen"
   | "no-update"
+  | "restarted-recently"
   | "update-busy"
   | "work-busy"
   | "work-unknown"
-  // A window is in view and the person is at the computer, and the update
-  // has not waited long enough, or a restart happened too recently.
-  | "in-view-update-recent"
-  | "in-view-restarted-recently";
+  // Nothing in the way, and no sign yet that the person has stepped away.
+  | "in-use";
+
+/** What made a restart go: the person stepped away, or the backstop. */
+type IdleRestartReason = "away" | "backstop" | "locked" | "no-window";
 
 export type IdleRestartVerdict =
   | { blocker: IdleRestartBlocker; type: "wait" }
-  | { readyAt: number; type: "settling" }
-  | { tier: "seen" | "unseen"; type: "restart" };
+  | { reason: IdleRestartReason; type: "restart" };
 
 function blockerOf(
   facts: IdleRestartFacts,
   timings: IdleRestartTimings,
-): IdleRestartBlocker | undefined {
+): Exclude<IdleRestartBlocker, "in-use"> | undefined {
   if (facts.update.type === "none") {
     return "no-update";
   }
@@ -70,6 +89,12 @@ function blockerOf(
   }
   if (facts.attempts >= timings.maxAttempts) {
     return "attempts-used";
+  }
+  if (
+    facts.lastAutomaticRestartAt !== undefined &&
+    facts.now - facts.lastAutomaticRestartAt < timings.spacingMs
+  ) {
+    return "restarted-recently";
   }
   if (facts.work !== "idle") {
     return facts.work === "busy" ? "work-busy" : "work-unknown";
@@ -83,73 +108,65 @@ function blockerOf(
   return undefined;
 }
 
-function tierOf(
+/** The first sign the person stepped away, or the backstop, or nothing. */
+function reasonOf(
   facts: IdleRestartFacts,
+  state: IdleRestartState,
   timings: IdleRestartTimings,
-): IdleRestartVerdict {
-  const unseen =
-    !facts.windows.shown ||
-    facts.person.locked ||
-    facts.person.awayMs >= timings.personAwayMs;
-  if (unseen) {
-    return { tier: "unseen", type: "restart" };
+): IdleRestartReason | undefined {
+  const heldFor = (since: number | undefined) =>
+    since === undefined ? -1 : facts.now - since;
+  if (heldFor(facts.person.lockedSince) >= timings.lockedMs) {
+    return "locked";
+  }
+  if (heldFor(state.noWindowSince) >= timings.noWindowMs) {
+    return "no-window";
+  }
+  if (facts.person.awayMs >= timings.personAwayMs) {
+    return "away";
   }
   if (
-    facts.update.type !== "ready" ||
-    facts.now - facts.update.stagedSince < timings.seenAfterWaitingMs
+    facts.update.type === "ready" &&
+    facts.now - facts.update.stagedSince >= timings.backstopAfterMs &&
+    heldFor(state.quietSince) >= timings.backstopQuietMs
   ) {
-    return { blocker: "in-view-update-recent", type: "wait" };
+    return "backstop";
   }
-  if (
-    facts.lastAutomaticRestartAt !== undefined &&
-    facts.now - facts.lastAutomaticRestartAt < timings.seenSpacingMs
-  ) {
-    return { blocker: "in-view-restarted-recently", type: "wait" };
-  }
-  return { tier: "seen", type: "restart" };
+  return undefined;
 }
 
 /**
- * One reading of the facts: when every blocker has been clear since, and
- * what to do now. A blocker resets the countdown, so a window taking focus
- * starts the wait over.
+ * One reading of the facts: the state carried to the next reading, and what
+ * to do now. A blocker resets the backstop's countdown, so a window taking
+ * focus starts it over; a window coming into view resets the no-window one.
+ * The last look before the quit is one more reading.
  */
 export function stepIdleRestart({
   facts,
-  quietSince,
+  state,
   timings = IDLE_RESTART,
 }: {
   facts: IdleRestartFacts;
-  quietSince: number | undefined;
+  state: IdleRestartState;
   timings?: IdleRestartTimings;
-}): { quietSince: number | undefined; verdict: IdleRestartVerdict } {
+}): { state: IdleRestartState; verdict: IdleRestartVerdict } {
   const blocker = blockerOf(facts, timings);
+  const next: IdleRestartState = {
+    noWindowSince: facts.windows.shown
+      ? undefined
+      : (state.noWindowSince ?? facts.now),
+    quietSince: blocker ? undefined : (state.quietSince ?? facts.now),
+  };
   if (blocker) {
-    return { quietSince: undefined, verdict: { blocker, type: "wait" } };
+    return { state: next, verdict: { blocker, type: "wait" } };
   }
-  const since = quietSince ?? facts.now;
-  if (facts.now - since < timings.quietMs) {
-    return {
-      quietSince: since,
-      verdict: { readyAt: since + timings.quietMs, type: "settling" },
-    };
-  }
-  return { quietSince: since, verdict: tierOf(facts, timings) };
-}
-
-/**
- * The last look before committing to the quit, with the countdown already
- * run: anything that started in the meantime calls the restart off.
- */
-export function confirmIdleRestart({
-  facts,
-  timings = IDLE_RESTART,
-}: {
-  facts: IdleRestartFacts;
-  timings?: IdleRestartTimings;
-}): IdleRestartVerdict {
-  const blocker = blockerOf(facts, timings);
-  return blocker ? { blocker, type: "wait" } : tierOf(facts, timings);
+  const reason = reasonOf(facts, next, timings);
+  return {
+    state: next,
+    verdict: reason
+      ? { reason, type: "restart" }
+      : { blocker: "in-use", type: "wait" },
+  };
 }
 
 export type RestartAttempts = { count: number; from: string; to: string };
@@ -215,10 +232,10 @@ export function relaunchViewOf({
 }
 
 /**
- * The timings a test run uses: `IDLE_RESTART_FAST=1` turns each minute into
- * a second, and each day of the in-view waits into 30 seconds, to exercise
- * the restart without waiting. Read in a development run or a preview build,
- * never in a shipping one.
+ * The timings a test run uses: `IDLE_RESTART_FAST=1` turns each minute into a
+ * second, the backstop's three days into 30 seconds and the hour between
+ * restarts into one minute, to exercise the restart without waiting. Read in
+ * a development run or a preview build, never in a shipping one.
  */
 export function idleRestartTimings({
   fast,
@@ -231,10 +248,12 @@ export function idleRestartTimings({
   const scaled = (value: number) => Math.round(value / 60);
   return {
     ...IDLE_RESTART,
+    backstopAfterMs: ms("30 seconds"),
+    backstopQuietMs: scaled(IDLE_RESTART.backstopQuietMs),
+    lockedMs: scaled(IDLE_RESTART.lockedMs),
+    noWindowMs: scaled(IDLE_RESTART.noWindowMs),
     personAwayMs: scaled(IDLE_RESTART.personAwayMs),
-    quietMs: scaled(IDLE_RESTART.quietMs),
     recheckMs: ms("1 second"),
-    seenAfterWaitingMs: ms("30 seconds"),
-    seenSpacingMs: ms("30 seconds"),
+    spacingMs: scaled(IDLE_RESTART.spacingMs),
   };
 }

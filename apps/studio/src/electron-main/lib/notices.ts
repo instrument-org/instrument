@@ -183,21 +183,32 @@ export function listNotices(now = Date.now()): BellNotice[] {
  * itself. Its id carries when, so the same version installed again after a
  * downgrade is new rather than already dismissed.
  */
-function updatedNotice({
+export function updatedNotice({
   asked,
   at,
   from,
+  restarted,
   to,
 }: NonNullable<NoticesStore["updated"]>): Omit<BellNotice, "seen"> {
   return {
     action: { href: "/release-notes", label: "What's new" },
-    body: `See what's changed since version ${from}.`,
-    id: `updated-${to}-${at}`,
+    // A restart the person may have watched happen says why, so it does not
+    // read as a crash.
+    ...(restarted
+      ? {
+          body: `You're on version ${to} now.`,
+          title: `${APP_NAME} restarted to finish updating`,
+        }
+      : {
+          body: `See what's changed since version ${from}.`,
+          title: `${APP_NAME} updated to ${to}`,
+        }),
+    id: updatedNoticeId({ at, to }),
     kind: "update",
     publishedAt: new Date(at).toISOString(),
-    // An install the person asked for is one they are waiting to see land.
-    severity: asked ? "important" : "info",
-    title: `${APP_NAME} updated to ${to}`,
+    // An install the person asked for is one they are waiting to see land,
+    // and a restart in view is one they saw.
+    severity: asked || restarted ? "important" : "info",
   };
 }
 
@@ -462,19 +473,54 @@ export function noteChatsLeftBehind(count: number): void {
 
 /**
  * Records that this computer launched into a newer build, replacing whatever
- * update it recorded before, read or not, so the bell holds one at most.
+ * update it recorded before, so the bell holds one at most. One the person
+ * has not seen or dismissed yet hands on the version it counted from, so
+ * several updates in a row read as one change since the last notes they saw.
  */
 export function noteUpdate({
   asked,
   from,
+  restarted,
   to,
 }: {
   asked?: boolean;
   from: string;
+  restarted?: boolean;
   to: string;
 }) {
-  getNoticesStore().set("updated", { asked, at: Date.now(), from, to });
+  const { marks, updated } = getNoticesStore().store;
+  getNoticesStore().set("updated", {
+    asked,
+    at: Date.now(),
+    from: updatedSince({ from, marks, updated }),
+    restarted,
+    to,
+  });
   getNoticesStore().delete("installFailed");
+}
+
+/**
+ * The version a new updated notice counts from: the one it replaces counted
+ * from, while that one is still unread, else the version just left.
+ */
+export function updatedSince({
+  from,
+  marks,
+  updated,
+}: {
+  from: string;
+  marks: NoticesStore["marks"];
+  updated: NoticesStore["updated"];
+}): string {
+  if (!updated) {
+    return from;
+  }
+  const read = marks[updatedNoticeId(updated)];
+  return read?.seenAt || read?.dismissedAt ? from : updated.from;
+}
+
+function updatedNoticeId({ at, to }: { at: number; to: string }) {
+  return `updated-${to}-${at}`;
 }
 
 /**

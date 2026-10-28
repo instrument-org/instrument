@@ -81,6 +81,8 @@ interface PublisherEvents {
   "session.apiBearerToken.updated": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;
+  // The app menu's Restart to Update, which installs as the pill does.
+  "updates.trigger-install": null;
   // Asked of the app window by a swipe, a thumb button, a menu
   // chord, or a link from outside the app, all of which reach the main process
   // rather than the page: history either way, the close of the tab on screen,

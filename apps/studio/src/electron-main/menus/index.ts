@@ -10,6 +10,7 @@ import {
 
 import { createAppWindowMenu } from "./app-window";
 import { createOtherWindowMenu } from "./other-window";
+import { setMenuUpdateReady } from "./utils";
 
 export function createApplicationMenu(): void {
   updateApplicationMenu();
@@ -31,6 +32,12 @@ export function createApplicationMenu(): void {
 
   void publisher.subscribe("setup.updated", () => {
     updateApplicationMenu();
+  });
+
+  void publisher.subscribe("updates.status", ({ status }) => {
+    if (setMenuUpdateReady(status.type === "downloaded")) {
+      updateApplicationMenu();
+    }
   });
 }
 

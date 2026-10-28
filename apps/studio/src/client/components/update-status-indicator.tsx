@@ -13,9 +13,11 @@ import { cn } from "@/client/lib/utils";
 import {
   showsAsRestarting,
   useInstallAsksForPassword,
+  useInstallsUnattended,
   useInstallUpdate,
 } from "@/client/components/use-install-update";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -77,10 +79,12 @@ const BADGE_META = {
     label: "Update",
     manualOnly: false,
   },
+  // A download the app started on its own goes unseen; one the person asked
+  // for (Settings, the menu) shows its progress.
   downloading: {
     className: MUTED_TRIGGER_CLASS_NAME,
     label: "Updating",
-    manualOnly: false,
+    manualOnly: true,
   },
   error: {
     className:
@@ -468,6 +472,7 @@ function UpdateReadyCardBody({
   const appTabs = useAppTabs();
   const now = useNow();
   const asksForPassword = useInstallAsksForPassword();
+  const installsUnattended = useInstallsUnattended();
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
@@ -510,6 +515,11 @@ function UpdateReadyCardBody({
       {asksForPassword && (
         <p className="text-xs text-muted-foreground">
           Your computer will ask for your password to install the update.
+        </p>
+      )}
+      {installsUnattended && !asksForPassword && (
+        <p className="text-xs text-muted-foreground">
+          {APP_NAME} installs this by itself the next time you step away.
         </p>
       )}
       <div className="flex items-center justify-between">

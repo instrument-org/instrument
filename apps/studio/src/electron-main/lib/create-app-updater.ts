@@ -27,6 +27,9 @@ export interface AppUpdaterHandle {
   // Whether installing asks for the person's password, so the app can say so
   // before they start it.
   installAsksForPassword: boolean;
+  // Whether a staged update installs by itself the next time the person
+  // steps away, so the app can say the button only does it sooner.
+  installsUnattended: boolean;
   pollForUpdates: () => void;
   quitAndInstall: (mode?: AutomaticInstall) => Promise<InstallOutcome>;
   // Whether a staged update could be installed right now, for the restart
@@ -116,6 +119,7 @@ export function createAppUpdater({
   withdrawQuit,
   installAsksForPassword,
   installNotice,
+  installsUnattended = false,
   log,
   publish,
   recordCheck,
@@ -133,6 +137,7 @@ export function createAppUpdater({
   // Platform copy shown while the install runs, where it takes long enough to
   // need explaining.
   installNotice: string | undefined;
+  installsUnattended?: boolean;
   log: UpdaterLogger;
   publish: (status: AppUpdaterStatus) => void;
   recordCheck: () => void;
@@ -615,6 +620,7 @@ export function createAppUpdater({
     checkForUpdates,
     getStatus: () => status,
     installAsksForPassword,
+    installsUnattended,
 
     pollForUpdates: () => {
       polling = true;

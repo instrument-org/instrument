@@ -71,34 +71,47 @@ Nothing is installable, and the UI says so. The old artifact was deleted when th
 
 ## Restarting while the app is not in use
 
-On macOS and Windows a staged update also installs without anyone pressing anything: the app restarts itself when no one is using it. [`idle-restart-policy.ts`](../../apps/studio/src/electron-main/lib/idle-restart-policy.ts) decides when, as a pure function of the facts, with every timing in `IDLE_RESTART`; [`idle-restart.ts`](../../apps/studio/src/electron-main/lib/idle-restart.ts) reads those facts every 30 seconds and acts on the answer. There is no setting for it.
+On macOS and Windows a staged update also installs without anyone pressing anything: the app restarts itself once the person has stepped away. The rules are the same on every channel. [`idle-restart-policy.ts`](../../apps/studio/src/electron-main/lib/idle-restart-policy.ts) decides when, as a pure function of the facts and of since when each has held, with every timing in `IDLE_RESTART`; [`idle-restart.ts`](../../apps/studio/src/electron-main/lib/idle-restart.ts) reads those facts every 30 seconds and acts on the answer. There is no setting for it.
 
-Nothing restarts while any of these holds, and each one starts the countdown over:
+Nothing restarts while any of these holds:
 
 - no update is staged and installable, or the updater is busy with it: a check in flight, a newer build downloading, an install already requested, or Squirrel.Mac still unpacking (`isStagedUpdateInstallable`);
 - two automatic attempts at this update from this running version have already been made;
-- an agent is mid-turn, a job is running, or someone is dictating, which is everything the quit prompt would ask about. A count that fails reads as busy, where a quit the person asked for goes ahead;
+- the app restarted on its own less than an hour ago, whatever the reason, which keeps a fault that restarts without the version changing from doing it over and over;
+- an agent is mid-turn, a job is running, or someone is dictating, which is everything the quit prompt would ask about; or, on Windows, an app is using the microphone or the camera, which its consent store says (`capture-in-use.ts`). macOS gives no cheap way to ask, so there that check is skipped. A check that fails or takes longer than 10 seconds reads as busy, where a quit the person asked for goes ahead;
 - a window has focus, or is full screen.
 
-Once all of that has stayed clear for 10 minutes, the restart goes in one of two ways. It is unseen when every window is hidden or minimized, the screen is locked, or the computer has had no input for 10 minutes, and then it goes at once. It is seen when a window is in view and the person is at the computer doing something else, and a restart there reads as a crash, so it waits until the update has been staged for a day (counted from the first build staged in this process, so a stream of releases does not keep resetting it) and goes at most once a day.
+With none of that in the way, the first of these restarts the app, unseen:
 
-The restart is the same request as a click on the update button, in its automatic mode (`quitAndInstall({ type: "automatic", confirm })`): the same single-flight latch, pre-install check and wait for a superseding download. The mode changes three things. The pre-install check publishes no "Checking" status and a stale build no "up to date", so nothing shows until the install is decided. The quit prompt is replaced by `confirm`, which reads the facts again and calls the restart off if anything started in the meantime; if it is clear, it approves the quit without a prompt (`approveQuitQuietly`, the quit machine's `approvalGranted`) and records the attempt. And the installer runs silently and relaunches on Windows (`quitAndInstall(true, true)`). The restart records no `installRequested`, so the next launch treats a landed update as one an ordinary quit applied: a dot on the bell, no toast. From `confirm` on, "Restarting" and the fade show as they do for a click, which is what a seen restart needs to read as deliberate.
+1. the screen has been locked for a minute (`powerMonitor`'s `lock-screen` and `unlock-screen`, believed only while `getSystemIdleState` also says locked, which is also how a lock this process started under is noticed);
+2. no window has been showing (closed, hidden or minimized) for 5 minutes;
+3. the computer has had no input for 15 minutes.
+
+The backstop is the one restart the person may see. When an update has waited 3 days (counted from the first build staged in this process, so a stream of releases does not keep resetting it) with none of those happening, the app restarts once nothing has been in the way for 10 minutes straight, a window included: one in view behind another app, with nothing running.
+
+The restart is the same request as a click on the update button, in its automatic mode (`quitAndInstall({ type: "automatic", confirm })`): the same single-flight latch, pre-install check and wait for a superseding download, so a newer build found or landing at the last moment is waited for and installed instead, in one restart. The mode changes three things. The pre-install check publishes no "Checking" status and a stale build no "up to date", so nothing shows until the install is decided. The quit prompt is replaced by `confirm`, which reads every fact again, the lock included, and calls the restart off if anything changed; if nothing did, it approves the quit without a prompt (`approveQuitQuietly`, the quit machine's `approvalGranted`) and records the attempt. And the installer runs silently and relaunches on Windows (`quitAndInstall(true, true)`). From `confirm` on, "Restarting" and the fade show as they do for a click.
 
 Linux is left out: the deb, rpm and pacman installs ask for a password, and the AppImage install moves the image the relaunch would start from.
 
+### What the person is told
+
+The Update pill and its card stay the way to install sooner. Where the update installs by itself, the card says so in a muted line over its buttons (`updates.installsUnattended`); a Linux package's card keeps its password line instead. While an update is ready, the app menu's Check for Updates… reads Restart to Update and installs it as the pill does. A download the app started on its own shows no pill; one the person started (Settings, the menus) shows its progress, as Settings always does.
+
+The restart records no `installRequested`, so the next launch treats a landed update as one an ordinary quit applied: a dot on the bell, no toast. The bell keeps one updated notice, and a newer update that replaces one still unread counts from the version that one counted from, so several updates in a row read as one change since the last notes the person saw (`updatedSince` in `notices.ts`). Only the backstop, which the person may have watched, toasts too: "Instrument restarted to finish updating". After the second failed attempt at one update, the bell says it didn't install, as it does for a click.
+
 ### Attempts
 
-`automaticRestart.attempts` in the machine state counts attempts at one version from one running version. The next launch forgets it when the version changed, since that attempt landed; otherwise it stays, and after two the app stops trying that update until a newer one is staged or the person installs it.
+`automaticRestart.attempts` in the machine state counts attempts at one version from one running version, and `automaticRestart.lastAt` holds when the last restart went. The next launch forgets the attempts when the version changed, since that attempt landed; otherwise they stay, and after two the app stops trying that update until a newer one is staged or the person installs it.
 
 ### Coming back as it was left
 
-Right before the quit, the attempt also records how the app window was left: in front, minimized, or hidden (no window, or every window hidden). A launch within 5 minutes of that marker is the restart, and the window comes back the same way without taking focus (`comeBackAsLeft` in `windows/on-screen.ts`): shown inactive, minimized, or held unshown until the Dock icon is clicked. Outside macOS a hidden window comes back minimized, so it can still be found. A failed or withdrawn install forgets the marker.
+Right before the quit, the attempt also records how the app window was left (in front, minimized, or hidden, meaning no window or every window hidden) and whether it was the backstop. A launch within 5 minutes of that marker is the restart, and the window comes back the same way without taking focus (`comeBackAsLeft` in `windows/on-screen.ts`): shown inactive, minimized, or held unshown until the Dock icon is clicked. On macOS a window brought back in view comes up one level under normal windows until it is first focused, since `showInactive` alone orders it over the app the person is using. Outside macOS a hidden window comes back minimized, so it can still be found. A failed or withdrawn install forgets the marker.
 
 The tabs (each with its back and forward history), the layout and the drafts are kept state, written on quit, and come back as they are on any launch. A restart loses what lives only in the window: scroll positions, an open menu, dialog or preview, and the live state of pages in the in-app browser, such as what was typed into them. Nothing that needs a quit prompt is running when it happens.
 
 ### Exercising it
 
-A development run under the supervisor takes two variables. `IDLE_RESTART_SIMULATE=1` stages a made-up update (999.0.0) at launch and installs it by restarting the same build (`startAgainAfterQuit`), so the whole path, restore included, runs without a signed build. `IDLE_RESTART_FAST=1` turns each minute of the waits into a second. With both, a held studio-drive instance restarts about ten seconds after launch, comes back, restarts once more, and then stops on its two attempts, since the version never changes. A shipping build reads neither; a preview build also reads `IDLE_RESTART_FAST`.
+A development run under the supervisor takes two variables. `IDLE_RESTART_SIMULATE=1` stages a made-up update (999.0.0) at launch and installs it by restarting the same build (`startAgainAfterQuit`), so the whole path, restore included, runs without a signed build. `IDLE_RESTART_FAST=1` turns each minute of the waits into a second, the backstop's 3 days into 30 seconds and the hour between restarts into a minute. A shipping build reads neither; a preview build also reads `IDLE_RESTART_FAST`.
 
 Squirrel.Mac's relaunch can only be seen with two signed builds of one identity. `preview.yml`'s `update_test_version` input packages the preview a second time at that higher version, under the same identity, and a preview launched with `INSTRUMENT_TEST_UPDATE_FEED=<url>` turns its updater on against that feed, which a test serves with the second build's zip and a `latest-mac.yml` for it. Both are test seams: a shipping build never reads the variable, and a release never sets the input.
 

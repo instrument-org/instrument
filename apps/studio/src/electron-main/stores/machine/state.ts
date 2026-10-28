@@ -2,6 +2,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { noteInstallFailed, noteUpdate } from "@/electron-main/lib/notices";
 import {
   attemptsAt,
+  IDLE_RESTART,
   nextAttempts,
   type RelaunchView,
 } from "@/electron-main/lib/idle-restart-policy";
@@ -22,7 +23,7 @@ const MachineStateSchema = z.object({
    * The restarts the app made on its own to install an update
    * (`lib/idle-restart.ts`): the attempts at one version from the version
    * that made them, when the last one went, and, for the launch it ends in,
-   * how the window was left.
+   * how the window was left and whether the restart happened in view.
    */
   automaticRestart: z
     .object({
@@ -33,6 +34,7 @@ const MachineStateSchema = z.object({
       relaunch: z
         .object({
           at: z.number(),
+          inView: z.boolean().optional(),
           view: z.enum(["front", "hidden", "minimized"]),
         })
         .optional(),
@@ -136,14 +138,16 @@ export function recordInstallRequest(to: null | string): void {
 }
 
 /**
- * Records an automatic restart about to install `to`, and how the window is
- * left, for the launch it ends in.
+ * Records an automatic restart about to install `to`, how the window is left,
+ * and whether the restart happens in view, for the launch it ends in.
  */
 export function recordAutomaticInstall({
+  inView,
   now,
   to,
   view,
 }: {
+  inView: boolean;
   now: number;
   to: string;
   view: RelaunchView;
@@ -157,7 +161,7 @@ export function recordAutomaticInstall({
       to,
     }),
     lastAt: now,
-    relaunch: { at: now, view },
+    relaunch: { at: now, inView, view },
   });
 }
 
@@ -191,17 +195,28 @@ export function readAutomaticRestart(to: string): {
 /**
  * Read once at launch: the marker the restart before this launch left, which
  * is then forgotten, and the attempts, which are forgotten too once the
- * version changed, since an attempt that changed it landed.
+ * version changed, since an attempt that changed it landed. A restart that
+ * came back on the same version for the last attempt it gets is said in the
+ * bell, as an install the person asked for would be.
  */
 export function takeRelaunchMarker():
-  | { at: number; view: RelaunchView }
+  | { at: number; inView?: boolean; view: RelaunchView }
   | undefined {
   const store = getMachineState();
   const record = store.get("automaticRestart");
   if (!record) {
     return undefined;
   }
-  const landed = record.attempts?.from !== app.getVersion();
+  const current = app.getVersion();
+  const landed = record.attempts?.from !== current;
+  if (
+    !landed &&
+    record.relaunch &&
+    record.attempts &&
+    record.attempts.count >= IDLE_RESTART.maxAttempts
+  ) {
+    noteInstallFailed({ from: current, to: record.attempts.to });
+  }
   store.set("automaticRestart", {
     attempts: landed ? undefined : record.attempts,
     lastAt: record.lastAt,
@@ -224,7 +239,12 @@ export function takeRelaunchMarker():
 // back and forth and each relaunch of the newer one claims a bump.
 // FORCE_DEV_AUTO_UPDATE, which already puts the updater itself in its packaged
 // behavior, is the way to exercise this in dev.
-export function checkRecentVersionBump(): void {
+//
+// `restartedInView` is a launch that is the app's own restart in view of the
+// person (the backstop), which toasts too, so it does not look like a crash.
+export function checkRecentVersionBump({
+  restartedInView = false,
+}: { restartedInView?: boolean } = {}): void {
   if (!app.isPackaged && process.env.FORCE_DEV_AUTO_UPDATE !== "true") {
     return;
   }
@@ -236,7 +256,12 @@ export function checkRecentVersionBump(): void {
 
   const outcome = launchOutcome({ current, previous, requested });
   if (outcome.type === "updated") {
-    noteUpdate({ asked: outcome.asked, from: outcome.from, to: current });
+    noteUpdate({
+      asked: outcome.asked,
+      from: outcome.from,
+      restarted: restartedInView,
+      to: current,
+    });
   } else if (outcome.type === "install-failed") {
     noteInstallFailed({ from: current, to: outcome.to });
   }

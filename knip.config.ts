@@ -63,6 +63,7 @@ const config: KnipConfig = {
         "op",
         "xdg-open",
         "dbus-send", // Linux session bus tool (src/electron-main/lib/setup-dbus-env.ts)
+        "reg", // Windows registry tool (src/electron-main/lib/capture-in-use.ts)
       ],
       ignoreDependencies: [
         "ffmpeg-ffprobe-static", // Imported in Vite build to fix import issues

@@ -90,3 +90,20 @@ describe("the app menu and the Window menu", () => {
     `);
   });
 });
+
+describe("the app menu's update item", () => {
+  it("checks for updates, and offers to restart while one is ready", async () => {
+    const { createAppMenu, setMenuUpdateReady } = await menusOn("darwin");
+    const label = () => {
+      const submenu = createAppMenu().submenu;
+      return Array.isArray(submenu) ? submenu[1]?.label : undefined;
+    };
+
+    expect(label()).toBe("Check for Updates…");
+    expect(setMenuUpdateReady(true)).toBe(true);
+    expect(setMenuUpdateReady(true)).toBe(false);
+    expect(label()).toBe("Restart to Update");
+    expect(setMenuUpdateReady(false)).toBe(true);
+    expect(label()).toBe("Check for Updates…");
+  });
+});

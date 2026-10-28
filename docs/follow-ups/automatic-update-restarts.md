@@ -4,17 +4,17 @@
 
 ## What we're waiting to learn
 
-The app restarts itself to install a staged update when no one is using it ([auto-updater.md](../architecture/auto-updater.md#restarting-while-the-app-is-not-in-use)). Every timing in `IDLE_RESTART` (`idle-restart-policy.ts`) is a starting value: 10 quiet minutes, 10 minutes away for an unseen restart, a day before and between restarts in view, two attempts per update. We want to know whether updates actually land this way, which blockers hold them back, whether the seen restart ever fires, and whether an attempt ever fails.
+The app restarts itself to install a staged update once the person steps away ([auto-updater.md](../architecture/auto-updater.md#restarting-while-the-app-is-not-in-use)). Every timing in `IDLE_RESTART` (`idle-restart-policy.ts`) is a starting value: a minute locked, 5 minutes with no window showing, 15 minutes without input, a 3-day backstop after 10 quiet minutes, an hour between restarts, two attempts per update. We want to know whether updates land this way, which sign of stepping away does it, which blockers hold restarts back, whether the backstop ever fires, and whether an attempt ever fails.
 
 ## The signal
 
 Main-process log lines scoped `idleRestart`, each written once per change:
 
-- `waiting: <blocker>`: what held the restart back. `work-unknown` appearing often means the agent count fails, which keeps updates from landing.
-- `restart (unseen)` / `restart (seen)` followed by `Restarting to install <version> (<tier>)`: a restart that went.
+- `waiting: <blocker>`: what held the restart back. `in-use` means nothing was in the way and the person had not stepped away. `work-unknown` appearing often means a check fails or times out, which keeps updates from landing.
+- `restart (<reason>)` followed by `Restarting to install <version> (<reason>)`: a restart that went, by `locked`, `no-window`, `away` or `backstop`.
 - `Called off the restart: <blocker>`: the last look found the app in use, the race the final re-check exists for.
 - `The restart did not go ahead: <outcome>`: the install path declined after deciding to restart.
-- `waiting: attempts-used`: two attempts at one update came back on the old version.
+- `waiting: attempts-used`: two attempts at one update came back on the old version. The bell says so too.
 
 On the launch that follows, `Back from an automatic restart, window <view>` from the main scope.
 
@@ -26,10 +26,11 @@ The main-process logs of the beta machines that ran the build, macOS and Windows
 
 ## What each answer means
 
-- **Unseen restarts land and no one noticed:** keep the values; consider shortening the 10 quiet minutes.
+- **Restarts land by `locked`, `no-window` or `away` and no one noticed:** keep the values.
+- **Only `backstop` restarts:** the signs of stepping away are too strict for how people work; shorten them.
 - **`attempts-used` on a platform:** an install path that fails unattended; read that launch's updater lines and open a finding.
-- **`work-unknown` dominates:** the agent count fails outside a quit; fix the count rather than loosen the rule.
-- **A seen restart that someone took for a crash:** raise `seenAfterWaitingMs`, or drop the seen tier.
+- **`work-unknown` dominates:** a check fails outside a quit; fix the check rather than loosen the rule.
+- **A backstop restart someone took for a crash:** lengthen `backstopAfterMs`.
 - **`Called off the restart` shows up:** the race is real; check what started, and whether the fade window needs its own re-check.
 
 ## Result

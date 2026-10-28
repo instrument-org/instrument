@@ -61,3 +61,16 @@ export function useInstallAsksForPassword() {
   );
   return data ?? false;
 }
+
+/**
+ * Whether a staged update installs by itself the next time the person steps
+ * away (macOS and Windows), so the button only does it sooner.
+ */
+export function useInstallsUnattended() {
+  const { data } = useQuery(
+    rpcClient.updates.installsUnattended.queryOptions({
+      staleTime: Infinity,
+    }),
+  );
+  return data ?? false;
+}

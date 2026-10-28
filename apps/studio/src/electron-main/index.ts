@@ -329,13 +329,12 @@ async function bootstrapPrimaryInstance() {
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 
-  // Detect whether the app was updated since the last launch so the bell can
-  // say so.
-  await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
   // A launch that is the app restarting itself to install an update brings
-  // its window back as it was left, without taking focus.
+  // its window back as it was left, without taking focus, and says so when
+  // the restart happened in view.
+  const relaunchMarker = takeRelaunchMarker();
   const relaunchView = relaunchViewOf({
-    marker: takeRelaunchMarker(),
+    marker: relaunchMarker,
     now: Date.now(),
     platform: process.platform,
   });
@@ -343,6 +342,13 @@ async function bootstrapPrimaryInstance() {
     logger.info(`Back from an automatic restart, window ${relaunchView}`);
   }
   comeBackAsLeft(relaunchView);
+  // Detect whether the app was updated since the last launch so the bell can
+  // say so.
+  await timeBootStep("checkRecentVersionBump", () => {
+    checkRecentVersionBump({
+      restartedInView: relaunchView !== undefined && !!relaunchMarker?.inView,
+    });
+  });
   // What a quit or crash left mid-placing in the Finder, finished before
   // anything is placed again.
   void finishPlacingLeftovers().catch(captureServerException);
@@ -379,11 +385,15 @@ async function bootstrapPrimaryInstance() {
     !app.isPackaged &&
     process.env.IDLE_RESTART_SIMULATE === "1" &&
     canRelaunch();
+  // Restarting by itself to install is for macOS and Windows.
+  const installsUnattended =
+    simulateIdleRestart || (app.isPackaged && canInstallUnattended());
   const updater = createStudioAppUpdater({
     // Approving the install approves the quit it ends in, so before-quit and
     // the window close go ahead without asking again. An install that then
     // fails takes the approval back.
     confirmQuit: requestQuitApproval,
+    installsUnattended,
     simulatedInstall: simulateIdleRestart
       ? () => {
           startAgainAfterQuit();
@@ -396,7 +406,7 @@ async function bootstrapPrimaryInstance() {
     updater.pollForUpdates();
     powerMonitor.on("resume", updater.checkAfterWake);
   }
-  if (simulateIdleRestart || (app.isPackaged && canInstallUnattended())) {
+  if (installsUnattended) {
     startIdleRestart({
       installable: isStagedUpdateInstallable,
       // TEST SEAM: a development run or a preview build can shorten the

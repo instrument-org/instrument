@@ -74,14 +74,16 @@ const NoticesStoreSchema = z.object({
     .catch(undefined),
   /**
    * The last update this computer launched into, and whether the person asked
-   * for it then, which is when it toasts. One slot, so a newer update takes
-   * the place of one whose notice was never read.
+   * for it or the app restarted for it in view of them, which is when it
+   * toasts. One slot, so a newer update takes the place of one whose notice
+   * was never read, keeping where that one counted from.
    */
   updated: z
     .object({
       asked: z.boolean().optional(),
       at: z.number(),
       from: z.string(),
+      restarted: z.boolean().optional(),
       to: z.string(),
     })
     .optional(),

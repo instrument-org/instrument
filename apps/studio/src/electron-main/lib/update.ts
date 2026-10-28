@@ -75,10 +75,13 @@ const SIMULATED_UPDATE = {
 
 export function createStudioAppUpdater({
   confirmQuit,
+  installsUnattended = false,
   simulatedInstall,
   withdrawQuit,
 }: {
   confirmQuit?: ConfirmQuit;
+  // Whether a staged update installs by itself while the app is not in use.
+  installsUnattended?: boolean;
   // Development only: stages a made-up update and installs it with this
   // instead, so the restart can run without a signed build.
   simulatedInstall?: () => void;
@@ -196,6 +199,7 @@ export function createStudioAppUpdater({
       platform: os.platform(),
     }),
     installNotice: getInstallNotice(),
+    installsUnattended,
     log: scopedLogger,
     publish: (status) => {
       publisher.publish("updates.status", { status });
@@ -206,6 +210,9 @@ export function createStudioAppUpdater({
 
   publisher.subscribe("updates.trigger-check", () => {
     void updater.checkForUpdates({ notify: true });
+  });
+  publisher.subscribe("updates.trigger-install", () => {
+    void updater.quitAndInstall();
   });
 
   return updater;

@@ -244,19 +244,21 @@ describe("notices", () => {
     const [warning] = notices.listNotices();
     expect(notices.claimNoticeToast(warning?.id ?? "")).toBe(true);
   });
-  it("lists only the last update this computer launched into", async () => {
+  it("lists only the last update this computer launched into, counting from the last one read", async () => {
     const notices = await load();
     env.version = "2.0.0-beta.60";
     notices.noteUpdate({ from: "2.0.0-beta.58", to: "2.0.0-beta.60" });
     env.version = "2.0.0-beta.61";
     notices.noteUpdate({ from: "2.0.0-beta.60", to: "2.0.0-beta.61" });
 
+    // Neither was read, so the one notice covers both.
     expect(notices.listNotices()).toMatchObject([
       {
         action: { href: "/release-notes", label: "What's new" },
-        body: "See what's changed since version 2.0.0-beta.60.",
+        body: "See what's changed since version 2.0.0-beta.58.",
         kind: "update",
         seen: false,
+        severity: "info",
         title: "Instrument updated to 2.0.0-beta.61",
       },
     ]);
@@ -264,6 +266,48 @@ describe("notices", () => {
     // Running another build, the update no longer describes this one.
     env.version = "2.0.0-beta.60";
     expect(notices.listNotices()).toEqual([]);
+  });
+
+  it.each([
+    ["seen", "markNoticesSeen"],
+    ["dismissed", "dismissNotice"],
+  ] as const)(
+    "counts from the version just left once the last update was %s",
+    async (_, read) => {
+      const notices = await load();
+      env.version = "2.0.0-beta.60";
+      notices.noteUpdate({ from: "2.0.0-beta.58", to: "2.0.0-beta.60" });
+      const id = notices.listNotices()[0]?.id ?? "";
+      if (read === "markNoticesSeen") {
+        notices.markNoticesSeen([id]);
+      } else {
+        notices.dismissNotice(id);
+      }
+      env.version = "2.0.0-beta.61";
+      notices.noteUpdate({ from: "2.0.0-beta.60", to: "2.0.0-beta.61" });
+      expect(notices.listNotices()).toMatchObject([
+        { body: "See what's changed since version 2.0.0-beta.60." },
+      ]);
+    },
+  );
+
+  it("says why the app restarted in view of the person, once, as a toast", async () => {
+    const notices = await load();
+    env.version = "2.0.0-beta.61";
+    notices.noteUpdate({
+      from: "2.0.0-beta.60",
+      restarted: true,
+      to: "2.0.0-beta.61",
+    });
+    const [updated] = notices.listNotices();
+    expect(updated).toMatchObject({
+      action: { href: "/release-notes", label: "What's new" },
+      body: "You're on version 2.0.0-beta.61 now.",
+      severity: "important",
+      title: "Instrument restarted to finish updating",
+    });
+    expect(notices.claimNoticeToast(updated?.id ?? "")).toBe(true);
+    expect(notices.claimNoticeToast(updated?.id ?? "")).toBe(false);
   });
 
   it("toasts an update the person asked for, and keeps one that landed on quit in the bell", async () => {

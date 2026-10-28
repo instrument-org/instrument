@@ -2,247 +2,258 @@ import { describe, expect, it } from "vitest";
 
 import {
   attemptsAt,
-  confirmIdleRestart,
   IDLE_RESTART,
   type IdleRestartFacts,
+  type IdleRestartState,
   idleRestartTimings,
   nextAttempts,
   relaunchViewOf,
   stepIdleRestart,
 } from "./idle-restart-policy";
 
-const MINUTE = 60_000;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 const T0 = 1_000_000_000_000;
 
-// Everything clear, every window hidden, an update staged a moment ago.
+const IN_VIEW = { focused: false, fullScreen: false, shown: true };
+const NO_WINDOW = { focused: false, fullScreen: false, shown: false };
+const FRESH: IdleRestartState = {
+  noWindowSince: undefined,
+  quietSince: undefined,
+};
+
+// Nothing in the way, a window in view behind another app, the person at
+// the computer, an update staged a moment ago.
 function facts(overrides: Partial<IdleRestartFacts> = {}): IdleRestartFacts {
   return {
     attempts: 0,
     lastAutomaticRestartAt: undefined,
     now: T0,
-    person: { awayMs: 0, locked: false },
+    person: { awayMs: 0, lockedSince: undefined },
     update: { stagedSince: T0, type: "ready", version: "2.1.0" },
-    windows: { focused: false, fullScreen: false, shown: false },
+    windows: IN_VIEW,
     work: "idle",
     ...overrides,
   };
 }
 
-// Readings of the facts one after another, carrying the countdown along.
-function run(readings: IdleRestartFacts[]) {
-  let quietSince: number | undefined;
+// Readings one after another, carrying the state along.
+function run(readings: IdleRestartFacts[], state = FRESH) {
+  let carried = state;
   return readings.map((reading) => {
-    const step = stepIdleRestart({ facts: reading, quietSince });
-    quietSince = step.quietSince;
+    const step = stepIdleRestart({ facts: reading, state: carried });
+    carried = step.state;
     return step.verdict;
   });
 }
 
+const kinds = (verdicts: ReturnType<typeof run>) =>
+  verdicts.map((verdict) =>
+    verdict.type === "wait" ? verdict.blocker : verdict.reason,
+  );
+
 describe("what holds a restart back", () => {
+  // Each with the screen locked long enough, which would otherwise restart.
+  const locked = { awayMs: 0, lockedSince: T0 - HOUR };
   it.each([
-    ["no update", { update: { type: "none" } }],
-    ["an update being checked or downloaded", { update: { type: "busy" } }],
-    ["two attempts at this update already", { attempts: 2 }],
-    ["work running", { work: "busy" }],
-    ["work that could not be counted", { work: "unknown" }],
+    ["no update", { update: { type: "none" } }, "no-update"],
+    [
+      "an update being checked or downloaded",
+      { update: { type: "busy" } },
+      "update-busy",
+    ],
+    ["two attempts at this update already", { attempts: 2 }, "attempts-used"],
+    [
+      "a restart less than an hour ago",
+      { lastAutomaticRestartAt: T0 - 59 * MINUTE },
+      "restarted-recently",
+    ],
+    ["work running", { work: "busy" }, "work-busy"],
+    ["work that could not be counted", { work: "unknown" }, "work-unknown"],
     [
       "a focused window",
       { windows: { focused: true, fullScreen: false, shown: true } },
+      "focused",
     ],
     [
       "a full-screen window",
       { windows: { focused: false, fullScreen: true, shown: true } },
+      "full-screen",
     ],
-  ] satisfies [string, Partial<IdleRestartFacts>][])("%s", (_, overrides) => {
-    const later = facts({ ...overrides, now: T0 + HOUR });
-    expect(stepIdleRestart({ facts: later, quietSince: T0 })).toMatchObject({
-      quietSince: undefined,
-      verdict: { type: "wait" },
-    });
-  });
-
-  it("names each blocker, the update first", () => {
-    expect(
-      stepIdleRestart({
-        facts: facts({
-          update: { type: "none" },
-          windows: { focused: true, fullScreen: true, shown: true },
-          work: "unknown",
-        }),
-        quietSince: undefined,
-      }).verdict,
-    ).toMatchInlineSnapshot(`
-      {
-        "blocker": "no-update",
-        "type": "wait",
-      }
-    `);
-    expect(
-      stepIdleRestart({
-        facts: facts({
-          windows: { focused: true, fullScreen: true, shown: true },
-          work: "unknown",
-        }),
-        quietSince: undefined,
-      }).verdict,
-    ).toMatchInlineSnapshot(`
-      {
-        "blocker": "work-unknown",
-        "type": "wait",
-      }
-    `);
-  });
-});
-
-describe("the countdown", () => {
-  it("restarts once everything has been clear for ten minutes", () => {
-    expect(
-      run([
-        facts({ now: T0 }),
-        facts({ now: T0 + 9 * MINUTE }),
-        facts({ now: T0 + 10 * MINUTE }),
-      ]),
-    ).toMatchInlineSnapshot(`
-      [
-        {
-          "readyAt": 1000000600000,
-          "type": "settling",
-        },
-        {
-          "readyAt": 1000000600000,
-          "type": "settling",
-        },
-        {
-          "tier": "unseen",
-          "type": "restart",
-        },
-      ]
-    `);
-  });
-
-  it("starts over when a window takes focus", () => {
-    const focused = { focused: true, fullScreen: false, shown: true };
-    const verdicts = run([
-      facts({ now: T0 }),
-      facts({ now: T0 + 9 * MINUTE, windows: focused }),
-      facts({ now: T0 + 10 * MINUTE }),
-      facts({ now: T0 + 19 * MINUTE }),
-      facts({ now: T0 + 20 * MINUTE }),
-    ]);
-    expect(verdicts.map((verdict) => verdict.type)).toEqual([
-      "settling",
-      "wait",
-      "settling",
-      "settling",
-      "restart",
-    ]);
-  });
-
-  it("starts over when work starts, and when an update supersedes the staged one", () => {
-    const verdicts = run([
-      facts({ now: T0 }),
-      facts({ now: T0 + 5 * MINUTE, work: "busy" }),
-      facts({ now: T0 + 6 * MINUTE }),
-      facts({ now: T0 + 12 * MINUTE, update: { type: "busy" } }),
-      facts({
-        now: T0 + 13 * MINUTE,
-        update: { stagedSince: T0, type: "ready", version: "2.2.0" },
-      }),
-      facts({
-        now: T0 + 23 * MINUTE,
-        update: { stagedSince: T0, type: "ready", version: "2.2.0" },
-      }),
-    ]);
-    expect(verdicts.map((verdict) => verdict.type)).toEqual([
-      "settling",
-      "wait",
-      "settling",
-      "wait",
-      "settling",
-      "restart",
-    ]);
-  });
-});
-
-describe("restarting where the person would see it", () => {
-  const inView = { focused: false, fullScreen: false, shown: true };
-  const decide = (overrides: Partial<IdleRestartFacts>) =>
-    stepIdleRestart({
-      facts: facts({ windows: inView, ...overrides }),
-      quietSince: T0 - 10 * MINUTE,
-    }).verdict;
-
-  it.each([
-    ["the screen is locked", { person: { awayMs: 0, locked: true } }],
-    [
-      "the person has been away ten minutes",
-      { person: { awayMs: 10 * MINUTE, locked: false } },
-    ],
-  ] satisfies [string, Partial<IdleRestartFacts>][])(
-    "goes unseen when %s",
-    (_, overrides) => {
-      expect(decide(overrides)).toEqual({ tier: "unseen", type: "restart" });
+  ] satisfies [string, Partial<IdleRestartFacts>, string][])(
+    "%s",
+    (_, overrides, blocker) => {
+      const step = stepIdleRestart({
+        facts: facts({ person: locked, ...overrides }),
+        state: { noWindowSince: undefined, quietSince: T0 - DAY },
+      });
+      expect(step.verdict).toEqual({ blocker, type: "wait" });
+      expect(step.state.quietSince).toBeUndefined();
     },
   );
 
-  it("waits while the update is newer than a day", () => {
-    expect(
-      decide({
-        now: T0,
-        update: {
-          stagedSince: T0 - 23 * HOUR,
-          type: "ready",
-          version: "2.1.0",
-        },
-      }),
-    ).toEqual({ blocker: "in-view-update-recent", type: "wait" });
+  it("waits while the person is at the computer and nothing says otherwise", () => {
+    expect(stepIdleRestart({ facts: facts(), state: FRESH }).verdict)
+      .toMatchInlineSnapshot(`
+      {
+        "blocker": "in-use",
+        "type": "wait",
+      }
+    `);
   });
 
-  it("restarts in view once the update has waited a day", () => {
-    expect(
-      decide({
-        update: {
-          stagedSince: T0 - 24 * HOUR,
-          type: "ready",
-          version: "2.1.0",
-        },
-      }),
-    ).toEqual({ tier: "seen", type: "restart" });
-  });
-
-  it("restarts in view at most once a day", () => {
-    const update = {
-      stagedSince: T0 - 48 * HOUR,
-      type: "ready",
-      version: "2.1.0",
-    } as const;
-    expect(decide({ lastAutomaticRestartAt: T0 - 23 * HOUR, update })).toEqual({
-      blocker: "in-view-restarted-recently",
-      type: "wait",
-    });
-    expect(decide({ lastAutomaticRestartAt: T0 - 24 * HOUR, update })).toEqual({
-      tier: "seen",
-      type: "restart",
-    });
-  });
-
-  it("does not cap restarts no one sees", () => {
+  it("allows another restart an hour after the last", () => {
     expect(
       stepIdleRestart({
-        facts: facts({ lastAutomaticRestartAt: T0 - MINUTE }),
-        quietSince: T0 - 10 * MINUTE,
+        facts: facts({
+          lastAutomaticRestartAt: T0 - HOUR,
+          person: { awayMs: 15 * MINUTE, lockedSince: undefined },
+        }),
+        state: FRESH,
       }).verdict,
-    ).toEqual({ tier: "unseen", type: "restart" });
+    ).toEqual({ reason: "away", type: "restart" });
+  });
+});
+
+describe("the person stepping away", () => {
+  it.each([
+    [59 * SECOND, "in-use"],
+    [MINUTE, "locked"],
+  ] as const)("a screen locked for %i ms reads %s", (lockedFor, expected) => {
+    const verdict = stepIdleRestart({
+      facts: facts({
+        person: { awayMs: 0, lockedSince: T0 - lockedFor },
+      }),
+      state: FRESH,
+    }).verdict;
+    expect(kinds([verdict])).toEqual([expected]);
+  });
+
+  it.each([
+    [14 * MINUTE, "in-use"],
+    [15 * MINUTE, "away"],
+  ] as const)("no input for %i ms reads %s", (awayMs, expected) => {
+    const verdict = stepIdleRestart({
+      facts: facts({ person: { awayMs, lockedSince: undefined } }),
+      state: FRESH,
+    }).verdict;
+    expect(kinds([verdict])).toEqual([expected]);
+  });
+
+  it("restarts once no window has shown for five minutes", () => {
+    expect(
+      kinds(
+        run([
+          facts({ now: T0, windows: NO_WINDOW }),
+          facts({ now: T0 + 4 * MINUTE, windows: NO_WINDOW }),
+          facts({ now: T0 + 5 * MINUTE, windows: NO_WINDOW }),
+        ]),
+      ),
+    ).toEqual(["in-use", "in-use", "no-window"]);
+  });
+
+  it("starts the five minutes over when a window comes back into view", () => {
+    expect(
+      kinds(
+        run([
+          facts({ now: T0, windows: NO_WINDOW }),
+          facts({ now: T0 + 4 * MINUTE }),
+          facts({ now: T0 + 5 * MINUTE, windows: NO_WINDOW }),
+          facts({ now: T0 + 9 * MINUTE, windows: NO_WINDOW }),
+          facts({ now: T0 + 10 * MINUTE, windows: NO_WINDOW }),
+        ]),
+      ),
+    ).toEqual(["in-use", "in-use", "in-use", "in-use", "no-window"]);
+  });
+
+  it("names the first sign: the lock before the windows before the input", () => {
+    expect(
+      stepIdleRestart({
+        facts: facts({
+          person: { awayMs: HOUR, lockedSince: T0 - HOUR },
+          windows: NO_WINDOW,
+        }),
+        state: { noWindowSince: T0 - HOUR, quietSince: undefined },
+      }).verdict,
+    ).toEqual({ reason: "locked", type: "restart" });
+  });
+});
+
+describe("the backstop", () => {
+  const waited = (days: number) =>
+    ({
+      stagedSince: T0 - days * DAY,
+      type: "ready",
+      version: "2.1.0",
+    }) as const;
+
+  it("restarts in view once the update has waited three days and nothing has run for ten minutes", () => {
+    expect(
+      kinds(
+        run([
+          facts({ now: T0, update: waited(3) }),
+          facts({ now: T0 + 9 * MINUTE, update: waited(3) }),
+          facts({ now: T0 + 10 * MINUTE, update: waited(3) }),
+        ]),
+      ),
+    ).toEqual(["in-use", "in-use", "backstop"]);
+  });
+
+  it("waits while the update is newer than three days", () => {
+    expect(
+      kinds(
+        run([
+          facts({ now: T0, update: waited(2.9) }),
+          facts({ now: T0 + HOUR, update: waited(2.9) }),
+        ]),
+      ),
+    ).toEqual(["in-use", "in-use"]);
+  });
+
+  it("starts the ten minutes over when a window takes focus or work starts", () => {
+    const update = waited(4);
+    expect(
+      kinds(
+        run([
+          facts({ now: T0, update }),
+          facts({
+            now: T0 + 5 * MINUTE,
+            update,
+            windows: { focused: true, fullScreen: false, shown: true },
+          }),
+          facts({ now: T0 + 6 * MINUTE, update }),
+          facts({ now: T0 + 12 * MINUTE, update, work: "busy" }),
+          facts({ now: T0 + 13 * MINUTE, update }),
+          facts({ now: T0 + 22 * MINUTE, update }),
+          facts({ now: T0 + 23 * MINUTE, update }),
+        ]),
+      ),
+    ).toEqual([
+      "in-use",
+      "focused",
+      "in-use",
+      "work-busy",
+      "in-use",
+      "in-use",
+      "backstop",
+    ]);
   });
 });
 
 describe("the last look before the quit", () => {
-  it("restarts when nothing changed, without a second countdown", () => {
-    expect(confirmIdleRestart({ facts: facts() })).toEqual({
-      tier: "unseen",
-      type: "restart",
-    });
+  // The last look is one more reading, with the state the countdown left.
+  const ready: IdleRestartState = {
+    noWindowSince: T0 - 10 * MINUTE,
+    quietSince: T0 - 10 * MINUTE,
+  };
+
+  it("restarts when nothing changed", () => {
+    expect(
+      stepIdleRestart({ facts: facts({ windows: NO_WINDOW }), state: ready })
+        .verdict,
+    ).toEqual({ reason: "no-window", type: "restart" });
   });
 
   it.each([
@@ -253,18 +264,24 @@ describe("the last look before the quit", () => {
       { windows: { focused: true, fullScreen: false, shown: true } },
       "focused",
     ],
+    ["a window came back into view", { windows: IN_VIEW }, "in-use"],
     [
-      "the person came back to a window in view",
-      { windows: { focused: false, fullScreen: false, shown: true } },
-      "in-view-update-recent",
+      "the screen was unlocked",
+      {
+        person: { awayMs: 0, lockedSince: undefined },
+        windows: IN_VIEW,
+      },
+      "in-use",
     ],
   ] satisfies [string, Partial<IdleRestartFacts>, string][])(
     "calls it off when %s",
     (_, overrides, blocker) => {
-      expect(confirmIdleRestart({ facts: facts(overrides) })).toEqual({
-        blocker,
-        type: "wait",
-      });
+      expect(
+        stepIdleRestart({
+          facts: facts({ windows: NO_WINDOW, ...overrides }),
+          state: ready,
+        }).verdict,
+      ).toEqual({ blocker, type: "wait" });
     },
   );
 });
@@ -323,16 +340,19 @@ describe("coming back from a restart", () => {
 });
 
 describe("timings", () => {
-  it("turns minutes into seconds, and the in-view day into 30 s, for a test run", () => {
+  it("turns minutes into seconds, three days into 30 s and the hour into a minute for a test run", () => {
     expect(idleRestartTimings({ fast: true })).toMatchInlineSnapshot(`
       {
+        "backstopAfterMs": 30000,
+        "backstopQuietMs": 10000,
+        "checkTimeoutMs": 10000,
+        "lockedMs": 1000,
         "maxAttempts": 2,
-        "personAwayMs": 10000,
-        "quietMs": 10000,
+        "noWindowMs": 5000,
+        "personAwayMs": 15000,
         "recheckMs": 1000,
         "relaunchFreshMs": 300000,
-        "seenAfterWaitingMs": 30000,
-        "seenSpacingMs": 30000,
+        "spacingMs": 60000,
       }
     `);
     expect(idleRestartTimings({ fast: false })).toBe(IDLE_RESTART);

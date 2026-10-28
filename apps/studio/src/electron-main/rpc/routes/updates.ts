@@ -19,5 +19,8 @@ export const updates = {
   installAsksForPassword: base.handler(
     ({ context }) => context.appUpdater.installAsksForPassword,
   ),
+  installsUnattended: base.handler(
+    ({ context }) => context.appUpdater.installsUnattended,
+  ),
   live,
 };

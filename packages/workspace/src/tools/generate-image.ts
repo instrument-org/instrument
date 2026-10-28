@@ -258,32 +258,55 @@ export const generateImageCapability = defineCapability({
 export const GenerateImage = modelTool(generateImageCapability);
 
 /**
+ * The names calls still making their image have taken, by chat, so calls a
+ * script runs at once each pick a name of their own before any file exists.
+ */
+const namesInFlight = new Set<string>();
+
+/**
  * One generation as the tool records it, a frame at a time as the model
  * streams them, each written over the last: the images and what made them,
  * or why there are none.
  */
-async function* imageFrames({
-  chatId,
-  input,
-  model,
-  partId,
-  sessionId,
-  signal,
-}: {
-  chatId: ChatId;
-  input: {
-    allowOverwrite?: boolean;
-    filePath: string;
-    parameters?: Record<string, boolean | number | string>;
-    prompt: string;
-    sourceImages?: string[];
-  };
-  model: AIGatewayModel.Type;
-  /** The tool call, where a call made it; a script's call has none. */
-  partId?: StoreId.Part;
-  sessionId: StoreId.Session;
-  signal: AbortSignal;
-}) {
+async function* imageFrames(
+  call: Parameters<typeof framesHolding>[0],
+): ReturnType<typeof framesHolding> {
+  const held = new Set<string>();
+  try {
+    return yield* framesHolding(call, held);
+  } finally {
+    for (const name of held) {
+      namesInFlight.delete(name);
+    }
+  }
+}
+
+async function* framesHolding(
+  {
+    chatId,
+    input,
+    model,
+    partId,
+    sessionId,
+    signal,
+  }: {
+    chatId: ChatId;
+    input: {
+      allowOverwrite?: boolean;
+      filePath: string;
+      parameters?: Record<string, boolean | number | string>;
+      prompt: string;
+      sourceImages?: string[];
+    };
+    model: AIGatewayModel.Type;
+    /** The tool call, where a call made it; a script's call has none. */
+    partId?: StoreId.Part;
+    sessionId: StoreId.Session;
+    signal: AbortSignal;
+  },
+  /** Where the name this call takes is kept until it ends. */
+  held: Set<string>,
+) {
   const files = await sessionToolFs({ chatId, partId, sessionId });
   const typed = files.resolve(input.filePath);
   if (typed.isErr()) {
@@ -311,8 +334,18 @@ async function* imageFrames({
     // Match on name without extension: the output extension is model-derived,
     // so a prior foo.jpg must block a new foo.png.
     const existingNames = await readExistingBaseNames(files.fs, parsedPath.dir);
+    // A free name is taken the moment it is found: the search awaits between
+    // candidates, and a call running beside this one is searching too.
     const { name, renamed } = await findAvailableName({
-      isTaken: (candidate) => existingNames.has(candidate),
+      isTaken: (candidate) => {
+        const key = `${chatId}:${path.posix.join(parsedPath.dir, candidate)}`;
+        if (existingNames.has(candidate) || namesInFlight.has(key)) {
+          return true;
+        }
+        namesInFlight.add(key);
+        held.add(key);
+        return false;
+      },
       name: parsedPath.name,
     });
     renamedToAvoidOverwrite = renamed;

@@ -252,6 +252,32 @@ describe("GenerateImage source images", () => {
   });
 });
 
+describe("GenerateImage calls made at once", () => {
+  it("saves each under its own name", async () => {
+    const results = await Promise.all(
+      [1, 2].map(() =>
+        runTool(
+          GenerateImage,
+          makeExecuteArgs({
+            explanation: "two posters",
+            filePath: photo("posters/poster"),
+            prompt: "A poster",
+          }),
+        ),
+      ),
+    );
+
+    const paths = results.map((result) => {
+      const output = result._unsafeUnwrap();
+      return output.state === "success" ? output.images[0]?.filePath : "";
+    });
+    expect(paths.sort()).toEqual([
+      photo("posters/poster-2.png"),
+      photo("posters/poster.png"),
+    ]);
+  });
+});
+
 describe("GenerateImage into a folder it may not write", () => {
   it("refuses before the model is asked", async () => {
     doGenerate.mockClear();

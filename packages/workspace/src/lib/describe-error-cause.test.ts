@@ -17,7 +17,9 @@ describe("describeErrorCause", () => {
       url: "http://127.0.0.1:48100/ai-gateway/providers/instrument/chat/completions",
     });
 
-    expect(describeErrorCause(error)).toMatchInlineSnapshot(`"TypeError: terminated, caused by SocketError: other side closed (UND_ERR_SOCKET)"`);
+    expect(describeErrorCause(error)).toMatchInlineSnapshot(
+      `"TypeError: terminated, caused by SocketError: other side closed (UND_ERR_SOCKET)"`,
+    );
   });
 
   it.each([
@@ -38,6 +40,8 @@ describe("describeErrorCause", () => {
     for (let index = 6; index >= 0; index--) {
       error = new Error(`link ${index}`, { cause: error });
     }
-    expect(describeErrorCause(error)).toMatchInlineSnapshot(`"Error: link 1, caused by Error: link 2, caused by Error: link 3, caused by Error: link 4, caused by Error: link 5"`);
+    expect(describeErrorCause(error)).toMatchInlineSnapshot(
+      `"Error: link 1, caused by Error: link 2, caused by Error: link 3, caused by Error: link 4, caused by Error: link 5"`,
+    );
   });
 });

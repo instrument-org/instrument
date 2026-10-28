@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { rm } from "node:fs/promises";
 import net from "node:net";
 import { z } from "zod";
 
@@ -14,11 +15,19 @@ import {
 
 /**
  * The variable that tells a script's `instrument` where its channel
- * listens: `<port>:<token>` on 127.0.0.1. Taken out of the environment
+ * listens on 127.0.0.1: `<port>:fd<n>` on macOS and Linux, where the token
+ * is the first line on descriptor `n`, and `<port>:<token>` on Windows,
+ * where no descriptor reaches a program MXC holds. The preload takes the
+ * variable out of the environment and reads and closes the descriptor
  * before the script's own code runs, so a process the script starts gets
- * neither.
+ * neither. The token stays out of every environment and command line on
+ * macOS and Linux, where another process of the same user can read the
+ * environment a process started with whatever it later deletes.
  */
 export const SCRIPT_CHANNEL_ENV = "INSTRUMENT_CHANNEL";
+
+/** The descriptor a script reads its channel's token from, after stdin, stdout and stderr. */
+export const SCRIPT_CHANNEL_FD = 3;
 
 /** What a script asks over its channel: what it may call, or one call. */
 export type ChannelRequest =
@@ -93,8 +102,8 @@ const TOO_LONG = `${JSON.stringify({
  * own `instrument` opens in the same bash call.
  */
 export interface ScriptChannel {
-  /** The variable to start the process with. */
-  env: Record<string, string>;
+  /** How the process is started with the channel, on this platform. */
+  handOver: ChannelHandOver;
   /**
    * The signal calls run under from now on: a stage handing its stdout on
    * outlives the command that started it.
@@ -102,6 +111,21 @@ export interface ScriptChannel {
   attach(signal: AbortSignal): void;
   /** Stops listening and drops every connection, once the process is gone. */
   close(): void;
+  /**
+   * Deletes a file that holds the token, once the process has connected
+   * with it or the channel closes.
+   */
+  removeOnceConnected(file: string): void;
+}
+
+/**
+ * What a process is started with to reach its channel: the variable, and on
+ * macOS and Linux the token's line for descriptor 3, which the spawn writes
+ * and closes.
+ */
+interface ChannelHandOver {
+  env: Record<string, string>;
+  tokenLine?: Buffer;
 }
 
 /**
@@ -116,6 +140,13 @@ export async function openScriptChannel(
   const token = randomBytes(32).toString("hex");
   const expected = Buffer.from(token);
   const sockets = new Set<net.Socket>();
+  const removals = new Set<string>();
+  const removeAll = () => {
+    for (const file of removals) {
+      void rm(file, { force: true }).catch(() => undefined);
+    }
+    removals.clear();
+  };
   let waiting = 0;
   let signal: AbortSignal | undefined;
   const server = net.createServer((socket) => {
@@ -131,6 +162,7 @@ export async function openScriptChannel(
       opened = true;
       waiting -= 1;
       socket.setTimeout(0);
+      removeAll();
     };
     socket.on("close", () => {
       sockets.delete(socket);
@@ -265,7 +297,20 @@ export async function openScriptChannel(
       for (const socket of sockets) {
         socket.destroy();
       }
+      removeAll();
     },
-    env: { [SCRIPT_CHANNEL_ENV]: `${port}:${token}` },
+    // Windows has no descriptor that reaches a program MXC holds, and there
+    // what a process deletes from its environment is gone from what another
+    // process reads.
+    handOver:
+      process.platform === "win32"
+        ? { env: { [SCRIPT_CHANNEL_ENV]: `${port}:${token}` } }
+        : {
+            env: { [SCRIPT_CHANNEL_ENV]: `${port}:fd${SCRIPT_CHANNEL_FD}` },
+            tokenLine: Buffer.from(`${token}\n`),
+          },
+    removeOnceConnected(file) {
+      removals.add(file);
+    },
   };
 }

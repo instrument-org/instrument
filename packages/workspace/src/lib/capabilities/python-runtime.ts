@@ -11,13 +11,44 @@ const BOOT_MODULE = "_instrument_boot";
 
 /**
  * Takes the channel out of the environment as the interpreter starts,
- * before any of the script's code runs, so no process the script starts
- * has it; `instrument` reads it from here.
+ * before any of the script's code runs, and reads its token from the
+ * descriptor it arrives on and closes that, so no process the script
+ * starts has either; `instrument` reads it from here.
  */
-const BOOT_SOURCE = `"""Holds the channel \`instrument\` calls Instrument over, taken out of the environment at startup."""
+const BOOT_SOURCE = `"""Holds the channel \`instrument\` calls Instrument over, taken at startup."""
 import os
 
-channel = os.environ.pop("${SCRIPT_CHANNEL_ENV}", None)
+
+def _take():
+    at = os.environ.pop("${SCRIPT_CHANNEL_ENV}", None)
+    if at is None:
+        return None
+    port, _, secret = at.partition(":")
+    # "<port>:fd<n>": the token is the first line on descriptor n, read once
+    # and closed, so no process the script starts inherits it.
+    if not (secret.startswith("fd") and secret[2:].isdigit()):
+        return at
+    fd = int(secret[2:])
+    line = b""
+    try:
+        os.set_blocking(fd, True)
+        while b"\\n" not in line and len(line) < 256:
+            chunk = os.read(fd, 256 - len(line))
+            if not chunk:
+                break
+            line += chunk
+    except OSError:
+        pass
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    return port + ":" + line.decode("utf-8", "replace").strip()
+
+
+channel = _take()
+del _take
 `;
 
 /**

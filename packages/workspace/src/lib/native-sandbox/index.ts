@@ -236,9 +236,11 @@ export function launchNative(
   context: {
     cwd?: string;
     env: Record<string, string | undefined>;
+    /** The environment holds a secret: see `mxcLaunch`. */
+    privateRequest?: true;
     windowsVerbatimArguments?: boolean;
   },
-): { args: string[]; file: string } {
+): { args: string[]; file: string; request?: string } {
   return spawned.kind === "mxc"
     ? mxcLaunch(spawned, context)
     : { args: spawned.args, file: spawned.file };

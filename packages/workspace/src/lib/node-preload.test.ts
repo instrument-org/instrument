@@ -1,5 +1,6 @@
-import { realpathSync } from "node:fs";
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +11,7 @@ import { knowChat } from "../test/helpers/mock-chat-config";
 import {
   type ChannelAnswer,
   openScriptChannel,
+  SCRIPT_CHANNEL_ENV,
   type ScriptChannel,
 } from "./capabilities/channel";
 import { createLocalBashEnv } from "./create-bash-env";
@@ -164,6 +166,57 @@ describe("node's instrument global", () => {
     expect(result.stdout).toBe("0\n");
   });
 
+  // Another process of the same user reads the environment a process
+  // started with (`ps eww`, /proc/<pid>/environ), whatever it deletes later.
+  it.skipIf(process.platform === "win32")(
+    "starts the script and its child with no token in their environment, and its child with no descriptor 3",
+    { timeout: 30_000 },
+    async () => {
+      knowChat(chatId);
+      await mkdir(workDir(chatId), { recursive: true });
+      const pids = path.join(workDir(chatId), "pids");
+      const go = path.join(workDir(chatId), "go");
+      await rm(pids, { force: true });
+      await rm(go, { force: true });
+      const script = path.join(workDir(chatId), "hold.cjs");
+      await writeFile(
+        script,
+        `const { execFileSync, spawn } = require("node:child_process");
+const fs = require("node:fs");
+const fd3 = execFileSync("/bin/sh", ["-c", "if [ -e /dev/fd/3 ]; then echo open; else echo closed; fi"], { encoding: "utf8" }).trim();
+const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 20000)"], { stdio: "ignore" });
+fs.writeFileSync("pids", process.pid + " " + child.pid);
+const wait = () => {
+  if (!fs.existsSync("go")) return setTimeout(wait, 20);
+  child.kill();
+  console.log(fd3);
+};
+wait();
+`,
+      );
+      const running = run(`node hold.cjs`);
+      const started = Date.now();
+      while (!existsSync(pids) && Date.now() - started < 20_000) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const held = (await readFile(pids, "utf8")).split(" ");
+      const channelIn = (pid: string) => {
+        const shown = spawnSync("ps", ["eww", "-o", "command=", "-p", pid], {
+          encoding: "utf8",
+        }).stdout;
+        return new RegExp(`${SCRIPT_CHANNEL_ENV}=(\\S+)`).exec(shown)?.[1];
+      };
+      const [inScript, inChild] = held.map(channelIn);
+      await writeFile(go, "");
+      const result = await running;
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toBe("closed\n");
+      // The variable names the port and the descriptor, never the token.
+      expect(inScript).toMatch(/^\d+:fd3$/);
+      expect(inChild).toBeUndefined();
+    },
+  );
+
   // A package.json no one may read stands in for a folder the sandbox keeps
   // closed above the script, as MXC does above the work folder: Node fails
   // the same way on EACCES as on EPERM. Windows has no such file mode.
@@ -247,9 +300,12 @@ describe("node's instrument global", () => {
 
 /** Where a channel listens and the token it takes, as its process would read them. */
 function reachOf(channel: ScriptChannel) {
-  const [port = "", token = ""] =
-    Object.values(channel.env)[0]?.split(":") ?? [];
-  return { port: Number(port), token };
+  const [port = "", secret = ""] =
+    channel.handOver.env[SCRIPT_CHANNEL_ENV]?.split(":") ?? [];
+  return {
+    port: Number(port),
+    token: channel.handOver.tokenLine?.toString("utf8").trim() ?? secret,
+  };
 }
 
 describe("openScriptChannel", () => {

@@ -13,6 +13,7 @@ import {
   type NativeReach,
   NativeSandboxUnavailableError,
   packageScopeNote,
+  type WrappedCommand,
   wrapNativeCommand,
 } from "../native-sandbox";
 
@@ -51,6 +52,41 @@ type ShimOptions = Omit<
   | "reject"
   | "stripFinalNewline"
 >;
+
+/**
+ * What a native launch starts with, given the program's environment and
+ * its script channel: the launch itself, the environment to spawn it with,
+ * and the token's line for descriptor 3 where the token travels on one.
+ * Under MXC the program's environment, the token's included, goes in a
+ * request file deleted once the program connects, and the launcher's own
+ * environment leaves the channel out.
+ */
+export function launchWithChannel(
+  spawned: WrappedCommand,
+  env: Record<string, string | undefined>,
+  channel: ScriptChannel | undefined,
+  context: { cwd?: string; windowsVerbatimArguments?: boolean },
+): {
+  launch: { args: string[]; file: string };
+  spawnEnv: Record<string, string | undefined>;
+  tokenLine?: Buffer;
+} {
+  const handOver = channel?.handOver;
+  const programEnv = { ...env, ...handOver?.env };
+  const launch = launchNative(spawned, {
+    ...context,
+    env: programEnv,
+    ...(handOver && spawned.kind === "mxc" ? { privateRequest: true } : {}),
+  });
+  if (launch.request !== undefined) {
+    channel?.removeOnceConnected(launch.request);
+  }
+  return {
+    launch,
+    spawnEnv: spawned.kind === "mxc" ? env : programEnv,
+    ...(handOver?.tokenLine && { tokenLine: handOver.tokenLine }),
+  };
+}
 
 /**
  * Keep only the last state of each carriage-return progress line, which is what
@@ -142,21 +178,43 @@ export async function execShim(
   }
   // Only what a program needs of the app's own environment, so a key or
   // token set for the app never reaches a script the agent runs.
-  const env = {
-    ...(ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
-    ...subprocessOptions.env,
-  };
-  const launch = launchNative(spawned, {
-    cwd:
-      typeof subprocessOptions.cwd === "string"
-        ? subprocessOptions.cwd
-        : undefined,
-    env,
-    windowsVerbatimArguments: subprocessOptions.windowsVerbatimArguments,
-  });
+  const { input, stdin, ...spawnOptions } = subprocessOptions;
+  const { launch, spawnEnv, tokenLine } = launchWithChannel(
+    spawned,
+    {
+      ...(ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
+      ...subprocessOptions.env,
+    },
+    scriptChannel,
+    {
+      cwd:
+        typeof subprocessOptions.cwd === "string"
+          ? subprocessOptions.cwd
+          : undefined,
+      windowsVerbatimArguments: subprocessOptions.windowsVerbatimArguments,
+    },
+  );
   const subprocess = execa(launch.file, launch.args, {
-    ...subprocessOptions,
-    env,
+    ...spawnOptions,
+    // Descriptor 3 is the token's line, which execa writes and closes.
+    ...(tokenLine
+      ? {
+          stdio: [
+            input === undefined
+              ? (stdin ?? "pipe")
+              : typeof input === "string"
+                ? Buffer.from(input)
+                : input,
+            "pipe",
+            "pipe",
+            tokenLine,
+          ],
+        }
+      : {
+          ...(input === undefined ? {} : { input }),
+          ...(stdin === undefined ? {} : { stdin }),
+        }),
+    env: spawnEnv,
     // Under MXC the program's command line is in the launcher's request,
     // and the launcher's own arguments take Node's quoting.
     ...(spawned.kind === "mxc" ? { windowsVerbatimArguments: false } : {}),

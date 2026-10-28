@@ -181,7 +181,6 @@ async function runNativePython(
           // Last, and handed what `PYTHONPATH` now holds, so a skill's layer
           // goes in front of the base set rather than over it.
           ...(skill.layer && pythonLayerEnv(skill.layer, pythonPath)),
-          ...scriptChannel?.env,
         },
         // Buffer, not the latin1-packed string: execa UTF-8 encodes string
         // input, which would double-encode every non-ASCII byte.

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -580,9 +580,15 @@ export function mxcLaunch(
   context: {
     cwd?: string;
     env: Record<string, string | undefined>;
+    /**
+     * The request holds a secret, so it goes in a file of its own, which
+     * the caller deletes once the program has started, in place of the
+     * launcher's command line, which another process can read.
+     */
+    privateRequest?: true;
     windowsVerbatimArguments?: boolean;
   },
-): { args: string[]; file: string } {
+): { args: string[]; file: string; request?: string } {
   const request = JSON.stringify(
     mxcRequest({
       commandLine: windowsCommandLine(
@@ -598,6 +604,17 @@ export function mxcLaunch(
       filesystem: command.filesystem,
     }),
   );
+  if (context.privateRequest) {
+    // In the sandbox's own folder, which every request closes.
+    const file = path.join(
+      sandboxStateDir(),
+      "mxc-requests",
+      `private-${randomUUID()}.json`,
+    );
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, request, { flag: "wx", mode: 0o600 });
+    return { args: ["--config", file], file: command.file, request: file };
+  }
   const inline = Buffer.from(request).toString("base64");
   if (inline.length <= MXC_INLINE_LIMIT) {
     return { args: ["--config-base64", inline], file: command.file };

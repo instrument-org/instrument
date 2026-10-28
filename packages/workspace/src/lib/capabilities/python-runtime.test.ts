@@ -103,16 +103,18 @@ afterEach(() => {
   channel = undefined;
 });
 
-/** Runs `code` as the bare managed Python would be run, its channel open. */
+/**
+ * Runs `code` as the bare managed Python would be run, its channel open
+ * and handed over as the shell's `python` hands it over.
+ */
 async function run(code: string) {
   channel = await openScriptChannel(echo);
   const { modules, site } = await ensurePythonRuntime();
+  const { env, tokenLine } = channel.handOver;
   return execa(python ?? "python3", ["-c", code], {
-    env: {
-      ...channel.env,
-      PYTHONPATH: [site, modules].join(path.delimiter),
-    },
+    env: { ...env, PYTHONPATH: [site, modules].join(path.delimiter) },
     reject: false,
+    ...(tokenLine && { stdio: ["pipe", "pipe", "pipe", tokenLine] }),
   });
 }
 
@@ -126,6 +128,36 @@ print(subprocess.run([sys.executable, "-c", "import os; print('INSTRUMENT_CHANNE
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("False\nFalse");
   });
+
+  // Another process of the same user reads the environment a process
+  // started with (`ps eww`, /proc/<pid>/environ), whatever it deletes later.
+  it.skipIf(process.platform === "win32")(
+    "starts with no token in its environment and leaves no descriptor 3 to a process it starts",
+    async () => {
+      const result = await run(
+        `import ctypes, os, re, subprocess, sys
+def started_with(pid):
+    if sys.platform == "linux":
+        with open("/proc/%d/environ" % pid, "rb") as environ:
+            return environ.read()
+    libc = ctypes.CDLL(None)
+    mib = (ctypes.c_int * 3)(1, 49, pid)  # CTL_KERN, KERN_PROCARGS2
+    size = ctypes.c_size_t(0)
+    libc.sysctl(mib, 3, None, ctypes.byref(size), None, 0)
+    found = ctypes.create_string_buffer(size.value)
+    libc.sysctl(mib, 3, found, ctypes.byref(size), None, 0)
+    return found.raw[: size.value]
+# Each entry starts after a NUL, which sets the variables apart from this
+# code in the arguments.
+print(re.search(rb"\\0INSTRUMENT_CHANNEL=([^\\0]*)", b"\\0" + started_with(os.getpid())).group(1).decode())
+print(subprocess.run(["/bin/sh", "-c", "if [ -e /dev/fd/3 ]; then echo open; else echo closed; fi"], close_fds=False, capture_output=True, text=True).stdout.strip())
+import instrument
+print(instrument.call("x.y")["capability"])`,
+      );
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toMatch(/^\d+:fd3\nclosed\nx\.y$/);
+    },
+  );
 
   it("calls an app's tool with keywords and hands back what came back", async () => {
     const result = await run(

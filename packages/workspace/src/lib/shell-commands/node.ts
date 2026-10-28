@@ -69,7 +69,6 @@ export async function execNode(
           ...nodeToolsEnv(),
           // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
           ...ffmpegSubprocessEnv(env?.PATH),
-          ...scriptChannel?.env,
         },
         ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
       },

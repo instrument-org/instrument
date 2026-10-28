@@ -169,7 +169,9 @@ async function askFor(
   return {
     kind,
     name,
-    ...(manifest.type === "mcp-local"
+    // One of the Mac's own apps installs nothing, so its card says nothing
+    // of what runs.
+    ...(manifest.type === "mcp-local" && manifest.runtime !== "bundled"
       ? { runs: describeLocalLaunch(manifest) }
       : {}),
     site: appSiteFor(slug, manifest),

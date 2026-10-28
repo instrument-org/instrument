@@ -115,6 +115,8 @@ const AppListItemSchema = z.discriminatedUnion("type", [
   }),
   AppListItemBaseSchema.extend({
     authKind: z.enum(["env", "none"]),
+    /** One of the Mac's own apps, on the server the app ships for it: nothing to install. */
+    bundled: z.boolean(),
     keyHelp: KeyHelpSchema,
     /** What runs on this computer, in words. */
     runs: z.string(),
@@ -242,6 +244,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
             return {
               ...listed,
               authKind: manifest.auth.kind,
+              bundled: manifest.runtime === "bundled",
               endpoint: manifest.package,
               ...keyHelpFor(app.slug, manifest),
               runs: describeLocalLaunch(manifest),
@@ -590,8 +593,8 @@ async function requireShownOrigin({
  */
 /** An app answered on a card or a page: the chat, for a card, which hears the answer. */
 const AnsweredOnCardSchema = z.object({
-      /** The chat whose card this was answered on, which hears the answer. */
-      chatId: ChatIdSchema.optional(),
+  /** The chat whose card this was answered on, which hears the answer. */
+  chatId: ChatIdSchema.optional(),
   slug: AppSlugSchema,
 });
 

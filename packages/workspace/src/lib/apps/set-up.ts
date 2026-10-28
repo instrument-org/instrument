@@ -15,6 +15,7 @@ import {
   writeAppFolder,
 } from "./store";
 import { runAppTest } from "./test-app";
+import { bundledMacAppHere } from "./mac-app";
 import { catalogWayIn, parseAuth } from "./way-in";
 import { webInsteadUrl } from "./site";
 
@@ -30,9 +31,12 @@ const OPEN_TEST_TIMEOUT_MS = 30_000;
  *
  * A service already set up gets one more app beside the first, under the
  * next free slug (gmail, then gmail-2), for a second account; nothing that
- * is already there is written over. Answers `agent` for a way in the
- * directory cannot finish alone (a Mac app a task drives, an API whose
- * guide still has to be written), which the caller hands to the agent.
+ * is already there is written over. One of the Mac's own apps is set up on
+ * the server the app ships for it, under the Mac app's own name, and waits
+ * on the person's go-ahead like any server that runs here; on a computer
+ * that can't run it, as for a way in the directory cannot finish alone (an
+ * API whose guide still has to be written), the answer is `agent`, which the
+ * caller hands to the agent.
  */
 export async function setUpFromDirectory({
   signal,
@@ -48,9 +52,25 @@ export async function setUpFromDirectory({
     return { kind: "agent" };
   }
   const way = catalogWayIn(entry);
-  const name = entry.name;
+  const macApp =
+    way.kind === "mac-app" && entry.family === "apple"
+      ? bundledMacAppHere(way.bundleId)
+      : undefined;
+  const name = macApp?.name ?? entry.name;
   const { appsDir } = getWorkspaceConfig();
   const { apps: present, invalid } = await listApps(appsDir);
+  // A Mac app has one of itself, which covers every account added to it.
+  const already = macApp
+    ? present.find(
+        (app) =>
+          app.manifest.type === "mcp-local" &&
+          app.manifest.runtime === "bundled" &&
+          app.manifest.package === macApp.server,
+      )
+    : undefined;
+  if (already) {
+    return { kind: "set-up", slug: already.slug };
+  }
   const fields = serviceManifestFields(entry, {
     anotherAccount: present.some(
       (app) => catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
@@ -87,22 +107,30 @@ export async function setUpFromDirectory({
                 type: "web",
                 url: way.url,
               }
-            : undefined;
+            : macApp
+              ? {
+                  auth: { kind: "none" },
+                  macApp: macApp.bundleId,
+                  package: macApp.server,
+                  runtime: "bundled",
+                  ...fields,
+                  type: "mcp-local",
+                }
+              : undefined;
   if (candidate === undefined) {
     return { kind: "agent" };
   }
   const manifest = AppManifestSchema.parse(candidate);
-  const guide = guideSkeleton(manifest, entry);
-  if (guidePlaceholdersLeft(manifest, guide).length > 0) {
-    return { kind: "agent" };
-  }
-
   // A broken file keeps its id, so the next app of the service passes it by.
   const taken = new Set([
     ...present.map((app) => String(app.slug)),
     ...invalid.map((app) => app.slug),
   ]);
   const slug = AppSlugSchema.parse(nextFreeSlug(entry.slug, taken));
+  const guide = guideSkeleton(manifest, entry, slug);
+  if (guidePlaceholdersLeft(manifest, guide).length > 0) {
+    return { kind: "agent" };
+  }
   await writeAppFolder({ appsDir, guide, manifest, name, slug });
 
   if (manifest.type === "mcp" && manifest.auth.kind === "none") {

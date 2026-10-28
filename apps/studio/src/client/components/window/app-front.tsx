@@ -213,32 +213,39 @@ export function AppFront({
   const methods = (entry?.authMethods ?? []).map((method) => method.label);
   // What setting up waits on, in one line, with at most one more under it;
   // where the controls below say where a sign-in or key goes, they say it.
-  const setupTitle = !app
-    ? `Connect ${name}`
-    : isWeb
-      ? `Sign in to ${name} on the web`
-      : app.standing === "needs-sign-in"
-        ? app.connection?.error
-          ? `Sign in to ${name} again`
-          : `Sign in to ${name}`
-        : app.standing === "needs-key"
-          ? `Add a key from ${name}`
-          : app.standing === "needs-approval"
-            ? `Allow ${name} to run on ${osConventions().thisComputer}`
-            : app.standing === "failed"
-              ? `Couldn’t connect to ${name}`
-              : app.standing === "stale"
-                ? `${name} changed since it last connected`
-                : `Finish connecting ${name}`;
+  // One of the Mac's own apps runs on a server the app ships, so connecting
+  // it installs nothing; macOS asks the person itself on first use.
+  const isBundled = app?.type === "mcp-local" && app.bundled;
+  const bundledToConnect = isBundled && app.standing === "needs-approval";
+  const setupTitle =
+    !app || bundledToConnect
+      ? `Connect ${name}`
+      : isWeb
+        ? `Sign in to ${name} on the web`
+        : app.standing === "needs-sign-in"
+          ? app.connection?.error
+            ? `Sign in to ${name} again`
+            : `Sign in to ${name}`
+          : app.standing === "needs-key"
+            ? `Add a key from ${name}`
+            : app.standing === "needs-approval"
+              ? `Allow ${name} to run on ${osConventions().thisComputer}`
+              : app.standing === "failed"
+                ? `Couldn’t connect to ${name}`
+                : app.standing === "stale"
+                  ? `${name} changed since it last connected`
+                  : `Finish connecting ${name}`;
   const setupDetail = !app
     ? methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
       : undefined
-    : app.standing === "needs-sign-in" && !isWeb
-      ? `Sign in here in a tab, or with ${browserName} if you’re already signed in to ${name} there.`
-      : app.standing === "stale"
-        ? "Try again to connect it as it is now."
-        : undefined;
+    : bundledToConnect
+      ? `macOS will ask you once before Instrument uses ${name}.`
+      : app.standing === "needs-sign-in" && !isWeb
+        ? `Sign in here in a tab, or with ${browserName} if you’re already signed in to ${name} there.`
+        : app.standing === "stale"
+          ? "Try again to connect it as it is now."
+          : undefined;
   // The way out when the buttons beside it are not getting there: last and
   // quiet, so it reads as help rather than one more way to sign in.
   const withInstrument = (
@@ -568,8 +575,13 @@ export function AppFront({
                   <ConnectControls
                     alongside={withInstrument}
                     kind="run"
+                    {...(isBundled && { label: "Connect" })}
                     name={name}
-                    runs={app.type === "mcp-local" ? app.runs : undefined}
+                    runs={
+                      app.type === "mcp-local" && !app.bundled
+                        ? app.runs
+                        : undefined
+                    }
                     slug={slug}
                   />
                 ) : app?.standing === "needs-key" ? (

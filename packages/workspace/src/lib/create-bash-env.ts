@@ -33,9 +33,11 @@ import {
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
+import { MAC_APPS } from "./mac-apps/apps";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { createXCommand, X_COMMAND } from "./shell-commands/x";
 import { answerChannel, type ChannelAnswer } from "./capabilities/channel";
+import { type CapabilityScope } from "./capabilities/context";
 import { scriptSurfaceOpen } from "./capabilities/script-surface";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
@@ -48,10 +50,7 @@ import {
   type SessionCommandContext,
   WAIT_MARKER,
 } from "./shell-commands/background-jobs";
-import {
-  createInstrumentCommand,
-  type InstrumentSubcommand,
-} from "./shell-commands/instrument";
+import { createInstrumentCommand } from "./shell-commands/instrument";
 import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
@@ -60,14 +59,8 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
-import { createMailCommand, MAIL_COMMAND } from "./shell-commands/mail";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
-import {
-  createMessagesCommand,
-  MESSAGES_COMMAND,
-} from "./shell-commands/messages";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
-import { createNotesCommand, NOTES_COMMAND } from "./shell-commands/notes";
 import {
   bundledTextRouteNames,
   createNativeTextCommand,
@@ -85,11 +78,6 @@ import {
 } from "./permissions/windows-protection";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
-import {
-  CALENDAR_COMMAND,
-  CONTACTS_COMMAND,
-  createMacHelperCommand,
-} from "./shell-commands/mac-helper";
 import {
   createPip3Command,
   createPipCommand,
@@ -208,15 +196,11 @@ const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
 ]);
 
 /**
- * What the agent hears for `osascript`: the commands that reach the apps it
- * would have scripted, the helper's where this build carries it.
+ * What the agent hears for `osascript`: the Mac's own apps are apps in
+ * Apps, reached through the server the app ships for each.
  */
 function osascriptRefusal(): string {
-  const helper =
-    getWorkspaceConfig().macHelperBinPath === undefined
-      ? ""
-      : ` Calendar and Reminders have the \`${CALENDAR_COMMAND.name}\` command, and Contacts the \`${CONTACTS_COMMAND.name}\` command.`;
-  return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} Any other app has no way in from here, so tell the person what you couldn't do in it.`;
+  return `AppleScript you write doesn't run here. ${MAC_APPS.map((app) => app.name).join(", ")} are apps (\`${APP_COMMAND.name} catalog ${MAC_APPS[0]?.server ?? ""}\` has one's set-up line), reached with \`${APP_COMMAND.name} call\` once connected. Any other app has no way in from here, so tell the person what you couldn't do in it.`;
 }
 
 /**
@@ -587,50 +571,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 ];
 
 /**
- * `instrument`'s commands for the Mac's own apps, in every shell on macOS:
- * Mail, Notes and Messages through the app's scripts, and Calendar,
- * Reminders and Contacts through the Mac helper where this build carries it.
- */
-const MAC_APP_SUBCOMMANDS: (Omit<InstrumentSubcommand, "command"> & {
-  available?: () => boolean;
-  description: string;
-  factory: (context: CustomCommandContext) => Command;
-  name: string;
-})[] = [
-  {
-    ...CALENDAR_COMMAND,
-    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
-    factory: ({ chatId, layout }) =>
-      createMacHelperCommand(CALENDAR_COMMAND, chatId, layout),
-  },
-  {
-    ...CONTACTS_COMMAND,
-    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
-    factory: ({ chatId, layout }) =>
-      createMacHelperCommand(CONTACTS_COMMAND, chatId, layout),
-  },
-  {
-    ...MAIL_COMMAND,
-    factory: ({ chatId, layout }) => createMailCommand(chatId, layout),
-  },
-  {
-    ...MESSAGES_COMMAND,
-    factory: ({ chatId, layout }) => createMessagesCommand(chatId, layout),
-  },
-  {
-    ...NOTES_COMMAND,
-    factory: ({ chatId, layout }) => createNotesCommand(chatId, layout),
-  },
-];
-
-/** The Mac app commands this platform and build offer, read per call so a test can pin one. */
-function macAppSubcommands() {
-  return process.platform === "darwin"
-    ? MAC_APP_SUBCOMMANDS.filter((each) => each.available?.() ?? true)
-    : [];
-}
-
-/**
  * The program each of our commands runs, which `type`, `command -v`, `hash`
  * and `which` name it by. A command not listed runs inside the shell, or
  * runs a program only as part of what it does (`pip` is `uv pip`, `npx` is
@@ -771,10 +711,9 @@ function describedCommandNames(): string[] {
 /**
  * What this computer's shell has beyond the bash tool's description: the
  * commands only its platform, or a program of its own, answers (`ps`, `top`,
- * `tasklist`), and on a Mac the `instrument` commands for its apps. Told in
- * the session's system information and in a note when it changes, so the
- * tool definition stays the same on every computer. Empty when there are
- * none.
+ * `tasklist`). Told in the session's system information and in a note when
+ * it changes, so the tool definition stays the same on every computer.
+ * Empty when there are none.
  */
 export function computerCommandsText(): string {
   const listed = new Set(describedCommandNames());
@@ -785,18 +724,9 @@ export function computerCommandsText(): string {
         .filter((name) => !listed.has(name)),
     ),
   ].sort();
-  const apps = macAppSubcommands();
-  return [
-    added.length > 0 &&
-      `Your shell on this computer also has ${added.map((name) => `\`${name}\``).join(", ")}.`,
-    apps.length > 0 &&
-      [
-        `\`${INSTRUMENT_COMMAND.name}\` also has these commands for this Mac's own apps:`,
-        ...apps.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
-      ].join("\n"),
-  ]
-    .filter((line) => typeof line === "string")
-    .join("\n");
+  return added.length > 0
+    ? `Your shell on this computer also has ${added.map((name) => `\`${name}\``).join(", ")}.`
+    : "";
 }
 
 export function createBashDescription() {
@@ -951,7 +881,7 @@ export async function createLocalBashEnv({
   standIn,
   chatId,
   model,
-  answerScript = answerChannel({ chatId, model, role, sessionId }),
+  answerScript,
 }: BashEnvOptions & {
   /**
    * Answers what a script's `instrument` asks; the bash worker sets one
@@ -981,18 +911,32 @@ export async function createLocalBashEnv({
 
   // What sets the chat's shell apart from a task's: its `instrument` has
   // `task`, and its `memory` and `window` change things, where a task's only
-  // read them; `app` and the Mac app commands are every shell's. Putting a
-  // thing on the user's screen is the chat's `window`: a task's reply is read
-  // by the chat, and a pane of the task's own has nobody looking.
+  // read them; `app` is every shell's. Putting a thing on the user's screen
+  // is the chat's `window`: a task's reply is read by the chat, and a pane of
+  // the task's own has nobody looking.
+  // The bash call as every capability call it makes sees it: the folders a
+  // file handed to an app is held to, and the part a card it raises names.
+  const scope: CapabilityScope = {
+    chatId,
+    layout,
+    ...(model === undefined ? {} : { model }),
+    ...(callPartId === undefined ? {} : { partId: callPartId }),
+    role,
+    sessionId,
+  };
   const nativeCommands = customCommandDefs().map((cmd) =>
-    cmd.factory({ answerScript, chatId, layout }),
+    cmd.factory({
+      answerScript: answerScript ?? answerChannel(scope),
+      chatId,
+      layout,
+    }),
   );
   const instrumentCommand = createInstrumentCommand({
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       {
         ...APP_COMMAND,
-        command: createAppCommand({ chatId, model, role, sessionId }),
+        command: createAppCommand(scope),
       },
       { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       {
@@ -1022,11 +966,6 @@ export async function createLocalBashEnv({
             },
           ]
         : []),
-      ...macAppSubcommands().map(({ factory, summary, word }) => ({
-        command: factory({ answerScript, chatId, layout }),
-        summary,
-        word,
-      })),
     ].toSorted((a, b) => a.word.localeCompare(b.word)),
   });
   const specializedCommands = [instrumentCommand, ...nativeCommands];

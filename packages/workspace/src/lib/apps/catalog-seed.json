@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-27T17:11:32.962Z",
-  "entriesHash": "df3c6891b0ba9ad3",
+  "revision": "2026-10-27T20:17:45.854Z",
+  "entriesHash": "6e6dd76f1128953c",
   "entries": [
     {
       "slug": "ahrefs",
@@ -253,7 +253,7 @@
       "slug": "apple-calendar",
       "name": "Apple Calendar",
       "tagline": "Events from every calendar added to this Mac.",
-      "description": "The Mac's own Calendar app. Nothing to connect: a task works in it with the `instrument calendar` command. The person is asked the first time a chat uses Calendar, and macOS asks them once to let Instrument read their calendars. Covers every account added to Calendar, Google and Exchange ones included.",
+      "description": "The Mac's own Calendar app, with every account added to it, Google and Exchange ones included. macOS asks once before Instrument reads your calendars.",
       "domain": "apple.com",
       "authMethods": [],
       "interfaces": [
@@ -261,7 +261,7 @@
           "format": "mac-app",
           "name": "Calendar",
           "bundleId": "com.apple.iCal",
-          "limits": "The `instrument calendar` command lists calendars and events and adds events; it can't change or delete an event."
+          "limits": "It lists calendars and events and adds events; it can't change or delete an event."
         }
       ],
       "category": "calendar",
@@ -276,10 +276,36 @@
       ]
     },
     {
+      "slug": "apple-contacts",
+      "name": "Apple Contacts",
+      "tagline": "People from every account added to this Mac.",
+      "examples": [
+        "What’s Maya’s phone number?",
+        "Whose birthday is coming up?",
+        "Find everyone I know at Acme"
+      ],
+      "description": "The Mac's own Contacts app, with every account added to it, iCloud and Google ones included. macOS asks once before Instrument reads your contacts.",
+      "domain": "apple.com",
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mac-app",
+          "name": "Contacts",
+          "bundleId": "com.apple.AddressBook",
+          "limits": "It looks people up by name, company, email or phone; it can't add or change a contact."
+        }
+      ],
+      "category": "mail",
+      "aliases": ["address book"],
+      "family": "apple",
+      "tier": "listed",
+      "rank": 48
+    },
+    {
       "slug": "apple-mail",
       "name": "Apple Mail",
       "tagline": "Mail from every account added to this Mac.",
-      "description": "The Mac's own Mail app. Nothing to connect: a task works in it with the `instrument mail` command. The person is asked the first time a chat uses Mail, and macOS asks them once to let Instrument control it. Covers every account added to Mail, Gmail and Exchange ones included.",
+      "description": "The Mac's own Mail app, with every account added to it, Gmail and Exchange ones included. macOS asks once before Instrument controls Mail.",
       "domain": "apple.com",
       "authMethods": [],
       "interfaces": [
@@ -287,7 +313,7 @@
           "format": "mac-app",
           "name": "Mail",
           "bundleId": "com.apple.mail",
-          "limits": "The `instrument mail` command lists, searches, and reads messages, opens a new message in Mail for the person to send, sends one, and moves messages between mailboxes. It can't flag a message or save its attachments, and a reply goes out as a new message rather than in its thread."
+          "limits": "It lists, searches, and reads messages, opens a new message in Mail for the person to send, sends one, and moves messages between mailboxes. It can't flag a message or save its attachments, and a reply goes out as a new message rather than in its thread."
         }
       ],
       "category": "mail",
@@ -304,7 +330,7 @@
       "slug": "apple-messages",
       "name": "Apple Messages",
       "tagline": "iMessage and text conversations.",
-      "description": "The Mac's own Messages app. Nothing to connect: a task sends with the `instrument messages` command. The person is asked the first time a chat uses Messages, and macOS asks them once to let Instrument control it. Sends iMessages from this Mac, and texts through the person's iPhone.",
+      "description": "The Mac's own Messages app, which sends iMessages from this Mac and texts through your iPhone. macOS asks once before Instrument controls Messages.",
       "domain": "apple.com",
       "authMethods": [],
       "interfaces": [
@@ -312,7 +338,7 @@
           "format": "mac-app",
           "name": "Messages",
           "bundleId": "com.apple.MobileSMS",
-          "limits": "Sending works: `instrument messages send` sends once the person allows Messages. Reading past messages does not: Messages' scripting cannot read its history, and the only ways to are Full Disk Access for Instrument (to read the Messages database, and with it every file) or Accessibility (to drive its window). Tell the user that before trying, and let them decide; never reach for either on your own."
+          "limits": "Sending works once the person connects Messages. Reading past messages does not: Messages' scripting cannot read its history, and the only ways to are Full Disk Access for Instrument (to read the Messages database, and with it every file) or Accessibility (to drive its window). Tell the user that before trying, and let them decide; never reach for either on your own."
         }
       ],
       "category": "mail",
@@ -335,7 +361,7 @@
         "Summarize my most recent note",
         "Find notes with unfinished checklists"
       ],
-      "description": "The Mac's own Notes app. Nothing to connect: a task works in it with the `instrument notes` command. The person is asked the first time a chat uses Notes, and macOS asks them once to let Instrument control it. Reads and writes the notes synced to this Mac, iCloud's included.",
+      "description": "The Mac's own Notes app, with the notes synced to this Mac, iCloud's included. macOS asks once before Instrument controls Notes.",
       "domain": "apple.com",
       "authMethods": [],
       "interfaces": [
@@ -343,7 +369,7 @@
           "format": "mac-app",
           "name": "Notes",
           "bundleId": "com.apple.Notes",
-          "limits": "The `instrument notes` command lists, searches, reads, creates, and adds to notes. It can't delete or move a note, open a locked one, or add to one that holds attachments."
+          "limits": "It lists, searches, reads, creates, and adds to notes. It can't delete or move a note, open a locked one, or add to one that has attachments."
         }
       ],
       "category": "notes",
@@ -360,7 +386,7 @@
         "Which reminders are overdue?",
         "What’s coming up this week?"
       ],
-      "description": "The Mac's own Reminders app. Nothing to connect: a task works in it with the `instrument calendar` command. The person is asked the first time a chat uses Reminders, and macOS asks them once to let Instrument read their reminders. Reads and adds to the lists synced to this Mac.",
+      "description": "The Mac's own Reminders app, with the lists synced to this Mac, iCloud's included. macOS asks once before Instrument reads your reminders.",
       "domain": "apple.com",
       "authMethods": [],
       "interfaces": [
@@ -368,7 +394,7 @@
           "format": "mac-app",
           "name": "Reminders",
           "bundleId": "com.apple.reminders",
-          "limits": "The `instrument calendar` command lists reminders and reminder lists and adds reminders; it can't complete, change, or delete one."
+          "limits": "It lists reminders and reminder lists and adds reminders; it can't complete, change, or delete one."
         }
       ],
       "category": "tasks",

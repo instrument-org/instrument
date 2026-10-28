@@ -76,8 +76,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Privacy-first diagnostics and feedback](active/privacy-first-diagnostics-and-feedback.md) | proposal |
 | [AI usage panel](active/ai-usage-panel.md): a request log in Settings | planned, not started |
 | [Window notices](active/window-notices.md): a bell in the window bar for damaged chats, error reports and the like | proposed, not started |
-| [Reminders and Calendar app](active/mac-reminders-and-calendar-app.md): a built-in app on macOS | planned, not started |
-| [One capability layer](active/one-capability-layer.md): each capability defined once, with the `instrument` command, the script modules and model tools generated from it | phase 0 baseline done |
+| [One capability layer](active/one-capability-layer.md): each capability defined once, with the `instrument` command, the script modules and model tools generated from it | phase 0 baseline and phase 2 (the Mac apps as bundled MCP apps) done |
 
 ### Development, testing, and dependencies
 
@@ -98,6 +97,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Outcome |
 | --- | --- |
+| [Reminders and Calendar app](completed/mac-reminders-and-calendar-app.md): a built-in app on macOS | superseded: landed as commands, then as bundled MCP apps |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
 | [Skills mount instead of copy](completed/skills-mount-instead-of-copy.md): skills read where they are, dependencies built once | landed |
 | [External browsers behind a flag](completed/external-browser-behind-a-flag.md) | abandoned, removed |

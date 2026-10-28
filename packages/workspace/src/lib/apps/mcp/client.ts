@@ -54,6 +54,8 @@ export interface McpConnectionError {
 
 interface McpCallResult {
   isError: boolean;
+  /** The result's `_meta`, as the server sent it. */
+  meta: unknown;
   /** The tool's `structuredContent`, where the server sent one: the result as data rather than prose. */
   structured?: object;
   text: string;
@@ -79,9 +81,16 @@ interface McpToolSummary {
  */
 export async function callMcpTool(
   client: Client,
-  { args, name }: { args: Record<string, unknown>; name: string },
+  {
+    args,
+    name,
+    signal,
+  }: { args: Record<string, unknown>; name: string; signal?: AbortSignal },
 ): Promise<McpCallResult> {
-  const result = await client.callTool({ arguments: args, name });
+  // An abort tells the server the call is canceled, so it stops the work too.
+  const result = await client.callTool({ arguments: args, name }, undefined, {
+    signal,
+  });
   const content: ContentBlock[] = Array.isArray(result.content)
     ? (result.content as ContentBlock[])
     : [];
@@ -95,6 +104,7 @@ export async function callMcpTool(
     : undefined;
   return {
     isError: result.isError === true,
+    meta: result._meta,
     structured,
     // A server should send the text form too, but one that sends only the
     // data still has said something.

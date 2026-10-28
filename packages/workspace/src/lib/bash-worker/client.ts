@@ -6,6 +6,8 @@ import { omit, pick } from "radashi";
 
 import { answerChannel, type ChannelAnswer } from "../capabilities/channel";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
+import { chatRules } from "../permissions/chat-rules";
+import { roleLayout } from "../session-layout";
 import { ensureVenv } from "../venv";
 import { ensurePythonEnvironmentHere } from "../skill-environments";
 import { refreshPythonBaseIfDue } from "../python-base";
@@ -101,6 +103,41 @@ export function bashWorkerEnabled(): boolean {
 }
 
 /**
+ * The registry's answer for one bash call's scripts, held to the chat's
+ * folder rules as the shell's own `instrument` is. The rules are read at the
+ * first request, once for the call.
+ */
+function scriptAnswer(options: BashEnvOptions): ChannelAnswer {
+  const role = options.role ?? "task";
+  let answer: Promise<ChannelAnswer> | undefined;
+  return async (request, signal) => {
+    answer ??= chatRules({
+      chatId: options.chatId,
+      folders: options.folders,
+      partId: options.callPartId,
+      sessionId: options.sessionId,
+    }).then((rules) =>
+      answerChannel({
+        chatId: options.chatId,
+        layout: roleLayout({
+          chatId: options.chatId,
+          folders: options.folders,
+          role,
+          rules,
+        }),
+        ...(options.model === undefined ? {} : { model: options.model }),
+        ...(options.callPartId === undefined
+          ? {}
+          : { partId: options.callPartId }),
+        role,
+        sessionId: options.sessionId,
+      }),
+    );
+    return (await answer)(request, signal);
+  };
+}
+
+/**
  * A shell whose interpreter, filesystem and host-work commands run in one
  * long-lived worker thread shared by every call, and whose
  * `MAIN_THREAD_COMMANDS` come back here to run against a shell built on this
@@ -129,14 +166,7 @@ export function createRemoteBash(
           }
         };
         const entry: PendingExec = {
-          answerScript:
-            answerScript ??
-            answerChannel({
-              chatId: options.chatId,
-              ...(options.model === undefined ? {} : { model: options.model }),
-              role: options.role ?? "task",
-              sessionId: options.sessionId,
-            }),
+          answerScript: answerScript ?? scriptAnswer(options),
           calls: new Map(),
           commandRuns: currentCommandRuns(),
           inContext: AsyncLocalStorage.snapshot(),

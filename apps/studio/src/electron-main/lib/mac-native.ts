@@ -22,8 +22,8 @@ import { z } from "zod";
  *   which comes too often to start a process for.
  * - The helper (`instrument-mac`), run as a child, answers about data:
  *   Calendar, Reminders, Contacts. macOS asks on the app's behalf, so a
- *   grant covers both the agent's `instrument calendar`/`contacts` commands and the
- *   setup page that asks ahead of them.
+ *   grant covers both the Calendar, Reminders and Contacts apps' MCP server,
+ *   which runs it, and the setup page that asks ahead of them.
  *
  * To add a capability: a block in `FUNCTIONS` (native/mac-helper/addon/
  * addon.m) or a command in the helper (native/mac-helper/Sources), a typed
@@ -49,7 +49,7 @@ function bridgeFile(name: string): string | undefined {
 }
 
 /**
- * The helper behind the agent's `instrument calendar` and `contacts` commands, when this
+ * The helper behind the Calendar, Reminders and Contacts apps, when this
  * build carries it and this Mac can run it: it is built for macOS 14 (Darwin
  * 23), and an older loader refuses it outright.
  */
@@ -58,6 +58,15 @@ export function macHelperBinPath(): string | undefined {
     return undefined;
   }
   return bridgeFile("instrument-mac");
+}
+
+/**
+ * The Mac apps' MCP server, built beside the main process's own entry
+ * (`electron.vite.config.ts`), which the app runs as Node by its own
+ * executable.
+ */
+export function macAppsServerPath(): string {
+  return path.join(app.getAppPath(), "out", "main", "mac-apps-server.js");
 }
 
 /**

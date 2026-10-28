@@ -259,8 +259,9 @@ export function seatbeltProfile(
   }
   // No Apple Events and no opening apps: a command could otherwise have
   // another app do what the profile keeps it from, outside any sandbox.
-  // The app's own scripts reach an app only when the person allowed that
-  // app, and then run unwrapped (app-scripts.ts).
+  // The app's own scripts reach an app only once the person connected it
+  // in Apps, and then run outside the sandbox, from the Mac apps' server
+  // (lib/mac-apps).
   texts.push(
     "(deny appleevent-send)",
     "(deny lsopen)",

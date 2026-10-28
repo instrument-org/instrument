@@ -1,6 +1,7 @@
 import { type z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { type Asker } from "../chat/asks";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 
@@ -13,6 +14,8 @@ export type Surface = "cli" | "script";
  * shell's own `instrument` reaches in the same bash call.
  */
 export interface CapabilityContext {
+  /** Who a card the call raises is from: the bash call's chat, session and part. */
+  asker: Asker;
   chatId: ChatId;
   /** The canonical id of the model the call answers to. */
   model?: string;
@@ -21,6 +24,12 @@ export interface CapabilityContext {
    * per call: a script's hundred requests ask what the model has seen once.
    */
   modelWindow: () => Promise<readonly SessionMessage.WithParts[] | undefined>;
+  /**
+   * A file the call names for an app to read outside every sandbox, as the
+   * absolute path the chat may read: held to the folder rules as the shell's
+   * own commands hold a path. Throws what it refuses.
+   */
+  readableFile: (named: string) => Promise<string>;
   role: "chat" | "task";
   sessionId: StoreId.Session;
   signal?: AbortSignal;
@@ -66,6 +75,8 @@ export class CapabilityFailure extends Error {
   constructor(
     message: string,
     readonly kind: CapabilityErrorKind = "failed",
+    /** For a `card`, the card `run` put up, which ends the turn as a gate's does. */
+    readonly askId?: string,
   ) {
     super(message);
     this.name = "CapabilityFailure";

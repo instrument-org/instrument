@@ -210,7 +210,7 @@ describe("osascript", () => {
     vi.unstubAllGlobals();
   });
 
-  it("refuses AppleScript the agent writes, and names the commands that reach the apps", async () => {
+  it("refuses AppleScript the agent writes, and names the apps that reach the Mac's own", async () => {
     const chatId = createMockChatConfig(
       ChatIdSchema.parse("osascript-refused"),
     );
@@ -227,7 +227,7 @@ describe("osascript", () => {
       "osascript: AppleScript you write doesn't run here.",
     );
     expect(result.stderr).toContain(
-      "`instrument mail`, `instrument notes` and `instrument messages` commands",
+      "Calendar, Contacts, Mail, Messages, Notes, Reminders are apps",
     );
   });
 });
@@ -285,47 +285,33 @@ describe("instrument", () => {
     expect(result.stderr).toContain('instrument: unknown command "mail".');
   });
 
-  // The Mac's own apps are offered where they can be reached: Mail, Notes
-  // and Messages on any Mac, Calendar and Contacts where the build carries
-  // the helper, and in a task's shell as in the chat's.
-  it.each([
-    [undefined, ["mail", "messages", "notes"]],
-    [
-      "/app/bin/instrument-mac",
-      ["calendar", "contacts", "mail", "messages", "notes"],
-    ],
-  ])(
-    "lists the Mac app commands on macOS with the helper at %s",
-    async (bin, words) => {
-      vi.stubGlobal("process", { ...process, platform: "darwin" });
-      const chatId = createMockChatConfig(
-        ChatIdSchema.parse("instrument-mac-apps"),
-      );
-      await mkdir(chatDir(chatId), { recursive: true });
-      const config = getWorkspaceConfig();
-      const { macHelperBinPath: _absent, ...without } = config;
-      setWorkspaceConfig(
-        bin === undefined
-          ? without
-          : { ...config, macHelperBinPath: AbsolutePathSchema.parse(bin) },
-      );
-      try {
-        const bash = await createLocalBashEnv({
-          chatId,
-          role: "task",
-          sessionId: StoreId.newSessionId(),
-        });
-        const listed = (await bash.exec("instrument")).stdout
-          .split("\n")
-          .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
-        expect(listed).toEqual(
-          ["app", ...words, "memory", "window", "x"].toSorted(),
-        );
-      } finally {
-        setWorkspaceConfig(config);
-      }
-    },
-  );
+  // The Mac's own apps are apps in Apps, so `instrument` has no words of
+  // its own for them, on a Mac with the helper as anywhere.
+  it("lists no Mac app commands on macOS", async () => {
+    vi.stubGlobal("process", { ...process, platform: "darwin" });
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("instrument-mac-apps"),
+    );
+    await mkdir(chatDir(chatId), { recursive: true });
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      macHelperBinPath: AbsolutePathSchema.parse("/app/bin/instrument-mac"),
+    });
+    try {
+      const bash = await createLocalBashEnv({
+        chatId,
+        role: "task",
+        sessionId: StoreId.newSessionId(),
+      });
+      const listed = (await bash.exec("instrument")).stdout
+        .split("\n")
+        .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
+      expect(listed).toEqual(["app", "memory", "window", "x"]);
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
 
   it("gives a task reading forms of `memory` and `window`, and says `task` is the chat's", async () => {
     const bash = await shell("instrument-task", "task");

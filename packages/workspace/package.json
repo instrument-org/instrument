@@ -19,6 +19,7 @@
     "./electron": "./src/electron.ts",
     "./host-path": "./src/lib/host-path.ts",
     "./layout": "./src/lib/workspace-layout.ts",
+    "./mac-apps-server": "./src/lib/mac-apps/main.ts",
     "./work-folders": "./src/lib/work-folders.ts",
     "./fixture-workspaces": "./scripts/lib/fixture-workspaces.ts",
     "./package.json": "./package.json"

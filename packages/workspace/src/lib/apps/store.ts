@@ -8,7 +8,9 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { readOwnFile, writeOwnFile } from "../own-file";
 import { shellPath } from "../shell-path";
+import { macAppNamed } from "../mac-apps/apps";
 import { APP_COMMAND } from "../shell-commands/app-command";
+import { macAppGuide } from "./mac-app-guide";
 import {
   type AppFile,
   APP_FILE_NAME,
@@ -196,8 +198,16 @@ export function guidePlaceholdersLeft(
 export function guideSkeleton(
   manifest: AppManifest,
   entry?: AppCatalogEntry,
+  slug = "<slug>",
 ): string {
   const tools = `\`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`;
+  const macApp =
+    manifest.type === "mcp-local" && manifest.runtime === "bundled"
+      ? macAppNamed(manifest.package)
+      : undefined;
+  if (macApp) {
+    return `${macAppGuide(macApp, slug)}\n`;
+  }
   if (manifest.type !== "api") {
     const reach =
       manifest.type === "mcp-local"

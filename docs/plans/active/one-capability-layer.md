@@ -1,6 +1,6 @@
 # One capability layer
 
-Status: **phase 1 built** (the registry, `apps.*`, both runtimes; evals below, its pass bar met); phase 0 done; the owner's answers are in Decisions; phases 2 and 3 not started.
+Status: **phases 0, 1 and 2 done**: the baseline, the registry with `apps.*` and both runtimes, and the Mac apps as bundled MCP apps (evals below); the owner's answers are in Decisions; phase 3 not started.
 
 ## Problem
 
@@ -24,11 +24,7 @@ The owner's direction: define each capability once, in a structured way, and gen
 | API app requests | `app request <slug> <METHOD> <path> [--param]` | no | **no** | no | both | as above, plus the guide handed back instead of the first request in a session |
 | App setup | `app catalog`, `new`, `test`, `list`, `guide`, `icon`, `account`, `disconnect` | `connect_app` | no | no | both; `connect_app` chat only (a task is told to end with a needs fence) | sign-in or key on the connect card |
 | Web apps | refused by `app call`/`request`; worked in a tab | no | no | no | both | sign-in in the window's browser |
-| Calendar, Reminders | `calendar events`, `reminders`, `calendars`, `lists`, `add-event`, `add-reminder` (macOS, helper builds) | no | no | no | both | per-chat app grant (`appRefusal` → `ask_permission`), then macOS privacy (`macosAppCard`, exit 2 and a card) |
-| Contacts | `contacts [--search] [--limit]` | no | no | no | both | same |
-| Mail | `mail accounts`, `mailboxes`, `list`, `search`, `read`, `draft`, `send`, `move` (macOS, AppleScript) | no | no | no | both | per-chat app grant, then macOS Automation |
-| Notes | `notes folders`, `list`, `search`, `read`, `create`, `append` | no | no | no | both | same |
-| Messages | `messages send` | no | no | no | both | same |
+| Calendar, Reminders, Contacts, Mail, Notes, Messages | MCP apps on the server the app ships: `app tools apple-calendar`, `app call apple-calendar add_event '<json>'` (macOS; Calendar, Reminders and Contacts in helper builds) | no | `instrument.apps["apple-calendar"].add_event()` | no | both | connected in Apps for every chat (Disconnect is the off switch), then macOS's own answer (the gate's `card`: exit 2, `CardShown`) |
 | Shortcuts | `/usr/bin/shortcuts` as a real program | no | no | no | both | `path-program.ts` asks by the app's grant; Seatbelt closes its services until granted |
 | Memory | `memory list`, `save`, `show`, `forget` | no | no | no | chat only | none |
 | Tabs | `tab list`, `open`, `replace`, `close`, `show`, `read`, `request` | no | no | no | chat only | `tab request` raises a card |
@@ -59,7 +55,7 @@ The owner settled these; the design below follows them.
 - **Python is synchronous first**, with calls safe from threads for fan-out.
 - **The Mac apps move into the Apps area like every other app, as plain local MCP apps.** The EventKit helper and the AppleScript behind Mail, Notes and Messages are served by an MCP server bundled inside Instrument, and each Mac app is an ordinary local MCP app (`instrument app call apple-calendar add_event`), the same as Notion or Linear, presented in Apps as a Mac app. There is no `mac` app kind and no registry capability per tool. MCP is the boundary, so the server can later be swapped or reused (iOS, the cloud). macOS's permission prompts stay attributed to Instrument, and a denial is the gate's `card` outcome (exit 2, `CardShown`) with today's macOS card. Longer term, computer use on every OS goes through Apps too (see [Computer use](#computer-use)).
 - **`instrument tab` is `instrument window`**, renamed on its own branch; phase 3's capabilities are `window.*`.
-- **Connecting a Mac app covers every chat**, as connecting any other app does. Calendar, Mail, Messages and the rest stop asking in each chat once the person connects them in Apps; Settings › Permissions can still mark one Not allowed, and macOS keeps its own prompt. Per-chat access may come later as an opt-in setting, and it would apply to apps in general rather than to Mac apps alone.
+- **Connecting a Mac app covers every chat**, as connecting any other app does. Calendar, Mail, Messages and the rest stop asking in each chat once the person connects them in Apps; Disconnect in Apps is the off switch, as for every other app, and macOS keeps its own prompt. Per-chat access may come later as an opt-in setting, and it would apply to apps in general rather than to Mac apps alone.
 
 ## Proposed shape
 
@@ -231,18 +227,22 @@ That answers the transcript's `subprocess.run(["instrument", ...])` in the words
 
 ## The Mac apps move into Apps
 
-**Decided: plain local MCP apps (option C).** All six Mac data apps (Calendar, Reminders, Contacts, Mail, Notes, Messages) are served by an MCP server bundled inside Instrument, the EventKit helper for Calendar, Reminders and Contacts and the app's own AppleScript for Mail, Notes and Messages, and each is an ordinary local MCP app: `instrument app call apple-calendar add_event '{...}'`, `instrument.apps["apple-calendar"].add_event({...})` in Node, `instrument.app("apple-calendar").add_event(...)` in Python, listed and connected in Apps like Notion or Linear and presented there as a Mac app. There is no `mac` app kind and no registry capability per tool: the tools and their schemas come from the server through `apps.call` and `apps.tools`, the way every MCP app's do.
+**Landed in phase 2, as bundled MCP apps.** All six Mac data apps (Calendar, Reminders, Contacts, Mail, Notes, Messages) are local MCP apps on one server the app ships, in the Apps area like every other app. What the code said when this was weighed:
 
-- **MCP is the boundary.** The server can later be swapped or reused (iOS, the cloud) without the agent's surfaces changing.
-- **The requirement: macOS's prompts stay Instrument's.** The server runs as the app's own helper, with the entitlements and usage strings that make macOS name Instrument when it asks, never as a separate program macOS names. A denial is the gate's `card` outcome: exit 2 on the command line, `CardShown` in a script, and today's macOS card (`macosAppCard`), raised once per thing.
-- **They were already apps everywhere except where they work.** The directory lists `apple-calendar`, `apple-mail` and the rest as entries with a `mac-app` interface ([`catalog-seed.json`](../../../packages/workspace/src/lib/apps/catalog-seed.json), `catalogWayIn` in [`way-in.ts`](../../../packages/workspace/src/lib/apps/way-in.ts)), and `app catalog` tells the agent to use `instrument calendar` instead (`nativeCommandFor`, `HELPER_COMMANDS`, `SCRIPTED_COMMANDS` in `app.ts`). Pressing Connect on one in the Apps screen dead-ends: `setUpFromDirectory` ([`set-up.ts`](../../../packages/workspace/src/lib/apps/set-up.ts)) answers `agent` for "a Mac app a task drives", so the window sends a chat message, and no app folder or tile ever appears.
-- **One namespace for scripts.** As apps, they are `instrument.apps["apple-calendar"]` beside `instrument.apps["google-calendar"]`, discovered by the same `instrument app tools <slug>`.
-- **The description moves out of every prompt.** `computerCommandsText` puts six paragraphs of Mac app usage into every session on a Mac. As apps, each has a guide read when the app is used, like any app.
-- **What is left is the server.** The helper, the entitlements and usage strings, and the gate it needed have landed as `instrument calendar` and `contacts` ([`mac-helper.ts`](../../../packages/workspace/src/lib/shell-commands/mac-helper.ts), [mac-native-bridge.md](../../architecture/mac-native-bridge.md)). Phase 2 puts an MCP server in front of them, a local MCP manifest per app that `setUpFromDirectory` writes, and the map from the server's macOS refusal to `card`.
+- **They were already apps everywhere except where they work.** The directory listed `apple-calendar`, `apple-mail` and the rest as entries with a `mac-app` interface ([`catalog-seed.json`](../../../packages/workspace/src/lib/apps/catalog-seed.json), `catalogWayIn` in [`way-in.ts`](../../../packages/workspace/src/lib/apps/way-in.ts)), Connect on one dead-ended in `setUpFromDirectory`, and `app catalog` sent the agent to `instrument calendar` instead.
+- **One namespace for scripts.** As apps, they are `instrument.apps["apple-calendar"]` (Node) and `instrument.app("apple-calendar")` (Python) beside `google-calendar`, discovered by the same `instrument app tools <slug>`.
+- **The description moved out of every prompt.** `computerCommandsText` put six paragraphs of Mac app usage into every session on a Mac. As apps, each has a guide, written from its tools' descriptions when it is set up, which a chat reads once the app is connected.
 
-What it costs: the short `instrument calendar` words, and a person who removes the app's folder loses it until they add it again (today it is always there on a Mac). Connecting one covers every chat, as for any app (Decisions).
+What landed:
 
-The stale [mac-reminders-and-calendar-app.md](mac-reminders-and-calendar-app.md) moves to `completed/` when phase 2 lands, its status reading that the EventKit helper landed as commands and is served as an MCP app from here. Its remaining items (update and delete, write-only access on macOS 14+, recurrence) become follow-up tools of the server.
+- **The server.** [`lib/mac-apps`](../../../packages/workspace/src/lib/mac-apps): TypeScript tools with Zod schemas wrapping the Swift helper's JSON commands (Calendar, Reminders, Contacts) and the app's own AppleScript (Mail, Notes, Messages), over stdio. The manifest names it: `type: mcp-local`, `runtime: bundled`, `package: apple-calendar`. Studio builds it as `out/main/mac-apps-server.js` and the workspace's `macAppsServer` starts it with the app's own executable as Node. Rejected: the Swift helper speaking MCP, since half the apps are AppleScript and the schemas would leave the TypeScript that checks file arguments against the chat's folders.
+- **Who macOS asks about.** The server is a plain child of the app and the helper and `osascript` plain children of the server, so nothing disclaims responsibility and the prompts and grants stay Instrument's ([mac-native-bridge.md](../../architecture/mac-native-bridge.md)).
+- **The gate**, in the `apps.call` capability ([`capabilities/apps.ts`](../../../packages/workspace/src/lib/capabilities/apps.ts), with the Mac app pieces in [`lib/apps/mac-app.ts`](../../../packages/workspace/src/lib/apps/mac-app.ts)), keyed by the server the manifest names rather than the app's slug. Its `gate` asks macOS before the call: refused, or not asked yet, is the `card` outcome with `macosAppCard`'s ask id, so the call is not made. Its `run` holds a file argument (Mail's attachments) to the chat's folder rules through the context's `readableFile` and hands it over absolute, then reads the server's refusal after the call and throws a `card` failure carrying the ask id. Either way the dispatcher records the raised ask, the CLI exits 2, a script gets `CardShown` (Node and Python), and the turn ends on the card. Connecting in Apps covers every chat; Disconnect is the off switch, and the per-chat grants these six took are gone. Shortcuts keeps its own.
+- **macOS's refusal in an MCP result.** The server returns `isError` with `_meta["tryinstrument.com/macos-refusal"]: { bundleId, reason }`, read only from the bundled server. The same mapping could later help a third-party MCP server that drives a Mac app and meets macOS's prompts: a local app's manifest already names its Mac app (`macApp`), so the app-call path could ask macOS about that app before the call and read an Automation refusal (-1743 in an error's text, or a server that adopts the key) after it, raising the same card. Not built, since a third party's server may disclaim responsibility and its prompts then name it rather than Instrument.
+- **Setup.** Connect on a Mac app in the directory writes its folder under the Mac app's own name and leaves it waiting on the go-ahead, the usual card; the agent's set-up line is `instrument app new apple-calendar --name 'Calendar' --local apple-calendar --runtime bundled`, then `connect_app`.
+- **Deleted:** `createMacHelperCommand`, `instrument calendar`, `contacts`, `mail`, `notes` and `messages` with their `USAGE` strings, `MAC_APP_SUBCOMMANDS`, `nativeCommandFor` and its tables, `app-scripts.ts`, and the Mac paragraphs in `computerCommandsText`. [mac-reminders-and-calendar-app.md](../completed/mac-reminders-and-calendar-app.md) moved to `completed/`; its remaining items (update and delete, write-only access on macOS 14+, recurrence) are follow-up tools on these servers.
+
+What it costs: the short `instrument calendar` words, and a person who removes the app's folder loses it until they connect it again. Connecting one covers every chat, as for any app (Decisions).
 
 ## Computer use
 
@@ -341,10 +341,33 @@ What the plan had wrong, now corrected above: `app request`'s read-first hands t
 
 ### Phase 2: the Mac apps
 
-- An MCP server bundled inside Instrument over the Mac helper and the scripts, exposing the six apps' tools with their schemas, each app a local MCP app in the directory that `setUpFromDirectory` writes a folder for, connected for every chat once it is connected in Apps (Decisions). The gate: the app connected, the Settings rule (Not allowed is `refused`), then macOS's own answer, a denial mapped to `card` with today's macOS card. The per-chat app grants these six apps take today (`appRefusal` and `ask_permission` with `kind: "app"` for them) go; Shortcuts, which is not an app in Apps, keeps its own.
-- The Apps screen shows each as a Mac app, and each app's guide comes from its tools' descriptions.
-- **Deleted:** `createMacHelperCommand`, `instrument calendar`, `contacts`, `mail`, `notes` and `messages` with their `USAGE` strings, `MAC_APP_SUBCOMMANDS`, `nativeCommandFor` and its tables, the Mac paragraphs in `computerCommandsText`. The stale plan moves to `completed/`.
-- **Evals:** the `reach-*` cases in [`reach.ts`](../../../packages/workspace/evals/cases/reach.ts) (reminder, calendar, send-text, task-reminders, task-notes) rerun; a script case that adds three events and meets the Calendar card: the turn ends once, with no retry loop and no AppleScript fallback. Phase 1's harness carries over: `--bash-only` for the arm with no script surface, and `scriptedCalls` in `app-scripting.ts` for counting scripts that call `instrument`.
+**Done**, as bundled MCP apps on top of phase 1's registry rather than `defineAppTool` capabilities, by the owner's choice; what landed is in [The Mac apps move into Apps](#the-mac-apps-move-into-apps).
+
+**Evals, Claude Haiku 5.5 through OpenRouter, three trials per case.** The Mac apps ran on the stand-in server (`macApps` on a case), so no run touched the real apps or met a macOS prompt, and every case ran in a process of its own, so one case's apps never showed in another's. The asks ran with no Mac app connected, the way a person starts; the follow-through and the tasks with all six connected. Tool calls and tokens are medians (tokens are the run's total, mostly cache reads); cost is summed over the three trials.
+
+| Case | Mac apps | Passed | Tool calls | Tokens | Cost (3 trials) |
+| --- | --- | --- | --- | --- | --- |
+| reach-script-calendar-card: the agent writes the script | Calendar connected, refused | 3/3 | 1 | 27K | $0.003 |
+| reach-script-calendar-card-given: the user's Node script on `instrument.apps` | Calendar connected, refused | 3/3 | 1 | 28K | $0.011 |
+| reach-script-calendar-card-python: the user's Python script catching `CardShown` | Calendar connected, refused | 3/3 | 1 | 28K | $0.003 |
+| reach-follow-through-reminder | all connected | 3/3 | 3 (2-3) | 90K | $0.008 |
+| reach-task-reminders | all connected | 3/3 | 2 | 90K | $0.006 |
+| reach-task-notes | all connected | 3/3 | 1 | 59K | $0.005 |
+| reach-reminder | none connected | 3/3 | 2 (1-2) | 81K | $0.005 |
+| reach-calendar | none connected | 3/3 | 2 | 82K | $0.006 |
+| reach-todo | none connected | 3/3 | 2 | 81K | $0.005 |
+| reach-send-text | none connected | 3/3 | 1 | 54K | $0.004 |
+| reach-control-draft-text | none connected | 2/3 | 1 | 54K | $0.004 |
+| reach-control-file | none connected | 3/3 | 1 | 56K | $0.006 |
+| reach-task-unconnected-service | none connected | 0/3 | 4 (3-4) | 111K | $0.007 |
+
+What the evals say:
+
+- **The card ends the turn once, on every surface.** In all nine card trials the first call that reached Calendar raised the macOS card: a `list_calendars` look from the shell when the agent wrote the script itself, the Node script's first `add_event` through `instrument.apps`, or the Python script's first `add_event`, which caught `CardShown` and printed its message. The bash call carried the raised ask, the turn ended in that step, and the stand-in saw exactly one call. No trial retried or reached for `osascript`, an `.ics` file or another way in. A script that catches the error and calls again joins the card already up without reaching the server, since macOS is asked before every call and its last answer stands where it can't say now (a unit test).
+- **A picked or told Mac app lands through its tool**: `apple-reminders add_reminder` and `apple-notes create_note` in 9 of 9.
+- **A connected Mac app answers "where".** With Reminders or Calendar connected, Haiku used it without asking (an earlier run with all six connected: reach-reminder 0/3, reach-calendar 0/3 on the ask-first check), as the prompt's rule says to and as the owner decided to keep. With none connected it asks, 9 of 9.
+- **Failures not about the Mac apps' path.** reach-task-unconnected-service puts up Google Calendar's sign-in card in 3 of 3 rather than naming the gap, a behavior the case scores as a failure whatever the wording. reach-control-draft-text puts a `choose` to the user in 1 of 3.
+- **Not run:** a baseline on the old `instrument calendar` commands, which reach the real apps and would raise macOS's prompts on the developer's machine; a second model.
 
 ### Phase 3: the rest of `instrument`, and the model tools
 

@@ -427,6 +427,11 @@ export default defineConfig(({ command }) => {
           // and is what `out/main/index.js` (package.json's `main`) runs.
           entry: {
             index: path.join(process.cwd(), "src/electron-main/boot.ts"),
+            // The Mac apps' MCP server, which the app runs as Node by its
+            // own executable (`macAppsServerPath`), as its own file.
+            "mac-apps-server": createRequire(import.meta.url).resolve(
+              "@instrument-org/workspace/mac-apps-server",
+            ),
           },
         },
         rollupOptions: {

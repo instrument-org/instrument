@@ -43,12 +43,13 @@ import {
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -70,6 +71,7 @@ import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
+import { useGoFiles } from "./use-files-step";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import {
   hostGroupOf,
@@ -181,7 +183,10 @@ export function FilesScreen({
   // person last set it for a tab wide enough.
   const [isTreeFolded, setTreeFolded] = useState(false);
   const router = useRouter();
-  const navigate = useNavigate();
+  const go = useGoFiles();
+  const goFromEffect = useEffectEvent((...args: Parameters<typeof go>) => {
+    go(...args);
+  });
   // The tab of a chat's or a draft's group this screen is in, when it is
   // not one of the window's own.
   const groupTab = useGroupTab();
@@ -208,15 +213,10 @@ export function FilesScreen({
   // so a file opened there is rooted at its own. The folder's own step stays
   // in the address, so a layout that narrows beside a file shows it there.
   const openFile = (tab: FileTab) => {
-    void navigate({
-      search: (previous) => ({
-        ...previous,
-        file: tab.hostPath,
-        select: undefined,
-        source: undefined,
-        tree: folder?.hostPath ?? folderOf(tab.hostPath),
-      }),
-      to: "/files",
+    go({
+      file: tab.hostPath,
+      tree: folder?.hostPath ?? folderOf(tab.hostPath),
+      type: "openFile",
     });
   };
   const quickLook = useQuickLook({ openFile });
@@ -226,16 +226,7 @@ export function FilesScreen({
    * page's own history and not a second time in the tab's.
    */
   const showFile = (hostPath: string, { replace = false } = {}) => {
-    void navigate({
-      replace,
-      search: (previous) => ({
-        ...previous,
-        file: hostPath,
-        select: undefined,
-        source: undefined,
-      }),
-      to: "/files",
-    });
+    go({ file: hostPath, type: replace ? "followFile" : "openFile" });
   };
   // In a tab of the window's own a file opened from the folder opens beside
   // it: the folder narrows as the file slides in from the right, and widens
@@ -310,16 +301,7 @@ export function FilesScreen({
   const clampBesideWidth = (width: number) =>
     Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
   const closeBeside = () => {
-    void navigate({
-      search: (previous) => ({
-        ...previous,
-        file: undefined,
-        select: undefined,
-        source: undefined,
-        tree: undefined,
-      }),
-      to: "/files",
-    });
+    go({ type: "closeFile" });
   };
   const onFolderChange = (next: FolderOnScreen | null) => {
     setFolder((current) =>
@@ -385,12 +367,8 @@ export function FilesScreen({
     if (!isDirectFile) {
       return;
     }
-    void navigate({
-      replace: true,
-      search: (previous) => ({ ...previous, path: "", root: tree }),
-      to: "/files",
-    });
-  }, [isDirectFile, navigate, tree]);
+    goFromEffect({ path: "", root: tree, type: "walk" }, { replace: true });
+  }, [isDirectFile, tree]);
   // The open file under the folder's root, for the folder to open with it
   // selected.
   const rootHostPath =

@@ -122,7 +122,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
-import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
@@ -145,6 +144,7 @@ import {
 } from "@/client/lib/browser-pool";
 
 import { useWindow } from "./context";
+import { useGoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
@@ -354,7 +354,11 @@ export function ComputerPage({
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
   const { resolvedTheme } = useTheme();
-  const navigate = useNavigate();
+  const go = useGoFiles();
+  // Written from effects, which read the address as it stands when they run.
+  const goFromEffect = useEffectEvent((...args: Parameters<typeof go>) => {
+    go(...args);
+  });
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
   // width and the dotfiles answer survive walking into the next folder. The
@@ -1176,12 +1180,8 @@ export function ComputerPage({
     if (viewInHistory !== undefined) {
       return;
     }
-    void navigate({
-      replace: true,
-      search: (previous) => ({ ...previous, view }),
-      to: "/files",
-    });
-  }, [navigate, view, viewInHistory]);
+    goFromEffect({ type: "setLayout", view });
+  }, [view, viewInHistory]);
   const sortOf = (key: string) =>
     folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
   const groupOf = (key: string) => folderViews[key]?.group ?? null;
@@ -1295,23 +1295,15 @@ export function ComputerPage({
       // Each folder walked to is a step of the tab's history, so back and
       // forward (the bar's arrows, the thumb buttons, the chords) walk the
       // folders the way the Finder's own do.
-      void navigate({
-        replace,
-        search: (previous) => ({
-          ...previous,
-          path: onScreen,
-          query: searchText || undefined,
-          root,
-          select: undefined,
-          view,
-        }),
-        to: "/files",
-      });
+      goFromEffect(
+        { path: onScreen, query: searchText || undefined, root, type: "walk" },
+        { replace },
+      );
     });
     return () => {
       clearTimeout(timer);
     };
-  }, [navigate, onScreen, path, root, searchText, settled, view]);
+  }, [onScreen, path, root, searchText, settled]);
 
   // The search and the selection are kept in the step on screen as they
   // change, so back to it, after a file took the tab or a folder was walked
@@ -1341,22 +1333,16 @@ export function ComputerPage({
       return;
     }
     const timer = setTimeout(() => {
-      void navigate({
-        replace: true,
-        search: (previous) => ({
-          ...previous,
-          query: nextQuery,
-          ...(isBesideOpen ? {} : { select: nextSelect }),
-        }),
-        to: "/files",
-      });
+      goFromEffect({ query: nextQuery ?? "", type: "search" });
+      if (!isBesideOpen) {
+        goFromEffect({ path: nextSelect ?? null, type: "select" });
+      }
     });
     return () => {
       clearTimeout(timer);
     };
   }, [
     isBesideOpen,
-    navigate,
     onScreen,
     path,
     query,
@@ -1920,28 +1906,19 @@ export function ComputerPage({
   );
   const rootTo = (folder: string, prefix = "") => {
     setPlacesOpen(false);
-    void navigate({
-      search: { path: prefix, root: folder },
-      to: "/files",
-    });
+    go({ path: prefix, root: folder, type: "arrive" });
   };
   // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac).
   const leaveRoot = () => {
-    const search = rootParentSearch(rootHostPath, view, {
+    const above = rootParentSearch(rootHostPath, {
       isDisk: places.data?.volumes.some(
         (volume) => volume.kind === "drive" && volume.path === rootHostPath,
       ),
     });
-    if (search) {
-      // A file open beside the folder stays open while it goes up.
-      void navigate({
-        search: (previous) => ({
-          ...search,
-          file: previous.file,
-          tree: previous.tree,
-        }),
-        to: "/files",
-      });
+    // A walk of the tab's own, so it keeps the layout on screen, and a file
+    // open beside the folder stays open while it goes up.
+    if (above) {
+      go({ ...above, type: "walk" });
     }
   };
 
@@ -2210,14 +2187,10 @@ export function ComputerPage({
   // as walking there does, and the tab's layout with it: a file open beside
   // a folder with no layout of its own is one just arrived from elsewhere.
   const besideTo = (folder: string) => {
-    void navigate({
-      search: (previous) => ({
-        ...previous,
-        path: "",
-        root: folder === "" ? RECENTS_ROOT : folder === homePath ? "~" : folder,
-        select: undefined,
-      }),
-      to: "/files",
+    go({
+      path: "",
+      root: folder === "" ? RECENTS_ROOT : folder === homePath ? "~" : folder,
+      type: "walk",
     });
   };
   const volumeNames = new Map(
@@ -2691,11 +2664,7 @@ export function ComputerPage({
                     });
                     // The step on screen takes the new layout rather than a
                     // new step being made for it, the way the Finder's does.
-                    void navigate({
-                      replace: true,
-                      search: (previous) => ({ ...previous, view: next }),
-                      to: "/files",
-                    });
+                    go({ type: "setLayout", view: next });
                   }}
                   pendingFolders={pendingFolders}
                   // Resting on a folder reads it ahead, so opening it in place
@@ -3344,13 +3313,10 @@ function combineListings(
 
 /**
  * Where up from the top of a tab's tree goes: the folder the root sits in,
- * with the root selected in it, in the layout on screen. Going up is a step
- * of the tab's own, as walking into a folder is, so it keeps the tab's
- * layout. Nothing is above a disk.
+ * with the root selected in it. Nothing is above a disk.
  */
 export function rootParentSearch(
   rootHostPath: string | undefined,
-  view: FileSystemView,
   /** Whether the root is the top of a disk, though a folder is above it: `/Volumes/Backup`. */
   { isDisk = false }: { isDisk?: boolean | undefined } = {},
 ) {
@@ -3360,13 +3326,12 @@ export function rootParentSearch(
   // Up from the top of a disk is the computer, every disk side by side.
   const above = parentFolderOf(rootHostPath);
   if (above === null || isDisk) {
-    return { path: "", root: COMPUTER_ROOT, view };
+    return { path: "", root: COMPUTER_ROOT };
   }
   return {
     path: "",
     root: above,
     select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
-    view,
   };
 }
 

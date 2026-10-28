@@ -12,6 +12,19 @@ import {
   appsTest,
 } from "./apps-setup";
 import { type Capability } from "./define";
+import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
+import { taskNew } from "./task/fork";
+import { taskList } from "./task/list";
+import { taskLog } from "./task/log";
+import { taskSend } from "./task/send";
+import { taskStop } from "./task/stop";
+import {
+  windowClose,
+  windowList,
+  windowRead,
+  windowRequest,
+  windowShow,
+} from "./window";
 import { xSearch, xThread } from "./x";
 
 /**
@@ -35,8 +48,22 @@ export const CAPABILITIES: readonly Capability[] = [
   appsAccount,
   appsDisconnect,
   generateImageCapability,
+  memoryList,
+  memorySave,
+  memoryShow,
+  memoryForget,
+  taskNew,
+  taskSend,
+  taskStop,
+  taskList,
+  taskLog,
   webFetchCapability,
   webSearchCapability,
+  windowList,
+  windowShow,
+  windowRead,
+  windowClose,
+  windowRequest,
   xSearch,
   xThread,
 ];

@@ -21,7 +21,9 @@ import { defineSubcommands } from "../shell-commands/subcommands";
 import { cliSubcommands } from "./cli";
 import { type CapabilityScope, capabilityContexts } from "./context";
 import { type Capability, CapabilityFailure, defineCapability } from "./define";
+import { unavailableReason } from "./admit";
 import { describeCapabilities, dispatch } from "./dispatch";
+import { CAPABILITIES } from "./registry";
 import { ensureInstrumentStub, INSTRUMENT_STUB_MESSAGE } from "./stub";
 import { getWorkspaceConfig } from "../workspace-config";
 
@@ -250,7 +252,7 @@ describe("the generated command line", () => {
 
   it("lists each capability in the usage from its schema", async () => {
     expect((await cli(["help"])).stdout).toMatchInlineSnapshot(`
-      "  instrument test echo <app> ['<data>'] [--count <count>] [--labels <labels>]... [--param <key>=<value>]... [--start-time <start-time>] [--verbose]
+      "  instrument test echo <app> ['<data>'] [--count <count>] [--labels <labels>]... [--param <key>=<value>]... [--start-time <start-time>] [--verbose] [<<'EOF' ... EOF]
             Hands its input back.
             For tests.
         instrument test chat-only
@@ -364,32 +366,94 @@ describe("the registry", () => {
 
   // Setting an app up is the agent's own step, with its output in front of
   // it, and the turn-enders are model tools that end the turn: neither is a
-  // script's to call. Reads and the web and image tools are.
+  // script's to call. Neither is keeping a memory, changing what is in front
+  // of the person, or starting and steering tasks. Reads and the web and
+  // image tools are.
   it("puts reads and the web and image tools on the script surface, and app setup off it", () => {
     expect(
       describeCapabilities(script)
         .map(({ name }) => name)
         .toSorted(),
     ).toMatchInlineSnapshot(`
-        [
-          "apps.call",
-          "apps.list",
-          "apps.request",
-          "apps.tools",
-          "images.generate",
-          "web.fetch",
-          "web.search",
-          "x.search",
-          "x.thread",
-        ]
-      `);
+      [
+        "apps.call",
+        "apps.list",
+        "apps.request",
+        "apps.tools",
+        "images.generate",
+        "memory.list",
+        "memory.show",
+        "web.fetch",
+        "web.search",
+        "window.list",
+        "window.read",
+        "x.search",
+        "x.thread",
+      ]
+    `);
   });
 
-  it("generates every app and x subcommand", () => {
-    expect({
-      app: Object.keys(cliSubcommands("app").subcommands).toSorted(),
-      x: Object.keys(cliSubcommands("x").subcommands).toSorted(),
-    }).toMatchInlineSnapshot(`
+  it("gives a task's script the reads alone", () => {
+    expect(
+      describeCapabilities(
+        capabilityContexts({ ...scope, role: "task" }, "script")(),
+      )
+        .map(({ name }) => name)
+        .toSorted(),
+    ).toMatchInlineSnapshot(`
+      [
+        "apps.call",
+        "apps.list",
+        "apps.request",
+        "apps.tools",
+        "images.generate",
+        "memory.list",
+        "memory.show",
+        "web.fetch",
+        "web.search",
+        "window.list",
+        "window.read",
+        "x.search",
+        "x.thread",
+      ]
+    `);
+  });
+
+  // The chat's and a task's shells differ only by these: a task reads the
+  // window and the memories, and changes neither, and has no tasks.
+  it("leaves out of a task what only the chat has, each saying what to do instead", () => {
+    expect(
+      Object.fromEntries(
+        CAPABILITIES.flatMap((capability) => {
+          const refused = unavailableReason(capability, "task");
+          return refused === undefined ? [] : [[capability.name, refused]];
+        }),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "memory.forget": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
+        "memory.save": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
+        "task.list": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.log": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.new": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.send": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.stop": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "window.close": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.request": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.show": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+      }
+    `);
+  });
+
+  it("generates every instrument subcommand", () => {
+    expect(
+      Object.fromEntries(
+        ["app", "memory", "task", "window", "x"].map((word) => [
+          word,
+          Object.keys(cliSubcommands(word).subcommands).toSorted(),
+        ]),
+      ),
+    ).toMatchInlineSnapshot(`
       {
         "app": [
           "account",
@@ -404,6 +468,26 @@ describe("the registry", () => {
           "test",
           "tool",
           "tools",
+        ],
+        "memory": [
+          "forget",
+          "list",
+          "save",
+          "show",
+        ],
+        "task": [
+          "list",
+          "log",
+          "new",
+          "send",
+          "stop",
+        ],
+        "window": [
+          "close",
+          "list",
+          "read",
+          "request",
+          "show",
         ],
         "x": [
           "search",

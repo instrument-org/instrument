@@ -76,6 +76,9 @@ The model's web and image tools are here too, returning data:
 instrument.web.fetch(url) is {url, text, truncated, ...},
 instrument.web.search(query) is {kind, sources, text}, and
 instrument.images.generate(prompt, file_path=...) saves the image.
+instrument.memory.list() and instrument.memory.show(name) read what is
+remembered; instrument.window.list() and instrument.window.read(tab) what is
+in front of the user.
 help(instrument.apps.request) and describe() show what this shell can call.
 
 Calls block and are safe from threads, so a ThreadPoolExecutor fans out. One

@@ -3,8 +3,8 @@ import { type WindowTabAnswer } from "../../../schemas/window-tab";
 import { type BrowserTargetId, parseBrowserTargetId } from "../../../types";
 import { askWindow, tabHolders } from "../../chat/window-tab";
 import { resolveChat } from "../../record-folders";
-import { TASK_COMMAND } from "../task-command";
-import { WINDOW_COMMAND } from "../window-command";
+import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { WINDOW_COMMAND } from "../../shell-commands/window-command";
 import { isLocalAddress } from "../../local-page-address";
 
 type ChatTab = NonNullable<WindowTabAnswer["tabs"]>[number];
@@ -125,6 +125,6 @@ export async function refuseTabsDrivenElsewhere(
 }
 
 /** What a hand-over prints about the tabs it made, or nothing. */
-export function handedTabsLine(tabs: BrowserTargetId[]): string {
+export function handedTabsLine(tabs: readonly string[]): string {
   return tabs.length > 0 ? `Its tabs: ${tabs.join(", ")}.\n` : "";
 }

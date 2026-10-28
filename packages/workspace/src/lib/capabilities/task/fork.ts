@@ -1,4 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { z } from "zod";
 
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
@@ -12,100 +13,99 @@ import {
 import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
-import {
-  type SubcommandInput,
-  type SubcommandShell,
-  subcommand,
-} from "../subcommands";
-import { normalizeId } from "../background-jobs";
-import { TASK_COMMAND } from "../task-command";
-import { recordHandOff } from "../task-hand-off";
-import { subprocessStdin } from "../utils";
-import { type TaskCommandContext } from "./context";
-import { promptFrom } from "./delivery";
+import { normalizeId } from "../../shell-commands/background-jobs";
+import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { recordHandOff } from "../../shell-commands/task-hand-off";
+import { defineCapability } from "../define";
 import { chatModel } from "./model-choice";
+import { TASKS_ARE_THE_CHATS } from "./roles";
 import {
   handedTabsLine,
   refuseTabsDrivenElsewhere,
   resolveTabs,
 } from "./tab-choice";
 
-const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... [--job <id>]... <<'EOF'
-  <what to do now>
-  EOF
-      Start a task: you, carrying on in the background with this conversation
-      as it stands, in this same folder and with the same folders, apps and
-      memories, doing what stdin says while you keep answering here. stdin
-      says what to do now and repeats none of the conversation. --tab hands it
-      a tab of the user's, page and all. --job hands it a command of yours
-      still running in the background (an id \`jobs\` lists), which it then
-      waits on rather than you. Prints its id, t1. You are told when it finishes;
-      do not poll it.
-`;
-
 /**
- * `instrument task new`: starts a task, which is always a fork of the chat. No flag
- * hands it folders, files or apps, since it reaches exactly the chat's.
+ * `instrument task new`: starts a task, which is always a fork of the chat.
+ * No flag hands it folders, files or apps, since it reaches exactly the
+ * chat's.
  */
-export const newSubcommand = subcommand<TaskCommandContext>({
-  flags: ["job", "name", "tab"],
-  repeatable: ["job", "tab"],
-  run: runFork,
-  usage: NEW_USAGE,
-});
+export const taskNew = defineCapability({
+  input: z.object({
+    brief: z.string().default(""),
+    name: z.string().optional().meta({
+      description: "The task's title, which the user sees.",
+    }),
+    tab: z.array(z.string()).default([]).meta({
+      description: "Hands it a tab of the user's, page and all.",
+    }),
+    job: z.array(z.string()).default([]).meta({
+      description:
+        "Hands it a command of yours still running in the background (an id `jobs` lists), which it then waits on rather than you.",
+    }),
+  }),
+  name: "task.new",
+  output: z.object({
+    /** Its handle in the chat, `t1`. */
+    id: z.string(),
+    name: z.string(),
+    /** The tabs it was handed. */
+    tabs: z.array(z.string()),
+  }),
+  async run({ brief, job, name, tab }, ctx) {
+    const directive = brief.trim();
+    if (!directive) {
+      throw new Error(
+        `what to do is required, on stdin through a quoted heredoc: ${TASK_COMMAND.name} new --name '<title>' <<'EOF'.`,
+      );
+    }
+    const chatSessionId = ctx.sessionId;
+    const jobs = handedJobs(job, chatSessionId);
+    const { model, modelURI } = await chatModel("new", ctx);
+    const handedTabs = await resolveTabs(tab, { chatId: ctx.chatId });
+    await refuseTabsDrivenElsewhere(handedTabs, ctx.chatId);
+    const title = name?.trim() || defaultTaskName(directive);
 
-async function runFork(
-  input: SubcommandInput,
-  context: TaskCommandContext,
-  { stdin }: SubcommandShell,
-) {
-  const chatSessionId = context.sessionId;
-  if (!chatSessionId) {
-    throw new Error("there is no conversation to carry on outside a turn.");
-  }
-  const directive = promptFrom(input.positional.join(" "), stdin);
-  if (!directive) {
-    throw new Error(
-      `what to do is required, on stdin through a quoted heredoc.\n\n${NEW_USAGE}`,
-    );
-  }
-  if (input.positional.length > 0 && subprocessStdin(stdin)) {
-    throw new Error(
-      `unexpected ${input.positional.length === 1 ? "argument" : "arguments"} ${input.positional.map((argument) => `"${argument}"`).join(", ")} beside what to do on stdin. A path with a space in it needs quotes.`,
-    );
-  }
-  const jobs = handedJobs(input.all("job"), chatSessionId);
-  const { model, modelURI } = await chatModel("new", context);
-  const handedTabs = await resolveTabs(input.all("tab"), {
-    chatId: context.chatId,
-  });
-  await refuseTabsDrivenElsewhere(handedTabs, context.chatId);
-  const name = input.value("name")?.trim() || defaultTaskName(directive);
-
-  const task = await startFork({
-    callPartId: context.callPartId,
-    chatId: context.chatId,
-    chatSessionId,
-    handedTabs,
-    model,
-    modelURI,
-    name,
-    onSession: (forkSessionId) => {
-      handOverBackgroundProcesses({
-        from: chatSessionId,
-        ids: jobs,
-        to: forkSessionId,
-        toChatId: context.chatId,
-      });
+    const task = await startFork({
+      callPartId: ctx.asker.partId,
+      chatId: ctx.chatId,
+      chatSessionId,
+      handedTabs,
+      model,
+      modelURI,
+      name: title,
+      onSession: (forkSessionId) => {
+        handOverBackgroundProcesses({
+          from: chatSessionId,
+          ids: jobs,
+          to: forkSessionId,
+          toChatId: ctx.chatId,
+        });
+      },
+      assignment:
+        jobs.length > 0
+          ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
+          : directive,
+    });
+    recordHandOff({ kind: "created", sessionId: task.id });
+    return { id: task.handle, name: title, tabs: handedTabs };
+  },
+  summary:
+    "Start a task: you, carrying on in the background with this conversation as it stands, in this same folder and with the same folders, apps and memories, doing what stdin says while you keep answering here.",
+  surfaces: {
+    cli: {
+      help: `stdin says what to do now and repeats none of the conversation. Prints its
+id, t1. You are told when it finishes; do not poll it.`,
+      positional: ["brief"],
+      rest: true,
+      stdin: "brief",
+      words: ["task", "new"],
     },
-    assignment:
-      jobs.length > 0
-        ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
-        : directive,
-  });
-  recordHandOff({ kind: "created", sessionId: task.id });
-  return `Started task ${task.handle} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
-}
+  },
+  text: ({ id, name, tabs }) =>
+    `Started task ${id} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(tabs)}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.`,
+  where: TASKS_ARE_THE_CHATS,
+});
 
 /**
  * The ids `--job` names, each a command of the chat's still running in the

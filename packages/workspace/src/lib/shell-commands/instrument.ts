@@ -5,6 +5,8 @@ import { INSTRUMENT_COMMAND } from "./instrument-command";
 /** One of `instrument`'s subcommands: its word, what it is in a line, and the command that runs it. */
 export interface InstrumentSubcommand {
   command: Command;
+  /** Whether `instrument` lists it; one left out still runs. */
+  listed?: boolean;
   summary: string;
   word: string;
 }
@@ -14,21 +16,19 @@ export interface InstrumentSubcommand {
  * with the rest of the arguments. A bare `instrument`, `help`, `--help` or
  * `-h` lists them; `instrument <word> help` is that command's own usage.
  *
- * `missing` names the subcommands this shell leaves out (a task's has no
- * `task`), so asking for one says why rather than that it does not exist.
+ * Subcommands not `listed` are left out of the list.
  */
 export function createInstrumentCommand({
-  missing = {},
   subcommands,
 }: {
-  missing?: Record<string, string>;
   subcommands: InstrumentSubcommand[];
 }): Command {
   const name = INSTRUMENT_COMMAND.name;
-  const width = Math.max(...subcommands.map((each) => each.word.length));
+  const listed = subcommands.filter((each) => each.listed !== false);
+  const width = Math.max(...listed.map((each) => each.word.length));
   const usage = `Usage: ${name} <command> ...
 
-${subcommands.map((each) => `  ${each.word.padEnd(width)}  ${each.summary}`).join("\n")}
+${listed.map((each) => `  ${each.word.padEnd(width)}  ${each.summary}`).join("\n")}
 
 \`${name} <command> help\` prints one command's own usage.
 `;
@@ -46,12 +46,9 @@ ${subcommands.map((each) => `  ${each.word.padEnd(width)}  ${each.summary}`).joi
     if (found) {
       return found.command.execute(rest, ctx);
     }
-    const why = Object.hasOwn(missing, word) ? missing[word] : undefined;
     return {
       exitCode: 1,
-      stderr: why
-        ? `${name} ${word}: ${why}\n`
-        : `${name}: unknown command "${word}".\n\n${usage}`,
+      stderr: `${name}: unknown command "${word}".\n\n${usage}`,
       stdout: "",
     };
   });

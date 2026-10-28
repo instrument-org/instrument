@@ -14,7 +14,12 @@ import {
   unsandboxedOperandRefusal,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { type CapabilityContext, CapabilityFailure, type Role } from "./define";
+import {
+  type CapabilityContext,
+  CapabilityFailure,
+  type Role,
+  type ShellPath,
+} from "./define";
 
 /** What a shell knows about the bash call it runs, from which each call's context is made. */
 export interface CapabilityScope {
@@ -27,6 +32,8 @@ export interface CapabilityScope {
   model?: string;
   /** The bash call, by its part's id, which a card the call raises names. */
   partId?: StoreId.Part;
+  /** What is left of the bash call's yield window, read when a wait starts. */
+  remainingYieldMs?: () => number;
   role: Role;
   sessionId: StoreId.Session;
 }
@@ -83,6 +90,24 @@ async function readableFile(
   return hostPathOf(resolved);
 }
 
+/** What is at a path the command line names, from the shell's folder. */
+async function shellPath(
+  shell: NonNullable<FileLook>,
+  named: string,
+): Promise<ShellPath> {
+  const path = shell.fs.resolvePath(shell.cwd, named);
+  let found;
+  try {
+    found = await shell.fs.stat(path);
+  } catch {
+    return { kind: "none", path };
+  }
+  return {
+    kind: found.isDirectory ? "folder" : found.isFile ? "file" : "other",
+    path,
+  };
+}
+
 /** The model the chat's picker is on, which every session of the chat runs on. */
 async function chatsModel(chatId: ChatId): Promise<AIGatewayModel.Type> {
   const modelURI = await chatModelURI(chatId);
@@ -112,7 +137,15 @@ async function chatsModel(chatId: ChatId): Promise<AIGatewayModel.Type> {
  * The chat's model is read once the same way.
  */
 export function capabilityContexts(
-  { chatId, layout, model, partId, role, sessionId }: CapabilityScope,
+  {
+    chatId,
+    layout,
+    model,
+    partId,
+    remainingYieldMs = () => Number.POSITIVE_INFINITY,
+    role,
+    sessionId,
+  }: CapabilityScope,
   surface: CapabilityContext["surface"],
   readShellFile?: CapabilityContext["readShellFile"],
 ): (signal?: AbortSignal, shell?: FileLook) => CapabilityContext {
@@ -129,12 +162,17 @@ export function capabilityContexts(
     asker: { chatId, ...(partId === undefined ? {} : { partId }), sessionId },
     callingModel,
     chatId,
+    ...(layout === undefined ? {} : { layout }),
     ...(model === undefined ? {} : { model }),
     modelWindow,
     readableFile: (named) => readableFile(named, layout, shell),
     ...(readShellFile === undefined ? {} : { readShellFile }),
+    remainingYieldMs,
     role,
     sessionId,
+    ...(shell === undefined
+      ? {}
+      : { shellPath: (named: string) => shellPath(shell, named) }),
     ...(signal === undefined ? {} : { signal }),
     surface,
   });

@@ -1,25 +1,10 @@
-import { type ByteString } from "just-bash";
-
 import { ChatWrites } from "../../chat-writes";
 import { isWorking } from "../../chat/activity";
 import { type ChatTask, touchTask } from "../../chat/children";
 import { newMessage } from "../../new-message";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
-import { subprocessStdin } from "../utils";
-import { type TaskCommandContext } from "./context";
+import { type ChatId } from "../../../schemas/chat-id";
 import { chatModel } from "./model-choice";
-
-/**
- * The prompt a subcommand was given: what came on stdin when anything did,
- * else the inline argument. Stdin is the documented route because a quoted
- * heredoc is the one form the shell leaves alone: a `$800` inside double
- * quotes is expanded to `00` before the command ever sees it, and a brief
- * with an apostrophe in it cannot be single-quoted without escaping.
- */
-export function promptFrom(inline: string, stdin: ByteString): string {
-  const piped = subprocessStdin(stdin)?.toString("utf8").trim();
-  return (piped || inline).trim();
-}
 
 /**
  * Puts the chat's message into a task, as words from the chat rather than
@@ -36,7 +21,7 @@ export async function deliver({
   task,
 }: {
   command: string;
-  context: TaskCommandContext;
+  context: { chatId: ChatId };
   interrupt?: boolean;
   prompt: string;
   task: ChatTask;

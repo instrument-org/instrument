@@ -10,6 +10,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { type BaseInputSchema } from "../../tools/base";
 import { type ToolName } from "../../tools/types";
 import { type ExecuteError } from "../execute-error";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 
 /**
  * Where a call comes from: `instrument` in the shell, a script over its
@@ -35,6 +36,11 @@ export interface CapabilityContext {
    */
   callingModel: () => Promise<AIGatewayModel.Type>;
   chatId: ChatId;
+  /**
+   * The shell's folders under the chat's rules, for work that holds what it
+   * reads to them; absent where no folders were given.
+   */
+  layout?: WorkspaceFsLayout;
   /** The canonical id of the model the call answers to. */
   model?: string;
   /**
@@ -53,10 +59,23 @@ export interface CapabilityContext {
    * held to the chat's rules; absent where no shell names files (a script).
    */
   readShellFile?: (named: string) => Promise<Uint8Array>;
+  /** What is left of the bash call's yield window, for work that waits. */
+  remainingYieldMs: () => number;
   role: Role;
   sessionId: StoreId.Session;
+  /**
+   * What is at a path the command line names, resolved from the shell's
+   * folder; absent where no shell names paths (a script).
+   */
+  shellPath?: (named: string) => Promise<ShellPath>;
   signal?: AbortSignal;
   surface: Exclude<Surface, "tool">;
+}
+
+/** A path the command line named, as the shell resolved it, and what is there. */
+export interface ShellPath {
+  kind: "file" | "folder" | "none" | "other";
+  path: string;
 }
 
 /** What a gate decides before the work runs: the same answer on every surface. */

@@ -11,7 +11,8 @@ import {
 } from "../shell-commands/subcommands";
 import { subprocessStdin } from "../shell-commands/utils";
 import { type CapabilityScope, capabilityContexts } from "./context";
-import { type Capability } from "./define";
+import { unavailableReason } from "./admit";
+import { type Capability, type Role } from "./define";
 import { dispatch } from "./dispatch";
 import { CAPABILITIES } from "./registry";
 
@@ -144,10 +145,9 @@ function fieldsOf(capability: Capability): Field[] {
 }
 
 /** One argument's place in a synopsis. */
-function synopsisWord(field: Field, positional: boolean): string {
+function synopsisWord(field: Field, positional: boolean, rest = false): string {
   if (positional) {
-    const word =
-      field.kind === "json" ? `'<${field.name}>'` : `<${field.name}>`;
+    const word = `${field.kind === "json" ? `'<${field.name}>'` : `<${field.name}>`}${rest || field.kind === "list" ? "..." : ""}`;
     return field.required ? word : `[${word}]`;
   }
   switch (field.kind) {
@@ -180,6 +180,25 @@ function flaggedFields(capability: Capability): Field[] {
   );
 }
 
+/**
+ * Whether the last positional field takes every word left: joined by spaces
+ * where the capability says `rest`, or one item each for a list.
+ */
+function takesTheRest(capability: Capability): "joined" | "list" | undefined {
+  const cli = capability.surfaces.cli;
+  const last = cli?.positional?.at(-1);
+  if (last === undefined) {
+    return undefined;
+  }
+  if (cli?.rest === true) {
+    return "joined";
+  }
+  return fieldsOf(capability).find((field) => field.name === last)?.kind ===
+    "list"
+    ? "list"
+    : undefined;
+}
+
 /** A capability's lines in its command's usage: the synopsis, the summary, its help. */
 function cliUsage(capability: Capability): string {
   const cli = capability.surfaces.cli;
@@ -187,21 +206,19 @@ function cliUsage(capability: Capability): string {
   const positional: readonly string[] = cli?.positional ?? [];
   const fields = fieldsOf(capability);
   const flagged = flaggedFields(capability);
-  const heredoc =
-    cli?.stdin !== undefined && !positional.includes(cli.stdin)
-      ? ["[<<'EOF' ... EOF]"]
-      : [];
+  const heredoc = cli?.stdin === undefined ? [] : ["[<<'EOF' ... EOF]"];
   const words = [
     ...positional.flatMap((name, index) => {
       const field = fields.find((each) => each.name === name);
-      const shown = field ? synopsisWord(field, true) : undefined;
-      return shown === undefined
-        ? []
-        : [
-            cli?.rest === true && index === positional.length - 1
-              ? `${shown}...`
-              : shown,
-          ];
+      return field
+        ? [
+            synopsisWord(
+              field,
+              true,
+              cli?.rest === true && index === positional.length - 1,
+            ),
+          ]
+        : [];
     }),
     ...flagged.map((field) => synopsisWord(field, false)),
     ...heredoc,
@@ -255,14 +272,28 @@ function rawInput(
         ? Number(text)
         : text;
   const positional = cli?.positional ?? [];
+  const rest = takesTheRest(capability);
+  /** The words each positional field was given. */
+  const given = new Map<string, string[]>();
   positional.forEach((name, index) => {
     const field = fields.find((each) => each.name === name);
-    const word =
-      cli?.rest === true && index === positional.length - 1
-        ? input.positional.slice(index).join(" ")
-        : input.positional[index];
-    if (field && word !== undefined && word.trim() !== "") {
-      raw[name] = read(field, word.trim());
+    const words =
+      rest !== undefined && index === positional.length - 1
+        ? input.positional.slice(index)
+        : input.positional.slice(index, index + 1);
+    given.set(name, words);
+    if (!field) {
+      return;
+    }
+    if (rest === "list" && index === positional.length - 1) {
+      if (words.length > 0) {
+        raw[name] = words;
+      }
+      return;
+    }
+    const word = words.join(" ").trim();
+    if (word !== "") {
+      raw[name] = read(field, word);
     }
   });
   for (const field of fields) {
@@ -296,6 +327,14 @@ function rawInput(
   const piped = subprocessStdin(stdin)?.toString("utf8").trim();
   const stdinField = fields.find((field) => field.name === cli?.stdin);
   if (piped && stdinField) {
+    // Words beside a heredoc are most often a path or a title that lost its
+    // quotes, which taking stdin alone would silently drop.
+    const beside = given.get(stdinField.name) ?? [];
+    if (beside.length > 0) {
+      throw new Error(
+        `unexpected ${beside.length === 1 ? "argument" : "arguments"} ${beside.map((word) => `"${word}"`).join(", ")} beside the ${stdinField.name} on stdin. A word with a space in it needs quotes.`,
+      );
+    }
     raw[stdinField.name] = read(stdinField, piped);
   }
   return raw;
@@ -353,9 +392,9 @@ function cliSubcommand(
         .map((field) => field.flag),
     ],
     flags: ["out", ...valued.map((field) => field.flag)],
-    ...(capability.surfaces.cli?.rest === true
-      ? {}
-      : { positional: positional.length }),
+    ...(takesTheRest(capability) === undefined
+      ? { positional: positional.length }
+      : {}),
     repeatable: valued
       .filter((field) => field.kind === "list" || field.kind === "pairs")
       .map((field) => field.flag),
@@ -456,11 +495,14 @@ export function cliSubcommands(
  */
 export function generatedCommand(
   {
+    bare,
     name,
     scope,
     usage,
     word,
   }: {
+    /** The subcommand a bare command runs; the usage where none. */
+    bare?: string;
     /** The command as the shell names it: `instrument app`. */
     name: string;
     scope: CapabilityScope;
@@ -471,11 +513,42 @@ export function generatedCommand(
   },
   registry: readonly Capability[] = CAPABILITIES,
 ): Command {
+  const refused = commandRefusal(word, scope.role, registry);
+  if (refused !== undefined) {
+    // Nothing in it is this shell's, so every form says why, its usage too.
+    return defineCommand(name, () =>
+      Promise.resolve({
+        exitCode: 1,
+        stderr: `${name}: ${refused}\n`,
+        stdout: "",
+      }),
+    );
+  }
   const generated = cliSubcommands(word, registry);
   const run = defineSubcommands<CapabilityScope>({
+    ...(bare === undefined ? {} : { bare }),
     name,
     subcommands: generated.subcommands,
     usage: usage(generated.usage),
   });
   return defineCommand(name, (args, ctx) => run(args, scope, ctx));
+}
+
+/**
+ * Why a role has none of an `instrument` command's capabilities, in the
+ * words its first one refuses with, or nothing when it has any: a task's
+ * `instrument task`. Such a command is left out of `instrument`'s listing
+ * for that role, and answers every call with this.
+ */
+export function commandRefusal(
+  word: string,
+  role: Role,
+  registry: readonly Capability[] = CAPABILITIES,
+): string | undefined {
+  const reasons = registry
+    .filter((capability) => capability.surfaces.cli?.words[0] === word)
+    .map((capability) => unavailableReason(capability, role));
+  return reasons.length > 0 && reasons.every((reason) => reason !== undefined)
+    ? reasons[0]
+    : undefined;
 }

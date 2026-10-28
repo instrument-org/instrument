@@ -16,15 +16,13 @@ import {
 } from "../background-processes";
 import { initializeChat } from "../initialize-chat";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { type TaskCommandContext } from "./task/context";
-import { logSubcommand } from "./task/log";
-import { stopSubcommand } from "./task/stop";
+import { type CapabilityScope } from "../capabilities/context";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { capabilityRunner } from "../../test/helpers/run-capability";
 import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
-const runLog = subcommandRunner(logSubcommand, "task log");
-const runStop = subcommandRunner(stopSubcommand, "task stop");
+const runLog = capabilityRunner("task", "log");
+const runStop = capabilityRunner("task", "stop");
 
 // Whether the child's turn is running; idle unless a test says otherwise.
 const working = vi.hoisted(() => ({ value: false }));
@@ -55,7 +53,7 @@ let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
 /** The task, by its session in the chat's store. */
 let CHILD_ID = StoreId.newSessionId();
 
-let context: TaskCommandContext;
+let context: CapabilityScope;
 
 let rootDir: string;
 
@@ -65,7 +63,12 @@ beforeEach(async () => {
   sent.events = [];
   CHAT_SESSION = StoreId.newSessionId();
   CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
-  context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
+  context = {
+    chatId: CHAT_ID,
+    remainingYieldMs: () => 0,
+    role: "chat",
+    sessionId: StoreId.newSessionId(),
+  };
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-stop-background-"));
   createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,

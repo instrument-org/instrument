@@ -103,7 +103,7 @@ describe("instrument x", () => {
       "Usage: instrument x <subcommand> ...
 
         These take --json, for the posts as JSON, and --out <file>, to write them there:
-        instrument x search [<query>]... [--from <from>]... [--exclude <exclude>]... [--since <since>] [--until <until>] [--limit <limit>] [--media]
+        instrument x search [<query>...] [--from <from>]... [--exclude <exclude>]... [--since <since>] [--until <until>] [--limit <limit>] [--media]
             Posts on X about the words, newest first, found by Grok on the user's Grok account; --from <handle> alone for that account's latest.
             Every post printed is one xAI's search returned and cited; its url is the
             post's own. Each search is a request on the user's Grok plan, and a

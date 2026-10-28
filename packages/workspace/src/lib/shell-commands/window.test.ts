@@ -30,9 +30,14 @@ const holders = new Map<
   string,
   { id: ReturnType<typeof ChatIdSchema.parse>; title: string }
 >();
+// How long a call waits on the window, short where a test has none answer.
+let windowTimeoutMs = 2000;
 vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
   tabHolders: () => Promise.resolve(holders),
+  get WINDOW_TAB_TIMEOUT_MS() {
+    return windowTimeoutMs;
+  },
 }));
 
 // The cards a request raised, as the chat's state would keep them.
@@ -118,12 +123,12 @@ function run(
 ) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/Users/me/Instrument/report.md", "# report");
+  windowTimeoutMs = options.timeoutMs ?? 2000;
   return createWindowCommand({
     chatId,
     layout,
-    role: "chat",
+    role: options.role ?? "chat",
     sessionId: StoreId.newSessionId(),
-    ...options,
   }).execute(
     args,
     createCommandContext({
@@ -341,7 +346,8 @@ describe("window close, show and read on a tab", () => {
     const result = await run({});
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Usage: instrument window list");
+    expect(result.stdout).toContain("Usage: instrument window <subcommand>");
+    expect(result.stdout).toContain("instrument window list");
   });
 
   it.each([
@@ -350,11 +356,12 @@ describe("window close, show and read on a tab", () => {
     { args: ["show"] },
     { args: ["show", "--in", "tab_known"] },
     { args: ["show", "tab_gone", "--in", "tab_known"] },
-  ])("prints the usage for $args", async ({ args }) => {
+  ])("names the form it takes for $args", async ({ args }) => {
     const result = await run({}, ...args);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Usage: instrument window list");
+    expect(asked).toEqual([]);
+    expect(result.stderr).toMatchSnapshot();
   });
 });
 

@@ -17,7 +17,7 @@ import { type ChatId } from "../../schemas/chat-id";
  * milliseconds; the wait is for a conversation with no window on it (an
  * eval), where nothing ever answers.
  */
-export const WINDOW_TAB_TIMEOUT_MS = 2000;
+export const WINDOW_TAB_TIMEOUT_MS: number = 2000;
 
 /**
  * Asks the window to act on its tabs and waits for its answer, or for the

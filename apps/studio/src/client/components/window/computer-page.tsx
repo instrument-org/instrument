@@ -1467,8 +1467,7 @@ export function ComputerPage({
           ? sources.filter(
               (source) =>
                 joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
-                  source.hostPath &&
-                !`${into.hostPath}/`.startsWith(`${source.hostPath}/`),
+                  source.hostPath && !isInside(into.hostPath, source.hostPath),
             )
           : sources;
       // The Finder's own rows move, as its own drag does, unless Option is

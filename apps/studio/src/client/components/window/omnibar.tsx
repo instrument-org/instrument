@@ -26,7 +26,10 @@ import {
   initialOmnibarField,
   omnibarField,
 } from "@/client/components/window/omnibar-field";
-import { segmentsOf } from "@/client/components/window/host-path";
+import {
+  relativeHostPath,
+  segmentsOf,
+} from "@/client/components/window/host-path";
 import { ShellContext } from "@/client/components/window/shell-context";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import {
@@ -271,21 +274,20 @@ export function Omnibar({
         : undefined;
     const currentRootHost =
       currentRoot === undefined ? undefined : expandHomePath(currentRoot, home);
-    const under =
-      currentRoot !== undefined &&
-      currentRootHost !== undefined &&
-      (host === currentRootHost || host.startsWith(`${currentRootHost}/`));
+    // Where the path sits under the tab's root, spelled with slashes as the
+    // tab's address is.
+    const below =
+      currentRootHost === undefined
+        ? null
+        : host === currentRootHost
+          ? ""
+          : relativeHostPath(currentRootHost, host);
     visit(
       router.buildLocation({
-        search: under
-          ? {
-              path:
-                host === currentRootHost
-                  ? ""
-                  : `${host.slice(currentRootHost.length + 1)}/`,
-              root: currentRoot,
-            }
-          : { path: "", root: host === home ? "~" : host },
+        search:
+          currentRoot !== undefined && below !== null
+            ? { path: below === "" ? "" : `${below}/`, root: currentRoot }
+            : { path: "", root: host === home ? "~" : host },
         to: "/files",
       }).href,
     );

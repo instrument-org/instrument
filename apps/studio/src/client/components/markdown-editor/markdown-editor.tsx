@@ -18,6 +18,7 @@ import { useAskCard } from "@/client/components/window/use-ask-card";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { registerFileFlush } from "@/client/lib/file-flush";
+import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
 import { cn } from "@/client/lib/utils";
@@ -652,8 +653,13 @@ function resolveImageSrc(src: string, folder: string): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//")) {
     return "";
   }
-  const path = src.startsWith("/")
-    ? src
-    : decodeURI(new URL(src, `file://${encodeURI(folder)}`).pathname);
-  return getComputerFileUrl({ hostPath: path });
+  let path: string | undefined = src;
+  if (!src.startsWith("/")) {
+    try {
+      path = hostPathOfFileUrl(new URL(src, `${fileUrlOf(folder)}/`).href);
+    } catch {
+      path = undefined;
+    }
+  }
+  return path === undefined ? "" : getComputerFileUrl({ hostPath: path });
 }

@@ -190,8 +190,39 @@ function text(value: unknown) {
   return [{ text: JSON.stringify(value, null, 2), type: "text" as const }];
 }
 
+/**
+ * Where Beacon keeps its filing rules: a resource the server's instructions
+ * point at, the way a hosted server like Notion's sends an agent to its own
+ * docs, so a case can score whether the agent followed the chain.
+ */
+const FILING_RULES_URI = "beacon://docs/filing";
+
+/** The label the filing rules ask every new issue to carry. */
+export const FILING_LABEL = "triage";
+
 function buildServer(created: { count: number }): McpServer {
-  const mcp = new McpServer({ name: "beacon", version: "1.0.0" });
+  const mcp = new McpServer(
+    { name: "beacon", version: "1.0.0" },
+    {
+      instructions: `Before filing an issue, read ${FILING_RULES_URI}: it has the rules every new issue follows.`,
+    },
+  );
+  mcp.registerResource(
+    "filing",
+    FILING_RULES_URI,
+    {
+      description: "The rules every new issue follows.",
+      mimeType: "text/markdown",
+    },
+    (uri) => ({
+      contents: [
+        {
+          text: `# Filing an issue\n\nEvery new issue carries the label \`${FILING_LABEL}\`, alongside any others, so the weekly triage finds it.`,
+          uri: uri.href,
+        },
+      ],
+    }),
+  );
   mcp.registerTool(
     "list_issues",
     {
@@ -291,10 +322,14 @@ function buildServer(created: { count: number }): McpServer {
         title: z.string(),
       },
     },
-    ({ title }) => {
+    ({ labels = [], title }) => {
       created.count += 1;
       const id = `BCN-${TRACKER.issues.length + created.count}`;
-      return { content: text({ id, title, url: createdIssueUrl(id) }) };
+      // The labels as filed, so a case can score what the tracker received
+      // rather than what the call happened to mention.
+      return {
+        content: text({ id, labels, title, url: createdIssueUrl(id) }),
+      };
     },
   );
   mcp.registerTool(

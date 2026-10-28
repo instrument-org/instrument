@@ -4,6 +4,7 @@ import type { DownloadItem, Session, WebContents } from "electron";
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import type { BrowserEntry } from "./entry";
 
@@ -11,16 +12,29 @@ import { trackDownload } from "./download-list";
 import { type GuestRegistry } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
 
+/**
+ * The part of `Browser.setDownloadBehavior` an agent's downloads follow. A
+ * folder that is not absolute would be read against this process's own
+ * working folder, so it allows nothing.
+ */
+const DownloadBehaviorSchema = z.object({
+  behavior: z.enum(["allow", "allowAndName", "default", "deny"]),
+  downloadPath: z
+    .string()
+    .refine((folder) => path.isAbsolute(folder))
+    .optional(),
+});
+
 export function applyDownloadBehavior(
   entry: BrowserEntry,
   params: unknown,
 ): Record<string, never> {
-  const p = (params ?? {}) as Protocol.Browser.SetDownloadBehaviorRequest;
-  const downloadPath = p.downloadPath ?? null;
-  const behavior = p.behavior;
+  const parsed = DownloadBehaviorSchema.safeParse(params);
   entry.authorizedDownloadPath =
-    (behavior === "allow" || behavior === "allowAndName") && downloadPath
-      ? downloadPath
+    parsed.success &&
+    (parsed.data.behavior === "allow" ||
+      parsed.data.behavior === "allowAndName")
+      ? (parsed.data.downloadPath ?? null)
       : null;
   return {};
 }

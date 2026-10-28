@@ -162,6 +162,16 @@ describe("sendCommand", () => {
     });
 
     expect(entry.authorizedDownloadPath).toBe("/tmp/dl");
+
+    await dispatch({
+      ensureDebuggerAttached: vi.fn(),
+      entries,
+      method: "Browser.setDownloadBehavior",
+      params: { behavior: "allowAndName", downloadPath: "dl" },
+      targetId: TARGET_ID,
+    });
+
+    expect(entry.authorizedDownloadPath).toBeNull();
   });
 
   it("routes Page.printToPDF through the native printToPDF API", async () => {

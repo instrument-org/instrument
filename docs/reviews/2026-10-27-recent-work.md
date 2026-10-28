@@ -8,12 +8,13 @@ The starting point is the head the 10-24 review recorded; the 10-27 beta 109 pas
 
 ### A. A draft a phone asks this computer to send goes without its context
 
-- Status: open
+- Status: declined
 - Where: [start-workspace.ts:54](/apps/studio/src/electron-main/lib/start-workspace.ts#L54), [send-asked-drafts.ts:76](/apps/studio/src/electron-main/drafts/send-asked-drafts.ts#L76), [message.ts:156](/packages/workspace/src/rpc/routes/message.ts#L156)
 - What: the `send` callback passes only `words`, `fromDraft`, the chat and the topic to `message.create`. A window's send also passes `viewing` from the draft's `context` lines and the composer's outside `files`/`folders`; `withDraftFolder` adds only entries inside the draft's own folder. So a new-chat draft started on `~/Reports/q3.xlsx` and sent from the phone reaches the agent as bare words, and marking it sent removes `DRAFT.md`, so the `context` lines are gone with nothing to say they were dropped. The docblock says the draft "is sent as a window sends one".
 - Verification: traced statically, confirmed by reading the route's input.
 - Fix: read the draft's `context` in main and pass it as `viewing` (and its outside paths as `files`/`folders`), through the same helper the window uses.
 - History: `3cd70ce12` (replies), extended to new-chat drafts by `4cbae5d0b`. Both carry `Not-tested: never run in the app`.
+- Declined because: only a `context:` line pointing outside the draft's folder is lost; files in the folder, a phone's attachments among them, are read by `withDraftFolder` and go. That takes a draft given an outside chip on a computer and then sent from a phone, which the beta phone client's one user does not do. Reopen when the phone app writes `context:` lines of its own that point outside the folder, or has users beyond the beta; the fix then is `message.create` reading the draft's `context:` itself, the window sending only what is on screen.
 
 ### B. Closing a drawing while its save conflicts merges against the emptied canvas
 

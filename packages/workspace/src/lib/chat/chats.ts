@@ -36,7 +36,7 @@ import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasWakeOnItsWay } from "./wake-queue";
 import { isStopNote } from "./wake-event";
-import { chatStateOf } from "./chat-state";
+import { chatStateOf, chatWorks } from "./chat-state";
 import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
@@ -318,6 +318,9 @@ const seenWorking = new Map<ChatId, boolean>();
 /** Who stopped the turn that ended last in each chat, when a stop ended it. */
 const lastStopper = new Map<ChatId, Stopper | undefined>();
 
+/** The chats whose own session had a message written since they last settled. */
+const writtenSinceSettle = new Set<ChatId>();
+
 /** The check each chat has under way, so its checks run one at a time. */
 const settleChecks = new Map<ChatId, Promise<void>>();
 
@@ -330,6 +333,10 @@ const settleChecks = new Map<ChatId, Promise<void>>();
  * something of the chat's still working waits for the one that settles it.
  * What hears it (the unread mark, the retitle, the completion notification)
  * asks nothing more about whether the chat is at rest.
+ *
+ * Published only when the chat's own session has something new since it
+ * last settled, which a wake to a task that gave up does not leave, and
+ * never when the app's quit settled it: neither is news to anyone.
  */
 export function startChatSettle(): void {
   publisher.subscribe("session.done", ({ id, notice }) => {
@@ -338,10 +345,20 @@ export function startChatSettle(): void {
     lastStopper.set(id, notice?.by);
     checkSettled(id);
   });
-  publisher.subscribe("record.changed", ({ id, kind }) => {
+  publisher.subscribe("record.changed", ({ id, kind, message }) => {
     if (kind === "removed") {
       seenWorking.delete(id);
       lastStopper.delete(id);
+      writtenSinceSettle.delete(id);
+      return;
+    }
+    if (
+      kind === "messages" &&
+      message &&
+      !message.removed &&
+      message.sessionId === sessionOfChat(id)
+    ) {
+      writtenSinceSettle.add(id);
       return;
     }
     if (kind !== "agent") {
@@ -356,16 +373,23 @@ export function startChatSettle(): void {
   });
 }
 
-/** Whether an agent of the chat is alive or a wake is on its way to it, read without the chat's records. */
+/**
+ * Whether the chat may be working, by the rule `chatStateOf` follows, read
+ * without the chat's records: any agent of the chat's alive stands in for
+ * both its own turn and a task at work.
+ */
 function mayBeWorking(chatId: ChatId): boolean {
-  if (hasWakeOnItsWay(chatId)) {
-    return true;
-  }
+  let alive = false;
   try {
-    return isWorking(chatId);
+    alive = isWorking(chatId);
   } catch {
-    return false;
+    // No workspace is running to ask.
   }
+  return chatWorks({
+    ownTurn: alive,
+    tasksAtWork: alive,
+    wakeOnItsWay: hasWakeOnItsWay(chatId),
+  });
 }
 
 function checkSettled(chatId: ChatId) {
@@ -387,6 +411,10 @@ function checkSettled(chatId: ChatId) {
       }
       const by = lastStopper.get(chatId);
       lastStopper.delete(chatId);
+      const written = writtenSinceSettle.delete(chatId);
+      if (!written || by === "app") {
+        return;
+      }
       publisher.publish("chat.settled", {
         id: chatId,
         ...(by ? { by } : {}),

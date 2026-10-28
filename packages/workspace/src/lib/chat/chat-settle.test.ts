@@ -17,11 +17,12 @@ import { sessionOfChat } from "../record-folders";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
 import {
   chatById,
+  markChatRead,
   settleIsNews,
   startChatSettle,
   startChatUnreadOnSettle,
 } from "./chats";
-import { startChatWake } from "./wake";
+import { noteTasksInterruptedByQuit, startChatWake, wakeAskers } from "./wake";
 import { hasWakeOnItsWay } from "./wake-queue";
 
 // A wake gives up on the chat's model after about two minutes of retries;
@@ -238,5 +239,72 @@ describe("a chat settling", () => {
     await vi.waitFor(() => {
       expect(settlesOf(chatId)).toEqual([{ id: chatId, sessionId: own }]);
     });
+  });
+});
+
+/** A chat with a task that has settled once already, and been read since. */
+async function settledChatWithTask() {
+  const { chatId, taskSession } = await chatWithTask();
+  const own = sessionOfChat(chatId);
+  if (!own) {
+    throw new Error("expected the chat's session");
+  }
+  publisher.publish("session.done", { id: chatId, sessionId: own });
+  await vi.waitFor(() => {
+    expect(settlesOf(chatId)).toHaveLength(1);
+  });
+  await markChatRead(chatId);
+  return { chatId, own, taskSession };
+}
+
+describe("a chat that settles with nothing new in it", () => {
+  // The task asked on a card and the person answered, but the chat's model
+  // cannot be found: the note lands in the task's session, and the chat
+  // shows nothing it did not show when it last settled.
+  it("is not settled again by a wake to its task that gave up", async () => {
+    const { chatId, taskSession } = await settledChatWithTask();
+    vi.mocked(fetchModel).mockImplementation(() =>
+      Promise.resolve({ error: new Error("not listed"), ok: false } as never),
+    );
+
+    await expect(
+      wakeAskers(
+        {
+          data: {
+            answer: "allowed",
+            kind: "folder",
+            target: "/Users/me/Pantry",
+          },
+          type: "data-permissionAnswer",
+        },
+        workspaceRef,
+        chatId,
+        [taskSession],
+      ),
+    ).rejects.toThrow("not listed");
+    vi.mocked(fetchModel).mockReset();
+    await settledDown();
+
+    expect(settlesOf(chatId)).toHaveLength(1);
+    expect((await chatById(chatId))?.unread).toBe(false);
+  });
+
+  // The quit writes the chat a note naming the task it cut off, and stops
+  // the task as the app's: nothing anyone did, and nothing to tell them.
+  it("is not settled by the app's quit", async () => {
+    const { chatId, taskSession } = await settledChatWithTask();
+    alive.add(taskSession);
+
+    await noteTasksInterruptedByQuit([{ chatId, sessionId: taskSession }]);
+    alive.delete(taskSession);
+    publisher.publish("session.done", {
+      id: chatId,
+      notice: { by: "app", wakesChat: false },
+      sessionId: taskSession,
+    });
+    await settledDown();
+
+    expect(settlesOf(chatId)).toHaveLength(1);
+    expect((await chatById(chatId))?.unread).toBe(false);
   });
 });

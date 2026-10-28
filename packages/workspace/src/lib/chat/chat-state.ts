@@ -58,7 +58,7 @@ export function chatStateOf({
   wakeOnItsWay: boolean;
 }): { ownWorking: boolean; state: ChatState; working: boolean } {
   const ownWorking = ownTurn;
-  const working = ownWorking || tasksAtWork || wakeOnItsWay;
+  const working = chatWorks({ ownTurn, tasksAtWork, wakeOnItsWay });
   const hasAsk = askedAt !== undefined;
   const state =
     hasAsk && askedAt > spokeAt
@@ -75,4 +75,21 @@ export function chatStateOf({
                 ? "limited"
                 : "idle";
   return { ownWorking, state, working };
+}
+
+/**
+ * Whether anything of the chat's still moves, the `working` that
+ * `chatStateOf` returns beside its state: its own turn, a task at work, or a
+ * wake on its way.
+ */
+export function chatWorks({
+  ownTurn,
+  tasksAtWork,
+  wakeOnItsWay,
+}: {
+  ownTurn: boolean;
+  tasksAtWork: boolean;
+  wakeOnItsWay: boolean;
+}): boolean {
+  return ownTurn || tasksAtWork || wakeOnItsWay;
 }

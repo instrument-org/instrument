@@ -30,7 +30,7 @@ vi.mock("./files-grid", () => ({
       ))}
     </ul>
   ),
-  ROW_CARD_GRID: "row-card-grid",
+  rowCardLayout: () => ({ grid: "row-card-grid" }),
 }));
 
 // A fence asks the task's layout where its files are and nothing else, so the

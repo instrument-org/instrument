@@ -24,11 +24,46 @@ import { Skeleton } from "./ui/skeleton";
  * filename beside a thumbnail in a third of the column. Shared with the
  * folders a reply names, which stand as row cards of their own.
  */
-export const ROW_CARD_GRID =
-  "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3";
+const ROW_CARD_GRID = "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3";
+
+/**
+ * The row card grid in the conversation's column, where the cards sit under
+ * bubbles rather than in a pane: columns of at least 11rem, two across a chat
+ * of the usual width, so the edges of a set line up.
+ */
+const CHAT_ROW_CARD_GRID =
+  "grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2";
+
+/**
+ * The grid a set of row cards stands in, and the cell each takes. In the
+ * conversation's column a card alone in its set is as wide as its name needs,
+ * up to the column, keeping the room for its menu so it does not grow under
+ * the pointer. Shared with the folders a reply names.
+ */
+export function rowCardLayout({
+  chatColumn,
+  count,
+}: {
+  chatColumn: boolean;
+  count: number;
+}) {
+  const isLoneInChat = chatColumn && count === 1;
+  return {
+    keepsActionsRoom: isLoneInChat,
+    cell: isLoneInChat
+      ? "col-span-full max-w-full justify-self-start"
+      : undefined,
+    grid: chatColumn ? CHAT_ROW_CARD_GRID : ROW_CARD_GRID,
+  };
+}
 
 interface FilesGridProps {
   alignEnd?: boolean;
+  /**
+   * Lays the cards out for the conversation's column rather than a pane: see
+   * `rowCardLayout`, and a lone media tile takes the whole width.
+   */
+  chatColumn?: boolean;
   compact?: boolean;
   files: ViewerFile[];
   /**
@@ -55,6 +90,7 @@ interface FilesGridProps {
 
 export function FilesGrid({
   alignEnd = false,
+  chatColumn = false,
   compact = false,
   files,
   pendingFilePath,
@@ -101,9 +137,12 @@ export function FilesGrid({
   const mediaTileWidth = cn(
     "shrink-0 grow-0",
     isSingleMediaFile
-      ? "w-full @xl:w-[calc((100%/3*2)-(0.5rem/3))]"
+      ? chatColumn
+        ? "w-full"
+        : "w-full @xl:w-[calc((100%/3*2)-(0.5rem/3))]"
       : "w-[calc((100%/2)-(0.5rem/2))] @xl:w-[calc((100%/3)-(0.5rem*2/3))]",
   );
+  const rowCards = rowCardLayout({ chatColumn, count: rowCardFiles.length });
 
   // And what shape it takes at that width. A tile in a set is square, so that
   // the row's height is settled before the slowest card in it arrives; a lone
@@ -155,12 +194,17 @@ export function FilesGrid({
       {rowCardFiles.length > 0 && (
         <div className="@container">
           <div
-            className={cn(ROW_CARD_GRID, alignEnd && "justify-items-end")}
+            className={cn(rowCards.grid, alignEnd && "justify-items-end")}
             data-slot="files-grid-cards"
           >
             {rowCardFiles.map((file) => (
-              <div data-slot="files-grid-card" key={file.hostPath}>
+              <div
+                className={rowCards.cell}
+                data-slot="files-grid-card"
+                key={file.hostPath}
+              >
                 <FilePreviewCard
+                  keepsActionsRoom={rowCards.keepsActionsRoom}
                   file={file}
                   onClick={() => {
                     handleFileClick(file);

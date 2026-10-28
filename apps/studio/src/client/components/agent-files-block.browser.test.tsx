@@ -52,10 +52,16 @@ const WIDE = 640;
 function drawFence(
   content: string,
   {
+    chatColumn = false,
     isStreaming = false,
     layout = "grid",
     width = WIDE,
-  }: { isStreaming?: boolean; layout?: "grid" | "list"; width?: number } = {},
+  }: {
+    chatColumn?: boolean;
+    isStreaming?: boolean;
+    layout?: "grid" | "list";
+    width?: number;
+  } = {},
 ) {
   return renderInBrowser(
     <ThemeProvider>
@@ -67,7 +73,7 @@ function drawFence(
           }}
         >
           <FilesLayoutContext.Provider value={layout}>
-            <AgentFilesBlock content={content} />
+            <AgentFilesBlock chatColumn={chatColumn} content={content} />
           </FilesLayoutContext.Provider>
         </MarkdownChatContext>
       </div>
@@ -310,4 +316,20 @@ test("draws a drawing a reply names as a picture of it, in a media tile", async 
       { timeout: 20_000 },
     )
     .toBe(true);
+});
+
+test("keeps a lone card with a long name inside the conversation's column", async () => {
+  // A lone card in the conversation is as wide as its name, and a name never
+  // wraps, so nothing but the column's width stops a long one from drawing
+  // the card past the column's edge.
+  const { container } = await drawFence(
+    "output/shopify-headless-storefront-frameworks-comparison-final.html",
+    { chatColumn: true, width: NARROW },
+  );
+
+  const card = container.querySelector("[data-slot='files-grid-card']");
+
+  expect(
+    Math.round(card?.getBoundingClientRect().width ?? 0),
+  ).toBeLessThanOrEqual(NARROW);
 });

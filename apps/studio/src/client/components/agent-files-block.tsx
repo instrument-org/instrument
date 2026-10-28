@@ -25,7 +25,7 @@ import { useContext } from "react";
 
 import { FileTypeIcon } from "./extend/file-system";
 import { FolderRowCard } from "./file-preview-card";
-import { FilesGrid, ROW_CARD_GRID } from "./files-grid";
+import { FilesGrid, rowCardLayout } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { SystemFolderIcon } from "./icons/folder-glyph";
 import { MarkdownChatContext } from "./markdown-chat-context";
@@ -55,9 +55,12 @@ import { MessageCard } from "./message-card";
  * how a reply reporting a change draws the file as it was before it.
  */
 export function AgentFilesBlock({
+  chatColumn,
   className,
   content,
 }: {
+  /** Lays the cards out for the conversation's column; see `FilesGrid`. */
+  chatColumn?: boolean;
   /** Replaces the block's own margins, for a column that spaces its rows itself. */
   className?: string;
   content: string;
@@ -93,6 +96,7 @@ export function AgentFilesBlock({
 
   return (
     <FilePathsGrid
+      chatColumn={chatColumn}
       className={className}
       paths={paths}
       pendingFilePath={pendingPath}
@@ -109,10 +113,13 @@ export function AgentFilesBlock({
  * indistinguishable should not be two pieces of code.
  */
 export function FilePathsGrid({
+  chatColumn = false,
   className,
   paths,
   pendingFilePath,
 }: {
+  /** Lays the cards out for the conversation's column; see `FilesGrid`. */
+  chatColumn?: boolean;
   /** Replaces the grid's own margins, for a column that spaces its rows itself. */
   className?: string;
   paths: string[];
@@ -210,14 +217,22 @@ export function FilePathsGrid({
     );
   }
 
+  const folderCards = rowCardLayout({
+    chatColumn,
+    count: folderPaths.length,
+  });
   return (
     <div className={cn("not-prose my-4 flex flex-col gap-2", className)}>
       {messageCards}
       {folderPaths.length > 0 && (
         <div className="@container">
-          <div className={ROW_CARD_GRID} data-slot="files-grid-cards">
+          <div className={folderCards.grid} data-slot="files-grid-cards">
             {folderPaths.map((path) => (
-              <div data-slot="files-grid-card" key={path}>
+              <div
+                className={folderCards.cell}
+                data-slot="files-grid-card"
+                key={path}
+              >
                 <FolderRowCard
                   onClick={() => {
                     showChatFile(path);
@@ -230,6 +245,7 @@ export function FilePathsGrid({
         </div>
       )}
       <FilesGrid
+        chatColumn={chatColumn}
         files={filePaths
           .filter((path) => !isMessage(path))
           .map(fileOf)

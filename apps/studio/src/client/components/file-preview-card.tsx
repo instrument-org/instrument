@@ -39,10 +39,13 @@ import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function FilePreviewCard({
+  keepsActionsRoom,
   file,
   onClick,
   shape,
 }: {
+  /** Keeps a row card's menu its room when not hovered; see `FileRowCard`. */
+  keepsActionsRoom?: boolean;
   file: ViewerFile;
   onClick: () => void;
   /** The box a media card takes; ignored by the types drawn as a row. */
@@ -130,7 +133,12 @@ export function FilePreviewCard({
         videoRef={videoRef}
       />
     ) : (
-      <FileRowCard file={file} isMissing={isMissing} onClick={onClick} />
+      <FileRowCard
+        keepsActionsRoom={keepsActionsRoom}
+        file={file}
+        isMissing={isMissing}
+        onClick={onClick}
+      />
     );
 
   return <div ref={ref}>{card}</div>;
@@ -176,10 +184,12 @@ export function FolderRowCard({
 }
 
 function FileRowCard({
+  keepsActionsRoom,
   file,
   isMissing,
   onClick,
 }: {
+  keepsActionsRoom?: boolean;
   file: ViewerFile;
   isMissing?: boolean;
   onClick: () => void;
@@ -242,10 +252,16 @@ function FileRowCard({
           narrow grid cell has the whole row to itself until the menu is
           wanted. Collapsed rather than removed: it stays in the tab order,
           and focus reaching it is what opens it back up. Held open while
-          its menu is, which the pointer has left the row to reach. */}
+          its menu is, which the pointer has left the row to reach. A card
+          sized to its name keeps the room open, so it does not grow under
+          the pointer. */}
       {hasFileActions && !isMissing && (
         <div
-          className="relative z-10 -ml-3 flex w-0 shrink-0 items-center overflow-hidden opacity-0 group-focus-within:ml-0 group-focus-within:w-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-hover:ml-0 group-hover:w-auto group-hover:opacity-100 has-data-[state=open]:ml-0 has-data-[state=open]:w-auto has-data-[state=open]:opacity-100"
+          className={cn(
+            "relative z-10 flex shrink-0 items-center overflow-hidden opacity-0 group-focus-within:overflow-visible group-focus-within:opacity-100 group-hover:opacity-100 has-data-[state=open]:opacity-100",
+            !keepsActionsRoom &&
+              "-ml-3 w-0 group-focus-within:ml-0 group-focus-within:w-auto group-hover:ml-0 group-hover:w-auto has-data-[state=open]:ml-0 has-data-[state=open]:w-auto",
+          )}
           data-slot="file-row-actions"
           onClick={(e) => {
             e.stopPropagation();

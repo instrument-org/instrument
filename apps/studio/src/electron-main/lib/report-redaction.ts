@@ -14,6 +14,8 @@ type ChatFile = { content: string; name: string };
 export type ReportKnownValues = {
   /** The chat the report is about, whose own title stays. */
   chatId?: string;
+  /** Every chat's id, `chatId`'s aside, each spelling out its chat's title. */
+  chatIds?: readonly string[];
   home?: string;
   login?: string;
   memories?: readonly { name: string; text: string }[];
@@ -36,7 +38,7 @@ const escapeRegExp = (text: string) =>
 /**
  * Takes out of a report what is personal and no help with a bug, keeping its
  * shape: who the person is (name, email, home folder, login), what Instrument
- * remembers about them, other chats' titles and messages, and any secret.
+ * remembers about them, other chats' titles, ids and messages, and any secret.
  * Everything else stays, tool output included, since a report that has lost
  * the bug is worse than none.
  *
@@ -106,6 +108,13 @@ export function createReportRedactor(known: ReportKnownValues) {
     for (const [name, alias] of memoryNames) {
       if (name.includes("-")) {
         add(name, alias, true);
+      }
+    }
+    // Another chat's id is its title, as the log names it; a one-word id
+    // stays for the same reason a one-word memory name does.
+    for (const id of known.chatIds ?? []) {
+      if (id !== known.chatId && id.includes("-")) {
+        add(id, "[other chat]", true);
       }
     }
     // Longest first, so a memory's whole text wins over its first line.

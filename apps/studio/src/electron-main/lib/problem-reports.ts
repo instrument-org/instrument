@@ -31,6 +31,7 @@ import {
 import {
   chatDir,
   type ChatId,
+  chatIds,
   chatSessions,
   chatStartedWithApp,
   listMemories,
@@ -309,8 +310,8 @@ type ReportRedactor = ReturnType<typeof createReportRedactor>;
 
 /**
  * What a report takes out: the accounts signed in (those known without
- * waiting, unless the caller asked), the home folder and the login, and
- * whatever the caller adds.
+ * waiting, unless the caller asked), the home folder and the login, every
+ * other chat's id, and whatever the caller adds.
  */
 function reportRedactor({
   people = knownSignedInPeople(),
@@ -322,8 +323,15 @@ function reportRedactor({
   } catch {
     // No user record for this process's uid, as in some containers.
   }
+  let chats: string[] = [];
+  try {
+    chats = chatIds();
+  } catch {
+    // No workspace open yet, as on a report from setup.
+  }
   return createReportRedactor({
     ...extra,
+    chatIds: chats,
     home: os.homedir(),
     login,
     people,

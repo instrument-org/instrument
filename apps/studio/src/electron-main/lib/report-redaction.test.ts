@@ -197,6 +197,28 @@ describe("createReportRedactor", () => {
     );
   });
 
+  it("takes other chats' ids out of the log and keeps this chat's", () => {
+    const redactor = createReportRedactor({
+      chatId: "fix-the-build",
+      chatIds: ["fix-the-build", "plan-sams-birthday", "notes"],
+    });
+    expect(
+      redactor.text(
+        [
+          "Chat records: converted plan-sams-birthday",
+          "Chat records: converted fix-the-build",
+          "Chat records: converted notes",
+          "Chat records: converted plan-sams-birthday-2",
+        ].join("\n"),
+      ),
+    ).toMatchInlineSnapshot(`
+      "Chat records: converted [other chat]
+      Chat records: converted fix-the-build
+      Chat records: converted notes
+      Chat records: converted plan-sams-birthday-2"
+    `);
+  });
+
   it("takes an email out whatever its case", () => {
     const redactor = createReportRedactor({
       people: [{ email: "Sam.Rivera@Example.com", name: "Sam Rivera" }],

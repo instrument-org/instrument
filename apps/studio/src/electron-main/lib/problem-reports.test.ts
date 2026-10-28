@@ -38,6 +38,7 @@ vi.mock("@instrument-org/workspace/electron", () => ({
   chatDir: () => {
     throw new Error("No chat in these tests");
   },
+  chatIds: () => [],
   chatSessions: () => Promise.resolve([]),
   chatStartedWithApp: () => Promise.resolve(undefined),
   listMemories: () => Promise.resolve([]),

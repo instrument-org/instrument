@@ -172,7 +172,7 @@ export {
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
-export { chatDir } from "./lib/record-folders";
+export { chatDir, chatIds } from "./lib/record-folders";
 export { workDir } from "./lib/work-dir";
 export {
   ASIDE_INFIX,

@@ -187,7 +187,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 its menu so it does not grow under the pointer; several fill
                 columns of at least 11rem, two across a chat of the usual
                 width, so their edges line up. */}
-            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-card]:only-child]:justify-self-start [&_[data-slot=files-grid-card]:only-child_[data-slot=file-row-actions]]:ml-0 [&_[data-slot=files-grid-card]:only-child_[data-slot=file-row-actions]]:w-auto [&_[data-slot=files-grid-cards]]:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] [&_[data-slot=files-grid-media]:only-child]:w-full">
+            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-card]:only-child]:max-w-full [&_[data-slot=files-grid-card]:only-child]:justify-self-start [&_[data-slot=files-grid-card]:only-child_[data-slot=file-row-actions]]:ml-0 [&_[data-slot=files-grid-card]:only-child_[data-slot=file-row-actions]]:w-auto [&_[data-slot=files-grid-cards]]:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] [&_[data-slot=files-grid-media]:only-child]:w-full">
               {fences.map((content, index) => (
                 <AgentFilesBlock
                   className="my-0"

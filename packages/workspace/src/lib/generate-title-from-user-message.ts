@@ -200,10 +200,17 @@ export function generateTitleFromUserMessage({
       cleanedTitle = cleanedTitle.replace(/^\s*current title:?\s*["'`]*/i, "");
       cleanedTitle = cleanedTitle.trim();
       cleanedTitle = cleanedTitle.split("\n")[0]?.trim() ?? "";
-      cleanedTitle = withoutUnaskedYears(cleanedTitle, opening);
-      if (looksLikeCommentary(cleanedTitle)) {
-        throw new CommentaryAnswer(`Commentary, not a title: ${cleanedTitle}`);
+      // A sentence that quotes the current title ("Current title is "…".")
+      // is the model keeping it.
+      if (
+        currentTitle &&
+        ['"', "'", "`"].some((quote) =>
+          cleanedTitle.includes(`${quote}${currentTitle}`),
+        )
+      ) {
+        return currentTitle;
       }
+      cleanedTitle = withoutUnaskedYears(cleanedTitle, opening);
 
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       // A cut mid-sentence leaves the comma that led into the next word.
@@ -211,6 +218,13 @@ export function generateTitleFromUserMessage({
         .slice(0, MAX_TITLE_WORDS)
         .join(" ")
         .replace(/[,;:]+$/, "");
+      // Checked after the cut too, which can leave a quote it opened unclosed.
+      if (
+        looksLikeCommentary(cleanedTitle) ||
+        looksLikeCommentary(limitedTitle)
+      ) {
+        throw new CommentaryAnswer(`Commentary, not a title: ${cleanedTitle}`);
+      }
 
       // An answer made entirely of formatting. Failing here leaves the
       // placeholder standing, which is the user's own opening words.

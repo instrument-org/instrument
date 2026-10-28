@@ -465,14 +465,17 @@ describe("generateTitleFromUserMessage", () => {
 });
 
 describe("generateTitleFromUserMessage with a current title", () => {
-  async function callWith(currentTitle?: string) {
-    const mockLanguageModel = createMockLanguageModel("Lentil soup for dinner");
+  async function callWith(
+    currentTitle?: string,
+    answer = "Lentil soup for dinner",
+  ) {
+    const mockLanguageModel = createMockLanguageModel(answer);
     const model = createMockAIGatewayModel();
     createMockChatConfig(ChatIdSchema.parse("mock"), {
       aiSDKModel: mockLanguageModel,
       model,
     });
-    await generateTitleFromUserMessage({
+    const title = await generateTitleFromUserMessage({
       currentTitle,
       message: createMockMessage("what should I make for dinner"),
       model,
@@ -484,9 +487,28 @@ describe("generateTitleFromUserMessage with a current title", () => {
     const system = prompt.find((entry) => entry.role === "system");
     return {
       system: system?.role === "system" ? system.content : "",
+      title,
       user: JSON.stringify(prompt.filter((entry) => entry.role === "user")),
     };
   }
+
+  // Haiku on the Claude account answered this when settling a chat, and the
+  // word cap cut it to `is "Calendar lookup and adding Friday lunch with`.
+  it("keeps the title when the answer is a sentence quoting it", async () => {
+    const current = "Calendar lookup and adding Friday lunch with Sam";
+    const { title } = await callWith(current, `Current title is "${current}".`);
+
+    expect(title._unsafeUnwrap()).toBe(current);
+  });
+
+  it("refuses an answer the word cap leaves with an unclosed quote", async () => {
+    const { title } = await callWith(
+      "Dinner ideas",
+      'Current title is "Calendar lookup and adding Friday lunch with Sam".',
+    );
+
+    expect(title._unsafeUnwrapErr().message).toContain("Commentary");
+  });
 
   // Each call words the same subject its own way, so a chat renamed from
   // scratch on every call would never hold a name.

@@ -18,6 +18,9 @@
  * - `retry`: a name handed back as taken comes back different.
  * - `assumed-details`: "when is daylight savings", answered for the user's
  *   city and this year, gets neither the city nor a year, at both moments.
+ * - `kept-title`: a calendar ask with a title at the word cap, settled with a
+ *   reply that did what it asked, keeps a title with no quote or leftover
+ *   sentence in it.
  */
 import "./lib/sandbox-home";
 import "dotenv/config";
@@ -254,6 +257,33 @@ const CASES: Case[] = [
       return {
         evidence: `opening: ${opening ?? "(none)"} · settled: ${settled ?? "(none)"}`,
         passed: !assumed,
+      };
+    },
+  },
+  {
+    name: "kept-title",
+    run: async ({ ask, model, workspaceConfig }) => {
+      const { chatId, message } = await ask(
+        "check my calendar and add lunch with Sam on Friday",
+      );
+      // A title at the word cap, as one a chat was given in the app.
+      const current = "Calendar lookup and adding Friday lunch with Sam";
+      const settled = await NAMER({
+        chatId,
+        currentTitle: current,
+        message,
+        model,
+        reply:
+          'You\'re free Friday from noon to 1:30, so I added "Lunch with Sam" to your calendar at 12:00. Nothing else is on Friday afternoon.',
+        workspaceConfig,
+      });
+      // A sentence about the title ("Current title is "…".") cut to the word
+      // cap leaves a quote and its first word behind.
+      const mangled =
+        settled === null || /["“”]|^(?:is|the|current)\b/i.test(settled);
+      return {
+        evidence: `current: ${current} · settled: ${settled ?? "(none)"}`,
+        passed: !mangled,
       };
     },
   },

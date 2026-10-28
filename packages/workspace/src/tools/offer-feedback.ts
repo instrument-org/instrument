@@ -49,7 +49,11 @@ export const OfferFeedback = setupTool({
   inputSchema: BaseInputSchema.extend({
     title: z.string().trim().min(1).max(120).meta({
       description:
-        "One plain line naming what broke: 'Browser tab crashed on zendesk.com/pricing'.",
+        "The card's heading: what went wrong and how often, in one plain line: 'Zendesk's page crashed the browser tab three times in a row'.",
+    }),
+    reason: z.string().trim().min(1).max(200).meta({
+      description:
+        "One plain sentence under the heading on why this is Instrument's fault rather than the site's, the user's or yours: 'Other sites loaded fine, so this looks like a bug in Instrument.'",
     }),
     writeup: z.string().trim().min(1).max(FEEDBACK_WRITEUP_MAX_LENGTH).meta({
       description:
@@ -60,7 +64,7 @@ export const OfferFeedback = setupTool({
   outputSchema: OfferFeedbackOutputSchema,
 }).create({
   description: dedent`
-    Offer to send the Instrument team a short write-up of something broken in Instrument itself: its browser, shell, file tools, or an app connection failing in a way neither the request nor the site explains. The user sees your write-up on a card and decides whether to send it with the chat. Not for a site that is down or refuses you, a model refusing, a missing permission, your own mistake, or anything the user did. The card is the whole offer, and often none is shown, so your reply carries on with the work. It returns at once.
+    Offer to send the Instrument team a short write-up of something broken in Instrument itself: its browser, shell, file tools, or an app connection failing in a way neither the request nor the site explains. The user sees your heading and reason on a card, can read your write-up, and decides whether to send it with the chat. Not for a site that is down or refuses you, a model refusing, a missing permission, your own mistake, or anything the user did. The card is the whole offer, and often none is shown, so your reply carries on with the work. It returns at once.
   `,
   execute: async ({ chatId, sessionId }) => {
     if (sessionRole(chatId, sessionId) !== "chat") {

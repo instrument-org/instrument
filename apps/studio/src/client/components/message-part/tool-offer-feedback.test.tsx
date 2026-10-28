@@ -37,7 +37,8 @@ vi.mock("@/client/rpc/client", () => ({
 
 const chatId = ChatIdSchema.parse("2026-10-27-pricing");
 const input = {
-  title: "Browser tab crashed on zendesk.com/pricing",
+  title: "Zendesk's page crashed the browser tab three times in a row",
+  reason: "Other sites loaded fine, so this looks like a bug in Instrument.",
   writeup: "The tab crashed each of three times.",
 };
 

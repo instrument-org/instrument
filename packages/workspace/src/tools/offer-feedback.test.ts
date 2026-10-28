@@ -38,7 +38,9 @@ async function offer() {
     input: {
       activity: "Writing up a problem",
       explanation: "The browser tab crashed",
-      title: "Browser tab crashed on zendesk.com/pricing",
+      title: "Zendesk's page crashed the browser tab three times in a row",
+      reason:
+        "Other sites loaded fine, so this looks like a bug in Instrument.",
       writeup: "The tab crashed each of three times.",
     },
     model,

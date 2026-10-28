@@ -1,3 +1,5 @@
+import { type LostFolder } from "@/shared/setup";
+
 import { cleanUpMachineData } from "./machine-cleanups";
 import { moveMachineData } from "./machine-data-migration";
 import {
@@ -54,6 +56,7 @@ export function resolveLaunchWorkspace({
   userDataDir: string;
 }):
   | { kind: "open"; workspace: ResolvedWorkspace }
+  | { kind: "pinned-lost"; lost: LostFolder }
   | { kind: "refused"; refusal: WorkspaceRefusal }
   | Extract<WorkspaceRun, { kind: "unplaced" }> {
   if (pin === undefined && isFirstLaunch(userDataDir)) {
@@ -82,6 +85,13 @@ export function resolveLaunchWorkspace({
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
   const inspected = inspectWorkspaceFolder({ userDataDir, workspace });
+  // A pinned run has no setup to find its folder again.
+  if (inspected?.kind === "lost" && workspace.pinned) {
+    return {
+      kind: "pinned-lost",
+      lost: { path: workspace.path, reason: inspected.reason },
+    };
+  }
   if (inspected?.kind === "lost") {
     for (const step of migrateMachineSettings(userDataDir)) {
       log.info(`Settings migration: ${step}`);

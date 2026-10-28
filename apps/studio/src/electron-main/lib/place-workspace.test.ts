@@ -164,6 +164,24 @@ describe("the launch decision", () => {
     expect(launch().kind).toBe("open");
   });
 
+  it("says a pinned folder whose record won't read is lost, rather than asking setup", () => {
+    const pinned = path.join(root, "pinned");
+    fs.mkdirSync(path.join(workspaceLayout(pinned).dataDir, "workspace.json"), {
+      recursive: true,
+    });
+    expect(
+      resolveLaunchWorkspace({
+        log,
+        packaged: false,
+        pin: pinned,
+        userDataDir,
+      }),
+    ).toEqual({
+      kind: "pinned-lost",
+      lost: { path: pinned, reason: "unreadable" },
+    });
+  });
+
   it("opens a workspace pinned for the process", () => {
     expect(
       resolveLaunchWorkspace({

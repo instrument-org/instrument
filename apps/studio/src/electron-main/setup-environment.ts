@@ -162,11 +162,7 @@ function openWorkspace() {
   // A pinned workspace whose record can't be read is never opened, which
   // would write it again from defaults, and a pinned run has no setup to
   // find it.
-  if (
-    launch.kind === "unplaced" &&
-    launch.lost &&
-    process.env.INSTRUMENT_WORKSPACE
-  ) {
+  if (launch.kind === "pinned-lost") {
     const message = `INSTRUMENT_WORKSPACE names ${launch.lost.path}, which can't be opened: ${launch.lost.reason}`;
     console.error(message);
     logger.error(message);

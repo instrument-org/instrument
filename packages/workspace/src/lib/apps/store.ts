@@ -63,7 +63,7 @@ export async function listApps(appsDir: AbsolutePath): Promise<{
   const taken = new Map<string, string>();
 
   for (const { folder, read } of await readAppFolders(appsDir)) {
-    if (read.kind === "none") {
+    if (read.kind === "none" || read.kind === "unreadable") {
       continue;
     }
     if (read.kind === "invalid") {
@@ -122,9 +122,13 @@ export async function loadApp(
 
 /** The app's guide: the body of its `APP.md`, or nothing where it has none. */
 export function readAppGuide(appDir: AbsolutePath): Promise<null | string> {
-  const read = parseAppFile(
-    readAppFileText(path.dirname(appDir), path.basename(appDir)) ?? "",
-  );
+  let text: string | undefined;
+  try {
+    text = readAppFileText(path.dirname(appDir), path.basename(appDir));
+  } catch {
+    // Unreadable for now: nothing to show.
+  }
+  const read = parseAppFile(text ?? "");
   return Promise.resolve(
     read.kind === "app" && read.app.guide !== "" ? `${read.app.guide}\n` : null,
   );
@@ -291,7 +295,13 @@ export async function writeAppFolder({
       `${shellPath(path.join(found.dir, APP_FILE_NAME))} is already "${slug}" and cannot be read: ${found.message} Fix that file rather than writing another.`,
     );
   }
-  const here = found?.app;
+  if (found?.kind === "unreadable") {
+    // It may be this app, so a folder beside it could be a second of one id.
+    throw new Error(
+      `${shellPath(path.join(found.dir, APP_FILE_NAME))} could not be read, and may already be "${slug}". Try again once it can be read.`,
+    );
+  }
+  const here = found?.kind === "app" ? found.app : undefined;
   const dir =
     here?.dir ??
     absolutePathJoin(
@@ -325,9 +335,17 @@ async function appFolderNames(appsDir: string): Promise<string[]> {
 }
 
 /**
+ * Why there is no `APP.md` to read in a folder: no such file, or a link or
+ * folder at its name. Anything else (another program holding it, a file
+ * iCloud has yet to bring down) leaves the file there and unread.
+ */
+const NO_APP_FILE = new Set(["EISDIR", "ELOOP", "ENOENT", "ENOTDIR"]);
+
+/**
  * An app's file as text, read as the app itself rather than through the
  * sandbox: a program the agent runs can put a link at any name in here, and
- * nothing on the way to the file is followed (`readOwnFile`).
+ * nothing on the way to the file is followed (`readOwnFile`). Undefined where
+ * the folder has no such file; throws for one it could not read.
  */
 function readAppFileText(appsDir: string, folder: string): string | undefined {
   try {
@@ -335,19 +353,45 @@ function readAppFileText(appsDir: string, folder: string): string | undefined {
       file: path.join(appsDir, folder, APP_FILE_NAME),
       folder: appsDir,
     }).toString("utf8");
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string" &&
+      NO_APP_FILE.has(error.code)
+    ) {
+      return undefined;
+    }
+    throw error;
   }
 }
 
-/** Every folder in the apps folder with what its `APP.md` says, in name order. */
-async function readAppFolders(
-  appsDir: AbsolutePath,
-): Promise<{ folder: string; read: AppFileRead }[]> {
-  return (await appFolderNames(appsDir)).map((folder) => ({
-    folder,
-    read: parseAppFile(readAppFileText(appsDir, folder) ?? ""),
-  }));
+/**
+ * Every folder in the apps folder with what its `APP.md` says, in name order.
+ * One whose file could not be read is `unreadable`: it may be any app.
+ */
+async function readAppFolders(appsDir: AbsolutePath): Promise<
+  {
+    folder: string;
+    read: AppFileRead | { kind: "unreadable"; message: string };
+  }[]
+> {
+  return (await appFolderNames(appsDir)).map((folder) => {
+    try {
+      return {
+        folder,
+        read: parseAppFile(readAppFileText(appsDir, folder) ?? ""),
+      };
+    } catch (error) {
+      return {
+        folder,
+        read: {
+          kind: "unreadable" as const,
+          message: `${APP_FILE_NAME} could not be read: ${String(error)}`,
+        },
+      };
+    }
+  });
 }
 
 function appInfoOf(
@@ -375,19 +419,26 @@ async function findApp(
   slug: AppSlug,
 ): Promise<
   | { app: AppFile & { dir: AbsolutePath }; kind: "app" }
-  | { dir: AbsolutePath; kind: "invalid"; message: string }
+  | { dir: AbsolutePath; kind: "invalid" | "unreadable"; message: string }
   | undefined
 > {
   let broken:
-    | { dir: AbsolutePath; kind: "invalid"; message: string }
+    | { dir: AbsolutePath; kind: "invalid" | "unreadable"; message: string }
     | undefined;
   for (const { folder, read } of await readAppFolders(appsDir)) {
     const dir = absolutePathJoin(appsDir, folder);
     if (read.kind === "app" && read.app.id === slug) {
       return { app: { ...read.app, dir }, kind: "app" };
     }
-    if (read.kind === "invalid" && read.id === slug) {
-      broken ??= { dir, kind: "invalid", message: read.message };
+    if (
+      read.kind === "invalid" &&
+      read.id === slug &&
+      broken?.kind !== "invalid"
+    ) {
+      broken = { dir, kind: "invalid", message: read.message };
+    }
+    if (read.kind === "unreadable") {
+      broken ??= { dir, kind: "unreadable", message: read.message };
     }
   }
   return broken;

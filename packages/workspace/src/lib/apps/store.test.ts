@@ -212,6 +212,26 @@ describe("writing an app's folder", () => {
     expect(await fs.readdir(apps)).toEqual(["Linear"]);
   });
 
+  // A file mode refuses no one on Windows or to root.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "refuses a second folder while another app's file cannot be read",
+    async () => {
+      await writeApp(apps, "Linear", { ...drafts, id: "linear" });
+      await fs.chmod(path.join(apps, "Linear", APP_FILE_NAME), 0o000);
+
+      await expect(
+        writeAppFolder({
+          appsDir: apps,
+          guide: "A skeleton.",
+          manifest: AppManifestSchema.parse(drafts),
+          name: "Linear",
+          slug: AppSlugSchema.parse("linear"),
+        }),
+      ).rejects.toThrow('could not be read, and may already be "linear"');
+      expect(await fs.readdir(apps)).toEqual(["Linear"]);
+    },
+  );
+
   it("keeps the folder the person renamed, and the guide, when the app is written again", async () => {
     await writeApp(apps, "My Drafts", { ...drafts, id: "drafts" }, "Mine.");
 

@@ -171,7 +171,7 @@ const replayPane = (tabs, usingId) => {
   const active = tabs.find((t) => t.id === VIEW.tab) ?? tabs.find((t) => t.id === usingId) ?? tabs.at(-1);
   const body =
     active.id === usingId
-      ? usedPage({ url: active.url, html: active.page, cursor: { x: 250, y: 320 } })
+      ? usedPage({ url: active.url, html: active.page })
       : `${addressRow(active.url)}<div class="relative min-h-0 flex-1 overflow-hidden">${active.page}</div>`;
   return `
   <div class="relative flex shrink-0 flex-col bg-background p-2 pl-0" style="width:680px">

@@ -11,6 +11,7 @@ import { resolveChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { wakeSessionForJobs } from "./wake";
+import { countOnItsWay } from "./wake-queue";
 
 /**
  * How long after a process ends before its session is woken. Long enough that
@@ -22,17 +23,8 @@ const JOB_WAKE_DEBOUNCE_MS = 1500;
 
 const pending = new Map<
   StoreId.Session,
-  { chatId: ChatId; timer: NodeJS.Timeout }
+  { release: () => void; timer: NodeJS.Timeout }
 >();
-
-/**
- * Wakes past the debounce whose processes are already marked told, so
- * `unreportedBackgroundProcesses` no longer names them, while the chat's
- * model is looked up and until `wakeSessionForJobs` has run, which counts the
- * wake as on its way from its start (`hasPendingWake`). Added in the same
- * synchronous run as the marking, so no read falls between the two.
- */
-const delivering = new Set<{ chatId: ChatId }>();
 
 /**
  * Sessions whose last turn was stopped by the user or by the chat. What they
@@ -86,40 +78,56 @@ function schedule(
   workspaceRef: WorkspaceActorRef,
   debounceMs: number,
 ) {
-  clearTimeout(pending.get(sessionId)?.timer);
+  const existing = pending.get(sessionId);
+  clearTimeout(existing?.timer);
+  // Counted while it waits only when it will start a turn: something the
+  // session left running ended unread, and no stop holds the news back.
+  // Every turn's end schedules one, which most have nothing to tell.
+  const release =
+    existing?.release ??
+    countOnItsWay(chatId, {
+      stillNews: () =>
+        !stopped.has(sessionId) &&
+        unreportedBackgroundProcesses(sessionId).length > 0,
+    });
   const timer = setTimeout(() => {
     pending.delete(sessionId);
-    deliver(chatId, sessionId, workspaceRef).catch((error: unknown) => {
-      getWorkspaceConfig().captureException(error);
-    });
+    deliver(chatId, sessionId, workspaceRef, release).catch(
+      (error: unknown) => {
+        getWorkspaceConfig().captureException(error);
+      },
+    );
   }, debounceMs);
   timer.unref();
-  pending.set(sessionId, { chatId, timer });
+  pending.set(sessionId, { release, timer });
 }
 
 async function deliver(
   chatId: ChatId,
   sessionId: StoreId.Session,
   workspaceRef: WorkspaceActorRef,
+  /** Lets go of the count its debounce held. */
+  waited: () => void,
 ) {
   // Its turn's end schedules this again for whatever it did not read.
-  if (isWorkingNow(chatId, sessionId)) {
+  const ended = isWorkingNow(chatId, sessionId)
+    ? []
+    : unreportedBackgroundProcesses(sessionId);
+  if (ended.length > 0) {
+    // Told before the wake is sent, so nothing can report them a second time.
+    markBackgroundProcessesReported(
+      sessionId,
+      ended.map((process) => process.id),
+    );
+  }
+  if (ended.length === 0 || stopped.has(sessionId)) {
+    waited();
     return;
   }
-  const ended = unreportedBackgroundProcesses(sessionId);
-  if (ended.length === 0) {
-    return;
-  }
-  // Told before the wake is sent, so nothing can report them a second time.
-  markBackgroundProcessesReported(
-    sessionId,
-    ended.map((process) => process.id),
-  );
-  if (stopped.has(sessionId)) {
-    return;
-  }
-  const onItsWay = { chatId };
-  delivering.add(onItsWay);
+  // Counted from here until the wake is sent, in the same synchronous run as
+  // the marking, so no read falls between the debounce and the wake.
+  const release = countOnItsWay(chatId);
+  waited();
   try {
     // A chat nobody has written in has no model to wake with.
     if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
@@ -149,33 +157,8 @@ async function deliver(
       sessionId,
     );
   } finally {
-    delivering.delete(onItsWay);
+    release();
   }
-}
-
-/**
- * Whether a session of the chat has a wake waiting out the debounce that will
- * start a turn: something it left running ended unread, and no stop holds
- * the news back. The chat is still at work in that gap, the way it is while
- * a task's finish waits to wake it, and once the debounce is over it
- * stays so until the wake is sent.
- */
-export function hasPendingJobWake(chatId: ChatId): boolean {
-  for (const entry of delivering) {
-    if (entry.chatId === chatId) {
-      return true;
-    }
-  }
-  for (const [sessionId, entry] of pending) {
-    if (
-      entry.chatId === chatId &&
-      !stopped.has(sessionId) &&
-      unreportedBackgroundProcesses(sessionId).length > 0
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /** Whether the session has a turn running, or false where no workspace is running to ask. */

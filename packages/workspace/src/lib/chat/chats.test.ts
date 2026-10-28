@@ -58,15 +58,10 @@ const running = vi.hoisted(() => {
 });
 const alive = vi.hoisted(() => ({ value: new Set<string>() }));
 const pendingWakes = vi.hoisted(() => ({ value: new Set<string>() }));
-const pendingJobWakes = vi.hoisted(() => ({ value: new Set<string>() }));
 
-vi.mock(import("./wake"), () => ({
-  hasPendingWake: (chatId: string) => pendingWakes.value.has(chatId),
-}));
-
-vi.mock(import("./job-wake"), async (importOriginal) => ({
+vi.mock(import("./wake-queue"), async (importOriginal) => ({
   ...(await importOriginal()),
-  hasPendingJobWake: (chatId: string) => pendingJobWakes.value.has(chatId),
+  hasWakeOnItsWay: (chatId: string) => pendingWakes.value.has(chatId),
 }));
 
 // What the machine would say: which tasks are at work, and which sessions
@@ -133,7 +128,6 @@ beforeEach(() => {
   running.value = [];
   alive.value = new Set();
   pendingWakes.value = new Set();
-  pendingJobWakes.value = new Set();
 });
 
 afterEach(() => {
@@ -591,7 +585,7 @@ describe("listChats", () => {
     expect(settled).toMatchObject({ unread: true, unreadByUser: false });
   });
 
-  it("leaves a chat read when its turn ends with a task's wake on its way", async () => {
+  it("leaves a chat read when its turn ends with a wake on its way", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
@@ -604,23 +598,6 @@ describe("listChats", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
     pendingWakes.value.clear();
-    const [waking] = await listChats();
-    expect(waking?.unread).toBe(false);
-  });
-
-  it("leaves a chat read when its turn ends with a finished command's wake on its way", async () => {
-    const chatId = await freshChat();
-    const sessionId = await session(chatId, "Build");
-    await userSays(chatId, sessionId, "run the build and tell me", 1);
-    pendingJobWakes.value.add(await chatFor(sessionId));
-    startChatUnreadOnSettle();
-
-    publisher.publish("session.done", {
-      id: await chatFor(sessionId),
-      sessionId,
-    });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    pendingJobWakes.value.clear();
     const [waking] = await listChats();
     expect(waking?.unread).toBe(false);
   });

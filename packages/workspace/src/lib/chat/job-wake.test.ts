@@ -23,7 +23,8 @@ import { jobEventModelNote } from "../job-event-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
-import { hasPendingJobWake, startJobWake } from "./job-wake";
+import { startJobWake } from "./job-wake";
+import { hasWakeOnItsWay } from "./wake-queue";
 
 // Whether a session has a turn running is the workspace machine's to say,
 // which a test has none of; a case says.
@@ -310,7 +311,7 @@ describe("a chat with a command's wake on its way", () => {
       sessionId: owner.sessionId,
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(hasPendingJobWake(owner.chatId)).toBe(true);
+    expect(hasWakeOnItsWay(owner.chatId)).toBe(true);
 
     await vi.waitFor(() => {
       expect(wakesOf(owner.sessionId)).toHaveLength(1);
@@ -318,7 +319,7 @@ describe("a chat with a command's wake on its way", () => {
     // The send is seen before its delivery ends, which still writes the
     // chat's activity after it; the wake is on its way until that is done.
     await vi.waitFor(() => {
-      expect(hasPendingJobWake(owner.chatId)).toBe(false);
+      expect(hasWakeOnItsWay(owner.chatId)).toBe(false);
     });
   });
 
@@ -351,7 +352,7 @@ describe("a chat with a command's wake on its way", () => {
     });
 
     await lookedUp;
-    expect(hasPendingJobWake(owner.chatId)).toBe(true);
+    expect(hasWakeOnItsWay(owner.chatId)).toBe(true);
 
     found();
     await vi.waitFor(() => {
@@ -360,7 +361,7 @@ describe("a chat with a command's wake on its way", () => {
     // The send is seen before its delivery ends, which still writes the
     // chat's activity after it; the wake is on its way until that is done.
     await vi.waitFor(() => {
-      expect(hasPendingJobWake(owner.chatId)).toBe(false);
+      expect(hasWakeOnItsWay(owner.chatId)).toBe(false);
     });
   });
 
@@ -371,7 +372,7 @@ describe("a chat with a command's wake on its way", () => {
       sessionId: quiet.sessionId,
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(hasPendingJobWake(quiet.chatId)).toBe(false);
+    expect(hasWakeOnItsWay(quiet.chatId)).toBe(false);
 
     const halted = await chat();
     vi.mocked(isWorking).mockReturnValue(true);
@@ -384,6 +385,6 @@ describe("a chat with a command's wake on its way", () => {
       sessionId: halted.sessionId,
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(hasPendingJobWake(halted.chatId)).toBe(false);
+    expect(hasWakeOnItsWay(halted.chatId)).toBe(false);
   });
 });

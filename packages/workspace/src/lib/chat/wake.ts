@@ -6,7 +6,6 @@ import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { ChatWrites } from "../chat-writes";
-import { recordChanged } from "../record-changes";
 import { type Ask } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
@@ -53,6 +52,7 @@ import { cutForNote, lastAssistantText } from "./latest-session";
 import { appClosedLine, endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
+import { countOnItsWay } from "./wake-queue";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 import { type ChatId } from "../../schemas/chat-id";
 
@@ -131,47 +131,26 @@ export function wakeChatWithTaskEvent(
 
 const pending = new Map<
   ChatId,
-  { events: Map<string, TaskEvent>; timer: NodeJS.Timeout }
+  {
+    events: Map<string, TaskEvent>;
+    release: () => void;
+    timer: NodeJS.Timeout;
+  }
 >();
 
 /**
- * How many wakes each chat has on their way to a session of its: past any
- * debounce, and not yet handed to the session whose turn they start.
- */
-const delivering = new Map<ChatId, number>();
-
-/**
- * Whether a wake is on its way to start a turn in one of the chat's
- * sessions: a task's finish waiting out the debounce, or any wake between
- * that and reaching its session, which writes its note first and may then
- * spend a while finding the chat's model. The chat is still at work all
- * that time: something of it has moved, and its agent has not started on
- * the news yet.
- */
-export function hasPendingWake(chatId: ChatId) {
-  return (pending.get(chatId)?.events.size ?? 0) > 0 || delivering.has(chatId);
-}
-
-/**
- * Delivers a wake counted as on its way, and once none of the chat's is,
- * has its row read again: a wake that never reached its session leaves the
- * chat as it was, which nothing else would say.
+ * Delivers a wake counted as on its way (`countOnItsWay`) from its start
+ * until it has reached its session or given up.
  */
 async function onItsWay<Value>(
   chatId: ChatId,
   delivery: () => Promise<Value>,
 ): Promise<Value> {
-  delivering.set(chatId, (delivering.get(chatId) ?? 0) + 1);
+  const release = countOnItsWay(chatId);
   try {
     return await delivery();
   } finally {
-    const left = (delivering.get(chatId) ?? 1) - 1;
-    if (left > 0) {
-      delivering.set(chatId, left);
-    } else {
-      delivering.delete(chatId);
-      recordChanged(chatId, "agent");
-    }
+    release();
   }
 }
 
@@ -685,15 +664,20 @@ function schedule(
   }
   const events = existing?.events ?? new Map<string, TaskEvent>();
   events.set(event.sessionId, event);
+  const release = existing?.release ?? countOnItsWay(chatId);
   const timer = setTimeout(() => {
     pending.delete(chatId);
-    onItsWay(chatId, () =>
+    // Counted for its delivery before the debounce lets go, so the chat
+    // never reads as having nothing on its way in between.
+    const delivered = onItsWay(chatId, () =>
       deliver(chatId, [...events.values()], workspaceRef),
-    ).catch((error: unknown) => {
+    );
+    release();
+    delivered.catch((error: unknown) => {
       getWorkspaceConfig().captureException(error);
     });
   }, WAKE_DEBOUNCE_MS);
-  pending.set(chatId, { events, timer });
+  pending.set(chatId, { events, release, timer });
 }
 
 /**

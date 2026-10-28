@@ -34,8 +34,7 @@ import { latestStepIn } from "./step-label";
 import { shownTitle } from "./shown-title";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
-import { hasPendingJobWake } from "./job-wake";
-import { hasPendingWake } from "./wake";
+import { hasWakeOnItsWay } from "./wake-queue";
 import { isStopNote } from "./wake-event";
 import { chatStateOf } from "./chat-state";
 import { createWriteQueue } from "../create-write-queue";
@@ -1048,7 +1047,7 @@ function stateOf(
       spokeAt: digest.lastUserMessageAt ?? 0,
       stopped: digest.stopped,
       tasksAtWork: running.length > 0,
-      wakeOnItsWay: hasPendingWake(chatId) || hasPendingJobWake(chatId),
+      wakeOnItsWay: hasWakeOnItsWay(chatId),
     }),
   };
 }

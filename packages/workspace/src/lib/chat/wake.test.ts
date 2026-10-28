@@ -22,12 +22,12 @@ import { leftRunning } from "./activity";
 import { childTask } from "./children";
 import { taskStanding } from "./standing";
 import {
-  hasPendingWake,
   noteTaskStoppedOnCard,
   noteTasksInterruptedByQuit,
   startChatWake,
   wakeAskers,
 } from "./wake";
+import { hasWakeOnItsWay } from "./wake-queue";
 
 // What a task has running lives in this process's process table, which a
 // test has none of; a case names it.
@@ -176,7 +176,7 @@ describe("a stopped task", () => {
     });
     expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("person");
     // Nothing is on its way to start a turn, and nothing was sent.
-    expect(hasPendingWake(chatId)).toBe(false);
+    expect(hasWakeOnItsWay(chatId)).toBe(false);
     expect(wakesOf(chatId)).toEqual([]);
   });
 
@@ -213,7 +213,7 @@ describe("a chat nobody has written in", () => {
 
     await noteTaskStoppedOnCard(chatId, taskSession, workspaceRef, "person");
     expect(await notesIn(chatId)).toEqual([]);
-    expect(hasPendingWake(chatId)).toBe(false);
+    expect(hasWakeOnItsWay(chatId)).toBe(false);
 
     await writtenIn(chatId);
     await noteTaskStoppedOnCard(chatId, taskSession, workspaceRef, "person");
@@ -389,12 +389,12 @@ describe("a wake on its way", () => {
       const messages = await ChatReads.transcript({ chatId, sessionId });
       expect(messages._unsafeUnwrap()).toHaveLength(2);
     });
-    expect(hasPendingWake(chatId)).toBe(true);
+    expect(hasWakeOnItsWay(chatId)).toBe(true);
 
     found();
     await woken;
     unsubscribe();
-    expect(hasPendingWake(chatId)).toBe(false);
+    expect(hasWakeOnItsWay(chatId)).toBe(false);
     expect(changes.at(-1)).toBe("agent");
   });
 });

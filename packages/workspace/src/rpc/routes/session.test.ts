@@ -16,7 +16,8 @@ import { setChatModel } from "../../lib/chat-settings";
 import { isWorking } from "../../lib/chat/activity";
 import { chatById } from "../../lib/chat/chats";
 import { childTask } from "../../lib/chat/children";
-import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
+import { startJobWake } from "../../lib/chat/job-wake";
+import { hasWakeOnItsWay } from "../../lib/chat/wake-queue";
 import { taskStanding } from "../../lib/chat/standing";
 import { startChatWake } from "../../lib/chat/wake";
 import { recordAsk } from "../../lib/chat/asks";
@@ -312,7 +313,7 @@ describe("session.stop", () => {
         ([topic]) => topic === "backgroundProcess.settled",
       ),
     ).toEqual([]);
-    expect(hasPendingJobWake(chatId)).toBe(false);
+    expect(hasWakeOnItsWay(chatId)).toBe(false);
   });
 
   // A process can take seconds to go, which the person's Stop does not wait

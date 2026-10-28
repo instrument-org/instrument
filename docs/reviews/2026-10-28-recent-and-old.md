@@ -26,7 +26,7 @@ Three blind readers, following `REVIEW.md`: one on the commits since the 10-27 r
 
 ### C. Attachment names lose every non-ASCII character, in a folder the person opens
 
-- Status: open
+- Status: fixed
 - Where: [sanitize-filename.ts:18](/packages/workspace/src/lib/sanitize-filename.ts#L18), [write-uploaded-attachments.ts:165](/packages/workspace/src/lib/write-uploaded-attachments.ts#L165)
 - What: `会議メモ.pdf` and `Отчёт.xlsx` are stored as `file.pdf` and `file.xlsx` (then `file-1.pdf`), on disk in `Chats/<chat>/attachments/` and in the record, with the original name kept nowhere. Written when attachments were app-internal; they now sit in a folder the person browses.
 - Verification: probe by the reader on those inputs.

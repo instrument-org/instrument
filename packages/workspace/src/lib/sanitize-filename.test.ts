@@ -6,9 +6,16 @@ describe("sanitizeFilename", () => {
   it.each([
     ["plain ASCII filename unchanged", "report.pdf", "report.pdf"],
     ["filename with spaces unchanged", "my report.pdf", "my report.pdf"],
-    ["strips diacritics", "résumé.pdf", "resume.pdf"],
-    ["strips diacritics in extension", "file.pñg", "file.png"],
-    ["strips non-ASCII Unicode (e.g. CJK)", "文件.png", "file.png"],
+    ["keeps accented letters", "résumé.pdf", "résumé.pdf"],
+    ["composes a decomposed name", "re\u0301sume\u0301.pdf", "résumé.pdf"],
+    ["keeps CJK", "会議メモ.pdf", "会議メモ.pdf"],
+    ["keeps Cyrillic", "Отчёт.xlsx", "Отчёт.xlsx"],
+    ["keeps an emoji and its joiner", "👨‍👩‍👧 trip.jpg", "👨‍👩‍👧 trip.jpg"],
+    ["keeps only the name after a separator", "a/b\\c.txt", "c.txt"],
+    ["drops what Windows refuses", 'q<3>: "why"|now?*.txt', "q3 whynow.txt"],
+    ["drops direction overrides", "invoice\u202Etxt.exe", "invoicetxt.exe"],
+    ["drops a trailing dot", "notes..txt", "notes.txt"],
+    ["renames a Windows device name", "CON.txt", "CON_.txt"],
     [
       "real-world screenshot filename unchanged",
       "Screenshot 2026-02-19 at 9.11.07 AM.png",
@@ -24,17 +31,19 @@ describe("sanitizeFilename", () => {
     ["trims leading/trailing spaces", " file.txt ", "file.txt"],
     [
       "falls back to 'file' when base is empty after sanitizing",
-      "文件",
+      "\u200B",
       "file",
     ],
-    // NFKD compatibility decomposition
-    ["decomposes fi ligature (U+FB01)", "ﬁle.txt", "file.txt"],
-    ["decomposes superscript 2 (U+00B2)", "CO\u00B2.txt", "CO2.txt"],
     // length cap
     [
-      "truncates base to 200 characters",
+      "truncates base to 200 bytes",
       `${"a".repeat(201)}.txt`,
       `${"a".repeat(200)}.txt`,
+    ],
+    [
+      "truncates a CJK base to 200 bytes on a character boundary",
+      `${"文".repeat(100)}.txt`,
+      `${"文".repeat(66)}.txt`,
     ],
   ])("%s", (_label, input, expected) => {
     expect(sanitizeFilename(input)).toBe(expected);

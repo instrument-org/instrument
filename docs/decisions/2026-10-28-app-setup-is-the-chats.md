@@ -22,10 +22,11 @@ App setup is the chat's.
 - The refusal: "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on."
 - No text a task receives names a tool or command its role cannot run. A task's `app catalog` says the service is set up "by the chat, named in your needs fence" in place of the set-up line. A task's `app call`, `tools` and `request` say in plain words what an app lacks (set up, connected, a key, a sign-in, a go-ahead to run, a move to the web) and point at the needs fence; the chat keeps `connect_app`, `app test` and the web road in the same failures. `ask_permission` on one of the Mac's apps in Apps tells a task to hand it on. The task's start note says apps are set up, connected and changed only from the conversation.
 - The chat's note for a task waiting on it says an app it needs is the chat's to set up and connect with `connect_app`, and that once the note says it is connected, `task send` moves the task on rather than the chat doing the work itself.
+- A task's writes are closed out of the apps folder by the folder rules, so the refusal cannot be routed around with a file tool.
 - The shared prompt stays role-neutral: its role line lists setting up or changing an app among the chat's, and its needs line says "an app to set up, connect or change". The tool definitions are unchanged.
 
 ## Consequences
 
 - A task that meets an app it cannot use costs one hop through the chat before it goes on.
-- A task can still write an app's `APP.md` with its file tools; nothing at the capability layer stops that. The task's start note and the refusal are what keep it to the needs fence.
+- A task's file tools and programs read the apps folder and write nothing in it: a system rule closes it to a task's writes whatever folder of the person's holds it. Refused `app new`, Claude Haiku 5.5 wrote the app's `APP.md` with its file tools in every trial until that rule was there.
 - Inline cards (`choose`, `connect_app`) are raised by the chat in the conversation; the cards above the reply box (folders, the Mac's apps, macOS's own answer) are consent any session can raise.

@@ -24,7 +24,7 @@ import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /**
  * The window's notifications, in its corner: what needs the person, and what
@@ -151,6 +151,9 @@ function useToastLoudNotices(
 ) {
   const asked = useRef(new Set<string>());
   const shown = useRef(new Set<string>());
+  const focused = useSyncExternalStore(subscribeToWindowFocus, () =>
+    document.hasFocus(),
+  );
   useEffect(() => {
     // A notice whose cause went away (an account signed in again, a choice
     // made in Settings) leaves the list, and its toast goes with it.
@@ -159,6 +162,12 @@ function useToastLoudNotices(
         shown.current.delete(id);
         toast.dismiss(id);
       }
+    }
+    // A toast spent while the window is behind another app is never seen, as
+    // when an update restart brings the window back without focus, so it
+    // waits for the window to be focused.
+    if (!focused) {
+      return;
     }
     for (const notice of notices) {
       if (notice.severity === "info" || asked.current.has(notice.id)) {
@@ -189,7 +198,16 @@ function useToastLoudNotices(
           // A toast that couldn't be claimed waits in the bell like the rest.
         });
     }
-  }, [notices, onAction]);
+  }, [focused, notices, onAction]);
+}
+
+function subscribeToWindowFocus(onChange: () => void) {
+  window.addEventListener("focus", onChange);
+  window.addEventListener("blur", onChange);
+  return () => {
+    window.removeEventListener("focus", onChange);
+    window.removeEventListener("blur", onChange);
+  };
 }
 
 function openNoticeLink(notice: BellNotice) {

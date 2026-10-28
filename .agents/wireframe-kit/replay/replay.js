@@ -44,6 +44,36 @@ const md = (text) => {
     .replace(/\u0000(\d+)\u0000/g, (_, i) => held[Number(i)]);
 };
 
+/**
+ * The app's own working line, moving: the planning dot breathing with its ring traveling out (planning-dot.tsx) and
+ * the step in the brand shimmer (reasoning-message.tsx's `brand-shiny-text` with its `ShimmerSweep`), with the app's
+ * styles from globals.css in LIVE_CSS. The screen is drawn again every tenth of a second while it plays, which would
+ * restart both animations each time, so each starts as far into its loop as the clock already is.
+ */
+const LIVE_CSS = `
+@keyframes planning-dot-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+@keyframes planning-dot-shockwave-ring { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.5); opacity: 0; } }
+@keyframes shimmer-sweep { from { translate: -100% 0; } to { translate: 100% 0; } }
+.planning-dot-core { transform-origin: center; animation: planning-dot-breathe 1.5s ease-in-out infinite; animation-delay: var(--live-delay, 0s); }
+.planning-dot-shockwave-ring { transform-origin: center; animation: planning-dot-shockwave-ring 1.5s ease-out infinite; animation-delay: var(--live-delay, 0s); pointer-events: none; }
+.brand-shiny-text { --shimmer-base: #17604a; --shimmer-glint: #55e8bb; position: relative; display: inline-block; color: var(--shimmer-base); }
+.shimmer-sweep { position: absolute; inset: 0; overflow: clip; text-overflow: inherit; color: transparent; pointer-events: none; -webkit-mask-image: linear-gradient(#fff, #fff); mask-image: linear-gradient(#fff, #fff); -webkit-mask-clip: text; }
+.shimmer-sweep::before { content: attr(data-text); }
+.shimmer-sweep::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 30%, var(--shimmer-glint) 50%, transparent 70%); animation: shimmer-sweep 3s steps(45) infinite; animation-delay: var(--shimmer-delay, 0s); }
+@media (prefers-reduced-motion: reduce) { .shimmer-sweep { display: none; } }`;
+
+const liveWorking = (text) => {
+  const now = typeof performance === "undefined" ? 0 : performance.now();
+  const label = esc(text);
+  return `<div class="flex h-7 w-fit max-w-full items-center gap-2" style="--live-delay:-${Math.round(now % 1500)}ms">
+    <span class="relative isolate inline-grid size-5 shrink-0 place-items-center overflow-visible">
+      <span aria-hidden class="planning-dot-shockwave-ring col-start-1 row-start-1 size-2.5 rounded-full border-2 border-brand-400/55"></span>
+      <svg class="planning-dot-core relative z-10 col-start-1 row-start-1 size-2.5" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="6" fill="url(#live-dot)" /><defs><radialGradient id="live-dot" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6) rotate(90) scale(12)"><stop stop-color="var(--color-brand-600)" /><stop offset="1" stop-color="var(--color-brand-400)" /></radialGradient></defs></svg>
+    </span>
+    <span class="brand-shiny-text truncate text-sm">${label}<span aria-hidden class="shimmer-sweep" data-text="${label.replace(/"/g, "&quot;")}" style="--shimmer-delay:-${Math.round(now % 3000)}ms"></span></span>
+  </div>`;
+};
+
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const took = (s) => (s < 60 ? `${Math.max(1, Math.round(s))}s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)}s`);
 const firstSentence = (s) => (s.replace(/```[\s\S]*?```/g, "").replace(/`/g, "").trim().split(/(?<=\.)\s/)[0] || "").slice(0, 120);
@@ -120,11 +150,18 @@ const tabsAt = (T) =>
       return { id: k.id, url: k.url, title, letter: name[0], color, page };
     });
 
-/** The tab a step is using at T. A step that names several tabs works through them in turn while it runs. */
-const usingAt = (T) => {
-  const step = TL.chat.steps.find((s) => s.uses && s.t <= T && T <= s.end + 0.6);
-  const ids = step ? step.uses.filter((id) => TL.chat.tabs.some((k) => k.id === id)) : [];
-  if (!ids.length) return null;
+/**
+ * The tab Instrument is using at T, which the pane lights up. While the chat is at work and has tabs open, it's using
+ * the tab it last touched, as the tabs button says ("Working in 3 tabs"); a step that names several tabs works through
+ * them in turn while it runs. Once the chat has finished, it's using none.
+ */
+const usingAt = (T, busy) => {
+  if (!busy) return null;
+  const open = new Set(tabsAt(T).map((t) => t.id));
+  if (!open.size) return null;
+  const step = TL.chat.steps.filter((s) => s.uses?.some((id) => open.has(id)) && s.t <= T).at(-1);
+  if (!step) return [...open].at(-1);
+  const ids = step.uses.filter((id) => open.has(id));
   const span = Math.max(0.1, step.end + 0.6 - step.t);
   return ids[Math.min(ids.length - 1, Math.floor(((T - step.t) / span) * ids.length))];
 };
@@ -168,7 +205,7 @@ const replayView = (T) => {
     if (!run.length) return;
     const live = isLast && busy;
     const asking = run.find((s) => s.ask && s.t <= T && s.end > T);
-    if (live && !asking) out.push(fresh(working(esc(run.at(-1).label)), "w-fit max-w-full"));
+    if (live && !asking) out.push(liveWorking(run.at(-1).label));
     else if (!live || asking) {
       const steps = run.map((s) => [s.ask ? "hand" : s.startsTask ? "arrow-bend-down-right" : "terminal-window", esc(s.label), took(s.end - s.t)]);
       const key = String(run[0].t);
@@ -192,7 +229,7 @@ const replayView = (T) => {
   const failed = c.errors.filter((e) => e.t > lastWake && e.t <= T);
   const spoke = items.some((it) => it.t > lastWake && it.kind !== "you");
   const idle = failed.length && !spoke ? `Couldn't reach the model, trying again (try ${failed.length + 1})` : "Thinking";
-  if (busy && !endsOnSteps) out.push(working(idle));
+  if (busy && !endsOnSteps) out.push(liveWorking(idle));
   const nowLabel = busy ? (endsOnSteps ? label : idle) : "";
   const lastSays = c.says.filter((s) => s.t <= T).at(-1);
   const asking = c.steps.find((s) => s.ask && s.t <= T && s.end > T);
@@ -214,7 +251,7 @@ const replayView = (T) => {
     </div>`;
   return appWindow({
     bar: winBar({ tabs: [{ chats: true, title: REPLAY.chat }] }),
-    body: (VIEW.list ? list : "") + transcript + (pane ? replayPane(tabs, usingAt(T)) : ""),
+    body: (VIEW.list ? list : "") + transcript + (pane ? replayPane(tabs, usingAt(T, busy)) : ""),
   });
 };
 
@@ -256,6 +293,7 @@ const SCREEN = { w: 1280, h: 800, draw: () => replayView(T), controls: () => scr
 // under your pointer is never replaced mid-drag. The transcript reads from the top down, as a chat does, and follows
 // the newest message once it runs past the window, unless you've scrolled up to read.
 if (typeof document !== "undefined") {
+  document.head.append(Object.assign(document.createElement("style"), { textContent: LIVE_CSS }));
   let speed = 1;
   let timer = null;
   const $ = (sel) => document.querySelector(sel);

@@ -56,6 +56,7 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
+  liveRegionDocument,
   liveRegionsArgs,
   liveRegionText,
   readsLiveRegionsFirst,
@@ -953,22 +954,30 @@ export function createAgentBrowserCommand({
     const followUp =
       isInfoOnly || browserFreeRead ? undefined : currentBrowserFollowUp();
     // What the page's live regions say before an action, for the follow-up
-    // to tell what the action changed in them. A page that cannot be read
+    // to tell what the action changed in them, and the document they are in,
+    // for it to tell the action loaded another. A page that cannot be read
     // leaves the follow-up without that reading, which it says.
-    if (followUp !== undefined && readsLiveRegionsFirst(resolvedArgs)) {
-      await runAgentBrowser({
-        ...spawnOptions,
-        args: [
-          ...connectionArgs,
-          ...liveRegionsArgs({ settleMs: 0, since: 0 }),
-        ],
-        cancelSignal: AbortSignal.any([
-          ...(ctx.signal ? [ctx.signal] : []),
-          AbortSignal.timeout(LIVE_REGION_READ_TIMEOUT_MS),
-        ]),
-        input: undefined,
-      }).catch(() => undefined);
-    }
+    const before =
+      followUp !== undefined && readsLiveRegionsFirst(resolvedArgs)
+        ? await runAgentBrowser({
+            ...spawnOptions,
+            args: [
+              ...connectionArgs,
+              ...liveRegionsArgs({ settleMs: 0, since: 0 }),
+            ],
+            cancelSignal: AbortSignal.any([
+              ...(ctx.signal ? [ctx.signal] : []),
+              AbortSignal.timeout(LIVE_REGION_READ_TIMEOUT_MS),
+            ]),
+            input: undefined,
+          }).then(
+            (reading) =>
+              reading.exitCode === 0
+                ? liveRegionDocument(reading.stdout)
+                : undefined,
+            () => undefined,
+          )
+        : undefined;
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     // When the command began, which the follow-up reads the page's messages
     // from.
@@ -1009,9 +1018,10 @@ export function createAgentBrowserCommand({
       }
       followUp?.note({
         args: resolvedArgs,
+        ...(before ? { before } : {}),
         exitCode,
         startedAt: startedAtEpoch,
-        read: async (signal, { settleMs, since, snapshot: snapshots }) => {
+        read: async (signal, { messages: reading, snapshot: snapshots }) => {
           const run = (readArgs: string[]) =>
             runAgentBrowser({
               ...spawnOptions,
@@ -1020,10 +1030,15 @@ export function createAgentBrowserCommand({
               input: undefined,
             });
           const messages = async () => {
+            if (reading === undefined) {
+              return {};
+            }
+            const { settleMs, since } = reading;
             const live = await run(liveRegionsArgs({ settleMs, since }));
             const { said, showing } = liveRegionText(
               live.exitCode === 0 ? live.stdout : "",
               since,
+              reading.before,
             );
             return {
               ...(said === undefined ? {} : { said: scrub(said) }),

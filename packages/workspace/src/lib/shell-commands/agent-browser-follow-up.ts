@@ -66,6 +66,9 @@ export const FOLLOW_UP_TABS_ARGS = ["tab", "list", "--json"];
  * to for a screen reader to announce: `role` alert or status, `<output>`, and
  * `aria-live` polite or assertive. `role=log`, `marquee` and `timer` are left
  * out, since they are transcripts and clocks rather than a reply to a step.
+ * So is a region with a form field in it or more than a few links and
+ * buttons, which is a form or a widget a page marked live (a sign-in form, a
+ * carousel) rather than a message; a region inside one is read on its own.
  *
  * Run once with `settleMs` 0 before an action, to read what the regions say
  * then, and again in the follow-up, which reports what changed between the
@@ -80,18 +83,17 @@ export const FOLLOW_UP_TABS_ARGS = ["tab", "list", "--json"];
  * most, never wait, and neither does a call that already spent that long
  * after the step.
  *
- * Returns the time the document began loading and, for each outermost region
- * with visible text, that text (cut to a few sentences), when the observer
- * last saw it change, whether an earlier run read it, and whether its text is
- * what that run read.
+ * Returns the time the document began loading, its address without the
+ * fragment, which together tell one document from the next, and, for each
+ * outermost message region with visible text, that text (cut to a few
+ * sentences), when the observer last saw it change, whether an earlier run
+ * read it, and whether its text is what that run read.
  */
 const LIVE_REGIONS_SCRIPT = `(async (since, settleMs) => {
   const SELECTOR = '[role~="alert"],[role~="status"],output,[aria-live="polite"],[aria-live="assertive"]';
-  const outermost = (el) => {
-    let found = null;
-    for (let at = el.closest(SELECTOR); at; at = at.parentElement?.closest(SELECTOR) ?? null) found = at;
-    return found;
-  };
+  const FIELDS = 'input:not([type="hidden"]),select,textarea,[contenteditable=""],[contenteditable="true"],[role~="textbox"],[role~="searchbox"],[role~="combobox"],[role~="listbox"],[role~="slider"],[role~="spinbutton"]';
+  const CONTROLS = 'a[href],button,[role~="button"],[role~="link"],[role~="checkbox"],[role~="radio"],[role~="switch"],[role~="tab"],[role~="menuitem"],[role~="option"]';
+  const MAX_CONTROLS = 3;
   const key = Symbol.for("instrument.liveRegions");
   let state = window[key];
   if (!state) {
@@ -100,9 +102,8 @@ const LIVE_REGIONS_SCRIPT = `(async (since, settleMs) => {
     const touched = (node, within) => {
       const el = node.nodeType === 1 ? node : node.parentElement;
       if (!el) return;
-      const region = outermost(el);
-      if (region) stamp(region);
-      else if (within) for (const inner of el.querySelectorAll(SELECTOR)) stamp(outermost(inner));
+      for (let at = el.closest(SELECTOR); at; at = at.parentElement?.closest(SELECTOR) ?? null) stamp(at);
+      if (within) for (const inner of el.querySelectorAll(SELECTOR)) stamp(inner);
     };
     new MutationObserver((records) => {
       for (const record of records) {
@@ -118,13 +119,21 @@ const LIVE_REGIONS_SCRIPT = `(async (since, settleMs) => {
     });
     Object.defineProperty(window, key, { value: state });
   }
-  const regions = () => [...document.querySelectorAll(SELECTOR)]
-    .filter((el) => !el.parentElement?.closest(SELECTOR))
-    .map((el) => {
+  const isMessage = (el) => !el.querySelector(FIELDS) && el.querySelectorAll(CONTROLS).length <= MAX_CONTROLS;
+  const regions = () => {
+    const messages = [...document.querySelectorAll(SELECTOR)].filter(isMessage);
+    const kept = new Set(messages);
+    const inKept = (el) => {
+      for (let at = el.parentElement?.closest(SELECTOR); at; at = at.parentElement?.closest(SELECTOR) ?? null) if (kept.has(at)) return true;
+      return false;
+    };
+    return messages.filter((el) => !inKept(el)).map((el) => {
       const shown = (el.checkVisibility?.() ?? true) && !el.closest('[aria-hidden="true"]');
       return { el, text: shown ? el.innerText.replace(/\\s+/g, " ").trim().slice(0, 1000) : "" };
     });
+  };
   const loadedAt = performance.timeOrigin;
+  const url = location.origin + location.pathname + location.search;
   let found = regions();
   const quiet = found.every(({ el, text }) => (state.changedAt.get(el) ?? 0) < since && (!state.read.has(el) || state.read.get(el) === text));
   const left = since + settleMs - Date.now();
@@ -143,7 +152,7 @@ const LIVE_REGIONS_SCRIPT = `(async (since, settleMs) => {
     text,
   }));
   for (const { el, text } of found) state.read.set(el, text);
-  return { loadedAt, regions: result };
+  return { loadedAt, regions: result, url };
 })`;
 
 /** The `eval` that reads the live regions; see {@link LIVE_REGIONS_SCRIPT}. */
@@ -176,6 +185,7 @@ const LiveRegionsSchema = z.object({
   data: z.object({
     result: z.object({
       loadedAt: z.number(),
+      url: z.string(),
       regions: z.array(
         z.object({
           changedAt: z.number().nullable(),
@@ -189,38 +199,64 @@ const LiveRegionsSchema = z.object({
 });
 
 /**
- * What the page announced since `since`, from {@link liveRegionsArgs}'s
- * output. A region counts as announced when the document loaded after the
- * step began, when the observer saw it change after then, or when its text is
- * not what the reading before the action found. One the reading before never
- * saw, with no change seen, has no reading to compare against, so it is shown
- * as text that may predate the step; one that was read and has not changed is
- * left out, since it is old news. Nothing for output that is not the JSON
- * expected.
+ * The document a reading of the live regions was taken in: when it began
+ * loading and its address without the fragment. A navigation, or a
+ * client-side route change that rewrites the address, gives another.
  */
-export function liveRegionText(
-  output: string,
-  since: number,
-): { said?: string; showing?: string } {
+export type PageDocument = { loadedAt: number; url: string };
+
+function parseLiveRegions(output: string) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(output);
   } catch {
-    return {};
+    return undefined;
   }
   const live = LiveRegionsSchema.safeParse(parsed);
-  if (!live.success) {
+  return live.success ? live.data.data.result : undefined;
+}
+
+/** The document a reading before an action was taken in, from its output. */
+export function liveRegionDocument(output: string): PageDocument | undefined {
+  const live = parseLiveRegions(output);
+  return live && { loadedAt: live.loadedAt, url: live.url };
+}
+
+/** Whether two readings were taken in the same document. */
+function sameDocument(a: PageDocument, b: PageDocument): boolean {
+  return a.loadedAt === b.loadedAt && a.url === b.url;
+}
+
+/**
+ * What the page announced since `since`, from {@link liveRegionsArgs}'s
+ * output. Nothing when the page is another document than `before`, the one
+ * the reading before the step was taken in, or one that loaded after the step
+ * began: every region of a page just loaded reads as new, and that is the
+ * page's furniture (a banner, a footer) rather than an answer to the step.
+ * Otherwise a region counts as announced when the observer saw it change
+ * after `since`, or when its text is not what the reading before the action
+ * found. One the reading before never saw, with no change seen, has no
+ * reading to compare against, so it is shown as text that may predate the
+ * step; one that was read and has not changed is left out, since it is old
+ * news. Nothing for output that is not the JSON expected.
+ */
+export function liveRegionText(
+  output: string,
+  since: number,
+  before?: PageDocument,
+): { said?: string; showing?: string } {
+  const live = parseLiveRegions(output);
+  if (
+    live === undefined ||
+    live.loadedAt >= since ||
+    (before !== undefined && !sameDocument(before, live))
+  ) {
     return {};
   }
-  const { loadedAt, regions } = live.data.data.result;
   const said: string[] = [];
   const showing: string[] = [];
-  for (const { changedAt, read, same, text } of regions) {
-    if (
-      loadedAt >= since ||
-      (changedAt !== null && changedAt >= since) ||
-      (read && !same)
-    ) {
+  for (const { changedAt, read, same, text } of live.regions) {
+    if ((changedAt !== null && changedAt >= since) || (read && !same)) {
       said.push(text);
     } else if (!read) {
       showing.push(text);
@@ -362,7 +398,7 @@ export function pageEffect(args: string[]): "changes" | "none" | "reads" {
  * Whether a command acts on the page it is on, rather than loading another:
  * the live regions are read before it, so the follow-up can tell what it
  * changed in them, and the follow-up waits a moment for a quiet one. A
- * navigation needs neither, since everything in the new document is new.
+ * navigation needs neither, since its page's messages are not reported.
  */
 export function readsLiveRegionsFirst(args: string[]): boolean {
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
@@ -417,36 +453,66 @@ interface PageRead {
 }
 
 /**
- * How a follow-up reads the page: `since` is when the first change it
- * reports began, `settleMs` how long after then to wait for the page to
- * announce, and `snapshot` whether to take the snapshot, the page's name and
- * all, or only its messages (an empty `snapshot`).
+ * How a follow-up reads the page: `snapshot` whether to take the snapshot,
+ * the page's name and all, and `messages` whether to read what the page
+ * announced, given when the first change it reports began (`since`), the
+ * document the reading before it was taken in (`before`), and how long after
+ * `since` to wait for the page to announce (`settleMs`).
  */
 type ReadPage = (
   signal: AbortSignal,
-  options: { settleMs: number; since: number; snapshot: boolean },
+  options: {
+    messages?: { before?: PageDocument; settleMs: number; since: number };
+    snapshot: boolean;
+  },
 ) => Promise<PageRead | undefined>;
+
+/**
+ * Whether a page-changing command acts on the page it is on, so what the page
+ * announces next is its answer to it. A navigation or a tab switch puts
+ * another page up, whose live regions all read as new and say nothing about
+ * the step. `dialog accept` answers a dialog the page opened, which it can
+ * reply to like a click.
+ */
+function staysOnPage(args: string[]): boolean {
+  return (
+    readsLiveRegionsFirst(args) ||
+    parseAgentBrowserArgs(args).subcommand === "dialog"
+  );
+}
 
 export class BrowserFollowUp {
   /** The last change since the page was last read, which the snapshot is after. */
-  #pending: { after: string; read: ReadPage; settles: boolean } | undefined;
+  #pending: { after: string; read: ReadPage } | undefined;
 
   /**
-   * When the first change since the page's text was last read began. A
-   * `snapshot -i` reads the controls and none of the text, so it ends what
-   * is pending above and not this: the page's messages are still unseen.
+   * The in-page actions since the page's text was last read, from the first
+   * one in the current document: when it began, and the document the reading
+   * before it was taken in. A `snapshot -i` reads the controls and none of
+   * the text, so it ends what is pending above and not this: the page's
+   * messages are still unseen. A navigation ends it, since nothing it
+   * announced is an answer to it.
    */
   #unread:
-    | { after: string; read: ReadPage; settles: boolean; since: number }
+    | {
+        after: string;
+        before?: PageDocument;
+        read: ReadPage;
+        settles: boolean;
+        since: number;
+      }
     | undefined;
 
   note({
     args,
+    before,
     exitCode,
     read,
     startedAt,
   }: {
     args: string[];
+    /** The document the live regions were read in before the command, when they were. */
+    before?: PageDocument;
     exitCode: number;
     read: ReadPage;
     /** When the command began, in epoch milliseconds. */
@@ -460,15 +526,28 @@ export class BrowserFollowUp {
       }
     } else if (effect === "changes" && exitCode === 0) {
       const { subcommand = "" } = parseAgentBrowserArgs(args);
-      const settles = readsLiveRegionsFirst(args);
-      this.#pending = { after: subcommand, read, settles };
+      this.#pending = { after: subcommand, read };
+      if (!staysOnPage(args)) {
+        this.#unread = undefined;
+        return;
+      }
       // From the first change since: what the page announced after an
-      // earlier click in the same call is news too.
+      // earlier click in the same call is news too, unless that click loaded
+      // the document this one acts on.
+      const earlier = this.#unread;
+      const continues =
+        earlier !== undefined &&
+        (before === undefined ||
+          (before.loadedAt < earlier.since &&
+            (earlier.before === undefined ||
+              sameDocument(before, earlier.before))));
+      const baseline = continues ? (earlier.before ?? before) : before;
       this.#unread = {
         after: subcommand,
         read,
-        settles,
-        since: this.#unread?.since ?? startedAt,
+        settles: readsLiveRegionsFirst(args),
+        since: continues ? earlier.since : startedAt,
+        ...(baseline ? { before: baseline } : {}),
       };
     }
   }
@@ -501,15 +580,22 @@ export class BrowserFollowUp {
     this.#pending = undefined;
     this.#unread = undefined;
     const last = pending ?? unread;
-    if (last === undefined || unread === undefined) {
+    if (last === undefined) {
       return undefined;
     }
     try {
       const page = await last.read(
         AbortSignal.any([signal, AbortSignal.timeout(FOLLOW_UP_TIMEOUT_MS)]),
         {
-          settleMs: last.settles ? LIVE_REGION_SETTLE_MS : 0,
-          since: unread.since,
+          ...(unread === undefined
+            ? {}
+            : {
+                messages: {
+                  ...(unread.before ? { before: unread.before } : {}),
+                  settleMs: unread.settles ? LIVE_REGION_SETTLE_MS : 0,
+                  since: unread.since,
+                },
+              }),
           snapshot: pending !== undefined,
         },
       );
@@ -520,7 +606,7 @@ export class BrowserFollowUp {
         return page.said === undefined && page.showing === undefined
           ? undefined
           : {
-              after: unread.after,
+              after: last.after,
               kind: "messages",
               text: "",
               ...(page.said === undefined ? {} : { said: page.said }),

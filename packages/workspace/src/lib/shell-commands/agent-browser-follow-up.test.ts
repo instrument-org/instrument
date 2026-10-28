@@ -148,28 +148,91 @@ describe("BrowserFollowUp", () => {
     followUp.note({ args: ["click", "@e3"], exitCode: 0, read, startedAt: 40 });
     await followUp.take(signal);
     expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
-      settleMs: LIVE_REGION_SETTLE_MS,
-      since: 30,
+      messages: { settleMs: LIVE_REGION_SETTLE_MS, since: 30 },
       snapshot: true,
     });
   });
 
-  it("waits for the page's messages after an action and not after a navigation", async () => {
+  it.each([
+    { name: "`open`", args: ["open", "https://example.com"] },
+    { name: "`back`", args: ["back"] },
+    { name: "`reload`", args: ["reload"] },
+    { name: "a tab switch", args: ["tab", "2"] },
+  ])("reads no messages after $name", async ({ args }) => {
     const followUp = new BrowserFollowUp();
     const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
-    followUp.note({
-      args: ["open", "https://example.com"],
-      exitCode: 0,
-      read,
-      startedAt: 5,
-    });
-    await followUp.take(signal);
+    followUp.note({ args: ["click", "@e1"], exitCode: 0, read, startedAt: 1 });
+    followUp.note({ args, exitCode: 0, read, startedAt: 5 });
+    expect(await followUp.take(signal)).toMatchObject({ kind: "full" });
     expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
-      settleMs: 0,
-      since: 5,
       snapshot: true,
     });
   });
+
+  it("passes the document read before the action to the reading after it", async () => {
+    const followUp = new BrowserFollowUp();
+    const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
+    const before = { loadedAt: 3, url: "http://x/contacts" };
+    followUp.note({
+      args: ["click", "@e1"],
+      before,
+      exitCode: 0,
+      read,
+      startedAt: 10,
+    });
+    followUp.note({
+      args: ["click", "@e2"],
+      before,
+      exitCode: 0,
+      read,
+      startedAt: 20,
+    });
+    await followUp.take(signal);
+    expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
+      messages: { before, settleMs: LIVE_REGION_SETTLE_MS, since: 10 },
+      snapshot: true,
+    });
+  });
+
+  it.each([
+    {
+      name: "loaded after the earlier click began",
+      second: { loadedAt: 12, url: "http://x/contacts/3" },
+    },
+    {
+      name: "at another address",
+      second: { loadedAt: 3, url: "http://x/contacts/3" },
+    },
+  ])(
+    "reads from the later click when the earlier one left a document $name",
+    async ({ second }) => {
+      const followUp = new BrowserFollowUp();
+      const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
+      followUp.note({
+        args: ["click", "@e1"],
+        before: { loadedAt: 3, url: "http://x/contacts" },
+        exitCode: 0,
+        read,
+        startedAt: 10,
+      });
+      followUp.note({
+        args: ["click", "@e2"],
+        before: second,
+        exitCode: 0,
+        read,
+        startedAt: 20,
+      });
+      await followUp.take(signal);
+      expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
+        messages: {
+          before: second,
+          settleMs: LIVE_REGION_SETTLE_MS,
+          since: 20,
+        },
+        snapshot: true,
+      });
+    },
+  );
 
   it("reads only the page's messages after a call that read the controls itself", async () => {
     const followUp = new BrowserFollowUp();
@@ -191,19 +254,27 @@ describe("BrowserFollowUp", () => {
       text: "",
     });
     expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
-      settleMs: LIVE_REGION_SETTLE_MS,
-      since: 7,
+      messages: { settleMs: LIVE_REGION_SETTLE_MS, since: 7 },
       snapshot: false,
     });
   });
 
   it("attaches nothing after a read of the controls when the page said nothing", async () => {
     const { followUp, read } = run([
-      { args: ["open", "x.html"] },
+      { args: ["click", "@e1"] },
       { args: ["snapshot", "-i"] },
     ]);
     expect(await followUp.take(signal)).toBeUndefined();
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads nothing after `open` and the model's own read of the controls", async () => {
+    const { followUp, read } = run([
+      { args: ["open", "x.html"] },
+      { args: ["snapshot", "-i"] },
+    ]);
+    expect(await followUp.take(signal)).toBeUndefined();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("carries the page's messages onto the attachment", async () => {
@@ -410,11 +481,13 @@ describe("liveRegionText", () => {
       text: string;
     }[],
     loadedAt = 500,
+    url = "http://x/contacts",
   ) {
     return JSON.stringify({
       data: {
         result: {
           loadedAt,
+          url,
           regions: regions.map(
             ({ changedAt = null, read = true, same = true, text }) => ({
               changedAt,
@@ -459,13 +532,46 @@ describe("liveRegionText", () => {
     expect(liveRegionText(output(regions), since)).toEqual(expected);
   });
 
-  it("counts everything in a document the step loaded as new", () => {
+  it("reports a change in the document read before the step", () => {
     expect(
       liveRegionText(
-        output([{ read: false, text: "Your changes were saved." }], 1500),
+        output([{ changedAt: 1200, text: "Saved Ada as contact #3." }]),
         since,
+        { loadedAt: 500, url: "http://x/contacts" },
       ),
-    ).toEqual({ said: "Your changes were saved." });
+    ).toEqual({ said: "Saved Ada as contact #3." });
+  });
+
+  it.each([
+    {
+      name: "a document the step loaded",
+      given: output(
+        [{ read: false, text: "Free shipping on orders over $35" }],
+        1500,
+        "http://x/cart",
+      ),
+      before: undefined,
+    },
+    {
+      name: "another document than the one read before the step",
+      given: output(
+        [{ changedAt: 1200, text: "Sign in or create account" }],
+        800,
+        "http://x/signin",
+      ),
+      before: { loadedAt: 500, url: "http://x/" },
+    },
+    {
+      name: "an address the step moved to in the same document",
+      given: output(
+        [{ changedAt: 1200, text: "Recommended for you" }],
+        500,
+        "http://x/product/7",
+      ),
+      before: { loadedAt: 500, url: "http://x/" },
+    },
+  ])("reports nothing from $name", ({ before, given }) => {
+    expect(liveRegionText(given, since, before)).toEqual({});
   });
 
   it("keeps several messages inside the budget and counts the rest", () => {

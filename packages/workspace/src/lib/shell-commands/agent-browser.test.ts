@@ -929,6 +929,7 @@ describe("agent-browser routing", () => {
               data: {
                 result: {
                   loadedAt: 0,
+                  url: "http://x/in",
                   regions: [
                     {
                       changedAt: Date.now(),
@@ -1007,6 +1008,7 @@ describe("agent-browser routing", () => {
               data: {
                 result: {
                   loadedAt: 0,
+                  url: "http://x/in",
                   regions: [
                     {
                       changedAt: Date.now(),
@@ -1042,6 +1044,50 @@ describe("agent-browser routing", () => {
         run.args.includes("eval") ? "eval" : run.args.at(-1),
       ),
     ).toEqual(["eval", "@e1", "-i", "eval"]);
+  });
+
+  it("attaches no message after a click that loaded another page", async () => {
+    let evals = 0;
+    await answerAgentBrowser((given) => {
+      if (!given.includes("eval")) {
+        return { exitCode: 0, stderr: "", stdout: '- button "Continue" [ref=e1]\n' };
+      }
+      evals += 1;
+      // The reading before the click is of the page it was on; the one after
+      // is of a document that began loading during the click.
+      const loadedAt = evals === 1 ? 0 : Date.now();
+      return {
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          data: {
+            result: {
+              loadedAt,
+              url: "http://x/signin",
+              regions: [
+                {
+                  changedAt: loadedAt,
+                  read: false,
+                  same: false,
+                  text: "Sign in or create account",
+                },
+              ],
+            },
+          },
+          success: true,
+        }),
+      };
+    });
+    const followUp = new BrowserFollowUp();
+
+    await withBrowserFollowUp(followUp, () =>
+      command.execute(["click", "@e1"], commandCtx),
+    );
+    const page = await followUp.take(new AbortController().signal);
+
+    expect(page).toMatchObject({ after: "click", kind: "full" });
+    expect(page).not.toHaveProperty("said");
+    expect(page).not.toHaveProperty("showing");
   });
 
   it("attaches the page without its name or message when neither read works", async () => {

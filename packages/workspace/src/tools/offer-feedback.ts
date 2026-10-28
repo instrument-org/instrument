@@ -13,8 +13,8 @@ import {
 import { getCurrentDate } from "../lib/get-current-date";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { type SessionMessage } from "../schemas/session/message";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 
 /** The longest write-up a card takes. */
 const FEEDBACK_WRITEUP_MAX_LENGTH = 2000;
@@ -45,8 +45,8 @@ const OfferFeedbackOutputSchema = z.union([
  * across the workspace (`lib/feedback-offers.ts`). A refused call shows no
  * card.
  */
-export const OfferFeedback = setupTool({
-  inputSchema: BaseInputSchema.extend({
+const offerFeedbackCapability = defineCapability({
+  input: z.object({
     title: z.string().trim().min(1).max(120).meta({
       description:
         "The card's heading: what went wrong and how often, in one plain line: 'Zendesk's page crashed the browser tab three times in a row'.",
@@ -60,43 +60,50 @@ export const OfferFeedback = setupTool({
         "Plain Markdown facts for the team, a few short lines: what you were doing, what happened (error text verbatim), what you tried, what you did instead. No apology, no guessed cause, nothing about the user the problem doesn't need.",
     }),
   }),
-  name: "offer_feedback",
-  outputSchema: OfferFeedbackOutputSchema,
-}).create({
-  description: dedent`
-    Offer to send the Instrument team a short write-up of something broken in Instrument itself: its browser, shell, file tools, or an app connection failing in a way neither the request nor the site explains. The user sees your heading and reason on a card, can read your write-up, and decides whether to send it with the chat. Not for a site that is down or refuses you, a model refusing, a missing permission, your own mistake, or anything the user did. The card is the whole offer, and often none is shown, so your reply carries on with the work. It returns at once.
-  `,
-  execute: async ({ chatId, sessionId }) => {
-    if (sessionRole(chatId, sessionId) !== "chat") {
-      return ok({ offered: false as const, reason: "background" as const });
-    }
-    const history = await ChatReads.history({ chatId, sessionId });
-    if (history.isOk() && offeredIn(history.value)) {
-      return ok({ offered: false as const, reason: "this-chat" as const });
-    }
-    const now = getCurrentDate();
-    const refusal = feedbackOfferRefusal({
-      last: await lastFeedbackOffer(),
-      mayOffer: getWorkspaceConfig().mayOfferFeedback?.() ?? true,
-      now,
-    });
-    if (refusal) {
-      return ok({ offered: false as const, reason: refusal });
-    }
-    await recordFeedbackOffer(now);
-    return ok({ offered: true as const });
+  name: "feedback.offer",
+  summary: "Offers the person a card to send the Instrument team a problem in the app.",
+  surfaces: {
+    tool: {
+      description: dedent`
+        Offer to send the Instrument team a short write-up of something broken in Instrument itself: its browser, shell, file tools, or an app connection failing in a way neither the request nor the site explains. The user sees your heading and reason on a card, can read your write-up, and decides whether to send it with the chat. Not for a site that is down or refuses you, a model refusing, a missing permission, your own mistake, or anything the user did. The card is the whole offer, and often none is shown, so your reply carries on with the work. It returns at once.
+      `,
+      execute: async ({ chatId, sessionId }) => {
+        if (sessionRole(chatId, sessionId) !== "chat") {
+          return ok({ offered: false as const, reason: "background" as const });
+        }
+        const history = await ChatReads.history({ chatId, sessionId });
+        if (history.isOk() && offeredIn(history.value)) {
+          return ok({ offered: false as const, reason: "this-chat" as const });
+        }
+        const now = getCurrentDate();
+        const refusal = feedbackOfferRefusal({
+          last: await lastFeedbackOffer(),
+          mayOffer: getWorkspaceConfig().mayOfferFeedback?.() ?? true,
+          now,
+        });
+        if (refusal) {
+          return ok({ offered: false as const, reason: refusal });
+        }
+        await recordFeedbackOffer(now);
+        return ok({ offered: true as const });
+      },
+      readOnly: false,
+      timeoutMs: () => ms("10 seconds"),
+      toModelOutput: ({ output }) => ({
+        type: "text",
+        value: output.offered
+          ? "The user sees your write-up on a card and decides there; your reply carries on with the work."
+          : output.reason === "background"
+            ? "No card: only the chat offers this. Say what broke in your report to the chat."
+            : "No card was shown this time, as is usual; your reply carries on with the work.",
+      }),
+      name: "offer_feedback",
+      output: OfferFeedbackOutputSchema,
+    },
   },
-  readOnly: false,
-  timeoutMs: ms("10 seconds"),
-  toModelOutput: ({ output }) => ({
-    type: "text",
-    value: output.offered
-      ? "The user sees your write-up on a card and decides there; your reply carries on with the work."
-      : output.reason === "background"
-        ? "No card: only the chat offers this. Say what broke in your report to the chat."
-        : "No card was shown this time, as is usual; your reply carries on with the work.",
-  }),
 });
+
+export const OfferFeedback = modelTool(offerFeedbackCapability);
 
 /** Whether the chat already showed a card for an offer. */
 export function offeredIn(messages: readonly SessionMessage.WithParts[]) {

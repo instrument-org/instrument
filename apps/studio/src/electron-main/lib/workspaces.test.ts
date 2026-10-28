@@ -270,6 +270,30 @@ describe("workspace ids", () => {
     expect(readWorkspaceIdentity(dir).id).toBe("01FIRST");
   });
 
+  it("never writes over a record it couldn't read", () => {
+    openDefault(() => "01FIRST");
+    const dir = defaultWorkspacePath(userDataDir);
+    writeWorkspaceIdentity(dir, {
+      ...readWorkspaceIdentity(dir),
+      name: "Mine",
+    });
+    const file = path.join(workspaceLayout(dir).dataDir, "workspace.json");
+    const readFileSync = fs.readFileSync;
+    const held = vi.spyOn(fs, "readFileSync").mockImplementation((...args) => {
+      if (args[0] === file) {
+        throw Object.assign(new Error("resource busy"), { code: "EBUSY" });
+      }
+      return readFileSync(...args);
+    });
+
+    expect(() => openDefault(() => "01OTHER")).toThrow("resource busy");
+    held.mockRestore();
+    expect(readWorkspaceIdentity(dir)).toMatchObject({
+      id: "01FIRST",
+      name: "Mine",
+    });
+  });
+
   it("reads an id that could name a folder elsewhere as none", () => {
     const dir = defaultWorkspacePath(userDataDir);
     fs.mkdirSync(workspaceLayout(dir).dataDir, { recursive: true });

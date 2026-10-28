@@ -13,6 +13,7 @@ import {
 import {
   openElsewhereBy,
   readWorkspaceIdentity,
+  readWorkspaceIdentityToChange,
   type ResolvedWorkspace,
   settleWorkspace,
   MACHINE_DATA_FORMAT_VERSION,
@@ -180,7 +181,7 @@ export function moveMachineData({
     removeLeftovers({ done, workspacePath: workspace.path });
 
     if (failed === 0) {
-      const identity = readWorkspaceIdentity(workspace.path);
+      const identity = readWorkspaceIdentityToChange(workspace.path);
       writeWorkspaceIdentity(workspace.path, {
         ...identity,
         // Never backwards: a move that finishes on a later launch runs after
@@ -229,7 +230,7 @@ function foldLayoutMarkers(workspacePath: string, done: string[]) {
   }
   if (Object.keys(change).length > 0) {
     writeWorkspaceIdentity(workspacePath, {
-      ...readWorkspaceIdentity(workspacePath),
+      ...readWorkspaceIdentityToChange(workspacePath),
       ...change,
     });
     done.push("folded the layout markers into workspace.json");

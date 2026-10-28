@@ -279,15 +279,51 @@ export function readRegistry(userDataDir: string): WorkspaceRegistry {
   return readRegistryFile(userDataDir).registry;
 }
 
+function identityPath(workspacePath: string) {
+  return path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME);
+}
+
+function identityFrom(raw: unknown): WorkspaceIdentity {
+  const parsed = WorkspaceIdentitySchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : WorkspaceIdentitySchema.parse({});
+}
+
+/**
+ * A workspace's identity for showing it: one that can't be read, for
+ * whatever reason, reads as a new workspace's.
+ */
 export function readWorkspaceIdentity(
   workspacePath: string,
 ): WorkspaceIdentity {
-  const parsed = WorkspaceIdentitySchema.safeParse(
-    readJson(
-      path.join(workspaceLayout(workspacePath).dataDir, IDENTITY_FILENAME),
-    ) ?? {},
-  );
-  return parsed.success ? parsed.data : WorkspaceIdentitySchema.parse({});
+  return identityFrom(readJson(identityPath(workspacePath)));
+}
+
+/**
+ * A workspace's identity for changing it. Only a missing file reads as a new
+ * workspace's: one that is there and can't be read (another program holding
+ * it, a folder macOS refuses) throws, so what is written back is never a new
+ * workspace's identity over the real one.
+ */
+export function readWorkspaceIdentityToChange(
+  workspacePath: string,
+): WorkspaceIdentity {
+  let text: string;
+  try {
+    text = fs.readFileSync(identityPath(workspacePath), "utf8");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return identityFrom(undefined);
+    }
+    throw error;
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    // Damaged rather than unreadable: what it said is gone either way, and
+    // the registry still has the workspace's id.
+  }
+  return identityFrom(raw);
 }
 
 /**
@@ -519,7 +555,7 @@ export function settleWorkspace({
 }): string {
   return withRegistryLock(userDataDir, () => {
     const { registry } = readRegistryFile(userDataDir);
-    const identity = readWorkspaceIdentity(workspace.path);
+    const identity = readWorkspaceIdentityToChange(workspace.path);
     const entry = registry.workspaces.find(
       (other) => other.id === workspace.id,
     );
@@ -583,7 +619,7 @@ export function workspaceLayoutMarks(workspacePath: string): LayoutMarkStore {
     },
     write: (change) => {
       writeWorkspaceIdentity(workspacePath, {
-        ...readWorkspaceIdentity(workspacePath),
+        ...readWorkspaceIdentityToChange(workspacePath),
         ...change,
       });
     },

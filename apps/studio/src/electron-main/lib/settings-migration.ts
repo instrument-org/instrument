@@ -11,7 +11,7 @@ import { pathWithin } from "./path-identity";
 
 import {
   hasWorkspaceIdentity,
-  readWorkspaceIdentity,
+  readWorkspaceIdentityToChange,
   type ResolvedWorkspace,
   WORKSPACE_FORMAT_VERSION,
   writeJsonAtomic,
@@ -160,7 +160,7 @@ export function migrateWorkspaceSettings({
     // the root files are its, and the app made its folder.
     const inAppData =
       workspace.isDefault && pathWithin(workspace.path, userDataDir);
-    const identity = readWorkspaceIdentity(workspace.path);
+    const identity = readWorkspaceIdentityToChange(workspace.path);
     if (identity.settingsVersion >= CURRENT_SETTINGS_VERSION) {
       return done;
     }
@@ -204,7 +204,7 @@ export function migrateWorkspaceSettings({
     moveKeptDraftsToFolders(workspace.path, done);
 
     writeWorkspaceIdentity(workspace.path, {
-      ...readWorkspaceIdentity(workspace.path),
+      ...readWorkspaceIdentityToChange(workspace.path),
       settingsVersion: CURRENT_SETTINGS_VERSION,
     });
     done.push(`settings at version ${CURRENT_SETTINGS_VERSION.toString()}`);

@@ -11,7 +11,7 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import path from "node:path";
 
 import {
-  readWorkspaceIdentity,
+  readWorkspaceIdentityToChange,
   WORKSPACE_FORMAT_VERSION,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -201,7 +201,7 @@ function setAsideStores({
  * writes nothing.
  */
 function markConverted(converted: ChatRecordsConverted, rootDir: string): void {
-  const identity = readWorkspaceIdentity(rootDir);
+  const identity = readWorkspaceIdentityToChange(rootDir);
   if (
     identity.chatRecordsConverted === true &&
     identity.formatVersion >= WORKSPACE_FORMAT_VERSION

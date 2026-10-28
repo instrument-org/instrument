@@ -441,7 +441,7 @@ export function ChatList({
         )
       ) : (
         // Edge to edge, as the open row's bar and the hover tint are: each
-        // row pads its words in by 12px, a step inside the 8px line the
+        // row pads its words in by 16px, a step inside the 8px line the
         // search and the filters stand on.
         <div ref={listRef}>
           {before > 0 && (

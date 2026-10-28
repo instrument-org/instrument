@@ -169,7 +169,7 @@ export function ChatHeader({
                     toolbarClassName({ pressed: popOut.isOut }),
                     // The grey of the inbox toggle across the head.
                     !popOut.isOut &&
-                      "text-foreground/50 not-disabled:hover:text-foreground",
+                      "text-muted-foreground/70 not-disabled:hover:text-foreground",
                     popOut.isOut &&
                       "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300",
                   )}

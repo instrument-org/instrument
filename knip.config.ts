@@ -70,6 +70,7 @@ const config: KnipConfig = {
         "node-api-headers", // Resolved by path in scripts/build-mac-helper.ts
         "dugite", // Needed to ensure the git binary is available
         "agent-browser", // Imported in Vite build to resolve the binary path
+        "just-bash", // Kept external by electron.vite.config.ts and loaded by the bundled workspace package, so it ships as a dependency
         "@anthropic-ai/claude-agent-sdk", // Resolved at runtime by ai-gateway's createRequire for the Claude Code manifest
       ],
       paths: {

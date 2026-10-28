@@ -78,7 +78,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   // it is now or another folder, or starting over in a new one.
   const [lostPast, setLostPast] = useState<"found" | "new" | null>(null);
   // A lost folder's page opened it once already, so showing the page again
-  // after that failed waits for Try Again.
+  // after that failed waits for Continue.
   const [triedOpen, setTriedOpen] = useState(false);
   const pick = useFolderPick((destination) => {
     setPicked(destination);
@@ -322,7 +322,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
           hero={<PackedFolder />}
           subtitle={
             lostPast === "new" && picked === null
-              ? `${APP_NAME} starts fresh there. Your old chats stay in your old folder, so you can open it again if it turns up.`
+              ? `${APP_NAME} will start fresh in this new location. Your old chats will stay in your old folder.`
               : `This is where ${APP_NAME} keeps your chats, topics and the files it makes. Most people put it in their Documents folder.`
           }
           title={

@@ -11,18 +11,23 @@ import { SetupRowButton } from "./setup-row";
 /**
  * Where the Instrument folder will be: "Location" over a card with the
  * folder as the move confirmation draws it (`DestinationRow`) and Change at
- * its end. Without a `path` yet the card keeps its place with a blank line.
+ * its end (`changeLabel`). Without a `path` yet the card keeps its place
+ * with a blank line. A folder Instrument can't open is grayed out (`dim`).
  * A note about the folder (`FolderNote`) goes inside the card, under the
  * path.
  */
 export function FolderLocation({
+  changeLabel = "Change",
   children,
   destination,
+  dim = false,
   onChange,
   path,
 }: {
+  changeLabel?: string;
   children?: ReactNode;
   destination?: Destination | undefined;
+  dim?: boolean;
   onChange?: () => void;
   path?: string | undefined;
 }) {
@@ -32,7 +37,7 @@ export function FolderLocation({
       onClick={onChange}
       variant="ghost"
     >
-      Change
+      {changeLabel}
     </Button>
   );
   return (
@@ -51,6 +56,7 @@ export function FolderLocation({
           <DestinationRow
             className="px-4"
             destination={destination}
+            dim={dim}
             end={change}
             path={path}
             trailClassName="font-medium"

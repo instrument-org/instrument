@@ -69,12 +69,14 @@ From the churn reader; each sha cited was checked to exist and to say what it is
 - What churns: each wake source carries its own debounce, pending count, stop handling and dedupe, fixed one copy at a time: `2adbeab10` (the job wake was not counted as on its way), `b89c43243` (note before model lookup, one path only), `acd5bcd99` (a double wake), `31a8c6e34` (a second pending map and stop set).
 - Proposed shape: one `enqueueWake({ chatId, sessionId, part, key, debounceMs, stillNews })` per session (idle, debouncing, delivering), one delivery order, and one `hasWakeOnItsWay` for `chatStateOf`. Stops stay out of it, as `e1db8f3a6` rejected.
 - Size: wake.ts and job-wake.ts shrink by about 350 lines for about 200 new; sources move one at a time.
+- Status: done, `0af1bbf2e` and the commits before it, with R3; a blind review before landing found a stop holding the chat as working for the processes' grace period, a wake that gave up re-notifying the chat's last reply, and the quit settling chats as news, each fixed and tested in the branch.
 
 ### R3. "The chat settled" is re-derived by each listener
 
 - Where: [chats.ts:297](/packages/workspace/src/lib/chat/chats.ts#L297), [retitle.ts:121](/packages/workspace/src/lib/chat/retitle.ts#L121), [agent-completion-notifications.ts:62](/apps/studio/src/electron-main/lib/agent-completion-notifications.ts#L62)
 - What churns: unread, retitle and the completion notification each hear `session.done` and re-ask whether the chat works: `48ec69a28`, `2adbeab10`, `d0698ea34`, `0803aebde`.
 - Proposed shape: `chats.ts` publishes `chat.settled` on the working-to-not-working edge, recomputed on `session.done` and `recordChanged`; the three listeners subscribe to it.
+- Status: done, through `e6eaef3b6`, which publishes `chat.settled` only when the chat's own session has something new and never on the app's quit.
 - Note: the reader also points to a settle with no `session.done`, a wake whose model lookup fails after its retries ([wake.ts:866](/packages/workspace/src/lib/chat/wake.ts#L866)), after which `onItsWay` only calls `recordChanged`, so unread, retitle and the notification never run. Not traced to the end; R3 would cover it either way.
 
 Looked at and dismissed as feature growth or already restructured: `create-workspace-actor.ts` (layout moves; launch order is one list in `workspace-launch-sweeps.ts`), `machines/session.ts`, `app-window.tsx`, `_app/route.tsx`, `atoms/window.ts`, drafts and `prompt-input.tsx`, `command-menu.tsx`, Finder internals, `chat-stream.tsx`, `browser-view/manager.ts`, `create-bash-env.ts`, `shell-commands/app.ts`, `workspace-move.ts`.

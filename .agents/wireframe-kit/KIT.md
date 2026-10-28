@@ -119,7 +119,7 @@ node .agents/wireframe-kit/replay/build-replay.mjs <chat-records-dir> ~/wirefram
 - `--design` is the part whose pieces draw the replay. The replay takes everything above its `// ---- the scenario` line (or its `META`), and needs `says`, `working`, `workedLine`, `head`, `DOT`, `pillDark` and `pillSoft` from it. A design that changes those changes every replay built from it.
 - `records-to-timeline.mjs` is the reader on its own: `node records-to-timeline.mjs <chat-records-dir>` prints the timeline as JSON, with seconds from the chat's start for every message, step, task step, ask, failed request and wake.
 
-In the page, drag the timeline or use ← and → to jump from one event to the next, Space plays at the real pace (the button beside the timeline sets 1×, 4× or 16×), and a folded line of steps opens on a click.
+In the page, drag the timeline or use ← and → to jump from one event to the next, Space plays at the real pace (1×, 4× or 8×, picked beside the timeline), and a folded line of steps opens on a click.
 
 ## The baseline
 

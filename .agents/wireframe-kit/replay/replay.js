@@ -176,9 +176,12 @@ const scrubber = (T) => {
         <input data-replay type="range" min="0" max="${D}" step="0.1" value="${T}" class="absolute inset-0 w-full cursor-pointer appearance-none bg-transparent accent-foreground" aria-label="Time in the chat" />
       </div>
     </div>
-    <button data-replay-speed title="Speed" class="flex h-8 shrink-0 items-center rounded-lg bg-foreground/[0.06] px-2.5 text-[12px] font-medium tabular-nums">1×</button>
+    <div role="radiogroup" aria-label="Speed" class="flex h-8 shrink-0 items-center gap-0.5 rounded-lg bg-foreground/[0.06] p-0.5 text-[12px] font-medium tabular-nums">${SPEEDS.map((s) => `<button data-replay-speed="${s}" role="radio" aria-checked="${s === 1}" class="h-7 rounded-md px-2.5 text-muted-foreground aria-checked:bg-background aria-checked:text-foreground aria-checked:shadow-xs">${s}×</button>`).join("")}</div>
   </div>`;
 };
+
+/** How fast play runs, against the chat's real pace. */
+const SPEEDS = [1, 4, 8];
 
 const META = { title: REPLAY.title, line: REPLAY.line, source: REPLAY.source };
 
@@ -189,7 +192,6 @@ const SCREEN = { w: 1280, h: 800, draw: () => replayView(T), controls: () => scr
 // folded line of steps to open it. Only the screen and the scrubber's words are redrawn as time moves, so the slider
 // under your pointer is never replaced mid-drag.
 if (typeof document !== "undefined") {
-  const SPEEDS = [1, 4, 16];
   let speed = 1;
   let timer = null;
   const $ = (sel) => document.querySelector(sel);
@@ -241,8 +243,8 @@ if (typeof document !== "undefined") {
     if (e.target.closest?.("[data-replay-play]")) return play();
     const speedBtn = e.target.closest?.("[data-replay-speed]");
     if (speedBtn) {
-      speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-      speedBtn.textContent = `${speed}×`;
+      speed = Number(speedBtn.dataset.replaySpeed);
+      for (const b of document.querySelectorAll("[data-replay-speed]")) b.setAttribute("aria-checked", String(b === speedBtn));
     }
   });
 }

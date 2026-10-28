@@ -266,6 +266,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     <SetupPageSwitch
       depth={!started ? 0 : moving === null ? 1 : 2}
       page={!started ? "welcome" : moving === null ? "folder" : "moving"}
+      sharedHero={["welcome", "folder"]}
     >
       {!started ? (
         <WelcomePage

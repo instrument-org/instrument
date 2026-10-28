@@ -2,16 +2,21 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
-import { type ReactNode, useState } from "react";
+import { type AnimationEvent, type ReactNode, useState } from "react";
 
-import { type PageMotion, usePageMotion } from "./setup-page-switch";
+import {
+  type PageMotion,
+  useHeroMorph,
+  usePageMotion,
+} from "./setup-page-switch";
 
 /**
  * One page of setup, as Figma draws every one: an optional picture over a
  * serif title and a gray line under it, the page's own content, and the
  * footer at the window's foot. The body scrolls on its own when the window
  * is zoomed past what fits, and the footer stays put. Inside a
- * `SetupPageSwitch` the body slides in and out as setup moves. In a dialog
+ * `SetupPageSwitch` the body slides in and out as setup moves, all but a
+ * picture the page before shared, which moves itself. In a dialog
  * (`fit="dialog"`) the page leaves out the window's band and takes the
  * dialog's narrower gutters.
  */
@@ -41,6 +46,15 @@ export function SetupPage({
   const motion = usePageMotion();
   // The slide in that has ended, so the body stops asking for its own layer.
   const [arrived, setArrived] = useState<PageMotion | undefined>(undefined);
+  const heroMorph = useHeroMorph();
+  const moves = {
+    "data-page-motion": motion === arrived ? undefined : motion,
+    onAnimationEnd: (event: AnimationEvent) => {
+      if (event.target === event.currentTarget && motion?.startsWith("in")) {
+        setArrived(motion);
+      }
+    },
+  };
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
@@ -48,15 +62,7 @@ export function SetupPage({
           "flex min-h-0 flex-1 flex-col overflow-y-auto",
           fit === "dialog" ? "px-10" : "px-17",
         )}
-        data-page-motion={motion === arrived ? undefined : motion}
-        onAnimationEnd={(event) => {
-          if (
-            event.target === event.currentTarget &&
-            motion?.startsWith("in")
-          ) {
-            setArrived(motion);
-          }
-        }}
+        {...(heroMorph ? {} : moves)}
       >
         {/* Clear of the window's band, which lies over the page. */}
         {fit === "window" && (
@@ -73,15 +79,22 @@ export function SetupPage({
           )}
         >
           {hero && <div className="mb-6 flex justify-center">{hero}</div>}
-          <h1 className="max-w-235 text-center font-serif text-3xl/[38px] font-medium text-foreground">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="mt-3 max-w-150 text-center text-base text-pretty text-muted-foreground">
-              {subtitle}
-            </p>
-          )}
-          {children}
+          <div
+            className={
+              heroMorph ? "flex flex-col items-center self-stretch" : "contents"
+            }
+            {...(heroMorph ? moves : {})}
+          >
+            <h1 className="max-w-235 text-center font-serif text-3xl/[38px] font-medium text-foreground">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="mt-3 max-w-150 text-center text-base text-pretty text-muted-foreground">
+                {subtitle}
+              </p>
+            )}
+            {children}
+          </div>
         </div>
       </div>
       {/* Marked so a page leaving hides its footer at once. */}

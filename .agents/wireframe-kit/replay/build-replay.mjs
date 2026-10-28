@@ -32,7 +32,7 @@ if (!recordsDir || !outPath || !values.design || !values.title)
 const tl = recordsToTimeline(recordsDir);
 
 // --pictures: the records keep no picture of a page, so take one of each tab's address now, at the pane's width,
-// with the agent-browser the workspace package installs. The source line should say they were taken at build time.
+// with the agent-browser the workspace package installs, and fetch its favicon from Google's favicon service. The source line should say they were taken at build time.
 if (values.pictures) {
   const ab = path.join(here, "../../../packages/workspace/node_modules/.bin/agent-browser");
   const run = (...args) => execFileSync(ab, ["--session", "replay-pictures", ...args], { encoding: "utf8" }).trim();
@@ -45,6 +45,9 @@ if (values.pictures) {
       tab.title ||= run("get", "title");
       run("screenshot", "--screenshot-format", "jpeg", "--screenshot-quality", "72", shot);
       tab.picture = `data:image/jpeg;base64,${fs.readFileSync(shot).toString("base64")}`;
+      const host = new URL(tab.url).hostname;
+      const icon = await fetch(`https://www.google.com/s2/favicons?domain=${host}&sz=64`);
+      if (icon.ok) tab.icon = `data:${icon.headers.get("content-type") ?? "image/png"};base64,${Buffer.from(await icon.arrayBuffer()).toString("base64")}`;
     } catch (error) {
       console.warn(`no picture of ${tab.url}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
     }

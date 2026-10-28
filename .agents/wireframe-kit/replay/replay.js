@@ -152,7 +152,7 @@ const tabsAt = (T) =>
       const title = k.title || `${name} · ${k.url.replace(/^\w+:\/\/[^/]+\/?/, "") || "home"}`;
       const color = TAB_COLORS[TL.chat.tabs.indexOf(k) % TAB_COLORS.length];
       const page = k.picture ? `<img src="${k.picture}" alt="" class="block w-full" />` : docPage({ letter: name[0], color, name, heading: esc(title), dark: false });
-      return { id: k.id, url: k.url, title, letter: name[0], color, page };
+      return { id: k.id, url: k.url, title, letter: name[0], color, page, icon: k.icon };
     });
 
 /**
@@ -182,7 +182,7 @@ const replayPane = (tabs, usingId) => {
   <div class="relative flex shrink-0 flex-col bg-background p-2 pl-0" style="width:680px">
     <div class="flex min-h-0 flex-1 flex-col rounded-xl bg-[light-dark(#f5f5f4,#1c1c1a)] p-1.5">
       <div class="flex h-9 shrink-0 items-center gap-1 pb-1.5">
-        ${tabs.map((t) => `<span data-tab="${t.id}" class="flex min-w-0 shrink cursor-pointer">${pageTab(siteMark(t), esc(t.title), { on: t.id === active.id, agent: t.id === usingId })}</span>`).join("")}
+        ${tabs.map((t) => `<span data-tab="${t.id}" class="flex min-w-0 shrink cursor-pointer">${pageTab(siteMark(t), esc(t.title), { on: t.id === active.id, agent: t.id === usingId, using: t.id === usingId })}</span>`).join("")}
         <span class="grid size-7 shrink-0 place-items-center text-foreground/55"><i class="ph ph-plus text-[14px]"></i></span>
         <span class="flex-1"></span><span data-pane-close class="cursor-pointer">${iconBtn("x")}</span>
       </div>

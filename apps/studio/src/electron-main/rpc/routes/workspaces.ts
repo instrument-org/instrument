@@ -503,6 +503,11 @@ const reachLost = base
   )
   .handler(async ({ errors }) => {
     const run = getWorkspaceRun();
+    // Placed once its record was reached, and its start failed: `place`
+    // starts it again.
+    if (run.kind === "placed") {
+      return { kind: "ready" as const };
+    }
     if (run.kind !== "unplaced" || run.lost === undefined) {
       throw errors.NOT_FOUND({ message: "No folder went missing" });
     }

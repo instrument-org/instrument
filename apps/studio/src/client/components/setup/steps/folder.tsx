@@ -77,6 +77,9 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   // Past the page saying why a lost folder couldn't be opened: picking where
   // it is now or another folder, or starting over in a new one.
   const [lostPast, setLostPast] = useState<"found" | "new" | null>(null);
+  // A lost folder's page opened it once already, so showing the page again
+  // after that failed waits for Try Again.
+  const [triedOpen, setTriedOpen] = useState(false);
   const pick = useFolderPick((destination) => {
     setPicked(destination);
     setNote(null);
@@ -275,11 +278,15 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       ) : lostFolder !== null && lostPast === null && offered ? (
         <>
           <LostFolderPage
+            autoReach={!triedOpen}
             lost={lostFolder}
             onFind={() => {
               void pick.choose(folderOf(lostFolder.path));
             }}
-            onOpen={() => place(offered, lostFolder.path, { type: "open" })}
+            onOpen={() => {
+              setTriedOpen(true);
+              return place(offered, lostFolder.path, { type: "open" });
+            }}
             onStartOver={() => {
               setLostPast("new");
             }}

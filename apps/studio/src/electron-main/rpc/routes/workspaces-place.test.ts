@@ -187,6 +187,18 @@ describe("workspaces.place after a start that failed", () => {
     expect(mocks.startWorkspace).toHaveBeenCalledTimes(2);
     expect(run.getResolvedWorkspace()).toMatchObject({ path: dir });
   });
+
+  // A lost folder's Try Again asks for its record first, then places it.
+  it("answers a lost folder's Try Again as ready, so place starts it again", async () => {
+    const dir = path.join(home, "Documents", "Instrument");
+    mocks.startWorkspace.mockRejectedValueOnce(new Error("no actor"));
+    await expect(place({ create: true, path: dir })).rejects.toThrow(
+      "no actor",
+    );
+    expect(
+      await call(route.workspaces.reachLost, undefined, { context }),
+    ).toEqual({ kind: "ready" });
+  });
 });
 
 describe("workspaces.open, from Settings", () => {

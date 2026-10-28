@@ -159,6 +159,19 @@ function openWorkspace() {
     setWorkspaceRefusal(launch.refusal);
     return;
   }
+  // A pinned workspace whose record can't be read is never opened, which
+  // would write it again from defaults, and a pinned run has no setup to
+  // find it.
+  if (
+    launch.kind === "unplaced" &&
+    launch.lost &&
+    process.env.INSTRUMENT_WORKSPACE
+  ) {
+    const message = `INSTRUMENT_WORKSPACE names ${launch.lost.path}, which can't be opened: ${launch.lost.reason}`;
+    console.error(message);
+    logger.error(message);
+    process.exit(1);
+  }
   // After the machine settings migration, which writes the store this reads,
   // and before anything asks the platform API: the server stays the same for
   // the life of the process. A launch for one server names it in

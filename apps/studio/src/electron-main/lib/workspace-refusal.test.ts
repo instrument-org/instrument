@@ -105,6 +105,20 @@ describe("inspectWorkspaceFolder", () => {
     ).toBeUndefined();
   });
 
+  it("never opens a pinned folder whose record is there but won't read", () => {
+    const pinned = path.join(root, "Clean room");
+    fs.mkdirSync(path.join(workspaceLayout(pinned).dataDir, "workspace.json"), {
+      recursive: true,
+    });
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(pinned, true) }),
+    ).toEqual({ code: "EISDIR", kind: "lost", reason: "unreadable" });
+    vi.mocked(isDataless).mockReturnValue(true);
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(pinned, true) }),
+    ).toEqual({ kind: "lost", reason: "cloud" });
+  });
+
   it("makes again a folder pinned for the process", () => {
     expect(
       inspectWorkspaceFolder({

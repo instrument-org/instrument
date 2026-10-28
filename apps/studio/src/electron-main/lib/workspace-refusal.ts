@@ -58,7 +58,9 @@ const RETRY_WAIT_MS = 200;
  *   the bell says so.
  *
  * One pinned for the process is the pin's to place, and is made where it
- * isn't. One in the app's own data whose folder is there but holds no
+ * isn't; one whose record is there but can't be read is lost like any
+ * other, which the launch refuses to start on (`setup-environment.ts`),
+ * since a pinned run has no setup to find it again. One in the app's own data whose folder is there but holds no
  * workspace yet (1.x tasks, or settings 1.x left at userData's root to take
  * in) opens, for the migrations to make it one.
  */
@@ -72,10 +74,14 @@ export function inspectWorkspaceFolder({
   const { dataDir } = workspaceLayout(workspace.path);
   const record = path.join(dataDir, "workspace.json");
   if (workspace.pinned) {
+    if (isDataless(record)) {
+      return { kind: "lost", reason: "cloud" };
+    }
     const read = readRecord(record);
-    return typeof read === "string"
-      ? newerThanThis(read, workspace)
-      : undefined;
+    if (typeof read === "string") {
+      return newerThanThis(read, workspace);
+    }
+    return read.code === "ENOENT" ? undefined : lostFor(read.code);
   }
   const inAppData = pathWithin(workspace.path, userDataDir);
   const folder = statCode(workspace.path);

@@ -1,5 +1,6 @@
 import { Spinner } from "@/client/components/ui/spinner";
 import { isMacOS, osConventions } from "@/client/lib/utils";
+import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type LostFolder, type LostReason } from "@/shared/setup";
 import { APP_NAME } from "@instrument-org/shared";
@@ -32,11 +33,18 @@ function cloudOf(path: string): string | undefined {
  * step (`onFind`, `onStartOver`).
  */
 export function LostFolderPage({
+  autoReach,
   lost,
   onFind,
   onOpen,
   onStartOver,
 }: {
+  /**
+   * Whether a folder kept in the cloud is downloaded as the page shows:
+   * once, so a page shown again after an open that failed waits for Try
+   * Again rather than trying the same open over and over.
+   */
+  autoReach: boolean;
   lost: LostFolder;
   /** Picks where the folder is now, or another folder. */
   onFind: () => void;
@@ -45,7 +53,9 @@ export function LostFolderPage({
   onStartOver: () => void;
 }) {
   const [reason, setReason] = useState<LostReason>(lost.reason);
-  const [reaching, setReaching] = useState(lost.reason === "cloud");
+  const [reaching, setReaching] = useState(
+    lost.reason === "cloud" && autoReach,
+  );
   const cloud = cloudOf(lost.path);
   const { computerKind } = osConventions();
 
@@ -58,13 +68,15 @@ export function LostFolderPage({
         return;
       }
       setReason(reached.reason);
+    } catch (error) {
+      toast.error(`${APP_NAME} couldn’t open your folder`, { cause: error });
     } finally {
       setReaching(false);
     }
   };
 
   useEffect(() => {
-    if (lost.reason === "cloud") {
+    if (lost.reason === "cloud" && autoReach) {
       void reach();
     }
     // Once, for the folder the launch found in the cloud.

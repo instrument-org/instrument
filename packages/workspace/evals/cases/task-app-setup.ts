@@ -160,9 +160,12 @@ const askedThenSentOn: Assertion = {
       (step) =>
         step.kind === "bash" && /\binstrument task send\b/.test(step.command),
     );
+    // A message sent to the task names the commands it is to run, so only
+    // the chat's own calls count.
     const didItItself = after.some(
       (step) =>
         step.kind === "bash" &&
+        !/\binstrument task send\b/.test(step.command) &&
         /\binstrument app (?:call|tools|request) github\b|instrument\.apps?\[?\(?["']github/.test(
           step.command,
         ),

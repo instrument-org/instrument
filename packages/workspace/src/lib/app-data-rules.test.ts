@@ -219,10 +219,13 @@ function useApp(paths: Paths) {
 function layoutUnder(
   paths: Paths,
   {
+    apps = true,
     grants = [],
     opened = [],
     dangerouslyAllowEveryFolder = false,
   }: {
+    /** Whether the apps folder is the session's to write, as the chat's is. */
+    apps?: boolean;
     /** Folders the chat was allowed by a card. */
     grants?: string[];
     /** Folders Settings › Permissions allows. */
@@ -251,7 +254,7 @@ function layoutUnder(
     asker: { chatId: ChatIdSchema.parse("2026-10-13-chat"), sessionId },
   };
   return buildWorkspaceFsLayout({
-    apps: true,
+    apps,
     chatHostRoot: WorkDirSchema.parse(paths.work),
     folders: {
       [paths.home]: {
@@ -523,6 +526,16 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         ).toBe("allow");
       },
     );
+
+    // Every chat uses the apps, so a task reads them and changes none, whatever
+    // folder of the person's holds them.
+    it("leaves the apps to the chat to change", () => {
+      const app = path.join(getWorkspaceConfig().appsDir, "Linear", "APP.md");
+      const task = layoutUnder(paths, { ...person, apps: false });
+      expect(reachOf(task.rules, app, "read").level).toBe("allow");
+      expect(reachOf(task.rules, app, "write").level).not.toBe("allow");
+      expect(reachOf(layout.rules, app, "write").level).toBe("allow");
+    });
 
     it.each(reachTable(paths).filter(([, , , level]) => level === "never"))(
       "refuses %s plainly, naming nothing to ask for",

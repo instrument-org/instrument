@@ -17,7 +17,7 @@ Three blind readers, following `REVIEW.md`: one on the commits since the 10-27 r
 
 ### B. A long single-line command output reaches the model as nothing, under a notice that says head and tail were shown
 
-- Status: open
+- Status: fixed `23d8e8fa1`
 - Where: [truncate-buffer.ts:53](/packages/workspace/src/lib/truncate-buffer.ts#L53), [bash.ts:544](/packages/workspace/src/tools/bash.ts#L544)
 - What: `truncateMiddle` keeps whole lines only. A single line over the head budget (a `curl` of a JSON API, `cat` of a minified file) fits neither window, so the content is `[... 1 lines omitted ...]`, while `bashOutputText` prefixes `[Output truncated: showing first 10 KB and last 10 KB of …]`. The same happens to the head alone whenever the first line is over 10 KB. The spill file only partly helps, since `read_file` cuts each line at `MAX_LINE_LENGTH`.
 - Verification: probe by the reader, an 84,791-character one-line JSON through the file at `dedc15400` gives `"[... 1 lines omitted ...]"`; the notice traced statically.

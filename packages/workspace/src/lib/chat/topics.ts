@@ -63,6 +63,8 @@ export interface TopicChange {
   color?: string;
   emoji?: string;
   folders?: TopicFolder[];
+  /** Empty takes it away. */
+  icon?: string;
   /** Empty takes them away. */
   instructions?: string;
   name?: string;
@@ -89,6 +91,7 @@ export async function createTopic({
   color?: string;
   emoji?: string;
   folders?: TopicFolder[];
+  icon?: string;
   instructions?: string;
   name: string;
 }): Promise<Topic> {
@@ -305,12 +308,14 @@ function createTopicNow({
   about,
   color,
   emoji,
+  icon,
   instructions: given,
   name,
 }: {
   about?: string;
   color?: string;
   emoji?: string;
+  icon?: string;
   instructions?: string;
   name: string;
 }): MadeTopic {
@@ -331,6 +336,7 @@ function createTopicNow({
         ...(about ? { about } : {}),
         ...(color ? { color } : {}),
         ...(emoji ? { emoji } : {}),
+        ...(icon ? { icon } : {}),
         ...(instructions ? { instructions } : {}),
       };
     });
@@ -341,6 +347,7 @@ function createTopicNow({
     ...(color ? { color } : {}),
     created: toTheSecond(new Date()),
     ...(emoji ? { emoji } : {}),
+    ...(icon ? { icon } : {}),
     id: newTopicId(),
     ...(instructions ? { instructions } : {}),
     name: wanted,
@@ -455,16 +462,21 @@ function updateTopicNow(topicId: string, change: TopicChange): boolean {
     }
   }
   rewriteTopicSync(rootDir, { ...topic, name }, (current) => {
-    const { instructions, ...rest } = current;
+    const { emoji, icon, instructions, ...rest } = current;
     const nextInstructions =
       change.instructions === undefined
         ? instructions
         : change.instructions.trim();
+    // A mark is one or the other, so choosing one sends the other empty,
+    // which leaves no line for it in the file.
+    const nextEmoji = change.emoji ?? emoji;
+    const nextIcon = change.icon ?? icon;
     return {
       ...rest,
       ...(change.about === undefined ? {} : { about: change.about }),
       ...(change.color === undefined ? {} : { color: change.color }),
-      ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+      ...(nextEmoji ? { emoji: nextEmoji } : {}),
+      ...(nextIcon ? { icon: nextIcon } : {}),
       ...(nextInstructions ? { instructions: nextInstructions } : {}),
     };
   });

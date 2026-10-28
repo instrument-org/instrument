@@ -21,6 +21,7 @@ import { publisher } from "../publisher";
 const TopicMarkSchema = z.object({
   color: z.string().max(9).optional(),
   emoji: z.string().max(8).optional(),
+  icon: z.string().max(40).optional(),
 });
 
 const TopicNameSchema = z
@@ -68,6 +69,7 @@ const createTopicRoute = base
         ...(input.color ? { color: input.color } : {}),
         ...(input.emoji ? { emoji: input.emoji } : {}),
         ...(input.folders ? { folders: input.folders } : {}),
+        ...(input.icon ? { icon: input.icon } : {}),
         ...(input.instructions ? { instructions: input.instructions } : {}),
         name: input.name,
       }),
@@ -94,6 +96,7 @@ const updateTopicRoute = base
         ...(input.color === undefined ? {} : { color: input.color }),
         ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
         ...(input.folders === undefined ? {} : { folders: input.folders }),
+        ...(input.icon === undefined ? {} : { icon: input.icon }),
         ...(input.instructions === undefined
           ? {}
           : { instructions: input.instructions }),

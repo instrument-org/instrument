@@ -32,6 +32,7 @@ const OWN_KEYS = new Set([
   "color",
   "created",
   "emoji",
+  "icon",
   "id",
   "projectId",
   "retired",
@@ -47,6 +48,11 @@ export const TopicFileSchema = z.object({
   created: z.date(),
   /** What stands for it: one emoji, chosen when it was made. */
   emoji: z.string().optional(),
+  /**
+   * What stands for it in place of the emoji: the name of one of the app's
+   * filled icons, such as `Hammer`. Where both are set, the icon is drawn.
+   */
+  icon: z.string().optional(),
   id: z.string(),
   /** The standing words for work under it; empty for most topics. */
   instructions: z.string().optional(),
@@ -128,6 +134,7 @@ export function topicFileOf(
   const about = words(front.about);
   const color = words(front.color);
   const emoji = words(front.emoji);
+  const icon = words(front.icon);
   const standing = instructions.trim();
   const projectId = words(front.projectId);
   return {
@@ -135,6 +142,7 @@ export function topicFileOf(
     ...(color ? { color } : {}),
     created: toTheSecond(dateOf(front.created) ?? at),
     ...(emoji ? { emoji } : {}),
+    ...(icon ? { icon } : {}),
     id,
     ...(standing ? { instructions: standing } : {}),
     ...(Object.keys(others).length > 0 ? { others } : {}),
@@ -156,6 +164,9 @@ export function renderTopicFile(topic: TopicFile): string {
   const front: Record<string, unknown> = { id: topic.id };
   if (topic.emoji !== undefined) {
     front.emoji = topic.emoji;
+  }
+  if (topic.icon !== undefined) {
+    front.icon = topic.icon;
   }
   if (topic.color !== undefined) {
     front.color = topic.color;

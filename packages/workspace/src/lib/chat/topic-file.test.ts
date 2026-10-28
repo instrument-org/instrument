@@ -47,6 +47,15 @@ describe("renderTopicFile", () => {
       `);
   });
 
+  it("writes the icon a topic wears after its emoji, and reads it back", () => {
+    const { emoji: _emoji, ...rest } = KITCHEN;
+    const file = renderTopicFile({ ...rest, icon: "CookingPot" });
+    expect(file).toContain(
+      "id: top_01K8ZQ2N4C\nicon: CookingPot\ncolor: amber",
+    );
+    expect(parseTopicFile(file, { at: AT })?.icon).toBe("CookingPot");
+  });
+
   it("names retired only when it is", () => {
     expect(renderTopicFile({ ...KITCHEN, retired: false })).not.toContain(
       "retired",

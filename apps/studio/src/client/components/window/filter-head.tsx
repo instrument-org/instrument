@@ -1,4 +1,3 @@
-import { ChatsOutlineIcon } from "@/client/components/icons/chats-outline-icon";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import {
   Popover,
@@ -9,7 +8,6 @@ import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
@@ -26,11 +24,10 @@ import {
   matchesFilters,
   type Topic,
 } from "./chats";
+import { PlaceIcon } from "./place-icons";
 import { SearchField } from "./search-field";
-import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicActionsButton, TopicContextMenu } from "./topic-menu";
-import { topicTint } from "./topic-tint";
 
 /** A view the picker offers above the topics: the chats, or one of the places. */
 interface View {
@@ -39,20 +36,14 @@ interface View {
   icon: (size: string, isOn: boolean) => ReactNode;
   id: "chats" | ChatPlace;
   label: string;
-  /** The picker's color while this is the view on screen. */
-  tone: string;
 }
 
-/** The brand's own pale green: the chats and what in them is unread. */
-const BRAND =
-  "bg-brand-50 text-brand-800 dark:bg-brand-500/15 dark:text-brand-200";
-
-/** The star's amber. */
-const AMBER =
-  "bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-300";
-
-/** A quiet grey for what is set aside: what was put away, what was never sent, and the whole of it. */
-const GREY = "bg-foreground/6 text-foreground/80";
+/**
+ * The picker's face whatever it shows: bare on the card at rest, a soft
+ * grey under the pointer or while its list is up, the name in full ink then.
+ */
+const PICKER_TONE =
+  "text-foreground/80 hover:bg-foreground/5 hover:text-foreground data-[state=open]:bg-foreground/5 data-[state=open]:text-foreground";
 
 const ICON_WEIGHT = (isOn: boolean) => (isOn ? "fill" : "regular");
 
@@ -95,10 +86,10 @@ export function FilterHead(props: FilterProps) {
   return (
     <div
       aria-label="Filters"
-      // 8px in from the card's side and 12px down from its top, and 16px
-      // with the list's own 4px down to the first row: a heading over the
-      // rows, set apart from them as well as larger than their titles.
-      className="flex shrink-0 items-center gap-2 px-2 pt-3 pb-3"
+      // 8px in from the card's side, down from its top, and down to the
+      // first row or the topic's line, so the controls sit evenly in their
+      // band.
+      className="flex shrink-0 items-center gap-1.5 px-2 pt-2 pb-2"
       role="group"
     >
       <ViewPicker {...model} isCompact={isSearching} />
@@ -142,14 +133,18 @@ function PickerRow({
   return (
     <div
       className={cn(
-        "group/row flex h-10 shrink-0 items-center gap-1 rounded-xl pr-2",
-        isOn ? "bg-foreground/6" : "hover:bg-foreground/5",
+        "group/row flex h-9 shrink-0 items-center gap-1 rounded-lg pr-2",
+        // Focus is the hover's fill, inside the row's corners, rather than
+        // the browser's square ring around the button.
+        isOn
+          ? "bg-foreground/6"
+          : "hover:bg-foreground/5 has-focus-visible:bg-foreground/5",
       )}
     >
       <button
         aria-checked={isOn}
         className={cn(
-          "flex h-full min-w-0 flex-1 items-center gap-3 pl-2.5 text-left text-sm",
+          "flex h-full min-w-0 flex-1 items-center gap-3 pl-2.5 text-left text-sm outline-hidden",
           isOn ? "font-medium" : muted && "text-muted-foreground/70",
         )}
         onClick={onPick}
@@ -193,7 +188,9 @@ function Reveal({
 /** How many chats a view holds, at the end of its row. */
 function RowCount({ count }: { count: number | undefined }) {
   return count ? (
-    <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
+    <span className="text-xs text-muted-foreground/60 tabular-nums">
+      {count}
+    </span>
   ) : null;
 }
 
@@ -240,15 +237,12 @@ function useFilterModel({
     filters.topics.length === 0 &&
     filters.apps.length === 0;
   const chatsView: View = {
-    icon: (size, isOn) =>
-      isOn ? (
-        <ChatsCircleIcon className={size} weight="fill" />
-      ) : (
-        <ChatsOutlineIcon className={size} />
-      ),
+    // The rail's Chat, so the chats look the same wherever they are named.
+    icon: (size, isOn) => (
+      <PlaceIcon className={size} place="chat" weight={ICON_WEIGHT(isOn)} />
+    ),
     id: "chats",
     label: "Chats",
-    tone: BRAND,
   };
   const views: View[] = [
     chatsView,
@@ -259,7 +253,6 @@ function useFilterModel({
       ),
       id: "unread",
       label: "Unread",
-      tone: BRAND,
     },
     {
       count: countIn("starred"),
@@ -268,16 +261,16 @@ function useFilterModel({
       ),
       id: "starred",
       label: "Starred",
-      tone: AMBER,
     },
     ...(drafts > 0 || filters.place === "drafts"
       ? [
           {
             count: drafts,
-            icon: (size: string) => <CircleDashedIcon className={size} />,
+            icon: (size: string, isOn: boolean) => (
+              <CircleDashedIcon className={size} weight={ICON_WEIGHT(isOn)} />
+            ),
             id: "drafts",
             label: "Drafts",
-            tone: GREY,
           } satisfies View,
         ]
       : []),
@@ -287,16 +280,16 @@ function useFilterModel({
       ),
       id: "archived",
       label: "Archived",
-      tone: GREY,
     },
   ];
   // All is reached only by widening a search past the view it was typed in,
   // so it names itself on the picker but has no row of its own.
   const everything: View = {
-    icon: (size) => <CardsThreeIcon className={size} />,
+    icon: (size, isOn) => (
+      <CardsThreeIcon className={size} weight={ICON_WEIGHT(isOn)} />
+    ),
     id: "all",
     label: "All chats",
-    tone: GREY,
   };
   const chosenTopic = live.find((topic) => filters.topics.includes(topic.id));
   const current = isChats
@@ -378,24 +371,25 @@ function ViewPicker({
         <button
           aria-label={`View: ${label}`}
           className={cn(
-            "flex h-9 max-w-48 min-w-0 shrink-0 items-center rounded-full text-[15px] font-semibold transition-[padding] duration-200 ease-out motion-reduce:transition-none",
-            isCompact ? "px-2.5" : hasFace ? "pr-2.5 pl-3" : "pr-2.5 pl-3.5",
-            chosenTopic
-              ? "bg-(--topic-tint-surface) text-foreground topic-tint hover:bg-(--topic-tint-edge)"
-              : current.tone,
+            "flex h-9 max-w-48 min-w-0 shrink-0 items-center rounded-lg text-[15px] font-semibold transition-[padding] duration-200 ease-out motion-reduce:transition-none",
+            // Its face starts on the rows' own keyline, 16px in, and the
+            // hover's grey stands 8px off the card's side, as the search's
+            // field does at the other end.
+            "px-2",
+            PICKER_TONE,
           )}
           data-chosen
           data-compact={isCompact || undefined}
-          style={chosenTopic ? topicTint(topicColor(chosenTopic)) : undefined}
           title={isCompact ? label : undefined}
           type="button"
         >
           <Reveal isOpen={hasFace}>
-            <span className="grid size-4 place-items-center">
+            <span className="grid size-5 place-items-center">
               {chosenTopic ? (
                 <TopicFace size="chip" topic={chosenTopic} />
               ) : (
-                current.icon("size-4", true)
+                // Outlined: the button's tint already says the view is chosen.
+                current.icon("size-5", false)
               )}
             </span>
           </Reveal>
@@ -417,8 +411,23 @@ function ViewPicker({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="flex w-64 flex-col rounded-2xl p-1.5"
+        className="flex w-64 flex-col gap-0.5 p-1.5"
         maxHeight="30rem"
+        // Focus lands on the row the list stands in, as a menu of choices
+        // does, so the one lit row is the chosen one rather than the first.
+        onOpenAutoFocus={(event) => {
+          const chosen = event.currentTarget;
+          if (!(chosen instanceof HTMLElement)) {
+            return;
+          }
+          const row = chosen.querySelector<HTMLElement>(
+            '[aria-checked="true"]',
+          );
+          if (row) {
+            event.preventDefault();
+            row.focus();
+          }
+        }}
         role="menu"
         side="bottom"
         sideOffset={6}
@@ -444,10 +453,10 @@ function ViewPicker({
           </PickerRow>
         ))}
         {topics.length > 0 && (
-          <div className="mx-2 my-1 h-px shrink-0 bg-border" />
+          <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
         )}
         {/* The topics scroll between the views and the foot, which stay. */}
-        <MenuScrollArea className="p-0">
+        <MenuScrollArea className="flex flex-col gap-0.5 p-0">
           {topics.map((entry) => (
             <TopicContextMenu
               key={entry.topic.id}
@@ -482,7 +491,7 @@ function ViewPicker({
             </TopicContextMenu>
           ))}
         </MenuScrollArea>
-        <div className="mx-2 my-1 h-px shrink-0 bg-border" />
+        <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
         <PickerRow
           isOn={false}
           muted
@@ -490,9 +499,10 @@ function ViewPicker({
             pick(onNew);
           }}
         >
-          {/* The light weight: an outlined square is all stroke, and at the
-            regular weight it reads heavier than the marks over it. */}
-          <PlusSquareIcon className="size-6 shrink-0" weight="light" />
+          {/* In the views' own slot, at their size and weight. */}
+          <span className="grid size-6 shrink-0 place-items-center">
+            <PlusSquareIcon className="size-5" weight="regular" />
+          </span>
           <span>New topic</span>
         </PickerRow>
       </PopoverContent>

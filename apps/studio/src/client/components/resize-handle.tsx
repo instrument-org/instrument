@@ -179,11 +179,11 @@ export function ResizeHandle({
         "absolute inset-y-0 z-20 cursor-col-resize outline-hidden select-none",
         "after:absolute after:left-1/2 after:-translate-x-1/2 after:bg-transparent",
         variant === "hairline"
-          ? "w-2 after:inset-y-0 after:w-px hover:after:bg-muted-foreground/40 focus-visible:after:w-0.5 focus-visible:after:bg-ring active:after:bg-primary/50"
+          ? "w-2 after:inset-y-0 after:w-px hover:after:bg-muted-foreground/25 focus-visible:after:w-0.5 focus-visible:after:bg-ring active:after:bg-resize-held"
           : // The grip takes the focus mark: an outline would ring the whole
             // grab strip, which is the height of the pane and reads as a
             // border around it.
-            "w-3 after:top-1/2 after:h-10 after:w-1 after:-translate-y-1/2 after:rounded-full after:transition-colors after:duration-150 hover:after:bg-muted-foreground/40 focus-visible:after:bg-ring active:after:bg-primary/60",
+            "w-3 after:top-1/2 after:h-10 after:w-1 after:-translate-y-1/2 after:rounded-full after:transition-colors after:duration-150 hover:after:bg-muted-foreground/25 focus-visible:after:bg-ring active:after:bg-resize-held",
         className,
       )}
       onDoubleClick={onReset}

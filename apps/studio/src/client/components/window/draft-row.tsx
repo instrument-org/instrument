@@ -96,14 +96,13 @@ export function DraftRow({
             <p className="flex h-5 items-center gap-1.5">
               {pill}
               {title}
-              {time}
+              <RowActionBar actions={actions} resting={time} />
             </p>
             <p className="mt-0.5 flex items-center gap-2">
               {standing}
               <DraftMarks draft={draft} />
             </p>
           </div>
-          <RowActionBar actions={actions} />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

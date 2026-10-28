@@ -402,7 +402,7 @@ export function TabStrip({
               <ToolbarTooltip chord="newTab" label="New tab">
                 <ContextMenuTrigger asChild disabled={newMenu === undefined}>
                   <button
-                    className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
                     onClick={onNew}
                     type="button"
                   >

@@ -146,18 +146,20 @@ describe("DraftRow", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("deletes from the action at its edge, which is there only under the pointer and stops short of opening", async () => {
+  it("deletes from the action in the time's place, which is there only under the pointer and stops short of opening", async () => {
     const { onDelete, onOpen, row } = await renderRow(draft());
     const remove = actionOf(row, "Delete draft");
     await userEvent.unhover(row);
     expect(remove.getClientRects().length).toBe(0);
+    const time = timeOf(row).getBoundingClientRect();
     await userEvent.hover(gutterOf(row));
     await vi.waitFor(() => {
       expect(remove.getClientRects().length).toBeGreaterThan(0);
     });
-    const time = timeOf(row).getBoundingClientRect();
+    // In the time's place at the line's end, which steps aside for it.
+    expect(timeOf(row).getClientRects().length).toBe(0);
     const box = remove.getBoundingClientRect();
-    expect(box.left).toBeLessThan(time.right);
+    expect(box.right).toBeCloseTo(time.right, 0);
     expect(box.bottom).toBeGreaterThan(time.top);
     await userEvent.click(remove);
     expect(onDelete).toHaveBeenCalledOnce();

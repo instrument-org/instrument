@@ -81,7 +81,7 @@ export function WindowFrame({
             left at its right and foot. */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <div
-              className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[10px] bg-background shadow-xs [--guest-bottom-radius:10px]"
+              className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[10px] bg-background shadow-xs [--background:var(--pane)] [--guest-bottom-radius:10px]"
               ref={rowRef}
             >
               <div className="flex min-h-0 min-w-0 flex-1">

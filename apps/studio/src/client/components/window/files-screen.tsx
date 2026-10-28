@@ -701,7 +701,7 @@ export function FilesScreen({
             <div
               className={
                 isBesideSomething
-                  ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
+                  ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,10px)]"
                   : "h-full"
               }
               // After the file list: the page has the keyboard when the

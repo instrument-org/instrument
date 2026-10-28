@@ -42,7 +42,7 @@ import {
 } from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
-import { RowActionBar } from "./row-action-bar";
+import { ROW_CONTROL, RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -230,14 +230,17 @@ export function ChatRow({
   );
   // A starred chat's star, past its topic in the row's corner and a mark
   // rather than a control: starring and unstarring end the corner's bar,
-  // which stands over the same spot.
+  // which takes the same spot, in a box of a control's size so the star
+  // stays put as the bar comes and goes.
   const starMark = chat.starred && (
-    <StarIcon
-      aria-label="Starred"
-      className="size-3.5 shrink-0 text-warning-500"
-      role="img"
-      weight="fill"
-    />
+    <span className="-my-0.5 grid size-6 shrink-0 place-items-center">
+      <StarIcon
+        aria-label="Starred"
+        className="size-4 text-warning-500"
+        role="img"
+        weight="fill"
+      />
+    </span>
   );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
@@ -282,12 +285,21 @@ export function ChatRow({
             {/* The topic at the line's end in the row's corner. */}
             <div className="flex h-5 items-center gap-1.5">
               {title}
-              {/* Stepping aside for the corner's bar while the pointer is
-                  on the row. */}
-              <span className="ml-auto flex shrink-0 items-center gap-1 group-hover/row:invisible">
-                {pill}
-                {starMark}
-              </span>
+              {/* The pills step aside for the row's controls while the
+                  pointer is on it. */}
+              <RowActionBar
+                actions={actions}
+                isHeld={isPickerLeaving}
+                leading={tagControl}
+                resting={
+                  (pill || starMark) && (
+                    <>
+                      {pill}
+                      {starMark}
+                    </>
+                  )
+                }
+              />
             </div>
             {/* A line's room whatever the latest line takes, and when there
                 is none, so the row keeps one height as its chat starts work. */}
@@ -313,11 +325,6 @@ export function ChatRow({
               {time}
             </div>
           </div>
-          <RowActionBar
-            actions={actions}
-            isHeld={isPickerLeaving}
-            leading={tagControl}
-          />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent
@@ -421,11 +428,14 @@ export function TopicPill({
   // `leading-4` rather than none: the name's box has to hold its descenders,
   // or the clip that truncates it cuts them off.
   const className = cn(
-    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full pl-1 text-[11px] leading-4 topic-tint",
+    // The file chips' corners, so a row's labels read as one set.
+    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-md pl-1 text-[11px] leading-4 topic-tint",
     quiet
       ? "bg-(--topic-tint-surface)/40 font-medium text-(--topic-tint-ink)"
       : "bg-(--topic-tint-surface) text-foreground/90",
     compact === "narrow" ? "pr-1.5 @max-sm/chathead:pr-1" : "pr-1.5",
+    // A little more room in a list, where the label sits among the words.
+    quiet && "pr-2 pl-1.5",
   );
   const inside = (
     <>
@@ -447,6 +457,7 @@ export function TopicPill({
   return (
     <span
       className={className}
+      data-slot="topic-pill"
       style={topicTint(topicColor(topic))}
       title={compact ? topic.name : undefined}
     >
@@ -618,11 +629,11 @@ function TagControl({
       >
         <button
           aria-label="Topic"
-          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
+          className={ROW_CONTROL}
           title="Topic"
           type="button"
         >
-          <TagIcon className="size-3.5" />
+          <TagIcon />
         </button>
       </TopicPicker>
     </span>

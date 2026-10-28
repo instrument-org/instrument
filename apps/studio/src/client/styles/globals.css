@@ -145,6 +145,7 @@ body {
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-ground: var(--ground);
+  --color-resize-held: var(--resize-held);
   --color-setup-ground-top: var(--setup-ground-top);
   --color-setup-ground-bottom: var(--setup-ground-bottom);
   --color-setup-glow: var(--setup-glow);
@@ -336,7 +337,14 @@ body {
   --ring: var(--gray-400);
   --sidebar: var(--background);
   /* The window's own plane, under the rail and the bar, which the app's card stands inset on. */
-  --ground: var(--gray-200);
+  --ground: color-mix(in oklab, var(--gray-200) 25%, var(--gray-100));
+  /* The app's card under the inbox and the chat, a hair below the background,
+   * so a row in the card's own white stands out from the list. */
+  --pane: color-mix(in oklab, var(--gray-50) 35%, var(--gray-100));
+  /* A resize line while it is held, a light step of the brand's teal: every
+   * grey in the window reads as part of the layout rather than a thing in
+   * the hand. */
+  --resize-held: var(--brand-300);
   --sidebar-foreground: var(--gray-950);
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
@@ -510,7 +518,10 @@ body {
   --ring: rgb(255 255 255 / 30%);
   --brand-text: var(--brand-400);
   --sidebar: var(--gray-900);
-  --ground: #0f0d0c;
+  /* Halfway from near-black to the card, the softer step light mode takes. */
+  --ground: color-mix(in oklab, #0f0d0c 50%, var(--gray-900));
+  --pane: var(--background);
+  --resize-held: var(--brand-400);
   --sidebar-foreground: #ffffff;
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;

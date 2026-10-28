@@ -173,6 +173,7 @@ export function ChatPane({
     // still reaches under the line.
     <div
       className="relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px"
+      data-topic={chosenTopic ? "" : undefined}
       data-find-surface
     >
       {/* The head, and while the list is one topic, the topic's own line

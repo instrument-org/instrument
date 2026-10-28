@@ -51,7 +51,8 @@ export function rowClassName(isOpen: boolean) {
     // The hairline is see-through, so the open row's lighter fill would
     // show through its own and brighten it: the fill stops short of it.
     "bg-clip-padding",
-    isOpen ? "bg-card" : INBOX_ROW_TINT,
+    // See-through inside a topic's list, so the topic's wash shows in it.
+    isOpen ? "bg-card in-data-topic:bg-card/65" : INBOX_ROW_TINT,
   );
 }
 

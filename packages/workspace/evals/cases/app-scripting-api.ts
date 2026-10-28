@@ -518,13 +518,13 @@ const madeThreeDocs: Assertion = {
   text: "made a doc for each of pricing, onboarding and hiring",
 };
 
+/** Whether a doc holds the summary paragraph the errand asks for. */
+const summarized = (doc: StoredDoc) => doc.text.trim().length >= 40;
+
 const editedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "wrote a summary paragraph into each doc";
-    const empty = topicsFailing(
-      sessions,
-      (doc) => doc.text.trim().length >= 40,
-    );
+    const empty = topicsFailing(sessions, summarized);
     return {
       evidence:
         empty.length === 0
@@ -610,7 +610,7 @@ const draftedTheEmail: Assertion = {
       (draft) =>
         /^to:.*aiko@example\.com/im.test(draft.raw) &&
         topics.every(({ docs }) =>
-          docs.some((doc) => draft.raw.includes(doc.id)),
+          docs.some((doc) => summarized(doc) && draft.raw.includes(doc.id)),
         ),
     );
     return {

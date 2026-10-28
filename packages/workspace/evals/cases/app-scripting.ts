@@ -140,7 +140,7 @@ const mechanism: Assertion = {
 const noScript: Assertion = {
   check: ({ sessions }) => {
     const scripted = toolInputs(sessions).filter(
-      (input) => SCRIPT_CALL.test(input) || /\bnode\b/.test(input),
+      (input) => SCRIPT_CALL.test(input) || /\b(?:node|python3?)\b/.test(input),
     );
     return {
       evidence:

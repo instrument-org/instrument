@@ -18,7 +18,37 @@ export async function writeRuntimeFile(
     return;
   }
   await fs.mkdir(path.dirname(file), { recursive: true });
+  await replaceFile(file, content, mode);
+}
+
+/**
+ * Writes a file into a folder the agent can change, such as a chat's
+ * virtualenv, whenever what is there differs: made new beside it and
+ * renamed over it, which replaces a link at the name rather than writing
+ * through it to the file the link names.
+ */
+export async function replaceFileIn(
+  file: string,
+  content: string,
+): Promise<void> {
+  const current = await fs.readFile(file, "utf8").catch(() => undefined);
+  if (current !== content) {
+    await replaceFile(file, content);
+  }
+}
+
+async function replaceFile(
+  file: string,
+  content: string,
+  mode?: number,
+): Promise<void> {
   const temporary = `${file}.${randomUUID()}.tmp`;
-  await fs.writeFile(temporary, content, mode === undefined ? {} : { mode });
-  await fs.rename(temporary, file);
+  await fs.writeFile(temporary, content, {
+    flag: "wx",
+    ...(mode === undefined ? {} : { mode }),
+  });
+  await fs.rename(temporary, file).catch(async (error: unknown) => {
+    await fs.rm(temporary, { force: true });
+    throw error;
+  });
 }

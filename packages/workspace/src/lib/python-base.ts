@@ -21,6 +21,7 @@ import { runtimeLayout } from "./runtime-dir";
 import { ensureManagedPython } from "./run-uv";
 import { RELEASE_AGE_DAYS, uvToolsEnvFor } from "./tool-isolation-env";
 import { getUvBinPath, MANAGED_PYTHON_VERSION, venvSitePackages } from "./uv";
+import { replaceFileIn } from "./capabilities/runtime-file";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -594,9 +595,5 @@ export async function linkPythonBase(venv: AbsolutePath): Promise<void> {
     return;
   }
   const pth = path.join(venvSitePackages(venv), PTH_FILE);
-  const line = `${base}\n`;
-  const current = await fs.readFile(pth, "utf8").catch(() => undefined);
-  if (current !== line) {
-    await fs.writeFile(pth, line).catch(() => undefined);
-  }
+  await replaceFileIn(pth, `${base}\n`).catch(() => undefined);
 }

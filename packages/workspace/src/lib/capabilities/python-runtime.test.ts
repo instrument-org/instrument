@@ -1,5 +1,15 @@
 import { execa } from "execa";
 import { spawnSync } from "node:child_process";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -8,7 +18,9 @@ import {
   openScriptChannel,
   type ScriptChannel,
 } from "./channel";
-import { ensurePythonRuntime } from "./python-runtime";
+import { AbsolutePathSchema } from "../../schemas/paths";
+import { venvSitePackages } from "../uv";
+import { ensurePythonRuntime, linkPythonRuntime } from "./python-runtime";
 
 /**
  * A Python to run the module with: uv's own, where uv is on this computer.
@@ -200,5 +212,26 @@ print(done == list(range(40)))`,
     expect(result.stderr).toContain(
       "instrument.Error: instrument reaches Instrument only from a script the shell's python runs.",
     );
+  });
+});
+
+// The app writes into a virtualenv the agent can change, outside the
+// sandbox, so a link the agent leaves at the name must not aim that write.
+describe.skipIf(process.platform === "win32")("linkPythonRuntime", () => {
+  it("replaces a link at the .pth rather than writing through it", async () => {
+    const venv = AbsolutePathSchema.parse(
+      await mkdtemp(path.join(os.tmpdir(), "link-python-runtime-")),
+    );
+    const sitePackages = venvSitePackages(venv);
+    await mkdir(sitePackages, { recursive: true });
+    const target = path.join(venv, "someone-elses-file");
+    await writeFile(target, "theirs\n");
+    const pth = path.join(sitePackages, "_instrument.pth");
+    await symlink(target, pth);
+    await linkPythonRuntime(venv);
+    expect(await readFile(target, "utf8")).toBe("theirs\n");
+    expect((await lstat(pth)).isSymbolicLink()).toBe(false);
+    expect(await readFile(pth, "utf8")).toMatch(/\nimport _instrument_boot\n$/);
+    await rm(venv, { force: true, recursive: true });
   });
 });

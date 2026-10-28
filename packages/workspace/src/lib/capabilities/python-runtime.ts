@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -6,7 +5,7 @@ import { runtimeLayout } from "../runtime-dir";
 import { venvSitePackages } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { SCRIPT_CHANNEL_ENV } from "./channel";
-import { writeRuntimeFile } from "./runtime-file";
+import { replaceFileIn, writeRuntimeFile } from "./runtime-file";
 
 const BOOT_MODULE = "_instrument_boot";
 
@@ -390,9 +389,7 @@ const PTH_FILE = "_instrument.pth";
 export async function linkPythonRuntime(venv: AbsolutePath): Promise<void> {
   const { modules } = await ensurePythonRuntime();
   const pth = path.join(venvSitePackages(venv), PTH_FILE);
-  const lines = `${modules}\nimport ${BOOT_MODULE}\n`;
-  const current = await fs.readFile(pth, "utf8").catch(() => undefined);
-  if (current !== lines) {
-    await fs.writeFile(pth, lines).catch(() => undefined);
-  }
+  await replaceFileIn(pth, `${modules}\nimport ${BOOT_MODULE}\n`).catch(
+    () => undefined,
+  );
 }

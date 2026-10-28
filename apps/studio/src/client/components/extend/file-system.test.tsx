@@ -193,6 +193,29 @@ describe("FileSystem", () => {
     expect(names()).toContain(".env");
   });
 
+  // A caller moving the folder (a path typed into the omnibar) hands the
+  // browser on screen a hidden folder; it lists what that folder has.
+  it.each(["table", "columns"] as const)(
+    "lists a hidden folder handed to it in the %s",
+    (view) => {
+      const items = [
+        { kind: "folder", path: ".ssh/" },
+        { kind: "file", path: ".ssh/id_ed25519" },
+        { kind: "file", path: ".ssh/.cache" },
+        { kind: "file", path: "notes.md" },
+      ] satisfies FileSystemItem[];
+      const { rerender } = renderWithProviders(
+        <FileSystem items={items} path="" view={view} />,
+      );
+      rerender(<FileSystem items={items} path=".ssh/" view={view} />);
+      const names = [
+        ...document.querySelectorAll("[data-file-system-name]"),
+      ].map((name) => name.textContent);
+      expect(names).toContain("id_ed25519");
+      expect(names).not.toContain(".cache");
+    },
+  );
+
   it("offers the order files were opened in for a list of them, the recents", () => {
     renderWithProviders(
       <FileSystem

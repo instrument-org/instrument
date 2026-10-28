@@ -1947,14 +1947,20 @@ export function FileSystem({
   // Hidden files leave before the index rather than at the point of drawing a
   // row, so one answer covers all four views, search, the selection and the
   // arrow keys. A file the browser is not showing is one it does not know,
-  // except inside the folder it was taken to.
-  const rootPrefix = columnsFrom;
+  // except the folder it stands in, the folders on the way down to it, and
+  // what is inside it and inside the first column: a hidden folder walked or
+  // typed into lists what it has.
   const shownItems = React.useMemo(
     () =>
       showHiddenFiles
         ? allItems
-        : allItems.filter((item) => !isHiddenPath(item.path, rootPrefix)),
-    [allItems, rootPrefix, showHiddenFiles],
+        : allItems.filter(
+            (item) =>
+              (item.path.endsWith("/") && standingIn.startsWith(item.path)) ||
+              !isHiddenPath(item.path, columnsFrom) ||
+              !isHiddenPath(item.path, standingIn),
+          ),
+    [allItems, columnsFrom, showHiddenFiles, standingIn],
   );
   const index = React.useMemo(
     () => buildFileSystemIndex(shownItems),

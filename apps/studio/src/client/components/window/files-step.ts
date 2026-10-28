@@ -97,6 +97,11 @@ export type FilesIntent =
    * whether more are held beside it.
    */
   | { path: null | string; several?: boolean; type: "select" }
+  /**
+   * Something renamed where it sits: the selection follows it to its new
+   * name if it is still on it, and stays wherever a press moved it if not.
+   */
+  | { from: string; to: string; type: "rename" }
   | { query: string; type: "search" }
   | { type: "setLayout"; view: FileSystemView }
   /**
@@ -164,6 +169,29 @@ export function nextStep(
     : { step: next, write };
 }
 
+/**
+ * A step with `select` selected in it. In the columns the step stands where
+ * the selection opens (`columnsFolderOf`); with nothing selected it stands
+ * where it was, unless what it stood in was the selection, which leaves it
+ * in the folder that listed that.
+ */
+function selecting(
+  step: SettledStep,
+  select: string | undefined,
+  several = false,
+): SettledStep {
+  if (step.view !== "columns") {
+    return { ...step, select };
+  }
+  const path =
+    select !== undefined
+      ? columnsFolderOf(select, several)
+      : step.select === step.path && step.path !== ""
+        ? parentPrefix(step.path)
+        : step.path;
+  return { ...step, path, select };
+}
+
 function applied(
   step: SettledStep,
   intent: FilesIntent,
@@ -195,16 +223,20 @@ function applied(
         "push",
       ];
     case "select": {
-      const select = intent.path ?? undefined;
-      const path =
-        inColumns && select !== undefined
-          ? columnsFolderOf(select, intent.several)
-          : step.path;
+      // Selecting somewhere else in the columns is standing there, a step
+      // of its own; letting go of the selection, a trash or a press on
+      // nothing, only changes the step on screen.
+      const next = selecting(step, intent.path ?? undefined, intent.several);
       return [
-        { ...step, path, select },
-        path === step.path ? "replace" : "push",
+        next,
+        next.path !== step.path && intent.path !== null ? "push" : "replace",
       ];
     }
+    case "rename":
+      return [
+        step.select === intent.from ? selecting(step, intent.to) : step,
+        "replace",
+      ];
     case "search":
       return [{ ...step, query: intent.query || undefined }, "replace"];
     case "setLayout": {
@@ -230,9 +262,8 @@ function applied(
     case "openFile":
       return [
         {
-          ...step,
+          ...selecting(step, intent.select),
           file: intent.file,
-          select: intent.select,
           source: undefined,
           tree: intent.tree ?? step.tree,
         },
@@ -241,9 +272,8 @@ function applied(
     case "followFile":
       return [
         {
-          ...step,
+          ...selecting(step, intent.select),
           file: intent.file,
-          select: intent.select,
           source: undefined,
         },
         "replace",
@@ -291,12 +321,15 @@ export function sentStep(shown: ShownStep, step: SettledStep): ShownStep {
  * moving on its own, which the tab follows, letting go of what it wrote.
  */
 export function routedStep(shown: ShownStep, routed: SettledStep): ShownStep {
-  if (isSameStep(shown.routed, routed)) {
-    return shown;
-  }
-  const echo = shown.sent.findIndex((sent) => isSameStep(sent, routed));
+  // Read back through the latest write it matches, even when the router
+  // folded several writes into no change at all, so a write already read
+  // back is never taken for an echo of a later arrival.
+  const echo = shown.sent.findLastIndex((sent) => isSameStep(sent, routed));
   if (echo !== -1) {
     return { ...shown, routed, sent: shown.sent.slice(echo + 1) };
+  }
+  if (isSameStep(shown.routed, routed)) {
+    return shown;
   }
   return {
     arrivals: shown.arrivals + 1,

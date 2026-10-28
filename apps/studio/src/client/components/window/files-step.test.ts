@@ -94,6 +94,46 @@ const EVENTS: [string, SettledStep, FilesIntent][] = [
     BESIDE,
     { path: "", root: "/Users/sam", select: "Documents/", type: "walk" },
   ],
+  [
+    "the folder the columns stand in deselected (trashed)",
+    { ...COLUMNS, select: "Documents/" },
+    { path: null, type: "select" },
+  ],
+  [
+    "a file deselected in the columns",
+    { ...COLUMNS, select: "Documents/report.pdf" },
+    { path: null, type: "select" },
+  ],
+  [
+    "a folder renamed while selected in the columns",
+    { ...COLUMNS, select: "Documents/" },
+    { from: "Documents/", to: "Papers/", type: "rename" },
+  ],
+  [
+    "something renamed after a press selected another",
+    DOCS,
+    { from: "Documents/old.pdf", to: "Documents/new.pdf", type: "rename" },
+  ],
+  [
+    "a link followed from a file open beside the columns",
+    {
+      ...COLUMNS,
+      file: "/Users/sam/a/x.md",
+      select: "a/x.md",
+      tree: "/Users/sam/a",
+    },
+    { file: "/Users/sam/b/c/d.md", select: "b/c/d.md", type: "openFile" },
+  ],
+  [
+    "another file picked beside the columns",
+    {
+      ...COLUMNS,
+      file: "/Users/sam/a/x.md",
+      select: "a/x.md",
+      tree: "/Users/sam/a",
+    },
+    { file: "/Users/sam/b/y.md", select: "b/y.md", type: "followFile" },
+  ],
   ["select", DOCS, { path: "Documents/notes.md", type: "select" }],
   ["select nothing", DOCS, { path: null, type: "select" }],
   [
@@ -157,6 +197,12 @@ describe("the step a change leads to", () => {
         "the columns left from the folder they stood in: replace path=Documents/ root=~ view=icons",
         "the columns left from a file: replace path=Documents/ query=report root=~ select=Documents/report.pdf view=icons",
         "up past the root: push file=/Users/sam/Documents/report.pdf path= root=/Users/sam select=Documents/ tree=/Users/sam/Documents view=table",
+        "the folder the columns stand in deselected (trashed): replace path= query=report root=~ view=columns",
+        "a file deselected in the columns: replace path=Documents/ query=report root=~ view=columns",
+        "a folder renamed while selected in the columns: replace path=Papers/ query=report root=~ select=Papers/ view=columns",
+        "something renamed after a press selected another: none path=Documents/ query=report root=~ select=Documents/report.pdf view=icons",
+        "a link followed from a file open beside the columns: push file=/Users/sam/b/c/d.md path=b/c/ query=report root=~ select=b/c/d.md tree=/Users/sam/a view=columns",
+        "another file picked beside the columns: replace file=/Users/sam/b/y.md path=b/ query=report root=~ select=b/y.md tree=/Users/sam/a view=columns",
         "select: replace path=Documents/ query=report root=~ select=Documents/notes.md view=icons",
         "select nothing: replace path=Documents/ query=report root=~ view=icons",
         "select what is selected: none path=Documents/ query=report root=~ select=Documents/report.pdf view=icons",
@@ -301,4 +347,20 @@ describe("what the tab shows against its address", () => {
       ]
     `);
   });
+});
+
+it("reads back writes the router folded into no change, so a later arrival is not taken for one", () => {
+  const selected = nextStep(DOCS, {
+    path: "Documents/x.txt",
+    type: "select",
+  }).step;
+  // Selected, deselected and selected again, all in one transition.
+  let shown = sentStep(shownStepOf(DOCS), selected);
+  shown = sentStep(shown, DOCS);
+  shown = sentStep(shown, selected);
+  shown = routedStep(shown, selected);
+  expect(shown.sent).toEqual([]);
+  // Then something outside opens the folder as it was before.
+  shown = routedStep(shown, DOCS);
+  expect([shown.arrivals, shown.step.select]).toEqual([1, DOCS.select]);
 });

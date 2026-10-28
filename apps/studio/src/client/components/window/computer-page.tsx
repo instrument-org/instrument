@@ -731,10 +731,9 @@ export function ComputerPage({
     }
     // The thing renamed stays selected under its new name, so the column it
     // sits in stays open rather than closing under a selection that has gone;
-    // a press elsewhere that put the name field away chose something else.
-    if (selectedPath === item.path) {
-      setSelectedPath(siblingPath(item.path, name));
-    }
+    // a press elsewhere that put the name field away chose something else,
+    // which the step has by the time the rename is written.
+    go({ from: item.path, to: siblingPath(item.path, name), type: "rename" });
     reread();
   };
   const duplicate = async (picked: FileSystemItem[]) => {

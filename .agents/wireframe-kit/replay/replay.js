@@ -62,17 +62,22 @@ const LIVE_CSS = `
 .shimmer-sweep::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 30%, var(--shimmer-glint) 50%, transparent 70%); animation: shimmer-sweep 3s steps(45) infinite; animation-delay: var(--shimmer-delay, 0s); }
 @media (prefers-reduced-motion: reduce) { .shimmer-sweep { display: none; } }`;
 
-const liveWorking = (text) => {
+const liveWorking = (text, { open = null } = {}) => {
   const now = typeof performance === "undefined" ? 0 : performance.now();
   const label = esc(text);
+  const caret = open === null ? "" : `<i class="ph ph-caret-${open ? "down" : "right"} shrink-0 text-[11px] text-muted-foreground"></i>`;
   return `<div class="flex h-7 w-fit max-w-full items-center gap-2" style="--live-delay:-${Math.round(now % 1500)}ms">
     <span class="relative isolate inline-grid size-5 shrink-0 place-items-center overflow-visible">
       <span aria-hidden class="planning-dot-shockwave-ring col-start-1 row-start-1 size-2.5 rounded-full border-2 border-brand-400/55"></span>
       <svg class="planning-dot-core relative z-10 col-start-1 row-start-1 size-2.5" fill="none" viewBox="0 0 12 12"><circle cx="6" cy="6" r="6" fill="url(#live-dot)" /><defs><radialGradient id="live-dot" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(6) rotate(90) scale(12)"><stop stop-color="var(--color-brand-600)" /><stop offset="1" stop-color="var(--color-brand-400)" /></radialGradient></defs></svg>
     </span>
-    <span class="brand-shiny-text truncate text-sm">${label}<span aria-hidden class="shimmer-sweep" data-text="${label.replace(/"/g, "&quot;")}" style="--shimmer-delay:-${Math.round(now % 3000)}ms"></span></span>
+    <span class="brand-shiny-text truncate text-sm">${label}<span aria-hidden class="shimmer-sweep" data-text="${label.replace(/"/g, "&quot;")}" style="--shimmer-delay:-${Math.round(now % 3000)}ms"></span></span>${caret}
   </div>`;
 };
+
+/** A step's icon: what kind of work it was. */
+const stepIcon = (s) =>
+  s.ask ? "hand" : s.startsTask ? "arrow-bend-down-right" : s.uses ? "browser" : s.tool === "web_search" ? "magnifying-glass" : s.tool === "web_fetch" ? "globe" : "terminal-window";
 
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const took = (s) => (s < 60 ? `${Math.max(1, Math.round(s))}s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)}s`);
@@ -205,10 +210,19 @@ const replayView = (T) => {
     if (!run.length) return;
     const live = isLast && busy;
     const asking = run.find((s) => s.ask && s.t <= T && s.end > T);
-    if (live && !asking) out.push(liveWorking(run.at(-1).label));
-    else if (!live || asking) {
-      const steps = run.map((s) => [s.ask ? "hand" : s.startsTask ? "arrow-bend-down-right" : "terminal-window", esc(s.label), took(s.end - s.t)]);
-      const key = String(run[0].t);
+    const key = String(run[0].t);
+    if (live && !asking) {
+      // The line under way opens too, onto what it's done so far and what's still running.
+      const open = OPEN.has(key);
+      const rows = run.map(
+        (s) =>
+          `<div class="flex min-h-7 items-center gap-2 text-[13px] text-muted-foreground">${s.end <= T ? `<i class="ph ph-${stepIcon(s)} shrink-0 text-[13px]"></i>` : `<i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>`}<span class="min-w-0 flex-1 truncate">${esc(s.label)}</span><span class="shrink-0 text-[12px] text-muted-foreground/70">${s.end <= T ? took(s.end - s.t) : "running"}</span></div>`,
+      );
+      out.push(
+        `<div class="flex flex-col"><div data-fold="${key}" class="w-fit cursor-pointer">${liveWorking(run.at(-1).label, { open })}</div>${open ? `<div class="mt-1 ml-[9px] flex flex-col gap-0.5 border-l border-border pl-4">${rows.join("")}</div>` : ""}</div>`,
+      );
+    } else {
+      const steps = run.map((s) => [stepIcon(s), esc(s.label), took(s.end - s.t)]);
       out.push(`<div data-fold="${key}" class="w-fit cursor-pointer">${workedLine(run.length === 1 ? esc(run[0].label) : `${esc(run[0].label)} and ${run.length - 1} more`, { steps, open: OPEN.has(key) })}</div>`);
     }
     if (asking) out.push(askCard(asking.ask));
@@ -340,7 +354,10 @@ if (typeof document !== "undefined") {
       play();
     }
   });
-  document.addEventListener("click", (e) => {
+  // The screen answers the press rather than the click: while it plays it's drawn again every tenth of a second, and a
+  // click whose press and release straddle a redraw lands on an element that's gone, so it would take several tries.
+  document.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
     const fold = e.target.closest?.("[data-fold]");
     if (fold) {
       const key = fold.dataset.fold;
@@ -364,6 +381,8 @@ if (typeof document !== "undefined") {
       VIEW.tab = tab.dataset.tab;
       return show(T);
     }
+  });
+  document.addEventListener("click", (e) => {
     if (e.target.closest?.("[data-replay-play]")) return play();
     const speedBtn = e.target.closest?.("[data-replay-speed]");
     if (speedBtn) {

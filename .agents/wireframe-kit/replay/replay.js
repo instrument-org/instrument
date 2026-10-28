@@ -75,6 +75,13 @@ const liveWorking = (text, { open = null } = {}) => {
   </div>`;
 };
 
+/**
+ * A step's label on a line that sums it up, where it sits and changes as you watch: the live working line, the folded
+ * line, the chat's row and a task card. That's the activity, which calls running together share, so the line holds
+ * still while they run. The list a line opens onto names each call by its own explanation (`label`).
+ */
+const summaryOf = (s) => s.activity || s.label;
+
 /** A step's icon: what kind of work it was. */
 const stepIcon = (s) =>
   s.ask ? "hand" : s.startsTask ? "arrow-bend-down-right" : s.uses ? "browser" : s.tool === "web_search" ? "magnifying-glass" : s.tool === "web_fetch" ? "globe" : "terminal-window";
@@ -87,7 +94,7 @@ const firstSentence = (s) => (s.replace(/```[\s\S]*?```/g, "").replace(/`/g, "")
 const replayTaskCard = (task, T) => {
   const done = T >= task.doneAt;
   const now = task.steps.filter((s) => s.t <= T).at(-1);
-  const text = done ? (task.files.length ? `Made ${task.files.map(baseName).join(" and ")}` : firstSentence(task.summary)) : now ? now.label : "Starting";
+  const text = done ? (task.files.length ? `Made ${task.files.map(baseName).join(" and ")}` : firstSentence(task.summary)) : now ? summaryOf(now) : "Starting";
   const time = done ? took(task.doneAt - task.start) : took(Math.max(0, T - task.start));
   const tone = done ? "done" : "run";
   const file = done && task.files[0];
@@ -219,18 +226,18 @@ const replayView = (T) => {
           `<div class="flex min-h-7 items-center gap-2 text-[13px] text-muted-foreground">${s.end <= T ? `<i class="ph ph-${stepIcon(s)} shrink-0 text-[13px]"></i>` : `<i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>`}<span class="min-w-0 flex-1 truncate">${esc(s.label)}</span><span class="shrink-0 text-[12px] text-muted-foreground/70">${s.end <= T ? took(s.end - s.t) : "running"}</span></div>`,
       );
       out.push(
-        `<div class="flex flex-col"><div data-fold="${key}" class="w-fit cursor-pointer">${liveWorking(run.at(-1).label, { open })}</div>${open ? `<div class="mt-1 ml-[9px] flex flex-col gap-0.5 border-l border-border pl-4">${rows.join("")}</div>` : ""}</div>`,
+        `<div class="flex flex-col"><div data-fold="${key}" class="w-fit cursor-pointer">${liveWorking(summaryOf(run.at(-1)), { open })}</div>${open ? `<div class="mt-1 ml-[9px] flex flex-col gap-0.5 border-l border-border pl-4">${rows.join("")}</div>` : ""}</div>`,
       );
     } else {
       const steps = run.map((s) => [stepIcon(s), esc(s.label), took(s.end - s.t)]);
-      out.push(`<div data-fold="${key}" class="w-fit cursor-pointer">${workedLine(run.length === 1 ? esc(run[0].label) : `${esc(run[0].label)} and ${run.length - 1} more`, { steps, open: OPEN.has(key) })}</div>`);
+      out.push(`<div data-fold="${key}" class="w-fit cursor-pointer">${workedLine(run.length === 1 ? esc(summaryOf(run[0])) : `${esc(summaryOf(run[0]))} and ${run.length - 1} more`, { steps, open: OPEN.has(key) })}</div>`);
     }
     if (asking) out.push(askCard(asking.ask));
     for (const s of run.filter((x) => x.task)) {
       const task = TL.tasks.find((k) => k.id === s.task);
       if (task) out.push(replayTaskCard(task, T));
     }
-    label = run.at(-1).label;
+    label = summaryOf(run.at(-1));
     run = [];
   };
   items.forEach((it, i) => {

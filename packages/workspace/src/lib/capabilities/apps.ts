@@ -15,10 +15,24 @@ import {
   macosRefusalCard,
   withReadableFiles,
 } from "../apps/mac-app";
+import { macosRefusalIn } from "../mac-apps/refusal";
 import { macosAppCard } from "../permissions/macos";
 import { redactorFor, requireAppCredential } from "../apps/credential-origin";
-import { appGuideHandedOver } from "../apps/guide-hand-off";
-import { callMcpTool, clientRefused, listMcpTools } from "../apps/mcp/client";
+import {
+  anyAppGuideHandedOver,
+  appGuideHandedOver,
+  recordAppGuideHandOff,
+} from "../apps/guide-hand-off";
+import {
+  callMcpTool,
+  clientRefused,
+  listMcpResources,
+  listMcpTools,
+  mcpArgumentProblem,
+  type McpServerGuidance,
+  readMcpResource,
+} from "../apps/mcp/client";
+import { noteServerGuidance, notedServerGuidance } from "../apps/mcp/guidance";
 import { withAppMcpClient } from "../apps/mcp/run";
 import { SignInAgainError } from "../apps/mcp/tool-auth";
 import { performSignedInRequest } from "../apps/api-oauth";
@@ -26,6 +40,10 @@ import { performAppRequest, redactCredential } from "../apps/request";
 import { type AppInfo, listApps, loadApp, readAppGuide } from "../apps/store";
 import { webInsteadUrl } from "../apps/site";
 import { webInsteadCommand } from "../apps/web-instead";
+import { folderFingerprint } from "../folder-fingerprint";
+import { INSTRUCTIONS_MAX } from "../instructions-in-context";
+import { baselineRecorded } from "../last-told";
+import { ChatReads } from "../chat-reads";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "../shell-commands/app-command";
@@ -146,9 +164,126 @@ async function gatedApp(slug: string, kind: "api" | "mcp"): Promise<AppInfo> {
   return app;
 }
 
-/** What follows a tool's refusal, wherever it is reported. */
-function refusalHint(slug: string, tool: string): string {
-  return `The tool refused the call. If the arguments were the problem, \`${APP_COMMAND.name} tool ${slug} ${tool}\` shows the JSON it takes.`;
+/**
+ * What follows a tool's refusal, wherever it is reported: where the arguments
+ * do not fit the tool's schema, what does not fit and the schema itself, so
+ * the next call can be right without a lookup between.
+ */
+function refusalHint({
+  argumentProblem,
+  redact,
+  slug,
+  tool,
+}: {
+  argumentProblem: { problem: string; schema: unknown } | undefined;
+  redact: (text: string) => string;
+  slug: string;
+  tool: string;
+}): string {
+  return argumentProblem
+    ? `The arguments do not fit what ${tool} takes (${redact(argumentProblem.problem)}). It takes:\n${redact(JSON.stringify(argumentProblem.schema, null, 2))}`
+    : `The tool refused the call. If the arguments were the problem, \`${APP_COMMAND.name} tool ${slug} ${tool}\` shows the JSON it takes.`;
+}
+
+/** How much of a server's instructions an app's guide carries before they are cut. */
+const SERVER_INSTRUCTIONS_LIMIT = 8000;
+
+/**
+ * An MCP app's guide as the model is handed it: the body of its `APP.md`,
+ * then what its server says about itself (its instructions, and that it
+ * offers documents), so the guide is what the server says today and a
+ * change to it hands the guide over again. Nothing where neither has words.
+ */
+function mcpGuide({
+  app,
+  guidance,
+  guide,
+}: {
+  app: AppInfo;
+  guidance: McpServerGuidance;
+  guide: null | string;
+}): string | undefined {
+  const parts = guide?.trim() ? [guide.trim()] : [];
+  if (guidance.instructions !== undefined) {
+    const { instructions } = guidance;
+    const shown =
+      instructions.length > SERVER_INSTRUCTIONS_LIMIT
+        ? `${instructions.slice(0, SERVER_INSTRUCTIONS_LIMIT)}\n[cut at ${SERVER_INSTRUCTIONS_LIMIT} characters]`
+        : instructions;
+    parts.push(
+      `What the ${app.name} server says about using it:\n<server_instructions>\n${shown}\n</server_instructions>`,
+    );
+  }
+  if (guidance.resources) {
+    parts.push(
+      `The server also offers documents: \`${APP_COMMAND.name} resources ${app.slug}\` lists them, \`${APP_COMMAND.name} read ${app.slug} <uri>\` reads one.`,
+    );
+  }
+  return parts.length > 0 ? parts.join("\n\n") : undefined;
+}
+
+/**
+ * What an MCP app's server says about itself: as the last connection noted
+ * it, else from a connection made for it. Nothing where it cannot be
+ * reached, which the call itself then reports.
+ */
+async function serverGuidance(
+  app: AppInfo,
+  ctx: CapabilityContext,
+): Promise<McpServerGuidance | undefined> {
+  const { manifest } = app;
+  if (!isMcpManifest(manifest)) {
+    return undefined;
+  }
+  const noted = notedServerGuidance(app.slug, app.manifestHash);
+  if (noted) {
+    return noted;
+  }
+  try {
+    const credential = await requireAppCredential(app.slug, manifest);
+    const result = await withAppMcpClient({
+      credential,
+      manifest,
+      manifestHash: app.manifestHash,
+      run: (client) =>
+        Promise.resolve(noteServerGuidance(app.slug, app.manifestHash, client)),
+      signal: withTimeout(ctx.signal, REQUEST_TIMEOUT_MS),
+      slug: app.slug,
+    });
+    return result.isOk() ? result.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An MCP app's guide before its first call: where the model has none of
+ * this app's guides yet, the call is not made and the guide comes back.
+ * Any version handed over will do here, since the listing hands over a
+ * changed one and a server whose words change on every connection must not
+ * stop every call.
+ */
+async function mcpGuideGate(
+  app: AppInfo,
+  ctx: CapabilityContext,
+): Promise<Gate> {
+  const messages = await ctx.modelWindow();
+  if (messages !== undefined && anyAppGuideHandedOver(messages, app.slug)) {
+    return { kind: "allowed" };
+  }
+  const guidance = await serverGuidance(app, ctx);
+  if (guidance === undefined) {
+    return { kind: "allowed" };
+  }
+  const guide = mcpGuide({
+    app,
+    guidance,
+    guide: await readAppGuide(app.dir),
+  });
+  if (guide === undefined || (await guideInWindow(app, guide, ctx))) {
+    return { kind: "allowed" };
+  }
+  return { guides: [{ app: app.slug, guide }], kind: "read-first" };
 }
 
 /** Every string in a JSON value, keys included, run through `redact`. */
@@ -207,7 +342,7 @@ async function callGate(slug: string, ctx: CapabilityContext): Promise<Gate> {
   }
   const macApp = bundledMacApp(app.manifest);
   const card = macApp ? await macosAppCard(ctx.asker, macApp) : undefined;
-  return card ? { ...card, kind: "card" } : { kind: "allowed" };
+  return card ? { ...card, kind: "card" } : mcpGuideGate(app, ctx);
 }
 
 export const appsCall = defineCapability({
@@ -259,11 +394,30 @@ export const appsCall = defineCapability({
       credential,
       manifest,
       manifestHash: app.manifestHash,
-      run: (client) => callMcpTool(client, { args: sent, name: tool, signal }),
+      run: async (client) => {
+        noteServerGuidance(app.slug, app.manifestHash, client);
+        const called = await callMcpTool(client, {
+          args: sent,
+          name: tool,
+          signal,
+        });
+        // macOS saying no has nothing to do with the arguments, and its card
+        // is up already: no listing to check them against.
+        const argumentProblem =
+          called.isError && macosRefusalIn(called.meta) === undefined
+            ? await mcpArgumentProblem(client, { args: sent, name: tool })
+            : undefined;
+        return { ...called, argumentProblem };
+      },
       signal,
       slug: app.slug,
     });
     if (result.isErr()) {
+      // The app, the tool and the kind of failure, never what the server
+      // said: the log travels with feedback reports.
+      console.warn(
+        `App call failed: ${app.slug} ${tool} (${result.error.reason})`,
+      );
       const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, manifest))}\`, then connect_app`;
       const next: Partial<Record<typeof result.error.reason, string>> = {
         forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.`,
@@ -282,18 +436,22 @@ export const appsCall = defineCapability({
             : (next[result.error.reason] ?? "");
       throw new CapabilityFailure(`${redact(result.error.message)}${hint}`);
     }
-    const { isError, meta, structured, text } = result.value;
+    const { argumentProblem, isError, meta, structured, text } = result.value;
     // macOS's refusal, as the app's own server names it, is its card, never
     // the tool's words.
     const card = macApp
       ? await macosRefusalCard({ app: macApp, asker: ctx.asker, isError, meta })
       : undefined;
     if (card) {
+      console.warn(`App call refused: ${app.slug} ${tool} (macos-refused)`);
       throw new CapabilityFailure(card.message, "card", card.askId);
     }
     if (isError) {
+      console.warn(
+        `App call refused: ${app.slug} ${tool}${argumentProblem ? " (arguments do not fit its schema)" : ""}`,
+      );
       throw new CapabilityFailure(
-        `${redact(text)}\n${refusalHint(app.slug, tool)}`,
+        `${redact(text)}\n${refusalHint({ argumentProblem, redact, slug: app.slug, tool })}`,
       );
     }
     return structured
@@ -319,8 +477,25 @@ to work through with jq, node, or python rather than read whole.`,
 const ToolSchema = z.object({
   description: z.string(),
   input_schema: z.json().optional(),
+  /** The server's own hint, only where it set one. */
+  mark: z.enum(["destructive", "read-only"]).optional(),
   name: z.string(),
 });
+
+/**
+ * A tool's mark from the server's own hints, only where it set one: a tool
+ * with no hints is neither, whatever the spec's default.
+ */
+function toolMark(
+  annotations:
+    | { destructiveHint?: boolean; readOnlyHint?: boolean }
+    | undefined,
+): { mark?: "destructive" | "read-only" } {
+  if (annotations?.readOnlyHint === true) {
+    return { mark: "read-only" };
+  }
+  return annotations?.destructiveHint === true ? { mark: "destructive" } : {};
+}
 
 export const appsTools = defineCapability({
   gate: ({ app }) => connectedAppGate(app, "mcp"),
@@ -331,7 +506,15 @@ export const appsTools = defineCapability({
     }),
   }),
   name: "apps.tools",
-  output: z.object({ app: z.string(), tools: z.array(ToolSchema) }),
+  output: z.object({
+    app: z.string(),
+    /**
+     * The app's guide, where the listing on the command line is the first
+     * the model sees of it.
+     */
+    guide: z.string().optional(),
+    tools: z.array(ToolSchema),
+  }),
   async run({ app: slug, tool: only }, ctx) {
     const app = await gatedApp(slug, "mcp");
     const { manifest } = app;
@@ -347,23 +530,46 @@ export const appsTools = defineCapability({
       credential,
       manifest,
       manifestHash: app.manifestHash,
-      run: (client) => listMcpTools(client),
+      run: async (client) => ({
+        guidance: noteServerGuidance(app.slug, app.manifestHash, client),
+        tools: await listMcpTools(client),
+      }),
       signal: withTimeout(ctx.signal, REQUEST_TIMEOUT_MS),
       slug: app.slug,
     });
     if (result.isErr()) {
       throw new CapabilityFailure(redact(result.error.message));
     }
+    const { guidance, tools } = result.value;
     if (only === undefined) {
+      // The listing is where a session meets an MCP app, so on the command
+      // line the guide comes first in it when the model does not have it.
+      const guide =
+        ctx.surface === "cli"
+          ? mcpGuide({ app, guidance, guide: await readAppGuide(app.dir) })
+          : undefined;
+      const handOff =
+        guide !== undefined && !(await guideInWindow(app, guide, ctx))
+          ? guide
+          : undefined;
+      if (handOff !== undefined) {
+        recordAppGuideHandOff({
+          app: app.slug,
+          guide: handOff,
+          printed: redact(handOff),
+        });
+      }
       return {
         app: app.slug,
-        tools: result.value.map((tool) => ({
+        ...(handOff !== undefined && { guide: redact(handOff) }),
+        tools: tools.map((tool) => ({
           description: firstSentence(redact(tool.description)),
+          ...toolMark(tool.annotations),
           name: tool.name,
         })),
       };
     }
-    const tool = result.value.find((candidate) => candidate.name === only);
+    const tool = tools.find((candidate) => candidate.name === only);
     if (!tool) {
       throw new CapabilityFailure(
         `"${app.slug}" has no tool "${only}". \`${APP_COMMAND.name} tools ${app.slug}\` lists them.`,
@@ -391,7 +597,7 @@ export const appsTools = defineCapability({
     },
     script: { positional: ["app", "tool"] },
   },
-  text({ app, tools }) {
+  text({ app, guide, tools }) {
     const [one] = tools;
     if (tools.length === 1 && one?.input_schema !== undefined) {
       return `${one.name}\n${one.description}\n\ninput: ${JSON.stringify(one.input_schema, null, 2)}\n\n\`${APP_COMMAND.name} call ${app} ${one.name} '<json>'\` runs it.\n`;
@@ -401,7 +607,10 @@ export const appsTools = defineCapability({
     const scripted = scriptSurfaceOpen()
       ? `, and in a script \`await instrument.apps[${JSON.stringify(app)}].<name>({...})\` (Node) or \`instrument.app(${JSON.stringify(app)}).<name>(...)\` (Python) returns it as a value`
       : "";
-    return `${tools.length} tools on ${app}. \`${APP_COMMAND.name} tool ${app} <name>\` shows one with the JSON it takes; \`${APP_COMMAND.name} call ${app} <name> '<json>'\` runs it${scripted}.\n${tools.map((tool) => `- ${tool.name}: ${tool.description}`).join("\n")}\n`;
+    const marked = tools.some((tool) => tool.mark !== undefined)
+      ? " [read-only] and [destructive] are the server's own marks."
+      : "";
+    return `${guide === undefined ? "" : `${guide.trimEnd()}\n\n`}${tools.length} tools on ${app}. \`${APP_COMMAND.name} tool ${app} <name>\` shows one with the JSON it takes; \`${APP_COMMAND.name} call ${app} <name> '<json>'\` runs it${scripted}.${marked}\n${tools.map((tool) => `- ${tool.name}${tool.mark ? ` [${tool.mark}]` : ""}: ${tool.description}`).join("\n")}\n`;
   },
 });
 
@@ -426,15 +635,53 @@ function statusLine(method: string, response: Response) {
 const TRUNCATED_NOTE =
   "[Body truncated: the response was larger than the cap, so request less or paginate]\n";
 
-/** Whether the session's model has this guide, as a bash call in its window handed it over. */
+/**
+ * Whether the session's model has this guide: a bash call in its window
+ * handed it over, or the session's start told it whole.
+ */
 async function guideInWindow(
   app: AppInfo,
   guide: string,
   ctx: CapabilityContext,
 ): Promise<boolean> {
   const messages = await ctx.modelWindow();
+  if (messages === undefined) {
+    return false;
+  }
   return (
-    messages !== undefined && appGuideHandedOver(messages, app.slug, guide)
+    appGuideHandedOver(messages, app.slug, guide) ||
+    (await guideToldAtStart(app, guide, ctx))
+  );
+}
+
+/**
+ * Whether the session's start told the model this guide whole: the guide is
+ * the app's `APP.md` body, short enough to be inlined uncut
+ * (`apps/context.ts`), and the session's baseline found the app connected
+ * with its folder as it is now. The baseline is read from the session's
+ * history, since the model window leaves it out.
+ */
+async function guideToldAtStart(
+  app: AppInfo,
+  guide: string,
+  { chatId, sessionId }: CapabilityContext,
+): Promise<boolean> {
+  const history = await ChatReads.history({ chatId, sessionId });
+  if (history.isErr()) {
+    return false;
+  }
+  const told = baselineRecorded(history.value, sessionId, "apps")?.value[
+    app.slug
+  ];
+  if (!told?.connected) {
+    return false;
+  }
+  const body = (await readAppGuide(app.dir))?.trim();
+  return (
+    body !== undefined &&
+    body === guide.trim() &&
+    body.length <= INSTRUCTIONS_MAX &&
+    told.fingerprint === (await folderFingerprint(app.dir))
   );
 }
 
@@ -620,6 +867,172 @@ function responseText({ body, content_type }: Response): string {
     ? JSON.stringify(body)
     : bodyText(body);
 }
+
+export const appsResources = defineCapability({
+  gate: ({ app }) => connectedAppGate(app, "mcp"),
+  input: z.object({ app: AppField }),
+  name: "apps.resources",
+  output: z.object({
+    app: z.string(),
+    documents: z.array(
+      z.object({
+        description: z.string().optional(),
+        mime_type: z.string().optional(),
+        name: z.string(),
+        uri: z.string(),
+      }),
+    ),
+    /** Addresses the server fills in, each `{name}` with a value. */
+    templates: z.array(
+      z.object({
+        description: z.string().optional(),
+        name: z.string(),
+        uri_template: z.string(),
+      }),
+    ),
+    truncated: z.boolean(),
+  }),
+  async run({ app: slug }, ctx) {
+    const app = await gatedApp(slug, "mcp");
+    const { manifest } = app;
+    if (!isMcpManifest(manifest)) {
+      throw new CapabilityFailure(
+        `"${app.slug}" is not an MCP app.`,
+        "refused",
+      );
+    }
+    const credential = await requireAppCredential(app.slug, manifest);
+    const redact = await redactorFor(app.slug, manifest, credential);
+    const result = await withAppMcpClient({
+      credential,
+      manifest,
+      manifestHash: app.manifestHash,
+      run: async (client) =>
+        noteServerGuidance(app.slug, app.manifestHash, client).resources
+          ? await listMcpResources(client)
+          : undefined,
+      signal: withTimeout(ctx.signal, REQUEST_TIMEOUT_MS),
+      slug: app.slug,
+    });
+    if (result.isErr()) {
+      throw new CapabilityFailure(redact(result.error.message));
+    }
+    const listing = result.value;
+    const text = (value: string | undefined) =>
+      value === undefined ? {} : { description: firstSentence(redact(value)) };
+    return {
+      app: app.slug,
+      documents: (listing?.resources ?? []).map((entry) => ({
+        ...text(entry.description),
+        ...(entry.mimeType && { mime_type: entry.mimeType }),
+        name: redact(entry.name),
+        uri: redact(entry.uri),
+      })),
+      templates: (listing?.templates ?? []).map((entry) => ({
+        ...text(entry.description),
+        name: redact(entry.name),
+        uri_template: redact(entry.uriTemplate),
+      })),
+      truncated: listing?.truncated ?? false,
+    };
+  },
+  summary: "List the documents a connected MCP app's server offers.",
+  surfaces: {
+    cli: {
+      help: "A line each, then the addresses the server fills in.",
+      positional: ["app"],
+      words: ["app", "resources"],
+    },
+    script: { positional: ["app"] },
+  },
+  text({ app, documents, templates, truncated }) {
+    if (documents.length === 0 && templates.length === 0) {
+      return `${app}'s server offers no documents.\n`;
+    }
+    const line = (entry: {
+      description?: string;
+      mime_type?: string;
+      name: string;
+    }) =>
+      `(${[entry.name, entry.mime_type].filter(Boolean).join(", ")})${entry.description ? `: ${entry.description}` : ""}`;
+    return `${[
+      `${documents.length} ${documents.length === 1 ? "document" : "documents"} on ${app}. \`${APP_COMMAND.name} read ${app} <uri>\` reads one.`,
+      ...documents.map((entry) => `- ${entry.uri} ${line(entry)}`),
+      ...(truncated ? ["[More pages than were listed]"] : []),
+      ...(templates.length > 0
+        ? [
+            "\nAddresses to fill in (each {name} with a value), then read:",
+            ...templates.map(
+              (entry) => `- ${entry.uri_template} ${line(entry)}`,
+            ),
+          ]
+        : []),
+    ].join("\n")}\n`;
+  },
+});
+
+export const appsRead = defineCapability({
+  gate: ({ app }) => connectedAppGate(app, "mcp"),
+  input: z.object({
+    app: AppField,
+    uri: z
+      .string({
+        error: `read takes a document's address after the slug. See \`${APP_COMMAND.name} resources <slug>\`.`,
+      })
+      .min(1)
+      .meta({
+        description:
+          "The document's address, as `instrument app resources` lists it.",
+      }),
+  }),
+  name: "apps.read",
+  // Each text part as the server sent it, and each binary part named by its
+  // type and size.
+  output: z.string(),
+  async run({ app: slug, uri }, ctx) {
+    const app = await gatedApp(slug, "mcp");
+    const { manifest } = app;
+    if (!isMcpManifest(manifest)) {
+      throw new CapabilityFailure(
+        `"${app.slug}" is not an MCP app.`,
+        "refused",
+      );
+    }
+    const credential = await requireAppCredential(app.slug, manifest);
+    const redact = await redactorFor(app.slug, manifest, credential);
+    const result = await withAppMcpClient({
+      credential,
+      manifest,
+      manifestHash: app.manifestHash,
+      run: (client) => {
+        noteServerGuidance(app.slug, app.manifestHash, client);
+        return readMcpResource(client, uri);
+      },
+      signal: withTimeout(ctx.signal, REQUEST_TIMEOUT_MS),
+      slug: app.slug,
+    });
+    if (result.isErr()) {
+      throw new CapabilityFailure(redact(result.error.message));
+    }
+    return result.value
+      .map((part) =>
+        "text" in part
+          ? redact(part.text)
+          : `[${part.mimeType ?? "binary"}, ${part.bytes.byteLength} bytes]`,
+      )
+      .join("\n\n");
+  },
+  summary: "Read one document a connected MCP app's server offers.",
+  surfaces: {
+    cli: {
+      help: "--out writes it to that file instead.",
+      positional: ["app", "uri"],
+      words: ["app", "read"],
+    },
+    script: { positional: ["app", "uri"] },
+  },
+  text: (contents) => `${contents.trimEnd()}\n`,
+});
 
 export const appsList = defineCapability({
   input: z.object({}),

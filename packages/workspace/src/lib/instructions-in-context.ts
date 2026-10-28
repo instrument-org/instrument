@@ -5,7 +5,7 @@
  */
 
 /** How much of one set of instructions is inlined, the budget a 1.x project had. */
-const INSTRUCTIONS_MAX = 20_000;
+export const INSTRUCTIONS_MAX = 20_000;
 
 /**
  * The instructions, trimmed, or nothing where there are none. Past the budget

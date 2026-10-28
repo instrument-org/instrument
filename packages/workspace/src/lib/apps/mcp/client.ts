@@ -17,8 +17,11 @@ import {
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   type ContentBlock,
+  ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
+import { type JsonSchemaType } from "@modelcontextprotocol/sdk/validation";
 import { err, ok, type Result } from "neverthrow";
 import { isPlainObject, noop } from "radashi";
 
@@ -87,10 +90,27 @@ export async function callMcpTool(
     signal,
   }: { args: Record<string, unknown>; name: string; signal?: AbortSignal },
 ): Promise<McpCallResult> {
-  // An abort tells the server the call is canceled, so it stops the work too.
-  const result = await client.callTool({ arguments: args, name }, undefined, {
-    signal,
-  });
+  let result: Awaited<ReturnType<Client["callTool"]>>;
+  try {
+    // An abort tells the server the call is canceled, so it stops the work too.
+    result = await client.callTool({ arguments: args, name }, undefined, {
+      signal,
+    });
+  } catch (error) {
+    // Some servers check arguments at the protocol level, answering with
+    // InvalidParams where the SDK's own servers send a refused result.
+    if (
+      error instanceof McpError &&
+      error.code === Number(ErrorCode.InvalidParams)
+    ) {
+      return {
+        isError: true,
+        meta: undefined,
+        text: describeMcpFailure(error),
+      };
+    }
+    throw error;
+  }
   const content: ContentBlock[] = Array.isArray(result.content)
     ? (result.content as ContentBlock[])
     : [];
@@ -111,6 +131,133 @@ export async function callMcpTool(
     text:
       text === "" && structured ? JSON.stringify(structured, null, 2) : text,
   };
+}
+
+const schemaValidator = new AjvJsonSchemaValidator();
+
+/**
+ * What in a refused call's arguments does not fit the tool's input schema,
+ * with the schema, so the call can be fixed without looking the tool up
+ * first. Nothing where they fit (the refusal was about something else),
+ * where the server no longer lists the tool, or where its schema does not
+ * compile.
+ */
+export async function mcpArgumentProblem(
+  client: Client,
+  { args, name }: { args: Record<string, unknown>; name: string },
+): Promise<{ problem: string; schema: unknown } | undefined> {
+  const listed = await client.listTools().catch(() => undefined);
+  const tool = listed?.tools.find((candidate) => candidate.name === name);
+  if (!tool) {
+    return undefined;
+  }
+  try {
+    // The listing types the schema loosely; the SDK hands the same object
+    // to its validator when it checks a tool's output.
+    const check = schemaValidator.getValidator(
+      tool.inputSchema as JsonSchemaType,
+    )(args);
+    return check.valid
+      ? undefined
+      : { problem: check.errorMessage, schema: tool.inputSchema };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * What a connected server says about itself at the handshake: its
+ * instructions for using it, and whether it offers resources. Read from the
+ * connection in hand, so it is what the server says now.
+ */
+export function mcpServerGuidance(client: Client): McpServerGuidance {
+  const instructions = client.getInstructions()?.trim();
+  return {
+    ...(instructions ? { instructions } : {}),
+    resources: client.getServerCapabilities()?.resources !== undefined,
+  };
+}
+
+export interface McpServerGuidance {
+  instructions?: string;
+  resources: boolean;
+}
+
+/** How many pages of a resource listing are followed before it is called cut. */
+const RESOURCE_PAGES = 10;
+
+interface McpResourceListing {
+  resources: {
+    description?: string;
+    mimeType?: string;
+    name: string;
+    uri: string;
+  }[];
+  templates: { description?: string; name: string; uriTemplate: string }[];
+  /** Whether a listing had more pages than were followed. */
+  truncated: boolean;
+}
+
+/** The resources and resource templates a server offers, across its pages. */
+export async function listMcpResources(
+  client: Client,
+): Promise<McpResourceListing> {
+  const listing: McpResourceListing = {
+    resources: [],
+    templates: [],
+    truncated: false,
+  };
+  let cursor: string | undefined;
+  for (let page = 0; ; page++) {
+    if (page === RESOURCE_PAGES) {
+      listing.truncated = true;
+      break;
+    }
+    const result = await client.listResources(cursor ? { cursor } : {});
+    for (const { description, mimeType, name, uri } of result.resources) {
+      listing.resources.push({ description, mimeType, name, uri });
+    }
+    cursor = result.nextCursor;
+    if (!cursor) {
+      break;
+    }
+  }
+  // A server may offer fixed resources without templates, and some answer
+  // the templates request with an error rather than an empty list.
+  const templates = await client.listResourceTemplates().catch(() => undefined);
+  for (const {
+    description,
+    name,
+    uriTemplate,
+  } of templates?.resourceTemplates ?? []) {
+    listing.templates.push({ description, name, uriTemplate });
+  }
+  return listing;
+}
+
+/**
+ * One resource's contents: each text part as it came, each binary part as
+ * its bytes, in the order the server sent them.
+ */
+export async function readMcpResource(
+  client: Client,
+  uri: string,
+): Promise<
+  (
+    | { bytes: Buffer; mimeType?: string; uri: string }
+    | { mimeType?: string; text: string; uri: string }
+  )[]
+> {
+  const result = await client.readResource({ uri });
+  return result.contents.map((content) =>
+    "text" in content
+      ? { mimeType: content.mimeType, text: content.text, uri: content.uri }
+      : {
+          bytes: Buffer.from(content.blob, "base64"),
+          mimeType: content.mimeType,
+          uri: content.uri,
+        },
+  );
 }
 
 /** List the tools an MCP server exposes (name, description, input schema). */

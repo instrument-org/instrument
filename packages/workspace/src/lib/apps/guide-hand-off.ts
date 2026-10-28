@@ -79,6 +79,25 @@ export function appGuidesShown(
     .map(({ app, hash }) => ({ app, hash }));
 }
 
+/**
+ * Whether a bash result in `messages` handed over any guide of this app's,
+ * as it is now or as it was: for a gate that must not refuse again over a
+ * guide whose words the server changes from one connection to the next.
+ */
+export function anyAppGuideHandedOver(
+  messages: readonly SessionMessage.WithParts[],
+  app: string,
+): boolean {
+  return messages.some((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === "tool-bash" &&
+        part.state === "output-available" &&
+        (part.output.appGuides ?? []).some((handOff) => handOff.app === app),
+    ),
+  );
+}
+
 /** Whether a bash result in `messages` handed over this app's `guide` as it is now. */
 export function appGuideHandedOver(
   messages: readonly SessionMessage.WithParts[],

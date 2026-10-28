@@ -2,6 +2,7 @@ import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
+import { APP_GUIDANCE_EVALS } from "./app-guidance";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { APP_SCRIPTING_API_EVALS } from "./app-scripting-api";
 import { APP_SIGN_IN_CARD_EVALS } from "./app-sign-in-card";
@@ -58,6 +59,7 @@ export const EVALS = [
   ...APP_ACCOUNTS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
   ...APP_OTHER_COMPUTER_EVALS,
+  ...APP_GUIDANCE_EVALS,
   ...APP_SCRIPTING_EVALS,
   ...APP_SCRIPTING_API_EVALS,
   ...APP_SIGN_IN_CARD_EVALS,

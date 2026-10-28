@@ -1,7 +1,14 @@
 import { generateImageCapability } from "../../tools/generate-image";
 import { webFetchCapability } from "../../tools/web-fetch";
 import { webSearchCapability } from "../../tools/web-search";
-import { appsCall, appsList, appsRequest, appsTools } from "./apps";
+import {
+  appsCall,
+  appsList,
+  appsRead,
+  appsRequest,
+  appsResources,
+  appsTools,
+} from "./apps";
 import {
   appsAccount,
   appsCatalog,
@@ -42,6 +49,8 @@ export const CAPABILITIES: readonly Capability[] = [
   appsList,
   appsTools,
   appsCall,
+  appsResources,
+  appsRead,
   appsRequest,
   appsGuide,
   appsIcon,

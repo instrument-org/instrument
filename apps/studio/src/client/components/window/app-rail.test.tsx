@@ -1,6 +1,7 @@
 import { type AppPlace } from "@/client/atoms/window";
 // The rail down the window's edge: New, one entry per place with the one
-// stood in in its well, and the user at the foot as the way to Settings.
+// stood in in its well, and at the foot Feedback over the user, the way to
+// Settings.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -12,6 +13,13 @@ const openSettings = vi.fn<(options: { tab: string }) => void>();
 vi.mock("@/client/atoms/settings-modal", () => ({
   openSettings: (options: { tab: string }) => {
     openSettings(options);
+  },
+}));
+
+const openReportDialog = vi.fn<(request: unknown) => void>();
+vi.mock("@/client/atoms/report-dialog", () => ({
+  openReportDialog: (request: unknown) => {
+    openReportDialog(request);
   },
 }));
 
@@ -39,7 +47,7 @@ function renderRail(place: AppPlace = "chat", chatMark?: RailChatMark) {
 }
 
 describe("AppRail", () => {
-  it("names New, the places, and Settings, each a word under its mark, with the place stood in current", () => {
+  it("names New, the places, Feedback and Settings, each a word under its mark, with the place stood in current", () => {
     const { rail } = renderRail("chat");
     expect(
       rail
@@ -54,6 +62,7 @@ describe("AppRail", () => {
       ["Files", null],
       ["Browser", null],
       ["Apps", null],
+      ["Feedback", null],
       ["Settings", null],
     ]);
   });
@@ -79,6 +88,15 @@ describe("AppRail", () => {
       metaKey: true,
     });
     expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: true });
+  });
+
+  it("opens the feedback dialog, about no chat, from Feedback", () => {
+    const { rail } = renderRail();
+    fireEvent.click(rail.getByRole("button", { name: "Feedback" }));
+    expect(openReportDialog).toHaveBeenCalledWith({
+      kind: "feedback",
+      surface: "rail",
+    });
   });
 
   it("opens Settings from the foot", () => {

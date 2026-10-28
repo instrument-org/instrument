@@ -1,3 +1,4 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { type AppPlace } from "@/client/atoms/window";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -12,10 +13,12 @@ import {
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { type ReactNode } from "react";
 
@@ -35,8 +38,8 @@ export const APP_RAIL_WIDTH = 76;
 
 /**
  * The rail down the window's left edge: New at its top, then one entry per
- * place, each a mark with its word close under it, and the user at its foot
- * as the way to Settings. The one the window stands in sits in a soft well
+ * place, each a mark with its word close under it, and at its foot Feedback
+ * over the user, who is the way to Settings. The one the window stands in sits in a soft well
  * around the whole entry, mark and word together. Narrow enough to be
  * chrome rather than a column: a mark, a word, and nothing wider than
  * either. Away from Chat, Chat wears a dot for where the chats stand.
@@ -107,7 +110,10 @@ export function AppRail({
         ))}
       </div>
       <div className="flex-1" />
-      <RailUser />
+      <div className="flex flex-col items-center gap-1">
+        <RailFeedback />
+        <RailUser />
+      </div>
     </nav>
   );
 }
@@ -187,6 +193,27 @@ function RailEntry({
       <span className={cn("text-[11px] leading-4", isOn && "font-medium")}>
         {label}
       </span>
+    </button>
+  );
+}
+
+/**
+ * Send feedback, kept in sight above the user rather than only in the Help
+ * menu: the feedback dialog, about no chat in particular.
+ */
+function RailFeedback() {
+  return (
+    <button
+      className="flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+      onClick={() => {
+        openReportDialog(feedbackReport({ surface: "rail" }));
+      }}
+      type="button"
+    >
+      <span className="grid h-6 place-items-center">
+        <MegaphoneSimpleIcon className="size-6" />
+      </span>
+      <span className="text-[11px] leading-4">Feedback</span>
     </button>
   );
 }

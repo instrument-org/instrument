@@ -121,6 +121,31 @@ describe("python", () => {
     );
   });
 
+  it("leaves instrument off the path when the script surface is closed", async () => {
+    vi.stubEnv("INSTRUMENT_SCRIPT_CHANNEL", "0");
+    const { execa } = await import("execa");
+    const { pythonToRun } = await import("../venv");
+    vi.mocked(pythonToRun).mockResolvedValueOnce({
+      python: "/runtime/python/bin/python3.12",
+      venv: undefined,
+    });
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "import instrument"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        env: expect.not.objectContaining({ PYTHONPATH: expect.anything() }),
+      }),
+    );
+    vi.unstubAllEnvs();
+  });
+
   it("leaves the base packages to the venv's own link when there is one", async () => {
     const { execa } = await import("execa");
     const { pythonBaseDir } = await import("../python-base");

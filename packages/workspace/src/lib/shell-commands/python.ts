@@ -128,10 +128,12 @@ async function runNativePython(
   // `instrument` reaches a script the same two ways: a `.pth` in whichever
   // virtualenv runs, or its folders on `PYTHONPATH`, the `sitecustomize`
   // that takes the channel first.
+  // With the script surface closed, `import instrument` finds nothing.
+  const scripted = scriptSurfaceOpen();
   const venv = skill.venv ?? interpreter.venv;
   const bare = venv === undefined;
-  const instrument = bare ? await ensurePythonRuntime() : undefined;
-  if (venv !== undefined) {
+  const instrument = bare && scripted ? await ensurePythonRuntime() : undefined;
+  if (venv !== undefined && scripted) {
     await linkPythonRuntime(venv);
   }
   const base = bare ? pythonBaseDir() : undefined;

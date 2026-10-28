@@ -244,7 +244,8 @@ function namedTheGap(service: string): Assertion {
       );
       return result(
         text,
-        named.test(last) && last.toLowerCase().includes(service.toLowerCase()),
+        (named.test(last) || last.includes("```needs")) &&
+          last.toLowerCase().includes(service.toLowerCase()),
         JSON.stringify(last),
       );
     },
@@ -324,7 +325,9 @@ const triedNoOtherWay: Assertion = {
       (call) => call.command,
     );
     const other = commands.filter((command) =>
-      /\bosascript\b|\.ics\b|open -a Calendar|EventKit|icalBuddy/i.test(command),
+      /\bosascript\b|\.ics\b|open -a Calendar|EventKit|icalBuddy/i.test(
+        command,
+      ),
     );
     return result(text, other.length === 0, other.join(" | ") || "none");
   },

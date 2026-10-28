@@ -84,7 +84,8 @@ async function serveSite(): Promise<string> {
     const cookie = request.headers.cookie?.includes(SESSION_COOKIE) ?? false;
     served.push({ cookie, path: `${url.pathname}${url.search}` });
     if (url.pathname === "/orders") {
-      const browserNavigation = request.headers["sec-fetch-dest"] === "document";
+      const browserNavigation =
+        request.headers["sec-fetch-dest"] === "document";
       response.writeHead(200, {
         "content-type": "text/html",
         ...(browserNavigation

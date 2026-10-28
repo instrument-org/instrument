@@ -51,6 +51,19 @@ const echo: ChannelAnswer = (request) =>
               positional: ["app", "method", "path"],
               summary: "One request through an API app.",
             },
+            {
+              input: {
+                properties: {
+                  maxCharacters: { type: "number" },
+                  url: { type: "string" },
+                },
+                required: ["url"],
+                type: "object",
+              },
+              name: "web.fetch",
+              positional: ["url"],
+              summary: "Fetches an http(s) URL.",
+            },
           ],
         }
       : request.capability.startsWith("no.")
@@ -123,6 +136,26 @@ print(instrument.apps.request("lantern", "GET", "/issues", params={"state": "ope
     expect(result.stdout).toMatchInlineSnapshot(`
       "(app, method, path, *, body=None, params=None)
       {'args': {'app': 'lantern', 'method': 'GET', 'path': '/issues', 'params': {'state': 'open'}}, 'capability': 'apps.request'}"
+    `);
+  });
+
+  it("reaches every namespace this shell has, its parameters in snake_case", async () => {
+    const result = await run(
+      `import inspect, instrument
+print(inspect.signature(instrument.web.fetch))
+print(instrument.web.fetch("https://example.com", max_characters=500))
+print("web" in dir(instrument))
+try:
+    instrument.nowhere
+except AttributeError as error:
+    print(error)`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "(url, *, max_characters=None)
+      {'args': {'url': 'https://example.com', 'max_characters': 500}, 'capability': 'web.fetch'}
+      True
+      instrument has no nowhere"
     `);
   });
 

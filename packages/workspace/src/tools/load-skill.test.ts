@@ -951,6 +951,11 @@ describe("LoadSkill", () => {
       },
       name: "mixed-skill",
     });
-    expect(LoadSkill.timeoutMs).toBe(7 * 60 * 1000 + 10 * 1000);
+    expect(
+      LoadSkill.timeoutMs({
+        chatId: createTaskConfigWithDirs(),
+        input: { name: "mixed-skill" },
+      }),
+    ).toBe(7 * 60 * 1000 + 10 * 1000);
   });
 });

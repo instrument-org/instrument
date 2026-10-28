@@ -92,13 +92,13 @@ The agent-facing surface is one file: [`lib/shell-commands/background-jobs.ts`](
 
 The registry is keyed by **session**, not chat ([`recordsBySession`](../../packages/workspace/src/lib/background-processes.ts)). One chat holds several sessions, its own conversation and each task it started, all working in the same folder, so a chat-keyed registry would let one session read and kill another's work.
 
-Ownership moves in one case: when the chat hands work to a task partway, `instrument task new --job bg_1` ([`task/fork.ts`](../../packages/workspace/src/lib/shell-commands/task/fork.ts)) moves that command to the task's session under the same id (`handOverBackgroundProcesses`), so the task waits on it with `fg` instead of starting it a second time. The task works in the chat's folder, so the logs stay put.
+Ownership moves in one case: when the chat hands work to a task partway, `instrument task new --job bg_1` ([`task/fork.ts`](../../packages/workspace/src/lib/capabilities/task/fork.ts)) moves that command to the task's session under the same id (`handOverBackgroundProcesses`), so the task waits on it with `fg` instead of starting it a second time. The task works in the chat's folder, so the logs stay put.
 
 | Trigger | Reaches | Where |
 |---|---|---|
 | `kill bg_1`, or the pid of a program it runs | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
 | `kill <pid>` of a child inside a job | that one program; the job runs on | the same |
-| Task stopped (the person's stop on its row or page, or `instrument task stop --all`) | that task's processes, handed-over jobs included; the chat's own Stop ends only its turn | `stopRunningProcesses`, from `session.stop` in [`rpc/routes/session.ts`](../../packages/workspace/src/rpc/routes/session.ts) and [`task/stop.ts`](../../packages/workspace/src/lib/shell-commands/task/stop.ts) |
+| Task stopped (the person's stop on its row or page, or `instrument task stop --all`) | that task's processes, handed-over jobs included; the chat's own Stop ends only its turn | `stopRunningProcesses`, from `session.stop` in [`rpc/routes/session.ts`](../../packages/workspace/src/rpc/routes/session.ts) and [`task/stop.ts`](../../packages/workspace/src/lib/capabilities/task/stop.ts) |
 | Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-chat.ts`](../../packages/workspace/src/lib/trash-chat.ts) |
 | App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |

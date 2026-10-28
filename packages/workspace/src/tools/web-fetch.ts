@@ -16,8 +16,11 @@ import {
   readCachedPage,
 } from "../lib/web-fetch-cache";
 import { RelativePathSchema } from "../schemas/paths";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import {
+  CapabilityFailure,
+  defineCapability,
+} from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 import { TOOL_NAMES } from "./name";
 import { workDir } from "../lib/work-dir";
 
@@ -59,8 +62,8 @@ const INPUT_PARAMS = {
   url: "url",
 } as const;
 
-export const WebFetch = setupTool({
-  inputSchema: BaseInputSchema.extend({
+export const webFetchCapability = defineCapability({
+  input: z.object({
     [INPUT_PARAMS.format]: z.enum(FETCH_FORMATS).optional().meta({
       description:
         "Return format for HTML pages: 'markdown' (default, readable) or 'html' (raw). Ignored for non-HTML content.",
@@ -96,27 +99,37 @@ export const WebFetch = setupTool({
       description: "The http(s) URL to fetch.",
     }),
   }),
-  name: "web_fetch",
-  outputSchema: z.discriminatedUnion("state", [
-    z.object({
-      // Set only when the body came from the local page cache. Persisted so a
-      // replayed turn says the same thing the live one did.
-      cachedAgeMs: z.number().optional(),
-      contentType: z.string(),
-      format: z.enum(FETCH_FORMATS),
-      spillFilePath: RelativePathSchema.optional(),
-      state: z.literal("success"),
-      text: z.string(),
-      truncated: z.boolean(),
-      url: z.string(),
-    }),
-    z.object({
-      errorMessage: z.string(),
-      state: z.literal("failure"),
-    }),
-  ]),
-}).create({
-  description: dedent`
+  name: "web.fetch",
+  output: z.object({
+    /** Set only when the page came from the local cache of recent fetches. */
+    cached_age_ms: z.number().optional(),
+    content_type: z.string(),
+    format: z.enum(FETCH_FORMATS),
+    text: z.string(),
+    truncated: z.boolean(),
+    url: z.string(),
+  }),
+  async run(input, ctx) {
+    const page = await fetchPage(input, ctx.signal);
+    if (!page.ok) {
+      throw new CapabilityFailure(page.error);
+    }
+    return {
+      ...(page.cachedAgeMs === undefined
+        ? {}
+        : { cached_age_ms: page.cachedAgeMs }),
+      content_type: page.contentType,
+      format: page.appliedFormat,
+      text: page.text,
+      truncated: page.truncated,
+      url: page.finalUrl,
+    };
+  },
+  summary: "Fetches an http(s) URL as Markdown or its raw text.",
+  surfaces: {
+    script: { positional: [INPUT_PARAMS.url] },
+    tool: {
+      description: dedent`
     Fetch the contents of an http(s) URL and return it as Markdown (default) or raw HTML.
 
     Good for:
@@ -126,115 +139,155 @@ export const WebFetch = setupTool({
 
     This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the chat's folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
   `,
-  async execute({ input, partId, signal, chatId }) {
-    const parsedUrl = parseHttpUrl(input.url);
-    if (!parsedUrl) {
-      return ok({
-        errorMessage: "URL must be an http:// or https:// address.",
-        state: "failure" as const,
-      });
-    }
-
-    const format: FetchFormat = input.format ?? "markdown";
-    const timeoutMs = (input.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000;
-    const url = parsedUrl.toString();
-
-    try {
-      const result = await fetchTextual({
-        format,
-        maxAgeSeconds: input.maxAgeSeconds,
-        maxCharacters: input.maxCharacters ?? DEFAULT_TEXT_CHARACTERS,
-        signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
-        url,
-      });
-
-      let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
-      if (result.ok && result.spillText !== undefined) {
-        spillFilePath = RelativePathSchema.parse(
-          path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.txt`),
-        );
-        const absoluteSpillPath = absolutePathJoin(
-          workDir(chatId),
-          spillFilePath,
-        );
-        await fs.mkdir(path.dirname(absoluteSpillPath), { recursive: true });
-        await fs.writeFile(
-          absoluteSpillPath,
-          renderWebContent({
-            content: result.spillText,
-            url: result.finalUrl,
-          }),
-          { encoding: "utf8", signal },
-        );
-      }
-
-      return result.ok
-        ? ok({
-            cachedAgeMs: result.cachedAgeMs,
-            contentType: result.contentType,
-            format: result.appliedFormat,
+      async execute({ input, partId, signal, chatId }) {
+        const result = await fetchPage(input, signal);
+        if (!result.ok) {
+          return ok({ errorMessage: result.error, state: "failure" as const });
+        }
+        let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
+        if (result.spillText !== undefined) {
+          spillFilePath = RelativePathSchema.parse(
+            path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.txt`),
+          );
+          const absoluteSpillPath = absolutePathJoin(
+            workDir(chatId),
             spillFilePath,
-            state: "success" as const,
-            text: result.text,
-            truncated: result.truncated,
-            url: result.finalUrl,
-          })
-        : ok({ errorMessage: result.error, state: "failure" as const });
-    } catch (error) {
-      if (signal.aborted) {
+          );
+          try {
+            await fs.mkdir(path.dirname(absoluteSpillPath), {
+              recursive: true,
+            });
+            await fs.writeFile(
+              absoluteSpillPath,
+              renderWebContent({
+                content: result.spillText,
+                url: result.finalUrl,
+              }),
+              { encoding: "utf8", signal },
+            );
+          } catch (error) {
+            return ok({
+              errorMessage: `Failed to fetch ${result.finalUrl}: ${error instanceof Error ? error.message : "unknown error"}.`,
+              state: "failure" as const,
+            });
+          }
+        }
         return ok({
-          errorMessage: "Fetch was cancelled.",
-          state: "failure" as const,
+          cachedAgeMs: result.cachedAgeMs,
+          contentType: result.contentType,
+          format: result.appliedFormat,
+          spillFilePath,
+          state: "success" as const,
+          text: result.text,
+          truncated: result.truncated,
+          url: result.finalUrl,
         });
-      }
-      const reason =
-        error instanceof Error && error.name === "TimeoutError"
-          ? "request timed out"
-          : error instanceof Error
-            ? error.message
-            : "unknown error";
-      return ok({
-        errorMessage: `Failed to fetch ${url}: ${reason}.`,
-        state: "failure" as const,
-      });
-    }
+      },
+      readOnly: true,
+      timeoutMs: () => ms("2 minutes"),
+      toModelOutput: ({ output }) => {
+        if (output.state === "failure") {
+          return { type: "error-text", value: output.errorMessage };
+        }
+        // A fetch already at the maximum has nothing left to ask for, so it is sent
+        // to the spilled copy instead of being told to raise a parameter it cannot.
+        const recovery = [
+          output.spillFilePath
+            ? `The full content is saved to ${output.spillFilePath}.`
+            : undefined,
+          output.text.length < MAX_TEXT_CHARACTERS
+            ? `${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
+            : undefined,
+        ]
+          .filter((sentence) => sentence !== undefined)
+          .join(" ");
+        const truncationNote = output.truncated
+          ? `Note: the page was cut off after ${output.text.length} characters.${recovery === "" ? "" : ` ${recovery}`}\n\n`
+          : "";
+        // A reused body that arrives looking like a fresh request is a quiet
+        // substitution, and this tool exists to answer questions about what is true
+        // now. Saying the age lets a model discount one it thinks is too old.
+        const cacheNote =
+          output.cachedAgeMs === undefined
+            ? ""
+            : `Note: served from a local cache of a fetch made ${ms(output.cachedAgeMs, { long: true })} ago, not requested again. Set ${INPUT_PARAMS.maxAgeSeconds} on another fetch if this page needs to be newer than that.\n\n`;
+        return {
+          type: "text",
+          // Our notes come first, so the page ends the output and nothing of ours
+          // follows text it wrote.
+          value: `${truncationNote}${cacheNote}${renderWebContent({ content: output.text, url: output.url })}`,
+        };
+      },
+      name: "web_fetch",
+      output: z.discriminatedUnion("state", [
+        z.object({
+          // Set only when the body came from the local page cache. Persisted so a
+          // replayed turn says the same thing the live one did.
+          cachedAgeMs: z.number().optional(),
+          contentType: z.string(),
+          format: z.enum(FETCH_FORMATS),
+          spillFilePath: RelativePathSchema.optional(),
+          state: z.literal("success"),
+          text: z.string(),
+          truncated: z.boolean(),
+          url: z.string(),
+        }),
+        z.object({
+          errorMessage: z.string(),
+          state: z.literal("failure"),
+        }),
+      ]),
+    },
   },
-  readOnly: true,
-  timeoutMs: ms("2 minutes"),
-  toModelOutput: ({ output }) => {
-    if (output.state === "failure") {
-      return { type: "error-text", value: output.errorMessage };
-    }
-    // A fetch already at the maximum has nothing left to ask for, so it is sent
-    // to the spilled copy instead of being told to raise a parameter it cannot.
-    const recovery = [
-      output.spillFilePath
-        ? `The full content is saved to ${output.spillFilePath}.`
-        : undefined,
-      output.text.length < MAX_TEXT_CHARACTERS
-        ? `${INPUT_PARAMS.maxCharacters} can be raised to ${MAX_TEXT_CHARACTERS} on another fetch.`
-        : undefined,
-    ]
-      .filter((sentence) => sentence !== undefined)
-      .join(" ");
-    const truncationNote = output.truncated
-      ? `Note: the page was cut off after ${output.text.length} characters.${recovery === "" ? "" : ` ${recovery}`}\n\n`
-      : "";
-    // A reused body that arrives looking like a fresh request is a quiet
-    // substitution, and this tool exists to answer questions about what is true
-    // now. Saying the age lets a model discount one it thinks is too old.
-    const cacheNote =
-      output.cachedAgeMs === undefined
-        ? ""
-        : `Note: served from a local cache of a fetch made ${ms(output.cachedAgeMs, { long: true })} ago, not requested again. Set ${INPUT_PARAMS.maxAgeSeconds} on another fetch if this page needs to be newer than that.\n\n`;
-    return {
-      type: "text",
-      // Our notes come first, so the page ends the output and nothing of ours
-      // follows text it wrote.
-      value: `${truncationNote}${cacheNote}${renderWebContent({ content: output.text, url: output.url })}`,
-    };
-  },
+  text: (page) => renderWebContent({ content: page.text, url: page.url }),
 });
+
+export const WebFetch = modelTool(webFetchCapability);
+
+/**
+ * One fetch as the tool and a script both make it: an http(s) URL only,
+ * every redirect checked, under the call's signal and its timeout, with a
+ * failure said in a sentence rather than thrown.
+ */
+async function fetchPage(
+  input: {
+    format?: FetchFormat;
+    maxAgeSeconds?: number;
+    maxCharacters?: number;
+    timeout?: number;
+    url: string;
+  },
+  signal: AbortSignal | undefined,
+): Promise<FetchTextualResult> {
+  const parsedUrl = parseHttpUrl(input.url);
+  if (!parsedUrl) {
+    return { error: "URL must be an http:// or https:// address.", ok: false };
+  }
+  const timeout = AbortSignal.timeout(
+    (input.timeout ?? DEFAULT_TIMEOUT_SECONDS) * 1000,
+  );
+  const url = parsedUrl.toString();
+  try {
+    return await fetchTextual({
+      format: input.format ?? "markdown",
+      maxAgeSeconds: input.maxAgeSeconds,
+      maxCharacters: input.maxCharacters ?? DEFAULT_TEXT_CHARACTERS,
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      url,
+    });
+  } catch (error) {
+    if (signal?.aborted) {
+      return { error: "Fetch was cancelled.", ok: false };
+    }
+    const reason =
+      error instanceof Error && error.name === "TimeoutError"
+        ? "request timed out"
+        : error instanceof Error
+          ? error.message
+          : "unknown error";
+    return { error: `Failed to fetch ${url}: ${reason}.`, ok: false };
+  }
+}
 
 type FetchTextualResult =
   | {

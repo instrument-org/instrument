@@ -58,6 +58,7 @@ function run(args: string[], stdin = "", role: "chat" | "task" = "chat") {
   return createMemoryCommand({
     chatId: ChatIdSchema.parse(chatId),
     role,
+    sessionId,
   }).execute(
     args,
     createCommandContext({
@@ -198,6 +199,39 @@ describe("memory", () => {
     expect(await fs.readFile(path.join(root, "notes.md"), "utf8")).toBe(
       "Not a memory.\n",
     );
+  });
+
+  it("prints the memories as JSON with --json", async () => {
+    await run(["save", "no-stevia"], "You never want stevia.\nIt tastes off.");
+
+    const listed = await run(["list", "--json"]);
+    expect(
+      JSON.parse(listed.stdout.replaceAll(/\d{4}-\d{2}-\d{2}/g, "<day>")),
+    ).toEqual([
+      {
+        day: "<day>",
+        headline: "You never want stevia.",
+        learned_in: "Roofer call",
+        name: "no-stevia",
+      },
+    ]);
+  });
+
+  it("refuses words beside a memory on stdin, and keeps nothing", async () => {
+    const result = await run(["save", "no-stevia", "extra"], "No stevia.");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument memory: unexpected argument "extra" beside the text on stdin. A word with a space in it needs quotes.
+      "
+    `);
+    expect(await listMemories(memoryDir())).toEqual([]);
+  });
+
+  it("lists when run bare", async () => {
+    const result = await run([]);
+
+    expect(result.stdout).toContain("Nothing remembered yet.");
   });
 
   it("refuses a subcommand it does not have", async () => {

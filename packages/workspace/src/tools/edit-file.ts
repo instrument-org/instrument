@@ -14,8 +14,8 @@ import {
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 import { TOOL_NAMES } from "./name";
 import { ReadFile } from "./read-file";
 
@@ -731,8 +731,8 @@ function replace(
   );
 }
 
-export const EditFile = setupTool({
-  inputSchema: BaseInputSchema.extend({
+const editFileCapability = defineCapability({
+  input: z.object({
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `Relative path to the file to modify. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
@@ -747,15 +747,11 @@ export const EditFile = setupTool({
       description: "Replace all occurrences of oldString (default false)",
     }),
   }),
-  name: "edit_file",
-  outputSchema: z.object({
-    diff: z.string().optional(),
-    // Relative to the chat's folder, or the absolute path in a writable folder.
-    filePath: z.string(),
-    modifiedAt: z.number(),
-  }),
-}).create({
-  description: dedent`
+  name: "files.edit",
+  summary: "Replaces text in a file.",
+  surfaces: {
+    tool: {
+      description: dedent`
     Performs exact string replacements in files. 
 
     Usage:
@@ -765,101 +761,114 @@ export const EditFile = setupTool({
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.
     - Edits apply one at a time in the order you send them, so several edits to the same file in one response land cleanly.
   `,
-  execute: async ({ input, partId, sessionId, chatId }) => {
-    if (input.oldString === input.newString) {
-      return executeError("oldString and newString must be different");
-    }
+      execute: async ({ input, partId, sessionId, chatId }) => {
+        if (input.oldString === input.newString) {
+          return executeError("oldString and newString must be different");
+        }
 
-    const files = await sessionToolFs({ chatId, partId, sessionId });
-    const typed = files.resolve(input.filePath);
-    if (typed.isErr()) {
-      return err(typed.error);
-    }
-    const target =
-      input.oldString === "" ? typed.value : await files.existing(typed.value);
-    const fixedPath = files.shown(target);
+        const files = await sessionToolFs({ chatId, partId, sessionId });
+        const typed = files.resolve(input.filePath);
+        if (typed.isErr()) {
+          return err(typed.error);
+        }
+        const target =
+          input.oldString === ""
+            ? typed.value
+            : await files.existing(typed.value);
+        const fixedPath = files.shown(target);
 
-    let contentOld = "";
-    let contentNew = input.newString;
+        let contentOld = "";
+        let contentNew = input.newString;
 
-    if (input.oldString === "") {
-      // An empty oldString only creates a file. Models reach for it meaning
-      // "insert at the top", so treating it as a whole-file replacement
-      // destroys the file on a call that reads as additive.
-      if (await files.fs.exists(target)) {
-        return executeError(
-          `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use ${TOOL_NAMES.writeFile} for an intentional full-file replacement.`,
+        if (input.oldString === "") {
+          // An empty oldString only creates a file. Models reach for it meaning
+          // "insert at the top", so treating it as a whole-file replacement
+          // destroys the file on a call that reads as additive.
+          if (await files.fs.exists(target)) {
+            return executeError(
+              `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use ${TOOL_NAMES.writeFile} for an intentional full-file replacement.`,
+            );
+          }
+        } else {
+          let bytes: Uint8Array;
+          try {
+            bytes = await files.fs.readFileBuffer(target);
+          } catch (error) {
+            return isMissing(error)
+              ? executeError(`File ${fixedPath} not found`)
+              : files.failure(error, target);
+          }
+          if (bytes.byteLength > MAX_FILE_SIZE) {
+            return executeError(
+              `File is too large (${bytes.byteLength} bytes). Maximum size is ${MAX_FILE_SIZE} bytes`,
+            );
+          }
+
+          contentOld = Buffer.from(bytes).toString("utf8");
+          const ending = detectLineEnding(contentOld);
+          const oldStringConverted = convertToLineEnding(
+            normalizeLineEndings(input.oldString),
+            ending,
+          );
+          const newStringConverted = convertToLineEnding(
+            normalizeLineEndings(input.newString),
+            ending,
+          );
+          try {
+            contentNew = replace(
+              contentOld,
+              oldStringConverted,
+              newStringConverted,
+              input.replaceAll,
+            );
+          } catch (error) {
+            return executeError(
+              `Failed to edit file ${fixedPath}: ${error instanceof Error ? error.message : "Unknown error"}`,
+            );
+          }
+        }
+
+        let modifiedAt: number;
+        try {
+          // Makes the folders a new file needs, as `tee` does.
+          await files.fs.writeFile(target, contentNew);
+          modifiedAt = (await files.fs.stat(target)).mtime.getTime();
+        } catch (error) {
+          return files.failure(error, target);
+        }
+
+        const diff = trimDiff(
+          createTwoFilesPatch(
+            fixedPath,
+            fixedPath,
+            normalizeLineEndings(contentOld),
+            normalizeLineEndings(contentNew),
+          ),
         );
-      }
-    } else {
-      let bytes: Uint8Array;
-      try {
-        bytes = await files.fs.readFileBuffer(target);
-      } catch (error) {
-        return isMissing(error)
-          ? executeError(`File ${fixedPath} not found`)
-          : files.failure(error, target);
-      }
-      if (bytes.byteLength > MAX_FILE_SIZE) {
-        return executeError(
-          `File is too large (${bytes.byteLength} bytes). Maximum size is ${MAX_FILE_SIZE} bytes`,
-        );
-      }
 
-      contentOld = Buffer.from(bytes).toString("utf8");
-      const ending = detectLineEnding(contentOld);
-      const oldStringConverted = convertToLineEnding(
-        normalizeLineEndings(input.oldString),
-        ending,
-      );
-      const newStringConverted = convertToLineEnding(
-        normalizeLineEndings(input.newString),
-        ending,
-      );
-      try {
-        contentNew = replace(
-          contentOld,
-          oldStringConverted,
-          newStringConverted,
-          input.replaceAll,
-        );
-      } catch (error) {
-        return executeError(
-          `Failed to edit file ${fixedPath}: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
-      }
-    }
-
-    let modifiedAt: number;
-    try {
-      // Makes the folders a new file needs, as `tee` does.
-      await files.fs.writeFile(target, contentNew);
-      modifiedAt = (await files.fs.stat(target)).mtime.getTime();
-    } catch (error) {
-      return files.failure(error, target);
-    }
-
-    const diff = trimDiff(
-      createTwoFilesPatch(
-        fixedPath,
-        fixedPath,
-        normalizeLineEndings(contentOld),
-        normalizeLineEndings(contentNew),
-      ),
-    );
-
-    return ok({
-      diff,
-      filePath: fixedPath,
-      modifiedAt,
-    });
-  },
-  readOnly: false,
-  timeoutMs: ms("30 seconds"),
-  toModelOutput: ({ output }) => {
-    return {
-      type: "text",
-      value: `Successfully edited file ${output.filePath}`,
-    };
+        return ok({
+          diff,
+          filePath: fixedPath,
+          modifiedAt,
+        });
+      },
+      readOnly: false,
+      timeoutMs: () => ms("30 seconds"),
+      toModelOutput: ({ output }) => {
+        return {
+          type: "text",
+          value: `Successfully edited file ${output.filePath}`,
+        };
+      },
+      name: "edit_file",
+      output: z.object({
+        diff: z.string().optional(),
+        // Relative to the chat's folder, or the absolute path in a writable folder.
+        filePath: z.string(),
+        modifiedAt: z.number(),
+      }),
+    },
   },
 });
+
+export const EditFile = modelTool(editFileCapability);

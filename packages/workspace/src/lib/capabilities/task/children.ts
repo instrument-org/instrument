@@ -1,5 +1,5 @@
 import { type ChatTask, listChildTasks } from "../../chat/children";
-import { type TaskCommandContext } from "./context";
+import { type ChatId } from "../../../schemas/chat-id";
 
 /**
  * The task of this chat's a command names: by its handle (`t1`), or by its
@@ -9,7 +9,7 @@ import { type TaskCommandContext } from "./context";
  */
 export async function requireChild(
   rawId: string | undefined,
-  { chatId }: TaskCommandContext,
+  { chatId }: { chatId: ChatId },
 ): Promise<ChatTask> {
   if (!rawId) {
     throw new Error("a task id (t1) is required. See `instrument task list`.");

@@ -13,7 +13,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
-import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { capabilityRunner } from "../../test/helpers/run-capability";
 import { instrumentAgent } from "../../agents/instrument";
 import { createSession } from "../create-session";
 import { prepareModelMessages } from "../prepare-model-messages";
@@ -24,12 +24,11 @@ import { chatDir } from "../record-folders";
 import { setChatModel } from "../chat-settings";
 import { chatGrants } from "../chat/grants";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { type TaskCommandContext } from "./task/context";
-import { newSubcommand } from "./task/fork";
+import { type CapabilityScope } from "../capabilities/context";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
-const runNew = subcommandRunner(newSubcommand, "task new");
+const runNew = capabilityRunner("task", "new");
 
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
 
@@ -64,7 +63,7 @@ vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
 
 let counter = 0;
 let rootDir: string;
-let context: TaskCommandContext;
+let context: CapabilityScope;
 let chatSessionId: StoreId.Session;
 let chatMessages: SessionMessage.WithParts[];
 
@@ -100,9 +99,10 @@ beforeEach(async () => {
   context = {
     // The `bash` part `instrument task new` runs in: the last call of the reply in
     // flight.
-    callPartId: callOf(chatMessages).metadata.id,
     chatId,
+    partId: callOf(chatMessages).metadata.id,
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
+    role: "chat",
     sessionId: chatSessionId,
   };
   await setChatModel(

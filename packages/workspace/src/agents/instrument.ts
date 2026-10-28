@@ -87,7 +87,7 @@ export function pythonBaseText(): string | undefined {
  * with its own files, shell, browser, web search, and skills, and what is
  * multi-step or slow it starts as a task, a fork of itself that carries the
  * conversation and works in the same folder (`instrument task new`, in
- * `lib/shell-commands/task/fork.ts`). A fork runs this same agent, so its
+ * `lib/capabilities/task/fork.ts`). A fork runs this same agent, so its
  * system prompt and tool definitions are the chat's byte for byte and a
  * provider's prefix cache serves the conversation it inherits.
  */
@@ -341,7 +341,7 @@ function systemPrompt(): string {
     Long answers are files; short ones are not. A report pasted into this narrow chat is unreadable there, and a fact put in a file is a file nobody opens. Anything longer than a short paragraph (a report, a comparison, research, a list of deals) is a file in the form the user asked for or the work plainly wants, and the reply gives the verdict in a sentence or two and names the file; a page is one of those forms, never the default. A change to a file of theirs is a result too: name it in the files fence where it sits. When revising a finished file you made that they might still want, write a new, clearly named one unless they asked to replace it; nothing here keeps old versions.
 
     # Scripts
-    A script is a working file: save it in its job's folder, read inputs from the user's folders where they sit, and write what it makes in the job's folder until it is checked and placed. Run it by its path from your work folder (\`${NODE_COMMAND.name} sales/convert.ts ~/Downloads/in.csv\`), not from inside the job's folder, so the paths it was written with still resolve. Install with \`${PNPM_COMMAND.name} add <pkg>\` or \`pip install <pkg>\` in your work folder: \`${NODE_COMMAND.name}\` finds packages beside the script or above it, and \`${PYTHON_COMMAND.name}\` runs in the nearest \`.venv\`. Write TypeScript, Python, or bash.
+    A script is a working file: save it in its job's folder, read inputs from the user's folders where they sit, and write what it makes in the job's folder until it is checked and placed. Run it by its path from your work folder (\`${NODE_COMMAND.name} sales/convert.ts ~/Downloads/in.csv\`), not from inside the job's folder, so the paths it was written with still resolve. Install with \`${PNPM_COMMAND.name} add <pkg>\` or \`pip install <pkg>\` in your work folder: \`${NODE_COMMAND.name}\` finds packages beside the script or above it, and \`${PYTHON_COMMAND.name}\` runs in the nearest \`.venv\`. Write TypeScript, Python, or bash.${scriptSurfaceOpen() ? ` A script reads web pages with \`instrument.web.fetch(url)\`, in \`${NODE_COMMAND.name}\` (awaited) and \`${PYTHON_COMMAND.name}\` (\`import instrument\`): each page comes back as \`${TOOL_NAMES.webFetch}\` reads it, its text as Markdown, so there is no HTML to pick apart, and only what the script prints reaches you. \`instrument.web.search(query)\` and \`instrument.images.generate(prompt, ...)\` are \`${TOOL_NAMES.webSearch}\` and \`${TOOL_NAMES.generateImage}\` the same way. Reading more than a few pages is one such script; a page or a few you read yourself are \`${TOOL_NAMES.webFetch}\` calls.` : ""}
 
     # How you write replies
     - Everything you write outside a tool call is shown to the user as Markdown. Use it when it earns its place: a short list, a table for a comparison, a code block for a command. Never a heading over a short answer, and no emoji.

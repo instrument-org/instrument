@@ -71,6 +71,14 @@ service's error raises); any other name calls that MCP tool with keyword
 arguments; call(tool, args) calls one whatever its name; tools() and
 tool(name) list them. instrument.apps.request(...) returns the whole
 response: {status, url, content_type, body, truncated}.
+
+The model's web and image tools are here too, returning data:
+instrument.web.fetch(url) is {url, text, truncated, ...},
+instrument.web.search(query) is {kind, sources, text}, and
+instrument.images.generate(prompt, file_path=...) saves the image.
+instrument.memory.list() and instrument.memory.show(name) read what is
+remembered; instrument.window.list() and instrument.window.read(tab) what is
+in front of the user.
 help(instrument.apps.request) and describe() show what this shell can call.
 
 Calls block and are safe from threads, so a ThreadPoolExecutor fans out. One
@@ -82,6 +90,7 @@ app's guide; read it, then run the script again). Anything else raises Error.
 import inspect
 import json
 import os
+import re
 import socket
 import threading
 
@@ -186,6 +195,10 @@ def describe(name=None):
     return next((each for each in _described if each["name"] == name), None)
 
 
+def _snake(name):
+    return re.sub(r"[A-Z]", lambda letter: "_" + letter.group(0).lower(), name)
+
+
 def _function(shape):
     schema = shape.get("input") or {}
     fields = schema.get("properties") or {}
@@ -193,11 +206,13 @@ def _function(shape):
     positional = shape.get("positional") or []
     parameters = []
     optional = False
+    # Every parameter is spelled in snake_case, as Python's are; the app
+    # takes either spelling of a field it declares.
     for field in positional:
         optional = optional or field not in required
         parameters.append(
             inspect.Parameter(
-                field,
+                _snake(field),
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 default=None if optional else inspect.Parameter.empty,
             )
@@ -206,7 +221,7 @@ def _function(shape):
         if field not in positional:
             parameters.append(
                 inspect.Parameter(
-                    field,
+                    _snake(field),
                     inspect.Parameter.KEYWORD_ONLY,
                     default=inspect.Parameter.empty if field in required else None,
                 )
@@ -218,7 +233,7 @@ def _function(shape):
         return call(shape["name"], {key: value for key, value in bound.arguments.items() if value is not None})
 
     lines = [
-        "%s: %s" % (field, node.get("description"))
+        "%s: %s" % (_snake(field), node.get("description"))
         for field, node in fields.items()
         if isinstance(node, dict) and node.get("description")
     ]
@@ -317,6 +332,21 @@ class App:
 def app(slug):
     """The connected app with this slug."""
     return App(slug)
+
+
+def __getattr__(name):
+    # Every namespace this shell can call, as instrument.web or instrument.images.
+    if name.startswith("_"):
+        raise AttributeError(name)
+    if not any(each["name"].startswith(name + ".") for each in describe()):
+        raise AttributeError("instrument has no %s" % name)
+    namespace = _Namespace(name)
+    globals()[name] = namespace
+    return namespace
+
+
+def __dir__():
+    return sorted(set(__all__) | {each["name"].split(".", 1)[0] for each in describe()})
 `;
 
 /** The folders the module and the bare interpreter's \`sitecustomize\` are written to. */

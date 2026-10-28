@@ -17,11 +17,12 @@ import {
 } from "../apps/guide-hand-off";
 import { runtimeLayout } from "../runtime-dir";
 import { withRaisedAsks } from "../shell-commands/raised-asks";
-import { defineSubcommands } from "../shell-commands/subcommands";
-import { cliSubcommands } from "./cli";
+import { cliSubcommands, generatedCommand } from "./cli";
 import { type CapabilityScope, capabilityContexts } from "./context";
 import { type Capability, CapabilityFailure, defineCapability } from "./define";
+import { unavailableReason } from "./admit";
 import { describeCapabilities, dispatch } from "./dispatch";
+import { CAPABILITIES } from "./registry";
 import { ensureInstrumentStub, INSTRUMENT_STUB_MESSAGE } from "./stub";
 import { getWorkspaceConfig } from "../workspace-config";
 
@@ -110,24 +111,54 @@ const cliOnly = defineCapability({
   text: () => "done",
 });
 
-const REGISTRY: readonly Capability[] = [echo, chatOnly, cliOnly];
+/** Declares its fields in camelCase, as a model tool's capability does. */
+const camel = defineCapability({
+  input: z.object({ maxCharacters: z.number().optional(), url: z.string() }),
+  name: "test.camel",
+  output: z.json(),
+  run: (input) => Promise.resolve(z.json().parse(input)),
+  summary: "Hands its input back.",
+  surfaces: { script: { positional: ["url"] } },
+  text: (output) => JSON.stringify(output),
+});
+
+/** Fails by its render, as `app test` does. */
+const failing = defineCapability({
+  input: z.object({}),
+  name: "test.failing",
+  output: z.object({ passed: z.boolean() }),
+  render: () => ({ exitCode: 1, stderr: "failed\n", stdout: "" }),
+  run: () => Promise.resolve({ passed: false }),
+  summary: "Always fails.",
+  surfaces: { cli: { help: "", words: ["test", "failing"] } },
+  text: () => "failed",
+});
+
+const REGISTRY: readonly Capability[] = [
+  echo,
+  camel,
+  chatOnly,
+  cliOnly,
+  failing,
+];
 
 async function cli(args: string[], stdin = "") {
-  const { subcommands, usage } = cliSubcommands("test", REGISTRY);
-  const run = defineSubcommands({
-    errorPrefix: "subcommand",
-    name: "instrument test",
-    subcommands,
-    usage: usage.join("\n"),
-  });
+  const command = generatedCommand(
+    {
+      name: "instrument test",
+      scope,
+      usage: (lines) => lines.join("\n"),
+      word: "test",
+    },
+    REGISTRY,
+  );
   const fs = new InMemoryFs();
   const recorded: RecordedAppGuide[] = [];
   const asks: string[] = [];
   const result = await withRaisedAsks(asks, () =>
     withAppGuideHandOffs(recorded, () =>
-      run(
+      command.execute(
         args,
-        scope,
         createCommandContext({
           cwd: "/work",
           env: new Map(),
@@ -198,14 +229,49 @@ describe("the generated command line", () => {
     expect(await json.fs.readFile("/work/out.json")).toBe("{}\n");
   });
 
+  it.each([[["--json"]], [["--out", "out.txt"]], [[]]])(
+    "keeps a rendered failure's exit code with %j",
+    async (flags) => {
+      expect((await cli(["failing", ...flags])).exitCode).toBe(1);
+    },
+  );
+
   it.each([
-    ["closed", 1, 'instrument test echo: "closed" is not connected.\n'],
-    ["asks", 1, "instrument test echo: using asks needs the person's yes.\n"],
+    ["closed", 1, 'instrument test: "closed" is not connected.\n'],
+    ["asks", 1, "instrument test: using asks needs the person's yes.\n"],
     ["mac", 2, "macOS is asking.\n"],
-    ["broken", 1, "instrument test echo: the service said no.\n"],
+    ["broken", 1, "instrument test: the service said no.\n"],
   ])("answers a call to %s with exit %d", async (app, exitCode, stderr) => {
     const result = await cli(["echo", app]);
     expect(result).toMatchObject({ exitCode, stderr, stdout: "" });
+  });
+
+  it.each([[[]], [["help"]], [["echo", "--help"]], [["-h"]]])(
+    "prints the usage for %j",
+    async (args) => {
+      const result = await cli(args);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/^ {2}instrument test echo /);
+    },
+  );
+
+  it("refuses a subcommand it does not have, with the usage", async () => {
+    const result = await cli(["frob"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(
+      /^instrument test: unknown subcommand "frob"\.\n\n {2}instrument test echo /,
+    );
+  });
+
+  it("refuses an unknown flag with the one form it takes", async () => {
+    const result = await cli(["cli-only", "--nope"]);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument test: unknown flag --nope on \`instrument test cli-only\`.
+
+        instrument test cli-only
+            Never in a script.
+      "
+    `);
   });
 
   it("raises the card a gate says is up", async () => {
@@ -232,20 +298,20 @@ describe("the generated command line", () => {
   it("says what the schema says of a missing field", async () => {
     const result = await cli(["echo"]);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe(
-      "instrument test echo: an app slug is required.\n",
-    );
+    expect(result.stderr).toBe("instrument test: an app slug is required.\n");
   });
 
   it("lists each capability in the usage from its schema", async () => {
     expect((await cli(["help"])).stdout).toMatchInlineSnapshot(`
-      "  instrument test echo <app> ['<data>'] [--count <count>] [--labels <value>]... [--param <key>=<value>]... [--start-time <start_time>] [--verbose]
+      "  instrument test echo <app> ['<data>'] [--count <count>] [--labels <labels>]... [--param <key>=<value>]... [--start-time <start-time>] [--verbose] [<<'EOF' ... EOF]
             Hands its input back.
             For tests.
         instrument test chat-only
             Only the chat has it.
         instrument test cli-only
-            Never in a script."
+            Never in a script.
+        instrument test failing
+            Always fails."
     `);
   });
 });
@@ -261,6 +327,18 @@ describe("dispatch", () => {
       REGISTRY,
     );
     expect(answer).toMatchObject({ output: { start_time: "today" } });
+  });
+
+  it("gives a Python script's snake_case field the camelCase name a tool's capability declares", async () => {
+    const answer = await dispatch(
+      "test.camel",
+      { max_characters: 5, url: "https://example.com" },
+      script,
+      REGISTRY,
+    );
+    expect(answer).toMatchObject({
+      output: { maxCharacters: 5, url: "https://example.com" },
+    });
   });
 
   it("frames the guide for a script, which runs again rather than repeating a command", async () => {
@@ -329,7 +407,147 @@ describe("dispatch", () => {
         name,
         positional,
       })),
-    ).toEqual([{ name: "test.echo", positional: ["app"] }]);
+    ).toEqual([
+      { name: "test.echo", positional: ["app"] },
+      { name: "test.camel", positional: ["url"] },
+    ]);
+  });
+});
+
+describe("the registry", () => {
+  const script = capabilityContexts(scope, "script")();
+
+  // Setting an app up is the agent's own step, with its output in front of
+  // it, and the turn-enders are model tools that end the turn: neither is a
+  // script's to call. Neither is keeping a memory, changing what is in front
+  // of the person, or starting and steering tasks. Reads and the web and
+  // image tools are.
+  it("puts reads and the web and image tools on the script surface, and app setup off it", () => {
+    expect(
+      describeCapabilities(script)
+        .map(({ name }) => name)
+        .toSorted(),
+    ).toMatchInlineSnapshot(`
+      [
+        "apps.call",
+        "apps.list",
+        "apps.request",
+        "apps.tools",
+        "images.generate",
+        "memory.list",
+        "memory.show",
+        "web.fetch",
+        "web.search",
+        "window.list",
+        "window.read",
+        "x.search",
+        "x.thread",
+      ]
+    `);
+  });
+
+  it("gives a task's script the reads alone", () => {
+    expect(
+      describeCapabilities(
+        capabilityContexts({ ...scope, role: "task" }, "script")(),
+      )
+        .map(({ name }) => name)
+        .toSorted(),
+    ).toMatchInlineSnapshot(`
+      [
+        "apps.call",
+        "apps.list",
+        "apps.request",
+        "apps.tools",
+        "images.generate",
+        "memory.list",
+        "memory.show",
+        "web.fetch",
+        "web.search",
+        "window.list",
+        "window.read",
+        "x.search",
+        "x.thread",
+      ]
+    `);
+  });
+
+  // The chat's and a task's shells differ only by these: a task reads the
+  // window and the memories, and changes neither, and has no tasks.
+  it("leaves out of a task what only the chat has, each saying what to do instead", () => {
+    expect(
+      Object.fromEntries(
+        CAPABILITIES.flatMap((capability) => {
+          const refused = unavailableReason(capability, "task");
+          return refused === undefined ? [] : [[capability.name, refused]];
+        }),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "memory.forget": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
+        "memory.save": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
+        "task.list": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.log": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.new": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.send": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.stop": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "window.close": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.request": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.show": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+      }
+    `);
+  });
+
+  it("generates every instrument subcommand", () => {
+    expect(
+      Object.fromEntries(
+        ["app", "memory", "task", "window", "x"].map((word) => [
+          word,
+          Object.keys(cliSubcommands(word).subcommands).toSorted(),
+        ]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "app": [
+          "account",
+          "call",
+          "catalog",
+          "disconnect",
+          "guide",
+          "icon",
+          "list",
+          "new",
+          "request",
+          "test",
+          "tool",
+          "tools",
+        ],
+        "memory": [
+          "forget",
+          "list",
+          "save",
+          "show",
+        ],
+        "task": [
+          "list",
+          "log",
+          "new",
+          "send",
+          "stop",
+        ],
+        "window": [
+          "close",
+          "list",
+          "read",
+          "request",
+          "show",
+        ],
+        "x": [
+          "search",
+          "thread",
+        ],
+      }
+    `);
   });
 });
 

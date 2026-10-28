@@ -37,6 +37,7 @@ import { MAC_APPS } from "./mac-apps/apps";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { createXCommand, X_COMMAND } from "./shell-commands/x";
 import { answerChannel, type ChannelAnswer } from "./capabilities/channel";
+import { commandRefusal } from "./capabilities/cli";
 import { type CapabilityScope } from "./capabilities/context";
 import { scriptSurfaceOpen } from "./capabilities/script-surface";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
@@ -104,7 +105,7 @@ import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createWindowCommand } from "./shell-commands/window";
 import { WINDOW_COMMAND } from "./shell-commands/window-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
-import { createTaskCommand } from "./shell-commands/task/command";
+import { createTaskCommand } from "./shell-commands/task";
 import {
   createUvCommand,
   createUvxCommand,
@@ -846,15 +847,6 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a task's `instrument` says of the subcommand only the chat has: the
- * task reports to the chat, and there are no tasks within a task.
- */
-const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = {
-  [TASK_COMMAND.word]:
-    "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
-};
-
-/**
  * The agent's shell: in the bash worker when the host set one up (see
  * `bashWorkerEnabled`), otherwise on this thread.
  */
@@ -909,18 +901,19 @@ export async function createLocalBashEnv({
     ...getNetworkCommandNames(),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  // What sets the chat's shell apart from a task's: its `instrument` has
-  // `task`, and its `memory` and `window` change things, where a task's only
-  // read them; `app` is every shell's. Putting a thing on the user's screen
-  // is the chat's `window`: a task's reply is read by the chat, and a pane of
-  // the task's own has nobody looking.
   // The bash call as every capability call it makes sees it: the folders a
-  // file handed to an app is held to, and the part a card it raises names.
+  // file handed to an app is held to, the part a card it raises names, and
+  // the role, which each capability's `where.roles` is checked against. That
+  // is what sets the chat's shell apart from a task's: a task's `memory` and
+  // `window` only read, and its `task` has nothing. Putting a thing on the
+  // user's screen is the chat's `window`: a task's reply is read by the chat,
+  // and a pane of the task's own has nobody looking.
   const scope: CapabilityScope = {
     chatId,
     layout,
     ...(model === undefined ? {} : { model }),
     ...(callPartId === undefined ? {} : { partId: callPartId }),
+    remainingYieldMs,
     role,
     sessionId,
   };
@@ -932,41 +925,29 @@ export async function createLocalBashEnv({
     }),
   );
   const instrumentCommand = createInstrumentCommand({
-    missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       {
         ...APP_COMMAND,
         command: createAppCommand(scope),
       },
-      { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
+      { ...X_COMMAND, command: createXCommand(scope) },
       {
         ...MEMORY_COMMAND,
-        command: createMemoryCommand({ chatId, role }),
+        command: createMemoryCommand(scope),
       },
       {
         ...WINDOW_COMMAND,
-        command: createWindowCommand({
-          callPartId,
-          chatId,
-          layout,
-          role,
-          sessionId,
-        }),
+        command: createWindowCommand(scope),
       },
-      ...(role === "chat"
-        ? [
-            {
-              ...TASK_COMMAND,
-              command: createTaskCommand({
-                callPartId,
-                chatId,
-                remainingYieldMs,
-                sessionId,
-              }),
-            },
-          ]
-        : []),
-    ].toSorted((a, b) => a.word.localeCompare(b.word)),
+      { ...TASK_COMMAND, command: createTaskCommand(scope) },
+    ]
+      // A command with nothing this role may run (a task's `task`) is left
+      // out of the listing, and says why when it is called anyway.
+      .map((each) => ({
+        ...each,
+        listed: commandRefusal(each.word, role) === undefined,
+      }))
+      .toSorted((a, b) => a.word.localeCompare(b.word)),
   });
   const specializedCommands = [instrumentCommand, ...nativeCommands];
   const routes = nativeTextRoutes();

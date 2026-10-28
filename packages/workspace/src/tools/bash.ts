@@ -68,8 +68,8 @@ import {
   truncateMiddle,
 } from "../lib/truncate-buffer";
 import { RelativePathSchema } from "../schemas/paths";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 import { skillInstructions } from "./load-skill";
 import { workDir } from "../lib/work-dir";
 import {
@@ -254,8 +254,8 @@ const bashOutputSchema = z.object({
   spillFilePath: RelativePathSchema.optional(),
 });
 
-export const BashTool = setupTool({
-  inputSchema: BaseInputSchema.extend({
+const bashCapability = defineCapability({
+  input: z.object({
     command: z.string().meta({ description: "The bash command to run" }),
     yieldMs: z
       .number()
@@ -273,267 +273,287 @@ export const BashTool = setupTool({
         ].join(" "),
       }),
   }),
-  name: "bash",
-  outputSchema: bashOutputSchema,
-}).create({
-  // Built per call: the command list it renders describes capabilities that a
-  // feature flag can turn on and off while the app is running.
-  description: () => createBashDescription(),
-  async execute({ input, model, partId, sessionId, signal, chatId }) {
-    const ampersand = ampersandUse(input.command);
-    if (ampersand === "refused") {
-      return ok({
-        command: input.command,
-        commands: [],
-        durationMs: 0,
-        exitCode: 2,
-        omittedBytes: 0,
-        output: AMPERSAND_REFUSAL,
-      });
-    }
-    const folders = await folderReach(chatId);
-    const yieldMs = clampYieldMs(input.yieldMs);
-    const startedAt = performance.now();
-    // The chat's own commands are its conversation's: a task of the chat's
-    // runs in the same folder with a task's shell.
-    const role = sessionRole(chatId, sessionId) ?? "task";
-    const bash = await createBashEnv({
-      folders,
-      callPartId: partId,
-      loadedSkillDir: await lastLoadedSkillDir({ chatId, sessionId }),
-      role,
-      // `fg` waits inside this call, so what is left of the window is its
-      // ceiling. Measured from here rather than from the race below, which only
-      // makes it return sooner than it strictly has to.
-      remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
-      sessionId,
-      chatId,
-      model: model.canonicalId,
-    });
-    // Interpreter metadata, only available once the run finishes. A promoted
-    // command reports none, which is what the empty default stands for.
-    let commands: string[] = [];
-    const browserFollowUp = new BrowserFollowUp();
-    const handOffs: HandOff[] = [];
-    const asks: string[] = [];
-    const appGuides: RecordedAppGuide[] = [];
-    const commandRuns = new CommandRuns();
-    const ran = () => {
-      const rows = commandRuns.rows();
-      return rows.length > 0 ? { ran: rows } : {};
-    };
-
-    const handle = startBackgroundRun({
-      callerSignal: signal,
-      command: input.command,
-      explanation: input.explanation,
-      run: async ({ signal: runSignal }) => {
-        try {
-          const result = await withCommandRuns(commandRuns, () =>
-            withHandOffs(handOffs, () =>
-              withRaisedAsks(asks, () =>
-                withAppGuideHandOffs(appGuides, () =>
-                  withBrowserFollowUp(browserFollowUp, () =>
-                    bash.exec(input.command, { signal: runSignal }),
-                  ),
-                ),
-              ),
-            ),
-          );
-          commands = Array.isArray(result.metadata?.commands)
-            ? result.metadata.commands.filter(
-                (command): command is string => typeof command === "string",
-              )
-            : [];
-          return {
-            exitCode: result.exitCode,
-            output: [result.stdout, result.stderr].filter(Boolean).join("\n"),
-          };
-        } catch (error) {
-          if (runSignal.aborted) {
-            throw error;
-          }
-          // just-bash surfaces some filesystem failures (e.g. a redirect into a
-          // read-only mount) as thrown errors instead of exit codes. Report them
-          // like a failed command so the agent adjusts its command instead of
-          // treating the tool itself as broken.
-          return {
-            exitCode: 1,
-            output: error instanceof Error ? error.message : String(error),
-          };
+  name: "shell.run",
+  summary: "Runs a bash command in the chat's shell.",
+  surfaces: {
+    tool: {
+      // Built per call: the command list it renders describes capabilities that a
+      // feature flag can turn on and off while the app is running.
+      description: () => createBashDescription(),
+      async execute({ input, model, partId, sessionId, signal, chatId }) {
+        const ampersand = ampersandUse(input.command);
+        if (ampersand === "refused") {
+          return ok({
+            command: input.command,
+            commands: [],
+            durationMs: 0,
+            exitCode: 2,
+            omittedBytes: 0,
+            output: AMPERSAND_REFUSAL,
+          });
         }
-      },
-    });
-
-    const promotedResult = (
-      info: BackgroundProcessInfo,
-      movedForMessageFrom?: WaitInterrupt["from"],
-    ) => {
-      const { omittedBytes, text } = handle.buffer.drain();
-      return ok({
-        ...(ampersand === "trailing" ? { backgrounded: true } : {}),
-        command: input.command,
-        commands: [],
-        durationMs: Math.round(performance.now() - startedAt),
-        logFilePath: info.logFilePath,
-        logOmittedBytes: info.logOmittedBytes,
-        ...(info.logWriteError ? { logWriteError: info.logWriteError } : {}),
-        ...(movedForMessageFrom ? { movedForMessageFrom } : {}),
-        omittedBytes,
-        output: text,
-        pids: info.pids,
-        processId: info.id,
-        ...ran(),
-      });
-    };
-
-    // A trailing `&` asks for the background now: the call returns once the
-    // command has started its program, or failed before it could.
-    if (ampersand === "trailing") {
-      const early = await startedOrDone(handle);
-      if (early === "still-running") {
-        const promoted = promoteBackgroundProcess({
-          handle,
-          sessionId,
-          chatId,
-        });
-        if ("error" in promoted) {
-          handle.abort();
-          return executeError(promoted.error);
-        }
-        return promotedResult(promoted.info);
-      }
-    }
-
-    // A message for the session is heard at the agent's next step, which a
-    // foreground command would hold back for the rest of its window. It never
-    // ends the command: the command moves to the background and keeps
-    // running, and the call returns so the message is heard now.
-    const interrupt = interruptibleWait(sessionId);
-    let outcome;
-    try {
-      outcome = await raceYield(handle.completion, yieldMs, interrupt.signal);
-    } finally {
-      interrupt.release();
-    }
-    if (outcome === "interrupted") {
-      outcome = await raceYield(handle.completion, MESSAGE_GRACE_MS);
-      if (outcome === "still-running") {
-        const promoted = promoteBackgroundProcess({
-          handle,
-          sessionId,
-          chatId,
-        });
-        if ("info" in promoted) {
-          return promotedResult(
-            promoted.info,
-            interruptedByUser(interrupt.signal) ? "user" : "other",
-          );
-        }
-        // One that cannot move to the background (the cap, a closing
-        // session) stays in the foreground for the rest of its window, as if
-        // no message had come.
-        outcome = await raceYield(
-          handle.completion,
-          Math.max(0, yieldMs - (performance.now() - startedAt)),
-        );
-      }
-    }
-    const durationMs = Math.round(performance.now() - startedAt);
-    if (outcome !== "still-running") {
-      // What its programs left running in their groups is still the agent's.
-      rememberForegroundPrograms(sessionId, handle);
-    }
-
-    if (outcome === "still-running") {
-      const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
-      if ("error" in promoted) {
-        handle.abort();
-        return executeError(promoted.error);
-      }
-      return promotedResult(promoted.info);
-    }
-
-    if ("errorMessage" in outcome) {
-      return executeError(
-        outcome.errorMessage || "The command was stopped before it finished.",
-      );
-    }
-
-    const { truncated } = truncateMiddle(outcome.output);
-
-    let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
-    if (truncated) {
-      spillFilePath = RelativePathSchema.parse(
-        path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.log`),
-      );
-      const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
-      await fs.mkdir(path.dirname(absPath), { recursive: true });
-      await fs.writeFile(absPath, outcome.output, {
-        encoding: "utf8",
-        signal,
-      });
-    }
-
-    const pageAfter = await browserFollowUp.take(signal);
-    const screenshotPath = browserFollowUp.takeScreenshot();
-    const screenshot =
-      screenshotPath !== undefined && model.features.includes("inputImage")
-        ? await browserScreenshot({
-            files: await sessionToolFs({ chatId, partId, sessionId }),
-            hostPath: screenshotPath,
-            signal,
-          })
-        : undefined;
-    const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({
+        const folders = await folderReach(chatId);
+        const yieldMs = clampYieldMs(input.yieldMs);
+        const startedAt = performance.now();
+        // The chat's own commands are its conversation's: a task of the chat's
+        // runs in the same folder with a task's shell.
+        const role = sessionRole(chatId, sessionId) ?? "task";
+        const bash = await createBashEnv({
+          folders,
+          callPartId: partId,
+          loadedSkillDir: await lastLoadedSkillDir({ chatId, sessionId }),
+          role,
+          // `fg` waits inside this call, so what is left of the window is its
+          // ceiling. Measured from here rather than from the race below, which only
+          // makes it return sooner than it strictly has to.
+          remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
           sessionId,
           chatId,
           model: model.canonicalId,
-        })
-      : undefined;
-    const guidesShown = appGuidesShown(appGuides, outcome.output);
+        });
+        // Interpreter metadata, only available once the run finishes. A promoted
+        // command reports none, which is what the empty default stands for.
+        let commands: string[] = [];
+        const browserFollowUp = new BrowserFollowUp();
+        const handOffs: HandOff[] = [];
+        const asks: string[] = [];
+        const appGuides: RecordedAppGuide[] = [];
+        const commandRuns = new CommandRuns();
+        const ran = () => {
+          const rows = commandRuns.rows();
+          return rows.length > 0 ? { ran: rows } : {};
+        };
 
-    return ok({
-      ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
-      ...(browserSkill ? { browserSkill } : {}),
-      command: input.command,
-      commands,
-      durationMs,
-      exitCode: outcome.exitCode,
-      ...(handOffs.length > 0 ? { handOffs } : {}),
-      ...(asks.length > 0 ? { asks } : {}),
-      omittedBytes: 0,
-      output: outcome.output,
-      ...(pageAfter ? { pageAfter } : {}),
-      ...ran(),
-      ...(screenshot ? { screenshot } : {}),
-      spillFilePath,
-    });
-  },
-  readOnly: false,
-  timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
-  toModelOutput: ({ output }) => {
-    const text = bashOutputText(output);
-    if (!output.screenshot || text.type === "error-text") {
-      return text;
-    }
-    return {
-      type: "content",
-      value: [
-        {
-          text: `${text.value}\n\nThe screenshot the call took, as \`read_file\` would show it${describeImageSize(output.screenshot)}:`,
-          type: "text",
-        },
-        {
-          data: { data: output.screenshot.base64Data, type: "data" },
-          mediaType: output.screenshot.mimeType,
-          type: "file",
-        },
-      ],
-    };
+        const handle = startBackgroundRun({
+          callerSignal: signal,
+          command: input.command,
+          explanation: input.explanation,
+          run: async ({ signal: runSignal }) => {
+            try {
+              const result = await withCommandRuns(commandRuns, () =>
+                withHandOffs(handOffs, () =>
+                  withRaisedAsks(asks, () =>
+                    withAppGuideHandOffs(appGuides, () =>
+                      withBrowserFollowUp(browserFollowUp, () =>
+                        bash.exec(input.command, { signal: runSignal }),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              commands = Array.isArray(result.metadata?.commands)
+                ? result.metadata.commands.filter(
+                    (command): command is string => typeof command === "string",
+                  )
+                : [];
+              return {
+                exitCode: result.exitCode,
+                output: [result.stdout, result.stderr]
+                  .filter(Boolean)
+                  .join("\n"),
+              };
+            } catch (error) {
+              if (runSignal.aborted) {
+                throw error;
+              }
+              // just-bash surfaces some filesystem failures (e.g. a redirect into a
+              // read-only mount) as thrown errors instead of exit codes. Report them
+              // like a failed command so the agent adjusts its command instead of
+              // treating the tool itself as broken.
+              return {
+                exitCode: 1,
+                output: error instanceof Error ? error.message : String(error),
+              };
+            }
+          },
+        });
+
+        const promotedResult = (
+          info: BackgroundProcessInfo,
+          movedForMessageFrom?: WaitInterrupt["from"],
+        ) => {
+          const { omittedBytes, text } = handle.buffer.drain();
+          return ok({
+            ...(ampersand === "trailing" ? { backgrounded: true } : {}),
+            command: input.command,
+            commands: [],
+            durationMs: Math.round(performance.now() - startedAt),
+            logFilePath: info.logFilePath,
+            logOmittedBytes: info.logOmittedBytes,
+            ...(info.logWriteError
+              ? { logWriteError: info.logWriteError }
+              : {}),
+            ...(movedForMessageFrom ? { movedForMessageFrom } : {}),
+            omittedBytes,
+            output: text,
+            pids: info.pids,
+            processId: info.id,
+            ...ran(),
+          });
+        };
+
+        // A trailing `&` asks for the background now: the call returns once the
+        // command has started its program, or failed before it could.
+        if (ampersand === "trailing") {
+          const early = await startedOrDone(handle);
+          if (early === "still-running") {
+            const promoted = promoteBackgroundProcess({
+              handle,
+              sessionId,
+              chatId,
+            });
+            if ("error" in promoted) {
+              handle.abort();
+              return executeError(promoted.error);
+            }
+            return promotedResult(promoted.info);
+          }
+        }
+
+        // A message for the session is heard at the agent's next step, which a
+        // foreground command would hold back for the rest of its window. It never
+        // ends the command: the command moves to the background and keeps
+        // running, and the call returns so the message is heard now.
+        const interrupt = interruptibleWait(sessionId);
+        let outcome;
+        try {
+          outcome = await raceYield(
+            handle.completion,
+            yieldMs,
+            interrupt.signal,
+          );
+        } finally {
+          interrupt.release();
+        }
+        if (outcome === "interrupted") {
+          outcome = await raceYield(handle.completion, MESSAGE_GRACE_MS);
+          if (outcome === "still-running") {
+            const promoted = promoteBackgroundProcess({
+              handle,
+              sessionId,
+              chatId,
+            });
+            if ("info" in promoted) {
+              return promotedResult(
+                promoted.info,
+                interruptedByUser(interrupt.signal) ? "user" : "other",
+              );
+            }
+            // One that cannot move to the background (the cap, a closing
+            // session) stays in the foreground for the rest of its window, as if
+            // no message had come.
+            outcome = await raceYield(
+              handle.completion,
+              Math.max(0, yieldMs - (performance.now() - startedAt)),
+            );
+          }
+        }
+        const durationMs = Math.round(performance.now() - startedAt);
+        if (outcome !== "still-running") {
+          // What its programs left running in their groups is still the agent's.
+          rememberForegroundPrograms(sessionId, handle);
+        }
+
+        if (outcome === "still-running") {
+          const promoted = promoteBackgroundProcess({
+            handle,
+            sessionId,
+            chatId,
+          });
+          if ("error" in promoted) {
+            handle.abort();
+            return executeError(promoted.error);
+          }
+          return promotedResult(promoted.info);
+        }
+
+        if ("errorMessage" in outcome) {
+          return executeError(
+            outcome.errorMessage ||
+              "The command was stopped before it finished.",
+          );
+        }
+
+        const { truncated } = truncateMiddle(outcome.output);
+
+        let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
+        if (truncated) {
+          spillFilePath = RelativePathSchema.parse(
+            path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.log`),
+          );
+          const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
+          await fs.mkdir(path.dirname(absPath), { recursive: true });
+          await fs.writeFile(absPath, outcome.output, {
+            encoding: "utf8",
+            signal,
+          });
+        }
+
+        const pageAfter = await browserFollowUp.take(signal);
+        const screenshotPath = browserFollowUp.takeScreenshot();
+        const screenshot =
+          screenshotPath !== undefined && model.features.includes("inputImage")
+            ? await browserScreenshot({
+                files: await sessionToolFs({ chatId, partId, sessionId }),
+                hostPath: screenshotPath,
+                signal,
+              })
+            : undefined;
+        const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
+          ? await browserSkillToDeliver({
+              sessionId,
+              chatId,
+              model: model.canonicalId,
+            })
+          : undefined;
+        const guidesShown = appGuidesShown(appGuides, outcome.output);
+
+        return ok({
+          ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
+          ...(browserSkill ? { browserSkill } : {}),
+          command: input.command,
+          commands,
+          durationMs,
+          exitCode: outcome.exitCode,
+          ...(handOffs.length > 0 ? { handOffs } : {}),
+          ...(asks.length > 0 ? { asks } : {}),
+          omittedBytes: 0,
+          output: outcome.output,
+          ...(pageAfter ? { pageAfter } : {}),
+          ...ran(),
+          ...(screenshot ? { screenshot } : {}),
+          spillFilePath,
+        });
+      },
+      readOnly: false,
+      timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
+      toModelOutput: ({ output }) => {
+        const text = bashOutputText(output);
+        if (!output.screenshot || text.type === "error-text") {
+          return text;
+        }
+        return {
+          type: "content",
+          value: [
+            {
+              text: `${text.value}\n\nThe screenshot the call took, as \`read_file\` would show it${describeImageSize(output.screenshot)}:`,
+              type: "text",
+            },
+            {
+              data: { data: output.screenshot.base64Data, type: "data" },
+              mediaType: output.screenshot.mimeType,
+              type: "file",
+            },
+          ],
+        };
+      },
+      name: "bash",
+      output: bashOutputSchema,
+    },
   },
 });
+
+export const BashTool = modelTool(bashCapability);
 
 /** The call's result as text: its output, and what the browser attached. */
 function bashOutputText(output: z.output<typeof bashOutputSchema>): {

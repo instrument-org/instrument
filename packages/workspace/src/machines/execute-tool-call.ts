@@ -126,12 +126,10 @@ export const executeToolCallMachine = setup({
   delays: {
     toolCallTimeout: ({ context }) => {
       const tool = getToolByType(context.part.type);
-      return typeof tool.timeoutMs === "function"
-        ? tool.timeoutMs({
-            input: context.part.input as never,
-            chatId: context.chatId,
-          })
-        : tool.timeoutMs;
+      return tool.timeoutMs({
+        input: context.part.input as never,
+        chatId: context.chatId,
+      });
     },
   },
 

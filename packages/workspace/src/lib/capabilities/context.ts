@@ -1,16 +1,25 @@
 import { stat } from "node:fs/promises";
 import nodePath from "node:path";
 
+import { type AIGatewayModel, fetchModel } from "@instrument-org/ai-gateway";
+
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
+import { chatModelURI } from "../chat-settings";
 import { readModelWindow } from "../model-window";
-import { type SubcommandShell } from "../shell-commands/subcommands";
+import { type CommandShell } from "./argv";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   hostPathOf,
   unsandboxedOperandRefusal,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { type CapabilityContext, type Surface } from "./define";
+import {
+  type CapabilityContext,
+  CapabilityFailure,
+  type Role,
+  type ShellPath,
+} from "./define";
 
 /** What a shell knows about the bash call it runs, from which each call's context is made. */
 export interface CapabilityScope {
@@ -23,12 +32,14 @@ export interface CapabilityScope {
   model?: string;
   /** The bash call, by its part's id, which a card the call raises names. */
   partId?: StoreId.Part;
-  role: "chat" | "task";
+  /** What is left of the bash call's yield window, read when a wait starts. */
+  remainingYieldMs?: () => number;
+  role: Role;
   sessionId: StoreId.Session;
 }
 
 /** The ways a file is looked at: the shell's, from its folder, or a script's, by its full path. */
-type FileLook = Pick<SubcommandShell, "cwd" | "fs"> | undefined;
+type FileLook = Pick<CommandShell, "cwd" | "fs"> | undefined;
 
 /** What is at `resolved` in the shell's filesystem. */
 async function shellFileKind(
@@ -79,26 +90,89 @@ async function readableFile(
   return hostPathOf(resolved);
 }
 
+/** What is at a path the command line names, from the shell's folder. */
+async function shellPath(
+  shell: NonNullable<FileLook>,
+  named: string,
+): Promise<ShellPath> {
+  const path = shell.fs.resolvePath(shell.cwd, named);
+  let found;
+  try {
+    found = await shell.fs.stat(path);
+  } catch {
+    return { kind: "none", path };
+  }
+  return {
+    kind: found.isDirectory ? "folder" : found.isFile ? "file" : "other",
+    path,
+  };
+}
+
+/** The model the chat's picker is on, which every session of the chat runs on. */
+async function chatsModel(chatId: ChatId): Promise<AIGatewayModel.Type> {
+  const modelURI = await chatModelURI(chatId);
+  if (!modelURI) {
+    throw new CapabilityFailure(
+      "this conversation has not chosen a model yet, so there is none to work on.",
+    );
+  }
+  const config = getWorkspaceConfig();
+  const result = await fetchModel({
+    captureException: config.captureException,
+    configs: config.getAIProviderConfigs(),
+    modelCache: config.modelCache,
+    modelRoutes: config.modelRoutes,
+    modelURI,
+  });
+  if (!result.ok) {
+    throw new CapabilityFailure(`model ${modelURI}: ${result.error.message}`);
+  }
+  return result.value;
+}
+
 /**
  * The contexts of the calls one bash call makes, on one surface. The model
  * window is read once, at the first call that asks: it is the same for the
  * whole bash call, since nothing it does is in the window until it returns.
+ * The chat's model is read once the same way.
  */
 export function capabilityContexts(
-  { chatId, layout, model, partId, role, sessionId }: CapabilityScope,
-  surface: Surface,
+  {
+    chatId,
+    layout,
+    model,
+    partId,
+    remainingYieldMs = () => Number.POSITIVE_INFINITY,
+    role,
+    sessionId,
+  }: CapabilityScope,
+  surface: CapabilityContext["surface"],
+  readShellFile?: CapabilityContext["readShellFile"],
 ): (signal?: AbortSignal, shell?: FileLook) => CapabilityContext {
   let window: ReturnType<CapabilityContext["modelWindow"]> | undefined;
+  let calling: ReturnType<CapabilityContext["callingModel"]> | undefined;
   const modelWindow = () =>
     (window ??= readModelWindow({ chatId, model, sessionId }));
+  const callingModel = () =>
+    (calling ??= chatsModel(chatId).catch((error: unknown) => {
+      calling = undefined;
+      throw error;
+    }));
   return (signal, shell) => ({
     asker: { chatId, ...(partId === undefined ? {} : { partId }), sessionId },
+    callingModel,
     chatId,
+    ...(layout === undefined ? {} : { layout }),
     ...(model === undefined ? {} : { model }),
     modelWindow,
     readableFile: (named) => readableFile(named, layout, shell),
+    ...(readShellFile === undefined ? {} : { readShellFile }),
+    remainingYieldMs,
     role,
     sessionId,
+    ...(shell === undefined
+      ? {}
+      : { shellPath: (named: string) => shellPath(shell, named) }),
     ...(signal === undefined ? {} : { signal }),
     surface,
   });

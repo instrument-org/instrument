@@ -18,16 +18,14 @@ import { listChildTasks } from "../chat/children";
 import { recordAsk } from "../chat/asks";
 import { openAsks } from "../chat/open-asks";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { type TaskCommandContext } from "./task/context";
-import { sendSubcommand } from "./task/send";
-import { stopSubcommand } from "./task/stop";
+import { type CapabilityScope } from "../capabilities/context";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { subcommandRunner } from "../../test/helpers/run-subcommand";
+import { capabilityRunner } from "../../test/helpers/run-capability";
 import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
-const runSend = subcommandRunner(sendSubcommand, "task send");
-const runStop = subcommandRunner(stopSubcommand, "task stop");
+const runSend = capabilityRunner("task", "send");
+const runStop = capabilityRunner("task", "stop");
 
 // A chat of its own per test: a store handle is kept per record id, and each
 // test's workspace is a folder of its own.
@@ -63,7 +61,7 @@ vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
     Promise.resolve({ ok: true, value: createMockAIGatewayModel() }) as never,
 }));
 
-let context: TaskCommandContext;
+let context: CapabilityScope;
 
 let rootDir: string;
 
@@ -73,6 +71,8 @@ beforeEach(async () => {
   context = {
     chatId: CHAT_ID,
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
+    role: "chat",
+    sessionId: StoreId.newSessionId(),
   };
   working.value = () => true;
   sent.events = [];

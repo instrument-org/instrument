@@ -44,6 +44,7 @@ import { TASK_SESSION_EVALS } from "./task-sessions";
 import { TASK_TABS_EVALS } from "./task-tabs";
 import { UNPROMPTED_TOOL_EVALS } from "./unprompted-tools";
 import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
+import { WEB_SCRIPTING_EVALS } from "./web-scripting";
 import { WEB_SEARCH_EVALS } from "./web-search";
 import { WINDOW_TABS_EVALS } from "./window-tabs";
 import { WORKER_EVALS } from "./worker";
@@ -102,6 +103,7 @@ export const EVALS = [
   ...TASK_TABS_EVALS,
   ...UNPROMPTED_TOOL_EVALS,
   ...UNREADABLE_MEDIA_EVALS,
+  ...WEB_SCRIPTING_EVALS,
   ...WEB_SEARCH_EVALS,
   ...WINDOW_TABS_EVALS,
   ...WORKER_EVALS,

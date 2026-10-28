@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import {
   listBackgroundProcesses,
   stopRunningProcesses,
@@ -9,22 +11,37 @@ import { noteTaskStoppedOnCard } from "../../chat/wake";
 import { closeAsksOf } from "../../chat/asks";
 import { openAsksOf } from "../../chat/open-asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
-import { type SubcommandInput, subcommand } from "../subcommands";
-import { TASK_COMMAND } from "../task-command";
+import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { type CapabilityContext, defineCapability } from "../define";
 import { requireChild } from "./children";
-import { type TaskCommandContext } from "./context";
+import { TASKS_ARE_THE_CHATS } from "./roles";
 
-export const stopSubcommand = subcommand<TaskCommandContext>({
-  booleans: ["all"],
-  run: runStop,
-  usage: `  ${TASK_COMMAND.name} stop <t id>... [<bg id> | --all]
-      End each running task's turn where it is, and say whether it stopped;
-      \`send\` gives it the next thing to do. With a process id after one task
-      (bg_1, as the note on its finish names them), stop only that process it
-      left in the background, and leave its turn alone. --all ends the turns
-      and every process they left running. A server the user is still using
-      is theirs to keep; a scan nobody is waiting on is not.
-`,
+const TASK_REQUIRED = "a task id (t1) is required. See `instrument task list`.";
+
+export const taskStop = defineCapability({
+  input: z.object({
+    tasks: z.array(z.string(), { error: TASK_REQUIRED }).min(1, TASK_REQUIRED),
+    all: z.boolean().default(false).meta({
+      description: "End the turns and every process they left running.",
+    }),
+  }),
+  name: "task.stop",
+  output: z.string(),
+  run: ({ all, tasks }, ctx) => runStop(tasks, all, ctx),
+  summary:
+    "End each running task's turn where it is, and say whether it stopped; `send` gives it the next thing to do.",
+  surfaces: {
+    cli: {
+      help: `With a process id after one task (bg_1, as the note on its finish names
+them), stop only that process it left in the background, and leave its
+turn alone. A server the user is still using is theirs to keep; a scan
+nobody is waiting on is not.`,
+      positional: ["tasks"],
+      words: ["task", "stop"],
+    },
+  },
+  text: (said) => said,
+  where: TASKS_ARE_THE_CHATS,
 });
 
 /** How long `stop` waits to see a task go idle before saying it is still ending. */
@@ -43,9 +60,12 @@ const WAIT_MARGIN_MS = 500;
  * by asking the task to, which would cost it a turn and trust the model that
  * left them behind: the same act as the stop button beside the task's title.
  */
-async function runStop(input: SubcommandInput, context: TaskCommandContext) {
-  const [first, ...more] = input.positional;
-  const all = input.has("all");
+async function runStop(
+  named: readonly string[],
+  all: boolean,
+  context: CapabilityContext,
+) {
+  const [first, ...more] = named;
   // A second argument is a process of the first task's unless it names a
   // task too, which is how "stop everything" reads: `stop t1 t2`.
   const processId =
@@ -77,7 +97,7 @@ function namesATask(raw: string): boolean {
 /** Ends one task's turn, and with `all` what it left running too. */
 async function stopOne(
   task: ChatTask,
-  { all, context }: { all: boolean; context: TaskCommandContext },
+  { all, context }: { all: boolean; context: CapabilityContext },
 ) {
   const turn = isWorking(task.chatId, task.id)
     ? await stopTurn(task, context)
@@ -156,7 +176,7 @@ async function stopWaiting(task: ChatTask) {
 }
 
 /** Ends a working task's turn, and says whether it went idle in time. */
-async function stopTurn(task: ChatTask, context: TaskCommandContext) {
+async function stopTurn(task: ChatTask, context: CapabilityContext) {
   // The wake would report the turn this ends as a finish; it is not news.
   getWorkspaceActorRef().send({
     type: "stopSessions",

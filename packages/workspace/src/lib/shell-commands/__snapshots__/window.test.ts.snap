@@ -1,5 +1,30 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`window close, show and read on a tab > names the form it takes for [ 'close' ] 1`] = `
+"instrument window: close needs the id of a tab (instrument window close <id>...).
+"
+`;
+
+exports[`window close, show and read on a tab > names the form it takes for [ 'request' ] 1`] = `
+"instrument window: request takes one tab id: instrument window request <id> --reason '<one sentence to the user>'.; request needs --reason '<one sentence to the user>', which the card shows them.
+"
+`;
+
+exports[`window close, show and read on a tab > names the form it takes for [ 'show' ] 1`] = `
+"instrument window: nothing to show: give a url, a path or a tab's id (instrument window show <url, path or id>...).
+"
+`;
+
+exports[`window close, show and read on a tab > names the form it takes for [ 'show', '--in', 'tab_known' ] 1`] = `
+"instrument window: nothing to show: give a url, a path or a tab's id (instrument window show <url, path or id>...).
+"
+`;
+
+exports[`window close, show and read on a tab > names the form it takes for [ 'show', 'tab_gone', '--in', …(1) ] 1`] = `
+"instrument window: --in takes one url or path to show in the tab: instrument window show <url or path> --in <id>.
+"
+`;
+
 exports[`window request > refuses a tab already the chat's, raising nothing 1`] = `
 "instrument window: tab <page> is already this chat's: \`instrument window read <page>\` reads it, and \`instrument task new --tab <page>\` hands it to a task.
 "

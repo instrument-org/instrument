@@ -21,15 +21,18 @@ import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { shellPath } from "../lib/workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
-import { BaseInputSchema } from "./base";
 import {
   type ConnectAppResult,
   askedOnCard,
   ConnectAppOutputSchema,
   connectAppResults,
 } from "./connect-app-output";
-import { setupTool } from "./create-tool";
-import { sessionRole } from "../lib/chat/children";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
+
+// A task runs the chat's agent where no card is seen.
+const ROLE_REFUSAL =
+  "You are running in the background, where nobody sees a card: only the chat asks the user to connect an app. End your last message with a needs fence naming the app.";
 
 /** The most apps one card asks for. */
 const MAX_APPS_PER_CARD = 12;
@@ -43,8 +46,8 @@ const MAX_APPS_PER_CARD = 12;
  * finishing task does, and the credential itself never passes through the
  * model.
  */
-export const ConnectApp = setupTool({
-  inputSchema: BaseInputSchema.extend({
+const connectAppCapability = defineCapability({
+  input: z.object({
     reason: z.string().trim().min(1).max(300).meta({
       description:
         "One sentence, addressed to the user, saying what connecting them lets you do for them: 'So I can read and write your Notion pages.'",
@@ -57,43 +60,43 @@ export const ConnectApp = setupTool({
         description: `The apps to connect: the \`id\` in the ${APP_FILE_NAME} you have already written for each. Every app the work needs goes in one call, one card for them all.`,
       }),
   }),
-  name: "connect_app",
-  outputSchema: ConnectAppOutputSchema,
-}).create({
-  description: dedent`
+  name: "apps.connect",
+  summary: "Asks the person to connect apps on one card; the turn ends on it.",
+  surfaces: {
+    tool: {
+      description: dedent`
     Ask the user to connect apps whose folders you have written in the apps folder. One card appears in the conversation with a row for each app and a count of how many are connected: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. Name every app the work needs in one call: several calls make several cards. It returns at once; say one line and end your turn. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
-  execute: async ({ input, sessionId, chatId }) => {
-    const slugs = [...new Set(input.slugs)];
-    // A task runs the chat's agent where no card is seen.
-    if (sessionRole(chatId, sessionId) !== "chat") {
-      return ok({
-        apps: slugs.map((slug) => ({
-          message:
-            "You are running in the background, where nobody sees a card: only the chat asks the user to connect an app. End your last message with a needs fence naming the app.",
-          slug,
-          state: "failure" as const,
-        })),
-      });
-    }
-    const apps: ConnectAppResult[] = [];
-    // One at a time: each ask writes the app's connection record.
-    for (const slug of slugs) {
-      apps.push(await askFor(slug, chatId));
-    }
-    return ok({ apps });
+      execute: async ({ input, chatId }) => {
+        const slugs = [...new Set(input.slugs)];
+        const apps: ConnectAppResult[] = [];
+        // One at a time: each ask writes the app's connection record.
+        for (const slug of slugs) {
+          apps.push(await askFor(slug, chatId));
+        }
+        return ok({ apps });
+      },
+      readOnly: false,
+      timeoutMs: () => ms("10 seconds"),
+      toModelOutput: ({ output }) => {
+        const results = connectAppResults(output);
+        const [only] = results;
+        if (only !== undefined && results.length === 1) {
+          return oneAppModelOutput(only);
+        }
+        return cardModelOutput(results);
+      },
+      name: "connect_app",
+      output: ConnectAppOutputSchema,
+    },
   },
-  readOnly: false,
-  timeoutMs: ms("10 seconds"),
-  toModelOutput: ({ output }) => {
-    const results = connectAppResults(output);
-    const [only] = results;
-    if (only !== undefined && results.length === 1) {
-      return oneAppModelOutput(only);
-    }
-    return cardModelOutput(results);
+  where: {
+    roles: ["chat"],
+    roleRefusal: ROLE_REFUSAL,
   },
 });
+
+export const ConnectApp = modelTool(connectAppCapability);
 
 /** What asking for one app comes to: a row on the card, already connected, or why it could not be asked. */
 async function askFor(

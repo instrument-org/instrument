@@ -7,6 +7,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { APP_NAME, PlanRefusalSchema } from "@instrument-org/shared";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
@@ -20,12 +21,14 @@ import { prepareSourceImage } from "../lib/prepare-source-image";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { type ChatId } from "../schemas/chat-id";
+import { type StoreId } from "../schemas/store-id";
+import { ProviderOutputSchema, UsageOutputSchema } from "./base";
 import {
-  BaseInputSchema,
-  ProviderOutputSchema,
-  UsageOutputSchema,
-} from "./base";
-import { setupTool } from "./create-tool";
+  CapabilityFailure,
+  defineCapability,
+} from "../lib/capabilities/define";
+import { modelTool, recordedResult } from "../lib/capabilities/tool";
 
 const INPUT_PARAMS = {
   allowOverwrite: "allowOverwrite",
@@ -54,8 +57,8 @@ const SourceImageFileSchema = z.object({
   modifiedAt: z.number(),
 });
 
-export const GenerateImage = setupTool({
-  inputSchema: BaseInputSchema.extend({
+export const generateImageCapability = defineCapability({
+  input: z.object({
     [INPUT_PARAMS.allowOverwrite]: z
       .boolean()
       .optional()
@@ -79,51 +82,57 @@ export const GenerateImage = setupTool({
       description: `Paths to images used for image-to-image (img2img) conditioning: relative to your work folder, or the full path of an image in one of the user's folders. Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
     }),
   }),
-  name: "generate_image",
-  outputSchema: z.discriminatedUnion("state", [
-    z.object({
-      // Parameters actually forwarded to the model (unsupported ones dropped).
-      appliedParameters: z
-        .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
-        .optional(),
-      images: z.array(
-        GeneratedImageFileSchema.extend({
-          height: z.number().optional(),
-          sizeBytes: z.number(),
-          width: z.number().optional(),
-        }),
-      ),
-      modelId: z.string(),
-      // Present only when the provider served a different model, which is what
-      // our image alias does on every call.
-      modelIdServed: z.string().optional(),
-      // The quality the image was generated at, when it is known.
-      quality: z.string().optional(),
-      provider: ProviderOutputSchema,
-      // The requested path was taken, so the image was saved under a new name.
-      renamedToAvoidOverwrite: z.boolean(),
-      sourceImages: z.array(SourceImageFileSchema),
-      state: z.literal("success"),
-      usage: UsageOutputSchema,
-    }),
-    z.object({
-      errorMessage: z.string(),
-      // `no-image-model`: nothing connected makes images, and no Instrument
-      // account is signed in. `refused`: Instrument's platform turned the
-      // image away for the account's plan, as `refusal` says.
-      errorType: z.enum([
-        "api-call",
-        "no-image-model",
-        "provider-limitation",
-        "refused",
-      ]),
-      refusal: PlanRefusalSchema.optional(),
-      responseBody: z.string().optional(),
-      state: z.literal("failure"),
-    }),
-  ]),
-}).create({
-  description: dedent`
+  name: "images.generate",
+  output: z.object({
+    images: z.array(
+      z.object({
+        height: z.number().optional(),
+        /** Relative to the work folder, or the full path in a folder of the user's. */
+        path: z.string(),
+        size_bytes: z.number(),
+        width: z.number().optional(),
+      }),
+    ),
+    model: z.string(),
+    /** The path asked for was taken, so the image was saved under a new name. */
+    renamed: z.boolean(),
+  }),
+  async run(input, ctx) {
+    const last = await recordedResult(
+      imageFrames({
+        chatId: ctx.chatId,
+        input,
+        model: await ctx.callingModel(),
+        sessionId: ctx.sessionId,
+        signal: ctx.signal ?? new AbortController().signal,
+      }),
+    );
+    if (last === undefined) {
+      throw new CapabilityFailure("The image was cancelled.");
+    }
+    if (last.isErr()) {
+      throw new CapabilityFailure(last.error.message);
+    }
+    const output = last.value;
+    if (output.state === "failure") {
+      throw new CapabilityFailure(failureForModel(output));
+    }
+    return {
+      images: output.images.map(({ filePath, height, sizeBytes, width }) => ({
+        ...(height === undefined ? {} : { height }),
+        path: filePath,
+        size_bytes: sizeBytes,
+        ...(width === undefined ? {} : { width }),
+      })),
+      model: output.modelId,
+      renamed: output.renamedToAvoidOverwrite,
+    };
+  },
+  summary: "Makes an image with an AI image model and saves it.",
+  surfaces: {
+    script: { positional: [INPUT_PARAMS.prompt] },
+    tool: {
+      description: dedent`
     AI image synthesis and semantic image editing. This is not the general tool for creating image files.
 
     Calls a metered, nondeterministic external AI image model and can take tens of seconds to several minutes.
@@ -143,293 +152,402 @@ export const GenerateImage = setupTool({
 
     The ${INPUT_PARAMS.parameters} the selected image model takes (its size, quality and the like) are in your system information, or in the latest note that changed them.
   `,
-  async *execute({ input, partId, model, sessionId, signal, chatId }) {
-    const files = await sessionToolFs({ chatId, partId, sessionId });
-    const typed = files.resolve(input.filePath);
-    if (typed.isErr()) {
-      yield err(typed.error);
-      return;
-    }
-    // Strip extension if mistakenly provided
-    const parsedPath = path.posix.parse(typed.value);
-
-    // A folder the rules keep closed refuses here, before the model is paid
-    // for, with the note that says what to ask for.
-    try {
-      await files.fs.mkdir(parsedPath.dir, { recursive: true });
-    } catch (error) {
-      yield await files.failure(error, parsedPath.dir);
-      return;
-    }
-
-    // Auto-version the path unless allowOverwrite is set, so iterating on the
-    // same filePath doesn't clobber an earlier image. Resolved once before
-    // streaming so this call's partial frames don't bump its own final frame.
-    let pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
-    let renamedToAvoidOverwrite = false;
-    if (!input.allowOverwrite) {
-      // Match on name without extension: the output extension is model-derived,
-      // so a prior foo.jpg must block a new foo.png.
-      const existingNames = await readExistingBaseNames(
-        files.fs,
-        parsedPath.dir,
-      );
-      const { name, renamed } = await findAvailableName({
-        isTaken: (candidate) => existingNames.has(candidate),
-        name: parsedPath.name,
-      });
-      renamedToAvoidOverwrite = renamed;
-      pathWithoutExt = path.posix.join(parsedPath.dir, name);
-    }
-
-    let sourceImageBuffers: Buffer[] | undefined;
-    const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
-    if (input.sourceImages && input.sourceImages.length > 0) {
-      const resolvedSources = [];
-      for (const inputPath of input.sourceImages) {
-        // Sources are read like read_file reads, through the shell's
-        // filesystem.
-        const typedSource = files.resolve(inputPath);
-        if (typedSource.isErr()) {
-          yield err(typedSource.error);
-          return;
+      execute: ({ chatId, input, model, partId, sessionId, signal }) =>
+        imageFrames({ chatId, input, model, partId, sessionId, signal }),
+      readOnly: false,
+      // Image generation (esp. high-quality gpt-image-2.5) can run for several
+      // minutes; streaming previews keep the user informed while it works.
+      timeoutMs: () => ms("5 minutes"),
+      toModelOutput: ({ input, output }) => {
+        if (output.state === "failure") {
+          return {
+            type: "error-text",
+            value: failureForModel(output),
+          };
         }
-        const source = await files.existing(typedSource.value);
-        const displayPath = files.shown(source);
-        let bytes: Uint8Array;
-        try {
-          bytes = await files.fs.readFileBuffer(source);
-        } catch (error) {
-          yield isMissing(error)
-            ? executeError(`Source image not found: ${displayPath}`)
-            : await files.failure(error, source);
-          return;
+
+        const imageCount = output.images.length;
+
+        if (imageCount === 0) {
+          return {
+            type: "error-text",
+            value: "No images were generated",
+          };
         }
-        resolvedSources.push({ bytes: Buffer.from(bytes), displayPath });
-        const stats = await files.fs.stat(source);
-        sourceImages.push({
-          filePath: displayPath,
-          modifiedAt: stats.mtime.getTime(),
-        });
-      }
-      // A file the model cannot decode is worth catching here rather than in
-      // the provider's reply, which names the offending image by position and
-      // arrives a whole request later.
-      const prepared = Result.combine(
-        await Promise.all(
-          resolvedSources.map(({ bytes, displayPath }) =>
-            prepareSourceImage({ bytes, displayPath, signal }),
+
+        const imageList = output.images
+          .map((image) => {
+            const size = formatBytes(image.sizeBytes);
+            const dimensions =
+              image.width && image.height
+                ? ` ${image.width}x${image.height}`
+                : "";
+            return `${image.filePath} ${size}${dimensions}`;
+          })
+          .join("\n");
+
+        // State the outcome factually and terminally. Deliberately no "use
+        // allowOverwrite to replace" call-to-action: that baited agents into a
+        // retry loop trying to overwrite a path that was intentionally versioned.
+        const keptEarlier = output.renamedToAvoidOverwrite
+          ? ` (${input.filePath} already existed and was kept)`
+          : "";
+        const summary =
+          imageCount === 1
+            ? `Successfully generated image and saved to ${imageList}${keptEarlier}`
+            : `Successfully generated ${imageCount} images:\n${imageList}`;
+
+        const droppedNote = unsupportedParametersNote(
+          input.parameters,
+          output.appliedParameters,
+        );
+
+        return {
+          type: "text",
+          value: droppedNote ? `${summary}\n\n${droppedNote}` : summary,
+        };
+      },
+      name: "generate_image",
+      output: z.discriminatedUnion("state", [
+        z.object({
+          // Parameters actually forwarded to the model (unsupported ones dropped).
+          appliedParameters: z
+            .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+            .optional(),
+          images: z.array(
+            GeneratedImageFileSchema.extend({
+              height: z.number().optional(),
+              sizeBytes: z.number(),
+              width: z.number().optional(),
+            }),
           ),
-        ),
-      );
-      if (prepared.isErr()) {
-        yield executeError(prepared.error);
+          modelId: z.string(),
+          // Present only when the provider served a different model, which is what
+          // our image alias does on every call.
+          modelIdServed: z.string().optional(),
+          // The quality the image was generated at, when it is known.
+          quality: z.string().optional(),
+          provider: ProviderOutputSchema,
+          // The requested path was taken, so the image was saved under a new name.
+          renamedToAvoidOverwrite: z.boolean(),
+          sourceImages: z.array(SourceImageFileSchema),
+          state: z.literal("success"),
+          usage: UsageOutputSchema,
+        }),
+        z.object({
+          errorMessage: z.string(),
+          // `no-image-model`: nothing connected makes images, and no Instrument
+          // account is signed in. `refused`: Instrument's platform turned the
+          // image away for the account's plan, as `refusal` says.
+          errorType: z.enum([
+            "api-call",
+            "no-image-model",
+            "provider-limitation",
+            "refused",
+          ]),
+          refusal: PlanRefusalSchema.optional(),
+          responseBody: z.string().optional(),
+          state: z.literal("failure"),
+        }),
+      ]),
+    },
+  },
+  text: ({ images }) => images.map((image) => image.path).join("\n"),
+});
+
+export const GenerateImage = modelTool(generateImageCapability);
+
+/**
+ * The names calls still making their image have taken, by chat, so calls a
+ * script runs at once each pick a name of their own before any file exists.
+ */
+const namesInFlight = new Set<string>();
+
+/**
+ * One generation as the tool records it, a frame at a time as the model
+ * streams them, each written over the last: the images and what made them,
+ * or why there are none.
+ */
+async function* imageFrames(
+  call: Parameters<typeof framesHolding>[0],
+): ReturnType<typeof framesHolding> {
+  const held = new Set<string>();
+  try {
+    return yield* framesHolding(call, held);
+  } finally {
+    for (const name of held) {
+      namesInFlight.delete(name);
+    }
+  }
+}
+
+async function* framesHolding(
+  {
+    chatId,
+    input,
+    model,
+    partId,
+    sessionId,
+    signal,
+  }: {
+    chatId: ChatId;
+    input: {
+      allowOverwrite?: boolean;
+      filePath: string;
+      parameters?: Record<string, boolean | number | string>;
+      prompt: string;
+      sourceImages?: string[];
+    };
+    model: AIGatewayModel.Type;
+    /** The tool call, where a call made it; a script's call has none. */
+    partId?: StoreId.Part;
+    sessionId: StoreId.Session;
+    signal: AbortSignal;
+  },
+  /** Where the name this call takes is kept until it ends. */
+  held: Set<string>,
+) {
+  const files = await sessionToolFs({ chatId, partId, sessionId });
+  const typed = files.resolve(input.filePath);
+  if (typed.isErr()) {
+    yield err(typed.error);
+    return;
+  }
+  // Strip extension if mistakenly provided
+  const parsedPath = path.posix.parse(typed.value);
+
+  // A folder the rules keep closed refuses here, before the model is paid
+  // for, with the note that says what to ask for.
+  try {
+    await files.fs.mkdir(parsedPath.dir, { recursive: true });
+  } catch (error) {
+    yield await files.failure(error, parsedPath.dir);
+    return;
+  }
+
+  // Auto-version the path unless allowOverwrite is set, so iterating on the
+  // same filePath doesn't clobber an earlier image. Resolved once before
+  // streaming so this call's partial frames don't bump its own final frame.
+  let pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
+  let renamedToAvoidOverwrite = false;
+  if (!input.allowOverwrite) {
+    // Match on name without extension: the output extension is model-derived,
+    // so a prior foo.jpg must block a new foo.png.
+    const existingNames = await readExistingBaseNames(files.fs, parsedPath.dir);
+    // A free name is taken the moment it is found: the search awaits between
+    // candidates, and a call running beside this one is searching too.
+    const { name, renamed } = await findAvailableName({
+      isTaken: (candidate) => {
+        const key = `${chatId}:${path.posix.join(parsedPath.dir, candidate)}`;
+        if (existingNames.has(candidate) || namesInFlight.has(key)) {
+          return true;
+        }
+        namesInFlight.add(key);
+        held.add(key);
+        return false;
+      },
+      name: parsedPath.name,
+    });
+    renamedToAvoidOverwrite = renamed;
+    pathWithoutExt = path.posix.join(parsedPath.dir, name);
+  }
+
+  let sourceImageBuffers: Buffer[] | undefined;
+  const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
+  if (input.sourceImages && input.sourceImages.length > 0) {
+    const resolvedSources = [];
+    for (const inputPath of input.sourceImages) {
+      // Sources are read like read_file reads, through the shell's
+      // filesystem.
+      const typedSource = files.resolve(inputPath);
+      if (typedSource.isErr()) {
+        yield err(typedSource.error);
         return;
       }
-      sourceImageBuffers = prepared.value;
-    }
-
-    // Each frame overwrites the same path so the UI preview fills in place.
-    const writeFrame = (frameImages: { base64: string; mediaType: string }[]) =>
-      Promise.all(
-        frameImages.map(async (image, index) => {
-          const mimeExt = mime.extension(image.mediaType);
-          // Fall back to png because most image models default to it
-          const ext = typeof mimeExt === "string" ? mimeExt : "png";
-
-          // Create unique filename for multiple images
-          const filename =
-            frameImages.length > 1
-              ? `${pathWithoutExt}-${index + 1}.${ext}`
-              : `${pathWithoutExt}.${ext}`;
-
-          const imageBuffer = Buffer.from(image.base64, "base64");
-
-          await files.fs.writeFile(filename, imageBuffer);
-          const stats = await files.fs.stat(filename);
-
-          // Try to get image dimensions, but don't fail if it doesn't work
-          let dimensions: { height?: number; width?: number } = {};
-          try {
-            const size = imageSize(imageBuffer);
-            dimensions = {
-              height: size.height,
-              width: size.width,
-            };
-          } catch {
-            // Ignore failed image size calculation
-          }
-
-          return {
-            filePath: normalizePath(files.shown(filename)),
-            ...dimensions,
-            modifiedAt: stats.mtime.getTime(),
-            sizeBytes: imageBuffer.length,
-          };
-        }),
-      );
-
-    let lastPartialWriteMs = 0;
-
-    for await (const chunk of generateImageStream({
-      callingModel: model,
-      configs: getWorkspaceConfig().getAIProviderConfigs(),
-      count: 1,
-      parameters: input.parameters,
-      prompt: input.prompt,
-      sessionId,
-      signal,
-      sourceImages: sourceImageBuffers,
-      chatId,
-      workspaceConfig: getWorkspaceConfig(),
-      workspaceServerURL: getWorkspaceServerURL(),
-    })) {
-      if (chunk.isErr()) {
-        const generateError = chunk.error;
-
-        switch (generateError.type) {
-          case "workspace-no-image-provider-error": {
-            waitForSignIn(chatId, sessionId);
-            yield ok({
-              errorMessage: `Making images needs a free ${APP_NAME} account.`,
-              errorType: "no-image-model" as const,
-              state: "failure" as const,
-            });
-            return;
-          }
-          case "workspace-image-refused-error": {
-            const { refusal } = generateError;
-            yield ok({
-              errorMessage:
-                refusal.code === "usage-limit-exceeded"
-                  ? `Your ${APP_NAME} usage has run out for now.`
-                  : `Your ${APP_NAME} account needs a plan to make images.`,
-              errorType: "refused" as const,
-              refusal,
-              state: "failure" as const,
-            });
-            return;
-          }
-          case "workspace-api-call-error": {
-            yield ok({
-              errorMessage: generateError.message,
-              errorType: "api-call" as const,
-              responseBody: generateError.responseBody,
-              state: "failure" as const,
-            });
-            return;
-          }
-          case "workspace-provider-limitation-error": {
-            yield ok({
-              errorMessage: generateError.message,
-              errorType: "provider-limitation" as const,
-              state: "failure" as const,
-            });
-            return;
-          }
-          default: {
-            generateError satisfies never;
-            yield executeError(JSON.stringify(generateError));
-            return;
-          }
-        }
+      const source = await files.existing(typedSource.value);
+      const displayPath = files.shown(source);
+      let bytes: Uint8Array;
+      try {
+        bytes = await files.fs.readFileBuffer(source);
+      } catch (error) {
+        yield isMissing(error)
+          ? executeError(`Source image not found: ${displayPath}`)
+          : await files.failure(error, source);
+        return;
       }
-
-      const {
-        appliedParameters,
-        config,
-        images,
-        kind,
-        modelId,
-        modelIdServed,
-        quality,
-        usage,
-      } = chunk.value;
-
-      if (kind === "partial") {
-        const now = Date.now();
-        if (now - lastPartialWriteMs < PARTIAL_THROTTLE_MS) {
-          continue;
-        }
-        lastPartialWriteMs = now;
-      }
-
-      const writtenImages = await writeFrame(images);
-
-      yield ok({
-        appliedParameters,
-        images: writtenImages,
-        modelId,
-        modelIdServed,
-        ...(quality && { quality }),
-        provider: {
-          displayName: config.displayName,
-          id: config.id,
-          type: config.type,
-        },
-        renamedToAvoidOverwrite,
-        sourceImages,
-        state: "success" as const,
-        usage: {
-          inputTokens: usage?.inputTokens,
-          outputTokens: usage?.outputTokens,
-          totalTokens: usage?.totalTokens,
-        },
+      resolvedSources.push({ bytes: Buffer.from(bytes), displayPath });
+      const stats = await files.fs.stat(source);
+      sourceImages.push({
+        filePath: displayPath,
+        modifiedAt: stats.mtime.getTime(),
       });
     }
-  },
-  readOnly: false,
-  // Image generation (esp. high-quality gpt-image-2.5) can run for several
-  // minutes; streaming previews keep the user informed while it works.
-  timeoutMs: ms("5 minutes"),
-  toModelOutput: ({ input, output }) => {
-    if (output.state === "failure") {
-      return {
-        type: "error-text",
-        value: failureForModel(output),
-      };
+    // A file the model cannot decode is worth catching here rather than in
+    // the provider's reply, which names the offending image by position and
+    // arrives a whole request later.
+    const prepared = Result.combine(
+      await Promise.all(
+        resolvedSources.map(({ bytes, displayPath }) =>
+          prepareSourceImage({ bytes, displayPath, signal }),
+        ),
+      ),
+    );
+    if (prepared.isErr()) {
+      yield executeError(prepared.error);
+      return;
     }
+    sourceImageBuffers = prepared.value;
+  }
 
-    const imageCount = output.images.length;
+  // Each frame overwrites the same path so the UI preview fills in place.
+  const writeFrame = (frameImages: { base64: string; mediaType: string }[]) =>
+    Promise.all(
+      frameImages.map(async (image, index) => {
+        const mimeExt = mime.extension(image.mediaType);
+        // Fall back to png because most image models default to it
+        const ext = typeof mimeExt === "string" ? mimeExt : "png";
 
-    if (imageCount === 0) {
-      return {
-        type: "error-text",
-        value: "No images were generated",
-      };
-    }
+        // Create unique filename for multiple images
+        const filename =
+          frameImages.length > 1
+            ? `${pathWithoutExt}-${index + 1}.${ext}`
+            : `${pathWithoutExt}.${ext}`;
 
-    const imageList = output.images
-      .map((image) => {
-        const size = formatBytes(image.sizeBytes);
-        const dimensions =
-          image.width && image.height ? ` ${image.width}x${image.height}` : "";
-        return `${image.filePath} ${size}${dimensions}`;
-      })
-      .join("\n");
+        const imageBuffer = Buffer.from(image.base64, "base64");
 
-    // State the outcome factually and terminally. Deliberately no "use
-    // allowOverwrite to replace" call-to-action: that baited agents into a
-    // retry loop trying to overwrite a path that was intentionally versioned.
-    const keptEarlier = output.renamedToAvoidOverwrite
-      ? ` (${input.filePath} already existed and was kept)`
-      : "";
-    const summary =
-      imageCount === 1
-        ? `Successfully generated image and saved to ${imageList}${keptEarlier}`
-        : `Successfully generated ${imageCount} images:\n${imageList}`;
+        await files.fs.writeFile(filename, imageBuffer);
+        const stats = await files.fs.stat(filename);
 
-    const droppedNote = unsupportedParametersNote(
-      input.parameters,
-      output.appliedParameters,
+        // Try to get image dimensions, but don't fail if it doesn't work
+        let dimensions: { height?: number; width?: number } = {};
+        try {
+          const size = imageSize(imageBuffer);
+          dimensions = {
+            height: size.height,
+            width: size.width,
+          };
+        } catch {
+          // Ignore failed image size calculation
+        }
+
+        return {
+          filePath: normalizePath(files.shown(filename)),
+          ...dimensions,
+          modifiedAt: stats.mtime.getTime(),
+          sizeBytes: imageBuffer.length,
+        };
+      }),
     );
 
-    return {
-      type: "text",
-      value: droppedNote ? `${summary}\n\n${droppedNote}` : summary,
-    };
-  },
-});
+  let lastPartialWriteMs = 0;
+
+  for await (const chunk of generateImageStream({
+    callingModel: model,
+    configs: getWorkspaceConfig().getAIProviderConfigs(),
+    count: 1,
+    parameters: input.parameters,
+    prompt: input.prompt,
+    sessionId,
+    signal,
+    sourceImages: sourceImageBuffers,
+    chatId,
+    workspaceConfig: getWorkspaceConfig(),
+    workspaceServerURL: getWorkspaceServerURL(),
+  })) {
+    if (chunk.isErr()) {
+      const generateError = chunk.error;
+
+      switch (generateError.type) {
+        case "workspace-no-image-provider-error": {
+          waitForSignIn(chatId, sessionId);
+          yield ok({
+            errorMessage: `Making images needs a free ${APP_NAME} account.`,
+            errorType: "no-image-model" as const,
+            state: "failure" as const,
+          });
+          return;
+        }
+        case "workspace-image-refused-error": {
+          const { refusal } = generateError;
+          yield ok({
+            errorMessage:
+              refusal.code === "usage-limit-exceeded"
+                ? `Your ${APP_NAME} usage has run out for now.`
+                : `Your ${APP_NAME} account needs a plan to make images.`,
+            errorType: "refused" as const,
+            refusal,
+            state: "failure" as const,
+          });
+          return;
+        }
+        case "workspace-api-call-error": {
+          yield ok({
+            errorMessage: generateError.message,
+            errorType: "api-call" as const,
+            responseBody: generateError.responseBody,
+            state: "failure" as const,
+          });
+          return;
+        }
+        case "workspace-provider-limitation-error": {
+          yield ok({
+            errorMessage: generateError.message,
+            errorType: "provider-limitation" as const,
+            state: "failure" as const,
+          });
+          return;
+        }
+        default: {
+          generateError satisfies never;
+          yield executeError(JSON.stringify(generateError));
+          return;
+        }
+      }
+    }
+
+    const {
+      appliedParameters,
+      config,
+      images,
+      kind,
+      modelId,
+      modelIdServed,
+      quality,
+      usage,
+    } = chunk.value;
+
+    if (kind === "partial") {
+      const now = Date.now();
+      if (now - lastPartialWriteMs < PARTIAL_THROTTLE_MS) {
+        continue;
+      }
+      lastPartialWriteMs = now;
+    }
+
+    const writtenImages = await writeFrame(images);
+
+    yield ok({
+      appliedParameters,
+      images: writtenImages,
+      modelId,
+      modelIdServed,
+      ...(quality && { quality }),
+      provider: {
+        displayName: config.displayName,
+        id: config.id,
+        type: config.type,
+      },
+      renamedToAvoidOverwrite,
+      sourceImages,
+      state: "success" as const,
+      usage: {
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        totalTokens: usage?.totalTokens,
+      },
+    });
+  }
+}
 
 /**
  * What the agent is told of a failure. Where the person has something to do

@@ -26,8 +26,8 @@ import { reachOf } from "../lib/permissions/rules";
 import { askableFolder, closedNote } from "../lib/permissions/rules-fs";
 import { hostPathOf, shellPath } from "../lib/workspace-fs-layout";
 import { WINDOW_ID } from "../schemas/window-id";
-import { BaseInputSchema } from "./base";
-import { setupTool } from "./create-tool";
+import { defineCapability } from "../lib/capabilities/define";
+import { modelTool } from "../lib/capabilities/tool";
 
 /**
  * Ask the person to let this chat use a folder or a Mac app, the one way a
@@ -39,8 +39,8 @@ import { setupTool } from "./create-tool";
  * one a refusal would name (`askableFolder`), so no call opens the home
  * folder, a disk, or the app's own data whole.
  */
-export const AskPermission = setupTool({
-  inputSchema: BaseInputSchema.extend({
+const askPermissionCapability = defineCapability({
+  input: z.object({
     kind: z.enum(["app", "folder"]).meta({
       description: "A folder, or a Mac app such as Shortcuts.",
     }),
@@ -53,80 +53,88 @@ export const AskPermission = setupTool({
         "For a folder, its full path, or the path of a file in it. For an app, its name as macOS shows it: 'Shortcuts'.",
     }),
   }),
-  name: "ask_permission",
-  outputSchema: z.discriminatedUnion("state", [
-    z.object({
-      /** The target as the agent's shell spelled it when asked, which the model is told. */
-      agentTarget: z.string().optional(),
-      kind: z.enum(["app", "folder"]),
-      state: z.literal("asked"),
-      /** The folder's absolute path, or the app's name, as the card names it. */
-      target: z.string(),
-    }),
-    z.object({ state: z.literal("allowed"), target: z.string() }),
-    z.object({ message: z.string(), state: z.literal("refused") }),
-  ]),
-}).create({
-  description:
-    "Ask the user to let you use a folder or a Mac app that needs their yes: a card shows them what you asked for and your reason. Your turn ends with this call, and their answer wakes you. Ask for each thing the work needs in one step.",
-  execute: async ({ chatId, input, partId, sessionId }) => {
-    if (chatId === WINDOW_ID) {
-      return ok({
-        message: "Nobody can answer a card here.",
-        state: "refused" as const,
-      });
-    }
-    const decided =
-      input.kind === "folder"
-        ? await folderToAsk(chatId, input.target)
-        : await appToAsk(chatId, input.target);
-    if (decided.state === "allowed" && decided.macos !== undefined) {
-      // The person's rules let it in, so whatever refused it was macOS,
-      // which is asking the person, refusing, or keeping it to its own app:
-      // the card for that goes up instead of an "allowed" the agent can only
-      // run into again.
-      const asker = { chatId, partId, reason: input.reason, sessionId };
-      const macos = await decided.macos(asker);
-      if (macos !== undefined) {
-        return ok(askedFor(input.kind, macos));
-      }
-    }
-    if (decided.state !== "ask") {
-      return ok(
-        decided.state === "allowed"
-          ? { state: decided.state, target: decided.target }
-          : decided,
-      );
-    }
-    await recordAsk(
-      { chatId, partId, reason: input.reason, sessionId },
-      input.kind,
-      decided.target,
-    );
-    return ok(askedFor(input.kind, decided.target));
-  },
-  readOnly: true,
-  timeoutMs: ms("10 seconds"),
-  toModelOutput: ({ output }) => {
-    switch (output.state) {
-      case "asked": {
-        return {
-          type: "text",
-          value: `The user now sees a card asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
-        };
-      }
-      case "allowed": {
-        return {
-          type: "text",
-          value: `${JSON.stringify(output.target)} is already allowed in this chat. Run again what needed it.`,
-        };
-      }
-      case "refused": {
-        return { type: "error-text", value: output.message };
-      }
-    }
+  name: "asks.permission",
+  summary:
+    "Asks the person for a folder or a Mac app; the turn ends on the card.",
+  surfaces: {
+    tool: {
+      description:
+        "Ask the user to let you use a folder or a Mac app that needs their yes: a card shows them what you asked for and your reason. Your turn ends with this call, and their answer wakes you. Ask for each thing the work needs in one step.",
+      execute: async ({ chatId, input, partId, sessionId }) => {
+        if (chatId === WINDOW_ID) {
+          return ok({
+            message: "Nobody can answer a card here.",
+            state: "refused" as const,
+          });
+        }
+        const decided =
+          input.kind === "folder"
+            ? await folderToAsk(chatId, input.target)
+            : await appToAsk(chatId, input.target);
+        if (decided.state === "allowed" && decided.macos !== undefined) {
+          // The person's rules let it in, so whatever refused it was macOS,
+          // which is asking the person, refusing, or keeping it to its own app:
+          // the card for that goes up instead of an "allowed" the agent can only
+          // run into again.
+          const asker = { chatId, partId, reason: input.reason, sessionId };
+          const macos = await decided.macos(asker);
+          if (macos !== undefined) {
+            return ok(askedFor(input.kind, macos));
+          }
+        }
+        if (decided.state !== "ask") {
+          return ok(
+            decided.state === "allowed"
+              ? { state: decided.state, target: decided.target }
+              : decided,
+          );
+        }
+        await recordAsk(
+          { chatId, partId, reason: input.reason, sessionId },
+          input.kind,
+          decided.target,
+        );
+        return ok(askedFor(input.kind, decided.target));
+      },
+      readOnly: true,
+      timeoutMs: () => ms("10 seconds"),
+      toModelOutput: ({ output }) => {
+        switch (output.state) {
+          case "asked": {
+            return {
+              type: "text",
+              value: `The user now sees a card asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
+            };
+          }
+          case "allowed": {
+            return {
+              type: "text",
+              value: `${JSON.stringify(output.target)} is already allowed in this chat. Run again what needed it.`,
+            };
+          }
+          case "refused": {
+            return { type: "error-text", value: output.message };
+          }
+        }
+      },
+      name: "ask_permission",
+      output: z.discriminatedUnion("state", [
+        z.object({
+          /** The target as the agent's shell spelled it when asked, which the model is told. */
+          agentTarget: z.string().optional(),
+          kind: z.enum(["app", "folder"]),
+          state: z.literal("asked"),
+          /** The folder's absolute path, or the app's name, as the card names it. */
+          target: z.string(),
+        }),
+        z.object({ state: z.literal("allowed"), target: z.string() }),
+        z.object({ message: z.string(), state: z.literal("refused") }),
+      ]),
+    },
   },
 });
+
+export const AskPermission = modelTool(askPermissionCapability);
 
 /**
  * The output for a card raised: a folder also as the shell spells it now,

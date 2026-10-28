@@ -2,7 +2,7 @@ import { fetchModel } from "@instrument-org/ai-gateway";
 
 import { chatModelURI } from "../../chat-settings";
 import { getWorkspaceConfig } from "../../workspace-config";
-import { type TaskCommandContext } from "./context";
+import { type ChatId } from "../../../schemas/chat-id";
 
 /**
  * The model this conversation's picker is on, which is the one every task it
@@ -10,7 +10,7 @@ import { type TaskCommandContext } from "./context";
  * task, so a task the conversation reuses after the user switches models moves
  * with the picker at the next message it is sent.
  */
-export async function chatModel(command: string, context: TaskCommandContext) {
+export async function chatModel(command: string, context: { chatId: ChatId }) {
   const modelURI = await chatModelURI(context.chatId);
   if (!modelURI) {
     throw new Error(

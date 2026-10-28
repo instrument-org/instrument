@@ -740,7 +740,13 @@ export function classifyInvocation(
   return hasNoWindow ? { kind: "headless" } : { kind: "tabs" };
 }
 
-const DAEMON_RACE_RETRY_DELAY_MS = 250;
+/**
+ * The waits before each retry of a command refused for a daemon started
+ * concurrently, doubling while another command's daemon is still coming up:
+ * one slow to start (a loaded machine, antivirus scanning it on Windows)
+ * would refuse a single retry for the same reason.
+ */
+const DAEMON_RACE_RETRY_DELAYS_MS = [250, 500, 1000, 2000];
 
 /**
  * How long the read of the page's messages before an action may take. It is
@@ -1252,18 +1258,20 @@ async function refuseBrowserFor(
 }
 
 async function runAgentBrowser(options: SpawnAgentBrowserOptions) {
-  const first = await spawnAgentBrowser(options);
-  if (
-    first.exitCode === 0 ||
-    !isDaemonConfigRace([first.stdout, first.stderr].join("\n"))
-  ) {
-    return first;
+  let result = await spawnAgentBrowser(options);
+  for (const delay of DAEMON_RACE_RETRY_DELAYS_MS) {
+    if (
+      result.exitCode === 0 ||
+      !isDaemonConfigRace([result.stdout, result.stderr].join("\n"))
+    ) {
+      break;
+    }
+    // Let the daemon that won the race finish starting; retrying into its
+    // startup window would be refused for the same reason.
+    await sleep(delay);
+    result = await spawnAgentBrowser(options);
   }
-
-  // Let the daemon that won the race finish starting; retrying into its
-  // startup window would be refused for the same reason.
-  await sleep(DAEMON_RACE_RETRY_DELAY_MS);
-  return await spawnAgentBrowser(options);
+  return result;
 }
 
 async function spawnAgentBrowser({

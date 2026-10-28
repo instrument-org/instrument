@@ -323,7 +323,7 @@ describe("coming back from a restart", () => {
 });
 
 describe("timings", () => {
-  it("turns minutes into seconds for a fast development run", () => {
+  it("turns minutes into seconds, and the in-view day into 30 s, for a test run", () => {
     expect(idleRestartTimings({ fast: true })).toMatchInlineSnapshot(`
       {
         "maxAttempts": 2,
@@ -331,8 +331,8 @@ describe("timings", () => {
         "quietMs": 10000,
         "recheckMs": 1000,
         "relaunchFreshMs": 300000,
-        "seenAfterWaitingMs": 1440000,
-        "seenSpacingMs": 1440000,
+        "seenAfterWaitingMs": 30000,
+        "seenSpacingMs": 30000,
       }
     `);
     expect(idleRestartTimings({ fast: false })).toBe(IDLE_RESTART);

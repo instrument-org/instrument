@@ -29,6 +29,10 @@ on:
           - windows
           - linux
           - all
+      update_test_version:
+        description: "Test only, macOS: also package this preview at this higher version, to test an update between the two"
+        required: false
+        type: string
 
 jobs:
   plan:
@@ -188,6 +192,40 @@ jobs:
         name: Verify the signed app starts
         run: pnpm --filter @instrument-org/studio run verify-packaged-app
 
+      # TEST SEAM: the same preview packaged again at a higher version. Both
+      # builds share one identity and signature, which Squirrel.Mac requires
+      # of an update, so a test Mac can update one into the other (pointed at
+      # a feed of its own with INSTRUMENT_TEST_UPDATE_FEED). The version is
+      # all that changes; nothing is rebuilt but the package.
+      - if: matrix.os == 'mac' && inputs.update_test_version
+        name: Package Mac again at the test update version
+        run: |
+          first="$RUNNER_TEMP/first-build"
+          mkdir -p "$first" apps/studio/dist-update
+          mv apps/studio/dist/*.zip "$first/"
+          node -e 'const f="apps/studio/package.json";const fs=require("fs");const p=JSON.parse(fs.readFileSync(f));p.version=process.env.UPDATE_TEST_VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
+          for attempt in 1 2 3; do
+            if pnpm --filter @instrument-org/studio exec electron-builder --mac zip --arm64 --publish never; then
+              mv apps/studio/dist/*.zip apps/studio/dist-update/
+              mv "$first"/*.zip apps/studio/dist/
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Packaging attempt $attempt failed, retrying"
+              sleep 30
+            fi
+          done
+          exit 1
+        env:
+          UPDATE_TEST_VERSION: ${{ inputs.update_test_version }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY: ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          APPLE_NOTARIZATION_ENABLED: ${{ vars.APPLE_NOTARIZATION_ENABLED }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          ARCH: arm64
+
       - if: always() && matrix.os == 'mac'
         name: Cleanup Signing
         run: rm -f ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
@@ -213,6 +251,14 @@ jobs:
           archive: false
           path: apps/studio/dist/*.zip
           retention-days: 30
+          if-no-files-found: error
+      - if: matrix.os == 'mac' && inputs.update_test_version
+        name: Upload Mac test update
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: apps/studio/dist-update/*.zip
+          retention-days: 7
           if-no-files-found: error
       - if: matrix.os == 'windows'
         name: Upload Windows preview

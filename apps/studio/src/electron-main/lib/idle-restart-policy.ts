@@ -215,9 +215,10 @@ export function relaunchViewOf({
 }
 
 /**
- * The timings a development run uses: `IDLE_RESTART_FAST=1` turns each
- * minute into a second (and each day into 24 minutes) to exercise the
- * restart without waiting. A packaged build ignores it.
+ * The timings a test run uses: `IDLE_RESTART_FAST=1` turns each minute into
+ * a second, and each day of the in-view waits into 30 seconds, to exercise
+ * the restart without waiting. Read in a development run or a preview build,
+ * never in a shipping one.
  */
 export function idleRestartTimings({
   fast,
@@ -233,7 +234,7 @@ export function idleRestartTimings({
     personAwayMs: scaled(IDLE_RESTART.personAwayMs),
     quietMs: scaled(IDLE_RESTART.quietMs),
     recheckMs: ms("1 second"),
-    seenAfterWaitingMs: scaled(IDLE_RESTART.seenAfterWaitingMs),
-    seenSpacingMs: scaled(IDLE_RESTART.seenSpacingMs),
+    seenAfterWaitingMs: ms("30 seconds"),
+    seenSpacingMs: ms("30 seconds"),
   };
 }

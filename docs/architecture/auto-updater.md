@@ -98,7 +98,9 @@ The tabs (each with its back and forward history), the layout and the drafts are
 
 ### Exercising it
 
-A development run under the supervisor takes two variables. `IDLE_RESTART_SIMULATE=1` stages a made-up update (999.0.0) at launch and installs it by restarting the same build (`startAgainAfterQuit`), so the whole path, restore included, runs without a signed build. `IDLE_RESTART_FAST=1` turns each minute of the waits into a second. With both, a held studio-drive instance restarts about ten seconds after launch, comes back, restarts once more, and then stops on its two attempts, since the version never changes. A packaged build reads neither.
+A development run under the supervisor takes two variables. `IDLE_RESTART_SIMULATE=1` stages a made-up update (999.0.0) at launch and installs it by restarting the same build (`startAgainAfterQuit`), so the whole path, restore included, runs without a signed build. `IDLE_RESTART_FAST=1` turns each minute of the waits into a second. With both, a held studio-drive instance restarts about ten seconds after launch, comes back, restarts once more, and then stops on its two attempts, since the version never changes. A shipping build reads neither; a preview build also reads `IDLE_RESTART_FAST`.
+
+Squirrel.Mac's relaunch can only be seen with two signed builds of one identity. `preview.yml`'s `update_test_version` input packages the preview a second time at that higher version, under the same identity, and a preview launched with `INSTRUMENT_TEST_UPDATE_FEED=<url>` turns its updater on against that feed, which a test serves with the second build's zip and a `latest-mac.yml` for it. Both are test seams: a shipping build never reads the variable, and a release never sets the input.
 
 ## Downloaded means staged by Squirrel on macOS
 

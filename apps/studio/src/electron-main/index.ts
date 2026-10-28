@@ -399,8 +399,12 @@ async function bootstrapPrimaryInstance() {
   if (simulateIdleRestart || (app.isPackaged && canInstallUnattended())) {
     startIdleRestart({
       installable: isStagedUpdateInstallable,
+      // TEST SEAM: a development run or a preview build can shorten the
+      // waits; a shipping build never reads the variable.
       timings: idleRestartTimings({
-        fast: !app.isPackaged && process.env.IDLE_RESTART_FAST === "1",
+        fast:
+          (!app.isPackaged || APP_FLAVOR.kind === "preview") &&
+          process.env.IDLE_RESTART_FAST === "1",
       }),
       updater,
     });

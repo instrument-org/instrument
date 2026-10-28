@@ -36,6 +36,15 @@ const { autoUpdater } = pkg;
 const scopedLogger = logger.scope("appUpdater");
 
 const IS_MACOS_INTEL = os.platform() === "darwin" && os.arch() === "x64";
+
+// TEST SEAM, preview builds only: `INSTRUMENT_TEST_UPDATE_FEED=<url>` turns a
+// preview's updater on against that feed, so an update between two builds of
+// one preview (the same signing identity, which Squirrel.Mac requires) can be
+// exercised on a test Mac. A shipping build never reads it.
+const TEST_UPDATE_FEED =
+  APP_FLAVOR.kind === "preview"
+    ? process.env.INSTRUMENT_TEST_UPDATE_FEED || undefined
+    : undefined;
 // macOS on Intel is the only custom channel, otherwise use the defaults.
 const MACOS_INTEL_CHANNEL = "latest-x64";
 
@@ -110,19 +119,20 @@ export function createStudioAppUpdater({
     },
     configureFeed: () => {
       autoUpdater.setFeedURL({
-        channel: getChannel(),
+        channel: TEST_UPDATE_FEED ? undefined : getChannel(),
         provider: "generic",
         updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
-        url: RELEASES_BUCKET_URL,
+        url: TEST_UPDATE_FEED ?? RELEASES_BUCKET_URL,
       });
     },
     downloadUpdate: () => autoUpdater.downloadUpdate(),
     install: simulatedInstall ?? installStagedUpdate,
     // A preview's feed would be the shipping app's, whose update replaces the
-    // preview's identity with the real one, so a preview stays where it is.
+    // preview's identity with the real one, so a preview stays where it is
+    // unless a test points it at a feed of its own.
     isActive: () =>
       !simulatedInstall &&
-      APP_FLAVOR.kind !== "preview" &&
+      (APP_FLAVOR.kind !== "preview" || TEST_UPDATE_FEED !== undefined) &&
       autoUpdater.isUpdaterActive(),
     subscribe: (handlers) => {
       if (simulatedInstall) {

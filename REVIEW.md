@@ -13,6 +13,7 @@ A concrete defect that should be fixed before it ships: a correctness bug, a sec
 - **Agent turns.** Deterministic tool, prompt, message-assembly, or state defects that make a turn fail, hang, or silently drop state.
 - **Studio's privilege boundary.** The renderer reaches Electron, Node, and the remote API only through the preload API and main-process RPC. No lint rule catches a direct import.
 - **Packaging.** A change that works under `pnpm dev` but breaks or bloats the packaged app, such as a dependency in the wrong list or a native binary left inside the asar.
+- **Brittleness.** Correctness that rests on something nothing in the repo can check: control flow that matches text we don't own (another program's stderr, a provider's error message, a model's phrasing) where a code, exit status or structured field exists; a timeout or frame count standing in for an event; a read error taken as "missing" and the default then written back over the real file; a path check that only knows `/`. Report it with the input that breaks it: a reworded CLI message, a slow disk, a file another program holds, a Windows path.
 
 Naming, structure, refactors, prose, and test layout are Nits at most.
 

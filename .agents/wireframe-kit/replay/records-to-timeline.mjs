@@ -23,6 +23,8 @@ function readSession(lines, t0) {
   const texts = new Map();
   const steps = new Map();
   const tabs = new Map();
+  const calls = new Map();
+  const thought = new Map();
   const out = { id: header.id, parent: header.parent ?? null, name: header.startedAs, start: secs(header.at, t0), you: [], says: [], steps: [], errors: [], stops: [], wakes: [] };
   for (const o of lines) {
     if (o.t === "message") {
@@ -31,6 +33,7 @@ function readSession(lines, t0) {
       const meta = m.metadata ?? {};
       if (m.role === "assistant" && meta.error) out.errors.push({ t: secs(meta.finishedAt ?? o.at, t0), message: String(meta.error.message ?? "request failed") });
       if (m.role === "assistant" && meta.finishReason === "stop" && meta.finishedAt) out.stops.push(secs(meta.finishedAt, t0));
+      if (m.role === "assistant") calls.set(m.id, { ...calls.get(m.id), ...meta });
       continue;
     }
     if (o.t !== "part") continue;
@@ -43,8 +46,12 @@ function readSession(lines, t0) {
     } else if (p.type === "text" && role === "assistant") {
       const id = p.metadata.id;
       const seen = texts.get(id);
-      if (seen) seen.text = p.text;
-      else if (p.text?.trim()) texts.set(id, { t: at, text: p.text });
+      if (seen) Object.assign(seen, { text: p.text, end: at });
+      else if (p.text?.trim()) texts.set(id, { t: at, end: at, text: p.text, call: p.metadata.messageId });
+    } else if (p.type === "reasoning") {
+      thought.set(p.metadata?.messageId, secs(p.metadata?.endedAt ?? o.at, t0));
+    } else if (p.type === "data-fromChat" && p.data?.kind === "assignment") {
+      out.brief = String(p.data.text ?? "");
     } else if (p.type === "data-taskEvent") {
       for (const e of p.data?.events ?? []) out.wakes.push({ t: at, session: e.sessionId, status: e.status, summary: e.summary ?? "", files: e.files ?? [] });
     } else if (p.type?.startsWith("tool-") && p.toolCallId) {
@@ -54,22 +61,51 @@ function readSession(lines, t0) {
         // A step's label is its explanation, the one specific sentence the agent writes for that call; its activity is
         // the short label it shares with the calls around it (three searches run at once can all be "Checking current
         // plan prices"), kept for a design that groups steps under it.
-        s = { t: at, end: null, tool: p.type.slice(5), label: input.explanation || input.activity || p.type.slice(5), activity: input.activity || "" };
-        const task = /instrument task new\b[^\n]*?--name\s+(['"])(.*?)\1/.exec(String(input.command ?? ""));
-        if (task) s.startsTask = task[2];
+        // A step starts when the chat begins writing its call, which the part's createdAt stamps, not when the call is
+        // written down: a call that carries a task's instructions can take seconds to write, and its activity, the
+        // first thing in it, says what those seconds are.
+        const begun = p.metadata?.createdAt ? Math.min(at, secs(p.metadata.createdAt, t0)) : at;
+        s = { t: begun, end: null, tool: p.type.slice(5), label: input.explanation || input.activity || p.type.slice(5), activity: input.activity || "", call: p.metadata?.messageId };
+        // One command can start several tasks; each names its own.
+        const names = [...String(input.command ?? "").matchAll(/instrument task new\b[^\n]*?--name[\s=]+(['"])(.*?)\1/g)].map((m) => m[2]);
+        if (names.length) Object.assign(s, { startsTask: names[0], startsTasks: names });
         if (p.type === "tool-ask_permission") s.ask = { reason: input.reason ?? "", target: input.target ?? "", kind: input.kind ?? "" };
+        if (p.type === "tool-choose") s.choose = { question: input.question ?? "", choices: input.choices ?? [] };
         steps.set(p.toolCallId, s);
       }
       if (p.state === "output-available" || p.state === "output-error") {
-        s.end = at;
+        // A question to choose from ends its step once it's asked; the person's answer comes back on the same call later.
+        if (s.choose?.question && p.output?.answer) {
+          Object.assign(s.choose, { answer: p.output.answer, answeredAt: at });
+          out.wakes.push({ t: at, session: null, status: "answered", summary: "", files: [] });
+        }
+        else if (!s.choose || s.end == null) s.end = at;
+        // An ask is "asked" once its card is up, and answered when a later result says how the person answered.
+        const asked = p.output?.state;
+        if (s.ask && asked && asked !== "asked" && s.ask.answeredAt == null) Object.assign(s.ask, { answer: asked, answeredAt: at });
         if (p.state === "output-error") s.failed = true;
         readTabs(s, String(input.command ?? ""), typeof p.output?.output === "string" ? p.output.output : "", at);
       }
     }
   }
-  out.says = [...texts.values()].filter((x) => x.text.trim());
+  // A block of words is written down once it's finished, so it streamed in before that: from the call's first word
+  // (when it was sent plus how long its first word took), or from the end of its reasoning if that came later, up to
+  // when it was written down.
+  out.says = [...texts.values()]
+    .filter((x) => x.text.trim())
+    .map((x) => {
+      const { call } = x;
+      const meta = calls.get(call);
+      const first = meta?.createdAt && meta.msToFirstChunk != null ? secs(meta.createdAt, t0) + meta.msToFirstChunk / 1000 : x.end;
+      const start = Math.min(x.end, Math.max(first, thought.get(call) ?? -Infinity));
+      return { ...x, t: Math.round(start * 10) / 10 };
+    });
   out.steps = [...steps.values()].map((s) => ({ ...s, end: s.end ?? s.t }));
   out.tabs = [...tabs.values()];
+  // Starting a task ends the turn there and then, with the call that started it rather than a reply, so its end is
+  // when the chat stops working too.
+  for (const step of out.steps) if (step.startsTasks) out.stops.push(step.end);
+  out.stops.sort((a, b) => a - b);
 
   /**
    * The chat's tabs, from what its commands said: `instrument tab open` names each tab it opened, agent-browser's
@@ -111,11 +147,11 @@ export function recordsToTimeline(dir) {
   const chat = sessions.find((s) => !s.parent);
   const tasks = sessions.filter((s) => s.parent).sort((a, b) => a.start - b.start);
   // A task is the one its starting step named, else the next one to begin after that step.
-  for (const step of chat.steps.filter((s) => s.startsTask)) {
-    const task = tasks.find((t) => t.name === step.startsTask && !t.startedBy) ?? tasks.find((t) => !t.startedBy && t.start >= step.t);
+  for (const [step, name] of chat.steps.flatMap((s) => (s.startsTasks ?? []).map((n) => [s, n]))) {
+    const task = tasks.find((t) => t.name === name && !t.startedBy) ?? tasks.find((t) => !t.startedBy && t.start >= step.t);
     if (task) {
       task.startedBy = step.t;
-      step.task = task.id;
+      step.tasks = [...(step.tasks ?? []), task.id];
       const wake = chat.wakes.find((w) => w.session === task.id);
       task.doneAt = wake ? wake.t : task.end;
       task.summary = wake?.summary ?? task.says.at(-1)?.text ?? "";

@@ -1,7 +1,7 @@
 // ---- the replay: one chat's records, drawn in the design at any moment, as a prototype with a scrubber under it
 // build-replay.mjs puts this after the design's pieces, with TL (the timeline from records-to-timeline.mjs) and
 // REPLAY ({ title, chat, at, line, source }) defined above it. From the design it needs says, working, workedLine,
-// head, DOT, pillDark and pillSoft; the rest is the kit's.
+// head, DOT, pillDark, pillSoft, shimmerText, miniDot, taskHeader and chatBrief; the rest is the kit's.
 
 /** The step runs opened in the transcript, by when their first step started. */
 const OPEN = new Set();
@@ -10,13 +10,18 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const inlineMd = (s) =>
   esc(s)
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
-    .replace(/`([^`]+)`/g, `<code class="rounded bg-foreground/[0.06] px-1 text-[12.5px]">$1</code>`);
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, "$1<i>$2</i>")
+    .replace(/`([^`]+)`/g, `<code class="rounded bg-foreground/[0.06] px-1 text-[12.5px]">$1</code>`)
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, `<span class="text-brand-700 underline decoration-brand-700/30 underline-offset-2">$1</span>`);
 const baseName = (p) => p.replace(/^workspace:/, "").split("/").pop();
 const extOf = (p) => (p.split(".").pop() || "").toLowerCase();
 
+/** A file's mark: the kit's for the kinds it draws, and a plain document for the rest. */
+const markFor = (p) => ({ html: 1, htm: 1, md: 1, csv: 1, pdf: 1 })[extOf(p)] ? fileMark(extOf(p) === "htm" ? "html" : extOf(p)) : `<i class="ph ph-file text-[15px] text-muted-foreground"></i>`;
+
 /** A file the chat linked, as the transcript's file card, with its own kind's mark. */
 const replayFileCard = (p) =>
-  `<div class="flex w-90 max-w-[85%] items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5"><span class="grid h-12 w-9 shrink-0 place-items-center rounded-sm bg-white shadow-xs ring-1 ring-border">${fileMark(extOf(p))}</span><span class="flex min-w-0 flex-col"><span class="truncate text-sm">${esc(baseName(p))}</span><span class="text-[12px] text-muted-foreground">${esc(extOf(p).toUpperCase())}</span></span></div>`;
+  `<div class="flex w-90 max-w-[85%] items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5"><span class="grid h-12 w-9 shrink-0 place-items-center rounded-sm bg-white shadow-xs ring-1 ring-border">${markFor(p)}</span><span class="flex min-w-0 flex-col"><span class="truncate text-sm">${esc(baseName(p))}</span><span class="text-[12px] text-muted-foreground">${esc(extOf(p).toUpperCase())}</span></span></div>`;
 
 /** The chat's Markdown, drawn plainly: paragraphs, lists, tables, code, and a ```files block as file cards. */
 const md = (text) => {
@@ -39,7 +44,7 @@ const md = (text) => {
   return t
     .trim()
     .split(/\n{2,}/)
-    .map((p) => (/^\u0000\d+\u0000$/.test(p.trim()) ? p.trim() : `<div class="mb-3 last:mb-0">${para(p)}</div>`))
+    .map((p) => (/^\u0000\d+\u0000$/.test(p.trim()) ? `<div class="mb-3 last:mb-0">${p.trim()}</div>` : `<div class="mb-3 last:mb-0">${para(p)}</div>`))
     .join("")
     .replace(/\u0000(\d+)\u0000/g, (_, i) => held[Number(i)]);
 };
@@ -84,11 +89,19 @@ const summaryOf = (s) => s.activity || s.label;
 
 /** A step's icon: what kind of work it was. */
 const stepIcon = (s) =>
-  s.ask ? "hand" : s.startsTask ? "arrow-bend-down-right" : s.uses ? "browser" : s.tool === "web_search" ? "magnifying-glass" : s.tool === "web_fetch" ? "globe" : "terminal-window";
+  s.ask ? "hand" : s.choose ? "list-checks" : s.startsTask ? "arrow-bend-down-right" : s.uses ? "browser" : s.tool === "web_search" ? "magnifying-glass" : s.tool === "web_fetch" ? "globe" : "terminal-window";
+
+/** The chat's words as far as they've streamed in at T: whole words, in proportion to how far through its span it is. */
+const streamed = (said, T) => {
+  if (T >= said.end || said.end <= said.t) return said.text;
+  const shown = Math.floor(said.text.length * Math.max(0, (T - said.t) / (said.end - said.t)));
+  const cut = said.text.lastIndexOf(" ", shown);
+  return said.text.slice(0, cut > 0 ? cut : shown);
+};
 
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const took = (s) => (s < 60 ? `${Math.max(1, Math.round(s))}s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)}s`);
-const firstSentence = (s) => (s.replace(/```[\s\S]*?```/g, "").replace(/`/g, "").trim().split(/(?<=\.)\s/)[0] || "").slice(0, 120);
+const firstSentence = (s) => (s.replace(/```[\s\S]*?```/g, "").replace(/\[([^\]]+)\]\([^)\s]+\)/g, "$1").replace(/`/g, "").trim().split(/(?<=\.)\s/)[0] || "").slice(0, 120);
 
 /** A task's card as the records have it at time T: the step it's on while it runs, then what it made, flat and gray. */
 const replayTaskCard = (task, T) => {
@@ -99,24 +112,92 @@ const replayTaskCard = (task, T) => {
   const tone = done ? "done" : "run";
   const file = done && task.files[0];
   return `
-  <div class="w-[520px] max-w-full overflow-hidden rounded-[14px] ${done ? "bg-[light-dark(#f1f0ed,#232321)]" : "bg-[light-dark(#ffffff,#262624)] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.06]"}">
+  <div data-task-open="${task.id}" class="w-[520px] max-w-full cursor-pointer overflow-hidden rounded-[14px] ${VIEW.pane && VIEW.tab === task.id ? "ring-2 ring-brand-500/35 " : ""}${done ? "bg-[light-dark(#f1f0ed,#232321)]" : "bg-[light-dark(#ffffff,#262624)] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.06]"}">
     <div class="flex items-center gap-3 py-2.5 pr-2.5 pl-3.5">
       <div class="flex min-w-0 flex-1 flex-col">
-        <span class="truncate text-[13px] leading-5 font-medium text-foreground">${esc(text)}</span>
-        <span class="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] leading-4 text-muted-foreground">${DOT[tone]}<span class="truncate">${esc(task.name)}</span><span class="text-foreground/25">·</span><span class="shrink-0 tabular-nums">${time}</span></span>
+        <span class="flex min-w-0 items-center gap-1.5 text-[13px] leading-5 font-medium text-foreground">${done ? DOT.done : miniDot()}<span class="truncate">${done ? esc(text) : shimmerText(esc(text))}</span></span>
+        <span class="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] leading-4 text-muted-foreground"><span class="truncate">${esc(task.name)}</span><span class="text-foreground/25">·</span><span class="shrink-0 tabular-nums">${time}</span></span>
       </div>
-      ${file ? `<span class="grid h-11 w-9 shrink-0 place-items-center rounded-[5px] bg-white text-[18px] shadow-xs ring-1 ring-black/[0.08]">${fileMark(extOf(file), "text-[18px]")}</span>` : ""}
+      ${file ? `<span class="grid h-11 w-9 shrink-0 place-items-center rounded-[5px] bg-white text-[18px] shadow-xs ring-1 ring-black/[0.08]">${markFor(file)}</span>` : ""}
     </div>
   </div>`;
 };
 
-/** The chat asking to use an app, while it waits on you. */
-const askCard = (ask) => `
-  <div class="w-[520px] max-w-full rounded-[14px] bg-[light-dark(#fffaf0,#2a2418)] p-3 pl-3.5 ring-1 ring-warning-500/35">
-    <div class="flex items-center gap-2 text-[13px] font-medium">${DOT.wait}Instrument wants to use ${esc(ask.target || "an app")}</div>
-    <div class="mt-1 text-[13px] text-foreground/75">${esc(ask.reason)}</div>
-    <div class="mt-2.5 flex gap-1.5">${pillDark("Allow")}${pillSoft("Don't allow")}</div>
+/**
+ * A question the chat put to you, drawn as the app draws it (QuestionCard in apps/studio's tool-choose.tsx): a plain
+ * tool card with the question, the choices as rows with a ring each, a row to type your own answer, and Add a note
+ * and Skip under them. Once answered it's the same card, the rows no longer clickable, your pick tinted with its ring
+ * filled and checked, and any note under them as a quote.
+ */
+const chooseCard = (c, T) => {
+  const answer = c.answer && T >= c.answeredAt ? c.answer : null;
+  const open = !answer;
+  const picked = answer?.selectedChoice?.trim();
+  const ring = (on) =>
+    on
+      ? `<span aria-hidden class="grid size-4.5 shrink-0 place-items-center rounded-full border border-brand-600 bg-brand-600 text-white"><i class="ph ph-check text-[11px]"></i></span>`
+      : `<span aria-hidden class="grid size-4.5 shrink-0 place-items-center rounded-full border border-foreground/25"></span>`;
+  const row = (text, on) =>
+    `<div class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm ${on ? "bg-brand-500/10 text-foreground" : open ? "text-foreground" : "text-muted-foreground"}">${ring(on)}<span class="min-w-0 flex-1">${esc(text)}</span></div>`;
+  const own = picked && !c.choices.some((x) => x.trim() === picked);
+  const rows = [
+    ...c.choices.map((x) => row(x, x.trim() === picked)),
+    ...(open ? [`<div class="flex w-full items-center gap-2.5 rounded-lg py-1 pr-1 pl-2 text-left text-sm">${ring(false)}<span class="min-w-0 flex-1 py-0.5 text-muted-foreground">Something else…</span><span class="size-6"></span></div>`] : own ? [row(picked, true)] : []),
+  ];
+  const foot = open
+    ? `<div class="-mx-2.5 mt-2 flex items-center justify-between gap-2"><span class="flex h-7 items-center rounded-md px-2.5 text-[12px] font-medium text-muted-foreground">Add a note</span><span class="flex h-7 items-center rounded-md px-2.5 text-[12px] font-medium text-muted-foreground">Skip</span></div>`
+    : `${answer?.declined ? `<p class="mt-3 text-xs text-muted-foreground">You skipped this question.</p>` : ""}${answer?.note ? `<p class="mt-3 border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">${esc(answer.note)}</p>` : ""}`;
+  return `
+  <div class="mt-2 w-full overflow-hidden rounded-2xl border border-border bg-card">
+    <div class="px-4 py-3">
+      <p class="mb-2 text-sm font-medium text-pretty">${esc(c.question)}</p>
+      <div class="-mx-2 flex flex-col gap-0.5">${rows.join("")}</div>${foot}
+    </div>
   </div>`;
+};
+
+/**
+ * Words the chat says around a question card that only announce it: a one-line lead-in in the same call ("Asking which
+ * tone you want.") and anything between putting the card up and getting the answer ("I've put the tone question on a
+ * card."). The card says it all, so the replay leaves them out, standing in for a change to the choose tool's prompt.
+ */
+const narratesACard = (said) =>
+  TL.chat.steps.some(
+    (q) =>
+      q.choose?.question &&
+      ((q.end <= said.t && said.t < (q.choose.answeredAt ?? Infinity)) ||
+        // A one-line lead-in written in the same call as the question ("Asking which tone you want.") only announces
+        // the card; anything longer before a question can be worth saying, so it stays.
+        (q.call && said.call === q.call && !said.text.trim().includes("\n") && said.text.trim().length <= 90)),
+  );
+
+/** A call that asks you something, which the transcript draws as its card rather than as a step. */
+const asksYou = (s) => Boolean(s.ask || s.choose?.question || s.tool === "connect_app");
+
+/** Whether an ask is up at T: from when the chat asked until you answered, or to the end if you never did. */
+const askOpen = (s, T) => s.ask && s.t <= T && !(s.ask.answeredAt != null && T >= s.ask.answeredAt);
+
+/**
+ * A folder or app the chat asks to use, drawn as the app draws it (permission-asks.tsx): a plain card just above the
+ * reply box, with the question, the chat's reason, what it wants in a muted row, and Allow in this chat, Always allow
+ * and Don't allow. It's never in the transcript: one place above the reply box keeps several from piling up, and a
+ * task's ask has no call of the chat's to sit under.
+ */
+const askCard = (ask) => {
+  const name = ask.target.split("/").filter(Boolean).pop() || "an app";
+  const folder = ask.kind === "folder";
+  const what = folder
+    ? `<span class="grid size-8 shrink-0 place-items-center">${fileMark("folder", "text-[22px]")}</span><span class="flex min-w-0 flex-1 flex-col"><span class="truncate text-sm">${esc(name)}</span><span class="truncate text-xs text-muted-foreground">~/${esc(name)}</span></span>`
+    : `<span class="grid size-8 shrink-0 place-items-center"><i class="ph ph-app-window text-[20px] text-muted-foreground"></i></span><span class="min-w-0 flex-1 truncate text-sm">${esc(name)}</span>`;
+  const button = (label, cls) => `<span class="flex h-8 items-center rounded-lg px-3 text-[13px] font-medium ${cls}">${label}</span>`;
+  return `
+  <div class="mb-2 rounded-2xl border border-border bg-card p-3 shadow-xs">
+    <p class="text-sm font-medium">Can Instrument use this ${folder ? "folder" : "app"}?</p>
+    ${ask.reason ? `<p class="mt-0.5 text-[13px] text-muted-foreground">${esc(ask.reason)}</p>` : ""}
+    <div class="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">${what}</div>
+    <div class="mt-3 flex items-center gap-2">${button("Allow in this chat", "bg-brand-600 text-white")}${button("Always allow", "border border-border bg-background")}${button("Don’t allow", "ml-auto text-muted-foreground")}</div>
+  </div>`;
+};
 
 const hostName = (url) => url.replace(/^\w+:\/\/(www\.)?/, "").split(/[/?#]/)[0];
 const siteName = (url) => {
@@ -131,8 +212,9 @@ const EVENTS = (() => {
   const c = TL.chat;
   const ev = [
     ...c.you.map((y) => ({ t: y.t, kind: "you", text: `You: ${y.text}` })),
-    ...c.says.map((s) => ({ t: s.t, kind: "says", text: `Instrument: ${firstSentence(s.text) || s.text.slice(0, 100)}` })),
-    ...c.steps.map((s) => ({ t: s.t, kind: s.ask ? "ask" : s.startsTask ? "task" : "step", text: s.ask ? `Asks to use ${s.ask.target}` : s.startsTask ? `Starts a task: ${s.startsTask}` : `Step: ${s.label}` })),
+    ...c.says.filter((s) => !narratesACard(s)).map((s) => ({ t: s.t, kind: "says", text: `Instrument: ${firstSentence(s.text) || s.text.slice(0, 100)}` })),
+    ...c.steps.map((s) => ({ t: s.t, kind: s.ask || s.choose ? "ask" : s.startsTask ? "task" : "step", text: s.ask ? `Asks to use ${s.ask.target.split("/").filter(Boolean).pop()}` : s.choose ? `Asks you: ${s.choose.question}` : s.startsTask ? `Starts ${s.startsTasks.length > 1 ? `${s.startsTasks.length} tasks` : "a task"}: ${s.startsTasks.join(", ")}` : `Step: ${s.label}` })),
+    ...c.steps.filter((s) => s.choose?.answer).map((s) => ({ t: s.choose.answeredAt, kind: "you", text: `You pick ${s.choose.answer.selectedChoice ?? "an answer"}${s.choose.answer.note ? `: “${s.choose.answer.note}”` : ""}` })),
     ...[...new Set(c.tabs.map((k) => k.t))].map((t) => {
       const names = c.tabs.filter((k) => k.t === t).map((k) => siteName(k.url));
       return { t, kind: "tab", text: `Opens ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]} in ${names.length > 1 ? "tabs" : "a tab"}` };
@@ -147,7 +229,7 @@ const EVENTS = (() => {
 })();
 
 /** What the person has open: the pane opens from the tabs button and closes the chat list; `tab` is one they picked. */
-const VIEW = { pane: false, list: true, tab: null };
+const VIEW = { pane: false, list: true, tab: null, tasks: [] };
 
 
 /** The chat's tabs open at T, as the design's tab objects: a title, an address, a mark, and the page or a stand-in for it. */
@@ -178,18 +260,45 @@ const usingAt = (T, busy) => {
   return ids[Math.min(ids.length - 1, Math.floor(((T - step.t) / span) * ids.length))];
 };
 
-/** The pane with the chat's tabs: the one picked, else the one in use, else the newest, glowing while Instrument uses it. */
-const replayPane = (tabs, usingId) => {
-  const active = tabs.find((t) => t.id === VIEW.tab) ?? tabs.find((t) => t.id === usingId) ?? tabs.at(-1);
-  const body =
-    active.id === usingId
-      ? usedPage({ url: active.url, html: active.page })
-      : `${addressRow(active.url)}<div class="relative min-h-0 flex-1 overflow-hidden">${active.page}</div>`;
+/**
+ * A task's tab, as the app draws it (task-page.tsx): its name over how long it has run, counting up, and Stop while it
+ * works; what the chat asked it; then its own transcript, drawn the way the chat's is. There's nothing to type into: you
+ * talk to the chat, which talks to the task.
+ */
+const taskTabBody = (task, T) => {
+  // The task is at work until its own last record, not until the chat hears it's done, which comes a moment later.
+  const ended = Math.min(task.doneAt ?? Infinity, task.end);
+  const running = T < ended;
+  const { html } = transcriptOf(task, T, { busy: running && T >= task.start, lastWake: task.start, withTasks: false });
+  return `
+  ${taskHeader(esc(task.name), { running, time: took(Math.max(0, Math.min(T, ended) - task.start)) })}
+  <div data-task-transcript class="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]">
+    <div class="flex flex-col gap-4 px-5 pt-5 pb-6">${task.brief ? chatBrief(esc(task.brief)) : ""}${html}</div>
+  </div>`;
+};
+
+/**
+ * The pane: the tasks you've opened from their cards, then the chat's own tabs. The one picked shows, else the newest
+ * task opened, else the page in use, else the newest page; a page glows while Instrument uses it.
+ */
+const replayPane = (T, tabs, usingId) => {
+  const tasks = VIEW.tasks.map((id) => TL.tasks.find((k) => k.id === id)).filter((k) => k && k.start <= T);
+  const ids = [...tasks.map((k) => k.id), ...tabs.map((t) => t.id)];
+  const activeId = ids.includes(VIEW.tab) ? VIEW.tab : tasks.at(-1)?.id ?? (ids.includes(usingId) ? usingId : tabs.at(-1)?.id);
+  const task = tasks.find((k) => k.id === activeId);
+  const page = tabs.find((t) => t.id === activeId);
+  const body = task
+    ? taskTabBody(task, T)
+    : page.id === usingId
+      ? usedPage({ url: page.url, html: page.page })
+      : `${addressRow(page.url)}<div class="relative min-h-0 flex-1 overflow-hidden">${page.page}</div>`;
+  const taskTabs = tasks.map((k) => `<span data-tab="${k.id}" class="flex min-w-0 shrink cursor-pointer">${pageTab(T < k.doneAt ? miniDot() : DOT.done, esc(k.name), { on: k.id === activeId })}</span>`).join("");
+  const pageTabs = tabs.map((t) => `<span data-tab="${t.id}" class="flex min-w-0 shrink cursor-pointer">${pageTab(siteMark(t), esc(t.title), { on: t.id === activeId, agent: t.id === usingId, using: t.id === usingId })}</span>`).join("");
   return `
   <div class="relative flex shrink-0 flex-col bg-background p-2 pl-0" style="width:680px">
     <div class="flex min-h-0 flex-1 flex-col rounded-xl bg-[light-dark(#f5f5f4,#1c1c1a)] p-1.5">
       <div class="flex h-9 shrink-0 items-center gap-1 pb-1.5">
-        ${tabs.map((t) => `<span data-tab="${t.id}" class="flex min-w-0 shrink cursor-pointer">${pageTab(siteMark(t), esc(t.title), { on: t.id === active.id, agent: t.id === usingId, using: t.id === usingId })}</span>`).join("")}
+        ${taskTabs}${taskTabs && pageTabs ? `<span class="mx-1 h-4 w-px shrink-0 bg-foreground/15"></span>` : ""}${pageTabs}
         <span class="grid size-7 shrink-0 place-items-center text-foreground/55"><i class="ph ph-plus text-[14px]"></i></span>
         <span class="flex-1"></span><span data-pane-close class="cursor-pointer">${iconBtn("x")}</span>
       </div>
@@ -198,16 +307,23 @@ const replayPane = (tabs, usingId) => {
   </div>`;
 };
 
-/** The chat at time T: its list row, then the transcript up to that moment, its own work inline and each task in a card. */
-const replayView = (T) => {
-  const c = TL.chat;
-  const lastWake = Math.max(-1, ...c.you.filter((y) => y.t <= T).map((y) => y.t), ...c.wakes.filter((w) => w.t <= T).map((w) => w.t));
-  const lastStop = Math.max(-1, ...c.stops.filter((s) => s <= T));
-  const busy = lastWake > lastStop;
+/**
+ * A session's transcript at T, the chat's or a task's alike, since the app draws a task's tab with the chat's own
+ * transcript (ChatStream in child-tasks.tsx): its words streaming in, its steps folding into a line once done, the live
+ * line while it works, and the cards that ask you something. `busy` and `lastWake` say whether it's at work and since
+ * when; `withTasks` draws the cards of the tasks it started.
+ */
+const transcriptOf = (sess, T, { busy, lastWake, withTasks = true }) => {
   const items = [
-    ...c.you.filter((y) => y.t <= T).map((y) => ({ t: y.t, o: 0, kind: "you", y })),
-    ...c.says.filter((s) => s.t <= T).map((s) => ({ t: s.t, o: 1, kind: "says", s })),
-    ...c.steps.filter((s) => s.t <= T).map((s) => ({ t: s.t, o: 2, kind: "step", s })),
+    ...sess.you.filter((y) => y.t <= T).map((y) => ({ t: y.t, o: 0, kind: "you", y })),
+    ...sess.says.filter((s) => s.t <= T && !narratesACard(s)).map((s) => ({ t: s.t, o: 1, kind: "says", s })),
+    // A call that asks you something (a question, a folder or app, a sign-in) is drawn as its card alone, the way the
+    // app's ToolCallBody draws it, since the card is the whole of what there is to read; it never joins a run of steps.
+    // A card shows once it has been put up, when its call is done, not while the chat is still writing it: until then
+    // the chat is at work and its working line says so.
+    ...sess.steps
+      .filter((s) => (asksYou(s) ? s.end : s.t) <= T)
+      .map((s) => ({ t: asksYou(s) ? s.end : s.t, o: 2, kind: asksYou(s) ? "card" : "step", s })),
   ].sort((a, b) => a.t - b.t || a.o - b.o);
 
   const out = [];
@@ -215,64 +331,104 @@ const replayView = (T) => {
   let label = "";
   const flush = (isLast) => {
     if (!run.length) return;
-    const live = isLast && busy;
-    const asking = run.find((s) => s.ask && s.t <= T && s.end > T);
-    const key = String(run[0].t);
-    if (live && !asking) {
+    // Live only if its steps belong to the turn under way: a turn a finished task woke has nothing to do with them.
+    const live = isLast && busy && run.some((x) => x.t >= lastWake);
+    const key = `${sess.id}:${run[0].t}`;
+    // A step that started tasks gives way to their cards: the card is the record of starting it.
+    // It goes the moment the first of its tasks exists, even if the call is still finishing, so a card takes the
+    // line's place rather than showing under it and then jumping up when the line goes.
+    const shown = run.filter((x) => !(withTasks && x.tasks?.some((id) => (TL.tasks.find((k) => k.id === id)?.start ?? Infinity) <= T)));
+    if (!shown.length) {
+      // Nothing left to draw as a step: the cards below say it all.
+    } else if (live) {
       // The line under way opens too, onto what it's done so far and what's still running.
       const open = OPEN.has(key);
-      const rows = run.map(
+      const rows = shown.map(
         (s) =>
-          `<div class="flex min-h-7 items-center gap-2 text-[13px] text-muted-foreground">${s.end <= T ? `<i class="ph ph-${stepIcon(s)} shrink-0 text-[13px]"></i>` : `<i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>`}<span class="min-w-0 flex-1 truncate">${esc(s.label)}</span><span class="shrink-0 text-[12px] text-muted-foreground/70">${s.end <= T ? took(s.end - s.t) : "running"}</span></div>`,
+          `<div class="flex min-h-7 items-center gap-2 text-[13px] text-muted-foreground">${s.end <= T ? `<i class="ph ph-${stepIcon(s)} shrink-0 text-[13px]"></i>` : `<i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>`}<span class="min-w-0 truncate">${esc(s.label)}</span><span class="shrink-0 text-foreground/25">·</span><span class="shrink-0 text-[12px] tabular-nums text-muted-foreground/70">${s.end <= T ? took(s.end - s.t) : "running"}</span></div>`,
       );
+      // Between calls nothing is running: the model is working out its next one, which is where most of the time
+      // goes. A last row says so, so the list never looks finished while the line above it is still at work.
+      const lastEnd = Math.max(...shown.map((s) => s.end));
+      if (shown.every((s) => s.end <= T))
+        rows.push(
+          `<div class="flex min-h-7 items-center gap-2 text-[13px] text-brand-700"><i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i><span class="min-w-0 truncate">Thinking</span><span class="shrink-0 text-foreground/25">·</span><span class="shrink-0 text-[12px] tabular-nums text-muted-foreground/70">${took(T - lastEnd)}</span></div>`,
+        );
       out.push(
-        `<div class="flex flex-col"><div data-fold="${key}" class="w-fit cursor-pointer">${liveWorking(summaryOf(run.at(-1)), { open })}</div>${open ? `<div class="mt-1 ml-[9px] flex flex-col gap-0.5 border-l border-border pl-4">${rows.join("")}</div>` : ""}</div>`,
+        `<div class="flex flex-col"><div data-fold="${key}" class="w-fit cursor-pointer">${liveWorking(summaryOf(shown.at(-1)), { open })}</div>${open ? `<div class="mt-1 ml-[9px] flex flex-col gap-0.5 border-l border-border pl-4">${rows.join("")}</div>` : ""}</div>`,
       );
     } else {
-      const steps = run.map((s) => [stepIcon(s), esc(s.label), took(s.end - s.t)]);
-      out.push(`<div data-fold="${key}" class="w-fit cursor-pointer">${workedLine(run.length === 1 ? esc(summaryOf(run[0])) : `${esc(summaryOf(run[0]))} and ${run.length - 1} more`, { steps, open: OPEN.has(key) })}</div>`);
+      const steps = shown.map((s) => [stepIcon(s), esc(s.label), took(s.end - s.t)]);
+      out.push(`<div data-fold="${key}" class="w-fit cursor-pointer">${workedLine(shown.length === 1 ? esc(summaryOf(shown[0])) : `${esc(summaryOf(shown[0]))} and ${shown.length - 1} more`, { steps, open: OPEN.has(key) })}</div>`);
     }
-    if (asking) out.push(askCard(asking.ask));
-    for (const s of run.filter((x) => x.task)) {
-      const task = TL.tasks.find((k) => k.id === s.task);
-      if (task) out.push(replayTaskCard(task, T));
-    }
+    // The tasks a run started stack as one set, close together, rather than spaced like separate parts of the reply.
+    const cards = run
+      .flatMap((x) => x.tasks ?? [])
+      .map((id) => TL.tasks.find((k) => k.id === id))
+      .filter((k) => k && k.start <= T)
+      .map((task) => replayTaskCard(task, T));
+    if (withTasks && cards.length) out.push(`<div class="flex flex-col gap-1.5">${cards.join("")}</div>`);
     label = summaryOf(run.at(-1));
     run = [];
   };
   items.forEach((it, i) => {
     if (it.kind === "step") return run.push(it.s);
+    if (it.kind === "card") {
+      flush(false);
+      if (it.s.choose?.question) out.push(chooseCard(it.s.choose, T));
+      return;
+    }
     flush(false);
-    out.push(it.kind === "you" ? you(esc(it.y.text)) : says(md(it.s.text)));
+    out.push(it.kind === "you" ? you(esc(it.y.text)) : says(md(streamed(it.s, T))));
   });
-  const endsOnSteps = run.length > 0;
+  const endsOnSteps = run.length > 0 && run.some((x) => x.t >= lastWake);
   flush(true);
-  const failed = c.errors.filter((e) => e.t > lastWake && e.t <= T);
+  const failed = sess.errors.filter((e) => e.t > lastWake && e.t <= T);
   const spoke = items.some((it) => it.t > lastWake && it.kind !== "you");
   const idle = failed.length && !spoke ? `Couldn't reach the model, trying again (try ${failed.length + 1})` : "Thinking";
-  if (busy && !endsOnSteps) out.push(liveWorking(idle));
-  const nowLabel = busy ? (endsOnSteps ? label : idle) : "";
-  const lastSays = c.says.filter((s) => s.t <= T).at(-1);
-  const asking = c.steps.find((s) => s.ask && s.t <= T && s.end > T);
+  // Words arriving are the chat at work, so there's no Thinking line under them while they stream.
+  const writing = sess.says.some((x) => x.t <= T && T < x.end && !narratesACard(x));
+  if (busy && !endsOnSteps && !writing) out.push(liveWorking(idle));
+  return { html: out.join(""), label: busy ? (endsOnSteps ? label : idle) : "" };
+};
+
+/** The chat at time T: its list row, then the transcript up to that moment, its own work inline and each task in a card. */
+const replayView = (T) => {
+  const c = TL.chat;
+  const lastWake = Math.max(-1, ...c.you.filter((y) => y.t <= T).map((y) => y.t), ...c.wakes.filter((w) => w.t <= T).map((w) => w.t));
+  const lastStop = Math.max(-1, ...c.stops.filter((s) => s <= T));
+  // Once a question card is up the chat is waiting on you, not thinking, unless it goes on to other steps while it
+  // waits (more than one thing was asked); the words it wrote about the card in that time are left out (narratesACard).
+  const waiting = c.steps.some(
+    (q) => q.choose?.question && q.end <= T && T < (q.choose.answeredAt ?? Infinity) && !c.steps.some((s) => s.t > q.end && s.t <= T),
+  );
+  const busy = lastWake > lastStop && !waiting;
+  const { html, label: nowLabel } = transcriptOf(c, T, { busy, lastWake });
+  const lastSays = c.says.filter((s) => s.t <= T && !narratesACard(s)).at(-1);
+  const asking = c.steps.find((s) => askOpen(s, T));
+  const choosing = c.steps.find((s) => s.choose?.question && s.t <= T && !(s.choose.answer && T >= s.choose.answeredAt));
   const list = inboxCol({
     on: 0,
     rows: [
-      { title: REPLAY.chat, preview: lastSays ? firstSentence(lastSays.text) : "", step: asking ? "" : nowLabel, ask: asking ? `Wants to use ${asking.ask.target}` : "", working: busy && !asking, time: "Now", holds: [] },
+      { title: REPLAY.chat, preview: lastSays ? firstSentence(lastSays.text) : "", step: asking || choosing ? "" : nowLabel, ask: asking ? `Wants to use ${asking.ask.target.split("/").filter(Boolean).pop()}` : choosing ? choosing.choose.question : "", working: busy && !asking && !choosing, time: "Now", holds: [] },
       ...ROWS.slice(1, 4),
     ],
   }).replace("ph ph-warning-circle shrink-0 text-[14px]", "ph ph-question shrink-0 text-[15px]");
   const tabs = tabsAt(T);
-  const pane = VIEW.pane && tabs.length > 0;
-  const right = tabs.length && !pane ? `<span data-pane-open class="cursor-pointer">${tabsPill(tabs)}</span>` : "";
+  const pane = VIEW.pane && (tabs.length > 0 || VIEW.tasks.some((id) => TL.tasks.find((k) => k.id === id)?.start <= T));
+  const right = tabs.length && !pane ? `<span data-pane-open class="cursor-pointer">${tabsPill(tabs, { using: usingAt(T, busy), working: busy })}</span>` : "";
   const transcript = `
     <div class="relative flex min-w-0 flex-1 flex-col">
       ${head(REPLAY.chat, { open: pane, right })}
-      <div data-transcript class="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]"><div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 pt-4 pb-2">${turnMeta({ when: "Today" })}${out.join("")}</div></div>
-      <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${replyBox({})}</div>
+      <div data-transcript class="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]"><div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 pt-4 pb-2">${turnMeta({ when: "Today" })}${html}</div></div>
+      <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${c.steps
+        .filter((x) => askOpen(x, T))
+        .map((x) => askCard(x.ask))
+        .join("")}${replyBox({})}</div>
     </div>`;
   return appWindow({
     bar: winBar({ tabs: [{ chats: true, title: REPLAY.chat }] }),
-    body: (VIEW.list ? list : "") + transcript + (pane ? replayPane(tabs, usingAt(T, busy)) : ""),
+    body: (VIEW.list ? list : "") + transcript + (pane ? replayPane(T, tabs, usingAt(T, busy)) : ""),
   });
 };
 
@@ -320,12 +476,15 @@ if (typeof document !== "undefined") {
   const $ = (sel) => document.querySelector(sel);
   const show = (t) => {
     T = Math.max(0, Math.min(TL.duration, t));
-    const was = $("[data-transcript]");
-    const following = !was || was.scrollHeight - was.scrollTop - was.clientHeight < 8;
-    const scrollTop = was?.scrollTop ?? 0;
+    const panes = ["[data-transcript]", "[data-task-transcript]"].map((sel) => {
+      const was = $(sel);
+      return { sel, following: !was || was.scrollHeight - was.scrollTop - was.clientHeight < 8, top: was?.scrollTop ?? 0 };
+    });
     $("#screen").innerHTML = replayView(T);
-    const now = $("[data-transcript]");
-    now.scrollTop = following ? now.scrollHeight : scrollTop;
+    for (const { sel, following, top } of panes) {
+      const now = $(sel);
+      if (now) now.scrollTop = following ? now.scrollHeight : top;
+    }
     $("[data-replay]").value = String(T);
     $("[data-replay-caption]").textContent = captionAt(T);
     $("[data-replay-time]").textContent = `${clock(T)} / ${clock(TL.duration)}`;
@@ -369,6 +528,13 @@ if (typeof document !== "undefined") {
     if (fold) {
       const key = fold.dataset.fold;
       OPEN.has(key) ? OPEN.delete(key) : OPEN.add(key);
+      return show(T);
+    }
+    const card = e.target.closest?.("[data-task-open]");
+    if (card) {
+      const id = card.dataset.taskOpen;
+      if (!VIEW.tasks.includes(id)) VIEW.tasks.push(id);
+      Object.assign(VIEW, { pane: true, list: false, tab: id });
       return show(T);
     }
     if (e.target.closest?.("[data-pane-open]")) {

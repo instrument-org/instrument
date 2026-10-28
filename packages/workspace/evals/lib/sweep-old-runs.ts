@@ -3,15 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { runtimeLayout } from "../../src/lib/runtime-dir";
-
 /**
- * Every temp folder an eval run or case leaves behind, by name prefix. Runs keep
- * their workspace so a transcript's files can be inspected afterwards; a day is
- * long enough for that, and without a sweep they fill the disk.
+ * Fixtures and scratch a run or case leaves in the temp folder, by name
+ * prefix, which nothing reads after a day.
  */
-const PREFIXES = [
-  `${APP_NAME_SLUG}-evals-`,
+const SCRATCH_PREFIXES = [
   `${APP_NAME_SLUG}-eval-folders-`,
   "activity-grouping-",
   "git-over-mounts-",
@@ -19,33 +15,44 @@ const PREFIXES = [
   "perm-evals-",
 ];
 
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/**
+ * A run's workspace and home, which hold what its agents did: kept a month
+ * for rescoring with `report` and reading what was made, with the runtime of
+ * a run that never removed its own (one that crashed, or ran with
+ * `--keep-workspace`) stripped after a day.
+ */
+const WORKSPACE_PREFIX = `${APP_NAME_SLUG}-evals-`;
+const HOME_PREFIX = `${APP_NAME_SLUG}-eval-home-`;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const KEEP_RUNS_MS = 30 * DAY_MS;
 
 export function sweepOldRuns() {
   const tmp = os.tmpdir();
-  const cutoff = Date.now() - MAX_AGE_MS;
+  const now = Date.now();
   for (const name of fs.readdirSync(tmp)) {
-    if (!PREFIXES.some((prefix) => name.startsWith(prefix))) {
-      continue;
-    }
     const dir = path.join(tmp, name);
     try {
-      if (fs.statSync(dir).mtimeMs < cutoff) {
-        fs.rmSync(dir, { force: true, recursive: true });
+      const age = now - fs.statSync(dir).mtimeMs;
+      if (SCRATCH_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+        if (age > DAY_MS) {
+          fs.rmSync(dir, { force: true, recursive: true });
+        }
+      } else if (
+        name.startsWith(WORKSPACE_PREFIX) ||
+        name.startsWith(HOME_PREFIX)
+      ) {
+        if (age > KEEP_RUNS_MS) {
+          fs.rmSync(dir, { force: true, recursive: true });
+        } else if (age > DAY_MS && name.startsWith(WORKSPACE_PREFIX)) {
+          fs.rmSync(path.join(dir, "runtime"), {
+            force: true,
+            recursive: true,
+          });
+        }
       }
     } catch {
       // Another run removing the same folder, or one still being written.
     }
   }
-}
-
-/**
- * The skills' virtual environments, rebuilt by every run and most of its size,
- * go as soon as the report is written.
- */
-export function removePreparedSkills(workspaceRootDir: string) {
-  fs.rmSync(runtimeLayout(path.join(workspaceRootDir, "runtime")).skills, {
-    force: true,
-    recursive: true,
-  });
 }

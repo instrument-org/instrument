@@ -24,7 +24,13 @@ import {
 } from "./harness";
 import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
 import { describeCost } from "./lib/run-cost";
-import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
+import { sweepOldRuns } from "./lib/sweep-old-runs";
+import {
+  formatGB,
+  MIN_FREE_DISK_BYTES,
+  removeRuntime,
+  waitForDisk,
+} from "./lib/workspace-cleanup";
 import { combineTrials, generateReport } from "./report";
 import {
   c,
@@ -49,6 +55,7 @@ const { positionals, values } = parseArgs({
   options: {
     concurrency: { default: "8", type: "string" },
     "dry-run": { default: false, type: "boolean" },
+    "keep-workspace": { default: false, type: "boolean" },
     effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
     json: { default: false, type: "boolean" },
@@ -244,6 +251,9 @@ if (
   );
   process.stderr.write(
     "                   --json prints the report as one line on stdout (see summary.json)\n",
+  );
+  process.stderr.write(
+    "                   --keep-workspace keeps each run's runtime (the app's Python and caches), which a run removes once reported\n",
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
@@ -522,7 +532,11 @@ switch (subcommand) {
       workspaceRootDir: absoluteWorkspaceDir,
     });
 
-    printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
+    printSummary({
+      outputDir,
+      rollup,
+      workspaceRootDir: absoluteWorkspaceDir,
+    });
     if (values.json) {
       await emitReport(`${JSON.stringify(rollup)}\n`);
     }
@@ -602,6 +616,22 @@ switch (subcommand) {
     }
 
     sweepOldRuns();
+    if (!dryRun) {
+      try {
+        await waitForDisk({
+          onWait: (free) => {
+            write(
+              `${c.yellow}Waiting for disk space${c.reset}${c.dim}: ${formatGB(free)} free on the disk holding ${os.tmpdir()}, under the ${formatGB(MIN_FREE_DISK_BYTES)} a case needs. Checking every 30 seconds.${c.reset}\n`,
+            );
+          },
+        });
+      } catch (error) {
+        write(
+          `${c.red}${error instanceof Error ? error.message : String(error)}${c.reset}\n`,
+        );
+        process.exit(1);
+      }
+    }
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
@@ -628,12 +658,21 @@ switch (subcommand) {
         runs,
         workspaceRootDir,
       });
-      removePreparedSkills(workspaceRootDir);
       if (process.env.APP_CLAUDE_CODE_PATH) {
         await removeClaudeAccountLeftovers();
       }
-
-      printSummary({ outputDir, rollup, workspaceRootDir });
+      if (!values["keep-workspace"]) {
+        await removeRuntime(workspaceRootDir).catch(() => {
+          write(
+            `${c.yellow}The workspace's runtime could not be removed:${c.reset} ${workspaceRootDir}\n`,
+          );
+        });
+      }
+      printSummary({
+        outputDir,
+        rollup,
+        workspaceRootDir,
+      });
       printTranscripts({ outputDir, rollup });
       if (values.json) {
         await emitReport(`${JSON.stringify(rollup)}\n`);

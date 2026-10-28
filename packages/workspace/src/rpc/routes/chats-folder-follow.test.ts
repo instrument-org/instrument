@@ -65,7 +65,7 @@ describe("a chat's folder following its title", () => {
     if (!sessionId) {
       throw new Error("the chat has no session");
     }
-    publisher.publish("session.done", { id: chatId, sessionId });
+    publisher.publish("chat.settled", { id: chatId, sessionId });
 
     await vi.waitFor(() => {
       expect(folderOf(chatId)).toBe("Dinner for six");

@@ -9,11 +9,10 @@ import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { ChatReads } from "../chat-reads";
 import { followTitle, titlesToFollow } from "../chat-folders/follow-title";
 import { chatModelURI } from "../chat-settings";
-import { sessionRole } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { nameChat } from "./chat-name";
-import { chatIsWorking, settleChatTitle } from "./chats";
+import { settleChatTitle } from "./chats";
 import { lastAssistantTextIn } from "./latest-session";
 import { type ChatId } from "../../schemas/chat-id";
 
@@ -112,14 +111,14 @@ export async function retitleChat({
  * the work has said what it is about, so the chat is named again from the
  * root and the latest reply. That is the whole of it: a title that kept
  * moving would be one the user loses in the list, so after the first settle,
- * or once the user has named the chat themselves, only the user renames it. A turn that leaves something of
- * the chat's still working (a hand-off, a task's report while another
- * runs) waits for the one that settles it, the same moment a notification
- * treats as news.
+ * or once the user has named the chat themselves, only the user renames it.
+ * Heard on `chat.settled`, so a turn that leaves something of the chat's
+ * still working (a hand-off, a task's report while another runs) waits for
+ * the one that settles it.
  */
 export function startChatRetitle(): void {
   void (async () => {
-    for await (const payload of publisher.subscribe("session.done")) {
+    for await (const payload of publisher.subscribe("chat.settled")) {
       try {
         await retitleOnSettle(payload);
       } catch (error) {
@@ -147,10 +146,6 @@ async function retitleOnSettle({
   id: ChatId;
   sessionId: StoreId.Session;
 }): Promise<void> {
-  // A task's turn ending names nothing: the chat is named from its own.
-  if (sessionRole(id, sessionId) !== "chat") {
-    return;
-  }
   const chatId = id;
   const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr()) {
@@ -159,9 +154,6 @@ async function retitleOnSettle({
   // A settled title is not named again, but one given while the chat worked
   // has a folder still to follow it.
   if (session.value.titleSettledAt && !titlesToFollow.has(chatId)) {
-    return;
-  }
-  if (await chatIsWorking(chatId)) {
     return;
   }
   if (session.value.titleSettledAt) {

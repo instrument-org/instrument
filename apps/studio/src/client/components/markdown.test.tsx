@@ -34,7 +34,8 @@ vi.mock("@tanstack/react-router", () => ({
 // The grid a ```files fence resolves to is a router-bound tree of preview cards
 // with its own tests. All that is being asked here is which component the fence
 // reached.
-vi.mock("./files-grid", () => ({
+vi.mock(import("./files-grid"), async (importOriginal) => ({
+  ...(await importOriginal()),
   FilesGrid: ({
     files,
   }: {

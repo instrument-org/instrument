@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-28 | [Apps are set up, connected and changed from the chat, and a task names what it needs](2026-10-28-app-setup-is-the-chats.md) |
 | 2026-10-27 | [Scripts reach `instrument`, and the `tools` global is gone](2026-10-27-scripts-reach-instrument.md) |
 | 2026-10-27 | [`instrument window` is what is in front of the person, a tab has one id, and the prompt holds for a task too](2026-10-27-the-window-command-and-one-tab-id.md) |
 | 2026-10-26 | [Each device writes its chat list into the workspace, for a phone to open it from](2026-10-26-each-device-writes-its-chat-list-into-the-workspace.md) |

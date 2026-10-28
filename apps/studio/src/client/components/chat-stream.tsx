@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
 import { isCutOff } from "../lib/is-cut-off";
+import { isRetriedAway } from "../lib/retried-away";
 import { useChatSession } from "../hooks/use-chat-session";
 import { cn } from "../lib/utils";
 import { ASSISTANT_BUBBLE, ASSISTANT_BUBBLE_TAIL } from "./assistant-message";
@@ -481,6 +482,13 @@ export function ChatStream({
       const isLastInConsecutiveAssistantGroup =
         message.role === "assistant" && nextMessage?.role !== "assistant";
       const isLastMessage = messageIndex === regularMessages.length - 1;
+      const retriedAway =
+        message.role === "assistant" &&
+        !isDeveloperMode &&
+        isRetriedAway(message.metadata.error, {
+          endedTurn: nextMessage?.role !== "assistant",
+          isLastMessage,
+        });
 
       // Attachments are hoisted into per-message chrome below.
       const fileAttachments: SessionMessagePart.Type[] = [];
@@ -499,6 +507,10 @@ export function ChatStream({
             continue;
           }
           seenSourceIds.add(part.sourceId);
+          continue;
+        }
+
+        if (retriedAway && part.type === "text") {
           continue;
         }
 

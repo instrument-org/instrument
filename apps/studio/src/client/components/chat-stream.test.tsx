@@ -1776,3 +1776,62 @@ describe("ChatStream and a turn the app's closing cut off", () => {
     ).toBeNull();
   });
 });
+
+// A reply whose stream dropped partway is retried, and the retry says the
+// whole thing. The words the first try got out are not shown above it.
+describe.each([
+  ["the transcript", undefined],
+  ["the chat", "chat" as const],
+])("%s and a reply retried after a dropped stream", (_label, presentation) => {
+  const dropped = {
+    error: {
+      classification: "transient",
+      kind: "api-call",
+      message: "Failed to process successful response",
+      name: "AI_APICallError",
+      statusCode: 200,
+      url: "",
+    },
+  };
+  const fragment = "The countdown finished,";
+  const whole = "The countdown finished. The file says done.";
+
+  it("leaves out the words the failed try got out", () => {
+    renderMessages(
+      [
+        userMessage("Run the countdown."),
+        assistantMessage([prose(fragment)], dropped),
+        assistantMessage([prose(whole)]),
+      ],
+      { presentation },
+    );
+
+    expect(screen.getByText(whole)).toBeDefined();
+    expect(screen.queryByText(fragment)).toBeNull();
+  });
+
+  it("keeps them under developer mode", () => {
+    renderMessages(
+      [
+        userMessage("Run the countdown."),
+        assistantMessage([prose(fragment)], dropped),
+        assistantMessage([prose(whole)]),
+      ],
+      { isDeveloperMode: true, presentation },
+    );
+
+    expect(screen.getByText(fragment)).toBeDefined();
+  });
+
+  it("keeps them when the turn ended on the failure", () => {
+    renderMessages(
+      [
+        userMessage("Run the countdown."),
+        assistantMessage([prose(fragment)], dropped),
+      ],
+      { presentation },
+    );
+
+    expect(screen.getByText(fragment)).toBeDefined();
+  });
+});

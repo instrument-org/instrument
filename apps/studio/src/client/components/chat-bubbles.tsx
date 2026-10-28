@@ -20,6 +20,7 @@ import {
 } from "react";
 
 import { type ChatSeparator, chatSeparators } from "../lib/chat-separators";
+import { isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
 import {
   AssistantMessage,
@@ -316,6 +317,12 @@ function bubbleBoxes(
     turn ??= { bubbles: [], key: message.id, rows: [] };
     // A reply a newer one cut off is not an error to anyone, and is not shown.
     const superseded = message.metadata.error?.kind === "aborted";
+    const retriedAway =
+      !isDeveloperMode &&
+      isRetriedAway(message.metadata.error, {
+        endedTurn: regular[index + 1]?.role !== "assistant",
+        isLastMessage,
+      });
     const paths = message.parts.some((part) => part.type === "data-fileChanges")
       ? pathsNamedInMessage(message)
       : undefined;
@@ -323,6 +330,7 @@ function bubbleBoxes(
       if (stored.type === "text") {
         if (
           superseded ||
+          retriedAway ||
           (stored.state === "done" && saysNothing(stored.text))
         ) {
           continue;

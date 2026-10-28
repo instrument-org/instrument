@@ -27,6 +27,7 @@ import {
 } from "../lib/parse-platform-api-error";
 import { readModelStatus } from "../lib/model-status";
 import { planAccountStop, planAccountStopLine } from "../lib/plan-account-stop";
+import { isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
@@ -136,9 +137,7 @@ export function MessageError({
   // stays where it happened after the user writes again.
   const isHiddenFromReader =
     error.kind === "aborted" ||
-    ((classification === "rate-limit" || classification === "transient") &&
-      !isLastMessage &&
-      !endedTurn);
+    isRetriedAway(error, { endedTurn, isLastMessage });
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
   }

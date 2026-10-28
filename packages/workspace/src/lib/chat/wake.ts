@@ -1,13 +1,10 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
-import { setTimeout as sleep } from "node:timers/promises";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { ChatWrites } from "../chat-writes";
 import { type Ask } from "../../schemas/chat-state";
-import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StopNotice, type Stopper } from "../../schemas/stop-notice";
@@ -52,24 +49,14 @@ import { cutForNote, lastAssistantText } from "./latest-session";
 import { appClosedLine, endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
-import { countOnItsWay } from "./wake-queue";
+import {
+  countOnItsWay,
+  enqueueWake,
+  saveNote,
+  type WakePart,
+} from "./wake-queue";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 import { type ChatId } from "../../schemas/chat-id";
-
-/** What a wake carries: the part that starts the chat's turn. */
-export type WakePart =
-  | { data: SessionMessageDataPart.AppEventDataPart; type: "data-appEvent" }
-  | {
-      data: SessionMessageDataPart.PermissionAnswerDataPart;
-      type: "data-permissionAnswer";
-    }
-  | {
-      data: SessionMessageDataPart.QuestionAnswerDataPart;
-      type: "data-questionAnswer";
-    }
-  | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
-  | { data: SessionMessageDataPart.SignedInDataPart; type: "data-signedIn" }
-  | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
 
@@ -88,18 +75,6 @@ const WAKE_DEBOUNCE_MS = 1500;
  */
 const OVERDUE_AFTER_MS = ms("4 minutes");
 const OVERDUE_CHECK_MS = ms("30 seconds");
-
-/**
- * The waits between lookups of a chat's model before a wake gives up on
- * starting its turn, about two minutes in all.
- */
-const WAKE_MODEL_RETRY_DELAYS_MS = [
-  ms("2 seconds"),
-  ms("5 seconds"),
-  ms("15 seconds"),
-  ms("30 seconds"),
-  ms("1 minute"),
-];
 
 /** How many of a turn's steps an overdue note carries, latest last. */
 const OVERDUE_STEPS = 6;
@@ -212,7 +187,7 @@ export async function wakeChatForApp(
     return;
   }
   const sessionId = sessionOfChat(asked);
-  if (sessionId === undefined || !(await chatModelURI(asked))) {
+  if (sessionId === undefined) {
     return;
   }
   const note = await appWakeNote({
@@ -225,11 +200,12 @@ export async function wakeChatForApp(
   if (note.isErr()) {
     throw note.error;
   }
-  await wakeWith(
-    asked,
-    { data: note.value, type: "data-appEvent" },
+  await enqueueWake({
+    chatId: asked,
+    part: { data: note.value, type: "data-appEvent" },
+    sessionId,
     workspaceRef,
-  );
+  });
 }
 
 /**
@@ -774,101 +750,12 @@ function wakeWith(
   /** The session to wake: a task that asked, else the chat's own. */
   askingSessionId?: StoreId.Session,
 ) {
-  return onItsWay(chatId, async () => {
-    const modelURI = await chatModelURI(chatId);
-    if (!modelURI) {
-      throw new Error(
-        `Chat ${chatId} has no model to wake with; it has never been messaged.`,
-      );
-    }
-    const sessionId = askingSessionId ?? sessionOfChat(chatId);
-    if (!sessionId) {
-      throw new Error(`${chatId} is not a chat.`);
-    }
-    const message = await saveNote(chatId, sessionId, part);
-
-    // Looked up after the note is written, so a model the chat cannot resolve
-    // yet still leaves the news in the conversation, where the user's next
-    // message carries it to the agent.
-    const model = await wakeModel(modelURI);
-    workspaceRef.send({
-      type: "addMessage",
-      value: {
-        id: chatId,
-        message,
-        model,
-        saved: true,
-        sessionId,
-      },
-    });
+  return enqueueWake({
+    chatId,
+    part,
+    ...(askingSessionId ? { sessionId: askingSessionId } : {}),
+    workspaceRef,
   });
-}
-
-/**
- * Writes a wake's part as a text-less user message in a session, which shows
- * in the conversation at once and reaches the agent with the session's next
- * turn, whatever starts it.
- */
-async function saveNote(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  part: WakePart,
-): Promise<SessionMessage.UserWithParts> {
-  const createdAt = new Date();
-  const messageId = StoreId.newMessageId();
-  const message: SessionMessage.UserWithParts = {
-    id: messageId,
-    metadata: { createdAt, sessionId },
-    parts: [
-      {
-        ...part,
-        metadata: {
-          createdAt,
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-      },
-    ],
-    role: "user",
-  };
-
-  // Written now, so the note shows in the conversation the moment it fires,
-  // whatever the chat is in the middle of.
-  const written = await ChatWrites.saveMessageWithParts(message, chatId);
-  if (written.isErr()) {
-    throw new Error(written.error.message);
-  }
-  return message;
-}
-
-/**
- * The chat's model, asked for again after each wait in
- * `WAKE_MODEL_RETRY_DELAYS_MS` while the lookup fails, since a provider's
- * catalog can leave a model out for a moment and list it again.
- */
-async function wakeModel(modelURI: AIGatewayModelURI.Type) {
-  const workspaceConfig = getWorkspaceConfig();
-  const lookUp = () =>
-    fetchModel({
-      captureException: workspaceConfig.captureException,
-      configs: workspaceConfig.getAIProviderConfigs(),
-      modelCache: workspaceConfig.modelCache,
-      modelRoutes: workspaceConfig.modelRoutes,
-      modelURI,
-    });
-  let result = await lookUp();
-  for (const delayMs of WAKE_MODEL_RETRY_DELAYS_MS) {
-    if (result.ok) {
-      break;
-    }
-    await sleep(delayMs);
-    result = await lookUp();
-  }
-  if (!result.ok) {
-    throw result.error;
-  }
-  return result.value;
 }
 
 /** Whether a session that just ended has a turn running again, or false where no workspace is running to ask. */

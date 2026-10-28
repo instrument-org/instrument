@@ -1,6 +1,6 @@
 # One capability layer
 
-Status: **phases 0 to 3 done**: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and every model tool and `instrument` word on the registry with the role split as its data (evals below); the owner's answers are in Decisions.
+Status: **phases 0 to 3 done**: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and every model tool and `instrument` word on the registry with the role split as its data (evals below), then a final eval pass on Haiku and Sonnet; the owner's answers are in Decisions.
 
 ## Problem
 
@@ -464,6 +464,98 @@ What it says:
 - **The generated `instrument app` holds up.** The phase 1 Lantern cases, rerun against it: the fan-out 3/3, 4 (4-8), 120K, a script in 2 of 3 (phase 1: 3/3, 4 (3-4), 117K, a script in 3 of 3; the third trial looped `app request` in bash, 252K); the Python fan-out 1/1, 4 steps, 121K, through `instrument` (phase 1: 4 (3-4), 121K); the single lookup 1/1, 3 steps, 87K, two plain requests (phase 1: 3, 87K).
 
 What the plan had wrong, now corrected above: "turn-enders stay off the script surface" needed no rule, since a tool-only capability has no script surface to give it; a model tool keeps its own recorded output shape rather than taking the capability's `output` and `text`, because sessions on disk keep every shape a tool has had; a capability with a gate cannot have a tool surface (`modelTool` refuses to build one), since a gate's answers are exit codes and exceptions; the dispatcher's registry cannot list the tool-only capabilities, since `bash`'s imports the shell, which imports the dispatcher, so `tools/all.ts` lists what the model calls and the registry what a command or a script calls; and `defineSubcommands` stayed until `memory`, `window` and `task` moved (below).
+
+## Final eval pass
+
+One pass over the whole stack, on its last commit, to see how each surface holds up on a second model and whether more than one way to do a thing confuses either. Claude Sonnet 5.5 and Claude Haiku 5.5, both through OpenRouter, three trials per case, every case in an invocation of its own and every trial in a process and home of its own. Each cell is trials passed, model steps as a median with their range, the trial's total tokens as a median (the chat and its tasks for chat cases), and the billed cost summed over the three trials. Haiku was rerun on the scripting and reach cases, whose numbers predate phase 3's generated `instrument app`, its scripts section in the prompt and the task's refused `connect_app`; its memory, window, task and web numbers were measured on this commit's code in phase 3 and are not repeated. The Sonnet cost of a case is ten to fifteen times Haiku's for the same tokens; compare tokens across models and cost within a model. Sonnet's Beacon single lookup ran its three trials at once, each writing the prompt cache cold, so its $0.197 is about twice what it would cost run in turn.
+
+The surface counts come from the transcripts: a script is a `node` or Python run (inline, a heredoc or a file from `write_file`) that calls `instrument`; CLI calls are `instrument app call` and `request` commands; "redone" counts trials that fetched again through the CLI something a script had already fetched.
+
+**The scripting cases, with the script channel and with `--bash-only`:**
+
+| Case | Model | Script arm | Bash-only arm | How the script arm made the calls |
+| --- | --- | --- | --- | --- |
+| Beacon fan-out (MCP) | Haiku | 3/3, 4 (4-5), 119K, $0.011 | 3/3, 8 (7-10), 251K, $0.017 | a Python script in 3/3, after at most one `app call` to see the shape |
+| | Sonnet | 3/3, 4 (4-6), 114K, $0.134 | 3/3, 5 (5-7), 146K, $0.221 | a Python script in 3/3; one trial then rechecked its counts with `app call` in a loop (redone) |
+| Beacon join (MCP) | Haiku | 3/3, 5 (5-6), 144K, $0.010 | 3/3, 5 (5-8), 145K, $0.012 | a script in 3/3 (Node 1, Python 2) |
+| | Sonnet | 3/3, 4 (4-4), 114K, $0.110 | 3/3, 7 (4-10), 212K, $0.193 | a Python script in 3/3 |
+| Beacon single lookup (MCP) | Haiku | 3/3, 4 (4-4), 112K, $0.006 | 3/3, 4 (4-4), 109K, $0.006 | two `app call`s, no script, 3/3 |
+| | Sonnet | 3/3, 4 (4-4), 111K, $0.197 | 3/3, 4 (4-4), 109K, $0.087 | two `app call`s, no script, 3/3 |
+| Lantern fan-out (API) | Haiku | 3/3, 4 (3-4), 116K, $0.008 | 3/3, 10 (7-14), 307K, $0.020 | a Python script in 3/3, after one or two `app request`s |
+| | Sonnet | 3/3, 3 (3-4), 85K, $0.101 | 3/3, 5 (5-6), 145K, $0.156 | a script in 3/3 (Node 2, Python 1), no `app request` |
+| Lantern join (API) | Haiku | 3/3, 3 (3-3), 87K, $0.007 | 3/3, 4 (4-5), 122K, $0.010 | a Python script in 3/3, after one to three `app request`s |
+| | Sonnet | 3/3, 3 (3-3), 84K, $0.089 | 3/3, 6 (5-8), 177K, $0.187 | a Python script in 3/3; one stopped once by `ReadGuideFirst` |
+| Lantern single lookup (API) | Haiku | 3/3, 3 (3-3), 85K, $0.006 | 3/3, 3 (3-3), 84K, $0.006 | two `app request`s, no script, 3/3 |
+| | Sonnet | 3/3, 3 (3-3), 85K, $0.081 | 3/3, 3 (3-3), 83K, $0.080 | two `app request`s, no script, 3/3 |
+| Python fan-out over Lantern | Haiku | 3/3, 4 (3-4), 116K, $0.009 | 3/3, 9 (9-10), 280K, $0.019 | `import instrument` in 3/3 |
+| | Sonnet | 3/3, 4 (4-4), 114K, $0.119 | 3/3, 9 (8-9), 281K, $0.261 | `import instrument` in 3/3; one then rechecked two issues with `app request` (redone) |
+| Python fan-out over Beacon | Haiku | 3/3, 6 (6-6), 180K, $0.012 | 3/3, 11 (9-13), 351K, $0.023 | `import instrument` in 3/3; each then fetched one issue with `app call` to debug the script and reran it (redone) |
+| | Sonnet | 3/3, 5 (4-9), 144K, $0.168 | 3/3, 8 (7-9), 243K, $0.249 | `import instrument` in 3/3 |
+| Google errand (4 API apps) | Haiku | 3/3, 5 (3-13), 155K, $0.018 | 3/3, 9 (8-10), 301K, $0.020 | a Node script in 2/3; the 13-step trial made all 21 requests with `app request` and wrote no script |
+| | Sonnet | 3/3, 5 (5-5), 152K, $0.174 | 3/3, 10 (10-11), 329K, $0.313 | a script in 3/3 (Node 1, Python 2), each stopped once by `ReadGuideFirst`, no `app request` |
+
+How the bash-only arm made the calls, both models: `app call` or `app request` only, in bash loops, with pages saved to files. A Python script that ran `instrument` as a program and heard "not found" in 10 of Haiku's 27 trials and 14 of Sonnet's 27, all 12 Python-case trials among them; `curl` to the key-less stand-in in 5 Haiku and 3 Sonnet trials. In the script arm neither model ran `instrument` as a program or curled a stand-in in any trial.
+
+**The phase 2 reach cases** (model steps, where phase 2's table counted tool calls). `reach-task-unconnected-service` is rescored with the fix below; it read 1/3 on Sonnet and 0/3 on Haiku as run.
+
+| Case | Haiku | Sonnet |
+| --- | --- | --- |
+| reach-script-calendar-card | 3/3, 1 (1-1), 28K, $0.003 | 3/3, 1 (1-1), 28K, $0.047 |
+| reach-script-calendar-card-given | 3/3, 1 (1-1), 28K, $0.003 | 3/3, 1 (1-1), 28K, $0.053 |
+| reach-script-calendar-card-python | 3/3, 1 (1-1), 28K, $0.003 | 3/3, 1 (1-1), 28K, $0.053 |
+| reach-follow-through-reminder | 3/3, 3 (2-3), 92K, $0.007 | 3/3, 3 (2-3), 91K, $0.090 |
+| reach-task-reminders | 3/3, 3 (3-3), 91K, $0.006 | 3/3, 3 (2-3), 91K, $0.089 |
+| reach-task-notes | 3/3, 2 (2-2), 60K, $0.005 | 3/3, 2 (2-2), 60K, $0.077 |
+| reach-reminder | 3/3, 3 (2-3), 82K, $0.005 | 3/3, 3 (3-3), 82K, $0.070 |
+| reach-calendar | 3/3, 3 (2-3), 83K, $0.005 | 3/3, 3 (3-3), 82K, $0.075 |
+| reach-todo | 3/3, 3 (3-3), 83K, $0.005 | 3/3, 3 (3-3), 82K, $0.070 |
+| reach-send-text | 3/3, 2 (1-3), 55K, $0.004 | 3/3, 3 (3-3), 82K, $0.077 |
+| reach-control-draft-text | 2/3, 2 (1-2), 55K, $0.004 | 3/3, 1 (1-1), 27K, $0.041 |
+| reach-control-file | 3/3, 2 (2-2), 57K, $0.006 | 3/3, 3 (2-3), 84K, $0.096 |
+| reach-task-unconnected-service | 1/3, 3 (3-3), 84K, $0.006 | 3/3, 4 (4-4), 111K, $0.090 |
+
+**The phase 3 memory, task and window cases**, Haiku from the phase 3 run above:
+
+| Case | Haiku | Sonnet |
+| --- | --- | --- |
+| memory-keeps-a-fact-inside-an-ask | 3/3, 3 (2-6), 103K | 3/3, 4 (3-5), 151K, $0.145 |
+| memory-keeps-a-standing-fact | 3/3, 2 (2-2), 55K | 3/3, 2 (2-2), 55K, $0.059 |
+| memory-keeps-an-unflagged-preference | 2/3, 2 (1-2), 55K | 3/3, 2 (2-2), 55K, $0.062 |
+| memory-keeps-what-a-task-reported | 0/3, 5 (3-5), 189K | 0/3, 7 (6-10), 280K, $0.293 |
+| memory-saves-before-the-work | 3/3, 4 (3-5), 166K | 3/3, 4 (3-5), 168K, $0.246 |
+| task-session-folder-card | 1/3, 1 (1-1), 114K | 0/3, 1 (1-2), 112K, $0.100 |
+| task-session-folder-card-answered | 3/3, 1 (1-2), 352K | 3/3, 1 (1-1), 287K, $0.221 |
+| task-session-needs-a-pick | 3/3, 1 (1-1), 257K | 0/3, 1 (1-1), 281K, $0.191 |
+| task-session-start | 3/3, 1 (1-2), 144K | 2/3, 1 (1-1), 113K, $0.132 |
+| task-session-steer | 0/3, 2 (2-3), 182K | 0/3, 2 (2-2), 175K, $0.256 |
+| task-session-stopped-then-asked | 3/3, 3 (3-3), 111K | 3/3, 3 (3-3), 110K, $0.090 |
+| task-session-tab | 0/3, 4 (4-5), 143K | 0/3, 4 (2-4), 285K, $0.253 |
+| task-session-timed-out | 3/3, 1 (1-2), 186K | 3/3, 1 (1-1), 572K, $0.679 |
+| task-tabs-compare | 3/3, 4 (3-5), 131K | 3/3, 4 (4-5), 121K, $0.175 |
+| task-tabs-single-page | 3/3, 4 (3-4), 110K | 3/3, 4 (4-4), 111K, $0.116 |
+| window-tabs-close-named | 3/3, 2 (2-2), 55K | 3/3, 2 (2-2), 55K, $0.058 |
+| window-tabs-hands-open-page | 0/3, 9 (9-10), 372K | 0/3, 11 (3-13), 509K, $0.519 |
+| window-tabs-new-page | 3/3, 7 (7-10), 334K | 3/3, 6 (4-7), 234K, $0.324 |
+| window-tabs-result-on-a-page | 0/3, 8 (7-13), 434K | 0/3, 19 (8-23), 1009K, $1.015 |
+| window-tabs-show-open | 3/3, 2 (2-2), 55K | 3/3, 2 (2-2), 55K, $0.056 |
+| window-tabs-show-result | 3/3, 4 (4-4), 116K | 3/3, 4 (4-5), 115K, $0.133 |
+| window-tabs-their-page | 3/3, 2 (2-3), 66K | 3/3, 3 (2-5), 103K, $0.170 |
+| window-tabs-their-tab-as-it-stands | 3/3, 1 (1-1), 28K | 3/3, 1 (1-1), 28K, $0.048 |
+
+Sonnet passed 47 of 69 trials there, Haiku 51 of 69. **The web-scripting cases on Sonnet**: the fan-out over 15 pages 3/3, 6 (4-8), 183K, $0.204; the Python script over the pages 3/3, 10 (9-13), 367K, $0.407; two ways 3/3, 2 (2-2), 58K, $0.086. Sonnet read the pages with `curl` in 9 of 9 trials, after one `web_fetch` of the catalog in 2; one fan-out trial called `instrument.web.fetch` for all 15 pages, treated the answer as a string, failed on a `KeyError`, and fetched the 15 pages again with `curl`. No two-ways trial fetched a page twice.
+
+Two eval-case fixes came out of the pass. `reach-task-unconnected-service` scored a reply naming the gap by a list of phrasings that predates the task's refused `connect_app`, which tells a task to end with a needs fence naming the app; a reply ending in that fence now counts, the service still named. And the scripting cases' evidence line told a script's runtime from its JSON-escaped input, so a heredoc Python script was counted as Node; the counts above are from the transcripts.
+
+What it says:
+
+- **Haiku reaches for scripts.** With the channel, it wrote a script in 20 of 21 multi-call trials and none of the 6 single lookups, mostly in Python even where nobody asked for Python. The one exception was an errand trial that made all 21 requests one `app request` at a time and still passed. Sonnet wrote a script in 21 of 21 and none of the 6, so the two models split the work the same way.
+- **Scripts save tokens on both models, and more on Sonnet's bill.** Against the bash-only arm, the script arm took about half the tokens on every multi-call case but the Beacon join on Haiku (equal): Haiku's Lantern fan-out 116K against 307K, the errand 155K against 301K; Sonnet's Lantern join 84K against 177K, the errand 152K against 329K. The single lookups cost the same either way. At Sonnet's price that is $0.17 against $0.31 for the errand. Haiku's script arm has improved on the Beacon fan-out since phase 1 (6 steps and 186K then, 4 and 119K now); its bash-only arm moved both ways within its usual spread (the Lantern fan-out 307K against 223K, the Python fan-out over Beacon 351K against 451K).
+- **Without the channel, both models still try a script first.** In the bash-only arm a Python script that runs `instrument` as a program and fails was the first move in 10 of Haiku's and 14 of Sonnet's 27 trials, and some curled the stand-in. Sonnet tries it more often than Haiku, on non-Python cases too. The channel is what turns that instinct into a working path.
+- **More than one way caused little confusion, but some redone work.** No trial in either arm mixed surfaces for the same items as its main path. The doubling that did happen came after a script had already answered: Haiku fetched one issue through the CLI to debug its Python script in 3 of 3 Beacon Python trials, and Sonnet rechecked a script's counts through the CLI in 2 trials. The one real misfire was Sonnet guessing the return shape of `instrument.web.fetch` and then fetching every page again with `curl`, which suggests the web call's answer shape is the least obvious surface.
+- **Sonnet follows the task's needs fence where Haiku does not.** On `reach-task-unconnected-service` both models ran `instrument app new google-calendar --web ...` from the task, which writes the app's setup, then met the refused `connect_app`. Sonnet ended with a needs fence naming Google Calendar in 3 of 3. Haiku did in 1 of 3; in the other 2 it told the user a sign-in card was up when none was.
+- **Sonnet's other differences are about where it puts files and how long it works.** It failed `task-session-needs-a-pick` 3 of 3 (Haiku 3 of 3 passed) and `task-session-start` once because its task saved the file outside the two folders the case reads (the chat's folder and the person's): in the chat's work folder, in the two trials whose reply names the path. That is how it read "the workspace folder"; Haiku saved where the case reads. It spent the most on the window cases that already fail on Haiku: `window-tabs-result-on-a-page` took 19 steps and 1M tokens at the median.
+
+Not run: the bash-only arm of the web-scripting cases, and Sonnet on the bash-only arm of anything but the scripting cases. The pass cost $10.17 billed: Sonnet $9.89 (scripting $2.92 across both arms, reach $0.93, web $0.70, phase 3 $5.34), Haiku $0.28.
 
 ## Open questions for the owner
 

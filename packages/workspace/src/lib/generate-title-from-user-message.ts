@@ -39,14 +39,22 @@ class CommentaryAnswer extends Error {
 }
 
 /**
+ * The answer that keeps the current title, as the prompt spells it, give or
+ * take case and a closing period.
+ */
+const KEEP_ANSWER = /^keep\.?$/i;
+
+/**
  * Whether `title` has a shape seen in remarks about the message: talk of
- * "the message" or "the user", a title called a chat, or a quote opened and
- * never closed, left by a sentence that quoted the title it meant.
+ * "the message", "the user" or the current title, a title called a chat, or
+ * a quote opened and never closed, left by a sentence that quoted the title
+ * it meant.
  */
 export function looksLikeCommentary(title: string): boolean {
   return (
-    /^(?:the message|the user)\b|\bthe user's\b|\schat$/i.test(title) ||
-    (title.match(/"/g)?.length ?? 0) % 2 === 1
+    /^(?:the message|the user|current title)\b|\bthe user's\b|\schat$/i.test(
+      title,
+    ) || (title.match(/"/g)?.length ?? 0) % 2 === 1
   );
 }
 
@@ -196,17 +204,22 @@ export function generateTitleFromUserMessage({
         /^\s*(?:title|name|task|app):\s*/i,
         "",
       );
-      // Echoing the label it was handed, and the title quoted after it.
-      cleanedTitle = cleanedTitle.replace(/^\s*current title:?\s*["'`]*/i, "");
+      // Echoing the label it was handed, and the title quoted after it. Without
+      // a colon or a quote, "Current title" opens a sentence about the title.
+      cleanedTitle = cleanedTitle.replace(
+        /^\s*current title(?::|\s*(?=["'`]))\s*["'`]*/i,
+        "",
+      );
       cleanedTitle = cleanedTitle.trim();
       cleanedTitle = cleanedTitle.split("\n")[0]?.trim() ?? "";
-      // A sentence that quotes the current title ("Current title is "…".")
-      // is the model keeping it.
+      // The keep answer the prompt asks for, and a sentence that quotes the
+      // current title ("Current title is "…"."), are both the model keeping it.
       if (
         currentTitle &&
-        ['"', "'", "`"].some((quote) =>
-          cleanedTitle.includes(`${quote}${currentTitle}`),
-        )
+        (KEEP_ANSWER.test(cleanedTitle) ||
+          ['"', "'", "`"].some((quote) =>
+            cleanedTitle.includes(`${quote}${currentTitle}`),
+          ))
       ) {
         return currentTitle;
       }
@@ -321,21 +334,45 @@ function buildSystemPrompt({
 }): string {
   // The reply is evidence of the subject, the way attachments are: it says
   // what the work became, which the opening words alone may not. The message
-  // still says what the user wanted, so the title stays theirs.
+  // still says what the user wanted, so the title stays theirs. With a title
+  // already given, the reply is only how the call checks that title: asked to
+  // sharpen it as well, a model rewords every title it is shown.
   const replySection = withReply
     ? `${dedent`
         <reply>
-        The message opened a chat that has since been answered, and the agent's latest reply follows it after "Latest reply:". The reply says what the work turned out to be, so let it sharpen the title: a message asking "what should I make for dinner" answered with a lentil soup recipe is "Lentil soup for dinner". Name the subject the message and the reply share; never name the act of replying, and never a title that is only the reply's own words.
+        The message opened a chat that has since been answered, and the agent's latest reply follows it after "Latest reply:". The reply says what the work turned out to be. ${
+          hasCurrentTitle
+            ? "Use it to check whether the current title still names that work, and to name the work when it does not."
+            : `Let it sharpen the title: a message asking "what should I make for dinner" answered with a lentil soup recipe is "Lentil soup for dinner".`
+        } Name the subject the message and the reply share; never name the act of replying, and never a title that is only the reply's own words.
         </reply>`}\n\n`
     : "";
 
   // Two calls over the same chat word the same subject differently, so
-  // without a pull towards the name it has, every call is a rename.
+  // without a pull towards the name it has, every call is a rename. The
+  // reasons to rename are listed and closed, and keeping is one word, so
+  // keeping asks nothing of the model but the decision. It comes last, after
+  // everything about writing a title, so it is what the model reads before
+  // it answers.
   const currentTitleSection = hasCurrentTitle
-    ? `${dedent`
+    ? `\n\n${dedent`
         <current_title>
-        The work already has a title, given after "Current title:". The user finds the work in their list by it, and a title that changes under them is one they lose. Answer with it exactly, character for character, unless it now names a different subject than the one the work is about, it is the name given after "Taken:", or it ends in a number (" 2") that was only put there because another chat had the name. A better wording, a sharper phrase, or one more detail is not a reason to change it; a subject that has moved on, or a name another chat has, is.
-        </current_title>`}\n\n`
+        The work already has a title, given after "Current title:". The user finds the work in their list by it, and a title that changes under them is one they lose. Your job is to decide whether it stays.
+
+        Read the message and the reply, then ask: would someone who sees only the title expect this work? Rename only when one of these is true:
+        - It names a different subject than the one the work turned out to be about, even one that shares a word with it: the opening words were read wrong, or the work moved to something else.
+        - It names no subject at all: it is empty, a placeholder, a file name with nothing about what is in the file, or a label that would fit any chat ("Quick question", "New chat").
+        - It is the name given after "Taken:", or it ends in a number (" 2") that was only put there because another chat had the name.
+
+        Otherwise answer with the single word KEEP and nothing else. A title that names the work keeps it even when you would have worded it differently: a shorter, sharper, or more natural wording, one more detail from the reply, a different word order, or a better fit with the rules above is never a reason to rename.
+
+        "Dinner ideas", answered with a lentil soup recipe → KEEP
+        "Fixing the leaking kitchen faucet", answered with steps to replace its cartridge → KEEP
+        "Photo IMG_2207", answered by reading it as a parking ticket and filling in the appeal → Parking ticket appeal
+        "Python list sorting", answered with how to sort a list in JavaScript → Sorting a list in JavaScript
+
+        Only when you rename does the answer follow the rules above.
+        </current_title>`}`
     : "";
 
   // A list where every title names the same subject the same way is one
@@ -404,7 +441,7 @@ function buildSystemPrompt({
     If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is: a message with nothing to name stays unnamed whatever the other chats are called.
     </important>
 
-    ${replySection}${currentTitleSection}${otherTitlesSection}${rejectedSection}<rules>
+    ${replySection}${otherTitlesSection}${rejectedSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
     - Specific enough to be recognized later: "Check the weather" could have been "Check the weather for Friday". A detail earns its place by telling the work apart, so a date or a time goes in only when the work is about one or another chat needs telling apart from it
     - Only details the message or the reply states, and of those, none true of nearly every chat the user has, such as where they live or the current year: it tells nothing apart
@@ -420,6 +457,6 @@ function buildSystemPrompt({
     - No prefixes or labels like "Title:" or "Name:"
     </rules>
 
-    ${examples}
+    ${examples}${currentTitleSection}
   `.trim();
 }

@@ -501,6 +501,27 @@ describe("generateTitleFromUserMessage with a current title", () => {
     expect(title._unsafeUnwrap()).toBe(current);
   });
 
+  // A settle on the Claude account stored `is a reasonable subject
+  // description, though it's a`, which is what the label strip and the word
+  // cap left of an answer like this one.
+  it("refuses a sentence about the current title that does not quote it", async () => {
+    const { title } = await callWith(
+      "Calendar lookup and adding Friday lunch with Sam",
+      "Current title is a reasonable subject description, though it's a bit long.",
+    );
+
+    expect(title._unsafeUnwrapErr().message).toContain("Commentary");
+  });
+
+  it.each(["KEEP", "keep.", '"KEEP"', "KEEP\nIt still names the work."])(
+    "keeps the title when the answer is %j",
+    async (answer) => {
+      const { title } = await callWith("Dinner ideas", answer);
+
+      expect(title._unsafeUnwrap()).toBe("Dinner ideas");
+    },
+  );
+
   it("refuses an answer the word cap leaves with an unclosed quote", async () => {
     const { title } = await callWith(
       "Dinner ideas",

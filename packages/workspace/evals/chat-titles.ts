@@ -19,8 +19,9 @@
  * - `assumed-details`: "when is daylight savings", answered for the user's
  *   city and this year, gets neither the city nor a year, at both moments.
  * - `kept-title`: a calendar ask with a title at the word cap, settled with a
- *   reply that did what it asked, keeps a title with no quote or leftover
- *   sentence in it.
+ *   reply that did what it asked, keeps that title as it was.
+ * - `moved-subject`: an ask the opening title read wrong, settled with a reply
+ *   about something else, is renamed to what the reply was about.
  */
 import "./lib/sandbox-home";
 import "dotenv/config";
@@ -277,13 +278,36 @@ const CASES: Case[] = [
           'You\'re free Friday from noon to 1:30, so I added "Lunch with Sam" to your calendar at 12:00. Nothing else is on Friday afternoon.',
         workspaceConfig,
       });
-      // A sentence about the title ("Current title is "…".") cut to the word
-      // cap leaves a quote and its first word behind.
-      const mangled =
-        settled === null || /["“”]|^(?:is|the|current)\b/i.test(settled);
+      // The title still names the chat, so a rewording is churn, and a
+      // sentence about the title ("Current title is "…".") is no title.
       return {
         evidence: `current: ${current} · settled: ${settled ?? "(none)"}`,
-        passed: !mangled,
+        passed: settled === current,
+      };
+    },
+  },
+  {
+    name: "moved-subject",
+    run: async ({ ask, model, workspaceConfig }) => {
+      const { chatId, message } = await ask("how much mercury is too much");
+      // What the opening call guessed before the reply said otherwise.
+      const current = "Facts about the planet Mercury";
+      const settled = await NAMER({
+        chatId,
+        currentTitle: current,
+        message,
+        model,
+        reply:
+          "For tuna, the FDA suggests up to three servings a week of canned light tuna, but only one of albacore, which has about three times the mercury. Swordfish and king mackerel are best skipped, especially when pregnant.",
+        workspaceConfig,
+      });
+      return {
+        evidence: `current: ${current} · settled: ${settled ?? "(none)"}`,
+        passed:
+          settled !== null &&
+          settled !== current &&
+          !/\bplanet\b/i.test(settled) &&
+          /\b(?:tuna|fish|seafood|swordfish|diet|eat|eating)\b/i.test(settled),
       };
     },
   },

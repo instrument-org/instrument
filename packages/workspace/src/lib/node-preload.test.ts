@@ -257,6 +257,7 @@ describe("openScriptChannel", () => {
   async function talk(port: number, lines: string[]) {
     const socket = connect({ host: "127.0.0.1", port });
     socket.setEncoding("utf8");
+    socket.on("error", () => {});
     let received = "";
     socket.on("data", (chunk: string) => {
       received += chunk;
@@ -280,6 +281,57 @@ describe("openScriptChannel", () => {
         "
       `);
     } finally {
+      channel.close();
+    }
+  });
+
+  it("answers a request line past the limit with why, then closes", async () => {
+    const channel = await openScriptChannel(echo);
+    const { port, token } = reachOf(channel);
+    try {
+      const socket = connect({ host: "127.0.0.1", port });
+      socket.setEncoding("utf8");
+      let received = "";
+      socket.on("data", (chunk: string) => {
+        received += chunk;
+      });
+      socket.on("error", () => {});
+      socket.write(`${token}\n`);
+      // A line with no end past the 32 MB limit, as a script stuck writing
+      // would send.
+      socket.end(Buffer.alloc(32 * 1024 * 1024 + 1, "a"));
+      await new Promise((resolve) => socket.once("close", resolve));
+      expect(received).toMatchInlineSnapshot(`
+        "{"error":{"kind":"failed","message":"The request was longer than the 32 MB one call to instrument may send. Send less in each call."},"id":null}
+        "
+      `);
+    } finally {
+      channel.close();
+    }
+  });
+
+  it("drops a connection past the number waiting for their token", async () => {
+    const channel = await openScriptChannel(echo);
+    const { port, token } = reachOf(channel);
+    // The limit is 16.
+    const waiting = Array.from({ length: 16 }, () =>
+      connect({ host: "127.0.0.1", port }),
+    );
+    try {
+      await Promise.all(
+        waiting.map(
+          (socket) => new Promise((resolve) => socket.once("connect", resolve)),
+        ),
+      );
+      const call = JSON.stringify({ args: {}, capability: "x.y", id: 1 });
+      expect(await talk(port, [token, call])).toBe("");
+      waiting[0]?.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(await talk(port, [token, call])).toContain('"id":1');
+    } finally {
+      for (const socket of waiting) {
+        socket.destroy();
+      }
       channel.close();
     }
   });

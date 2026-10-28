@@ -84,6 +84,13 @@ if (globalThis.instrument === undefined && channelAt !== undefined) {
     pending.clear();
   };
   const onReply = (reply) => {
+    // An error with no id is about the connection, which closes after it.
+    if (reply.id === null && reply.error !== undefined) {
+      const error = errorOf(reply.error);
+      for (const call of pending.values()) call.reject(error);
+      pending.clear();
+      return;
+    }
     const call = pending.get(reply.id);
     if (call === undefined) return;
     pending.delete(reply.id);

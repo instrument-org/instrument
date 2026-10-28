@@ -122,7 +122,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
-import { useAtom, useAtomValue } from "jotai";
+import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
@@ -144,6 +144,7 @@ import {
 } from "@/client/lib/browser-pool";
 
 import { useWindow } from "./context";
+import { arrivalView } from "./files-step";
 import { useGoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
@@ -299,7 +300,7 @@ export function ComputerPage({
   root,
   select,
   toolsInRow = false,
-  view: viewInHistory,
+  view,
 }: {
   /**
    * A file open beside the folder, which narrows to `width` with its places
@@ -346,8 +347,8 @@ export function ComputerPage({
   select?: string;
   /** Whether the folder's controls go in the tab's row, in a tab of the window's own, rather than a header of their own. */
   toolsInRow?: boolean;
-  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
-  view?: FileSystemView;
+  /** The layout this step of the tab's history shows the folder in. */
+  view: FileSystemView;
 }) {
   const { askAbout, openScreen, rowLead, rowTail } = useWindow();
   const isBesideOpen = beside !== undefined && !beside.isClosing;
@@ -364,7 +365,7 @@ export function ComputerPage({
   // width and the dotfiles answer survive walking into the next folder. The
   // layout and order are kept per folder, below; this is the layout a folder
   // of no layout of its own opens in when arrived at directly.
-  const [defaultView, setDefaultView] = useAtom(computerViewAtom);
+  const setDefaultView = useSetAtom(computerViewAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [openFolderPaths, setOpenFolderPaths] = useAtom(
     computerOpenFoldersAtom,
@@ -1129,19 +1130,12 @@ export function ComputerPage({
   // to the tab: walking from folder to folder (a double-click, the columns,
   // back and forward) keeps it, and each step of the tab's history holds the
   // layout it was shown in. Arriving at a folder directly (a place, a new
-  // tab, a typed path) is the one time a folder's own layout counts, the one
-  // it was last set to by hand, or else the one last chosen anywhere. The
-  // order belongs to the folder however it is reached, and one never set is
-  // by name; the recents are a list of their own and open newest first.
-  const folderKeyOf = (prefix: string) =>
-    isRecents ? RECENTS_ROOT : hostPathOf(prefix, rootHostPath ?? root);
+  // tab, a typed path) is the one time a folder's own layout counts
+  // (`arrivalViewOf`). The order belongs to the folder however it is reached,
+  // and one never set is by name; the recents are a list of their own and
+  // open newest first.
+  const folderKeyOf = (prefix: string) => folderViewKey(root, prefix, homePath);
   const currentKey = folderKeyOf(current);
-  // List is a folder's only when set on it by hand: what a folder never set
-  // opens in is the last of the others chosen.
-  const view =
-    viewInHistory ??
-    folderViews[folderKeyOf(path)]?.view ??
-    (defaultView === "list" ? "columns" : defaultView);
   // The List leads each page with the title it gives itself, read for the
   // files listed while it is the layout, and again for a file once it is
   // written.
@@ -1174,14 +1168,6 @@ export function ComputerPage({
         return item.kind === "file" && title ? { ...item, title } : item;
       })
     : items;
-  // A direct arrival's layout written into its step, so back to it shows it
-  // the way it was even after the folder's own or the default moves on.
-  useEffect(() => {
-    if (viewInHistory !== undefined) {
-      return;
-    }
-    goFromEffect({ type: "setLayout", view });
-  }, [view, viewInHistory]);
   const sortOf = (key: string) =>
     folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
   const groupOf = (key: string) => folderViews[key]?.group ?? null;
@@ -1906,7 +1892,12 @@ export function ComputerPage({
   );
   const rootTo = (folder: string, prefix = "") => {
     setPlacesOpen(false);
-    go({ path: prefix, root: folder, type: "arrive" });
+    go({
+      path: prefix,
+      root: folder,
+      type: "arrive",
+      view: arrivalViewOf(folder, prefix),
+    });
   };
   // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac).
   const leaveRoot = () => {
@@ -3315,6 +3306,41 @@ function combineListings(
  * Where up from the top of a tab's tree goes: the folder the root sits in,
  * with the root selected in it. Nothing is above a disk.
  */
+/**
+ * What a folder's layout and order are kept under: where it is on the
+ * computer, a root under `~` spelled out below the home folder, or the
+ * recents' own root for the recents.
+ */
+export function folderViewKey(
+  root: string,
+  prefix: string,
+  home: string | undefined,
+) {
+  if (root === RECENTS_ROOT) {
+    return RECENTS_ROOT;
+  }
+  const rootHostPath =
+    root === "~" && home
+      ? home
+      : root.startsWith("~/") && home
+        ? joinHostPath(home, root.slice(2))
+        : root;
+  return joinHostPath(rootHostPath, prefix);
+}
+
+/**
+ * The layout a folder opens in when arrived at directly, read from what the
+ * window keeps: the folder's own, or the last one chosen anywhere.
+ */
+export function arrivalViewOf(root: string, prefix: string) {
+  const store = getDefaultStore();
+  const key = folderViewKey(root, prefix, window.api.homeDir);
+  return arrivalView(
+    store.get(computerFolderViewsAtom)[key]?.view,
+    store.get(computerViewAtom),
+  );
+}
+
 export function rootParentSearch(
   rootHostPath: string | undefined,
   /** Whether the root is the top of a disk, though a folder is above it: `/Volumes/Backup`. */

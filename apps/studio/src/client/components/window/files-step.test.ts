@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { type FilesIntent, type FilesStep, nextStep } from "./files-step";
+import {
+  arrivalView,
+  type FilesIntent,
+  type FilesStep,
+  nextStep,
+  settleArrival,
+} from "./files-step";
 
 const DOCS: FilesStep = {
   path: "Documents/",
@@ -27,11 +33,15 @@ function line(step: FilesStep) {
 }
 
 const EVENTS: [string, FilesStep, FilesIntent][] = [
-  ["a place", DOCS, { root: "/Users/sam/Downloads", type: "arrive" }],
+  [
+    "a place",
+    DOCS,
+    { root: "/Users/sam/Downloads", type: "arrive", view: "columns" },
+  ],
   [
     "a place with a folder under it",
     DOCS,
-    { path: "Music/", root: "~", type: "arrive" },
+    { path: "Music/", root: "~", type: "arrive", view: "table" },
   ],
   ["double-click a folder", DOCS, { path: "Documents/Old/", type: "walk" }],
   [
@@ -86,8 +96,8 @@ describe("the step a change leads to", () => {
       }),
     ).toMatchInlineSnapshot(`
       [
-        "a place: push path= root=/Users/sam/Downloads",
-        "a place with a folder under it: push path=Music/ root=~",
+        "a place: push path= root=/Users/sam/Downloads view=columns",
+        "a place with a folder under it: push path=Music/ root=~ view=table",
         "double-click a folder: push path=Documents/Old/ root=~ view=icons",
         "a folder selected in the columns, searched: push path=Documents/Old/ query=report root=~ view=icons",
         "up past the root: push file=/Users/sam/Documents/report.pdf path= root=/Users/sam select=Documents/ tree=/Users/sam/Documents view=table",
@@ -106,6 +116,14 @@ describe("the step a change leads to", () => {
     `);
   });
 
+  it.each(
+    EVENTS.filter(
+      ([, , intent]) => intent.type !== "arrive" && intent.type !== "setLayout",
+    ),
+  )("keeps the layout the step was in: %s", (_name, step, intent) => {
+    expect(nextStep(step, intent).step.view).toBe(step.view);
+  });
+
   it.each(EVENTS.filter(([, , intent]) => intent.type === "walk"))(
     "keeps the layout and the file on a walk: %s",
     (_name, step, intent) => {
@@ -115,6 +133,60 @@ describe("the step a change leads to", () => {
         tree: step.tree,
         view: step.view,
       });
+    },
+  );
+});
+
+describe("an address arriving from outside the tab", () => {
+  // The folder's own layout, by root and path; none set for any other.
+  const viewOf = (root: string, path: string) =>
+    arrivalView(
+      root === "~" && path === "Music/" ? "list" : undefined,
+      "table",
+    );
+
+  it("settles each into a step once, and a step as it is", () => {
+    const arrivals: [string, FilesStep][] = [
+      ["a place", { path: "", root: "/Users/sam/Downloads" }],
+      ["a folder with a layout of its own", { path: "Music/", root: "~" }],
+      [
+        "a file opened into a tab of its own",
+        {
+          file: "/Users/sam/Music/song.mp3",
+          path: "",
+          root: "~",
+          tree: "/Users/sam/Music",
+        },
+      ],
+      [
+        "a file with no tree",
+        { file: "/Users/sam/notes.md", path: "", root: "~" },
+      ],
+      ["a step", DOCS],
+    ];
+    expect(
+      arrivals.map(
+        ([name, step]) => `${name}: ${line(settleArrival(step, viewOf))}`,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "a place: path= root=/Users/sam/Downloads view=table",
+        "a folder with a layout of its own: path=Music/ root=~ view=list",
+        "a file opened into a tab of its own: file=/Users/sam/Music/song.mp3 path= root=/Users/sam/Music tree=/Users/sam/Music view=table",
+        "a file with no tree: file=/Users/sam/notes.md path= root=~ view=table",
+        "a step: path=Documents/ query=report root=~ select=Documents/report.pdf view=icons",
+      ]
+    `);
+  });
+
+  it.each([
+    [undefined, "list", "columns"],
+    [undefined, "icons", "icons"],
+    ["list", "icons", "list"],
+  ] as const)(
+    "opens a folder whose own layout is %s, the last chosen %s, in %s",
+    (own, lastChosen, expected) => {
+      expect(arrivalView(own, lastChosen)).toBe(expected);
     },
   );
 });

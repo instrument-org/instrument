@@ -21,14 +21,60 @@ export type FilesStep = {
   source?: boolean | undefined;
   /** The folder the file's own tree is rooted at. */
   tree?: string | undefined;
-  /** Absent on an address that arrives at a folder directly. */
+  /** Absent on an address that arrives at a folder directly, until `settleArrival` gives it one. */
   view?: FileSystemView | undefined;
 };
 
+/** A step with its layout settled, which every step on screen is. */
+export type SettledStep = FilesStep & { view: FileSystemView };
+
+/**
+ * The layout a folder opens in when arrived at directly: its own, the one it
+ * was last set to by hand, or else the last one chosen anywhere. List is a
+ * folder's only when set on it by hand, so a last choice of List opens a
+ * folder of no layout of its own in the columns.
+ */
+export function arrivalView(
+  own: FileSystemView | undefined,
+  lastChosen: FileSystemView,
+): FileSystemView {
+  return own ?? (lastChosen === "list" ? "columns" : lastChosen);
+}
+
+/**
+ * An address as it comes in from outside the tab (a place, a new tab, a
+ * typed or linked address, a step an earlier build wrote) made a step: one
+ * with no layout takes the one its folder arrives in, and a file with no
+ * layout stands beside the folder its tree names. Walking never needs this,
+ * since every walk keeps the step's layout.
+ */
+export function settleArrival(
+  step: FilesStep,
+  viewOf: (root: string, path: string) => FileSystemView,
+): SettledStep {
+  if (step.view !== undefined) {
+    return { ...step, view: step.view };
+  }
+  const beside =
+    step.file !== undefined && step.tree !== undefined
+      ? { path: "", root: step.tree }
+      : { path: step.path, root: step.root };
+  return { ...step, ...beside, view: viewOf(beside.root, beside.path) };
+}
+
 /** What the person did to the Files tab, as a change to where it stands. */
 export type FilesIntent =
-  /** Arriving at a folder directly, from a place: everything else is left behind. */
-  | { path?: string; root: string; select?: string; type: "arrive" }
+  /**
+   * Arriving at a folder directly, from a place: everything else is left
+   * behind, and the folder opens in the layout it arrives in (`arrivalView`).
+   */
+  | {
+      path?: string;
+      root: string;
+      select?: string;
+      type: "arrive";
+      view: FileSystemView;
+    }
   /**
    * Walking to a folder from the one on screen, the file open with it kept
    * open and the layout kept: a double-click, the columns, up a folder.
@@ -94,6 +140,7 @@ function applied(
           path: intent.path ?? "",
           root: intent.root,
           select: intent.select,
+          view: intent.view,
         },
         "push",
       ];

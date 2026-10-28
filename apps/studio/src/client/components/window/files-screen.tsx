@@ -49,7 +49,6 @@ import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   type ReactNode,
   useEffect,
-  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -167,8 +166,8 @@ export function FilesScreen({
   source: boolean;
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
-  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
-  view: FileSystemView | undefined;
+  /** The layout this step of the tab's history shows the folder in. */
+  view: FileSystemView;
 }) {
   const { openScreen, rowField, rowHoldsTools, rowLead, rowReload, rowTail } =
     useWindow();
@@ -184,9 +183,6 @@ export function FilesScreen({
   const [isTreeFolded, setTreeFolded] = useState(false);
   const router = useRouter();
   const go = useGoFiles();
-  const goFromEffect = useEffectEvent((...args: Parameters<typeof go>) => {
-    go(...args);
-  });
   // The tab of a chat's or a draft's group this screen is in, when it is
   // not one of the window's own.
   const groupTab = useGroupTab();
@@ -357,26 +353,14 @@ export function FilesScreen({
       }
     }
   };
-  // A file arriving with no layout of its own, as one opened into a tab of
-  // its own, stands beside the folder its tree names, which is written into
-  // its step ahead of the layout the folder writes there itself.
-  const isDirectFile = isFileOpen && tree !== undefined && view === undefined;
-  const folderRoot = isDirectFile ? tree : root;
-  const folderPath = isDirectFile ? "" : path;
-  useLayoutEffect(() => {
-    if (!isDirectFile) {
-      return;
-    }
-    goFromEffect({ path: "", root: tree, type: "walk" }, { replace: true });
-  }, [isDirectFile, tree]);
   // The open file under the folder's root, for the folder to open with it
   // selected.
   const rootHostPath =
-    folderRoot === "~"
+    root === "~"
       ? window.api.homeDir
-      : folderRoot.startsWith("~/")
-        ? `${window.api.homeDir}/${folderRoot.slice(2)}`
-        : folderRoot;
+      : root.startsWith("~/")
+        ? `${window.api.homeDir}/${root.slice(2)}`
+        : root;
   const besideSelect =
     (file && relativeHostPath(rootHostPath, file)) ?? undefined;
   const activeFile: FileTab | undefined = file
@@ -514,7 +498,7 @@ export function FilesScreen({
     isSeveralPicked
       ? {
           count: besidePicked.length,
-          ...(folder && folderRoot !== RECENTS_ROOT
+          ...(folder && root !== RECENTS_ROOT
             ? { folder: { hostPath: folder.hostPath, walked: folder.walked } }
             : {}),
         }
@@ -809,9 +793,9 @@ export function FilesScreen({
                     }
                   : openFile
               }
-              path={folderPath}
+              path={path}
               query={query}
-              root={folderRoot}
+              root={root}
               select={isFileOpen ? besideSelect : select}
               toolsInRow
               view={view}

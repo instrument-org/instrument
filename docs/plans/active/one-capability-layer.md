@@ -1,6 +1,6 @@
 # One capability layer
 
-Status: **phases 0, 1 and 2 done**: the baseline, the registry with `apps.*` and both runtimes, and the Mac apps as bundled MCP apps (evals below); **phase 3 in part built** (every model tool, `web.*`, `images.generate`, `x.*` and the app setup words on the registry; `memory.*`, `window.*`, `task.*` and the role split are the rest, on the window command); the owner's answers are in Decisions.
+Status: **phases 0 to 3 done**: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and every model tool and `instrument` word on the registry with the role split as its data (evals below); the owner's answers are in Decisions.
 
 ## Problem
 
@@ -16,7 +16,7 @@ The owner's direction: define each capability once, in a structured way, and gen
 
 ## Inventory: what the agent reached before phase 1
 
-"Both" means the chat's session and its tasks. The model tool list is the same in both (the fork reuses the chat's cached prefix, [`agents/instrument.ts`](../../../packages/workspace/src/agents/instrument.ts)); a chat-only tool refuses at execute time. A task's `instrument` lists the chat-only words and refuses them with a note (`CHAT_ONLY_SUBCOMMANDS` in [`create-bash-env.ts`](../../../packages/workspace/src/lib/create-bash-env.ts)).
+"Both" means the chat's session and its tasks. The model tool list is the same in both (the fork reuses the chat's cached prefix, [`agents/instrument.ts`](../../../packages/workspace/src/agents/instrument.ts)); a chat-only tool refuses at execute time. A task's `instrument` refuses the chat-only words per capability, each naming what to do instead (`where.roles` and `roleRefusal`, [`capabilities/define.ts`](../../../packages/workspace/src/lib/capabilities/define.ts)), and leaves `task`, which has nothing for a task, out of its listing.
 
 | Capability | Shell (`instrument …` unless noted) | Model tool | Node `tools` | Python | Chat / task | Gate |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -26,8 +26,8 @@ The owner's direction: define each capability once, in a structured way, and gen
 | Web apps | refused by `app call`/`request`; worked in a tab | no | no | no | both | sign-in in the window's browser |
 | Calendar, Reminders, Contacts, Mail, Notes, Messages | MCP apps on the server the app ships: `app tools apple-calendar`, `app call apple-calendar add_event '<json>'` (macOS; Calendar, Reminders and Contacts in helper builds) | no | `instrument.apps["apple-calendar"].add_event()` | no | both | connected in Apps for every chat (Disconnect is the off switch), then macOS's own answer (the gate's `card`: exit 2, `CardShown`) |
 | Shortcuts | `/usr/bin/shortcuts` as a real program | no | no | no | both | `path-program.ts` asks by the app's grant; Seatbelt closes its services until granted |
-| Memory | `memory list`, `save`, `show`, `forget` | no | no | no | chat only | none |
-| Tabs | `tab list`, `open`, `replace`, `close`, `show`, `read`, `request` | no | no | no | chat only | `tab request` raises a card |
+| Memory | `memory list`, `save`, `show`, `forget` | no | `instrument.memory.list()`, `.show(name)` | the same | `list` and `show` both; `save` and `forget` chat only | none |
+| Window | `window list`, `show`, `read`, `close`, `request` | no | `instrument.window.list()`, `.read(tab)` | the same | `list` and `read` both; `show`, `close` and `request` chat only | `window request` raises a card |
 | Tasks | `task new`, `send`, `stop`, `list`, `log` | no | no | no | chat only | none |
 | X posts | `x search`, `x thread [--json]` | no | no | no | both | Grok account |
 | Browser | `agent-browser` (wraps a real program) | no | no | no | both, own tabs | browser allowlist |
@@ -210,7 +210,7 @@ A script that catches one exception keeps the rest of its work, so a fan-out tha
 
 ### What a token opens
 
-- **Exactly what the shell's own `instrument` opens in that bash call.** The context is the bash call's (chat, session, role, part); the script never names a chat or a session. A task's script cannot call `task.*`, `window.*` or `memory.*`, because the dispatcher checks `where.roles` against the captured role.
+- **Exactly what the shell's own `instrument` opens in that bash call.** The context is the bash call's (chat, session, role, part); the script never names a chat or a session. A task's script reaches the reads alone (`memory.list`, `memory.show`, `window.list`, `window.read`), because the dispatcher checks `where.roles` against the captured role; nothing that changes the window or the memories, and no `task.*`, is on the script surface for either role.
 - **Only capabilities marked `script`.** App setup (`apps.new`, `apps.guide`, `apps.disconnect` and the rest) and the turn-enders stay off the script surface: a turn-ender is a tool-only capability, which has no script surface to mark. Sends (`apps.apple-mail.send`, `apps.apple-messages.send`) are on it, behind the same gate the CLI passes.
 - **One process, one lifetime.** The listener closes when the process exits; the token is per process.
 - **Children get nothing.** Node's preload deletes `INSTRUMENT_CHANNEL` before the script runs. Python does the same before user code: from the `.pth` line in a virtualenv (an `import` line in a `.pth` runs at startup) and from a `sitecustomize.py` in its own folder ahead of the base on the bare managed Python's `PYTHONPATH` (a `PYTHONPATH` folder runs no `.pth`). Skill environments ([`skill-environments.ts`](../../../packages/workspace/src/lib/skill-environments.ts)) get the same line. A program that reads the variable before it is deleted could call what the script can, which is the boundary `node` has today and the decision record accepts.
@@ -384,7 +384,66 @@ Built in the first part:
 - **`instrument app` and `instrument x` are generated whole.** `x.search`, `x.thread` and `apps.catalog`, `new`, `test`, `guide`, `icon`, `account`, `disconnect` are capabilities ([`capabilities/apps-setup.ts`](../../../packages/workspace/src/lib/capabilities/apps-setup.ts), [`capabilities/x.ts`](../../../packages/workspace/src/lib/capabilities/x.ts)); each word's synopsis, flags and a line per flag come from its schema, and every word takes `--json` and `--out`. `x.*` is on the script surface (`instrument.x.search("rust", by=["sam"])`; `by` is `--from`, since `from` is a Python keyword). App setup is not, `guide` included: a guide reaches the model only through the printed output of a bash call, which `instrument app guide` gives and a script's first request already throws as `ReadGuideFirst`, and the same capability writes a guide, which is setup.
 - **The prompt names the script calls in its scripts section**, since the `node` and `python` lines of the bash description are part of the cached tool list.
 
-Not built yet, on top of the window command: `memory.*`, `window.*` (with `instrument tab` as its alias), `task.*`, their roles in place of `CHAT_ONLY_SUBCOMMANDS`, and with them the deletion of `defineSubcommands` and `subcommand()`, which those commands still use. The window command's tasks may run `window list|read` and `memory list|show`; window changes, memory save and forget, and all of `task` stay the chat's, each refusal naming the alternative.
+Built in the second part, on top of the window command:
+
+- **`instrument memory`, `window` and `task` are generated whole.** `memory.list|show|save|forget` ([`capabilities/memory.ts`](../../../packages/workspace/src/lib/capabilities/memory.ts)), `window.list|show|read|close|request` ([`capabilities/window.ts`](../../../packages/workspace/src/lib/capabilities/window.ts)) and `task.new|send|stop|list|log` (one module each in [`capabilities/task/`](../../../packages/workspace/src/lib/capabilities/task/), moved from `shell-commands/task/` with the work they did) are capabilities, so every `instrument` word but the top-level listing comes from the registry, each with `--json` and `--out`. Text output is what it was; `--json` gives new shapes (`memory list` as `[{name, day, learned_in, headline}]`, `window list` with each tab's task, `task list` as `{tasks, omitted, total}`).
+- **The role split is registry data.** Each capability's `where.roles` and `roleRefusal` say what a task may run and what it hears otherwise, the decision record's words: `memory save|forget` "only the chat saves and forgets memories. Say in your report what the chat should remember or forget."; `window show|close|request` "only the chat changes the window. To open a page to work in, use `agent-browser tab new <url>`; say in your report what the chat should show."; every `task.*` "only the chat starts and steers tasks. Do the work here, and say in your report what is left." A command with nothing for the role (a task's `task`) is left out of `instrument`'s listing and answers every form, its usage too, with that refusal (`commandRefusal` in [`capabilities/cli.ts`](../../../packages/workspace/src/lib/capabilities/cli.ts)). `CHAT_ONLY_SUBCOMMANDS`, `instrument`'s `missing`, the role branches that built a task's shell without `task`, and `MemoryCommandContext`'s and `createWindowCommand`'s own role checks are gone.
+- **The generator learned what these needed:** a last positional list that takes every word left (`window show a b`, `task stop t1 bg_1`), a bare subcommand (`instrument memory` lists), the heredoc in the synopsis of every field read from stdin, and a refusal of words beside a field given on stdin, which `task new` had alone and every such field now has. The context carries the shell's layout (a tab on a file outside it is not read), what is at a path the command line names (`window show <path>`), and the bash call's remaining yield (`task stop` waits inside it).
+- **Deleted:** `defineSubcommands`, `subcommand()`, `runSubcommand` and `shell-commands/subcommands.ts`. The argv reader moved as it was into [`capabilities/argv.ts`](../../../packages/workspace/src/lib/capabilities/argv.ts), the one piece the generator needs, and a refused flag or word shows the one form its subcommand takes rather than the command's whole usage. Nothing else used it: the `agent-browser` wrappers parse their own arguments for the real program, so they stay as they are.
+- **The tool definitions did not move a byte**: `tool-definitions.test.ts` passed unchanged at every step, since `MEMORY_COMMAND`, `WINDOW_COMMAND` and `TASK_COMMAND`, which the bash description is written from, stay as they were.
+
+**The script surface, per capability**, argued from the code:
+
+| Capability | Script | Why |
+| --- | --- | --- |
+| `memory.list`, `memory.show` | yes, both roles | reads with nothing to ask; a script that writes for the person (a draft in their voice, a schedule in their time zone) reads what is remembered as data rather than parsing `memory list` |
+| `memory.save`, `memory.forget` | no | a memory is one deliberate fact written to the user in a sentence, with no fan-out a script would serve, and each records a setup change the bash call reports; the secret check would hold in a script too, so this is about intent rather than safety |
+| `window.list`, `window.read` | yes, both roles | reads; `read` is held to the chat's folders on both sides of the read wherever it is called, so a script reaches no page the shell would not |
+| `window.show`, `window.close` | no | each puts something in front of the person or takes it away, which a loop in a script would do unseen and many times |
+| `window.request` | no | it raises a card and ends the turn; a script that caught the error would keep running past a turn that is over |
+| `task.new`, `task.send`, `task.stop`, `task.list`, `task.log` | no | turn and session management: a fork carries on from the bash call that started it (`forkPoint` reads the call's part), `stop` waits inside the call's yield, and the wake that reports a finish is the chat's, none of which a script's call has |
+
+The script runtimes needed no change: they reach any namespace the describe answer lists, so `instrument.memory.list()` and `instrument.window.read("tab_…")` work in Node and Python for the role that has them, and the Python module's docstring names them.
+
+**Evals of the second part, Claude Haiku 5.5 through OpenRouter, three trials per case**: the memory, task-sessions, task-tabs and window-tabs suites on main, on the window command just before this part (the stack's tip), and on this part. Each cell is trials passed, the chat's model steps as a median with their range, and the run's total tokens (the chat and its tasks) as a median. main's window-tabs cases are its own, written for `instrument tab`; the stack rewrote them for `instrument window`, and two task-session cases are new there. Five trials of this part's run died on a timeout fetching OpenRouter's model list before they started and were run again on their own.
+
+| Case | main | Window command (before) | Phase 3 |
+| --- | --- | --- | --- |
+| memory-keeps-a-fact-inside-an-ask | 3/3, 2 (2-4), 73K | 3/3, 2 (2-3), 59K | 3/3, 3 (2-6), 103K |
+| memory-keeps-a-standing-fact | 3/3, 2 (2-2), 56K | 3/3, 2 (2-2), 55K | 3/3, 2 (2-2), 55K |
+| memory-keeps-an-unflagged-preference | 1/3, 1 (1-2), 28K | 2/3, 2 (1-2), 55K | 2/3, 2 (1-2), 55K |
+| memory-keeps-what-a-task-reported | 0/3, 4 (2-12), 159K | 0/3, 6 (3-9), 239K | 0/3, 5 (3-5), 189K |
+| memory-saves-before-the-work | 3/3, 5 (4-5), 218K | 3/3, 4 (3-4), 163K | 3/3, 4 (3-5), 166K |
+| task-session-folder-card | 0/3, 1 (1-1), 116K | 0/3, 1 (1-2), 114K | 1/3, 1 (1-1), 114K |
+| task-session-folder-card-answered | not on main | 3/3, 1 (1-1), 353K | 3/3, 1 (1-2), 352K |
+| task-session-needs-a-pick | not on main | 2/3, 1 (1-2), 314K | 3/3, 1 (1-1), 257K |
+| task-session-start | 3/3, 1 (1-1), 147K | 3/3, 1 (1-2), 174K | 3/3, 1 (1-2), 144K |
+| task-session-steer | 0/3, 2 (2-3), 184K | 0/3, 2 (2-2), 216K | 0/3, 2 (2-3), 182K |
+| task-session-stopped-then-asked | 3/3, 4 (4-4), 140K | 3/3, 3 (3-4), 111K | 3/3, 3 (3-3), 111K |
+| task-session-tab | 0/3, 5 (3-7), 145K | 0/3, 6 (4-6), 174K | 0/3, 4 (4-5), 143K |
+| task-session-timed-out | 3/3, 1 (1-2), 317K | 3/3, 1 (1-1), 245K | 3/3, 1 (1-2), 186K |
+| task-tabs-compare | 0/3, 3 (3-3), 86K | 3/3, 3 (3-3), 94K | 3/3, 4 (3-5), 131K |
+| task-tabs-single-page | 3/3, 3 (2-4), 84K | 3/3, 2 (2-2), 54K | 3/3, 4 (3-4), 110K |
+| window-tabs-close-named | 3/3, 2 (2-2), 56K | 3/3, 2 (2-2), 55K | 3/3, 2 (2-2), 55K |
+| window-tabs-hands-open-page | 0/3, 9 (6-12), 301K | 0/3, 7 (5-9), 274K | 0/3, 9 (9-10), 372K |
+| window-tabs-new-page | 3/3, 6 (4-8), 242K | 3/3, 9 (5-15), 418K | 3/3, 7 (7-10), 334K |
+| window-tabs-result-on-a-page | 0/3, 12 (6-12), 739K | 0/3, 11 (6-13), 603K | 0/3, 8 (7-13), 434K |
+| window-tabs-show-open | 3/3, 2 (2-2), 56K | 3/3, 2 (2-2), 55K | 3/3, 2 (2-2), 55K |
+| window-tabs-show-result | 0/3, 4 (4-4), 119K | 3/3, 4 (4-4), 116K | 3/3, 4 (4-4), 116K |
+| window-tabs-their-page | 3/3, 5 (2-6), 153K | 3/3, 2 (2-2), 66K | 3/3, 2 (2-3), 66K |
+| window-tabs-their-tab-as-it-stands | 3/3, 1 (1-1), 28K | 3/3, 1 (1-1), 28K | 3/3, 1 (1-1), 28K |
+
+The three runs cost $0.30, $0.32 and $0.31, and passed 37 of 63, 49 of 69 and 51 of 69 trials.
+
+What it says:
+
+- **Moving `memory`, `window` and `task` onto the registry changed nothing the suites see.** Every case passes as often as on the window command or once more (folder-card 0/3 to 1/3, needs-a-pick 2/3 to 3/3, both within what three trials vary by), and none fewer. The five cases that fail every trial on both fail the same assertions on both (task-session-tab also missed its file once here): they are about what the model does (whether a follow-up lands while the work runs, which tab it hands a task, whether it links its result), not about the command.
+- **The task refusal is the same, and still recovered from.** The only role refusals in either run are in task-tabs-compare, three trials each: the task ran `instrument window show`, heard "only the chat changes the window. To open a page to work in, use `agent-browser tab new <url>` …", and opened its pages itself, 3/3 both times (main, with "only the chat has this", 0/3). No task ran `instrument task` or `memory save` in either.
+- **Steps and tokens move within run-to-run variance**: task-tabs-single-page took 4 steps where it took 2 because the task read the page with `web_fetch` twice rather than once, a choice of the model's with no refusal in it; window-tabs-result-on-a-page and timed-out came down by about as much the other way.
+- **No case exercises the script surface for memory or the window**: none asks for a script, and no trial wrote one. That `instrument.memory.list()` and `instrument.window.read()` work in a task's script, and that the chat-only capabilities are not on it, is a unit test (`role-split.test.ts`).
+
+What the plan had wrong in the second part: deleting `defineSubcommands` leaves an argv reader, since a generated command still reads flags off the command line; it is the generator's own now (`capabilities/argv.ts`) rather than a framework a command could be hand-written on. And the role split needed nothing in the dispatcher: the first part's `where.roles` already refused per capability, so the second part is data and deletions.
+
 
 **Evals, Claude Haiku 5.5 through OpenRouter, three trials per case**, measured as phase 1 was (model steps and the trial's total tokens as medians, steps with their range, cost summed over the trials). The web-scripting cases ([`web-scripting.ts`](../../../packages/workspace/evals/cases/web-scripting.ts)) serve a store's catalog of 15 product pages and four release-note pages on loopback: the fan-out asks for the three cheapest products and the ones that ship free, the Python case asks for a script that works that out, and the two-ways case gives four release-note URLs, where a fetch per page and one script both make sense, and passes only when no page was fetched both ways and no script call misfired.
 
@@ -404,7 +463,7 @@ What it says:
 - **Two ways did not confuse it.** Every trial kept to one path, with no page fetched twice and no misfired script, in all 18 trials across both arms; the worry this case was written for did not show on Haiku, where the second way is simply not taken.
 - **The generated `instrument app` holds up.** The phase 1 Lantern cases, rerun against it: the fan-out 3/3, 4 (4-8), 120K, a script in 2 of 3 (phase 1: 3/3, 4 (3-4), 117K, a script in 3 of 3; the third trial looped `app request` in bash, 252K); the Python fan-out 1/1, 4 steps, 121K, through `instrument` (phase 1: 4 (3-4), 121K); the single lookup 1/1, 3 steps, 87K, two plain requests (phase 1: 3, 87K).
 
-What the plan had wrong, now corrected above: "turn-enders stay off the script surface" needed no rule, since a tool-only capability has no script surface to give it; a model tool keeps its own recorded output shape rather than taking the capability's `output` and `text`, because sessions on disk keep every shape a tool has had; a capability with a gate cannot have a tool surface (`modelTool` refuses to build one), since a gate's answers are exit codes and exceptions; the dispatcher's registry cannot list the tool-only capabilities, since `bash`'s imports the shell, which imports the dispatcher, so `tools/all.ts` lists what the model calls and the registry what a command or a script calls; and `defineSubcommands` stays until `memory`, `window` and `task` move.
+What the plan had wrong, now corrected above: "turn-enders stay off the script surface" needed no rule, since a tool-only capability has no script surface to give it; a model tool keeps its own recorded output shape rather than taking the capability's `output` and `text`, because sessions on disk keep every shape a tool has had; a capability with a gate cannot have a tool surface (`modelTool` refuses to build one), since a gate's answers are exit codes and exceptions; the dispatcher's registry cannot list the tool-only capabilities, since `bash`'s imports the shell, which imports the dispatcher, so `tools/all.ts` lists what the model calls and the registry what a command or a script calls; and `defineSubcommands` stayed until `memory`, `window` and `task` moved (below).
 
 ## Open questions for the owner
 

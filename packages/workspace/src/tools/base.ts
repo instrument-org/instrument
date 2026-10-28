@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
+  TOOL_PLAN_PARAM_NAME,
 } from "../constants";
 
 export const BaseInputSchema = z.object({
@@ -17,6 +18,16 @@ export const BaseInputSchema = z.object({
   [TOOL_ACTIVITY_PARAM_NAME]: z.string().optional().meta({
     description:
       "The phase of work this call belongs to, as a short heading in the present continuous, under about eight words (e.g. 'Charting the quarterly numbers'). Calls serving one objective repeat the same heading word for word. Generate this first.",
+  }),
+  // The phases ahead, as the activity headings the calls will carry, which the
+  // UI draws as a checklist whose current row is the latest call's activity.
+  // Sent on the call that starts the work and again only when the work takes a
+  // different shape, so it costs tokens on one or two calls of a turn. Optional
+  // to the model as well as to Zod: a call without it leaves the checklist as
+  // it was, and a turn that never sends one draws the activity alone.
+  [TOOL_PLAN_PARAM_NAME]: z.array(z.string()).optional().meta({
+    description:
+      "Only on the first call of work with more than one phase, and again if the phases change: every phase in order, each worded exactly as its calls' activity will be. Omit on every other call.",
   }),
   // Surfaced in the UI so users can see what the agent is doing. Many LLMs
   // skip it when it's optional, so we keep it optional in Zod (to avoid

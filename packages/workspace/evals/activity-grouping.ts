@@ -593,6 +593,42 @@ for (const run of runs) {
   );
 }
 
+// Whether each run sent a plan, and on which call: the question the plan
+// field's runs are for. A case that planned in none of its trials is the
+// finding, so the tally per case comes last.
+process.stdout.write(`\n${c.dim}Plans sent:${c.reset}\n`);
+const plannedByCase = new Map<string, { planned: number; runs: number }>();
+for (const run of runs) {
+  const sessions = await sessionsFor(run.chatId, run.sessionId);
+  const calls = sessions.flatMap((session) =>
+    session.messages.flatMap((message) => message.parts.filter(isToolPart)),
+  );
+  const plans = calls.flatMap((part, index) => {
+    const plan = (part.input as undefined | { plan?: unknown })?.plan;
+    return Array.isArray(plan) && plan.length > 0 ? [{ index, plan }] : [];
+  });
+  const tally = plannedByCase.get(run.name) ?? { planned: 0, runs: 0 };
+  tally.runs += 1;
+  tally.planned += plans.length > 0 ? 1 : 0;
+  plannedByCase.set(run.name, tally);
+  process.stdout.write(
+    `  ${c.cyan}${run.label}${c.reset} ${c.dim}(${calls.length} calls)${c.reset}\n${
+      plans.length === 0
+        ? `    ${c.dim}no plan${c.reset}\n`
+        : plans
+            .map(
+              ({ index, plan }) =>
+                `    call ${index + 1}: ${plan.join(" → ")}\n`,
+            )
+            .join("")
+    }`,
+  );
+}
+process.stdout.write(`\n${c.dim}Planned, per case:${c.reset}\n`);
+for (const [name, { planned, runs: total }] of plannedByCase) {
+  process.stdout.write(`  ${name}: ${planned} of ${total}\n`);
+}
+
 // Every call in order with its timing and phase, and the tokens of the step
 // that made it, for drawing how a run would have looked while it ran.
 type TimelinePart =

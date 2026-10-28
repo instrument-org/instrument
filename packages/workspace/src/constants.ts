@@ -172,6 +172,8 @@ export const AGENT_NEEDS_LANGUAGE = "needs";
 
 export const TOOL_ACTIVITY_PARAM_NAME = "activity";
 
+export const TOOL_PLAN_PARAM_NAME = "plan";
+
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
 
 /**

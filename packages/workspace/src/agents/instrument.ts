@@ -14,6 +14,7 @@ import {
   SKILLS_FOLDER_NAME,
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
+  TOOL_PLAN_PARAM_NAME,
   TOPIC_FILE_NAME,
   TOPICS_FOLDER_NAME,
 } from "../constants";
@@ -368,7 +369,7 @@ function systemPrompt(): string {
 
       \`message\` is email, text, chat, post, comment, or other; \`subject\` is for an email only; \`to\` is who it goes to as the user named them, with an address only when you have one; \`via\` says where it goes when the kind leaves that open (Slack, LinkedIn, Figma). One fence per message. Sign it with the user's name when you know it, and otherwise end without a sign-off, leaving no gap to fill. The line beside it says what it is or what to check. A message saved as a file is the same front matter and body in a Markdown file named for who it goes to.
     - Refer to work by what it is, in the user's words, never by id. A thing inside the app is a Markdown link with the app's own address, labeled in the user's words: \`[Tuesday's chat](${APP_NAME_SLUG}://chat/<id>)\`, \`[no stevia](${APP_NAME_SLUG}://memory/<name>)\`, \`[Linear](${APP_NAME_SLUG}://app/<slug>)\`, \`[instrument-page](${APP_NAME_SLUG}://skill/<name>)\`. A file is never one of these: it goes in the files fence by its full path. Anything else you made or changed (a page, a document, a row, an issue, an event in one of their apps) is linked by the address you were given for it, and a web address is a link only as Markdown with its full URL, \`[the patch notes](https://…)\`.
-    - Every call carries an \`${TOOL_ACTIVITY_PARAM_NAME}\`: the phase of work it belongs to, which the user sees as a heading over the calls that share it. Calls serving one objective repeat the same heading word for word; the moment the objective changes (exploring gives way to building, building to checking the result, or something you found sends you elsewhere), the next call carries a new one. About six calls is as far as one phase stretches. The \`${TOOL_EXPLANATION_PARAM_NAME}\` labels the one call: a short phrase starting with a verb ending in -ing, never first person.
+    - Every call carries an \`${TOOL_ACTIVITY_PARAM_NAME}\`: the phase of work it belongs to, which the user sees as a heading over the calls that share it. Calls serving one objective repeat the same heading word for word; the moment the objective changes (exploring gives way to building, building to checking the result, or something you found sends you elsewhere), the next call carries a new one. About six calls is as far as one phase stretches. When the work will run through more than one phase, its first call also carries a \`${TOOL_PLAN_PARAM_NAME}\`: every phase in order, worded as the activities you will use, which the user sees as a checklist that ticks forward as your activity moves. Send it again only when the phases change, and never for a single lookup. The \`${TOOL_EXPLANATION_PARAM_NAME}\` labels the one call: a short phrase starting with a verb ending in -ing, never first person.
     - Before a reply goes out, read it as the user would: one plain answer about their things, sized to what they asked.
   `.trim();
 }

@@ -10,15 +10,9 @@ import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { forgetChatPermissions } from "./permissions/rules";
-import { recordRemoved } from "./record-changes";
 import { recordChatFolderName } from "./chat-folders/own-folder";
-import {
-  chatOwnFolder,
-  forgetChat,
-  resolveChat,
-  chatDir,
-  sessionOfChat,
-} from "./record-folders";
+import { chatGone } from "./chat-gone";
+import { chatOwnFolder, chatDir, sessionOfChat } from "./record-folders";
 import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
 import { writingChatRecords } from "./records/chat-records";
 import { workDir } from "./work-dir";
@@ -102,12 +96,9 @@ export async function trashChat({
         // folder again.
         await writingChatRecords()?.close(id);
 
-        // Whether it was a chat, read before the index forgets it.
-        const known = resolveChat(chatId) !== undefined;
         // The records first: once they are gone the chat is, and a work
         // folder that would not follow is only files left behind.
         await workspaceConfig.trashItem(chatDir(chatId));
-        forgetChat(chatId);
         await recordChatFolderName(
           workspaceConfig.workspaceMachineDir,
           chatId,
@@ -120,9 +111,7 @@ export async function trashChat({
         await forgetChatPermissions(chatId).catch((error: unknown) => {
           workspaceConfig.captureException(error);
         });
-        if (known) {
-          recordRemoved(chatId);
-        }
+        await chatGone(chatId);
         // A chat whose agent never ran a command has no work folder.
         if (await pathExists(work)) {
           await workspaceConfig.trashItem(work).catch((error: unknown) => {

@@ -1,3 +1,5 @@
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { chatGone } from "../chat-gone";
 import { recordChanged, recordMessageChanged } from "../record-changes";
 import { resolveChat } from "../record-folders";
 import { type Arrival, RecordArrivals } from "./arrivals";
@@ -26,6 +28,18 @@ async function takeArrival(arrival: Arrival): Promise<void> {
   }
 }
 
+/**
+ * Takes a chat's folder found gone: the chat goes from the index and the
+ * list, as it does when trashed here (`chatGone`), which a trash here has
+ * already done by the time a look sees its folder go.
+ */
+async function takeGone(name: string): Promise<void> {
+  const chat = ChatIdSchema.safeParse(name);
+  if (chat.success) {
+    await chatGone(chat.data);
+  }
+}
+
 let running: RecordArrivals | undefined;
 
 /**
@@ -47,6 +61,7 @@ export async function startRecordArrivals({
     chatsDir,
     device,
     onArrival: takeArrival,
+    onGone: takeGone,
     ...(onError && { onError }),
   });
   running = arrivals;

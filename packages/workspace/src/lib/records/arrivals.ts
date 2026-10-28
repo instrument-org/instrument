@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { unique } from "radashi";
 
 import { type StoreId } from "../../schemas/store-id";
 import { type DeviceId } from "./device-id";
@@ -29,7 +30,8 @@ import { readLog, readSettings } from "./read-records";
  *
  * This device's own files are never looked at: its writes keep its fold
  * current and say what they changed. An arrival only says what moved; it
- * never starts a turn.
+ * never starts a turn. A chat's folder found gone, whoever took it, is said
+ * apart from an arrival (`onGone`).
  */
 
 /** What another device's files brought one chat, as one look found it. */
@@ -54,6 +56,11 @@ interface RecordArrivalsOptions {
   device: DeviceId;
   /** Told of each chat whose folder changed, one look at a time. */
   onArrival: (arrival: Arrival) => Promise<void> | void;
+  /**
+   * Told of each chat whose folder a look found gone: a trash here or on
+   * another device, a delete in a file manager.
+   */
+  onGone?: (chat: string) => Promise<void> | void;
   /** Told of a look or a watch that failed. */
   onError?: (error: unknown) => void;
   platform?: NodeJS.Platform;
@@ -98,6 +105,7 @@ export class RecordArrivals {
   readonly #files = new Map<string, Map<string, Seen>>();
   #looking: Promise<void> = Promise.resolve();
   readonly #onArrival: RecordArrivalsOptions["onArrival"];
+  readonly #onGone: NonNullable<RecordArrivalsOptions["onGone"]>;
   readonly #onError: (error: unknown) => void;
   readonly #platform: NodeJS.Platform;
   readonly #settleMs: number;
@@ -114,6 +122,7 @@ export class RecordArrivals {
     device,
     onArrival,
     onError = () => undefined,
+    onGone = () => undefined,
     platform = process.platform,
     settleMs = SETTLE_MS,
     sweepMs = SWEEP_MS,
@@ -124,6 +133,7 @@ export class RecordArrivals {
     this.#device = device;
     this.#onArrival = onArrival;
     this.#onError = onError;
+    this.#onGone = onGone;
     this.#platform = platform;
     this.#settleMs = settleMs;
     this.#sweepMs = sweepMs;
@@ -214,17 +224,23 @@ export class RecordArrivals {
 
   /**
    * Looks at the chats named, or at every chat, behind any look under way,
-   * and tells of each one whose folder changed.
+   * and tells of each one whose folder changed or went. Every chat is the
+   * folders there now and the ones the last look saw, so a folder that went
+   * while no watch said so is found gone.
    */
   look(chats?: readonly string[]): Promise<void> {
     const next = this.#looking.then(async () => {
       if (this.#stopped) {
         return;
       }
-      for (const chat of chats ?? (await this.#chatNames())) {
+      const looked =
+        chats ?? unique([...(await this.#chatNames()), ...this.#files.keys()]);
+      for (const chat of looked) {
         try {
           const arrival = await this.#lookAt(chat);
-          if (arrival) {
+          if (arrival === "gone") {
+            await this.#onGone(chat);
+          } else if (arrival) {
             await this.#onArrival(arrival);
           }
         } catch (error) {
@@ -236,14 +252,13 @@ export class RecordArrivals {
     return this.#looking;
   }
 
-  async #lookAt(chat: string): Promise<Arrival | undefined> {
+  async #lookAt(chat: string): Promise<"gone" | Arrival | undefined> {
     const dir = path.join(this.#chatsDir, chat);
     const names = await namesIn(dir);
     const known = this.#files.get(chat);
     if (names.length === 0 && !fs.existsSync(dir)) {
-      // Gone: whatever took it (a trash, here or from another device) says so.
       this.#files.delete(chat);
-      return undefined;
+      return "gone";
     }
     const arrival: Arrival = {
       chat,

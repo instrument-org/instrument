@@ -23,7 +23,13 @@ import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
-import { forgetChat, sessionOfChat } from "../record-folders";
+import { chatDir, forgetChat, sessionOfChat } from "../record-folders";
+import { chatGone } from "../chat-gone";
+import {
+  startRecordArrivals,
+  stopRecordArrivals,
+} from "../records/take-arrivals";
+import { listChatIds } from "./chat-records";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
@@ -1458,6 +1464,43 @@ describe("liveChatList", () => {
 
     expect((await next())?.map((chat) => chat.sessionId)).toEqual([kept]);
     stop();
+  });
+
+  it("drops a chat whose folder was deleted behind the app's back, and says so once", async () => {
+    const chatId = await freshChat();
+    const kept = await session(chatId, "Groceries", 1);
+    await userSays(chatId, kept, "make me a grocery list", 1);
+    const deleted = await session(chatId, "Taxes", 2);
+    await userSays(chatId, deleted, "file my taxes", 2);
+    const config = getWorkspaceConfig();
+    const arrivals = await startRecordArrivals({
+      chatsDir: config.chatsDir,
+      device: config.deviceId,
+    });
+    const removed: string[] = [];
+    const unsubscribe = publisher.subscribe("record.changed", (change) => {
+      if (change.kind === "removed") {
+        removed.push(change.id);
+      }
+    });
+    const { first, next, stop } = await open();
+    try {
+      expect(first?.map((chat) => chat.sessionId)).toEqual([kept, deleted]);
+
+      const gone = await chatFor(deleted);
+      fs.rmSync(chatDir(gone), { force: true, recursive: true });
+      await arrivals.look();
+
+      expect((await next())?.map((chat) => chat.sessionId)).toEqual([kept]);
+      expect(listChatIds()).not.toContain(gone);
+      await arrivals.look();
+      await chatGone(gone);
+      expect(removed).toEqual([gone]);
+    } finally {
+      stop();
+      unsubscribe();
+      stopRecordArrivals();
+    }
   });
 
   it("says a chat is idle once its turn ends, which writes nothing", async () => {

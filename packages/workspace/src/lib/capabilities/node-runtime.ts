@@ -14,8 +14,9 @@ import { SCRIPT_CHANNEL_ENV } from "./channel";
  *
  * Positional arguments map onto a capability's fields by the describe
  * answer, asked once at the first call, and a last object carries the rest.
- * The channel's port and token come in the environment, taken out before
- * the script runs, so a process the script starts gets neither.
+ * The channel's port comes in the environment and its token on descriptor
+ * 3 (in the environment on Windows), both taken before the script runs and
+ * the descriptor closed, so a process the script starts gets neither.
  *
  * It keeps out of the way of the script's own code: it defines nothing when
  * there is no channel or when `instrument` already exists, the global is
@@ -25,11 +26,52 @@ import { SCRIPT_CHANNEL_ENV } from "./channel";
  * is waiting, so a script that never calls exits when its own work is done.
  */
 export const INSTRUMENT_NODE_PRELOAD = `
+import { closeSync, fstatSync, readSync } from "node:fs";
 import { connect } from "node:net";
 
 const channelAt = process.env.${SCRIPT_CHANNEL_ENV};
 delete process.env.${SCRIPT_CHANNEL_ENV};
-if (globalThis.instrument === undefined && channelAt !== undefined) {
+// "<port>:fd<n>": the token is the first line on descriptor n, read once
+// and closed, so no process the script starts inherits it.
+const tokenFrom = (secret) => {
+  if (!/^fd\\d+$/.test(secret)) return secret;
+  const fd = Number(secret.slice(2));
+  // Only the socket the spawn handed over: where something closed it on the
+  // way, the number may be one Node opened since, which is not ours to close.
+  try {
+    if (!fstatSync(fd).isSocket()) return "";
+  } catch {
+    return "";
+  }
+  const line = Buffer.alloc(256);
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  let length = 0;
+  try {
+    for (let tries = 0; length < line.length && !line.subarray(0, length).includes(10); ) {
+      let read;
+      try {
+        read = readSync(fd, line, length, line.length - length, null);
+      } catch (error) {
+        // A descriptor left non-blocking has nothing yet: wait for the line.
+        if (error.code !== "EAGAIN" || ++tries > 2000) throw error;
+        Atomics.wait(pause, 0, 0, 1);
+        continue;
+      }
+      if (read === 0) break;
+      length += read;
+    }
+  } catch {
+    // Unreadable, the token is empty and the first call says so.
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {}
+  }
+  return line.toString("utf8", 0, length).trim();
+};
+const [port, secret = ""] = channelAt?.split(":") ?? [];
+const token = channelAt === undefined ? undefined : tokenFrom(secret);
+if (globalThis.instrument === undefined && token !== undefined) {
   const hidden = (target, key, value) =>
     Object.defineProperty(target, key, { configurable: true, value, writable: true });
   class InstrumentError extends Error {
@@ -72,7 +114,6 @@ if (globalThis.instrument === undefined && channelAt !== undefined) {
           ? new ReadGuideFirst(message)
           : new InstrumentError(message, kind);
 
-  const [port, token] = channelAt.split(":");
   const pending = new Map();
   let nextId = 0;
   let socket;
@@ -84,6 +125,13 @@ if (globalThis.instrument === undefined && channelAt !== undefined) {
     pending.clear();
   };
   const onReply = (reply) => {
+    // An error with no id is about the connection, which closes after it.
+    if (reply.id === null && reply.error !== undefined) {
+      const error = errorOf(reply.error);
+      for (const call of pending.values()) call.reject(error);
+      pending.clear();
+      return;
+    }
     const call = pending.get(reply.id);
     if (call === undefined) return;
     pending.delete(reply.id);

@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -6,19 +5,58 @@ import { runtimeLayout } from "../runtime-dir";
 import { venvSitePackages } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { SCRIPT_CHANNEL_ENV } from "./channel";
-import { writeRuntimeFile } from "./runtime-file";
+import { replaceFileIn, writeRuntimeFile } from "./runtime-file";
 
 const BOOT_MODULE = "_instrument_boot";
 
 /**
  * Takes the channel out of the environment as the interpreter starts,
- * before any of the script's code runs, so no process the script starts
- * has it; `instrument` reads it from here.
+ * before any of the script's code runs, and reads its token from the
+ * descriptor it arrives on and closes that, so no process the script
+ * starts has either; `instrument` reads it from here.
  */
-const BOOT_SOURCE = `"""Holds the channel \`instrument\` calls Instrument over, taken out of the environment at startup."""
+const BOOT_SOURCE = `"""Holds the channel \`instrument\` calls Instrument over, taken at startup."""
 import os
+import stat
 
-channel = os.environ.pop("${SCRIPT_CHANNEL_ENV}", None)
+
+def _take():
+    at = os.environ.pop("${SCRIPT_CHANNEL_ENV}", None)
+    if at is None:
+        return None
+    port, _, secret = at.partition(":")
+    # "<port>:fd<n>": the token is the first line on descriptor n, read once
+    # and closed, so no process the script starts inherits it.
+    if not (secret.startswith("fd") and secret[2:].isdigit()):
+        return at
+    fd = int(secret[2:])
+    # Only the socket the spawn handed over: where something closed it on
+    # the way, the number may be one the interpreter opened since.
+    try:
+        if not stat.S_ISSOCK(os.fstat(fd).st_mode):
+            return port + ":"
+    except OSError:
+        return port + ":"
+    line = b""
+    try:
+        os.set_blocking(fd, True)
+        while b"\\n" not in line and len(line) < 256:
+            chunk = os.read(fd, 256 - len(line))
+            if not chunk:
+                break
+            line += chunk
+    except OSError:
+        pass
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    return port + ":" + line.decode("utf-8", "replace").strip()
+
+
+channel = _take()
+del _take
 `;
 
 /**
@@ -390,9 +428,7 @@ const PTH_FILE = "_instrument.pth";
 export async function linkPythonRuntime(venv: AbsolutePath): Promise<void> {
   const { modules } = await ensurePythonRuntime();
   const pth = path.join(venvSitePackages(venv), PTH_FILE);
-  const lines = `${modules}\nimport ${BOOT_MODULE}\n`;
-  const current = await fs.readFile(pth, "utf8").catch(() => undefined);
-  if (current !== lines) {
-    await fs.writeFile(pth, lines).catch(() => undefined);
-  }
+  await replaceFileIn(pth, `${modules}\nimport ${BOOT_MODULE}\n`).catch(
+    () => undefined,
+  );
 }

@@ -14,14 +14,13 @@ import { constants } from "node:os";
 import { PassThrough, type Readable } from "node:stream";
 
 import { inheritedEnv } from "../native-env";
-import { type ScriptChannel } from "../capabilities/channel";
+import { SCRIPT_CHANNEL_FD, type ScriptChannel } from "../capabilities/channel";
 import {
-  launchNative,
   NativeSandboxUnavailableError,
   wrapNativeCommand,
 } from "../native-sandbox";
 import { watchSubprocessTree } from "../subprocess-tree";
-import { execShim, withShimNotes } from "./exec-shim";
+import { execShim, launchWithChannel, withShimNotes } from "./exec-shim";
 import {
   collectAndForward,
   currentShellOutputSink,
@@ -209,6 +208,7 @@ export function startPipeStage(
       file,
       args,
       options.unsandboxed ? null : undefined,
+      options.scriptChannel?.handOver.tokenLine ? SCRIPT_CHANNEL_FD : undefined,
     );
   } catch (error) {
     options.scriptChannel?.close();
@@ -262,21 +262,25 @@ export function startPipeStage(
   ];
   let child: ChildProcess;
   try {
-    const env = {
-      ...(options.ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
-      ...options.env,
-    };
-    const launch = launchNative(spawned, {
-      cwd: options.cwd,
-      env,
-      windowsVerbatimArguments: options.windowsVerbatimArguments,
-    });
+    const { launch, spawnEnv, tokenLine } = launchWithChannel(
+      spawned,
+      {
+        ...(options.ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
+        ...options.env,
+      },
+      options.scriptChannel,
+      {
+        cwd: options.cwd,
+        windowsVerbatimArguments: options.windowsVerbatimArguments,
+      },
+    );
     child = spawn(launch.file, launch.args, {
       cwd: options.cwd,
       // A background run's kill signals the process group the child leads.
       detached: sink !== undefined && process.platform !== "win32",
-      env,
-      stdio,
+      env: spawnEnv,
+      // Descriptor 3 is the token's line, written and closed just below.
+      stdio: tokenLine ? [...stdio, "pipe"] : stdio,
       windowsHide: true,
       // Under MXC the program's command line is in the launcher's request.
       windowsVerbatimArguments:
@@ -304,6 +308,13 @@ export function startPipeStage(
     upstream.on("error", () => stdin.destroy());
     upstream.pipe(stdin);
     resumeReading(upstream);
+  }
+  const tokenPipe = child.stdio[SCRIPT_CHANNEL_FD];
+  if (options.scriptChannel?.handOver.tokenLine && tokenPipe) {
+    tokenPipe.on("error", () => {});
+    if ("end" in tokenPipe) {
+      tokenPipe.end(options.scriptChannel.handOver.tokenLine);
+    }
   }
   const handsOn =
     options.offerHandoff && child.stdout !== null && holdUnread(child.stdout);

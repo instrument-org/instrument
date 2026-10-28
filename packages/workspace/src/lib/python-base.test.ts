@@ -1,9 +1,11 @@
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -340,4 +342,30 @@ describe("linkPythonBase", () => {
       `"\`python\` already has pandas, numpy, matplotlib, openpyxl, pypdf, pdfplumber, pypdfium2, Pillow, python-docx, python-pptx, reportlab, and beautifulsoup4 installed, so import them without a \`pip install\`; install only what else a script needs."`,
     );
   });
+
+  it.skipIf(process.platform === "win32")(
+    "replaces a link at its .pth rather than writing through it",
+    async () => {
+      const chatId = createMockChatConfig(
+        ChatIdSchema.parse("python-base-link"),
+      );
+      const sitePackages = path.join(
+        workVenvDir(chatId),
+        "lib",
+        "python3.12",
+        "site-packages",
+      );
+      mkdirSync(sitePackages, { recursive: true });
+      const target = path.join(workVenvDir(chatId), "someone-elses-file");
+      writeFileSync(target, "theirs\n");
+      const pth = path.join(sitePackages, "_instrument_python_base.pth");
+      rmSync(pth, { force: true });
+      symlinkSync(target, pth);
+      await ensurePythonBase();
+      await linkPythonBase(workVenvDir(chatId));
+      expect(readFileSync(target, "utf8")).toBe("theirs\n");
+      expect(lstatSync(pth).isSymbolicLink()).toBe(false);
+      expect(readFileSync(pth, "utf8")).toBe(`${pythonBaseDir() ?? ""}\n`);
+    },
+  );
 });

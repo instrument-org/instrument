@@ -137,6 +137,13 @@ function gateError(
   }
 }
 
+/** What a call made after its command was stopped gets, with nothing run. */
+export const STOPPED: CapabilityErrorReply = {
+  kind: "refused",
+  message:
+    "The command was stopped, so instrument takes no more calls from it.",
+};
+
 /**
  * Runs one call on any surface: finds the capability, checks it exists for
  * this shell and surface, parses the input, runs its gate, then the work.
@@ -149,6 +156,9 @@ export async function dispatch(
   ctx: CapabilityContext,
   registry: readonly Capability[] = CAPABILITIES,
 ): Promise<Dispatched> {
+  if (ctx.signal?.aborted) {
+    return { error: STOPPED };
+  }
   const capability = registry.find((candidate) => candidate.name === name);
   if (!capability || !onSurface(capability, ctx)) {
     return {
@@ -173,6 +183,11 @@ export async function dispatch(
     const gate = (await capability.gate?.(input, ctx)) ?? { kind: "allowed" };
     if (gate.kind !== "allowed") {
       return { error: gateError(gate, ctx) };
+    }
+    // The gate can wait (a lookup, a connection), and the command may have
+    // been stopped meanwhile.
+    if (ctx.signal?.aborted) {
+      return { error: STOPPED };
     }
     return { capability, input, output: await capability.run(input, ctx) };
   } catch (error) {

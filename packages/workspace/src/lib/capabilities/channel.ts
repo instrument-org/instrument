@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { rm } from "node:fs/promises";
 import net from "node:net";
 import { z } from "zod";
 
@@ -9,15 +10,24 @@ import {
   type DescribedCapability,
   describeCapabilities,
   dispatch,
+  STOPPED,
 } from "./dispatch";
 
 /**
  * The variable that tells a script's `instrument` where its channel
- * listens: `<port>:<token>` on 127.0.0.1. Taken out of the environment
+ * listens on 127.0.0.1: `<port>:fd<n>` on macOS and Linux, where the token
+ * is the first line on descriptor `n`, and `<port>:<token>` on Windows,
+ * where no descriptor reaches a program MXC holds. The preload takes the
+ * variable out of the environment and reads and closes the descriptor
  * before the script's own code runs, so a process the script starts gets
- * neither.
+ * neither. The token stays out of every environment and command line on
+ * macOS and Linux, where another process of the same user can read the
+ * environment a process started with whatever it later deletes.
  */
 export const SCRIPT_CHANNEL_ENV = "INSTRUMENT_CHANNEL";
+
+/** The descriptor a script reads its channel's token from, after stdin, stdout and stderr. */
+export const SCRIPT_CHANNEL_FD = 3;
 
 /** What a script asks over its channel: what it may call, or one call. */
 export type ChannelRequest =
@@ -64,14 +74,36 @@ const RequestLineSchema = z.union([
 const TOKEN_LINE_LIMIT = 256;
 
 /**
+ * Longest one request line may be: room for a request body of several
+ * megabytes encoded as JSON, short of what would let one script stall the
+ * bash worker every chat shares.
+ */
+const REQUEST_LINE_LIMIT = 32 * 1024 * 1024;
+
+/** How long a connection has to give its token. */
+const TOKEN_WAIT_MS = 10_000;
+
+/** Connections that have not given the token yet, at most, at once. */
+const WAITING_CONNECTION_LIMIT = 16;
+
+/** The reply to a line too long to read, before the connection closes. */
+const TOO_LONG = `${JSON.stringify({
+  error: {
+    kind: "failed",
+    message: `The request was longer than the ${REQUEST_LINE_LIMIT / 1024 / 1024} MB one call to instrument may send. Send less in each call.`,
+  },
+  id: null,
+})}\n`;
+
+/**
  * Where one native process calls `instrument`: a listener on 127.0.0.1 that
  * takes a connection only once its first line is the token, then answers
  * each request line with `answer`. The token opens exactly what the shell's
  * own `instrument` opens in the same bash call.
  */
 export interface ScriptChannel {
-  /** The variable to start the process with. */
-  env: Record<string, string>;
+  /** How the process is started with the channel, on this platform. */
+  handOver: ChannelHandOver;
   /**
    * The signal calls run under from now on: a stage handing its stdout on
    * outlives the command that started it.
@@ -79,6 +111,21 @@ export interface ScriptChannel {
   attach(signal: AbortSignal): void;
   /** Stops listening and drops every connection, once the process is gone. */
   close(): void;
+  /**
+   * Deletes a file that holds the token, once the process has connected
+   * with it or the channel closes.
+   */
+  removeOnceConnected(file: string): void;
+}
+
+/**
+ * What a process is started with to reach its channel: the variable, and on
+ * macOS and Linux the token's line for descriptor 3, which the spawn writes
+ * and closes.
+ */
+interface ChannelHandOver {
+  env: Record<string, string>;
+  tokenLine?: Buffer;
 }
 
 /**
@@ -93,69 +140,144 @@ export async function openScriptChannel(
   const token = randomBytes(32).toString("hex");
   const expected = Buffer.from(token);
   const sockets = new Set<net.Socket>();
+  const removals = new Set<string>();
+  const removeAll = () => {
+    for (const file of removals) {
+      void rm(file, { force: true }).catch(() => undefined);
+    }
+    removals.clear();
+  };
+  let waiting = 0;
   let signal: AbortSignal | undefined;
   const server = net.createServer((socket) => {
-    sockets.add(socket);
-    socket.on("close", () => sockets.delete(socket));
     socket.on("error", () => socket.destroy());
-    socket.setNoDelay(true);
+    if (waiting >= WAITING_CONNECTION_LIMIT) {
+      socket.destroy();
+      return;
+    }
+    sockets.add(socket);
+    waiting += 1;
     let opened = false;
-    let received = Buffer.alloc(0);
-    socket.on("data", (chunk) => {
-      received = Buffer.concat([received, chunk]);
-      for (
-        let end = received.indexOf(10);
-        end !== -1;
-        end = received.indexOf(10)
-      ) {
-        const line = received.subarray(0, end);
-        received = received.subarray(end + 1);
-        if (!opened) {
-          if (
-            line.length !== expected.length ||
-            !timingSafeEqual(line, expected)
-          ) {
-            socket.destroy();
-            return;
-          }
-          opened = true;
-          continue;
-        }
-        let parsed: z.output<typeof RequestLineSchema>;
-        try {
-          parsed = RequestLineSchema.parse(JSON.parse(line.toString("utf8")));
-        } catch {
+    const open = () => {
+      opened = true;
+      waiting -= 1;
+      socket.setTimeout(0);
+      removeAll();
+    };
+    socket.on("close", () => {
+      sockets.delete(socket);
+      if (!opened) {
+        waiting -= 1;
+      }
+    });
+    socket.setNoDelay(true);
+    socket.setTimeout(TOKEN_WAIT_MS, () => {
+      if (!opened) {
+        socket.destroy();
+      }
+    });
+    // What has come since the last newline, kept as the chunks it came in,
+    // so a long line is joined once rather than at every chunk.
+    let partial: Buffer[] = [];
+    let partialLength = 0;
+    /** Takes one complete line; false once the connection is done. */
+    const take = (line: Buffer): boolean => {
+      if (!opened) {
+        if (
+          line.length !== expected.length ||
+          !timingSafeEqual(line, expected)
+        ) {
           socket.destroy();
-          return;
+          return false;
         }
-        const { id } = parsed;
-        const request: ChannelRequest =
-          "describe" in parsed
-            ? { kind: "describe" }
-            : {
-                args: parsed.args,
-                capability: parsed.capability,
-                kind: "call",
-              };
-        void inContext(() => answer(request, signal))
-          .catch(
+        open();
+        return true;
+      }
+      let parsed: z.output<typeof RequestLineSchema>;
+      try {
+        parsed = RequestLineSchema.parse(JSON.parse(line.toString("utf8")));
+      } catch {
+        socket.destroy();
+        return false;
+      }
+      const { id } = parsed;
+      const request: ChannelRequest =
+        "describe" in parsed
+          ? { kind: "describe" }
+          : {
+              args: parsed.args,
+              capability: parsed.capability,
+              kind: "call",
+            };
+      const reply: Promise<ChannelReply> = signal?.aborted
+        ? Promise.resolve({ error: STOPPED })
+        : inContext(() => answer(request, signal)).catch(
             (error: unknown): ChannelReply => ({
               error: {
                 kind: "failed",
                 message: error instanceof Error ? error.message : String(error),
               },
             }),
-          )
-          .then((reply) => {
-            if (!socket.destroyed) {
-              socket.write(`${JSON.stringify({ id, ...reply })}\n`);
-            }
-          });
+          );
+      void reply.then((answered) => {
+        if (socket.writable) {
+          socket.write(`${JSON.stringify({ id, ...answered })}\n`);
+        }
+      });
+      return true;
+    };
+    // Past a line's limit, what else the connection sends is read and
+    // dropped, so a script still writing its request gets to read why.
+    let discarding = false;
+    socket.on("data", (chunk: Buffer) => {
+      if (discarding) {
+        return;
       }
-      if (!opened && received.length > TOKEN_LINE_LIMIT) {
-        socket.destroy();
+      let start = 0;
+      for (
+        let end = chunk.indexOf(10, start);
+        end !== -1;
+        end = chunk.indexOf(10, start)
+      ) {
+        const tail = chunk.subarray(start, end);
+        start = end + 1;
+        if (tooLong(partialLength + tail.length)) {
+          return;
+        }
+        const line =
+          partial.length === 0
+            ? tail
+            : Buffer.concat([...partial, tail], partialLength + tail.length);
+        partial = [];
+        partialLength = 0;
+        if (!take(line)) {
+          return;
+        }
+      }
+      if (start < chunk.length) {
+        partial.push(chunk.subarray(start));
+        partialLength += chunk.length - start;
+        tooLong(partialLength);
       }
     });
+    /**
+     * Ends a connection whose line has passed its limit: one that gave the
+     * token is told why, and closes once the script stops writing.
+     */
+    const tooLong = (length: number): boolean => {
+      if (length <= (opened ? REQUEST_LINE_LIMIT : TOKEN_LINE_LIMIT)) {
+        return false;
+      }
+      partial = [];
+      partialLength = 0;
+      if (opened) {
+        discarding = true;
+        socket.end(TOO_LONG);
+      } else {
+        socket.destroy();
+      }
+      return true;
+    };
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -175,7 +297,20 @@ export async function openScriptChannel(
       for (const socket of sockets) {
         socket.destroy();
       }
+      removeAll();
     },
-    env: { [SCRIPT_CHANNEL_ENV]: `${port}:${token}` },
+    // Windows has no descriptor that reaches a program MXC holds, and there
+    // what a process deletes from its environment is gone from what another
+    // process reads.
+    handOver:
+      process.platform === "win32"
+        ? { env: { [SCRIPT_CHANNEL_ENV]: `${port}:${token}` } }
+        : {
+            env: { [SCRIPT_CHANNEL_ENV]: `${port}:fd${SCRIPT_CHANNEL_FD}` },
+            tokenLine: Buffer.from(`${token}\n`),
+          },
+    removeOnceConnected(file) {
+      removals.add(file);
+    },
   };
 }

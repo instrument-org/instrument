@@ -1,13 +1,20 @@
-import { realpathSync } from "node:fs";
-import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { knowChat } from "../test/helpers/mock-chat-config";
-import { type ChannelAnswer, openScriptChannel } from "./capabilities/channel";
+import {
+  type ChannelAnswer,
+  openScriptChannel,
+  SCRIPT_CHANNEL_ENV,
+  type ScriptChannel,
+} from "./capabilities/channel";
 import { createLocalBashEnv } from "./create-bash-env";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
@@ -160,6 +167,78 @@ describe("node's instrument global", () => {
     expect(result.stdout).toBe("0\n");
   });
 
+  // Another process of the same user reads the environment a process
+  // started with (`ps eww`, /proc/<pid>/environ), whatever it deletes later.
+  it.skipIf(process.platform === "win32")(
+    "starts the script and its child with no token in their environment, and its child with no descriptor 3",
+    { timeout: 30_000 },
+    async () => {
+      knowChat(chatId);
+      await mkdir(workDir(chatId), { recursive: true });
+      const pids = path.join(workDir(chatId), "pids");
+      const go = path.join(workDir(chatId), "go");
+      const environs = path.join(workDir(chatId), "environs");
+      await rm(pids, { force: true });
+      await rm(go, { force: true });
+      await rm(environs, { force: true });
+      const script = path.join(workDir(chatId), "hold.cjs");
+      await writeFile(
+        script,
+        `const { execFileSync, spawn } = require("node:child_process");
+const fs = require("node:fs");
+const fd3 = execFileSync("/bin/sh", ["-c", "if [ -e /dev/fd/3 ]; then echo open; else echo closed; fi"], { encoding: "utf8" }).trim();
+const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 20000)"], { stdio: "ignore" });
+const read = (file) => { try { return fs.readFileSync(file, "latin1"); } catch { return ""; } };
+// On Linux the pids are the sandbox's own, so the script reads the
+// environments it and its child started with, once the child has exec'd.
+const report = () => {
+  if (process.platform !== "linux") return fs.writeFileSync("pids", process.pid + " " + child.pid);
+  if (!read("/proc/" + child.pid + "/cmdline").includes("setTimeout")) return setTimeout(report, 20);
+  fs.writeFileSync("environs", JSON.stringify([read("/proc/self/environ"), read("/proc/" + child.pid + "/environ")]));
+  fs.writeFileSync("pids", "");
+};
+report();
+const wait = () => {
+  if (!fs.existsSync("go")) return setTimeout(wait, 20);
+  child.kill();
+  console.log(fd3);
+};
+wait();
+`,
+      );
+      const running = run(`node hold.cjs`);
+      const started = Date.now();
+      while (!existsSync(pids) && Date.now() - started < 20_000) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      const shown =
+        process.platform === "linux"
+          ? z
+              .array(z.string())
+              .parse(JSON.parse(await readFile(environs, "utf8")))
+              .map((environ) => environ.replaceAll("\0", " "))
+          : (await readFile(pids, "utf8")).split(" ").map(
+              (pid) =>
+                spawnSync("ps", ["eww", "-o", "command=", "-p", pid], {
+                  encoding: "utf8",
+                }).stdout,
+            );
+      const [inScript, inChild] = shown.map(
+        (environ) =>
+          new RegExp(`(?:^|\\s)${SCRIPT_CHANNEL_ENV}=(\\S+)`).exec(
+            environ,
+          )?.[1],
+      );
+      await writeFile(go, "");
+      const result = await running;
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toBe("closed\n");
+      // The variable names the port and the descriptor, never the token.
+      expect(inScript).toMatch(/^\d+:fd3$/);
+      expect(inChild).toBeUndefined();
+    },
+  );
+
   // A package.json no one may read stands in for a folder the sandbox keeps
   // closed above the script, as MXC does above the work folder: Node fails
   // the same way on EACCES as on EPERM. Windows has no such file mode.
@@ -241,11 +320,22 @@ describe("node's instrument global", () => {
   });
 });
 
+/** Where a channel listens and the token it takes, as its process would read them. */
+function reachOf(channel: ScriptChannel) {
+  const [port = "", secret = ""] =
+    channel.handOver.env[SCRIPT_CHANNEL_ENV]?.split(":") ?? [];
+  return {
+    port: Number(port),
+    token: channel.handOver.tokenLine?.toString("utf8").trim() ?? secret,
+  };
+}
+
 describe("openScriptChannel", () => {
   /** Writes `lines` and reads what comes back until an answer or the close. */
   async function talk(port: number, lines: string[]) {
     const socket = connect({ host: "127.0.0.1", port });
     socket.setEncoding("utf8");
+    socket.on("error", () => {});
     let received = "";
     socket.on("data", (chunk: string) => {
       received += chunk;
@@ -260,7 +350,7 @@ describe("openScriptChannel", () => {
 
   it("answers a call only after the token", async () => {
     const channel = await openScriptChannel(echo);
-    const [port, token = ""] = Object.values(channel.env)[0]?.split(":") ?? [];
+    const { port, token } = reachOf(channel);
     const call = JSON.stringify({ args: { a: 1 }, capability: "x.y", id: 1 });
     try {
       expect(await talk(Number(port), ["0".repeat(64), call])).toBe("");
@@ -268,6 +358,79 @@ describe("openScriptChannel", () => {
         "{"id":1,"result":{"args":{"a":1},"capability":"x.y"}}
         "
       `);
+    } finally {
+      channel.close();
+    }
+  });
+
+  it("answers a request line past the limit with why, then closes", async () => {
+    const channel = await openScriptChannel(echo);
+    const { port, token } = reachOf(channel);
+    try {
+      const socket = connect({ host: "127.0.0.1", port });
+      socket.setEncoding("utf8");
+      let received = "";
+      socket.on("data", (chunk: string) => {
+        received += chunk;
+      });
+      socket.on("error", () => {});
+      socket.write(`${token}\n`);
+      // A line with no end past the 32 MB limit, as a script stuck writing
+      // would send.
+      socket.end(Buffer.alloc(32 * 1024 * 1024 + 1, "a"));
+      await new Promise((resolve) => socket.once("close", resolve));
+      expect(received).toMatchInlineSnapshot(`
+        "{"error":{"kind":"failed","message":"The request was longer than the 32 MB one call to instrument may send. Send less in each call."},"id":null}
+        "
+      `);
+    } finally {
+      channel.close();
+    }
+  });
+
+  it("drops a connection past the number waiting for their token", async () => {
+    const channel = await openScriptChannel(echo);
+    const { port, token } = reachOf(channel);
+    // The limit is 16.
+    const waiting = Array.from({ length: 16 }, () =>
+      connect({ host: "127.0.0.1", port }),
+    );
+    try {
+      await Promise.all(
+        waiting.map(
+          (socket) => new Promise((resolve) => socket.once("connect", resolve)),
+        ),
+      );
+      const call = JSON.stringify({ args: {}, capability: "x.y", id: 1 });
+      expect(await talk(port, [token, call])).toBe("");
+      waiting[0]?.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(await talk(port, [token, call])).toContain('"id":1');
+    } finally {
+      for (const socket of waiting) {
+        socket.destroy();
+      }
+      channel.close();
+    }
+  });
+
+  it("refuses a call once the command that started the script is stopped", async () => {
+    let answered = 0;
+    const channel = await openScriptChannel((request, signal) => {
+      answered += 1;
+      return echo(request, signal);
+    });
+    const { port, token } = reachOf(channel);
+    const stop = new AbortController();
+    channel.attach(stop.signal);
+    stop.abort();
+    try {
+      const call = JSON.stringify({ args: {}, capability: "x.y", id: 1 });
+      expect(await talk(port, [token, call])).toMatchInlineSnapshot(`
+        "{"id":1,"error":{"kind":"refused","message":"The command was stopped, so instrument takes no more calls from it."}}
+        "
+      `);
+      expect(answered).toBe(0);
     } finally {
       channel.close();
     }

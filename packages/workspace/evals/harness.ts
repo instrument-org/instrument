@@ -690,17 +690,23 @@ const PYTHON_BASE_WAIT_MS = 15 * 60_000;
 /**
  * `ensurePythonBase`, waited out while another run on this computer installs
  * the shared runtime's base packages: that run holds the refresh lock, so
- * this one's own call returns at once with nothing installed yet.
+ * this one's own call returns at once with nothing installed yet. The wait
+ * only looks for the set to land: calling `ensurePythonBase` again would
+ * remove every set but the one the state names, and the other run renames
+ * its set into place before it writes the state, so a call between the two
+ * would delete it. Once the wait runs out, one more call installs the set
+ * here if the other run gave up.
  */
 async function settledPythonBase() {
+  const failure = await ensurePythonBase();
+  if (failure || pythonBaseReady()) {
+    return failure;
+  }
   const deadline = Date.now() + PYTHON_BASE_WAIT_MS;
-  for (;;) {
-    const failure = await ensurePythonBase();
-    if (failure || pythonBaseReady() || Date.now() > deadline) {
-      return failure;
-    }
+  while (!pythonBaseReady() && Date.now() < deadline) {
     await delay(5000);
   }
+  return pythonBaseReady() ? undefined : ensurePythonBase();
 }
 
 export async function runEvals(

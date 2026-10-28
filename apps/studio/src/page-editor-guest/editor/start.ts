@@ -62,10 +62,79 @@ declare global {
 /** How long a save waits for the window's answer before it counts as failed. */
 const SAVE_ANSWER_TIMEOUT_MS = 30_000;
 
-const sleep = (ms: number) =>
-  new Promise<void>((r) => {
-    setTimeout(r, ms);
+/** How long the page may hold itself hidden before the editor goes on without it. */
+const SHOW_WAIT_MS = 8000;
+
+/** How long the page may go without resizing before the scroll handed over counts as kept. */
+const SCROLL_SETTLE_MS = 250;
+
+/** How long the scroll handed over is kept at most, however long the page keeps growing. */
+const SCROLL_SETTLE_MAX_MS = 4000;
+
+/** The person taking over: any of these ends the keeping. */
+const TAKEOVER_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];
+
+/** Resolves once the page lifts the `instrument-wait` class it hides itself under until its styles are in. */
+function untilShown() {
+  const root = document.documentElement;
+  if (!root.classList.contains("instrument-wait")) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      mo.disconnect();
+      clearTimeout(timer);
+      resolve();
+    };
+    const mo = new MutationObserver(() => {
+      if (!root.classList.contains("instrument-wait")) {
+        done();
+      }
+    });
+    mo.observe(root, { attributeFilter: ["class"], attributes: true });
+    const timer = setTimeout(done, SHOW_WAIT_MS);
   });
+}
+
+/**
+ * Scrolls to `x, y` and keeps it there while the page lays out: fonts, images
+ * and late styles land after the first frame and move what is at that offset.
+ * Taken again each time the page resizes, until it has held still a moment,
+ * the person scrolls, or the cap. Returns the stop.
+ */
+function keepScroll(x: number, y: number) {
+  scrollTo(x, y);
+  let quiet: ReturnType<typeof setTimeout> | undefined;
+  const observer = new ResizeObserver(() => {
+    scrollTo(x, y);
+    clearTimeout(quiet);
+    quiet = setTimeout(stop, SCROLL_SETTLE_MS);
+  });
+  // The body's children too: a page that sets `height: 100%` on the root and
+  // the body grows past them without either resizing.
+  for (const el of [
+    document.documentElement,
+    ...(document.body ? [document.body, ...document.body.children] : []),
+  ]) {
+    observer.observe(el);
+  }
+  quiet = setTimeout(stop, SCROLL_SETTLE_MS);
+  const cap = setTimeout(stop, SCROLL_SETTLE_MAX_MS);
+  for (const type of TAKEOVER_EVENTS) {
+    addEventListener(type, stop, { capture: true, passive: true });
+  }
+  // Hoisted: the observer and the timers name it before it is reached.
+  function stop() {
+    observer.disconnect();
+    clearTimeout(quiet);
+    clearTimeout(cap);
+    for (const type of TAKEOVER_EVENTS) {
+      removeEventListener(type, stop, { capture: true });
+    }
+  }
+  return stop;
+}
+
 const frames = () =>
   new Promise<void>((r) =>
     requestAnimationFrame(() =>
@@ -230,6 +299,9 @@ export async function startEditor(bridge: PageEditorBridge) {
     ui.root.dataset.placement = state.placement;
   };
 
+  // Ends keeping the scroll handed over by the last load.
+  let stopKeepingScroll = () => {};
+
   // The window's answers: a save's result, the file changing under the page,
   // where the Edit control is drawn, and the file's staged asks.
   bridge.listen((message: PageEditorHostMessage) => {
@@ -275,6 +347,7 @@ export async function startEditor(bridge: PageEditorBridge) {
       case "reveal": {
         const r = state.requests.find((entry) => entry.id === message.id);
         if (r?.el?.isConnected) {
+          stopKeepingScroll();
           r.el.scrollIntoView({ behavior: "smooth", block: "center" });
           ed.overlay.flash(r.el, 2200);
           setTimeout(ed.overlay.layout, 400);
@@ -326,13 +399,7 @@ export async function startEditor(bridge: PageEditorBridge) {
 
   // The page may hold itself hidden until its styles are in; the scroll and
   // the selection are put back once it shows.
-  const t0 = performance.now();
-  while (
-    document.documentElement.classList.contains("instrument-wait") &&
-    performance.now() - t0 < 8000
-  ) {
-    await sleep(16);
-  }
+  await untilShown();
   await frames();
   const colorNames = () => [
     ...state.theme.semantic,
@@ -340,9 +407,7 @@ export async function startEditor(bridge: PageEditorBridge) {
   ];
   state.colors = resolveColors(document, colorNames());
   if (handed.scroll) {
-    scrollTo(handed.scroll.x, handed.scroll.y);
-    await sleep(120);
-    scrollTo(handed.scroll.x, handed.scroll.y);
+    stopKeepingScroll = keepScroll(handed.scroll.x, handed.scroll.y);
   }
   ed.asks.repin();
   if (handed.sel != null) {

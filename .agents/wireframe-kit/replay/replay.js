@@ -149,7 +149,7 @@ const replayView = (T) => {
   const transcript = `
     <div class="relative flex min-w-0 flex-1 flex-col">
       ${head(REPLAY.chat)}
-      <div class="flex min-h-0 flex-1 flex-col justify-end overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 pt-4 pb-2">${turnMeta({ when: "Today" })}${out.join("")}</div></div>
+      <div data-transcript class="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]"><div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 pt-4 pb-2">${turnMeta({ when: "Today" })}${out.join("")}</div></div>
       <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${replyBox({})}</div>
     </div>`;
   return appWindow({ bar: winBar({ tabs: [{ chats: true, title: REPLAY.chat }] }), body: list + transcript });
@@ -190,14 +190,20 @@ const SCREEN = { w: 1280, h: 800, draw: () => replayView(T), controls: () => scr
 
 // The scrubber's behavior: drag it, use ← and → to jump from one event to the next, Space to play, and click a
 // folded line of steps to open it. Only the screen and the scrubber's words are redrawn as time moves, so the slider
-// under your pointer is never replaced mid-drag.
+// under your pointer is never replaced mid-drag. The transcript reads from the top down, as a chat does, and follows
+// the newest message once it runs past the window, unless you've scrolled up to read.
 if (typeof document !== "undefined") {
   let speed = 1;
   let timer = null;
   const $ = (sel) => document.querySelector(sel);
   const show = (t) => {
     T = Math.max(0, Math.min(TL.duration, t));
+    const was = $("[data-transcript]");
+    const following = !was || was.scrollHeight - was.scrollTop - was.clientHeight < 8;
+    const scrollTop = was?.scrollTop ?? 0;
     $("#screen").innerHTML = replayView(T);
+    const now = $("[data-transcript]");
+    now.scrollTop = following ? now.scrollHeight : scrollTop;
     $("[data-replay]").value = String(T);
     $("[data-replay-caption]").textContent = captionAt(T);
     $("[data-replay-time]").textContent = `${clock(T)} / ${clock(TL.duration)}`;
@@ -246,5 +252,10 @@ if (typeof document !== "undefined") {
       speed = Number(speedBtn.dataset.replaySpeed);
       for (const b of document.querySelectorAll("[data-replay-speed]")) b.setAttribute("aria-checked", String(b === speedBtn));
     }
+  });
+  // The page draws the screen first, scrolled to the top; open on the newest message, as a chat does.
+  requestAnimationFrame(() => {
+    const transcript = $("[data-transcript]");
+    transcript.scrollTop = transcript.scrollHeight;
   });
 }

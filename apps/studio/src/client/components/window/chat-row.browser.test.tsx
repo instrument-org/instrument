@@ -372,6 +372,12 @@ async function renderRows(
   const rows = [
     ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
   ];
+  // The pointer is shared across test files and may rest wherever another
+  // left it, over a row just drawn, where the pills step aside for the
+  // row's controls. Each test starts with no row under it.
+  for (const row of rows) {
+    await userEvent.unhover(row);
+  }
   return { ...rendered, onOpen, onSetTopic, openScreen, rows, window };
 }
 

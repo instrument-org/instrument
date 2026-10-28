@@ -131,7 +131,22 @@ async function requestKeylessSearch({
     return err({ kind: "failed", message: text });
   }
 
-  return ok(parseResults(text));
+  const results = parseResults(text);
+  // The tool's text layout is its own, not a contract, and it answers even
+  // nonsense with pages: text that reads as none, other than its message
+  // saying there were none, is a layout this build doesn't know, which an
+  // empty answer would hide.
+  if (
+    results.length === 0 &&
+    text.trim() !== "" &&
+    !text.trim().startsWith("No search results found")
+  ) {
+    return err({
+      kind: "failed",
+      message: "The free web search answered in a form this build can't read.",
+    });
+  }
+  return ok(results);
 }
 
 /**

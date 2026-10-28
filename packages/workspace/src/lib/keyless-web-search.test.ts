@@ -121,6 +121,29 @@ describe("searchKeyless", () => {
     );
   });
 
+  it.each([
+    [
+      "no results",
+      "No search results found. Please try a different query.",
+      [],
+    ],
+    ["a layout it can't read", "Page: One\nLink: https://one.test", undefined],
+  ])("answers %s", async (_, text, results) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      toolResult({ content: [{ text, type: "text" }] }),
+    );
+
+    const answer = await search();
+
+    if (results === undefined) {
+      expect(answer._unsafeUnwrapErr()).toBe(
+        "The free web search answered in a form this build can't read.",
+      );
+    } else {
+      expect(answer._unsafeUnwrap()).toEqual(results);
+    }
+  });
+
   it("does not retry a failure that is not a rate limit", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       toolResult({

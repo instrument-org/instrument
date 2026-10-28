@@ -11,12 +11,14 @@
  * the workspace, by `instrument app new` or the task's own file tools, and
  * the task's last message ends on a needs fence naming it.
  *
- * `task-app-setup-hop` is the chat's half. A task the chat started is stood
- * in for (`finishesAs`), ending on a needs fence for Linear, which is set up
- * and waiting for a sign-in; the sign-in the chat asks for is answered as
- * connected. Scored: the chat asked for Linear on a card after the task's
- * note, and once the note said Linear connected, sent the task on with
- * `instrument task send` rather than doing its work itself.
+ * `task-app-setup-hop` is the chat's half. Linear is connected and the user
+ * asks for its issues in the background; a task the chat started is stood in
+ * for (`finishesAs`), ending on a needs fence for GitHub, which is set up and
+ * waiting for a sign-in and which the user never named, so the chat has no
+ * reason to connect it before the task asks. The sign-in the chat asks for
+ * is answered as connected. Scored: the chat asked for GitHub on a card after
+ * the task's note, and once the note said GitHub connected, sent the task on
+ * with `instrument task send` rather than doing its work itself.
  */
 import { listApps } from "../../src/lib/apps/store";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
@@ -137,22 +139,21 @@ function namedItInItsNeeds(service: RegExp, label: string): Assertion {
 }
 
 const LINEAR = /linear/i;
+const NEEDED = "github";
 
 const askedThenSentOn: Assertion = {
   check: ({ sessions }) => {
     const text =
-      "asked for Linear on a card after the task's note, then sent the task on once it connected";
+      "asked for GitHub on a card after the task's note, then sent the task on once it connected";
     const found = chatSteps(sessions);
     const note = found.findIndex((step) => step.kind === "task-note");
     const card = found.findIndex(
       (step, index) =>
-        index > note && step.kind === "card" && step.slugs.includes("linear"),
+        index > note && step.kind === "card" && step.slugs.includes(NEEDED),
     );
     const connected = found.findIndex(
       (step, index) =>
-        index > card &&
-        step.kind === "app-note" &&
-        step.apps.includes("linear"),
+        index > card && step.kind === "app-note" && step.apps.includes(NEEDED),
     );
     const after = found.slice(connected + 1);
     const sentOn = after.some(
@@ -162,7 +163,7 @@ const askedThenSentOn: Assertion = {
     const didItItself = after.some(
       (step) =>
         step.kind === "bash" &&
-        /\binstrument app (?:call|tools|request) linear\b|instrument\.apps?\[?\(?["']linear/.test(
+        /\binstrument app (?:call|tools|request) github\b|instrument\.apps?\[?\(?["']github/.test(
           step.command,
         ),
     );
@@ -177,7 +178,7 @@ const askedThenSentOn: Assertion = {
       text,
     };
   },
-  text: "asked for Linear on a card after the task's note, then sent the task on once it connected",
+  text: "asked for GitHub on a card after the task's note, then sent the task on once it connected",
 };
 
 export const TASK_APP_SETUP_EVALS = [
@@ -191,18 +192,21 @@ export const TASK_APP_SETUP_EVALS = [
       "Set up Linear as an app in this workspace (it has a hosted MCP server), then list the user's open Linear issues. Report the list.",
   }),
   defineEval({
-    apps: [{ kind: "sign-in", name: "Linear", slug: "linear" }],
+    apps: [
+      { name: "Linear", slug: "linear" },
+      { kind: "sign-in", name: "GitHub", slug: "github" },
+    ],
     assertions: [askedThenSentOn],
     finishesAs: {
       needs: [
-        "Linear connected: it is set up and waits for the user to sign in",
+        "GitHub connected: half the Linear issues link a pull request, and GitHub is set up here but waits for the user to sign in",
       ],
-      said: "I couldn't read the issues: Linear is set up here but not connected.",
+      said: "I have the open Linear issues, but half of them link a GitHub pull request, and I need GitHub to say which are already in review.",
     },
     kind: "chat",
     name: "task-app-setup-hop",
     prompt:
-      "In the background, pull my open Linear issues into a short list grouped by project. I'll keep working here.",
+      "In the background, pull my open Linear issues into a short list grouped by project, with what is already in review marked. I'll keep working here.",
     signInsAnswerAs: {},
   }),
 ];

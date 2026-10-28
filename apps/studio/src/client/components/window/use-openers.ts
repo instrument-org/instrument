@@ -26,6 +26,7 @@ import {
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
+import { isGroupShown } from "./draft-context";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
 import {
@@ -60,6 +61,7 @@ export function useOpeners({
   chats,
   chatTitles,
   isOpen,
+  paneOpenByGroup,
   revealPane,
   setPaneOpen,
   windowTabs,
@@ -73,6 +75,8 @@ export function useOpeners({
   chatTitles: Map<ChatId, string>;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
+  /** Which chats' panes are open (`paneOpenByGroupAtom`). */
+  paneOpenByGroup: Record<string, boolean>;
   /** Brings the pane up for the group on screen, for something opened into it. */
   revealPane: () => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
@@ -470,9 +474,11 @@ export function useOpeners({
       if (group === undefined) {
         return { error: "only a chat has tabs to list." };
       }
-      // In front is the tab the chat has up, while the chat is on screen.
+      // In front is the tab the chat has up, while the chat is on screen
+      // with its pane open.
       const front =
-        windowTabs.groupOnScreen === group
+        windowTabs.groupOnScreen === group &&
+        isGroupShown(group, paneOpenByGroup)
           ? windowTabs.selectedTabIn(group)?.id
           : undefined;
       return {

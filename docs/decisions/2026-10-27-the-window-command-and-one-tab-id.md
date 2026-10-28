@@ -26,8 +26,6 @@ Separately, one set of tabs, the chat's tabs in the person's window, was reached
 - The shared prompt is role-neutral and stays byte-identical between chat and task: one line says that changing the window, saving or forgetting memories, and starting or steering tasks are the chat's, and that a task's report says what the chat should save, show or start; the window paragraph says the chat arranges the window; "Save the place they pick as a memory" became "The place they pick is a memory to keep".
 - `instrument tab …` keeps working as an alias: it runs the `instrument window` form it became (`open` and `show` as `show`, `replace <id> <x>` as `show <x> --in <id>`) and prints one line naming that form. It is left out of `instrument`'s listing. `SESSION_CONTEXT_VERSION` is not bumped, since a chat still holding the old prompt runs its old calls through the alias.
 
-Carried out in 3b73b4e8e (the command, the task's reading forms, the prompt, the alias) and cb641276a (one tab id).
-
 ## Consequences
 
 - A task can see what is in front of the person and read a page there, and can read what is remembered, without being able to change either.

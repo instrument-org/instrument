@@ -10,7 +10,8 @@ import {
   type ChatId,
   type WorkspaceActorRef,
   type WorkspaceConfig,
-  sessionEnds,
+  chatSettles,
+  settleIsNews,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, type InferRouterOutputs } from "@orpc/server";
@@ -51,21 +52,6 @@ export function shouldShowAgentCompletionNotification({
   return mode === "always" || !isAppWindowFocused;
 }
 
-/**
- * Whether a turn's end leaves the chat at rest, which is when a notification
- * is news. A task of the chat's runs in its store, and its turn ending is
- * news the chat's own reply carries. A reply while anything of the chat's
- * still moves is a step on the way (the line said before a hand-off, a task
- * sent back), even when a card waits on the user beside it. A chat that
- * could not be read is told of anyway.
- */
-export function settlesChat(
-  chat: Pick<Chat, "sessionId" | "working"> | undefined,
-  sessionId: StoreId.Session,
-): boolean {
-  return chat === undefined || (!chat.working && chat.sessionId === sessionId);
-}
-
 // Shows a native notification on demand, bypassing focus/mode gating, so the
 // user can verify delivery. Whether it actually appears depends on the OS
 // notification permission, which Electron cannot query.
@@ -97,16 +83,23 @@ export function startAgentCompletionNotifications({
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
-  async function showNotification({
-    id,
-    sessionId,
-  }: {
+  /**
+   * Tells the person a chat came to rest with what its last turn said. A
+   * reply while anything of the chat's still moved never gets here (the line
+   * said before a hand-off, a task sent back), and nor does a task's own end:
+   * the chat settling is when the reply is news, even with a card waiting on
+   * the user beside it.
+   */
+  async function showNotification(settle: {
+    by?: Parameters<typeof settleIsNews>[0]["by"];
     id: ChatId;
     sessionId: StoreId.Session;
   }) {
+    const { id, sessionId } = settle;
     // Whether the app is in front is asked last, once the reads below are
     // done: on Windows the answer costs a process start.
     if (
+      !settleIsNews(settle) ||
       !canShowAgentCompletionNotification({
         canRevealChat,
         inFront: false,
@@ -136,9 +129,6 @@ export function startAgentCompletionNotifications({
       return;
     }
     const chat = await chatOf({ context, id });
-    if (!settlesChat(chat, sessionId)) {
-      return;
-    }
 
     if (
       !canShowAgentCompletionNotification({
@@ -158,11 +148,7 @@ export function startAgentCompletionNotifications({
     });
   }
 
-  /**
-   * The chat as the inbox lists it: what its reply is filed under, and
-   * whether it is still at work, read once its own turn has ended so only its
-   * tasks count.
-   */
+  /** The chat as the inbox lists it, for the title its reply is filed under. */
   async function chatOf({
     context,
     id,
@@ -186,7 +172,7 @@ export function startAgentCompletionNotifications({
   async function subscribe() {
     while (true) {
       try {
-        for await (const event of sessionEnds({
+        for await (const event of chatSettles({
           maxBuffered: MAX_BUFFERED_COMPLETION_EVENTS,
         })) {
           await showNotification(event);

@@ -15,7 +15,12 @@ import { setChatModel } from "../chat-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { sessionOfChat } from "../record-folders";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
-import { chatById, startChatSettle, startChatUnreadOnSettle } from "./chats";
+import {
+  chatById,
+  settleIsNews,
+  startChatSettle,
+  startChatUnreadOnSettle,
+} from "./chats";
 import { startChatWake } from "./wake";
 import { hasWakeOnItsWay } from "./wake-queue";
 
@@ -145,6 +150,17 @@ describe("a chat whose wake never starts its turn", () => {
       expect((await chatById(chatId))?.unread).toBe(true);
     });
     expect(settlesOf(chatId)).toHaveLength(1);
+  });
+});
+
+describe("settleIsNews", () => {
+  it.each([
+    [undefined, true],
+    ["agent", true],
+    ["app", true],
+    ["person", false],
+  ] as const)("a settle by %s is news: %s", (by, expected) => {
+    expect(settleIsNews(by ? { by } : {})).toBe(expected);
   });
 });
 

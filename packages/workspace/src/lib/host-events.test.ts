@@ -4,19 +4,19 @@ import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { appChanged } from "./apps/changed";
-import { appListChanges, sessionEnds } from "./host-events";
+import { appListChanges, chatSettles } from "./host-events";
 
 describe("host events", () => {
-  it("hands the host each session that ended", async () => {
+  it("hands the host each chat that settled", async () => {
     const controller = new AbortController();
-    const ends = sessionEnds({ signal: controller.signal });
-    const next = ends.next();
-    const ended = {
+    const settles = chatSettles({ signal: controller.signal });
+    const next = settles.next();
+    const settled = {
       id: ChatIdSchema.parse("host-events"),
       sessionId: StoreId.newSessionId(),
     };
-    publisher.publish("session.done", ended);
-    expect((await next).value).toEqual(ended);
+    publisher.publish("chat.settled", settled);
+    expect((await next).value).toEqual(settled);
     controller.abort();
   });
 

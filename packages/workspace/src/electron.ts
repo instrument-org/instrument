@@ -167,8 +167,9 @@ export { WINDOW_ID } from "./schemas/window-id";
 export {
   appCatalogChanges,
   appListChanges,
-  sessionEnds,
+  chatSettles,
 } from "./lib/host-events";
+export { settleIsNews } from "./lib/chat/chats";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";

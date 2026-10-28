@@ -40,17 +40,18 @@ export function appCatalogChanges(signal: AbortSignal | undefined) {
 }
 
 /**
- * Each session whose agent finished, until `signal` aborts. `maxBuffered`
- * is how many a listener still busy with one keeps of those after it.
+ * Each chat that came to rest (`chat.settled`), until `signal` aborts.
+ * `maxBuffered` is how many a listener still busy with one keeps of those
+ * after it.
  */
-export function sessionEnds({
+export function chatSettles({
   maxBuffered,
   signal,
 }: {
   maxBuffered?: number;
   signal?: AbortSignal;
 } = {}) {
-  return publisher.subscribe("session.done", {
+  return publisher.subscribe("chat.settled", {
     ...(maxBuffered === undefined ? {} : { maxBufferedEvents: maxBuffered }),
     signal,
   });

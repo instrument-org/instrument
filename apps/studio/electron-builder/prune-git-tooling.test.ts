@@ -30,9 +30,13 @@ const GIT_CORE_FILES = [
   "git-credential-manager.dll",
   "git-credential-manager.runtimeconfig.json",
   "git-credential-store",
+  "git-daemon",
+  "git-http-backend",
   "git-http-fetch",
+  "git-imap-send",
   "git-lfs",
   "git-remote-http",
+  "git-shell",
   "libAvaloniaNative.dylib",
   "libHarfBuzzSharp.dylib",
   "libSkiaSharp.dylib",
@@ -186,8 +190,12 @@ describe("pruneGitTooling", () => {
         "libexec/git-core/git-credential-manager.deps.json",
         "libexec/git-core/git-credential-manager.dll",
         "libexec/git-core/git-credential-manager.runtimeconfig.json",
+        "libexec/git-core/git-daemon",
+        "libexec/git-core/git-http-backend",
         "libexec/git-core/git-http-fetch",
+        "libexec/git-core/git-imap-send",
         "libexec/git-core/git-lfs",
+        "libexec/git-core/git-shell",
         "libexec/git-core/libAvaloniaNative.dylib",
         "libexec/git-core/libHarfBuzzSharp.dylib",
         "libexec/git-core/libSkiaSharp.dylib",
@@ -301,6 +309,28 @@ describe("relinkGitBuiltins", () => {
     symlinkSync("git", path.join(gitCore, "git-add"));
 
     expect(relinkGitBuiltins({ unpackedDir })).toStrictEqual([]);
+  });
+
+  it("turns bin/git into a symlink to the git in git-core when it is a copy", () => {
+    const { bin, gitCore, unpackedDir } = makeUnpackedFixture();
+    writeFileSync(path.join(bin, "git"), "git binary");
+    writeFileSync(path.join(gitCore, "git"), "git binary");
+
+    expect(relinkGitBuiltins({ unpackedDir })).toContain("bin/git");
+    expect(readlinkSync(path.join(bin, "git"))).toBe("../libexec/git-core/git");
+    expect(readFileSync(path.join(bin, "git"), "utf8")).toBe("git binary");
+    expect(() => {
+      verifyGitSurvived({ unpackedDir });
+    }).not.toThrow();
+  });
+
+  it("leaves bin/git alone when it differs from the git in git-core", () => {
+    const { bin, gitCore, unpackedDir } = makeUnpackedFixture();
+    writeFileSync(path.join(bin, "git"), "another git");
+    writeFileSync(path.join(gitCore, "git"), "git binary");
+
+    expect(relinkGitBuiltins({ unpackedDir })).not.toContain("bin/git");
+    expect(lstatSync(path.join(bin, "git")).isFile()).toBe(true);
   });
 
   it("does nothing without a git-core folder, as on Windows", () => {

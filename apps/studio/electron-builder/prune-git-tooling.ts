@@ -48,6 +48,13 @@ const GIT_CORE_LINK_TARGETS = ["git", "git-remote-http"];
 
 /** Standalone tools that ship beside git but are never invoked. */
 const UNREACHABLE_TOOLS = new Set([
+  // Servers and a login shell, which no client command starts: `git daemon`,
+  // the smart-HTTP CGI, the restricted shell for ssh logins, and
+  // `git imap-send`, which uploads patches to a mail server.
+  "git-daemon",
+  "git-http-backend",
+  "git-imap-send",
+  "git-shell",
   "git-http-fetch",
   "git-http-fetch.exe",
   "git-http-push",
@@ -159,7 +166,8 @@ export function pruneGitTooling({ unpackedDir }: { unpackedDir: string }) {
  * 261 MB to 502 MB zipped; once signed, each copy carries its own signature and
  * no longer matches the others. Runs before signing, while copies are still
  * byte-identical to their target. Windows' minGit has no symlinks and is left
- * alone. Returns the names it relinked.
+ * alone. `bin/git` is linked to `libexec/git-core/git` the same way. Returns
+ * the names it relinked, `bin/git` by its path from the git root.
  */
 export function relinkGitBuiltins({ unpackedDir }: { unpackedDir: string }) {
   const gitCore = path.join(
@@ -199,6 +207,23 @@ export function relinkGitBuiltins({ unpackedDir }: { unpackedDir: string }) {
     rmSync(file);
     symlinkSync(target.name, file);
     relinked.push(name);
+  }
+
+  // `bin/git`, the path dugite runs, is another copy of the same binary.
+  // dugite's build finds its programs through GIT_EXEC_PATH, which dugite
+  // always sets, not through where the binary sits (`--exec-path` reads the
+  // same from either path), so running it through a link changes nothing.
+  const binGit = path.join(gitCore, "..", "..", "bin", "git");
+  const coreGit = targets.find((target) => target.name === "git");
+  if (
+    coreGit &&
+    existsSync(binGit) &&
+    lstatSync(binGit).isFile() &&
+    coreGit.contents.equals(readFileSync(binGit))
+  ) {
+    rmSync(binGit);
+    symlinkSync(path.join("..", "libexec", "git-core", "git"), binGit);
+    relinked.push("bin/git");
   }
   return relinked;
 }

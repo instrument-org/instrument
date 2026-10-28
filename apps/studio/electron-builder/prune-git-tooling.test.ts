@@ -69,6 +69,81 @@ function makeUnpackedFixture() {
   return { bin, gitCore, unpackedDir };
 }
 
+/**
+ * A trimmed sample of what dugite ships on Windows: minGit under `mingw64/`,
+ * the credential manager's .NET Framework assemblies beside git, and the msys
+ * userland under `usr/`.
+ */
+const WINDOWS_FILES = [
+  "cmd/git.exe",
+  "mingw64/bin/Atlassian.Bitbucket.dll",
+  "mingw64/bin/Avalonia.Base.dll",
+  "mingw64/bin/Avalonia.Win32.dll",
+  "mingw64/bin/GitHub.dll",
+  "mingw64/bin/GitLab.dll",
+  "mingw64/bin/HarfBuzzSharp.dll",
+  "mingw64/bin/MicroCom.Runtime.dll",
+  "mingw64/bin/Microsoft.AzureRepos.dll",
+  "mingw64/bin/Microsoft.Bcl.AsyncInterfaces.dll",
+  "mingw64/bin/Microsoft.Identity.Client.dll",
+  "mingw64/bin/Microsoft.IdentityModel.Abstractions.dll",
+  "mingw64/bin/SkiaSharp.dll",
+  "mingw64/bin/System.Memory.dll",
+  "mingw64/bin/System.Text.Json.dll",
+  "mingw64/bin/av_libglesv2.dll",
+  "mingw64/bin/gcmcore.dll",
+  "mingw64/bin/git-askpass.exe",
+  "mingw64/bin/git-credential-helper-selector.exe",
+  "mingw64/bin/git-credential-manager.exe",
+  "mingw64/bin/git-credential-manager.exe.config",
+  "mingw64/bin/git-http-fetch.exe",
+  "mingw64/bin/git-http-push.exe",
+  "mingw64/bin/git-remote-http.exe",
+  "mingw64/bin/git-remote-https.exe",
+  "mingw64/bin/git.exe",
+  "mingw64/bin/libHarfBuzzSharp.dll",
+  "mingw64/bin/libSkiaSharp.dll",
+  "mingw64/bin/libcurl-4.dll",
+  "mingw64/bin/msalruntime.dll",
+  "mingw64/bin/scalar.exe",
+  "mingw64/bin/zlib1.dll",
+  "mingw64/doc/git-credential-manager/LICENSE",
+  "mingw64/doc/git-credential-manager/README.md",
+  "mingw64/libexec/git-core/git-credential-wincred.exe",
+  "mingw64/libexec/git-core/git-lfs.exe",
+  "mingw64/libexec/git-core/git-sh-setup",
+  "usr/bin/file.exe",
+  "usr/bin/msys-2.0.dll",
+  "usr/bin/msys-magic-1.dll",
+  "usr/bin/sh.exe",
+  "usr/share/licenses/file/COPYING",
+  "usr/share/misc/magic.mgc",
+];
+
+function makeWindowsFixture() {
+  const unpackedDir = mkdtempSync(path.join(tmpdir(), "prune-git-win-"));
+  const gitRoot = path.join(unpackedDir, "node_modules", "dugite", "git");
+  for (const name of WINDOWS_FILES) {
+    const file = path.join(gitRoot, name);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, "binary");
+  }
+  return { gitRoot, unpackedDir };
+}
+
+/** Every file under `dir`, relative to it, sorted. */
+function listFiles(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => !entry.isDirectory())
+    .map((entry) =>
+      path
+        .relative(dir, path.join(entry.parentPath, entry.name))
+        .split(path.sep)
+        .join("/"),
+    )
+    .sort();
+}
+
 describe("pruneGitTooling", () => {
   it("keeps git and its own credential helpers", () => {
     const { gitCore, unpackedDir } = makeUnpackedFixture();
@@ -82,7 +157,6 @@ describe("pruneGitTooling", () => {
         "git-credential-cache",
         "git-credential-cache--daemon",
         "git-credential-store",
-        "git-http-fetch",
         "git-remote-http",
       ]
     `);
@@ -112,6 +186,7 @@ describe("pruneGitTooling", () => {
         "libexec/git-core/git-credential-manager.deps.json",
         "libexec/git-core/git-credential-manager.dll",
         "libexec/git-core/git-credential-manager.runtimeconfig.json",
+        "libexec/git-core/git-http-fetch",
         "libexec/git-core/git-lfs",
         "libexec/git-core/libAvaloniaNative.dylib",
         "libexec/git-core/libHarfBuzzSharp.dylib",
@@ -126,6 +201,29 @@ describe("pruneGitTooling", () => {
         "libexec/git-core/libmscordaccore.dylib",
         "libexec/git-core/libmscordbi.dylib",
         "libexec/git-core/scalar",
+      ]
+    `);
+  });
+
+  it("removes the credential manager, file and the dumb-HTTP helpers from Windows git", () => {
+    const { gitRoot, unpackedDir } = makeWindowsFixture();
+
+    pruneGitTooling({ unpackedDir });
+
+    expect(listFiles(gitRoot)).toMatchInlineSnapshot(`
+      [
+        "cmd/git.exe",
+        "mingw64/bin/git-askpass.exe",
+        "mingw64/bin/git-remote-http.exe",
+        "mingw64/bin/git-remote-https.exe",
+        "mingw64/bin/git.exe",
+        "mingw64/bin/libcurl-4.dll",
+        "mingw64/bin/zlib1.dll",
+        "mingw64/libexec/git-core/git-credential-wincred.exe",
+        "mingw64/libexec/git-core/git-sh-setup",
+        "usr/bin/msys-2.0.dll",
+        "usr/bin/sh.exe",
+        "usr/share/licenses/file/COPYING",
       ]
     `);
   });

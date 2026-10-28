@@ -14,6 +14,16 @@
 //     sets only an Azure DevOps credential option.
 //   - scalar, a clone helper for very large repositories, which has no path
 //     from the agent's git command.
+//   - git-http-fetch and git-http-push, the dumb-HTTP walkers. A dumb-HTTP
+//     fetch runs inside git-remote-http, which links the walker itself;
+//     `http-push` is only started to push to a WebDAV remote, and pushing
+//     needs credentials the agent's git never has. `http-fetch` is otherwise
+//     only started for packfile URIs, which git asks a server for only when
+//     `fetch.uriProtocols` is set.
+//   - On Windows, msys `file` and its 9.9 MB magic database. Git never runs
+//     `file`, and the agent's `file` is the shell's builtin there
+//     (shell-commands/native-text.ts routes it to a system program only on
+//     macOS and Linux).
 //
 // Loaded as TS directly: electron-builder runs configs through jiti, so no
 // separate compile step is needed.
@@ -38,11 +48,45 @@ const GIT_CORE_LINK_TARGETS = ["git", "git-remote-http"];
 
 /** Standalone tools that ship beside git but are never invoked. */
 const UNREACHABLE_TOOLS = new Set([
+  "git-http-fetch",
+  "git-http-fetch.exe",
+  "git-http-push",
+  "git-http-push.exe",
   "git-lfs",
   "git-lfs.exe",
   "scalar",
   "scalar.exe",
 ]);
+
+/** Unreachable files and folders outside the program folders, by path from the git root. */
+const UNREACHABLE_PATHS = [
+  "mingw64/doc/git-credential-manager",
+  "usr/bin/file.exe",
+  "usr/bin/msys-magic-1.dll",
+  "usr/share/misc/magic.mgc",
+];
+
+/**
+ * Prefixes of the .NET Framework assemblies and native libraries the
+ * Windows credential manager ships beside git in `mingw64/bin`, and of the
+ * helper that picks a credential helper. Git and its own libraries are named
+ * `git*`, `lib*` and `zlib1.dll`, so none of these is git's.
+ */
+const WINDOWS_CREDENTIAL_MANAGER_PREFIXES = [
+  "Atlassian.",
+  "Avalonia.",
+  "GitHub.",
+  "GitLab.",
+  "HarfBuzzSharp.",
+  "MicroCom.",
+  "Microsoft.",
+  "SkiaSharp.",
+  "System.",
+  "av_libglesv2.",
+  "gcmcore.",
+  "git-credential-helper-selector.",
+  "msalruntime.",
+];
 
 /**
  * Prefixes of the self-contained .NET runtime that git-credential-manager
@@ -96,6 +140,14 @@ export function pruneGitTooling({ unpackedDir }: { unpackedDir: string }) {
       rmSync(path.join(dir, name), { force: true, recursive: true });
       removed.push(path.relative(gitRoot, path.join(dir, name)));
     }
+  }
+  for (const relative of UNREACHABLE_PATHS) {
+    const target = path.join(gitRoot, ...relative.split("/"));
+    if (!existsSync(target)) {
+      continue;
+    }
+    rmSync(target, { force: true, recursive: true });
+    removed.push(path.relative(gitRoot, target));
   }
   return removed;
 }
@@ -200,6 +252,9 @@ function isUnreachable(name: string) {
   return (
     UNREACHABLE_TOOLS.has(name) ||
     isCredentialManagerFile(name) ||
-    DOTNET_RUNTIME_PREFIXES.some((prefix) => name.startsWith(prefix))
+    DOTNET_RUNTIME_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
+    WINDOWS_CREDENTIAL_MANAGER_PREFIXES.some((prefix) =>
+      name.startsWith(prefix),
+    )
   );
 }

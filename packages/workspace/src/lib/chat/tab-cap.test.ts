@@ -15,6 +15,8 @@ import { closeTabsOverCap } from "./tab-cap";
 
 const lifetimes = vi.hoisted(() => new Map<string, TabLifetime>());
 const closes = vi.hoisted(() => [] as string[]);
+/** The tabs the window lists for the chat; undefined for no window to ask. */
+const listed = vi.hoisted(() => ({ ids: undefined as string[] | undefined }));
 
 vi.mock(import("../../machines/window-browser"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -25,6 +27,17 @@ vi.mock(import("./window-tab"), async (importOriginal) => ({
   askWindow: ({ action }: { action: { kind: string; tabId?: string } }) => {
     if (action.kind === "close" && action.tabId) {
       closes.push(action.tabId);
+    }
+    if (action.kind === "list" && listed.ids) {
+      return Promise.resolve({
+        requestId: "list",
+        tabs: listed.ids.map((id) => ({
+          id,
+          kind: "page" as const,
+          title: "",
+          url: "https://example.com/",
+        })),
+      });
     }
     return Promise.resolve(undefined);
   },
@@ -38,6 +51,7 @@ let root: string;
 beforeEach(async () => {
   lifetimes.clear();
   closes.length = 0;
+  listed.ids = undefined;
   root = await fs.mkdtemp(path.join(os.tmpdir(), "tab-cap-"));
   chatId = createMockChatConfigForDir(
     path.join(root, "chats", ChatIdSchema.parse("tab-cap-test")),
@@ -105,6 +119,23 @@ describe("closeTabsOverCap", () => {
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([]);
+  });
+
+  it("never counts or closes a tab the person closed in the window", async () => {
+    const closedByPerson = heldTab(900, { driver: TASK });
+    const tabs = [
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => heldTab(i)),
+      closedByPerson,
+    ];
+    await setChatState(chatDir(chatId), { browserTabs: tabs });
+    listed.ids = tabs
+      .filter((tab) => tab !== closedByPerson)
+      .map((tab) => tab.id);
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([]);
+    expect((await getChatState(chatDir(chatId))).closedTabs).toEqual([]);
   });
 
   it("closes an unloaded tab before any with a page", async () => {

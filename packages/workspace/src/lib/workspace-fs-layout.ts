@@ -983,9 +983,24 @@ function layoutRules(
   // Windows' `resolve` has to read for a path that names no drive, so the
   // command dies on a security violation instead of reading the file.
   // Resolved here, before the shell starts.
+  // A task's grant inside the apps folder (an app's own folder, say) is
+  // deeper than the apps folder's rule and would win there, so it reads only.
+  const appsRoots = [config.appsDir, realHostPath(config.appsDir)];
+  const held = layout.apps
+    ? outsideAppData
+    : outsideAppData.map((rule) =>
+        rule.level === "allow" &&
+        appsRoots.some(
+          (apps) =>
+            hostPathWithin(apps, rule.path) !== null ||
+            hostPathWithin(apps, realHostPath(rule.path)) !== null,
+        )
+          ? { ...rule, level: "readOnly" as const }
+          : rule,
+      );
   return {
     ...given,
-    rules: [...outsideAppData, ...own].map((rule) => ({
+    rules: [...held, ...own].map((rule) => ({
       ...rule,
       path: nodePath.resolve(rule.path),
     })),

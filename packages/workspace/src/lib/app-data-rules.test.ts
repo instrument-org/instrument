@@ -537,6 +537,20 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       expect(reachOf(layout.rules, app, "write").level).toBe("allow");
     });
 
+    // A grant deeper than the apps folder would otherwise win there.
+    it("keeps a grant to an app's own folder from opening it to a task", () => {
+      const folder = path.join(getWorkspaceConfig().appsDir, "Linear");
+      const app = path.join(folder, "APP.md");
+      const task = layoutUnder(paths, {
+        ...person,
+        apps: false,
+        grants: [folder],
+        opened: [folder],
+      });
+      expect(reachOf(task.rules, app, "read").level).toBe("allow");
+      expect(reachOf(task.rules, app, "write").level).not.toBe("allow");
+    });
+
     it.each(reachTable(paths).filter(([, , , level]) => level === "never"))(
       "refuses %s plainly, naming nothing to ask for",
       (_name, op, hostPath) => {

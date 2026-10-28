@@ -24,11 +24,10 @@ Separately, one set of tabs, the chat's tabs in the person's window, was reached
 - One id per tab. The agent-browser wrapper prints the `tab_` id in place of `t1` in `tab list` (text and `--json`) and ends `tab new` with the id it opened (`agent-browser-tab-ids.ts`). agent-browser still accepts `t1` if a model types it, since that costs nothing and refusing it would break a model working from the upstream guide; the guide's addendum says the `tab_` id is the one to use.
 - A task's shell has `instrument window list|read` and `instrument memory list|show`. Changing the window, saving or forgetting a memory, and `instrument task` stay the chat's, and each refusal says what to do instead: open pages of its own with `agent-browser tab new <url>` and say in the report what the chat should show; say what the chat should remember; do the work here and say what is left.
 - The shared prompt is role-neutral and stays byte-identical between chat and task: one line says that changing the window, saving or forgetting memories, and starting or steering tasks are the chat's, and that a task's report says what the chat should save, show or start; the window paragraph says the chat arranges the window; "Save the place they pick as a memory" became "The place they pick is a memory to keep".
-- `instrument tab …` keeps working as an alias: it runs the `instrument window` form it became (`open` and `show` as `show`, `replace <id> <x>` as `show <x> --in <id>`) and prints one line naming that form. It is left out of `instrument`'s listing. `SESSION_CONTEXT_VERSION` is not bumped, since a chat still holding the old prompt runs its old calls through the alias.
+- `instrument tab` is dropped outright, with no alias: before the first public 2.0 release only the team's own chats hold the old form, and a chat that calls it gets `instrument`'s usage, which lists `window`. `SESSION_CONTEXT_VERSION` is not bumped.
 
 ## Consequences
 
 - A task can see what is in front of the person and read a page there, and can read what is remembered, without being able to change either.
-- The chat's digest of opened sites reads both `instrument window show <url>` and the old `instrument tab open|replace` from transcripts.
+- The chat's digest of opened sites reads `instrument window show <url>` from transcripts; sites a chat opened with the old form drop out of it.
 - A model may still type `t1`; it works, and is never printed back.
-- The alias is one more word the shell answers. It can go once stored conversations no longer carry the old form, which is a later decision.

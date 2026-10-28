@@ -1270,7 +1270,7 @@ describe("listChats", () => {
       sessionId,
       "Updated.\n\n```files\n/Users/sam/Instrument/groceries/list.md\n/Users/sam/Instrument/groceries/prices.csv\n```",
       {
-        commands: ["instrument tab open https://www.costco.com/"],
+        commands: ["instrument window show https://www.costco.com/"],
         minute: 3,
       },
     );
@@ -1346,7 +1346,10 @@ describe("listChats", () => {
       chatId,
       sessionId,
       "Priced.\n\n```files\n/Users/sam/Instrument/groceries/prices.csv\n```",
-      { commands: ["instrument tab open https://www.costco.com/"], minute: 2 },
+      {
+        commands: ["instrument window show https://www.costco.com/"],
+        minute: 2,
+      },
     );
     await userSays(
       chatId,

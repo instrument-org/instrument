@@ -337,27 +337,6 @@ function isTabId(arg: string): boolean {
   return /^tab_[0-9A-Za-z]+$/.test(arg);
 }
 
-/**
- * An `instrument tab ...` call, from before the command was the window's, as
- * the `instrument window ...` call that does the same: `open` and `show` are
- * `show`, and `replace <id> <target>` is `show <target> --in <id>`.
- */
-export function windowArgsOfTab(args: readonly string[]): string[] {
-  const [verb, ...rest] = args;
-  if (verb === "open") {
-    return ["show", ...rest];
-  }
-  if (verb === "replace") {
-    const [tabId, ...targets] = rest;
-    return [
-      "show",
-      ...targets,
-      ...(tabId === undefined ? [] : ["--in", tabId]),
-    ];
-  }
-  return [...args];
-}
-
 function isUrl(arg: string): boolean {
   return arg.startsWith("http://") || arg.startsWith("https://");
 }

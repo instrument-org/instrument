@@ -857,13 +857,12 @@ function newestLast(items: string[]): string[] {
 
 /**
  * The hostnames a shell command opens for the user with `instrument window
- * show <url>`, or the `instrument tab open|replace` an earlier build's
- * transcript has.
+ * show <url>`.
  */
 function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
   for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*instrument\s+(?:window\s+show(?:\s+--in\s+\S+)?|tab\s+(?:open|replace\s+\S+))\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    /(?:^|[\n;&|])\s*instrument\s+window\s+show(?:\s+--in\s+\S+)?\s+['"]?(https?:\/\/[^\s'"]+)/g,
   )) {
     try {
       hosts.push(new URL(match[1] ?? "").hostname);

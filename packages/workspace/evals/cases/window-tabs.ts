@@ -7,8 +7,7 @@
  * new page is for putting something in front of the user and never a step in
  * starting work. Every case here starts from a note naming the tabs the user
  * has open, answered by the harness's stand-in window, and scores the
- * commands the conversation ran, in the window's forms or the `instrument tab`
- * forms an earlier build taught.
+ * commands the conversation ran.
  *
  * - **A new page is the browser's to open.** The failure that prompted this: a
  *   conversation opened a page and ran `instrument task new` in one command,
@@ -65,7 +64,7 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
-/** A command's words after `instrument window` or `instrument tab`, as the shell splits them. */
+/** A command's words after `instrument window`, as the shell splits them. */
 function shellWords(text: string): string[] {
   return [...text.matchAll(/'([^']*)'|"((?:\\.|[^"\\])*)"|(\S+)/g)].map(
     (match) => match[1] ?? match[2] ?? match[3] ?? "",
@@ -74,27 +73,18 @@ function shellWords(text: string): string[] {
 
 /**
  * The `instrument window <verb>` invocations in a command, each with its
- * arguments, `--in` and its tab apart. An earlier build's `instrument tab`
- * reads as the window form it became: `open` and `show` are `show`, and
- * `replace <id> <target>` is `show <target> --in <id>`.
+ * arguments, `--in` and its tab apart.
  */
 function windowCalls(
   command: string,
 ): { args: string[]; into?: string; verb: string }[] {
   return [
     ...command.matchAll(
-      /(?:^|[\n;&|])\s*instrument\s+(window|tab)\s+(\w+)([^\n;&|]*)/g,
+      /(?:^|[\n;&|])\s*instrument\s+window\s+(\w+)([^\n;&|]*)/g,
     ),
   ].map((match) => {
-    const words = shellWords(match[3] ?? "");
-    const verb = match[2] ?? "";
-    if (match[1] === "tab" && (verb === "open" || verb === "show")) {
-      return { args: words, verb: "show" };
-    }
-    if (match[1] === "tab" && verb === "replace") {
-      const [into, ...targets] = words;
-      return { args: targets, ...(into && { into }), verb: "show" };
-    }
+    const words = shellWords(match[2] ?? "");
+    const verb = match[1] ?? "";
     const at = words.indexOf("--in");
     const into = at === -1 ? undefined : words[at + 1];
     return {

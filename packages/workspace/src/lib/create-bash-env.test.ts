@@ -354,18 +354,4 @@ describe("instrument", () => {
       "
     `);
   });
-
-  // Stored conversations hold calls in the form the command had before.
-  it("runs `instrument tab` as `instrument window`, naming the form it ran as", async () => {
-    const bash = await shell("instrument-tab-alias", "task");
-    const result = await bash.exec(
-      "instrument tab replace tab_01M5Q0AAAAAAAAAAAAAAAAAAAA 'https://example.com/a b'",
-    );
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument tab is now instrument window; this ran \`instrument window show 'https://example.com/a b' --in tab_01M5Q0AAAAAAAAAAAAAAAAAAAA\`.
-      instrument window: only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.
-      "
-    `);
-  });
 });

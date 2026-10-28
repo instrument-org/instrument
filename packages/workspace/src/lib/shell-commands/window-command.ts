@@ -18,12 +18,6 @@ export const WINDOW_COMMAND = {
 } as const;
 
 /**
- * The word `instrument window` went by before, kept as an alias: stored
- * conversations hold calls in the old form, and a model imitates its history.
- */
-export const TAB_ALIAS_WORD = "tab";
-
-/**
  * Why a task's `instrument window` changes nothing: the window is in front of
  * the person, and only the chat they talk to arranges it.
  */

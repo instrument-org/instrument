@@ -112,11 +112,8 @@ import {
   PYTHON_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
-import { createWindowCommand, windowArgsOfTab } from "./shell-commands/window";
-import {
-  TAB_ALIAS_WORD,
-  WINDOW_COMMAND,
-} from "./shell-commands/window-command";
+import { createWindowCommand } from "./shell-commands/window";
+import { WINDOW_COMMAND } from "./shell-commands/window-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { createTaskCommand } from "./shell-commands/task/command";
 import {
@@ -980,13 +977,6 @@ export async function createLocalBashEnv({
     cmd.factory({ chatId, invokeTool, layout }),
   );
   const instrumentCommand = createInstrumentCommand({
-    aliases: [
-      {
-        to: WINDOW_COMMAND.word,
-        translate: windowArgsOfTab,
-        word: TAB_ALIAS_WORD,
-      },
-    ],
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       {

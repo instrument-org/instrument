@@ -10,7 +10,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
-import { createWindowCommand, windowArgsOfTab } from "./window";
+import { createWindowCommand } from "./window";
 
 const chatId = ChatIdSchema.parse("window-command-chat");
 // As this computer spells it, with a drive on Windows, where the browser's
@@ -455,38 +455,5 @@ describe("in a task", () => {
       "instrument window: only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.
       "
     `);
-  });
-});
-
-describe("the tab alias", () => {
-  it.each([
-    [
-      ["open", "a", "b"],
-      ["show", "a", "b"],
-    ],
-    [
-      ["show", "tab_known"],
-      ["show", "tab_known"],
-    ],
-    [
-      ["replace", "tab_known", "https://example.com/"],
-      ["show", "https://example.com/", "--in", "tab_known"],
-    ],
-    [
-      ["replace", "tab_known"],
-      ["show", "--in", "tab_known"],
-    ],
-    [["list"], ["list"]],
-    [
-      ["read", "tab_known"],
-      ["read", "tab_known"],
-    ],
-    [
-      ["close", "tab_known"],
-      ["close", "tab_known"],
-    ],
-    [[], []],
-  ])("runs tab %j as window %j", (tab, window) => {
-    expect(windowArgsOfTab(tab)).toEqual(window);
   });
 });

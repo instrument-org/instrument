@@ -51,7 +51,10 @@ function readSession(lines, t0) {
       const input = typeof p.input === "object" && p.input ? p.input : {};
       let s = steps.get(p.toolCallId);
       if (!s) {
-        s = { t: at, end: null, tool: p.type.slice(5), label: input.activity || input.explanation || p.type.slice(5) };
+        // A step's label is its explanation, the one specific sentence the agent writes for that call; its activity is
+        // the short label it shares with the calls around it (three searches run at once can all be "Checking current
+        // plan prices"), kept for a design that groups steps under it.
+        s = { t: at, end: null, tool: p.type.slice(5), label: input.explanation || input.activity || p.type.slice(5), activity: input.activity || "" };
         const task = /instrument task new\b[^\n]*?--name\s+(['"])(.*?)\1/.exec(String(input.command ?? ""));
         if (task) s.startsTask = task[2];
         if (p.type === "tool-ask_permission") s.ask = { reason: input.reason ?? "", target: input.target ?? "", kind: input.kind ?? "" };

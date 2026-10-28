@@ -22,6 +22,7 @@ function readSession(lines, t0) {
   const roles = new Map();
   const texts = new Map();
   const steps = new Map();
+  const tabs = new Map();
   const out = { id: header.id, parent: header.parent ?? null, name: header.startedAs, start: secs(header.at, t0), you: [], says: [], steps: [], errors: [], stops: [], wakes: [] };
   for (const o of lines) {
     if (o.t === "message") {
@@ -59,11 +60,35 @@ function readSession(lines, t0) {
       if (p.state === "output-available" || p.state === "output-error") {
         s.end = at;
         if (p.state === "output-error") s.failed = true;
+        readTabs(s, String(input.command ?? ""), typeof p.output?.output === "string" ? p.output.output : "", at);
       }
     }
   }
   out.says = [...texts.values()].filter((x) => x.text.trim());
   out.steps = [...steps.values()].map((s) => ({ ...s, end: s.end ?? s.t }));
+  out.tabs = [...tabs.values()];
+
+  /**
+   * The chat's tabs, from what its commands said: `instrument tab open` names each tab it opened, agent-browser's
+   * page notes name the page its own tab is on, and `instrument tab close` ends one. A step that names a tab, or
+   * drives agent-browser, is using that tab while it runs.
+   */
+  function readTabs(step, command, text, at) {
+    const uses = new Set();
+    for (const m of text.matchAll(/^Opened (\S+) \(tab (tab_\w+)\)/gm)) {
+      tabs.set(m[2], { id: m[2], url: m[1], title: "", t: at, closed: null });
+      uses.add(m[2]);
+    }
+    for (const m of text.matchAll(/Page after `\w+` on “(.*?)”, (https?:\/\/\S+)/g)) {
+      const tab = tabs.get("browser") ?? { id: "browser", t: at, closed: null };
+      Object.assign(tab, { url: m[2], title: m[1] });
+      tabs.set("browser", tab);
+    }
+    for (const m of command.matchAll(/instrument tab close\s+(tab_\w+)/g)) if (tabs.has(m[1])) tabs.get(m[1]).closed = at;
+    for (const m of command.matchAll(/tab_\w+/g)) uses.add(m[0]);
+    if (/\bagent-browser\b/.test(command)) uses.add("browser");
+    if (uses.size) step.uses = [...uses];
+  }
   const last = Math.max(out.start, ...out.says.map((x) => x.t), ...out.steps.map((x) => x.end), ...out.stops);
   out.end = last;
   return out;

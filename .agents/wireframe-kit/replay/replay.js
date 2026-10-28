@@ -39,7 +39,7 @@ const md = (text) => {
   return t
     .trim()
     .split(/\n{2,}/)
-    .map((p) => (/^\u0000\d+\u0000$/.test(p.trim()) ? p.trim() : `<div>${para(p)}</div>`))
+    .map((p) => (/^\u0000\d+\u0000$/.test(p.trim()) ? p.trim() : `<div class="mb-3 last:mb-0">${para(p)}</div>`))
     .join("")
     .replace(/\u0000(\d+)\u0000/g, (_, i) => held[Number(i)]);
 };
@@ -76,6 +76,14 @@ const askCard = (ask) => `
     <div class="mt-2.5 flex gap-1.5">${pillDark("Allow")}${pillSoft("Don't allow")}</div>
   </div>`;
 
+const hostName = (url) => url.replace(/^\w+:\/\/(www\.)?/, "").split(/[/?#]/)[0];
+const siteName = (url) => {
+  const parts = hostName(url).split(".");
+  const name = parts.length > 1 ? parts[parts.length - 2] : parts[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+};
+const TAB_COLORS = ["#5e6ad2", "#f06a6a", "#0c66e4", "#1f8a5b", "#c2410c", "#7c3aed"];
+
 /** Every moment something changes, in order, with the line the scrubber shows for it. */
 const EVENTS = (() => {
   const c = TL.chat;
@@ -83,6 +91,10 @@ const EVENTS = (() => {
     ...c.you.map((y) => ({ t: y.t, kind: "you", text: `You: ${y.text}` })),
     ...c.says.map((s) => ({ t: s.t, kind: "says", text: `Instrument: ${firstSentence(s.text) || s.text.slice(0, 100)}` })),
     ...c.steps.map((s) => ({ t: s.t, kind: s.ask ? "ask" : s.startsTask ? "task" : "step", text: s.ask ? `Asks to use ${s.ask.target}` : s.startsTask ? `Starts a task: ${s.startsTask}` : `Step: ${s.label}` })),
+    ...[...new Set(c.tabs.map((k) => k.t))].map((t) => {
+      const names = c.tabs.filter((k) => k.t === t).map((k) => siteName(k.url));
+      return { t, kind: "tab", text: `Opens ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]} in ${names.length > 1 ? "tabs" : "a tab"}` };
+    }),
     ...c.errors.map((e, i) => ({ t: e.t, kind: "error", text: `A request to the model failed (${i + 1} of ${c.errors.length}), so it tries again` })),
     ...TL.tasks.flatMap((k) => [
       ...k.steps.map((s) => ({ t: s.t, kind: "taskstep", text: `${k.name}: ${s.label}` })),
@@ -91,6 +103,51 @@ const EVENTS = (() => {
   ];
   return ev.sort((a, b) => a.t - b.t);
 })();
+
+/** What the person has open: the pane opens from the tabs button and closes the chat list; `tab` is one they picked. */
+const VIEW = { pane: false, list: true, tab: null };
+
+
+/** The chat's tabs open at T, as the design's tab objects: a title, an address, a mark, and the page or a stand-in for it. */
+const tabsAt = (T) =>
+  TL.chat.tabs
+    .filter((k) => k.t <= T && (k.closed == null || k.closed > T))
+    .map((k) => {
+      const name = siteName(k.url);
+      const title = k.title || `${name} · ${k.url.replace(/^\w+:\/\/[^/]+\/?/, "") || "home"}`;
+      const color = TAB_COLORS[TL.chat.tabs.indexOf(k) % TAB_COLORS.length];
+      const page = k.picture ? `<img src="${k.picture}" alt="" class="block w-full" />` : docPage({ letter: name[0], color, name, heading: esc(title), dark: false });
+      return { id: k.id, url: k.url, title, letter: name[0], color, page };
+    });
+
+/** The tab a step is using at T. A step that names several tabs works through them in turn while it runs. */
+const usingAt = (T) => {
+  const step = TL.chat.steps.find((s) => s.uses && s.t <= T && T <= s.end + 0.6);
+  const ids = step ? step.uses.filter((id) => TL.chat.tabs.some((k) => k.id === id)) : [];
+  if (!ids.length) return null;
+  const span = Math.max(0.1, step.end + 0.6 - step.t);
+  return ids[Math.min(ids.length - 1, Math.floor(((T - step.t) / span) * ids.length))];
+};
+
+/** The pane with the chat's tabs: the one picked, else the one in use, else the newest, glowing while Instrument uses it. */
+const replayPane = (tabs, usingId) => {
+  const active = tabs.find((t) => t.id === VIEW.tab) ?? tabs.find((t) => t.id === usingId) ?? tabs.at(-1);
+  const body =
+    active.id === usingId
+      ? usedPage({ url: active.url, html: active.page, cursor: { x: 250, y: 320 } })
+      : `${addressRow(active.url)}<div class="relative min-h-0 flex-1 overflow-hidden">${active.page}</div>`;
+  return `
+  <div class="relative flex shrink-0 flex-col bg-background p-2 pl-0" style="width:680px">
+    <div class="flex min-h-0 flex-1 flex-col rounded-xl bg-[light-dark(#f5f5f4,#1c1c1a)] p-1.5">
+      <div class="flex h-9 shrink-0 items-center gap-1 pb-1.5">
+        ${tabs.map((t) => `<span data-tab="${t.id}" class="flex min-w-0 shrink cursor-pointer">${pageTab(siteMark(t), esc(t.title), { on: t.id === active.id, agent: t.id === usingId })}</span>`).join("")}
+        <span class="grid size-7 shrink-0 place-items-center text-foreground/55"><i class="ph ph-plus text-[14px]"></i></span>
+        <span class="flex-1"></span><span data-pane-close class="cursor-pointer">${iconBtn("x")}</span>
+      </div>
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-xs">${body}</div>
+    </div>
+  </div>`;
+};
 
 /** The chat at time T: its list row, then the transcript up to that moment, its own work inline and each task in a card. */
 const replayView = (T) => {
@@ -146,16 +203,22 @@ const replayView = (T) => {
       ...ROWS.slice(1, 4),
     ],
   }).replace("ph ph-warning-circle shrink-0 text-[14px]", "ph ph-question shrink-0 text-[15px]");
+  const tabs = tabsAt(T);
+  const pane = VIEW.pane && tabs.length > 0;
+  const right = tabs.length && !pane ? `<span data-pane-open class="cursor-pointer">${tabsPill(tabs)}</span>` : "";
   const transcript = `
     <div class="relative flex min-w-0 flex-1 flex-col">
-      ${head(REPLAY.chat)}
+      ${head(REPLAY.chat, { open: pane, right })}
       <div data-transcript class="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]"><div class="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 pt-4 pb-2">${turnMeta({ when: "Today" })}${out.join("")}</div></div>
       <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${replyBox({})}</div>
     </div>`;
-  return appWindow({ bar: winBar({ tabs: [{ chats: true, title: REPLAY.chat }] }), body: list + transcript });
+  return appWindow({
+    bar: winBar({ tabs: [{ chats: true, title: REPLAY.chat }] }),
+    body: (VIEW.list ? list : "") + transcript + (pane ? replayPane(tabs, usingAt(T)) : ""),
+  });
 };
 
-const TICK = { you: "bg-foreground h-3.5", says: "bg-foreground/30 h-2.5", step: "bg-foreground/30 h-2.5", ask: "bg-warning-500 h-3.5", task: "bg-brand-600 h-3.5", taskstep: "bg-brand-400 h-2", taskdone: "bg-brand-600 h-3.5", error: "bg-[#d14b3f] h-3.5" };
+const TICK = { you: "bg-foreground h-3.5", says: "bg-foreground/30 h-2.5", step: "bg-foreground/30 h-2.5", ask: "bg-warning-500 h-3.5", task: "bg-brand-600 h-3.5", taskstep: "bg-brand-400 h-2", taskdone: "bg-brand-600 h-3.5", error: "bg-[#d14b3f] h-3.5", tab: "bg-[#0c66e4] h-3.5" };
 const captionAt = (T) => (EVENTS.filter((e) => e.t <= T).at(-1) || { text: "The chat opens" }).text;
 
 /** The scrubber under the screen: play, the timeline with a tick per event and a bar per task, the time, what just happened, and the speed. */
@@ -244,6 +307,23 @@ if (typeof document !== "undefined") {
     if (fold) {
       const key = fold.dataset.fold;
       OPEN.has(key) ? OPEN.delete(key) : OPEN.add(key);
+      return show(T);
+    }
+    if (e.target.closest?.("[data-pane-open]")) {
+      Object.assign(VIEW, { pane: true, list: false });
+      return show(T);
+    }
+    if (e.target.closest?.("[data-pane-close], #screen span:has(> i.ph-browsers)")) {
+      Object.assign(VIEW, { pane: false, list: true, tab: null });
+      return show(T);
+    }
+    if (e.target.closest?.("#screen span:has(> i.ph-sidebar-simple)")) {
+      VIEW.list = !VIEW.list;
+      return show(T);
+    }
+    const tab = e.target.closest?.("[data-tab]");
+    if (tab) {
+      VIEW.tab = tab.dataset.tab;
       return show(T);
     }
     if (e.target.closest?.("[data-replay-play]")) return play();

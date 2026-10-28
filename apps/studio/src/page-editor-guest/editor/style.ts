@@ -25,6 +25,7 @@ import {
   tokenSplices,
 } from "./page-panel";
 import { type Region, regionOf, withContext } from "./regions";
+import { generatedRule, onRestyle, untilRestyled } from "./restyle";
 import { classAttr, classSplice, innerRange, type Splice } from "./source";
 import {
   type BlockedBy,
@@ -43,6 +44,9 @@ const frames = () =>
       }),
     ),
   );
+
+/** How long a color refresh waits for the page's next compile. */
+const COLOR_WATCH_MS = 3000;
 
 /** Tailwind's breakpoints, in rem. */
 const BP: Record<string, number> = {
@@ -254,14 +258,30 @@ export function createStyle(ed: Editor): StyleApi {
     );
   }
 
-  /** Re-read the page's resolved token colors once its styles have recompiled. */
+  let stopColorWatch = () => {};
+
+  /**
+   * Re-read the page's resolved token colors now, and again at the page's
+   * next compile, which a theme change starts and a class change may not.
+   */
   async function refreshColors() {
-    await frames();
-    await frames();
-    state.colors = resolveColors(document, colorNames());
-    if (state.panelMode === "style") {
-      renderInspector();
-    }
+    const read = () => {
+      state.colors = resolveColors(document, colorNames());
+      if (state.panelMode === "style") {
+        renderInspector();
+      }
+    };
+    stopColorWatch();
+    const stop = onRestyle(() => {
+      stopColorWatch();
+      read();
+    });
+    const timer = setTimeout(stop, COLOR_WATCH_MS);
+    stopColorWatch = () => {
+      stop();
+      clearTimeout(timer);
+    };
+    read();
   }
 
   function setPreview(prop: null | string, value?: string) {
@@ -342,11 +362,10 @@ export function createStyle(ed: Editor): StyleApi {
         prop === "box-shadow"
           ? ccs.getPropertyValue(prop).includes(want)
           : ccs.getPropertyValue(prop) === want;
-      const t0 = performance.now();
-      while (performance.now() - t0 < 900 && !probes.some(hit)) {
-        await frames();
-      }
-      await frames();
+      await untilRestyled(
+        probes.map((x) => x[1]),
+        () => probes.every(hit),
+      );
       const blocked = new Map<string, BlockedBy>();
       const s = staticEntry(state.A, el);
       const tokens = s.entry ? classAttr(state.A, s.entry).tokens : [];
@@ -395,8 +414,13 @@ export function createStyle(ed: Editor): StyleApi {
     const before = op.props.map((p) =>
       getComputedStyle(el).getPropertyValue(p),
     );
-    setLiveClass(el, mergeOp(liveTokens, op).join(" "));
-    const changed = await waitChange(el, op.props, before, 700);
+    const nextLive = mergeOp(liveTokens, op);
+    setLiveClass(el, nextLive.join(" "));
+    const live = getComputedStyle(el);
+    const changed = await untilRestyled(
+      nextLive.filter((t) => !liveTokens.includes(t)),
+      () => op.props.some((p, i) => live.getPropertyValue(p) !== before[i]),
+    );
     const probed =
       state.probe?.el === el
         ? op.props.map((p) => state.probe?.blocked?.get(p)).find(Boolean)
@@ -488,25 +512,9 @@ export function createStyle(ed: Editor): StyleApi {
     }
     const rules: string[] = [];
     for (const c of missing) {
-      const selector = `.${CSS.escape(c)}`;
-      for (const sheet of document.styleSheets) {
-        const owner = sheet.ownerNode;
-        if (
-          owner instanceof Element &&
-          owner.matches('style[data-tailwind="compiled"]')
-        ) {
-          continue;
-        }
-        let hit = null;
-        try {
-          hit = findRule(sheet.cssRules, selector);
-        } catch {
-          // A cross-origin sheet's rules cannot be read.
-        }
-        if (hit) {
-          rules.push(hit);
-          break;
-        }
+      const hit = generatedRule(c);
+      if (hit) {
+        rules.push(hit);
       }
     }
     if (rules.length === 0) {
@@ -544,37 +552,4 @@ function blockReason(tokens: string[], cls: string): BlockedBy {
     }
   }
   return "page-css";
-}
-
-/** The text of the rule for exactly `selector`, searching nested rules too. */
-function findRule(list: CSSRuleList, selector: string): null | string {
-  for (const r of list) {
-    if (r instanceof CSSStyleRule && r.selectorText === selector) {
-      return r.cssText;
-    }
-    if (r instanceof CSSGroupingRule || r instanceof CSSStyleRule) {
-      const f = findRule(r.cssRules, selector);
-      if (f) {
-        return f;
-      }
-    }
-  }
-  return null;
-}
-
-async function waitChange(
-  el: Element,
-  props: string[],
-  before: string[],
-  ms: number,
-) {
-  const c = getComputedStyle(el);
-  const t0 = performance.now();
-  while (performance.now() - t0 < ms) {
-    if (props.some((p, i) => c.getPropertyValue(p) !== before[i])) {
-      return true;
-    }
-    await frames();
-  }
-  return false;
 }

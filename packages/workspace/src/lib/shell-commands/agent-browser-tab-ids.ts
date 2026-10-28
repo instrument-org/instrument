@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseAgentBrowserArgs } from "./agent-browser-args";
+
 /** What `tab list --json` says of each tab: agent-browser's label and the target, which is the window's id for the tab. */
 const TabListSchema = z.looseObject({
   data: z.looseObject({
@@ -28,15 +30,19 @@ type TabList = z.output<typeof TabListSchema>;
 export function tabOutputOf(
   args: readonly string[],
 ): "list" | "list-json" | "new" | undefined {
-  const [subcommand, ...rest] = args;
+  // Global flags such as `--json` may come before the command or after it.
+  const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs([...args]);
   if (subcommand !== "tab") {
     return undefined;
   }
-  const words = rest.filter((arg) => arg !== "--json");
+  const json = globalFlags.some(
+    (flag) => flag.name === "--json" && flag.value !== "false",
+  );
+  const words = subArgs.slice(1).map((arg) => arg.value);
   if (words.length === 0 || (words.length === 1 && words[0] === "list")) {
-    return rest.includes("--json") ? "list-json" : "list";
+    return json ? "list-json" : "list";
   }
-  return words[0] === "new" && !rest.includes("--json") ? "new" : undefined;
+  return words[0] === "new" && !json ? "new" : undefined;
 }
 
 function parseTabList(json: string): TabList | undefined {

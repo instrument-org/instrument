@@ -283,6 +283,50 @@
     "name": "load_skill"
   },
   {
+    "description": "Offer to send the Instrument team a short write-up of something broken in Instrument itself: its browser, shell, file tools, or an app connection failing in a way neither the request nor the site explains. The user sees your heading and reason on a card, can read your write-up, and decides whether to send it with the chat. Not for a site that is down or refuses you, a model refusing, a missing permission, your own mistake, or anything the user did. The card is the whole offer, and often none is shown, so your reply carries on with the work. It returns at once.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "activity": {
+          "description": "The phase of work this call belongs to, as a short heading in the present continuous, under about eight words (e.g. 'Charting the quarterly numbers'). Calls serving one objective repeat the same heading word for word. Generate this first.",
+          "type": "string"
+        },
+        "explanation": {
+          "description": "A label for this call: a short phrase starting with a verb ending in -ing, e.g. 'Reading the sales spreadsheet'. Generate this before the call's other fields.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "The card's heading: what went wrong and how often, in one plain line: 'Zendesk's page crashed the browser tab three times in a row'."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "One plain sentence under the heading on why this is Instrument's fault rather than the site's, the user's or yours: 'Other sites loaded fine, so this looks like a bug in Instrument.'"
+        },
+        "writeup": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Plain Markdown facts for the team, a few short lines: what you were doing, what happened (error text verbatim), what you tried, what you did instead. No apology, no guessed cause, nothing about the user the problem doesn't need."
+        }
+      },
+      "required": [
+        "activity",
+        "explanation",
+        "title",
+        "reason",
+        "writeup"
+      ],
+      "additionalProperties": false
+    },
+    "name": "offer_feedback"
+  },
+  {
     "description": "Reads a file from your work folder, or from one of the user's folders.\n\nUsage:\n- The filePath parameter must be a path relative to your work folder, or the full path of a file in one of the user's folders. E.g. ./research/notes.md\n- By default, it reads up to 2000 lines starting from the beginning of the file, and at most 50KB of content -- whichever limit is reached first. A long file therefore often stops well before 2000 lines; the output says where it stopped and which limit applied.\n- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.\n- When using limit, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.\n- Any lines longer than 2000 characters will be truncated.\n- Results are returned using cat -n format, with line numbers starting at the offset or 1.\n- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.\n- You can read images by using this tool. This model cannot take PDFs, audio files, or video files as input, in any format: get at what they hold with other tools instead, such as a transcript of audio or the extracted text of a PDF.\n- Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.\n- Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with region set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",

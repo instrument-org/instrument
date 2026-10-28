@@ -22,7 +22,7 @@ import {
   skillFolderToSkip,
   type SkippedSkillFolder,
 } from "./guarded-skill-folders";
-import { macosGuardedRoot } from "./permissions/macos";
+import { macosGuardedRoot, watchMacosPrompt } from "./permissions/macos";
 
 export const FILE_LIST_LIMIT = 50;
 
@@ -699,11 +699,13 @@ async function findSkillsInDir(
 }
 
 /**
- * How long a source's listing may take before this pass goes on without it.
- * A listing of a folder macOS guards waits for the person's answer to the
- * system's prompt, and that answer must not hold a chat's first turn.
+ * How long a source's listing may take before this pass goes on without it,
+ * when no prompt of macOS's says why: a folder on a network volume that
+ * stopped answering must not hold a chat's first turn. A slow disk or a
+ * folder still downloading gets this long; a listing waiting on the person's
+ * answer to macOS's prompt is left out as soon as the prompt shows.
  */
-const SOURCE_LOOK_MS = 1000;
+const SOURCE_LOOK_MS = 10_000;
 
 type SourceListing = { entries: Dirent[] } | { error: unknown };
 
@@ -740,14 +742,20 @@ function sourceListing(dir: AbsolutePath): Promise<SourceListing> {
  */
 async function listSource(dir: AbsolutePath): Promise<Dirent[]> {
   let timer: NodeJS.Timeout | undefined;
-  const listed = await Promise.race([
-    sourceListing(dir),
-    new Promise<{ waiting: true }>((resolve) => {
-      timer = setTimeout(() => {
-        resolve({ waiting: true });
-      }, SOURCE_LOOK_MS);
-    }),
-  ]).finally(() => {
+  const listing = sourceListing(dir);
+  const capped = new Promise<{ waiting: true }>((resolve) => {
+    timer = setTimeout(() => {
+      resolve({ waiting: true });
+    }, SOURCE_LOOK_MS);
+  });
+  const asking = new Promise<{ waiting: true }>((resolve) => {
+    // Unwatched, the cap still ends the wait.
+    watchMacosPrompt(Promise.race([listing, capped]), () => {
+      resolve({ waiting: true });
+      return Promise.resolve();
+    }).catch(() => undefined);
+  });
+  const listed = await Promise.race([listing, capped, asking]).finally(() => {
     clearTimeout(timer);
   });
   if ("entries" in listed) {

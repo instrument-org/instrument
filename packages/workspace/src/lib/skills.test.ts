@@ -26,29 +26,73 @@ afterEach(async () => {
   );
 });
 
+// Whether macOS shows its prompt while a listing waits; none unless a test says so.
+const promptShows = vi.hoisted(() => ({ value: false }));
+
+vi.mock("./permissions/macos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./permissions/macos")>()),
+  watchMacosPrompt: async (
+    _pending: Promise<unknown>,
+    onAsking: () => Promise<void>,
+  ) => {
+    if (promptShows.value) {
+      await onAsking();
+    }
+    return promptShows.value;
+  },
+}));
+
 describe("a source whose listing waits", () => {
-  it("starts one listing however many passes come while it waits", async () => {
+  async function heldSource() {
     const dir = AbsolutePathSchema.parse(
       await fs.mkdtemp(path.join(os.tmpdir(), "skills-held-")),
     );
     temporaryDirs.push(dir);
+    return { dir, id: "claude", source: "claude" } as const;
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    promptShows.value = false;
+  });
+
+  it("starts one listing however many passes come while macOS asks", async () => {
+    promptShows.value = true;
+    const source = await heldSource();
     // As macOS holds a listing while its prompt for the folder is up.
     const readdir = vi
       .spyOn(fs, "readdir")
       .mockImplementation(() => new Promise(() => {}));
-    try {
-      const source = { dir, id: "claude", source: "claude" } as const;
-      const passes = await Promise.all([
-        findSkills([source]),
-        findSkills([source]),
-        findSkills([source]),
-      ]);
 
-      expect(passes).toEqual([[], [], []]);
-      expect(readdir).toHaveBeenCalledTimes(1);
-    } finally {
-      readdir.mockRestore();
-    }
+    const passes = await Promise.all([
+      findSkills([source]),
+      findSkills([source]),
+      findSkills([source]),
+    ]);
+
+    expect(passes).toEqual([[], [], []]);
+    expect(readdir).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits out a slow listing with no prompt, up to a cap", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const source = await heldSource();
+    const readdir = vi
+      .spyOn(fs, "readdir")
+      .mockImplementation(() => new Promise(() => {}));
+    let settled = false;
+    const pass = findSkills([source]).finally(() => {
+      settled = true;
+    });
+
+    await vi.waitFor(() => {
+      expect(readdir).toHaveBeenCalled();
+    });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(5000);
+    await expect(pass).resolves.toEqual([]);
   });
 });
 

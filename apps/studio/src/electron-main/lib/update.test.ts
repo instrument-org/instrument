@@ -309,7 +309,7 @@ function stageOnLinux(
   const quit = app.on.mock.calls.findLast(([event]) => event === "quit")?.[1];
   return {
     downloaded: handlers.downloaded,
-    install: () => updaterPort.install(),
+    install: () => updaterPort.install({ automatic: false }),
     quit: () => quit?.(),
   };
 }

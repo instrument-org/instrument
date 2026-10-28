@@ -874,3 +874,118 @@ describe("pollForUpdates", () => {
     expect(h.checks).toHaveBeenCalledTimes(before + 1);
   });
 });
+
+describe("installing while the app is not in use", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const automatic = (confirm: (version: string) => Promise<boolean>) =>
+    ({ confirm, type: "automatic" }) as const;
+
+  it("installs with its own last look in place of the quit prompt, showing nothing until then", async () => {
+    const confirmQuit = vi.fn().mockResolvedValue(true);
+    const confirm = vi.fn().mockResolvedValue(true);
+    const h = createHarness({ confirmQuit });
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+
+    await expect(h.updater.quitAndInstall(automatic(confirm))).resolves.toEqual(
+      { type: "installing" },
+    );
+    expect(confirmQuit).not.toHaveBeenCalled();
+    expect(confirm).toHaveBeenCalledWith(STAGED);
+    expect(h.installs).toHaveBeenCalledWith({ automatic: true });
+    expect(h.published.map((status) => status.type)).toEqual(["installing"]);
+  });
+
+  it("backs off without installing when the last look finds the app in use", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+
+    await expect(
+      h.updater.quitAndInstall(automatic(() => Promise.resolve(false))),
+    ).resolves.toEqual({ type: "quit-canceled" });
+    expect(h.installs).not.toHaveBeenCalled();
+    expect(h.published).toEqual([]);
+    expect(h.updater.readiness()).toMatchObject({ type: "ready" });
+  });
+
+  it("installs the build that superseded the staged one, once it lands", async () => {
+    const confirm = vi.fn().mockResolvedValue(true);
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWith(NEWER);
+
+    const install = h.updater.quitAndInstall(automatic(confirm));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(confirm).not.toHaveBeenCalled();
+    h.respondWith(NEWER);
+    h.events().downloaded(updateInfo(NEWER));
+    await expect(install).resolves.toEqual({ type: "installing" });
+    expect(confirm).toHaveBeenCalledWith(NEWER);
+  });
+
+  it("says nothing to the person when the staged build turns out stale", async () => {
+    const h = createHarness({ currentVersion: STAGED });
+    h.stage(STAGED);
+    h.respondWith(STAGED);
+
+    await expect(
+      h.updater.quitAndInstall(automatic(() => Promise.resolve(true))),
+    ).resolves.toEqual({ type: "no-update" });
+    expect(h.published.every((status) => !status.notifyUser)).toBe(true);
+  });
+});
+
+describe("readiness", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is ready once a build is staged, and busy while a newer one downloads", () => {
+    vi.setSystemTime(1000);
+    const h = createHarness();
+    expect(h.updater.readiness()).toEqual({ type: "none" });
+
+    h.stage(STAGED);
+    expect(h.updater.readiness()).toEqual({
+      stagedSince: 1000,
+      type: "ready",
+      version: STAGED,
+    });
+
+    vi.setSystemTime(5000);
+    h.events().available(updateInfo(NEWER));
+    expect(h.updater.readiness()).toEqual({ type: "busy" });
+
+    // Waiting since the first build was staged, not since the newer one.
+    h.events().downloaded(updateInfo(NEWER));
+    expect(h.updater.readiness()).toEqual({
+      stagedSince: 1000,
+      type: "ready",
+      version: NEWER,
+    });
+  });
+
+  it("is busy while a check is in flight", async () => {
+    const h = createHarness();
+    h.stage(STAGED);
+    h.respondWithStall();
+
+    void h.updater.checkForUpdates();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.updater.readiness()).toEqual({ type: "busy" });
+    await vi.advanceTimersByTimeAsync(VERIFY_TIMEOUT_MS * 10);
+    expect(h.updater.readiness()).toMatchObject({ type: "ready" });
+  });
+});

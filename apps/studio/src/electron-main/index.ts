@@ -21,10 +21,23 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { openOutsideLink } from "@/electron-main/lib/outside-links";
 import { setupStateKnown } from "@/electron-main/lib/setup-state";
-import { createStudioAppUpdater } from "@/electron-main/lib/update";
+import { startIdleRestart } from "@/electron-main/lib/idle-restart";
+import {
+  idleRestartTimings,
+  relaunchViewOf,
+} from "@/electron-main/lib/idle-restart-policy";
+import { canRelaunch, startAgainAfterQuit } from "@/electron-main/lib/relaunch";
+import {
+  canInstallUnattended,
+  createStudioAppUpdater,
+  isStagedUpdateInstallable,
+} from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
-import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
+import {
+  checkRecentVersionBump,
+  takeRelaunchMarker,
+} from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   askAppWindow,
@@ -35,7 +48,10 @@ import {
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import { showHeldWindows } from "@/electron-main/windows/on-screen";
+import {
+  comeBackAsLeft,
+  showHeldWindows,
+} from "@/electron-main/windows/on-screen";
 import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
@@ -316,6 +332,17 @@ async function bootstrapPrimaryInstance() {
   // Detect whether the app was updated since the last launch so the bell can
   // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
+  // A launch that is the app restarting itself to install an update brings
+  // its window back as it was left, without taking focus.
+  const relaunchView = relaunchViewOf({
+    marker: takeRelaunchMarker(),
+    now: Date.now(),
+    platform: process.platform,
+  });
+  if (relaunchView) {
+    logger.info(`Back from an automatic restart, window ${relaunchView}`);
+  }
+  comeBackAsLeft(relaunchView);
   // What a quit or crash left mid-placing in the Finder, finished before
   // anything is placed again.
   void finishPlacingLeftovers().catch(captureServerException);
@@ -346,16 +373,37 @@ async function bootstrapPrimaryInstance() {
     void refreshClaudeAccountStatus();
   });
 
+  // Development only: stage a made-up update and install it by restarting,
+  // to exercise the automatic restart without a signed build.
+  const simulateIdleRestart =
+    !app.isPackaged &&
+    process.env.IDLE_RESTART_SIMULATE === "1" &&
+    canRelaunch();
   const updater = createStudioAppUpdater({
     // Approving the install approves the quit it ends in, so before-quit and
     // the window close go ahead without asking again. An install that then
     // fails takes the approval back.
     confirmQuit: requestQuitApproval,
+    simulatedInstall: simulateIdleRestart
+      ? () => {
+          startAgainAfterQuit();
+          app.quit();
+        }
+      : undefined,
     withdrawQuit: withdrawQuitApproval,
   });
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
     powerMonitor.on("resume", updater.checkAfterWake);
+  }
+  if (simulateIdleRestart || (app.isPackaged && canInstallUnattended())) {
+    startIdleRestart({
+      installable: isStagedUpdateInstallable,
+      timings: idleRestartTimings({
+        fast: !app.isPackaged && process.env.IDLE_RESTART_FAST === "1",
+      }),
+      updater,
+    });
   }
 
   registerFileDragHandler();

@@ -1,3 +1,4 @@
+import { type RelaunchView } from "@/electron-main/lib/idle-restart-policy";
 import { is } from "@electron-toolkit/utils";
 import { type BrowserWindow } from "electron";
 
@@ -23,11 +24,23 @@ function keepsOffScreen() {
 /** What this module asks of a window, so a test can hand it a stand-in. */
 type ScreenWindow = Pick<
   BrowserWindow,
-  "isDestroyed" | "maximize" | "show" | "showInactive"
+  "isDestroyed" | "maximize" | "minimize" | "show" | "showInactive"
 >;
 
 /** Windows held off screen, each with whether it comes up maximized. */
 const held = new Map<ScreenWindow, { maximized: boolean }>();
+
+/**
+ * How the first window comes up on a launch that is the app restarting itself
+ * to install an update while it was not in use: as it was left, and never
+ * taking focus from whatever the person is doing.
+ */
+let relaunchView: RelaunchView | undefined;
+
+/** Called once at launch, before any window, with what the restart left. */
+export function comeBackAsLeft(view: RelaunchView | undefined) {
+  relaunchView = view;
+}
 
 /**
  * Put a window made with `show: false` on screen the way this run should.
@@ -37,14 +50,23 @@ const held = new Map<ScreenWindow, { maximized: boolean }>();
  * and over while someone types elsewhere. A driven instance holds it off
  * screen: a window put up even without focus can land on a Space its display
  * is not showing, and macOS then scrolls the display there and hands focus to
- * whatever is in front on it.
+ * whatever is in front on it. A launch that is the app restarting itself
+ * brings it back as it was left (`comeBackAsLeft`), without focus.
  */
 export function putOnScreen(
   window: ScreenWindow,
   { maximized = false }: { maximized?: boolean } = {},
 ) {
-  if (keepsOffScreen()) {
+  const view = relaunchView;
+  relaunchView = undefined;
+  // A window left hidden waits the same way, until the Dock icon is clicked
+  // (macOS only).
+  if (keepsOffScreen() || view === "hidden") {
     held.set(window, { maximized });
+    return;
+  }
+  if (view === "minimized") {
+    window.minimize();
     return;
   }
   // Maximized only once there is a window to maximize: on Windows and Linux
@@ -53,7 +75,7 @@ export function putOnScreen(
   if (maximized) {
     window.maximize();
   }
-  if (is.dev) {
+  if (is.dev || view === "front") {
     window.showInactive();
   } else {
     window.show();

@@ -7,6 +7,7 @@ import {
 import {
   type AppUpdaterStatus,
   createUpdatePhase,
+  type InstallDecision,
   type InstallOutcome,
   isNewerVersion,
   isSameStatus,
@@ -27,8 +28,25 @@ export interface AppUpdaterHandle {
   // before they start it.
   installAsksForPassword: boolean;
   pollForUpdates: () => void;
-  quitAndInstall: () => Promise<InstallOutcome>;
+  quitAndInstall: (mode?: AutomaticInstall) => Promise<InstallOutcome>;
+  // Whether a staged update could be installed right now, for the restart
+  // that installs it while the app is not in use.
+  readiness: () => UpdateReadiness;
 }
+
+// An install nobody asked for: it shows no dialog and stays quiet until the
+// install is decided. `confirm` takes the quit prompt's place, as the last
+// look before committing to install `version`; false calls the install off as
+// a canceled quit.
+type AutomaticInstall = {
+  confirm: (version: string) => Promise<boolean>;
+  type: "automatic";
+};
+
+type UpdateReadiness =
+  | { stagedSince: number; type: "ready"; version: string }
+  | { type: "busy" }
+  | { type: "none" };
 
 // Every event electron-updater emits that changes what we can act on. Named for
 // what it means to us rather than for electron-updater's wire names, so the
@@ -59,8 +77,9 @@ export interface UpdaterPort {
   downloadUpdate: () => Promise<unknown>;
   // Quits and applies the staged build. Never returns on the happy path.
   // Throws StagedUpdateRejectedError when the staged artifact is not the one
-  // the feed published, which the next check downloads again.
-  install: () => void;
+  // the feed published, which the next check downloads again. `automatic`
+  // installs without the installer's own window where it has one.
+  install: (options: { automatic: boolean }) => void;
   isActive: () => boolean;
   subscribe: (handlers: UpdaterEvents) => void;
 }
@@ -93,6 +112,7 @@ export function createAppUpdater({
   confirmQuit,
   farewell,
   getCurrentVersion,
+  now = Date.now,
   withdrawQuit,
   installAsksForPassword,
   installNotice,
@@ -109,6 +129,7 @@ export function createAppUpdater({
   farewell?: () => Promise<void>;
   getCurrentVersion: () => string;
   installAsksForPassword: boolean;
+  now?: () => number;
   // Platform copy shown while the install runs, where it takes long enough to
   // need explaining.
   installNotice: string | undefined;
@@ -127,6 +148,13 @@ export function createAppUpdater({
   let pollTimer: NodeJS.Timeout | undefined;
   let polling = false;
   let lastCheckFailed = false;
+  // A check in flight, background polls included, which may be about to
+  // download over what is staged.
+  let checking = 0;
+  // When an update was first staged in this process. Kept through a newer
+  // build superseding it, so a steady stream of releases does not keep
+  // resetting how long an update has been waiting.
+  let stagedSince: number | undefined;
   // Set by the `failed` handler when an install attempt reports an error.
   // electron-updater catches a missing installer or a failed launch, emits
   // `error`, and returns normally instead of throwing, so this is the only
@@ -199,7 +227,12 @@ export function createAppUpdater({
     // it sees a newer build.
     const stagedVersion = phase.staged?.version;
     const autoDownload = !stagedVersion;
-    const result = await updater.checkForUpdates({ download: autoDownload });
+    checking += 1;
+    const result = await updater
+      .checkForUpdates({ download: autoDownload })
+      .finally(() => {
+        checking -= 1;
+      });
 
     let download: null | Promise<unknown> = result?.downloadPromise ?? null;
     if (
@@ -257,6 +290,7 @@ export function createAppUpdater({
       log.info(`Update downloaded: ${info.version}`);
       phase.pendingNewer = null;
       phase.staged = info;
+      stagedSince ??= now();
       // Always notify when an update is ready to install.
       setStatus({ notifyUser: true, type: "downloaded", updateInfo: info });
       // A check resolves when the *check* completes, so the poll that found this
@@ -334,15 +368,18 @@ export function createAppUpdater({
   // The pre-install check: what does the feed advertise right now? Returns
   // undefined when it cannot be reached, because an unreachable feed must not
   // strand the user on a build they have already downloaded.
-  const verifyLatestVersion = async () => {
+  // `quiet` for an automatic install, which shows nothing until it is decided.
+  const verifyLatestVersion = async ({ quiet }: { quiet: boolean }) => {
     if (!updater.isActive()) {
       return;
     }
 
     updater.configureFeed();
-    notify = true;
     phase.verifying = true;
-    setStatus({ notifyUser: true, type: "checking" });
+    if (!quiet) {
+      notify = true;
+      setStatus({ notifyUser: true, type: "checking" });
+    }
 
     try {
       const result = await withTimeout(runCheck(), VERIFY_TIMEOUT_MS);
@@ -370,10 +407,10 @@ export function createAppUpdater({
 
   // Publishes and reports everything that is not "go ahead and install", so the
   // decision can be re-run without duplicating how each answer is handled.
-  // Returns null only for `install`.
   const reportNonInstall = (
-    decision: ReturnType<typeof decideFromPhase>,
-  ): InstallOutcome | null => {
+    decision: Exclude<InstallDecision, { type: "install" }>,
+    { notifyUser }: { notifyUser: boolean },
+  ): InstallOutcome => {
     switch (decision.type) {
       case "defer": {
         log.info(
@@ -383,15 +420,12 @@ export function createAppUpdater({
         // is what the user sees, and the install lands on the next request.
         return { type: "deferred", version: decision.version };
       }
-      case "install": {
-        return null;
-      }
       // Both mean "there is nothing here to install", which is a fact about the
       // release feed rather than a failure, so neither shows the user an error.
       case "nothing-staged": {
         log.warn("Install requested with no staged update");
         setStatus({
-          notifyUser: true,
+          notifyUser,
           type: "not-available",
           updateInfo: null,
         });
@@ -402,8 +436,9 @@ export function createAppUpdater({
           `Discarding staged ${decision.version}: ${getCurrentVersion()} is already installed`,
         );
         phase.staged = null;
+        stagedSince = undefined;
         setStatus({
-          notifyUser: true,
+          notifyUser,
           type: "not-available",
           updateInfo: null,
         });
@@ -422,11 +457,14 @@ export function createAppUpdater({
     return { message, type: "failed" };
   };
 
-  const runInstall = async (): Promise<InstallOutcome> => {
+  const runInstall = async (
+    mode: AutomaticInstall | undefined,
+  ): Promise<InstallOutcome> => {
+    const quiet = mode?.type === "automatic";
     // Verified before the quit prompt, so discovering a superseded build never
     // costs the user a "quit with agents running?" dialog for an install that
     // then does not happen.
-    let decision = decideFromPhase(await verifyLatestVersion());
+    let decision = decideFromPhase(await verifyLatestVersion({ quiet }));
 
     // Being superseded is a race the user never asked to manage: the replacement
     // is already downloading, so wait it out and install that instead of handing
@@ -451,7 +489,7 @@ export function createAppUpdater({
       log.info(`Waiting for ${decision.version} to download before installing`);
       waitedFor = decision.version;
       const settled = await awaitDownloadSettled(remainingMs);
-      decision = decideFromPhase(await verifyLatestVersion());
+      decision = decideFromPhase(await verifyLatestVersion({ quiet }));
 
       // Starting that download already deleted the artifact it replaced, so a
       // failure with nothing on offer to replace it leaves the app with neither.
@@ -471,15 +509,18 @@ export function createAppUpdater({
       }
     }
 
-    const checked = reportNonInstall(decision);
-    if (checked) {
-      return checked;
+    if (decision.type !== "install") {
+      return reportNonInstall(decision, { notifyUser: !quiet });
     }
 
     // Confirmed after the version check and before the `installing` latch, so a
     // cancel leaves the badge on `downloaded`. before-quit then sees the
-    // `installing` status and skips a second prompt.
-    if (confirmQuit && !(await confirmQuit())) {
+    // `installing` status and skips a second prompt. An automatic install asks
+    // no one: its own last look stands in for the prompt.
+    const approved = quiet
+      ? await mode.confirm(decision.version)
+      : await (confirmQuit?.() ?? true);
+    if (!approved) {
       return { type: "quit-canceled" };
     }
 
@@ -487,10 +528,10 @@ export function createAppUpdater({
     // above was never cancelled, so a newer release can land while it is open and
     // take the chosen artifact with it. Re-decide from local state, which cannot
     // block, rather than install something that is no longer on disk.
-    const confirmed = reportNonInstall(decideFromPhase(undefined));
-    if (confirmed) {
+    const confirmed = decideFromPhase(undefined);
+    if (confirmed.type !== "install") {
       withdrawQuit?.();
-      return confirmed;
+      return reportNonInstall(confirmed, { notifyUser: !quiet });
     }
 
     installFailure = null;
@@ -502,8 +543,12 @@ export function createAppUpdater({
         type: "installing",
       });
       await farewell?.();
-      log.info("Quitting to install the staged update");
-      updater.install();
+      log.info(
+        quiet
+          ? "Quitting to install the staged update while the app is not in use"
+          : "Quitting to install the staged update",
+      );
+      updater.install({ automatic: quiet });
     } catch (error) {
       // Only a genuine throw lands here; the `failed` event is the usual path.
       // A rejected artifact has been removed, so nothing is staged any more,
@@ -511,6 +556,7 @@ export function createAppUpdater({
       // for one already on disk.
       if (error instanceof StagedUpdateRejectedError) {
         phase.staged = null;
+        stagedSince = undefined;
       }
       return reportInstallFailure(
         error instanceof Error ? error.message : String(error),
@@ -575,7 +621,27 @@ export function createAppUpdater({
       void runPoll();
     },
 
-    quitAndInstall: () => {
+    readiness: () => {
+      if (
+        installRequest ||
+        checking > 0 ||
+        phase.installing ||
+        phase.verifying ||
+        phase.pendingNewer
+      ) {
+        return { type: "busy" };
+      }
+      if (!phase.staged || stagedSince === undefined) {
+        return { type: "none" };
+      }
+      return {
+        stagedSince,
+        type: "ready",
+        version: phase.staged.version,
+      };
+    },
+
+    quitAndInstall: (mode) => {
       // Latched before the first await, and shared rather than dropped: the
       // toolbar badge and the Settings button can both fire, and two runs would
       // mean two feed checks, two quit prompts, and two installers.
@@ -585,7 +651,7 @@ export function createAppUpdater({
       }
       log.info("Install requested");
 
-      const request = runInstall().then(
+      const request = runInstall(mode).then(
         (outcome) => {
           // Hold the latch only while the app is on its way out. Every other
           // outcome has to leave the button usable.

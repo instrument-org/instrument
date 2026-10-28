@@ -4,6 +4,14 @@ import { quitMachine } from "./quit-machine";
 
 let quit: Actor<typeof quitMachine> | null = null;
 let forcedInDev = false;
+let countRunningWork: (() => Promise<RunningWork>) | undefined;
+
+/** What quitting now would stop. */
+export type RunningWork = {
+  agents: number;
+  dictating: boolean;
+  jobs: number;
+};
 
 /**
  * Whether closing the last window quits the app. On macOS the app stays in
@@ -35,6 +43,36 @@ export async function requestQuitApproval(): Promise<boolean> {
   quit.send({ type: "approvalRequested" });
   const settled = await waitFor(quit, (state) => !state.matches("approving"));
   return settled.hasTag("approved");
+}
+
+/**
+ * Approves the quit without asking, for a quit whose caller has checked that
+ * it stops nothing. False when a prompt is already open or the quit is
+ * already under way, which leave the decision where it is.
+ */
+export function approveQuitQuietly(): boolean {
+  if (!quit?.getSnapshot().matches("idle")) {
+    return false;
+  }
+  quit.send({ type: "approvalGranted" });
+  return isQuitApproved();
+}
+
+/**
+ * Whether quitting now would stop anything: `unknown` before the workspace
+ * starts or when the count fails, which a caller that must not interrupt
+ * anything reads as busy.
+ */
+export async function readRunningWork(): Promise<"busy" | "idle" | "unknown"> {
+  if (!countRunningWork) {
+    return "unknown";
+  }
+  try {
+    const work = await countRunningWork();
+    return work.agents > 0 || work.jobs > 0 || work.dictating ? "busy" : "idle";
+  } catch {
+    return "unknown";
+  }
 }
 
 /**
@@ -75,6 +113,10 @@ export function setQuitGuardForcedInDev(forced: boolean) {
  * Start the quit with this app's prompt and teardown steps. Called once during
  * boot, before any window exists, so every close and quit path reaches it.
  */
-export function startQuit(machine: typeof quitMachine) {
+export function startQuit(
+  machine: typeof quitMachine,
+  { runningWork }: { runningWork: () => Promise<RunningWork> },
+) {
   quit = createActor(machine).start();
+  countRunningWork = runningWork;
 }

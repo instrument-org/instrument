@@ -293,16 +293,21 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     return response === 1;
   };
 
+  const countRunningAgents = async () => {
+    const { count } = await call(
+      workspaceRouter.chats.agentStatus.aliveAgentCount,
+      undefined,
+      { context: { workspaceConfig, workspaceRef: actor } },
+    );
+    return count;
+  };
+
   // Warn before stopping in-flight agents and the jobs chats left running.
   // Fails open so a count error never blocks quitting.
   const confirmQuitWithRunningWork = async (): Promise<boolean> => {
     let count = 0;
     try {
-      ({ count } = await call(
-        workspaceRouter.chats.agentStatus.aliveAgentCount,
-        undefined,
-        { context: { workspaceConfig, workspaceRef: actor } },
-      ));
+      count = await countRunningAgents();
     } catch (error) {
       captureServerException(error);
       return true;
@@ -408,6 +413,15 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           QUIT_TEARDOWN_SLACK_MS,
       },
     }),
+    {
+      // Throws when the agents cannot be counted, which a quit nobody asked
+      // for reads as busy.
+      runningWork: async () => ({
+        agents: await countRunningAgents(),
+        dictating: isDictationInProgress(),
+        jobs: runningJobNames().length,
+      }),
+    },
   );
 
   app.on("before-quit", (e) => {

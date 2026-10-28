@@ -22,6 +22,7 @@ import path from "node:path";
 
 import { getMachinePreferences } from "../stores/machine/preferences";
 import {
+  forgetRelaunchMarker,
   recordInstallRequest,
   setLastUpdateCheck,
 } from "../stores/machine/state";
@@ -53,10 +54,27 @@ let staged: undefined | { file: string; info: UpdateInfo };
 // from the earlier one, so a quit in between relaunches the running version.
 let awaitingSquirrel: undefined | UpdateInfo;
 
+// A development run's stand-in for an update (`IDLE_RESTART_SIMULATE=1`): staged
+// at launch, and installed by restarting the same build.
+const SIMULATED_UPDATE = {
+  files: [],
+  path: "",
+  releaseDate: new Date(0).toISOString(),
+  sha512: "",
+  version: "999.0.0",
+} satisfies UpdateInfo;
+
 export function createStudioAppUpdater({
   confirmQuit,
+  simulatedInstall,
   withdrawQuit,
-}: { confirmQuit?: ConfirmQuit; withdrawQuit?: () => void } = {}) {
+}: {
+  confirmQuit?: ConfirmQuit;
+  // Development only: stages a made-up update and installs it with this
+  // instead, so the restart can run without a signed build.
+  simulatedInstall?: () => void;
+  withdrawQuit?: () => void;
+} = {}) {
   autoUpdater.logger = createAutoUpdaterLogger();
   autoUpdater.autoDownload = true;
   autoUpdater.disableWebInstaller = true;
@@ -99,12 +117,20 @@ export function createStudioAppUpdater({
       });
     },
     downloadUpdate: () => autoUpdater.downloadUpdate(),
-    install: installStagedUpdate,
+    install: simulatedInstall ?? installStagedUpdate,
     // A preview's feed would be the shipping app's, whose update replaces the
     // preview's identity with the real one, so a preview stays where it is.
     isActive: () =>
-      APP_FLAVOR.kind !== "preview" && autoUpdater.isUpdaterActive(),
+      !simulatedInstall &&
+      APP_FLAVOR.kind !== "preview" &&
+      autoUpdater.isUpdaterActive(),
     subscribe: (handlers) => {
+      if (simulatedInstall) {
+        queueMicrotask(() => {
+          handlers.downloaded(SIMULATED_UPDATE);
+        });
+        return;
+      }
       const macOS = os.platform() === "darwin";
       let handedToSquirrel: undefined | UpdateInfo;
       autoUpdater.on("download-progress", handlers.progress);
@@ -150,6 +176,7 @@ export function createStudioAppUpdater({
     farewell: fadeOutBeforeInstall,
     withdrawQuit: () => {
       recordInstallRequest(null);
+      forgetRelaunchMarker();
       restoreWindows();
       withdrawQuit?.();
     },
@@ -467,7 +494,24 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function installStagedUpdate() {
+/**
+ * Whether the staged update can be handed to the installer this moment. On
+ * macOS that is false while Squirrel.Mac is still unpacking a build.
+ */
+export function isStagedUpdateInstallable() {
+  return !awaitingSquirrel;
+}
+
+/**
+ * Whether this installation can update itself while the app is not in use:
+ * macOS and Windows. Every Linux package but the AppImage asks for a password,
+ * and the AppImage install moves the image the restart would start from.
+ */
+export function canInstallUnattended() {
+  return os.platform() === "darwin" || os.platform() === "win32";
+}
+
+function installStagedUpdate({ automatic }: { automatic: boolean }) {
   if (rejectedStagedArtifact() !== undefined) {
     throw new StagedUpdateRejectedError(
       `The update ${APP_NAME} downloaded doesn't match the one that was published, so it wasn't installed. Check for updates to download it again.`,
@@ -481,11 +525,14 @@ function installStagedUpdate() {
       `${APP_NAME} is still getting the update ready. Try again in a moment.`,
     );
   }
-  if (staged) {
+  // An automatic install is an update the person did not ask for, so the
+  // next launch says it landed the way an ordinary quit's update does.
+  if (staged && !automatic) {
     recordInstallRequest(staged.info.version);
   }
   if (!installedFromDeb()) {
-    autoUpdater.quitAndInstall();
+    // Silent, and relaunched once done, on Windows; macOS ignores both.
+    autoUpdater.quitAndInstall(automatic, automatic);
     return;
   }
 

@@ -1,5 +1,10 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteInstallFailed, noteUpdate } from "@/electron-main/lib/notices";
+import {
+  attemptsAt,
+  nextAttempts,
+  type RelaunchView,
+} from "@/electron-main/lib/idle-restart-policy";
 import { launchOutcome } from "@/electron-main/lib/update-status";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -13,6 +18,27 @@ import { z } from "zod";
  * Per-workspace state is in `workspace/state.ts`.
  */
 const MachineStateSchema = z.object({
+  /**
+   * The restarts the app made on its own to install an update
+   * (`lib/idle-restart.ts`): the attempts at one version from the version
+   * that made them, when the last one went, and, for the launch it ends in,
+   * how the window was left.
+   */
+  automaticRestart: z
+    .object({
+      attempts: z
+        .object({ count: z.number(), from: z.string(), to: z.string() })
+        .optional(),
+      lastAt: z.number().optional(),
+      relaunch: z
+        .object({
+          at: z.number(),
+          view: z.enum(["front", "hidden", "minimized"]),
+        })
+        .optional(),
+    })
+    .optional()
+    .catch(undefined),
   /**
    * This install's device id, which every chat record it writes is filed
    * under, and the SHA-256 of the machine's own id it was made on. Read as
@@ -107,6 +133,81 @@ export function recordInstallRequest(to: null | string): void {
   } else {
     getMachineState().set("installRequested", { to });
   }
+}
+
+/**
+ * Records an automatic restart about to install `to`, and how the window is
+ * left, for the launch it ends in.
+ */
+export function recordAutomaticInstall({
+  now,
+  to,
+  view,
+}: {
+  now: number;
+  to: string;
+  view: RelaunchView;
+}): void {
+  const store = getMachineState();
+  const record = store.get("automaticRestart");
+  store.set("automaticRestart", {
+    attempts: nextAttempts({
+      attempts: record?.attempts,
+      current: app.getVersion(),
+      to,
+    }),
+    lastAt: now,
+    relaunch: { at: now, view },
+  });
+}
+
+/** Forgets the window an automatic restart left, when the restart did not go. */
+export function forgetRelaunchMarker(): void {
+  const record = getMachineState().get("automaticRestart");
+  if (record?.relaunch) {
+    getMachineState().set("automaticRestart", {
+      ...record,
+      relaunch: undefined,
+    });
+  }
+}
+
+/** Attempts already made at `to` from the running version, and when the last restart went. */
+export function readAutomaticRestart(to: string): {
+  attempts: number;
+  lastAt: number | undefined;
+} {
+  const record = getMachineState().get("automaticRestart");
+  return {
+    attempts: attemptsAt({
+      attempts: record?.attempts,
+      current: app.getVersion(),
+      to,
+    }),
+    lastAt: record?.lastAt,
+  };
+}
+
+/**
+ * Read once at launch: the marker the restart before this launch left, which
+ * is then forgotten, and the attempts, which are forgotten too once the
+ * version changed, since an attempt that changed it landed.
+ */
+export function takeRelaunchMarker():
+  | { at: number; view: RelaunchView }
+  | undefined {
+  const store = getMachineState();
+  const record = store.get("automaticRestart");
+  if (!record) {
+    return undefined;
+  }
+  const landed = record.attempts?.from !== app.getVersion();
+  store.set("automaticRestart", {
+    attempts: landed ? undefined : record.attempts,
+    lastAt: record.lastAt,
+    relaunch: undefined,
+  });
+  return record.relaunch;
 }
 
 // Compares the version we last launched with the version running now. A

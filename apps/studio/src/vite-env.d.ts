@@ -44,6 +44,10 @@ declare namespace NodeJS {
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
+      /** Dev only: each minute of the automatic restart's waits becomes a second. */
+      IDLE_RESTART_FAST: string | undefined;
+      /** Dev only: stage a made-up update and install it by restarting the same build. */
+      IDLE_RESTART_SIMULATE: string | undefined;
       /** scripts/billing-e2e.ts: the internal repo's apps/api checkout. */
       INSTRUMENT_API_DIR: string | undefined;
       /** `0` keeps the agent's bash interpreter on the main thread instead of its worker. */

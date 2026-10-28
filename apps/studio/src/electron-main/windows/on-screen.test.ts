@@ -17,6 +17,7 @@ function fakeWindow() {
     window: {
       isDestroyed: () => false,
       maximize: () => calls.push("maximize"),
+      minimize: () => calls.push("minimize"),
       show: () => calls.push("show"),
       showInactive: () => calls.push("showInactive"),
     },
@@ -84,6 +85,29 @@ describe("putting a window on screen", () => {
     putOnScreen(window);
     expect(calls).toEqual(["showInactive"]);
   });
+
+  it.each([
+    ["front", ["maximize", "showInactive"], false],
+    ["minimized", ["minimize"], false],
+    ["hidden", [], true],
+  ] as const)(
+    "brings a packaged build's window back %s after an automatic restart",
+    async (view, expected, held) => {
+      const { comeBackAsLeft, isHeldOffScreen, putOnScreen } = await load({
+        dev: false,
+      });
+      comeBackAsLeft(view);
+      const first = fakeWindow();
+      putOnScreen(first.window, { maximized: true });
+      expect(first.calls).toEqual(expected);
+      expect(isHeldOffScreen(first.window)).toBe(held);
+
+      // Only the first window: a later one opens as on any launch.
+      const later = fakeWindow();
+      putOnScreen(later.window);
+      expect(later.calls).toEqual(["show"]);
+    },
+  );
 
   it("ignores the agent's variables in a packaged build", async () => {
     const { isDrivenInstance, putOnScreen } = await load({

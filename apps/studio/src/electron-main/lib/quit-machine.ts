@@ -47,6 +47,7 @@ export const quitMachine = setup({
   types: {
     context: {} as { quitAfterApproval: boolean },
     events: {} as
+      | { type: "approvalGranted" }
       | { type: "approvalRequested" }
       | { type: "approvalWithdrawn" }
       | { type: "quitRequested" }
@@ -60,6 +61,11 @@ export const quitMachine = setup({
     idle: {
       entry: assign({ quitAfterApproval: false }),
       on: {
+        // A quit the app decided on with no one to ask, having checked
+        // itself that it stops nothing (an update installed while the app is
+        // not in use). Only from here: a prompt already open is a person
+        // deciding.
+        approvalGranted: "approved",
         approvalRequested: "approving",
         quitRequested: {
           actions: assign({ quitAfterApproval: true }),

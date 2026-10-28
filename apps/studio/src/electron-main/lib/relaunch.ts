@@ -43,13 +43,21 @@ export async function relaunchApp({
     return "canceled";
   }
   beforeRestart();
+  startAgainAfterQuit();
+  app.quit();
+  return "relaunching";
+}
+
+/**
+ * Have the quit that follows come back up, for a caller that has approved
+ * the quit itself.
+ */
+export function startAgainAfterQuit() {
   if (app.isPackaged) {
     startAgainOnExit();
   } else {
     exitCode = DEV_RELAUNCH_EXIT_CODE;
   }
-  app.quit();
-  return "relaunching";
 }
 
 /**

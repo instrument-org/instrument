@@ -69,6 +69,37 @@ The waiter reports _why_ it woke, and that reason cannot be recovered afterwards
 
 Nothing is installable, and the UI says so. The old artifact was deleted when the newer download started, so there is no fallback to offer — a retry keeps chasing the newer build rather than running an installer that is no longer on disk. On macOS the previous build survives in Squirrel's own staging directory only until electron-updater hands Squirrel the newer zip, so we never advertise it: understating what is available is safe, overstating it is not.
 
+## Restarting while the app is not in use
+
+On macOS and Windows a staged update also installs without anyone pressing anything: the app restarts itself when no one is using it. [`idle-restart-policy.ts`](../../apps/studio/src/electron-main/lib/idle-restart-policy.ts) decides when, as a pure function of the facts, with every timing in `IDLE_RESTART`; [`idle-restart.ts`](../../apps/studio/src/electron-main/lib/idle-restart.ts) reads those facts every 30 seconds and acts on the answer. There is no setting for it.
+
+Nothing restarts while any of these holds, and each one starts the countdown over:
+
+- no update is staged and installable, or the updater is busy with it: a check in flight, a newer build downloading, an install already requested, or Squirrel.Mac still unpacking (`isStagedUpdateInstallable`);
+- two automatic attempts at this update from this running version have already been made;
+- an agent is mid-turn, a job is running, or someone is dictating, which is everything the quit prompt would ask about. A count that fails reads as busy, where a quit the person asked for goes ahead;
+- a window has focus, or is full screen.
+
+Once all of that has stayed clear for 10 minutes, the restart goes in one of two ways. It is unseen when every window is hidden or minimized, the screen is locked, or the computer has had no input for 10 minutes, and then it goes at once. It is seen when a window is in view and the person is at the computer doing something else, and a restart there reads as a crash, so it waits until the update has been staged for a day (counted from the first build staged in this process, so a stream of releases does not keep resetting it) and goes at most once a day.
+
+The restart is the same request as a click on the update button, in its automatic mode (`quitAndInstall({ type: "automatic", confirm })`): the same single-flight latch, pre-install check and wait for a superseding download. The mode changes three things. The pre-install check publishes no "Checking" status and a stale build no "up to date", so nothing shows until the install is decided. The quit prompt is replaced by `confirm`, which reads the facts again and calls the restart off if anything started in the meantime; if it is clear, it approves the quit without a prompt (`approveQuitQuietly`, the quit machine's `approvalGranted`) and records the attempt. And the installer runs silently and relaunches on Windows (`quitAndInstall(true, true)`). The restart records no `installRequested`, so the next launch treats a landed update as one an ordinary quit applied: a dot on the bell, no toast. From `confirm` on, "Restarting" and the fade show as they do for a click, which is what a seen restart needs to read as deliberate.
+
+Linux is left out: the deb, rpm and pacman installs ask for a password, and the AppImage install moves the image the relaunch would start from.
+
+### Attempts
+
+`automaticRestart.attempts` in the machine state counts attempts at one version from one running version. The next launch forgets it when the version changed, since that attempt landed; otherwise it stays, and after two the app stops trying that update until a newer one is staged or the person installs it.
+
+### Coming back as it was left
+
+Right before the quit, the attempt also records how the app window was left: in front, minimized, or hidden (no window, or every window hidden). A launch within 5 minutes of that marker is the restart, and the window comes back the same way without taking focus (`comeBackAsLeft` in `windows/on-screen.ts`): shown inactive, minimized, or held unshown until the Dock icon is clicked. Outside macOS a hidden window comes back minimized, so it can still be found. A failed or withdrawn install forgets the marker.
+
+The tabs (each with its back and forward history), the layout and the drafts are kept state, written on quit, and come back as they are on any launch. A restart loses what lives only in the window: scroll positions, an open menu, dialog or preview, and the live state of pages in the in-app browser, such as what was typed into them. Nothing that needs a quit prompt is running when it happens.
+
+### Exercising it
+
+A development run under the supervisor takes two variables. `IDLE_RESTART_SIMULATE=1` stages a made-up update (999.0.0) at launch and installs it by restarting the same build (`startAgainAfterQuit`), so the whole path, restore included, runs without a signed build. `IDLE_RESTART_FAST=1` turns each minute of the waits into a second. With both, a held studio-drive instance restarts about ten seconds after launch, comes back, restarts once more, and then stops on its two attempts, since the version never changes. A packaged build reads neither.
+
 ## Downloaded means staged by Squirrel on macOS
 
 electron-updater's `MacUpdater` hands each completed download to Squirrel immediately (`autoInstallOnAppQuit` defaults to true): it emits `update-downloaded` once the zip is in its cache, then Squirrel fetches it again through a local proxy and unpacks it. Starting that fetch deletes whatever Squirrel unpacked before. `MacUpdater` tracks Squirrel's part with a `squirrelDownloadedUpdate` latch that is never cleared, so after a first staging `quitAndInstall` calls straight through, and a quit before Squirrel finishes leaves ShipIt with no bundle: it relaunches the version that was running ([the finding](../findings/update-check-un-stages-the-macos-build.md)).

@@ -2,8 +2,9 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { isDataless } from "./dataless";
 import { inspectWorkspaceFolder } from "./workspace-refusal";
 import {
   type ResolvedWorkspace,
@@ -11,6 +12,8 @@ import {
   writeWorkspaceIdentity,
   WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
+
+vi.mock("./dataless", () => ({ isDataless: vi.fn(() => false) }));
 
 let root: string;
 let userDataDir: string;
@@ -27,6 +30,7 @@ afterEach(() => {
     fs.chmodSync(path.join(root, dir), 0o755);
   }
   fs.rmSync(root, { force: true, recursive: true });
+  vi.mocked(isDataless).mockReset().mockReturnValue(false);
 });
 
 function at(dir: string, pinned = false): ResolvedWorkspace {
@@ -60,22 +64,34 @@ describe("inspectWorkspaceFolder", () => {
     ).toMatchObject({ kind: "newer" });
   });
 
-  it("finds a picked folder lost when it is gone, or has lost its records", () => {
-    const gone = path.join(root, "Gone");
+  it("finds a picked folder missing once it is gone", () => {
+    expect(
+      inspectWorkspaceFolder({
+        userDataDir,
+        workspace: at(path.join(root, "Gone")),
+      }),
+    ).toEqual({ kind: "lost", reason: "missing" });
+  });
+
+  it("opens a picked folder with nothing the app kept in it, as a new workspace the bell tells of", () => {
     const emptied = path.join(root, "Emptied");
     fs.mkdirSync(emptied);
-    for (const dir of [gone, emptied]) {
-      expect(inspectWorkspaceFolder({ userDataDir, workspace: at(dir) })).toBe(
-        "lost",
-      );
-    }
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(emptied) }),
+    ).toEqual({ kind: "no-records" });
+    // Its .instrument there without a record: opened quietly, the record
+    // written again.
+    fs.mkdirSync(workspaceLayout(emptied).dataDir);
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(emptied) }),
+    ).toBeUndefined();
   });
 
   it("finds the default folder in the app's own data lost once it is gone", () => {
     const inAppData = path.join(userDataDir, "workspace");
     expect(
       inspectWorkspaceFolder({ userDataDir, workspace: at(inAppData) }),
-    ).toBe("lost");
+    ).toEqual({ kind: "lost", reason: "missing" });
     // There with no workspace yet (1.x tasks), or 1.x settings to take in:
     // opened for the migrations.
     fs.mkdirSync(path.join(inAppData, "tasks"), { recursive: true });
@@ -87,6 +103,20 @@ describe("inspectWorkspaceFolder", () => {
     expect(
       inspectWorkspaceFolder({ userDataDir, workspace: at(inAppData) }),
     ).toBeUndefined();
+  });
+
+  it("never opens a pinned folder whose record is there but won't read", () => {
+    const pinned = path.join(root, "Clean room");
+    fs.mkdirSync(path.join(workspaceLayout(pinned).dataDir, "workspace.json"), {
+      recursive: true,
+    });
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(pinned, true) }),
+    ).toEqual({ code: "EISDIR", kind: "lost", reason: "unreadable" });
+    vi.mocked(isDataless).mockReturnValue(true);
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(pinned, true) }),
+    ).toEqual({ kind: "lost", reason: "cloud" });
   });
 
   it("makes again a folder pinned for the process", () => {
@@ -114,8 +144,11 @@ describe("inspectWorkspaceFolder", () => {
       ],
     }));
     const picking = { ...at(picked), id: "picked", isDefault: false };
-    expect(inspectWorkspaceFolder({ userDataDir, workspace: picking })).toBe(
-      "lost",
+    expect(inspectWorkspaceFolder({ userDataDir, workspace: picking })).toEqual(
+      {
+        kind: "lost",
+        reason: "refused",
+      },
     );
     expect(
       inspectWorkspaceFolder({
@@ -137,10 +170,42 @@ describe("inspectWorkspaceFolder", () => {
       try {
         expect(
           inspectWorkspaceFolder({ userDataDir, workspace: at(picked) }),
-        ).toBe("lost");
+        ).toEqual({ kind: "lost", reason: "denied" });
       } finally {
         fs.chmodSync(workspaceLayout(picked).dataDir, 0o755);
       }
     },
   );
+
+  it("leaves a record kept in the cloud for setup to download, without reading it", () => {
+    const picked = path.join(root, "Instrument");
+    writeWorkspaceIdentity(picked, identity(WORKSPACE_FORMAT_VERSION));
+    const record = path.join(workspaceLayout(picked).dataDir, "workspace.json");
+    vi.mocked(isDataless).mockImplementation((file) => file === record);
+    const read = vi.spyOn(fs, "readFileSync");
+    try {
+      expect(
+        inspectWorkspaceFolder({ userDataDir, workspace: at(picked) }),
+      ).toEqual({ kind: "lost", reason: "cloud" });
+      expect(read).not.toHaveBeenCalledWith(record, "utf8");
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it("never opens a folder whose record is there but won't read, saying why", () => {
+    const picked = path.join(root, "Instrument");
+    // A record that is a folder fails to read with a code no folder explains.
+    fs.mkdirSync(path.join(workspaceLayout(picked).dataDir, "workspace.json"), {
+      recursive: true,
+    });
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(picked) }),
+    ).toEqual({ code: "EISDIR", kind: "lost", reason: "unreadable" });
+    // One the failed read left in the cloud is the cloud's to bring back.
+    vi.mocked(isDataless).mockReturnValue(true);
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(picked) }),
+    ).toEqual({ kind: "lost", reason: "cloud" });
+  });
 });

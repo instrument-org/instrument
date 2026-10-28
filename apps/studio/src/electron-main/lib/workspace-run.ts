@@ -3,6 +3,8 @@ import {
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
 
+import { type LostFolder } from "@/shared/setup";
+
 import { type OpenWorkspace } from "./workspaces";
 
 /**
@@ -16,8 +18,8 @@ export type WorkspaceRun =
       kind: "unplaced";
       /** The local id it will be registered under. */
       id: string;
-      /** Where the folder it had was, when one went missing. */
-      lost?: string;
+      /** The folder it had, when the launch couldn't open it, and why. */
+      lost?: LostFolder;
       /** This computer's folder for it, where the window's session already is. */
       machineDir: string;
     }
@@ -30,6 +32,19 @@ export type WorkspaceRun =
     };
 
 let run: undefined | WorkspaceRun;
+
+// The folder this launch opened with no `.instrument/` in it, for the bell.
+let openedWithoutRecords: string | undefined;
+
+/** Records that the launch opened `dir` with nothing the app kept there (`no-records`). */
+export function noteOpenedWithoutRecords(dir: string): void {
+  openedWithoutRecords = dir;
+}
+
+/** The folder this launch opened with nothing the app kept there, if it did. */
+export function getOpenedWithoutRecords(): string | undefined {
+  return openedWithoutRecords;
+}
 
 /** Where the launch leaves the workspace, before any store opens (`setup-environment.ts`). */
 export function beginWorkspaceRun(

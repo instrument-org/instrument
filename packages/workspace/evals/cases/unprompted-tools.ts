@@ -95,9 +95,9 @@ const toolsChosen: Assertion = {
         /(?:^|[\n;&|])\s*instrument task (?:list|log)\b/g,
       ),
       browser: count(commands, /\bagent-browser\b/g),
-      tab: count(
+      window: count(
         commands,
-        /(?:^|[\n;&|])\s*instrument tab (?:open|show|replace)\b/g,
+        /(?:^|[\n;&|])\s*instrument (?:window show|tab (?:open|show|replace))\b/g,
       ),
       web_fetch: parts.filter((part) => part.type === "tool-web_fetch").length,
       "chat records": count(

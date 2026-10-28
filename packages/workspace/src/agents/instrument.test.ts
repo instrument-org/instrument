@@ -127,7 +127,7 @@ describe("shouldContinueAfterHandingOff", () => {
   });
 
   it("ends the turn on a card a bash command raised, with no step after it", async () => {
-    const request = "instrument tab request tab_01K4M8C2B5N7R0T3V6X9Z1D4F7";
+    const request = "instrument window request tab_01K4M8C2B5N7R0T3V6X9Z1D4F7";
     await expect(
       shouldContinueAfterHandingOff({
         messages: [

@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`agent-browser routing > names tabs by the window's id after ["tab","list"] 1`] = `
+"→ [tab_01M5Q29YA0CTZ3NQY76Z3JQWBF] Jar - https://example.com/jar
+  [tab_01M5Q2CY3JB5G7KJVE1QA1HK0B] Bottle - https://example.com/bottle
+"
+`;
+
+exports[`agent-browser routing > names tabs by the window's id after ["tab","new","https://example.com/bottle"] 1`] = `
+"https://example.com/bottle
+Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B.
+"
+`;

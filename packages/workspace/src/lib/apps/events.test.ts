@@ -241,6 +241,7 @@ describe("a card asking for several apps", () => {
     expect((await readConnection("drive"))?.waitingChats).toBeUndefined();
 
     await answerRow("gmail", "connected");
+    await vi.waitFor(() => expect(woken).toHaveBeenCalled());
     expect(wakes()).toEqual([
       {
         chatId,
@@ -287,6 +288,8 @@ describe("a card asking for several apps", () => {
       name: "gmail",
       slug: "gmail",
     });
+    await vi.waitFor(() => expect(woken).toHaveBeenCalled());
+    // Room for a second wake, which would be the bug.
     await new Promise((resolve) => setTimeout(resolve, 40));
 
     expect(wakes().map(({ events }) => events)).toEqual([

@@ -14,9 +14,8 @@ export interface InstrumentSubcommand {
  * with the rest of the arguments. A bare `instrument`, `help`, `--help` or
  * `-h` lists them; `instrument <word> help` is that command's own usage.
  *
- * `missing` names the subcommands this shell leaves out (a task's has none
- * of the chat's own), so asking for one says why rather than that it does
- * not exist.
+ * `missing` names the subcommands this shell leaves out (a task's has no
+ * `task`), so asking for one says why rather than that it does not exist.
  */
 export function createInstrumentCommand({
   missing = {},

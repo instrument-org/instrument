@@ -3,7 +3,7 @@ import ms from "ms";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
 import { describeLeftRunning } from "./chat/left-running";
-import { TAB_COMMAND } from "./shell-commands/tab-command";
+import { WINDOW_COMMAND } from "./shell-commands/window-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
@@ -80,7 +80,7 @@ export function taskEventModelNote(
       event.needs && event.needs.length > 0
         ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
         : "";
-    // Where a result that lives on a page is: the tab, by the id `instrument tab show`
+    // Where a result that lives on a page is: the tab, by the id `instrument window show`
     // takes, since the task's transcript holds only its account of the page.
     const tabs =
       event.tabs && event.tabs.length > 0
@@ -150,7 +150,7 @@ export function taskEventModelNote(
   );
   const relay = waiting
     ? ""
-    : ` What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.${anyTabs ? ` A result on a page is in the tab listed; \`${TAB_COMMAND.name} show <id>\` it when the user has something to do there.` : ""}`;
+    : ` What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.${anyTabs ? ` A result on a page is in the tab listed; \`${WINDOW_COMMAND.name} show <id>\` it when the user has something to do there.` : ""}`;
   const asks = anyWaiting
     ? ` Give one waiting on you what you can with \`${TASK_COMMAND.name} send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.`
     : "";

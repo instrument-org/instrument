@@ -1,10 +1,10 @@
 /**
  * A window for a run that has none: the tabs a case says the user had open,
- * answering the conversation's `tab` commands the way the app's window does.
+ * answering the conversation's `instrument window` commands the way the app's window does.
  *
  * What it stands in for is the window's bookkeeping, not its pages. A tab id
- * the conversation reads in the note resolves here, `instrument tab open` makes a new id,
- * `close` and `replace` act on the list, and a page tab reads as a live target
+ * the conversation reads in the note resolves here, `instrument window show <url>` makes a
+ * new id and puts it in front, `close` and `show --in` act on the list, and a page tab reads as a live target
  * so `instrument task new --tab` accepts it. A task handed one still browses in a Chrome
  * of its own (the run has no guests), so a case scores what the conversation
  * decided, not what a task saw in the tab.
@@ -32,8 +32,10 @@ export interface StandInTab {
 
 export function createStandInWindow() {
   const tabs = new Map<string, StandInTab>();
-  /** The user's own tabs outside the chat that a note named, which `tab request` asks for and a Move takes into `tabs`. */
+  /** The user's own tabs outside the chat that a note named, which `window request` asks for and a Move takes into `tabs`. */
   const theirs = new Map<string, StandInTab>();
+  /** The tab in front: the last one opened, shown or moved in. */
+  let front: string | undefined;
 
   const add = (target: WindowTabTarget): StandInTab => {
     const tab: StandInTab =
@@ -54,15 +56,20 @@ export function createStandInWindow() {
 
   const act = (action: WindowTabAction): Omit<WindowTabAnswer, "requestId"> => {
     if (action.kind === "open") {
-      return { tabId: add(action.target).id };
+      const tab = add(action.target);
+      if (action.show) {
+        front = tab.id;
+      }
+      return { tabId: tab.id };
     }
     if (action.kind === "list") {
       return {
-        tabs: [...tabs.values()].map((tab) =>
-          tab.kind === "page"
+        tabs: [...tabs.values()].map((tab) => ({
+          ...(tab.id === front && { front: true }),
+          ...(tab.kind === "page"
             ? { id: tab.id, kind: "page" as const, title: "", url: tab.at }
-            : { id: tab.id, kind: "screen" as const },
-        ),
+            : { id: tab.id, kind: "screen" as const }),
+        })),
       };
     }
     if (action.kind === "adopt") {
@@ -87,6 +94,7 @@ export function createStandInWindow() {
       }
       theirs.delete(own.id);
       tabs.set(own.id, own);
+      front = own.id;
       return { tabId: own.id };
     }
     const tab = tabs.get(action.tabId);
@@ -110,8 +118,11 @@ export function createStandInWindow() {
       case "read": {
         return { error: "the stand-in window has no page to read." };
       }
-      case "restore":
+      case "restore": {
+        return { tabId: tab.id };
+      }
       case "show": {
+        front = tab.id;
         return { tabId: tab.id };
       }
     }

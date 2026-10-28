@@ -562,6 +562,7 @@ function WindowShell({
     chats: chats.data,
     chatTitles,
     isOpen: opened !== undefined,
+    paneOpenByGroup,
     revealPane,
     setPaneOpen,
     windowTabs,

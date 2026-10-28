@@ -1,11 +1,13 @@
 import {
   OUR_PROVIDER_CONFIG,
+  type PlanRefusal,
   type WorkspaceServerURL,
 } from "@instrument-org/shared";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
+import { planRefusalIn } from "./read-platform-refusal";
 
 /**
  * The decision model: a classifier that answers typed questions about a state
@@ -44,14 +46,18 @@ export function decisionModelFor(providerType: string): string | undefined {
 /**
  * A decision request the provider refused, with the HTTP status it answered,
  * so a caller can tell a request at fault (400) from a provider that can't
- * serve it. A network failure throws the fetch's own error instead.
+ * serve it, and the plan refusal its body names, when our platform refused
+ * it for the account's plan. A network failure throws the fetch's own error
+ * instead.
  */
 export class DecisionRequestError extends Error {
+  readonly refusal: PlanRefusal | undefined;
   readonly status: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, refusal?: PlanRefusal) {
     super(message);
     this.name = "DecisionRequestError";
+    this.refusal = refusal;
     this.status = status;
   }
 }
@@ -99,6 +105,7 @@ export async function requestDecision({
     failure = new DecisionRequestError(
       `Decision request for ${model} via ${config.type} failed (${response.status}): ${detail.slice(0, 300)}`,
       response.status,
+      planRefusalIn(detail),
     );
     // An unknown model is worth another id; anything else would fail the same.
     if (response.status !== 400 && response.status !== 404) {

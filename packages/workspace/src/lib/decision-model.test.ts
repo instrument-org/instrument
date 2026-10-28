@@ -73,13 +73,13 @@ describe("askDecisionModel", () => {
   // A signed-in account with no plan, running on its own ChatGPT or Claude:
   // every ask is refused, which is no fault and no reason to ask again soon.
   it.each([
-    { refusal: '{"error":{"code":"subscription-required"}}', status: 402 },
-    { refusal: '{"error":{"code":"usage-limit-exceeded"}}', status: 429 },
-  ])(
+    { code: "subscription-required", status: 402 },
+    { code: "usage-limit-exceeded", status: 429 },
+  ] as const)(
     "answers nothing for ten minutes after the plan refuses ($status)",
-    async ({ refusal, status }) => {
+    async ({ code, status }) => {
       requestDecision.mockRejectedValueOnce(
-        new DecisionRequestError(`refused (${status}): ${refusal}`, status),
+        new DecisionRequestError("refused", status, { code }),
       );
       await expect(askDecisionModel({ body, configs, activity })).resolves.toBe(
         undefined,

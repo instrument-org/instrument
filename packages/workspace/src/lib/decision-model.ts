@@ -61,8 +61,7 @@ let unreachableUntil = 0;
 function isRefusedByPlan(error: unknown) {
   return (
     error instanceof DecisionRequestError &&
-    (error.status === 402 ||
-      (error.status === 429 && error.message.includes("usage-limit-exceeded")))
+    (error.status === 402 || error.refusal?.code === "usage-limit-exceeded")
   );
 }
 

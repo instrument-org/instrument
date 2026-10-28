@@ -27,4 +27,31 @@ describe("requestDecision", () => {
 
     expect(String(fetch.mock.calls[0]?.[0])).toMatch(new RegExp(`${path}$`));
   });
+
+  it("reads the plan refusal from the body, however long it is", async () => {
+    const refused = {
+      error: {
+        message: "x".repeat(400),
+        code: "usage-limit-exceeded",
+      },
+    };
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(Response.json(refused, { status: 429 })),
+    );
+
+    await expect(
+      requestDecision({
+        body: { questions: {}, state: {} },
+        // Only the id and type are read here.
+        config: {
+          id: "cfg-1",
+          type: OUR_MODELS.providerType,
+        } as AIGatewayProviderConfig.Type,
+        workspaceServerURL: "http://localhost" as WorkspaceServerURL,
+      }),
+    ).rejects.toMatchObject({
+      refusal: { code: "usage-limit-exceeded" },
+      status: 429,
+    });
+  });
 });

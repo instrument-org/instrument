@@ -1,9 +1,9 @@
-// node build-replay.mjs <records-dir> <out.html> --design <part.js> --title "Chat replay: ..." [--chat "..."] [--at seconds] [--pictures] [--line "..."] [--source "..."]
+// node build-replay.mjs <records-dir> <out.html> --design <part.js> --title "Chat replay: ..." [--chat "..."] [--pictures] [--line "..."] [--source "..."]
 // Builds a replay: one chat's records played back as a prototype, drawn with the pieces of a design part, with a
 // scrubber under it. <records-dir> holds the chat's ses_*.jsonl logs, its tasks' included: a chat's folder under
 // .instrument/chats/<id>/, which an eval keeps in its run's workspace. --design is the wireframe part whose design
 // the replay draws with; the replay takes everything above its "// ---- the scenario" line (or its META), so the
-// part's own scenario stays out. --chat is the chat's title in the window, --at the second the replay opens on, and --pictures
+// part's own scenario stays out. --chat is the chat's title in the window, and --pictures
 // takes a picture of each tab's page for the pane.
 
 import fs from "node:fs";
@@ -20,7 +20,6 @@ const { positionals, values } = parseArgs({
     design: { type: "string" },
     title: { type: "string" },
     chat: { type: "string" },
-    at: { type: "string" },
     line: { type: "string" },
     source: { type: "string" },
     pictures: { type: "boolean" },
@@ -58,7 +57,6 @@ if (cutAt === undefined) throw new Error(`${values.design} has no "// ---- the s
 const replay = {
   title: values.title,
   chat: values.chat ?? values.title,
-  at: Number(values.at ?? 0),
   line: values.line ?? "A chat played back from its records at the real pace, drawn in this design.",
   source: values.source ?? `Played back from the records of chat ${path.basename(path.resolve(recordsDir))}; every message, step, task and time is the record's, and the list's other chats are the kit's.`,
 };

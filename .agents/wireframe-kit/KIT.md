@@ -112,7 +112,7 @@ A part that defines `META` and `SCREEN` (`{ w, h, draw, controls }`, the skill's
 
 ```bash
 node .agents/wireframe-kit/replay/build-replay.mjs <chat-records-dir> ~/wireframes/YYYY-MM-DD-chat-replay-<what>.html \
-  --design ~/wireframes/<the design's part>.js --title "Chat replay: <what>" --chat "<the chat's title>" [--at <second to open on>]
+  --design ~/wireframes/<the design's part>.js --title "Chat replay: <what>" --chat "<the chat's title>" [--pictures]
 ```
 
 - `<chat-records-dir>` is a chat's `.instrument/chats/<id>/` folder, with its tasks' logs beside its own. An eval keeps one per chat in its run's workspace, a temp folder the system clears in time, so copy the workspace out if the run is worth replaying later.

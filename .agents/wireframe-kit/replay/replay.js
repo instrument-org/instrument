@@ -285,7 +285,7 @@ const SPEEDS = [1, 4, 8];
 
 const META = { title: REPLAY.title, line: REPLAY.line, source: REPLAY.source };
 
-let T = REPLAY.at;
+let T = 0;
 const SCREEN = { w: 1280, h: 800, draw: () => replayView(T), controls: () => scrubber(T) };
 
 // The scrubber's behavior: drag it, use ← and → to jump from one event to the next, Space to play, and click a

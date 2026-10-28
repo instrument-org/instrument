@@ -31,15 +31,16 @@ const BWRAP = "/usr/bin/bwrap";
  * `--norc` from sourcing ~/.bashrc, which bash does for `-c` when stdin is
  * a socket and SHLVL is unset, as it is under the app. macOS
  * needs none: libuv spawns there with every descriptor closed on exec.
+ * `passFd` is one the spawn put there for the program, which stays open.
  */
-function closingInheritedFds(): string[] {
+function closingInheritedFds(passFd?: number): string[] {
   return existsSync("/bin/bash")
     ? [
         "/bin/bash",
         "--norc",
         "-p",
         "-c",
-        'for f in /proc/self/fd/*; do f=${f##*/}; case $f in 0|1|2) ;; *) eval "exec $f>&-" 2>/dev/null ;; esac; done; exec "$@"',
+        `for f in /proc/self/fd/*; do f=\${f##*/}; case $f in 0|1|2${passFd === undefined ? "" : `|${passFd}`}) ;; *) eval "exec $f>&-" 2>/dev/null ;; esac; done; exec "$@"`,
         "bash",
       ]
     : [];
@@ -404,9 +405,17 @@ export function bwrapCommand(
   reach: NativeReach,
   file: string,
   args: readonly string[],
+  /** A descriptor the spawn hands the program, kept open through the sandbox. */
+  passFd?: number,
 ): { args: string[]; file: string } {
   return {
-    args: [...bwrapArgs(reach), "--", ...closingInheritedFds(), file, ...args],
+    args: [
+      ...bwrapArgs(reach),
+      "--",
+      ...closingInheritedFds(passFd),
+      file,
+      ...args,
+    ],
     file: BWRAP,
   };
 }

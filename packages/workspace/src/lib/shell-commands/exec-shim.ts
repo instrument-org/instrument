@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
-import { type ScriptChannel } from "../capabilities/channel";
+import { SCRIPT_CHANNEL_FD, type ScriptChannel } from "../capabilities/channel";
 
 import {
   launchNative,
@@ -159,7 +159,12 @@ export async function execShim(
   } = options;
   let spawned: ReturnType<typeof wrapNativeCommand>;
   try {
-    spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
+    spawned = wrapNativeCommand(
+      file,
+      args,
+      unsandboxed ? null : undefined,
+      scriptChannel?.handOver.tokenLine ? SCRIPT_CHANNEL_FD : undefined,
+    );
   } catch (error) {
     if (!(error instanceof NativeSandboxUnavailableError)) {
       throw error;

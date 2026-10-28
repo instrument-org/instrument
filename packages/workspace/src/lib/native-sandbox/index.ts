@@ -155,8 +155,13 @@ export function wrapNativeCommand(
   args: readonly string[],
   /** Null runs the command unwrapped, for an app the person allowed. */
   reach: NativeReach | null | undefined = currentReach(),
+  /**
+   * A descriptor past stdin, stdout and stderr that the spawn hands the
+   * program, which bubblewrap's step that closes the rest leaves open.
+   */
+  passFd?: number,
 ): WrappedCommand {
-  const wrapped = wrap(file, args, reach);
+  const wrapped = wrap(file, args, reach, passFd);
   // A program a shell command starts is wrapped here, so this is where the
   // call's record learns what held it.
   recordProgramStart(
@@ -178,6 +183,7 @@ function wrap(
   file: string,
   args: readonly string[],
   reach: NativeReach | null | undefined,
+  passFd: number | undefined,
 ): WrappedCommand {
   const unwrapped: WrappedCommand = {
     args: [...args],
@@ -217,7 +223,11 @@ function wrap(
     };
   }
   if (bwrap === "works") {
-    return { ...bwrapCommand(reach, file, args), kind: "sandboxed", reach };
+    return {
+      ...bwrapCommand(reach, file, args, passFd),
+      kind: "sandboxed",
+      reach,
+    };
   }
   if (!runsAnyway) {
     throw new NativeSandboxUnavailableError(file);

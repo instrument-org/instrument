@@ -17,6 +17,7 @@ const BOOT_MODULE = "_instrument_boot";
  */
 const BOOT_SOURCE = `"""Holds the channel \`instrument\` calls Instrument over, taken at startup."""
 import os
+import stat
 
 
 def _take():
@@ -29,6 +30,13 @@ def _take():
     if not (secret.startswith("fd") and secret[2:].isdigit()):
         return at
     fd = int(secret[2:])
+    # Only the socket the spawn handed over: where something closed it on
+    # the way, the number may be one the interpreter opened since.
+    try:
+        if not stat.S_ISSOCK(os.fstat(fd).st_mode):
+            return port + ":"
+    except OSError:
+        return port + ":"
     line = b""
     try:
         os.set_blocking(fd, True)

@@ -4,6 +4,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
@@ -176,8 +177,10 @@ describe("node's instrument global", () => {
       await mkdir(workDir(chatId), { recursive: true });
       const pids = path.join(workDir(chatId), "pids");
       const go = path.join(workDir(chatId), "go");
+      const environs = path.join(workDir(chatId), "environs");
       await rm(pids, { force: true });
       await rm(go, { force: true });
+      await rm(environs, { force: true });
       const script = path.join(workDir(chatId), "hold.cjs");
       await writeFile(
         script,
@@ -185,7 +188,16 @@ describe("node's instrument global", () => {
 const fs = require("node:fs");
 const fd3 = execFileSync("/bin/sh", ["-c", "if [ -e /dev/fd/3 ]; then echo open; else echo closed; fi"], { encoding: "utf8" }).trim();
 const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 20000)"], { stdio: "ignore" });
-fs.writeFileSync("pids", process.pid + " " + child.pid);
+const read = (file) => { try { return fs.readFileSync(file, "latin1"); } catch { return ""; } };
+// On Linux the pids are the sandbox's own, so the script reads the
+// environments it and its child started with, once the child has exec'd.
+const report = () => {
+  if (process.platform !== "linux") return fs.writeFileSync("pids", process.pid + " " + child.pid);
+  if (!read("/proc/" + child.pid + "/cmdline").includes("setTimeout")) return setTimeout(report, 20);
+  fs.writeFileSync("environs", JSON.stringify([read("/proc/self/environ"), read("/proc/" + child.pid + "/environ")]));
+  fs.writeFileSync("pids", "");
+};
+report();
 const wait = () => {
   if (!fs.existsSync("go")) return setTimeout(wait, 20);
   child.kill();
@@ -199,14 +211,24 @@ wait();
       while (!existsSync(pids) && Date.now() - started < 20_000) {
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
-      const held = (await readFile(pids, "utf8")).split(" ");
-      const channelIn = (pid: string) => {
-        const shown = spawnSync("ps", ["eww", "-o", "command=", "-p", pid], {
-          encoding: "utf8",
-        }).stdout;
-        return new RegExp(`${SCRIPT_CHANNEL_ENV}=(\\S+)`).exec(shown)?.[1];
-      };
-      const [inScript, inChild] = held.map(channelIn);
+      const shown =
+        process.platform === "linux"
+          ? z
+              .array(z.string())
+              .parse(JSON.parse(await readFile(environs, "utf8")))
+              .map((environ) => environ.replaceAll("\0", " "))
+          : (await readFile(pids, "utf8")).split(" ").map(
+              (pid) =>
+                spawnSync("ps", ["eww", "-o", "command=", "-p", pid], {
+                  encoding: "utf8",
+                }).stdout,
+            );
+      const [inScript, inChild] = shown.map(
+        (environ) =>
+          new RegExp(`(?:^|\\s)${SCRIPT_CHANNEL_ENV}=(\\S+)`).exec(
+            environ,
+          )?.[1],
+      );
       await writeFile(go, "");
       const result = await running;
       expect(result.stderr).toBe("");

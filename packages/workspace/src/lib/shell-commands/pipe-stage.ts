@@ -208,6 +208,7 @@ export function startPipeStage(
       file,
       args,
       options.unsandboxed ? null : undefined,
+      options.scriptChannel?.handOver.tokenLine ? SCRIPT_CHANNEL_FD : undefined,
     );
   } catch (error) {
     options.scriptChannel?.close();

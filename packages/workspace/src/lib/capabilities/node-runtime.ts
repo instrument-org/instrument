@@ -26,7 +26,7 @@ import { SCRIPT_CHANNEL_ENV } from "./channel";
  * is waiting, so a script that never calls exits when its own work is done.
  */
 export const INSTRUMENT_NODE_PRELOAD = `
-import { closeSync, readSync } from "node:fs";
+import { closeSync, fstatSync, readSync } from "node:fs";
 import { connect } from "node:net";
 
 const channelAt = process.env.${SCRIPT_CHANNEL_ENV};
@@ -36,6 +36,13 @@ delete process.env.${SCRIPT_CHANNEL_ENV};
 const tokenFrom = (secret) => {
   if (!/^fd\\d+$/.test(secret)) return secret;
   const fd = Number(secret.slice(2));
+  // Only the socket the spawn handed over: where something closed it on the
+  // way, the number may be one Node opened since, which is not ours to close.
+  try {
+    if (!fstatSync(fd).isSocket()) return "";
+  } catch {
+    return "";
+  }
   const line = Buffer.alloc(256);
   const pause = new Int32Array(new SharedArrayBuffer(4));
   let length = 0;

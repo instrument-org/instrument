@@ -45,7 +45,7 @@ Three blind readers, following `REVIEW.md`: one on the commits since the 10-27 r
 
 ### E. Deleting a skill that is not editable names the registry's folder
 
-- Status: open
+- Status: fixed
 - Where: [delete-skill.ts:39](/packages/workspace/src/lib/delete-skill.ts#L39)
 - What: the refusal says the skill "lives outside /skills" (`REGISTRY_FOLDER_NAMES.skills`), but editability is decided against the workspace's top-level `Skills/` (`SKILLS_FOLDER_NAME`). It also returns `TypedError.Parse` for a refusal.
 - Verification: traced statically.

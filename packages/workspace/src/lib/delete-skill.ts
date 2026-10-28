@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 
-import { REGISTRY_FOLDER_NAMES } from "../constants";
+import { SKILLS_FOLDER_NAME } from "../constants";
 import { type AbsolutePath, type WorkspaceDir } from "../schemas/paths";
 import { TypedError } from "./errors";
 import { getSkillProvenance, getWritableSkillsRoot } from "./skill-provenance";
@@ -21,7 +21,7 @@ export async function deleteSkill(
 ): Promise<
   Result<
     undefined,
-    TypedError.FileSystem | TypedError.NotFound | TypedError.Parse
+    TypedError.FileSystem | TypedError.InvalidInput | TypedError.NotFound
   >
 > {
   const { skill } = await findSkill(
@@ -35,8 +35,8 @@ export async function deleteSkill(
   const writableRoot = await getWritableSkillsRoot(rootDir);
   if (!getSkillProvenance(skill, writableRoot).editable) {
     return err(
-      new TypedError.Parse(
-        `Skill "${name}" is not editable because it lives outside /${REGISTRY_FOLDER_NAMES.skills}`,
+      new TypedError.InvalidInput(
+        `Skill "${name}" is not editable because it lives outside the workspace's ${SKILLS_FOLDER_NAME}/ folder`,
       ),
     );
   }

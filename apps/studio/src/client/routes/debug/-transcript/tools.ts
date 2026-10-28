@@ -226,7 +226,7 @@ export function loadedSkill({
       files: ["scripts/run.py"],
       name,
       origin: "workspace",
-      skillDir: `/Users/casey/Documents/Instrument/.instrument/skills/${name}`,
+      skillDir: `/Users/casey/Documents/Instrument/Skills/${name}`,
       skillName: name,
       state: "success",
       truncated: false,

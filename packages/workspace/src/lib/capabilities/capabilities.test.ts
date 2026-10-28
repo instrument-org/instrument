@@ -380,6 +380,21 @@ describe("dispatch", () => {
     expect(recorded.map(({ app }) => app)).toEqual(["docs", "gmail"]);
   });
 
+  it("refuses a call once its command is stopped, with nothing run", async () => {
+    const stop = new AbortController();
+    stop.abort();
+    const stopped = capabilityContexts(scope, "script")(stop.signal);
+    expect(await dispatch("test.echo", { app: "beacon" }, stopped, REGISTRY))
+      .toMatchInlineSnapshot(`
+      {
+        "error": {
+          "kind": "refused",
+          "message": "The command was stopped, so instrument takes no more calls from it.",
+        },
+      }
+    `);
+  });
+
   it("refuses what the shell's role does not have", async () => {
     expect(await dispatch("test.chat_only", {}, script, REGISTRY))
       .toMatchInlineSnapshot(`

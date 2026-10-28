@@ -7,7 +7,11 @@ import { describe, expect, it } from "vitest";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { knowChat } from "../test/helpers/mock-chat-config";
-import { type ChannelAnswer, openScriptChannel } from "./capabilities/channel";
+import {
+  type ChannelAnswer,
+  openScriptChannel,
+  type ScriptChannel,
+} from "./capabilities/channel";
 import { createLocalBashEnv } from "./create-bash-env";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
@@ -241,6 +245,13 @@ describe("node's instrument global", () => {
   });
 });
 
+/** Where a channel listens and the token it takes, as its process would read them. */
+function reachOf(channel: ScriptChannel) {
+  const [port = "", token = ""] =
+    Object.values(channel.env)[0]?.split(":") ?? [];
+  return { port: Number(port), token };
+}
+
 describe("openScriptChannel", () => {
   /** Writes `lines` and reads what comes back until an answer or the close. */
   async function talk(port: number, lines: string[]) {
@@ -260,7 +271,7 @@ describe("openScriptChannel", () => {
 
   it("answers a call only after the token", async () => {
     const channel = await openScriptChannel(echo);
-    const [port, token = ""] = Object.values(channel.env)[0]?.split(":") ?? [];
+    const { port, token } = reachOf(channel);
     const call = JSON.stringify({ args: { a: 1 }, capability: "x.y", id: 1 });
     try {
       expect(await talk(Number(port), ["0".repeat(64), call])).toBe("");
@@ -268,6 +279,28 @@ describe("openScriptChannel", () => {
         "{"id":1,"result":{"args":{"a":1},"capability":"x.y"}}
         "
       `);
+    } finally {
+      channel.close();
+    }
+  });
+
+  it("refuses a call once the command that started the script is stopped", async () => {
+    let answered = 0;
+    const channel = await openScriptChannel((request, signal) => {
+      answered += 1;
+      return echo(request, signal);
+    });
+    const { port, token } = reachOf(channel);
+    const stop = new AbortController();
+    channel.attach(stop.signal);
+    stop.abort();
+    try {
+      const call = JSON.stringify({ args: {}, capability: "x.y", id: 1 });
+      expect(await talk(port, [token, call])).toMatchInlineSnapshot(`
+        "{"id":1,"error":{"kind":"refused","message":"The command was stopped, so instrument takes no more calls from it."}}
+        "
+      `);
+      expect(answered).toBe(0);
     } finally {
       channel.close();
     }

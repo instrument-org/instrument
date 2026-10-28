@@ -9,6 +9,7 @@ import {
   type DescribedCapability,
   describeCapabilities,
   dispatch,
+  STOPPED,
 } from "./dispatch";
 
 /**
@@ -137,7 +138,10 @@ export async function openScriptChannel(
                 capability: parsed.capability,
                 kind: "call",
               };
-        void inContext(() => answer(request, signal))
+        const reply: Promise<ChannelReply> = signal?.aborted
+          ? Promise.resolve({ error: STOPPED })
+          : inContext(() => answer(request, signal));
+        void reply
           .catch(
             (error: unknown): ChannelReply => ({
               error: {

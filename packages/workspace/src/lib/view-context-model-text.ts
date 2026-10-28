@@ -1,6 +1,6 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_COMMAND } from "./shell-commands/app-command";
-import { TAB_COMMAND } from "./shell-commands/tab-command";
+import { WINDOW_COMMAND } from "./shell-commands/window-command";
 import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
@@ -122,7 +122,7 @@ function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`instrument tab open <url>\` opens one.
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`${WINDOW_COMMAND.name} show <url>\` opens one.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -138,7 +138,7 @@ function pageNote(data: ViewContext) {
         : ` (this chat's tab ${page.tab}${heldClause(shown?.heldBy)})`;
   const ways =
     theirs && page.tab !== undefined
-      ? ` To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`${TAB_COMMAND.name} request ${page.tab}\` asks them to move this tab into the chat as it stands.`
+      ? ` To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`${WINDOW_COMMAND.name} request ${page.tab}\` asks them to move this tab into the chat as it stands.`
       : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =

@@ -28,6 +28,12 @@
  *   for a folder the person keeps closed until asked, which shows them a
  *   card nobody answers: neither t1 nor the chat calls the folder refused,
  *   and the chat tells the user the task is waiting on them.
+ * - **It works on once the card is answered.** The same folder card, allowed
+ *   through the chat's own route as the person would, wakes t1, which reads
+ *   the notes and writes the list.
+ * - **It asks the user for what a task needs.** A task cannot put a card up:
+ *   t1 names the pick it needs in its needs fence, and the chat, woken by
+ *   the note listing it, asks on a `choose` card and sends t1 the answer.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -497,6 +503,115 @@ const chatSaidItWaits: Assertion = {
   text: "the chat said t1 waits on the user, not that it was refused",
 };
 
+/** t1's own sessions, which the wakes it was given and its turns after them are in. */
+async function t1Sessions(
+  ctx: Context,
+): Promise<Session.WithMessagesAndParts[]> {
+  const task = (await listChildTasks(ctx.chatId)).find(
+    (child) => child.handle === "t1",
+  );
+  const children = await ctx.childSessions();
+  return children
+    .flatMap((child) => child.sessions)
+    .filter((session) => session.id === task?.id);
+}
+
+/**
+ * The person allowed t1's card in the chat, and the answer woke t1, which
+ * went on working: a turn of its own after the answer.
+ */
+const t1ResumedAfterTheCard: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 was woken by the answer to its card and worked on";
+    const messages = (await t1Sessions(ctx)).flatMap(
+      (session) => session.messages,
+    );
+    const answered = messages.findIndex((message) =>
+      message.parts.some((part) => part.type === "data-permissionAnswer"),
+    );
+    const after =
+      answered === -1
+        ? []
+        : messages
+            .slice(answered + 1)
+            .filter((message) => message.role === "assistant");
+    return (answered !== -1 && after.length > 0 ? pass : fail)(
+      text,
+      answered === -1
+        ? `no answer reached t1 (${String(messages.length)} messages of its own)`
+        : `${String(after.length)} replies of t1's after the answer`,
+    );
+  },
+  text: "t1 was woken by the answer to its card and worked on",
+};
+
+/** The card that woke t1 was the folder's, and none of t1's is open now. */
+const t1sCardWasAnswered: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 asked for the Pantry folder and no card of t1's is open";
+    const task = (await listChildTasks(ctx.chatId)).find(
+      (child) => child.handle === "t1",
+    );
+    const asked = (await t1Sessions(ctx))
+      .flatMap((session) => session.messages)
+      .flatMap((message) => message.parts)
+      .some((part) => part.type === "tool-ask_permission");
+    const open = (await openAsks(ctx.chatId)).filter((ask) =>
+      ask.askers.some((asker) => asker.sessionId === task?.id),
+    );
+    return (asked && open.length === 0 ? pass : fail)(
+      text,
+      `${asked ? "t1 asked" : "t1 never called ask_permission"}; ${String(open.length)} open cards of t1's`,
+    );
+  },
+  text: "t1 asked for the Pantry folder and no card of t1's is open",
+};
+
+/**
+ * t1 ended a turn on a need the person has to settle (a needs fence), and the
+ * chat, woken by the note listing it, asked them on a card of its own, then
+ * sent t1 their answer.
+ */
+const chatAskedForT1sNeed: Assertion = {
+  check: async (ctx: Context) => {
+    const text =
+      "t1 named its need, the chat asked on a choose card, and sent t1 the answer";
+    const task = (await listChildTasks(ctx.chatId)).find(
+      (child) => child.handle === "t1",
+    );
+    const chat = ctx.sessions[0];
+    const messages = chat?.messages ?? [];
+    const woke = messages.findIndex((message) =>
+      message.parts.some(
+        (part) =>
+          part.type === "data-taskEvent" &&
+          part.data.events.some(
+            (event) =>
+              event.sessionId === task?.id && (event.needs?.length ?? 0) > 0,
+          ),
+      ),
+    );
+    const after = chat
+      ? [{ ...chat, messages: woke === -1 ? [] : messages.slice(woke + 1) }]
+      : [];
+    const chose = after.some((session) =>
+      session.messages.some((message) =>
+        message.parts.some((part) => part.type === "tool-choose"),
+      ),
+    );
+    const sent = commandsIn(after).some((command) =>
+      /\binstrument task send t1\b/.test(command),
+    );
+    return (woke !== -1 && chose && sent ? pass : fail)(
+      text,
+      woke === -1
+        ? "no note said t1 waits on a need"
+        : `${chose ? "asked on a card" : "no choose card after the note"}; ${sent ? "sent t1 the answer" : "sent t1 nothing"}; ${wordsIn(after).slice(0, 200)}`,
+    );
+  },
+  text: "t1 named its need, the chat asked on a choose card, and sent t1 the answer",
+};
+
 export const TASK_SESSION_EVALS = [
   defineEval({
     assertions: [
@@ -577,5 +692,38 @@ export const TASK_SESSION_EVALS = [
       return `Start a background task for this, please: read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
     },
     setup: seedPantry,
+  }),
+  defineEval({
+    // The person allows the card in the chat, the way they would, and the
+    // answer wakes t1, which does the work.
+    allowsFolders: 1,
+    assertions: [
+      t1sCardWasAnswered,
+      t1ResumedAfterTheCard,
+      wrote("shopping-list.md", /(?=[\s\S]*olive oil)(?=[\s\S]*lentil)/i),
+    ],
+    kind: "chat",
+    name: "task-session-folder-card-answered",
+    get prompt() {
+      return `Start a background task for this, please: read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
+    },
+    setup: seedPantry,
+  }),
+  defineEval({
+    // A task cannot put a card up; what only the person can settle goes in
+    // its needs fence, and the chat asks them.
+    answers: [
+      (input) => ({
+        selectedChoice:
+          input.choices.find((choice) => /funny/i.test(choice)) ??
+          input.choices[0] ??
+          "Funny",
+      }),
+    ],
+    assertions: [chatAskedForT1sNeed, wrote("sam-note.md", /\S/)],
+    kind: "chat",
+    name: "task-session-needs-a-pick",
+    prompt:
+      "Start a background task right now, without asking me anything first: write a two-line birthday note for my friend Sam into sam-note.md in the workspace folder. Funny or sentimental is my call, so the task should ask me which before it writes anything.",
   }),
 ];

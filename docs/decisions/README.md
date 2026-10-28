@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-27 | [`instrument window` is what is in front of the person, a tab has one id, and the prompt holds for a task too](2026-10-27-the-window-command-and-one-tab-id.md) |
 | 2026-10-26 | [Each device writes its chat list into the workspace, for a phone to open it from](2026-10-26-each-device-writes-its-chat-list-into-the-workspace.md) |
 | 2026-10-19 | [Accept that a computer on the previous build stops seeing chat settings from an upgraded one](2026-10-19-accept-the-staggered-upgrade-gap-for-chat-settings.md) |
 | 2026-10-20 | [A chat's grant outlasts a later change in Settings](2026-10-20-a-chat-grant-outlasts-a-settings-change.md) |

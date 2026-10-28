@@ -855,16 +855,22 @@ function newestLast(items: string[]): string[] {
   return [...seen];
 }
 
-/** The hostnames a shell command opens for the user with `instrument tab open <url>`. */
+/**
+ * The hostnames a shell command opens for the user with `instrument window
+ * show <url>`.
+ */
 function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
+  // `show` opens every address it is given, each in a tab of its own.
   for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*instrument\s+tab\s+(?:open|replace\s+\S+)\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    /(?:^|[\n;&|])\s*instrument\s+window\s+show\s([^\n;&|]*)/g,
   )) {
-    try {
-      hosts.push(new URL(match[1] ?? "").hostname);
-    } catch {
-      // Not an address the shell would have opened either.
+    for (const [url] of (match[1] ?? "").matchAll(/https?:\/\/[^\s'"]+/g)) {
+      try {
+        hosts.push(new URL(url).hostname);
+      } catch {
+        // Not an address the shell would have opened either.
+      }
     }
   }
   return hosts.filter((host) => host !== "");
@@ -983,7 +989,7 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
 
 /**
  * The hostnames the chat's work touched: what its agent opened for the user
- * with `instrument tab open <url>`, then every host the browsers of the tasks it started
+ * with `instrument window show <url>`, then every host the browsers of the tasks it started
  * have been on, each task's newest last. A task's hosts come from its browser
  * state, one small read per task, rather than from its transcript.
  */

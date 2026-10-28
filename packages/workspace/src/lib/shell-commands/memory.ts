@@ -47,13 +47,23 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 export interface MemoryCommandContext {
   /** The chat the call runs in, named on what it saves. */
   chatId: ChatId;
+  /** Whose shell it is: a task's reads memories and keeps none. */
+  role: "chat" | "task";
 }
+
+/**
+ * Why a task's `memory save` and `memory forget` change nothing: what is kept
+ * for every chat is the chat's to decide, from what the task reports.
+ */
+const MEMORY_IS_THE_CHATS =
+  "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.";
 
 /**
  * The conversation's way of keeping what it learns about the user. A command
  * rather than a file the agent edits, because this agent has no tool that
  * writes a file's contents, on purpose, and a memory is the one thing it
- * should be able to keep without starting a task.
+ * should be able to keep without starting a task. A task lists and reads
+ * them; saving and forgetting are the chat's.
  */
 export function createMemoryCommand(context: MemoryCommandContext) {
   return defineCommand(NAME, (args, ctx) => runMemory(args, context, ctx));
@@ -65,12 +75,13 @@ const runMemory = defineSubcommands<MemoryCommandContext>({
   subcommands: {
     forget: subcommand({
       positional: 1,
-      run: ({ positional }) => runForget(positional),
+      run: ({ positional }, context) =>
+        chatOnly(context, () => runForget(positional)),
     }),
     list: subcommand({ positional: 0, run: () => runList() }),
     save: subcommand({
       run: ({ positional }, context, { stdin }) =>
-        runSave(positional, stdin, context),
+        chatOnly(context, () => runSave(positional, stdin, context)),
     }),
     show: subcommand({
       positional: 1,
@@ -79,6 +90,17 @@ const runMemory = defineSubcommands<MemoryCommandContext>({
   },
   usage: USAGE,
 });
+
+/** A subcommand that changes what is kept, which a task's shell refuses. */
+function chatOnly(
+  context: MemoryCommandContext,
+  run: () => Promise<string>,
+): Promise<string> {
+  if (context.role !== "chat") {
+    throw new Error(MEMORY_IS_THE_CHATS);
+  }
+  return run();
+}
 
 function day(at: number): string {
   return new Date(at).toISOString().slice(0, 10);

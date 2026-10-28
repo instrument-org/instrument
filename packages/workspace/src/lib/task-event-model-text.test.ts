@@ -101,7 +101,7 @@ describe("taskEventModelNote", () => {
     expect(note).not.toContain("background");
   });
 
-  it("names the pages a task left open by the tab ids `instrument tab show` takes", () => {
+  it("names the pages a task left open by the tab ids `instrument window show` takes", () => {
     const note = taskEventModelNote({
       events: [
         {
@@ -127,7 +127,7 @@ describe("taskEventModelNote", () => {
       - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Optimize the cart") finished a turn. It said:
             The cart is ready.
         Its pages still open in the window: https://unscentedco.com/cart (tab ses_01M48PS7HWJZEM6M3D3PA0CS8Z), a blank page (tab ses_01M48PS7HWJZEM6M3D3PA0CS90, handed to it).
-      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it. A result on a page is in the tab listed; \`instrument tab show <id>\` it when the user has something to do there.
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it. A result on a page is in the tab listed; \`instrument window show <id>\` it when the user has something to do there.
       </instrument-system-note>"
     `);
   });

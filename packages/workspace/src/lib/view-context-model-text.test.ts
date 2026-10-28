@@ -116,7 +116,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside this chat. "This page", "this site", "this" and "here" refer to it. To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`instrument tab request tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA\` asks them to move this tab into the chat as it stands.
+      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside this chat. "This page", "this site", "this" and "here" refer to it. To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`instrument window request tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA\` asks them to move this tab into the chat as it stands.
       This chat has no tabs.
       </instrument-system-note>"
     `);

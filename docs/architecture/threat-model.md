@@ -64,7 +64,7 @@ Each of these holds one of the lines above, and a change that weakens one needs 
 - Installs are held to hash and release-age checks (line 3).
 - The updater's downloads in the caches (electron-updater's folder, and ShipIt's on macOS) are the app's own data, closed while the rest of the caches is open, since an update installs from them outside every sandbox (line 3).
 - pnpm's install step outside the sandbox (an install, and on Windows what `npx` fetches) runs no package's code, and goes outside only for a project the rules let the chat write that names registry packages alone and has no link out of its `node_modules` (lines 1 and 3).
-- The browser bridge passes only the commands on its list, a local file is checked before a page loads it, and `instrument tab read` refuses a file the agent could not open itself (line 1).
+- The browser bridge passes only the commands on its list, a local file is checked before a page loads it, and `instrument window read` refuses a file the agent could not open itself (line 1).
 - App credentials are bound to their service's origin, and an app's manifest cannot name a command line (lines 2 and 3).
 - `ps` and `top` (and `tasklist` on Windows, from `System32`, never with `/s`, `/u` or `/p`) outside the sandbox run the system's own root-owned binary, with an environment built from nothing and a closed list of options that only read: no other process's environment, no file named, and `top` never interactive, where its keys renice and signal (lines 3 and 5).
 - `git` and `rg` check their arguments, and `rg` and `du` leave the app's own data out of their walks: a second layer on macOS and Linux, and the only one on Windows.

@@ -10,12 +10,12 @@ import { StoreId } from "../../schemas/store-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
-import { createTabCommand } from "./tab";
+import { createWindowCommand } from "./window";
 
-const chatId = ChatIdSchema.parse("tab-command-chat");
+const chatId = ChatIdSchema.parse("window-command-chat");
 // As this computer spells it, with a drive on Windows, where the browser's
 // addresses carry one.
-const chatFolder = path.resolve("/work/chats/tab-command-chat");
+const chatFolder = path.resolve("/work/chats/window-command-chat");
 const layout = buildWorkspaceFsLayout({
   chatHostRoot: WorkDirSchema.parse(chatFolder),
 });
@@ -52,12 +52,12 @@ let asked: { action: WindowTabAction; chatId?: ChatId }[];
 let stopAnswering: () => void;
 
 /**
- * A window with one tab open, `tab-known`: answers each ask the way the
- * window does, with a new tab for an open and an error for an id it has not
- * got.
+ * A window with two tabs open, `tab_known` and a page in front: answers each
+ * ask the way the window does, with a new tab for an open and an error for
+ * an id it has not got.
  */
 function answeringWindow() {
-  const known = new Set<string>(["tab-known", pageTab]);
+  const known = new Set<string>(["tab_known", pageTab]);
   return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
@@ -72,6 +72,7 @@ function answeringWindow() {
               tabs: [...known].map((id) =>
                 id === pageTab
                   ? {
+                      front: true,
                       id,
                       kind: "page" as const,
                       title: "Suite plans",
@@ -111,12 +112,16 @@ function answeringWindow() {
   });
 }
 
-function run(options: { timeoutMs?: number }, ...args: string[]) {
+function run(
+  options: { role?: "chat" | "task"; timeoutMs?: number },
+  ...args: string[]
+) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/Users/me/Instrument/report.md", "# report");
-  return createTabCommand({
+  return createWindowCommand({
     chatId,
     layout,
+    role: "chat",
     sessionId: StoreId.newSessionId(),
     ...options,
   }).execute(
@@ -151,18 +156,18 @@ afterEach(() => {
   stopAnswering();
 });
 
-describe("tab open", () => {
+describe("window show, for something new", () => {
   it("prints the tab the window made for each page, so a task can be handed it", async () => {
     const result = await run(
       {},
-      "open",
+      "show",
       "https://example.com/",
       "https://example.org/",
     );
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
-      "Opened https://example.com/ (tab made-1)\nOpened https://example.org/ (tab made-2)\n",
+      "Opened https://example.com/ in front (tab made-1)\nOpened https://example.org/ in front (tab made-2)\n",
     );
     expect(asked.map(({ action }) => action)).toEqual([
       {
@@ -181,9 +186,11 @@ describe("tab open", () => {
   // A terminal's `open` stands you in a folder, and so does this one. The
   // slash is how the window is told which of the two it was handed.
   it("opens a folder, named with the slash that says it is one", async () => {
-    const result = await run({}, "open", "/Users/me/Instrument");
+    const result = await run({}, "show", "/Users/me/Instrument");
 
-    expect(result.stdout).toBe("Opened /Users/me/Instrument/ (tab made-1)\n");
+    expect(result.stdout).toBe(
+      "Opened /Users/me/Instrument/ in front (tab made-1)\n",
+    );
     expect(asked[0]?.action).toEqual({
       kind: "open",
       show: true,
@@ -194,7 +201,7 @@ describe("tab open", () => {
   it("refuses a path that does not exist, and opens the rest", async () => {
     const result = await run(
       {},
-      "open",
+      "show",
       "/etc/hosts",
       "/Users/me/Instrument/report.md",
     );
@@ -202,40 +209,40 @@ describe("tab open", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('"/etc/hosts" does not exist');
     expect(result.stdout).toBe(
-      "Opened /Users/me/Instrument/report.md (tab made-1)\n",
+      "Opened /Users/me/Instrument/report.md in front (tab made-1)\n",
     );
   });
 
   it("names the chat that asked", async () => {
-    await run({}, "open", "https://example.com/");
+    await run({}, "show", "https://example.com/");
 
     expect(asked[0]?.chatId).toBe(chatId);
   });
 
   it("still opens the page when no window answers", async () => {
     stopAnswering();
-    const result = await run({ timeoutMs: 20 }, "open", "https://example.com/");
+    const result = await run({ timeoutMs: 20 }, "show", "https://example.com/");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("Opened https://example.com/\n");
+    expect(result.stdout).toBe("Opened https://example.com/ in front\n");
   });
 });
 
-describe("tab close, replace and show", () => {
+describe("window close, show and read on a tab", () => {
   it("closes a tab by its id", async () => {
-    const result = await run({}, "close", "tab-known");
+    const result = await run({}, "close", "tab_known");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("Closed tab tab-known.\n");
+    expect(result.stdout).toBe("Closed tab tab_known.\n");
   });
 
   it("says which task was working in a tab it closed", async () => {
-    holders.set("tab-known", {
+    holders.set("tab_known", {
       id: ChatIdSchema.parse("read-the-page"),
       title: "Read the page",
     });
 
-    const result = await run({}, "close", "tab-known");
+    const result = await run({}, "close", "tab_known");
 
     expect(result.stdout).toContain(
       'Task read-the-page ("Read the page") was working in it',
@@ -243,42 +250,44 @@ describe("tab close, replace and show", () => {
   });
 
   it("passes on the window's refusal of a tab it does not have", async () => {
-    const result = await run({}, "close", "tab-gone");
+    const result = await run({}, "close", "tab_gone");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      "instrument tab: no tab tab-gone is open in this chat.\n",
+      "instrument window: no tab tab_gone is open in this chat.\n",
     );
   });
 
   it("points a tab at a page", async () => {
     const result = await run(
       {},
-      "replace",
-      "tab-known",
+      "show",
       "https://example.com/",
+      "--in",
+      "tab_known",
     );
 
     expect(result.stdout).toBe(
-      "Tab tab-known now shows https://example.com/.\n",
+      "Tab tab_known now shows https://example.com/.\n",
     );
     expect(asked[0]?.action).toEqual({
       kind: "replace",
-      tabId: "tab-known",
+      tabId: "tab_known",
       target: { kind: "page", url: "https://example.com/" },
     });
   });
 
   it("brings a tab forward", async () => {
-    const result = await run({}, "show", "tab-known");
+    const result = await run({}, "show", "tab_known");
 
-    expect(result.stdout).toBe("Tab tab-known is on the user's screen.\n");
+    expect(result.stdout).toBe("Tab tab_known is in front.\n");
+    expect(asked[0]?.action).toEqual({ kind: "show", tabId: "tab_known" });
   });
 
   it("prints the text of the page in a tab", async () => {
-    const result = await run({}, "read", "tab-known");
+    const result = await run({}, "read", "tab_known");
 
-    expect(asked[0]?.action).toEqual({ kind: "read", tabId: "tab-known" });
+    expect(asked[0]?.action).toEqual({ kind: "read", tabId: "tab_known" });
     expect(result.stdout).toBe("Jar\nA rigid container.\n");
   });
 
@@ -296,7 +305,7 @@ describe("tab close, replace and show", () => {
     expect(asked).toEqual([]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      `instrument tab: tab ${pageTab} shows a file outside your folders, so it can't be read.\n`,
+      `instrument window: tab ${pageTab} shows a file outside your folders, so it can't be read.\n`,
     );
   });
 
@@ -311,17 +320,17 @@ describe("tab close, replace and show", () => {
   });
 
   it("passes on the window's refusal to read a tab it does not have", async () => {
-    const result = await run({}, "read", "tab-gone");
+    const result = await run({}, "read", "tab_gone");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      "instrument tab: no tab tab-gone is open in this chat.\n",
+      "instrument window: no tab tab_gone is open in this chat.\n",
     );
   });
 
   it("says nothing changed when no window answers", async () => {
     stopAnswering();
-    const result = await run({ timeoutMs: 20 }, "show", "tab-known");
+    const result = await run({ timeoutMs: 20 }, "show", "tab_known");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("the window did not answer");
@@ -332,24 +341,25 @@ describe("tab close, replace and show", () => {
     const result = await run({});
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Usage: instrument tab list");
+    expect(result.stdout).toContain("Usage: instrument window list");
   });
 
   it.each([
     { args: ["request"] },
     { args: ["close"] },
     { args: ["show"] },
-    { args: ["replace", "tab-known"] },
+    { args: ["show", "--in", "tab_known"] },
+    { args: ["show", "tab_gone", "--in", "tab_known"] },
   ])("prints the usage for $args", async ({ args }) => {
     const result = await run({}, ...args);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Usage: instrument tab list");
+    expect(result.stderr).toContain("Usage: instrument window list");
   });
 });
 
-describe("tab list", () => {
-  it("names the chat's tabs by the ids the other subcommands and --tab take", async () => {
+describe("window list", () => {
+  it("names what is in the window by the ids the other subcommands and --tab take", async () => {
     holders.set(pageTab, {
       id: ChatIdSchema.parse("t1"),
       title: "Compare plans",
@@ -358,14 +368,14 @@ describe("tab list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
-      "tab-known  a screen of the app, not a page
-      <page>  "Suite plans" https://www.zendesk.com/pricing/  (task t1 is working in it)
+      "tab_known  behind    a screen of the app, not a page
+      <page>  in front  Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
       "
     `);
   });
 });
 
-describe("tab request", () => {
+describe("window request", () => {
   it("raises a card for a tab of the user's a note named, and says the turn ends on it", async () => {
     const result = await run(
       {},
@@ -415,5 +425,35 @@ describe("tab request", () => {
         .replaceAll(theirTab, "<theirs>"),
     ).toMatchSnapshot();
     expect(raised).toEqual([]);
+  });
+});
+
+describe("in a task", () => {
+  it.each([["list"], ["read", "tab_known"]])(
+    "reads the window: %j",
+    async (...args) => {
+      const result = await run({ role: "task" }, ...args);
+
+      expect(result.exitCode).toBe(0);
+      expect(asked).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ["show", "https://example.com/"],
+    ["show", "tab_known"],
+    ["show", "https://example.com/", "--in", "tab_known"],
+    ["close", "tab_known"],
+    ["request", "tab_known", "--reason", "To read it."],
+  ])("changes nothing, and says what to do instead: %j", async (...args) => {
+    const result = await run({ role: "task" }, ...args);
+
+    expect(result.exitCode).toBe(1);
+    expect(asked).toEqual([]);
+    expect(raised).toEqual([]);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument window: only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.
+      "
+    `);
   });
 });

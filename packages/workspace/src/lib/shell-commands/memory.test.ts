@@ -54,9 +54,10 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-function run(args: string[], stdin = "") {
+function run(args: string[], stdin = "", role: "chat" | "task" = "chat") {
   return createMemoryCommand({
     chatId: ChatIdSchema.parse(chatId),
+    role,
   }).execute(
     args,
     createCommandContext({
@@ -206,5 +207,25 @@ describe("memory", () => {
     expect(result.stderr).toMatch(
       /^instrument memory: unknown subcommand "remember"\./,
     );
+  });
+
+  it("lets a task read memories and keep none", async () => {
+    await run(["save", "no-stevia"], "You never want stevia.");
+
+    const shown = await run(["show", "no-stevia"], "", "task");
+    expect(shown.exitCode).toBe(0);
+    expect(shown.stdout).toContain("You never want stevia.");
+    expect((await run(["list"], "", "task")).exitCode).toBe(0);
+
+    const saved = await run(["save", "decaf"], "Only decaf.", "task");
+    const forgot = await run(["forget", "no-stevia"], "", "task");
+    expect(saved.exitCode).toBe(1);
+    expect(saved.stderr).toMatchInlineSnapshot(`
+      "instrument memory: only the chat saves and forgets memories. Say in your report what the chat should remember or forget.
+      "
+    `);
+    expect(forgot.exitCode).toBe(1);
+    expect((await run(["list"])).stdout).toContain("no-stevia");
+    expect((await run(["list"])).stdout).not.toContain("decaf");
   });
 });

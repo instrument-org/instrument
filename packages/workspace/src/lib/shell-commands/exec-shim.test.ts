@@ -205,7 +205,7 @@ describe.runIf(process.platform === "darwin")("openRefusalNote", () => {
         "_LSOpenURLsWithCompletionHandler() failed with error -54",
       ),
     ).toMatchInlineSnapshot(
-      `"\`open\` can't start apps from here. To show the person a file, folder or page, use \`instrument tab open <path or url>\`."`,
+      `"\`open\` can't start apps from here. To show the person a file, folder or page, use \`instrument window show <path or url>\`."`,
     );
   });
 });

@@ -17,7 +17,7 @@ import {
 } from "../native-sandbox";
 
 import { watchSubprocessTree } from "../subprocess-tree";
-import { TAB_COMMAND } from "./tab-command";
+import { WINDOW_COMMAND } from "./window-command";
 import {
   collectAndForward,
   currentShellOutputSink,
@@ -384,7 +384,7 @@ export function openRefusalNote(
       output.includes("_LSOpen")) ||
     (process.platform === "linux" && name === "xdg-open");
   return refused
-    ? `\`${name}\` can't start apps from here. To show the person a file, folder or page, use \`${TAB_COMMAND.name} open <path or url>\`.`
+    ? `\`${name}\` can't start apps from here. To show the person a file, folder or page, use \`${WINDOW_COMMAND.name} show <path or url>\`.`
     : undefined;
 }
 

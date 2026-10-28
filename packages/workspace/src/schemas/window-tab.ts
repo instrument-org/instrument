@@ -82,17 +82,26 @@ export const WindowTabAnswerSchema = z.object({
   error: z.string().optional(),
   requestId: z.string(),
   tabId: z.string().optional(),
-  /** The chat's tabs, for a list: each by its id, with the address of a page's. */
+  /**
+   * The chat's tabs, for a list: each by its id, with the address of a
+   * page's, and `front` on the one the person sees, the tab the chat has up
+   * while the chat is on screen.
+   */
   tabs: z
     .array(
       z.discriminatedUnion("kind", [
         z.object({
+          front: z.boolean().optional(),
           id: z.string(),
           kind: z.literal("page"),
           title: z.string(),
           url: z.string(),
         }),
-        z.object({ id: z.string(), kind: z.literal("screen") }),
+        z.object({
+          front: z.boolean().optional(),
+          id: z.string(),
+          kind: z.literal("screen"),
+        }),
       ]),
     )
     .optional(),

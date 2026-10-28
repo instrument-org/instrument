@@ -26,7 +26,9 @@ function fakeWindow() {
       },
       setAlwaysOnTop: (flag: boolean, level?: string, relative?: number) => {
         calls.push(
-          flag ? `setAlwaysOnTop ${level} ${relative}` : "setAlwaysOnTop off",
+          flag
+            ? `setAlwaysOnTop ${String(level)} ${String(relative)}`
+            : "setAlwaysOnTop off",
         );
       },
       show: () => calls.push("show"),

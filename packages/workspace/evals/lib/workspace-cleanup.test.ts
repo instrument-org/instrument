@@ -1,19 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { waitForDisk, workspaceVerdict } from "./workspace-cleanup";
-
-describe("workspaceVerdict", () => {
-  it.each([
-    { keep: false, recordsCopied: true, remove: true },
-    { keep: true, recordsCopied: true, remove: false },
-    { keep: false, recordsCopied: false, remove: false },
-  ])(
-    "keep $keep, records copied $recordsCopied: remove $remove",
-    ({ keep, recordsCopied, remove }) => {
-      expect(workspaceVerdict({ keep, recordsCopied }).remove).toBe(remove);
-    },
-  );
-});
+import { waitForDisk } from "./workspace-cleanup";
 
 describe("waitForDisk", () => {
   const GB = 1024 ** 3;

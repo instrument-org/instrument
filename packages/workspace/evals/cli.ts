@@ -24,13 +24,12 @@ import {
 } from "./harness";
 import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
 import { describeCost } from "./lib/run-cost";
-import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
+import { sweepOldRuns } from "./lib/sweep-old-runs";
 import {
   formatGB,
   MIN_FREE_DISK_BYTES,
-  removeWorkspace,
+  removeRuntime,
   waitForDisk,
-  workspaceVerdict,
 } from "./lib/workspace-cleanup";
 import { combineTrials, generateReport } from "./report";
 import {
@@ -254,7 +253,7 @@ if (
     "                   --json prints the report as one line on stdout (see summary.json)\n",
   );
   process.stderr.write(
-    "                   --keep-workspace keeps each run's temp workspace, to score it again with `report`\n",
+    "                   --keep-workspace keeps each run's runtime (the app's Python and caches), which a run removes once reported\n",
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
@@ -337,13 +336,10 @@ function costLines(rollup: Rollup): string[] {
 }
 
 function printSummary({
-  kept,
   outputDir: out,
   rollup,
   workspaceRootDir,
 }: {
-  /** Whether the workspace is still there to score again. */
-  kept: boolean;
   outputDir: string;
   rollup: Rollup;
   workspaceRootDir: string;
@@ -356,7 +352,7 @@ function printSummary({
     [
       "",
       `${c.dim}┌─ Eval Results ──────────────────────────────────────${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Workspace  :${c.reset} ${kept ? workspaceRootDir : `${workspaceRootDir} (removed)`}`,
+      `${c.dim}│${c.reset}  ${c.dim}Workspace  :${c.reset} ${workspaceRootDir}`,
       `${c.dim}│${c.reset}  ${c.dim}Results    :${c.reset} ${relativeOutputDir}`,
       ...(rollup.modelURIs.length > 0
         ? rollup.modelURIs.map(
@@ -384,14 +380,8 @@ function printSummary({
       ...costLines(rollup),
       `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
       "",
-      ...(kept
-        ? [
-            `${c.dim}Re-run the assertions against these same sessions, at no cost:${c.reset}`,
-            `  pnpm eval report ${workspaceRootDir}`,
-          ]
-        : [
-            `${c.dim}The workspace is removed; run with --keep-workspace to score these sessions again with \`pnpm eval report\`.${c.reset}`,
-          ]),
+      `${c.dim}Re-run the assertions against these same sessions, at no cost:${c.reset}`,
+      `  pnpm eval report ${workspaceRootDir}`,
       "",
     ].join("\n"),
   );
@@ -543,7 +533,6 @@ switch (subcommand) {
     });
 
     printSummary({
-      kept: true,
       outputDir,
       rollup,
       workspaceRootDir: absoluteWorkspaceDir,
@@ -662,45 +651,24 @@ switch (subcommand) {
         `\n${c.green}All evals complete.${c.reset} ${c.dim}Generating report...${c.reset}\n`,
       );
 
-      let rollup: Rollup;
-      try {
-        rollup = await generateReport({
-          evalCases: filteredEvals,
-          includeContextMessages,
-          outputDir,
-          runs,
-          workspaceRootDir,
-        });
-      } catch (error) {
-        const verdict = workspaceVerdict({
-          keep: values["keep-workspace"],
-          recordsCopied: false,
-        });
-        if (!verdict.remove) {
-          write(
-            `${c.yellow}Workspace ${verdict.reason}:${c.reset} ${workspaceRootDir}\n`,
-          );
-        }
-        throw error;
-      }
-      removePreparedSkills(workspaceRootDir);
+      const rollup = await generateReport({
+        evalCases: filteredEvals,
+        includeContextMessages,
+        outputDir,
+        runs,
+        workspaceRootDir,
+      });
       if (process.env.APP_CLAUDE_CODE_PATH) {
         await removeClaudeAccountLeftovers();
       }
-
-      const verdict = workspaceVerdict({
-        keep: values["keep-workspace"],
-        recordsCopied: true,
-      });
-      const removed =
-        verdict.remove && (await removeWorkspace(workspaceRootDir));
-      if (verdict.remove && !removed) {
-        write(
-          `${c.yellow}Workspace could not be removed:${c.reset} ${workspaceRootDir}\n`,
-        );
+      if (!values["keep-workspace"]) {
+        await removeRuntime(workspaceRootDir).catch(() => {
+          write(
+            `${c.yellow}The workspace's runtime could not be removed:${c.reset} ${workspaceRootDir}\n`,
+          );
+        });
       }
       printSummary({
-        kept: !removed,
         outputDir,
         rollup,
         workspaceRootDir,

@@ -413,9 +413,9 @@ export async function generateReport({
     );
     // What the run made, and beside it the chat's records and its own folder
     // under `Chats/`, where its finished work goes, copied rather than
-    // linked: the run's workspace is removed once the run is reported
-    // (`workspace-cleanup.ts`). A folder the run never made is skipped, and
-    // any other failure fails the report, which keeps the workspace. The
+    // linked: the results outlast the temp folder the workspace is in, which
+    // `sweep-old-runs.ts` removes after a month. A folder the run never made
+    // is skipped, and any other failure fails the report. The
     // work folder's interpreter scratch is left out, since it is caches
     // rather than anything the run made, and a link is copied as it reads.
     const ownFolder = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));

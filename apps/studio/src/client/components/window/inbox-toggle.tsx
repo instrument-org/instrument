@@ -17,7 +17,7 @@ export function InboxToggle({ isCollapsible }: { isCollapsible: boolean }) {
       <Button
         aria-label={label}
         // The grey of the glyph across the head that pops the chat out.
-        className="size-7 shrink-0 text-foreground/50"
+        className="size-7 shrink-0 text-muted-foreground/70"
         disabled={isOpen && !isCollapsible}
         onClick={() => {
           setOpen(!isOpen);

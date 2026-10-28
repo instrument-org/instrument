@@ -449,7 +449,7 @@ const replayView = (T) => {
       { title: REPLAY.chat, preview: lastSays ? firstSentence(lastSays.text) : "", step: asking || choosing || signing ? "" : nowLabel, ask: asking ? `Wants to use ${asking.ask.target.split("/").filter(Boolean).pop()}` : choosing ? choosing.choose.question : signing ? `Sign in to ${signing.connect.name}` : "", working: busy && !asking && !choosing && !signing, time: "Now", holds: [] },
       ...ROWS.slice(1, 4),
     ],
-  }).replace("ph ph-warning-circle shrink-0 text-[14px]", "ph ph-question shrink-0 text-[15px]");
+  });
   const tabs = tabsAt(T);
   const pane = VIEW.pane && (tabs.length > 0 || VIEW.tasks.some((id) => TL.tasks.find((k) => k.id === id)?.start <= T));
   const right = tabs.length && !pane ? `<span data-pane-open class="cursor-pointer">${tabsPill(tabs, { using: usingAt(T, busy), working: busy })}</span>` : "";

@@ -21,7 +21,7 @@ const states = [
   },
   {
     title: "Drafts",
-    note: "In Drafts the picker names Drafts in grey and the search reads inside it. Each draft is a row with a dashed circle on the left, and it says Draft where a chat would show its latest message, beside the marks of what it holds.",
+    note: "In Drafts the picker leads with Drafts' mark and the search reads inside it. Each draft is a row with a dashed circle on the left, and it says Draft where a chat would show its latest message, beside the marks of what it holds.",
     body: appWindow({
       body:
         inboxCol({
@@ -34,6 +34,33 @@ const states = [
             { title: "Compare the four SOC 2 audit quotes", time: "Yesterday" },
           ],
         }) + noChatOpen(),
+    }),
+  },
+  {
+    title: "Chats picker",
+    note: "The picker sits bare on the card until it's pressed. Its menu lists the views with their counts, then the topics and New topic, and the row under the pointer shows its controls in line with the title.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
+      body:
+        inboxCol({ on: 0, hover: 4, picking: true }) +
+        thread({ working: "Reading plans on zendesk.com" }),
+      over: viewMenu({
+        on: "",
+        counts: { unread: 1, starred: 1 },
+        topics: [
+          { emoji: "💼", name: "Pricing", count: 3 },
+          { emoji: "🛡️", name: "Security reviews", count: 1 },
+        ],
+        left: 84,
+        top: 88,
+      }),
+    }),
+  },
+  {
+    title: "Search",
+    note: "Typing in the search turns its grey well into a white field with an × to clear it. When nothing matches, the list says so under a small mark in the middle of the column.",
+    body: appWindow({
+      body: inboxCol({ on: -1, search: "renewal quotes", rows: [], empty: "No chats match “renewal quotes”" }) + noChatOpen(),
     }),
   },
   {

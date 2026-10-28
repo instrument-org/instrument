@@ -7,7 +7,8 @@
 // it. Tiles, pane and peek re-measured off the documents fixture (2026-10-05); the inbox
 // head and rows, the chat head, the location rows, Files' places, the floating chat, the
 // draft's head and the plus menu (2026-10-10); the rail's Files mark, the bar's bell, Files'
-// row and foot, the New tab page and Apps (2026-10-27). Window tabs live in the bar. Setup fills the window at its own 1080x720. build.mjs pastes this whole file,
+// row and foot, the New tab page and Apps (2026-10-27); the inbox head, its menu and rows, the card's
+// grey and the ground, read off the sidebar pass in the code (2026-10-28, not re-measured). Window tabs live in the bar. Setup fills the window at its own 1080x720. build.mjs pastes this whole file,
 // after brands.js, into the wireframe template's kit section.
 
 const brand = (key, cls = "size-4") =>
@@ -94,7 +95,10 @@ const tabTitle = (t) =>
 
 // ---- window --------------------------------------------------------------------
 
-const GROUND = "bg-[light-dark(#e7e5e4,#0f0f0e)]";
+// The ground a step lighter than gray-200, and the card (`--pane`) a hair below the
+// background, so a row in the card's own white stands out from the list (globals.css).
+const GROUND = "bg-[light-dark(#f2f1f0,#161312)]";
+const PANE = "[--color-background:light-dark(#f7f7f6,#141210)]";
 const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
 
 /** A window tab in the bar. `t` is a tab ({site} | {file} | {folder} | {newtab}) or {chats: true, title}. */
@@ -112,9 +116,9 @@ const winBar = ({ tabs = [{ chats: true }], active = 0, right = "" } = {}) => `
     <i class="ph ph-arrow-left px-1.5 text-[16px] text-foreground/80"></i><i class="ph ph-arrow-right px-1.5 text-[16px] text-foreground/40"></i>
     <div class="flex min-w-0 flex-1 items-center gap-1 px-2">
       ${tabs.map((t, i) => barTab(t, { on: i === active })).join(`<span class="h-4 w-px shrink-0 bg-gray-300"></span>`)}
-      <span class="grid size-8 shrink-0 place-items-center rounded-xl"><i class="ph ph-plus text-[16px]"></i></span>
+      <span class="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground/70"><i class="ph ph-plus text-[16px]"></i></span>
     </div>
-    <div class="flex shrink-0 items-center gap-2">${right}<span class="grid size-7 place-items-center text-foreground/80"><i class="ph ph-bell text-[16px]"></i></span></div>
+    <div class="flex shrink-0 items-center gap-2">${right}<span class="grid size-7 place-items-center text-muted-foreground/70"><i class="ph ph-bell text-[16px]"></i></span></div>
   </div>`;
 
 // The starter loads Phosphor's regular weight only, so a lit place keeps its outline
@@ -166,7 +170,7 @@ const appWindow = ({
     ${bar}
     <div class="flex min-h-0 flex-1">
       ${rail(on, { mark: railMark, user })}
-      <div class="relative mr-2 mb-2 flex min-w-0 flex-1 overflow-hidden rounded-2xl bg-background shadow-xs">${body}</div>
+      <div class="relative mr-2 mb-2 flex min-w-0 flex-1 overflow-hidden rounded-[10px] ${PANE} bg-background shadow-xs">${body}</div>
     </div>
     ${over}
   </div>`;
@@ -222,30 +226,49 @@ const ROWS = [
   },
 ];
 
-/** The views the picker names besides Chats, as filter-head.tsx tints them: Starred in amber, the rest in a quiet grey. */
+/** The views the picker names besides Chats, each led by its mark (filter-head.tsx). */
 const PLACES = {
-  starred: ["Starred", "ph-star", "bg-warning-50 text-warning-700"],
-  drafts: ["Drafts", "ph-circle-dashed", "bg-foreground/6 text-foreground/80"],
-  archived: ["Archived", "ph-archive", "bg-foreground/6 text-foreground/80"],
+  unread: ["Unread", "ph-notification"],
+  starred: ["Starred", "ph-star"],
+  drafts: ["Drafts", "ph-circle-dashed"],
+  archived: ["Archived", "ph-archive"],
 };
 
 /**
- * The line over the inbox: one 36px picker chip naming the view the list stands in (Chats
- * in the brand's pale green, or a `place`: starred | drafts | archived in its own tint,
- * led by its mark),
- * its menu holding the other views and the topics, and the search beside it, which reads
- * inside that view.
+ * The line over the inbox, as filter-head.tsx draws it, 8px in from the card: the picker
+ * naming the view the list stands in, bare on the card (a grey fill only under the pointer
+ * or while its menu is up, `open`), Chats alone or a `place` (unread | starred | drafts |
+ * archived) led by its mark, its name on the rows' 16px keyline; then the search, a faint
+ * grey well that turns into a raised white field once typed into (`search`: the words).
  */
-const inboxHead = ({ place = "" } = {}) => {
-  const [label, icon, tone] = PLACES[place] ?? [
-    "Chats",
-    "ph-chats-circle",
-    "bg-brand-50 text-brand-800",
-  ];
+const inboxHead = ({ place = "", search = "", open = false } = {}) => {
+  const [label, icon] = PLACES[place] ?? ["Chats"];
   return `
-  <div class="flex items-center gap-2 px-2 py-3">
-    <span class="flex h-9 shrink-0 items-center gap-1.5 rounded-full pr-2.5 ${place ? "pl-3" : "pl-3.5"} text-[15px] font-semibold ${tone}">${place ? `<i class="ph ${icon} text-[16px]"></i>` : ""}${label}<i class="ph ph-caret-down text-[14px] opacity-50"></i></span>
-    <div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-[light-dark(#ffffff,#262624)] pl-3 text-[13px] text-muted-foreground shadow-sm"><i class="ph ph-magnifying-glass text-[14px]"></i>${place ? `Search ${label}` : "Search"}</div>
+  <div class="flex items-center gap-1.5 p-2">
+    <span class="flex h-9 shrink-0 items-center rounded-lg px-2 text-[15px] font-semibold ${open ? "bg-foreground/5 text-foreground" : "text-foreground/80"}">${icon ? `<span class="grid size-5 place-items-center"><i class="ph ${icon} text-[20px]"></i></span><span class="pl-1"></span>` : ""}${label}<i class="ph ph-caret-down ml-1 text-[14px] opacity-50"></i></span>
+    <div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg pl-3 text-sm ${search ? "bg-card pr-1.5 text-foreground shadow-sm ring-1 ring-input" : "bg-foreground/4 pr-3 text-muted-foreground"}"><i class="ph ph-magnifying-glass shrink-0 text-[14px] text-muted-foreground"></i><span class="min-w-0 flex-1 truncate">${search || (place ? `Search ${label}` : "Search")}</span>${search ? `<span class="grid size-5 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-x text-[10px]"></i></span>` : ""}</div>
+  </div>`;
+};
+
+/**
+ * The picker's menu, as filter-head.tsx draws it: 256px with 12px corners, 36px rows 2px
+ * apart (the view the list stands in on a soft grey, its name in medium), the views with
+ * their muted counts, then the topics (`topics`: [{ emoji, name, count }]) and New topic.
+ * Place it with `menu`-style absolute positioning through `left`/`top`.
+ */
+const viewMenu = ({ on = "", counts = {}, topics = [], left = 8, top = 50 } = {}) => {
+  const line = `<div class="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5"></div>`;
+  const item = (face, label, { isOn = false, count, muted = false } = {}) => `
+    <div class="flex h-9 shrink-0 items-center gap-3 rounded-lg pr-2 pl-2.5 text-sm ${isOn ? "bg-foreground/6 font-medium" : muted ? "text-muted-foreground/70" : ""}">
+      <span class="grid size-6 shrink-0 place-items-center ${isOn || muted ? "" : "text-muted-foreground"}">${face}</span>
+      <span class="min-w-0 flex-1 truncate">${label}</span>${count ? `<span class="text-xs text-muted-foreground/60 tabular-nums">${count}</span>` : ""}
+    </div>`;
+  const views = [["", "Chats", "ph-chat-circle"], ...Object.entries(PLACES).map(([k, [l, i]]) => [k, l, i])];
+  return `
+  <div class="absolute z-20 flex w-64 flex-col gap-0.5 rounded-xl border border-border bg-popover p-1.5 shadow-lg" style="left:${left}px;top:${top}px">
+    ${views.map(([k, l, i]) => item(`<i class="ph ${i} text-[20px]"></i>`, l, { isOn: k === on, count: counts[k] })).join("")}
+    ${topics.length ? line + topics.map((t) => item(`<span class="text-lg leading-none">${t.emoji}</span>`, t.name, { count: t.count })).join("") : ""}
+    ${line}${item(`<i class="ph ph-plus-square text-[20px]"></i>`, "New topic", { muted: true })}
   </div>`;
 };
 
@@ -254,35 +277,44 @@ const holdMarks = (holds = []) =>
   holds
     .map((h) =>
       h.file
-        ? `<span class="inline-flex h-5 max-w-52 shrink-0 items-center gap-1 rounded-md bg-foreground/4 pr-1.5 pl-1 text-[11px] text-muted-foreground">${fileMark(FILES[h.file].kind, "text-[12px]")}<span class="truncate">${FILES[h.file].title}</span></span>`
+        ? `<span class="inline-flex h-5 max-w-36 shrink-0 items-center gap-1 rounded-md bg-foreground/4 pr-1.5 pl-1 text-[11px] text-muted-foreground">${fileMark(FILES[h.file].kind, "text-[12px]")}<span class="truncate">${FILES[h.file].title}</span></span>`
         : h.site
-          ? `<span class="grid size-5 shrink-0 place-items-center">${SITES[h.site].mark("size-3.5 text-[7px]")}</span>`
-          : `<span class="grid size-5 shrink-0 place-items-center">${brand(h.app, "size-3.5")}</span>`,
+          ? `<span class="grid size-4 shrink-0 place-items-center">${SITES[h.site].mark("size-3.5 text-[7px]")}</span>`
+          : `<span class="grid size-4 shrink-0 place-items-center">${brand(h.app, "size-3.5")}</span>`,
     )
     .join("");
 
 /**
  * An inbox row, as chat-row.tsx lays it out, three lines every row keeps: the title
  * (semibold only while something in it is unseen) with the star at its end; the agent's
- * latest line (the `step` shimmering while it works, `ask` behind an amber glyph while it
+ * latest line (the `step` shimmering while it works, `ask` behind a question mark while it
  * waits on you, otherwise the `preview`); then what it holds, with the time in the corner.
+ * Every row has a faint hairline above it, the last one under it too; the open row (`on`)
+ * is the card's own white on the list's grey, and `hover` is halfway there, with the row's
+ * controls in line at the title's end: tag, archive, unread, star.
  */
-const row = (r, { on = false, first = false } = {}) => `
-  <div class="relative flex flex-col px-3 py-2.5 ${first ? "" : "border-t border-border"} ${on ? "bg-brand-50" : ""}">
+const row = (r, { on = false, last = false, hover = false } = {}) => `
+  <div class="relative flex flex-col border-t border-border/70 bg-clip-padding px-4 py-2.5 ${last ? "border-b" : ""} ${on ? "bg-card" : hover ? "bg-card/50" : ""}">
     <div class="flex h-5 items-center gap-1.5">
-      <span class="min-w-0 flex-1 truncate text-[13px] ${r.unread ? "font-semibold" : "font-medium text-foreground/85"}">${r.title}</span>
-      ${r.starred ? `<i class="ph ph-star text-[14px] text-warning-500"></i>` : ""}
+      <span class="min-w-0 flex-1 truncate text-[13px] tracking-[-0.005em] ${r.unread ? "font-semibold" : "font-medium text-foreground/85"}">${r.title}</span>
+      ${
+        hover
+          ? `<span class="-my-0.5 flex shrink-0 items-center text-foreground/50">${["ph-tag", "ph-archive", "ph-notification", "ph-star"].map((i) => `<span class="grid size-6 place-items-center"><i class="ph ${i} text-[16px] ${i === "ph-star" && r.starred ? "text-warning-500" : ""}"></i></span>`).join("")}</span>`
+          : r.starred
+            ? `<span class="-my-0.5 grid size-6 shrink-0 place-items-center"><i class="ph ph-star text-[16px] text-warning-500"></i></span>`
+            : ""
+      }
     </div>
     <div class="flex h-5 min-w-0 items-center gap-1.5 text-[12px]">${
       r.working && r.step
         ? `<span class="truncate text-brand-600">${r.step}</span>`
         : r.ask
-          ? `<i class="ph ph-warning-circle shrink-0 text-[14px] text-warning-700"></i><span class="truncate text-foreground/80">${r.ask}</span>`
+          ? `<i class="ph ph-question shrink-0 text-[14px] text-foreground/80"></i><span class="truncate text-foreground/80">${r.ask}</span>`
           : `<span class="truncate text-muted-foreground">${r.preview || ""}</span>`
     }</div>
     <div class="mt-1 flex h-5 items-center gap-2">
       <span class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">${holdMarks(r.holds)}</span>
-      <span class="ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">${r.time || ""}</span>
+      <span class="ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums ${r.unread ? "font-semibold" : ""}">${r.time || ""}</span>
     </div>
   </div>`;
 
@@ -292,8 +324,8 @@ const row = (r, { on = false, first = false } = {}) => `
  * touched at the right, and "Draft" where a chat's latest line goes, then the marks of
  * what it holds (`holds`, as a chat row's) the way a chat row shows them.
  */
-const draftRow = (d, { first = false } = {}) => `
-  <div class="flex gap-2 px-3 py-2.5 ${first ? "" : "border-t border-border"}">
+const draftRow = (d, { last = false } = {}) => `
+  <div class="flex gap-2 border-t border-border/70 px-4 py-2.5 ${last ? "border-b" : ""}">
     <span class="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground"><i class="ph ph-circle-dashed text-[14px]"></i></span>
     <div class="min-w-0 flex-1">
       <div class="flex h-5 items-center gap-1.5"><span class="min-w-0 flex-1 truncate text-[13px] text-foreground/90">${d.title}</span><span class="shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">${d.time || ""}</span></div>
@@ -302,24 +334,35 @@ const draftRow = (d, { first = false } = {}) => `
   </div>`;
 
 /**
- * The inbox column: head, rows. `on` is the open row's index (-1 for none). `place`
- * stands it in another view (starred | drafts | archived); `drafts` ([{ title, time,
- * holds }]) stands it in Drafts and lists those instead.
+ * The inbox column: head, rows, on the card's grey with a faint line at its right edge.
+ * `on` is the open row's index (-1 for none), `hover` the row under the pointer. `place`
+ * stands it in another view (unread | starred | drafts | archived); `drafts` ([{ title,
+ * time, holds }]) stands it in Drafts and lists those instead. `search` types words into
+ * the search; `empty` is the line an empty list says (with `rows: []`); `picking` draws
+ * the picker pressed, under its `viewMenu`.
  */
 const inboxCol = ({
   on = 0,
+  hover = -1,
   w = 320,
   rows = ROWS,
   place = "",
   drafts,
+  search = "",
+  empty = "Press New to start a chat",
+  picking = false,
 } = {}) => `
-  <div class="flex shrink-0 flex-col border-r border-border bg-background" style="width:${w}px">
-    ${inboxHead({ place: drafts ? "drafts" : place })}
-    <div class="mt-1 flex flex-col">${
-      drafts
-        ? drafts.map((d, i) => draftRow(d, { first: i === 0 })).join("")
-        : rows.map((r, i) => row(r, { on: i === on, first: i === 0 })).join("")
-    }</div>
+  <div class="relative flex shrink-0 flex-col bg-background pr-px after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border/70" style="width:${w}px">
+    ${inboxHead({ place: drafts ? "drafts" : place, search, open: picking })}
+    ${
+      (drafts ?? rows).length === 0
+        ? `<div class="grid flex-1 place-items-center px-8 pb-16"><div class="flex flex-col items-center text-center text-[13px]"><span class="mb-3 grid size-11 place-items-center rounded-xl text-muted-foreground/30 inset-ring inset-ring-current/60"><i class="ph ph-chat-circle text-[24px]"></i></span><p class="max-w-56 leading-5 text-balance text-muted-foreground/60">${empty}</p></div></div>`
+        : `<div class="flex flex-col">${
+            drafts
+              ? drafts.map((d, i) => draftRow(d, { last: i === drafts.length - 1 })).join("")
+              : rows.map((r, i) => row(r, { on: i === on, hover: i === hover && i !== on, last: i === rows.length - 1 })).join("")
+          }</div>`
+    }
   </div>`;
 
 // ---- a chat --------------------------------------------------------------------
@@ -333,13 +376,13 @@ const inboxCol = ({
  */
 const threadHead = (title, { right = "", line = "" } = {}) => `
   <div class="grid h-14 shrink-0 grid-cols-[96px_minmax(0,1fr)_96px] items-start gap-x-2 bg-background px-3 pt-2">
-    <div class="flex h-8 items-center"><span class="grid size-8 shrink-0 place-items-center text-foreground/80"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
+    <div class="flex h-8 items-center"><span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
     <div class="flex min-w-0 flex-col items-center">
       <span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
       <div class="-mt-1 flex h-4 max-w-full min-w-0 justify-center">${line}</div>
     </div>
     <div class="flex h-8 items-center justify-end gap-x-1">
-      <span class="grid size-8 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-picture-in-picture text-[16px]"></i></span>
+      <span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-picture-in-picture text-[16px]"></i></span>
       ${right}
     </div>
   </div>`;

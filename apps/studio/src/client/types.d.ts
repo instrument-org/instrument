@@ -51,6 +51,12 @@ declare global {
         ) => () => void;
         set: (file: KeptFile, key: string, value: unknown) => void;
       };
+      // Told when fingers come down on the trackpad to scroll and when they
+      // lift, which wheel events never say. Absent outside Electron; never
+      // called off macOS or in a build without the Mac module.
+      onTrackpadTouch?: (
+        listener: (touch: "down" | "up") => void,
+      ) => () => void;
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
       // Hand files to the OS as a native drag, by where they are on the

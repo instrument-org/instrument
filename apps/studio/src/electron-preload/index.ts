@@ -4,6 +4,7 @@ import {
   RESOLVE_THEME_CHANNEL,
   SETUP_STATE_CHANNEL,
   START_FILE_DRAG_CHANNEL,
+  TRACKPAD_TOUCH_CHANNEL,
 } from "@/shared/constants";
 import {
   BOOKMARKS_CHANNEL,
@@ -256,6 +257,17 @@ const api: Window["api"] = {
   // electron-main/lib/file-drag), so this carries only the paths.
   startFileDrag: (files) => {
     ipcRenderer.send(START_FILE_DRAG_CHANNEL, { files });
+  },
+  onTrackpadTouch: (listener) => {
+    const forward = (_event: unknown, touch: unknown) => {
+      if (touch === "down" || touch === "up") {
+        listener(touch);
+      }
+    };
+    ipcRenderer.on(TRACKPAD_TOUCH_CHANNEL, forward);
+    return () => {
+      ipcRenderer.off(TRACKPAD_TOUCH_CHANNEL, forward);
+    };
   },
 };
 

@@ -66,6 +66,7 @@ import { LinkSurface } from "./link-surface";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
+import { TopicGlyph } from "./topic-icons";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useDraftChips } from "./use-draft-chips";
@@ -795,8 +796,10 @@ function TopicSlot({
           className="flex h-full min-w-0 items-center gap-1 rounded-l-full pr-0.5 pl-1 hover:bg-(--topic-tint-edge)"
           type="button"
         >
-          {topic.emoji ? (
-            <span className="text-[10px]">{topic.emoji}</span>
+          {topic.icon || topic.emoji ? (
+            <span className="grid text-[10px]">
+              <TopicGlyph className="size-3" topic={topic} />
+            </span>
           ) : (
             <TopicMark className="size-3.5 text-[10px]" topic={topic} />
           )}

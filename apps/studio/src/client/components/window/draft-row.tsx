@@ -39,6 +39,7 @@ export function DraftRow({
   now,
   onDelete,
   onOpen,
+  spaceTopicId,
   topics,
 }: {
   draft: Draft;
@@ -46,6 +47,8 @@ export function DraftRow({
   now: Date;
   onDelete: () => void;
   onOpen: () => void;
+  /** The topic the list stands in, whose name a row leaves off since every row there wears it. */
+  spaceTopicId?: string;
   topics: Topic[];
 }) {
   const topic = topics.find((entry) => entry.id === draft.topicId);
@@ -57,7 +60,9 @@ export function DraftRow({
       run: onDelete,
     },
   ];
-  const pill = topic && <TopicPill topic={topic} />;
+  const pill = topic && topic.id !== spaceTopicId && (
+    <TopicPill topic={topic} />
+  );
   const title = (
     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground/90">
       {draftTitle(draft.words)}

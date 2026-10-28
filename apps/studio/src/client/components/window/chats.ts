@@ -62,25 +62,40 @@ export type FilterChoice =
   | { group: "place"; id: ChatPlace };
 
 /**
- * The filters with a row turned. The column shows one view at a time: the
- * inbox, one topic, one app, or one place (the unread, the starred, the
- * drafts, what was put away, all of it), so choosing any of them leaves the others
- * and choosing the one already on steps back to the inbox. The search is its
- * own thing and stays as it was. The predicate still reads lists, so nothing
- * downstream knows the column only ever fills one.
+ * The filters with a row turned. The column stands in a space, every chat or
+ * one topic's (or one app's), and in a place inside it: the inbox, the unread,
+ * the starred, the drafts, what was put away, or all of it. The two are
+ * chosen apart, so a place is kept moving between spaces and a space kept
+ * changing places, and choosing the one already on steps back to every chat
+ * or to the inbox. The search is its own thing and stays as it was. The
+ * predicate still reads lists, so nothing downstream knows the column only
+ * ever fills one.
  */
 export function choose(
   filters: ChatFilters,
   choice: FilterChoice,
 ): ChatFilters {
-  const { place: _place, ...rest } = filters;
-  const inbox = { ...rest, apps: [], topics: [] };
   if (choice.group === "place") {
-    return filters.place === choice.id ? inbox : { ...inbox, place: choice.id };
+    const { place: _place, ...rest } = filters;
+    return filters.place === choice.id ? rest : { ...rest, place: choice.id };
   }
+  const everywhere = { ...filters, apps: [], topics: [] };
   return filters[choice.group].includes(choice.id)
-    ? inbox
-    : { ...inbox, [choice.group]: [choice.id] };
+    ? everywhere
+    : { ...everywhere, [choice.group]: [choice.id] };
+}
+
+/** The topic whose space the column stands in, or none for every chat's. */
+export function spaceOf(filters: ChatFilters): string | undefined {
+  return filters.topics.length === 1 ? filters.topics[0] : undefined;
+}
+
+/** The filters moved to a topic's space, or every chat's for none, the place and the search kept. */
+export function toSpace(
+  filters: ChatFilters,
+  topicId: string | undefined,
+): ChatFilters {
+  return { ...filters, apps: [], topics: topicId ? [topicId] : [] };
 }
 
 /** Whether every word searched for turns up in what a row shows, whatever its case. Nothing searched for matches everything. */
@@ -199,9 +214,10 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
  * Whether a chat is in the place the column stands in. A chat put away
  * is in Archived and All, the way mail keeps what was archived out of the
  * inbox but in the whole of it, so the inbox is every other chat and Unread
- * those of them holding replies not yet seen. A topic is a label rather
- * than a place, so one chosen shows what is filed under it, put away or
- * not. Drafts are not chats at all yet, so that place holds none.
+ * those of them holding replies not yet seen. A topic is a space with the
+ * same places in it, so its inbox leaves out what was put away too and its
+ * Archived holds it. Drafts are not chats at all yet, so that place holds
+ * none.
  */
 function matchesPlace(chat: Filterable, filters: ChatFilters) {
   switch (filters.place) {
@@ -219,7 +235,7 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
       return chat.starred;
     }
     case undefined: {
-      return !chat.archived || filters.topics.length > 0;
+      return !chat.archived;
     }
     case "unread": {
       return !chat.archived && chat.unread;

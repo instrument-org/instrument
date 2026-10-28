@@ -6,7 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -20,10 +20,18 @@ import {
   hasWords,
   matchesFilters,
   outsideFilters,
+  spaceOf,
   type Topic,
+  toSpace,
   widenToSearch,
 } from "./chats";
 import { FilterHead } from "./filter-head";
+import {
+  SETTLE_MS,
+  type Space,
+  SpaceSwitcher,
+  useSpaceSwipe,
+} from "./space-switcher";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { TopicDialog } from "./topic-dialog";
 import { TopicBanner } from "./topic-banner";
@@ -132,11 +140,19 @@ export function ChatPane({
     onListed?.(listed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listedKey]);
+  // One topic chosen is the space the pane is standing in: the head names
+  // it and its tint washes the column.
+  const spaceTopicId = spaceOf(filters);
+  const chosenTopic = topics.find((topic) => topic.id === spaceTopicId);
+  // The drafts of the space: in a topic's, the ones that open a chat under it.
+  const spaceDrafts = spaceTopicId
+    ? drafts.filter((draft) => draft.topicId === spaceTopicId)
+    : drafts;
   // Standing in Drafts, the list holds the drafts, narrowed by the same
   // search: by their words and the name of the topic each is filed under.
   const shownDrafts =
     filters.place === "drafts"
-      ? drafts.filter((draft) =>
+      ? spaceDrafts.filter((draft) =>
           hasWords(filters.search, [
             draftTitle(draft.words),
             draft.words,
@@ -144,12 +160,76 @@ export function ChatPane({
           ]),
         )
       : undefined;
-  // One topic chosen is the place the pane is standing in: the banner names
-  // it.
-  const chosenTopic =
-    filters.topics.length === 1
-      ? topics.find((topic) => topic.id === filters.topics[0])
-      : undefined;
+
+  // The spaces along the foot, every chat first and then each topic in use,
+  // and the one the pane stands in: every chat's for an app or a topic since
+  // put away.
+  const spaces: Space[] = [
+    {},
+    ...topics.flatMap((topic) => (topic.retired ? [] : [{ topic }])),
+  ];
+  const spaceIndex = Math.max(
+    0,
+    spaces.findIndex((space) => space.topic?.id === spaceTopicId),
+  );
+  const goToSpace = (index: number) => {
+    const space = spaces[index];
+    if (space) {
+      setFilters(toSpace(filters, space.topic?.id));
+    }
+  };
+  const paneRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const swipe = useSpaceSwipe({
+    canStep: (direction) => spaces[spaceIndex + direction] !== undefined,
+    isOn: spaces.length > 1,
+    onStep: (direction) => {
+      isSwiped.current = true;
+      goToSpace(spaceIndex + direction);
+    },
+    ref: paneRef,
+  });
+  // The space a swipe in progress is heading for, whose tint it blends in.
+  const swipeWay = swipe.offset < 0 ? 1 : -1;
+  const neighbor =
+    swipe.offset === 0 ? undefined : spaces[spaceIndex + swipeWay];
+  const swipeNeighbor = neighbor ? spaceIndex + swipeWay : undefined;
+  // The column follows the fingers with nothing easing it and eases only
+  // while it settles where they let it go: once it lands, the space it
+  // reached takes its place at rest on the next paint, since easing that
+  // would slide the new space in a second time from where the old one was.
+  const ease = `${SETTLE_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+  const swipeEase = swipe.isSettling ? ease : "none";
+  // The tints ease at rest as well, so a space chosen by a click blends in.
+  const washEase = swipe.offset !== 0 && !swipe.isSettling ? "none" : ease;
+  // A new space reached any way but a swipe, which brought it in already,
+  // slides in from the side it was reached from: a click along the foot or
+  // in the picker.
+  const landedIndex = useRef(spaceIndex);
+  const isSwiped = useRef(false);
+  useEffect(() => {
+    if (spaceIndex === landedIndex.current) {
+      return;
+    }
+    const from = spaceIndex > landedIndex.current ? 1 : -1;
+    landedIndex.current = spaceIndex;
+    if (isSwiped.current) {
+      isSwiped.current = false;
+      return;
+    }
+    contentRef.current?.animate(
+      [
+        { opacity: 0, transform: `translateX(${from * 36}px)` },
+        { opacity: 1, transform: "translateX(0)" },
+      ],
+      {
+        duration: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 0
+          : 240,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+    );
+  }, [spaceIndex]);
 
   // Whether the new-topic dialog is up, and for which chat when a row
   // opened it: a topic made from a row is filed on that chat as it lands,
@@ -172,91 +252,164 @@ export function ChatPane({
     // hairlines never cross; the wash, placed against the padding box,
     // still reaches under the line.
     <div
-      className="relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px"
+      className="relative isolate flex h-full min-h-0 min-w-0 flex-col overflow-hidden pr-px"
       data-topic={chosenTopic ? "" : undefined}
       data-find-surface
+      ref={paneRef}
     >
-      {/* The head, and while the list is one topic, the topic's own line
-          under it, with the topic's tint washing down from the card's edge
-          and fading out past the head, behind the first rows. */}
-      <div
-        className={cn("shrink-0", chosenTopic && "topic-tint")}
-        style={chosenTopic ? topicTint(topicColor(chosenTopic)) : undefined}
-      >
-        {/* Sized against the whole column, so a taller window washes
-            further down it. */}
-        {chosenTopic && (
+      {/* Each topic's tint washing down from the card's edge and fading out
+          past the head, behind the first rows: one layer a topic, held still
+          under the sliding column, so a swipe blends the one it leaves into
+          the one it reaches as it goes rather than sliding a colored edge
+          across. Sized against the whole column, so a taller window washes
+          further down it. */}
+      {spaces.map((space, index) => {
+        if (!space.topic) {
+          return null;
+        }
+        const strength =
+          index === spaceIndex
+            ? 1 - swipe.toward
+            : index === swipeNeighbor
+              ? swipe.toward
+              : 0;
+        return (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--topic-tint-surface)/50 to-transparent dark:from-(--topic-tint-surface)/25"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--topic-tint-surface)/50 to-transparent topic-tint dark:from-(--topic-tint-surface)/25"
+            key={space.topic.id}
+            style={{
+              ...topicTint(topicColor(space.topic)),
+              opacity: strength,
+              // Following the fingers while they move; easing once they let
+              // go or a space lands.
+              transition: washEase === "none" ? "none" : `opacity ${washEase}`,
+            }}
           />
-        )}
-        <FilterHead
-          chats={chats}
-          drafts={drafts.length}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onNewTopic={() => {
-            setNewTopic({});
-          }}
-          onTopicDetails={(topic) => {
-            openTopicDetails(topic.id);
-          }}
-          topics={topics}
-        />
-        {chosenTopic && (
-          <TopicBanner
-            onDetails={(topic) => {
+        );
+      })}
+      {/* Everything that changes with the space, which follows a swipe and
+          slides in when one lands; the spaces along the foot stay put. */}
+      <div
+        className="relative flex min-h-0 flex-1 flex-col"
+        ref={contentRef}
+        style={{
+          transform:
+            swipe.offset === 0 ? undefined : `translateX(${swipe.offset}px)`,
+          transition: swipeEase === "none" ? "none" : `transform ${swipeEase}`,
+        }}
+      >
+        {/* The head, and while the list is one topic, the topic's own line
+          under it, with the topic's tint washing down from the card's edge
+          and fading out past the head, behind the first rows. */}
+        <div
+          className={cn("shrink-0", chosenTopic && "topic-tint")}
+          style={chosenTopic ? topicTint(topicColor(chosenTopic)) : undefined}
+        >
+          <FilterHead
+            chats={chats}
+            drafts={spaceDrafts.length}
+            filters={filters}
+            // A head of its own for each space, so the one a swipe lands on
+            // starts as the peek drew it, at rest, rather than easing its
+            // mark in or out from how the last space's stood.
+            key={spaceTopicId ?? "all"}
+            onFiltersChange={setFilters}
+            onNewTopic={() => {
+              setNewTopic({});
+            }}
+            onTopicDetails={(topic) => {
               openTopicDetails(topic.id);
             }}
-            topic={chosenTopic}
+            topics={topics}
           />
+          {chosenTopic && (
+            <TopicBanner
+              onDetails={(topic) => {
+                openTopicDetails(topic.id);
+              }}
+              topic={chosenTopic}
+            />
+          )}
+        </div>
+        {isAISearch && (
+          <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+            AI results
+          </p>
         )}
+        <ChatList
+          appsBySlug={appsBySlug}
+          arrivedId={arrivedId}
+          chats={shown}
+          drafts={shownDrafts}
+          hasFoot={spaces.length > 1}
+          emptyLine={
+            aiSearch.isLooking
+              ? "Looking through your chats…"
+              : emptyLineFor(filters, chats.length, chosenTopic)
+          }
+          // The drafts are kept on this computer, so they are never on
+          // their way.
+          isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
+          onArchiveOpen={onArchiveOpen}
+          onDelete={(chat) => {
+            setDeletingId(chat.id);
+          }}
+          onDeleteDraft={onDeleteDraft}
+          onNewTopic={(chat, name) => {
+            setNewTopic({ forChat: chat, ...(name ? { name } : {}) });
+          }}
+          onOpen={onOpenChat}
+          onOpenDraft={onOpenDraft}
+          onPopOut={onPopOut}
+          onSetTopic={(chat, next) => {
+            setChatTopic(chat.id, next);
+          }}
+          onWiden={() => {
+            setFilters(widenToSearch(filters));
+          }}
+          openId={openChatId}
+          outIds={outIds}
+          outside={outside}
+          scrollSignal={scrollSignal}
+          // The decision model's finds are not matches of the words, so
+          // nothing on them is marked.
+          search={isAISearch ? "" : filters.search}
+          spaceTopicId={spaceTopicId}
+          topics={topics}
+        />
       </div>
-      {isAISearch && (
-        <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-          AI results
-        </p>
+      {/* The space a swipe is heading for, beside the column and moving
+          with it, drawn as it will stand once it lands: its head, its line
+          and its rows, none of them answering anything until then. */}
+      {neighbor && (
+        <div
+          className="absolute inset-y-0 right-px left-0 flex flex-col"
+          inert
+          style={{
+            transform: `translateX(calc(${swipe.offset}px + ${swipeWay * 100}%))`,
+            transition:
+              swipeEase === "none" ? "none" : `transform ${swipeEase}`,
+          }}
+        >
+          <SpacePreview
+            appsBySlug={appsBySlug}
+            chats={chats}
+            drafts={drafts}
+            filters={toSpace(filters, neighbor.topic?.id)}
+            hasFoot={spaces.length > 1}
+            openChatId={openChatId}
+            topics={topics}
+          />
+        </div>
       )}
-      <ChatList
-        appsBySlug={appsBySlug}
-        arrivedId={arrivedId}
-        chats={shown}
-        drafts={shownDrafts}
-        emptyLine={
-          aiSearch.isLooking
-            ? "Looking through your chats…"
-            : emptyLineFor(filters, chats.length, chosenTopic)
-        }
-        // The drafts are kept on this computer, so they are never on
-        // their way.
-        isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
-        onArchiveOpen={onArchiveOpen}
-        onDelete={(chat) => {
-          setDeletingId(chat.id);
-        }}
-        onDeleteDraft={onDeleteDraft}
-        onNewTopic={(chat, name) => {
-          setNewTopic({ forChat: chat, ...(name ? { name } : {}) });
-        }}
-        onOpen={onOpenChat}
-        onOpenDraft={onOpenDraft}
-        onPopOut={onPopOut}
-        onSetTopic={(chat, next) => {
-          setChatTopic(chat.id, next);
-        }}
-        onWiden={() => {
-          setFilters(widenToSearch(filters));
-        }}
-        openId={openChatId}
-        outIds={outIds}
-        outside={outside}
-        scrollSignal={scrollSignal}
-        // The decision model's finds are not matches of the words, so
-        // nothing on them is marked.
-        search={isAISearch ? "" : filters.search}
-        topics={topics}
-      />
+      {spaces.length > 1 && (
+        <SpaceSwitcher
+          current={spaceIndex}
+          onPick={goToSpace}
+          spaces={spaces}
+        />
+      )}
       {deletingChat && (
         <DeleteChatDialog
           chat={deletingChat}
@@ -314,6 +467,88 @@ export function ChatPane({
         taken={topics.flatMap((topic) => (topic.emoji ? [topic.emoji] : []))}
       />
     </div>
+  );
+}
+
+/**
+ * A space as a swipe shows it on its way in: the head, the topic's line and
+ * the rows, laid out as the pane lays them out so the picture and the space
+ * it becomes are the same pixels, and doing nothing, since nothing in it can
+ * be reached until it lands.
+ */
+function SpacePreview({
+  appsBySlug,
+  chats,
+  drafts,
+  filters,
+  hasFoot,
+  openChatId,
+  topics,
+}: {
+  appsBySlug: ReturnType<typeof useAppsBySlug>;
+  chats: Chat[];
+  drafts: Draft[];
+  filters: ChatFilters;
+  hasFoot: boolean;
+  openChatId: string | undefined;
+  topics: Topic[];
+}) {
+  const topicId = spaceOf(filters);
+  const topic = topics.find((each) => each.id === topicId);
+  const topicNames = new Map(topics.map((each) => [each.id, each.name]));
+  const spaceDrafts = topicId
+    ? drafts.filter((draft) => draft.topicId === topicId)
+    : drafts;
+  const nothing = () => undefined;
+  return (
+    <>
+      <div
+        className={cn("shrink-0", topic && "topic-tint")}
+        style={topic ? topicTint(topicColor(topic)) : undefined}
+      >
+        <FilterHead
+          chats={chats}
+          drafts={spaceDrafts.length}
+          filters={filters}
+          isPreview
+          onFiltersChange={nothing}
+          onNewTopic={nothing}
+          onTopicDetails={nothing}
+          topics={topics}
+        />
+        {topic && <TopicBanner onDetails={nothing} topic={topic} />}
+      </div>
+      <ChatList
+        appsBySlug={appsBySlug}
+        chats={chats.filter((chat) =>
+          matchesFilters(chat, filters, topicNames),
+        )}
+        drafts={
+          filters.place === "drafts"
+            ? spaceDrafts.filter((draft) =>
+                hasWords(filters.search, [
+                  draftTitle(draft.words),
+                  draft.words,
+                ]),
+              )
+            : undefined
+        }
+        emptyLine={emptyLineFor(filters, chats.length, topic)}
+        hasFoot={hasFoot}
+        isLoading={false}
+        onDelete={nothing}
+        onDeleteDraft={nothing}
+        onNewTopic={nothing}
+        onOpen={nothing}
+        onOpenDraft={nothing}
+        onSetTopic={nothing}
+        openId={openChatId}
+        scrollSignal={JSON.stringify(filters)}
+        search={filters.search}
+        spaceTopicId={topicId}
+        topics={topics}
+      />
+    </>
   );
 }
 

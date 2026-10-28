@@ -186,13 +186,16 @@ describe("matchesFilters", () => {
     expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
   });
 
-  it("keeps a chat put away in a topic it is filed under, as a label does", () => {
+  it("keeps a chat put away out of its topic's inbox and in its topic's Archived", () => {
     const filters: ChatFilters = { ...NO_FILTERS, topics: ["house"] };
+    const away = chat({ archived: true, topic: "house" });
+    expect(matchesFilters(away, filters)).toBe(false);
+    expect(matchesFilters(away, { ...filters, place: "archived" })).toBe(true);
     expect(
-      matchesFilters(chat({ archived: true, topic: "house" }), filters),
-    ).toBe(true);
-    expect(
-      matchesFilters(chat({ archived: true, topic: "garden" }), filters),
+      matchesFilters(chat({ archived: true, topic: "garden" }), {
+        ...filters,
+        place: "archived",
+      }),
     ).toBe(false);
   });
 
@@ -307,19 +310,19 @@ describe("matchesFilters", () => {
 describe("choosing a row of the column", () => {
   const searched = { ...NO_FILTERS, search: "fence" };
 
-  it("shows one view at a time: a topic leaves the place, and a place the topic", () => {
+  it("keeps the place moving between spaces, and the space changing places", () => {
     expect(
       choose(
         { ...searched, apps: ["gmail"], place: "starred" },
         { group: "topics", id: "house" },
       ),
-    ).toEqual({ ...searched, topics: ["house"] });
+    ).toEqual({ ...searched, place: "starred", topics: ["house"] });
     expect(
       choose(
         { ...searched, topics: ["house"] },
         { group: "place", id: "drafts" },
       ),
-    ).toEqual({ ...searched, place: "drafts" });
+    ).toEqual({ ...searched, place: "drafts", topics: ["house"] });
   });
 
   it("moves between rows of one section", () => {

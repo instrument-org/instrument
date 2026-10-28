@@ -53,6 +53,7 @@ const ListedChat = memo(function ListedChat({
   isOut: boolean;
   now: Date;
   search: string;
+  spaceTopicId: string | undefined;
   topics: Topic[];
 }) {
   // First on the tile and beside the ways to open it in the menu, while the
@@ -137,6 +138,7 @@ export function ChatList({
   chats,
   drafts,
   emptyLine,
+  hasFoot = false,
   isLoading,
   onArchiveOpen,
   onDelete,
@@ -152,6 +154,7 @@ export function ChatList({
   outside = 0,
   scrollSignal,
   search = "",
+  spaceTopicId,
   topics,
 }: {
   appsBySlug: AppsBySlug;
@@ -162,6 +165,8 @@ export function ChatList({
   drafts?: Draft[];
   /** What the list says when it has nothing to show. */
   emptyLine: string;
+  /** Whether something is laid over the list's foot, which the last row scrolls clear of and the rows fade out under. */
+  hasFoot?: boolean;
   /** Whether the chats are still on their way: nothing is said about an empty list until they have arrived. */
   isLoading: boolean;
   /** Told when the open chat's row archives it, so the window can put the chat away with it. */
@@ -188,6 +193,8 @@ export function ChatList({
   scrollSignal: number | string;
   /** The words a row marks where they turn up: the search the chats were found by, when they were found by their words. */
   search?: string;
+  /** The topic the list stands in, whose name a row leaves off since every row there wears it. */
+  spaceTopicId?: string;
   topics: Topic[];
 }) {
   const now = useNow();
@@ -241,6 +248,7 @@ export function ChatList({
             onOpen={() => {
               onOpenDraft(draft.id);
             }}
+            spaceTopicId={spaceTopicId}
             topics={topics}
           />
         ),
@@ -261,6 +269,7 @@ export function ChatList({
             isOut={outIds?.has(chat.id) ?? false}
             now={now}
             search={search}
+            spaceTopicId={spaceTopicId}
             topics={topics}
           />
         ),
@@ -346,7 +355,8 @@ export function ChatList({
     // first row's hairline meets the head, tinted as it is under a topic.
     <div
       className={cn(
-        "min-h-0 flex-1 overflow-y-auto pb-4",
+        "min-h-0 flex-1 overflow-y-auto",
+        hasFoot ? "pb-14 [--scroll-fade-foot:4rem]" : "pb-4",
         isScrollable && "scroll-fade-y",
       )}
       data-chat-list

@@ -2,16 +2,19 @@ import { topicColor } from "@/client/components/window/topic-colors";
 import { topicTint } from "@/client/components/window/topic-tint";
 import { cn } from "@/client/lib/utils";
 
+import { TopicGlyph } from "./topic-icons";
+
 /** What a topic is marked with, whatever the user has and has not chosen. */
 export interface TopicMarkSpec {
   color?: string;
   emoji?: string;
+  icon?: string;
   name?: string;
 }
 
 /**
- * The mark that stands for a topic wherever one is named: its emoji on a tile
- * of its color, never a word. Sized for where it sits, from a row's header
+ * The mark that stands for a topic wherever one is named: its icon or its
+ * emoji on a tile of its color, never a word. Sized for where it sits, from a row's header
  * line up to the dialog that chooses it.
  */
 export function TopicMark({
@@ -29,6 +32,8 @@ export function TopicMark({
       : size === "sm"
         ? "size-3.5 rounded-sm text-[9px]"
         : "size-4 rounded text-[10px]";
+  const glyph =
+    size === "lg" ? "size-6" : size === "sm" ? "size-2.5" : "size-3";
   return (
     <span
       aria-hidden
@@ -45,31 +50,7 @@ export function TopicMark({
       }}
       title={topic.name}
     >
-      <TopicFace topic={topic} />
-    </span>
-  );
-}
-
-/**
- * What stands for a topic with no tile under it: its emoji if it has one, and
- * otherwise the first letter of its name, so a topic whose emoji the user never
- * chose still has to be told apart from its neighbors at a glance.
- */
-function TopicFace({ topic }: { topic: TopicMarkSpec }) {
-  if (topic.emoji) {
-    return <span>{topic.emoji}</span>;
-  }
-  // By grapheme, so a name that starts with an emoji or an accented letter
-  // gives one character rather than half of one.
-  const [first] = new Intl.Segmenter().segment(topic.name ?? "?");
-  return (
-    <span
-      className="font-semibold uppercase"
-      // The tint's ink rather than the color itself: a pale pick's own hex
-      // would vanish on its own tile.
-      style={{ color: "var(--topic-tint-ink, currentColor)" }}
-    >
-      {first?.segment ?? "?"}
+      <TopicGlyph className={glyph} topic={topic} />
     </span>
   );
 }

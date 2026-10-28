@@ -847,13 +847,15 @@ body {
 
 @keyframes scroll-fade-reveal-bottom {
   from {
-    --scroll-fade-bottom: var(--scroll-fade-size);
+    --scroll-fade-bottom: var(--scroll-fade-foot, var(--scroll-fade-size));
   }
   to {
     --scroll-fade-bottom: 0px;
   }
 }
 
+/* `--scroll-fade-foot` sizes the foot's fade on its own, for a list with
+   something laid over its foot that the rows should fade out under. */
 @utility scroll-fade-y {
   --scroll-fade-size: 1.5rem;
   mask-image: linear-gradient(
@@ -873,7 +875,7 @@ body {
   animation-timeline: scroll(self);
   animation-range:
     0 var(--scroll-fade-size),
-    calc(100% - var(--scroll-fade-size)) 100%;
+    calc(100% - var(--scroll-fade-foot, var(--scroll-fade-size))) 100%;
 }
 
 /* The window a group's stand-in rolls through; see `GroupStandIn`.

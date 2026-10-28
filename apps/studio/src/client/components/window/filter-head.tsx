@@ -7,10 +7,11 @@ import {
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
+import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { ChevronDown } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
@@ -23,10 +24,14 @@ import {
   isInbox,
   matchesFilters,
   type Topic,
+  toSpace,
 } from "./chats";
 import { PlaceIcon } from "./place-icons";
 import { SearchField } from "./search-field";
+import { topicColor } from "./topic-colors";
+import { TopicGlyph } from "./topic-icons";
 import { TopicMark } from "./topic-mark";
+import { topicTint } from "./topic-tint";
 import { TopicActionsButton, TopicContextMenu } from "./topic-menu";
 
 /** A view the picker offers above the topics: the chats, or one of the places. */
@@ -53,6 +58,8 @@ interface FilterProps {
   /** How many drafts are not yet sent: Drafts is a view only while there are some, or while it is the one on screen. */
   drafts: number;
   filters: ChatFilters;
+  /** Whether this is a picture of the head of a space a swipe is peeking at, which answers no Cmd+F. */
+  isPreview?: boolean;
   onFiltersChange: (filters: ChatFilters) => void;
   /** Opens the dialog that makes a topic; the one made is the one the list then stands in. */
   onNewTopic: () => void;
@@ -78,6 +85,7 @@ export function FilterHead(props: FilterProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   useFindTarget({
     anchor: searchRef,
+    enabled: !props.isPreview,
     openFind: () => {
       searchRef.current?.focus();
       searchRef.current?.select();
@@ -194,16 +202,20 @@ function RowCount({ count }: { count: number | undefined }) {
   ) : null;
 }
 
-/** A topic's face at the size the picker draws it: its emoji, or its mark. */
+/** A topic's face at the size the picker draws it: its icon or emoji, or its mark. */
 function TopicFace({ size, topic }: { size: "chip" | "row"; topic: Topic }) {
-  return topic.emoji ? (
+  return topic.icon || topic.emoji ? (
     <span
       className={cn(
-        "leading-none",
+        "grid place-items-center leading-none topic-tint",
         size === "chip" ? "text-[15px]" : "text-lg",
       )}
+      style={topicTint(topicColor(topic))}
     >
-      {topic.emoji}
+      <TopicGlyph
+        className={size === "chip" ? "size-4.5" : "size-5"}
+        topic={topic}
+      />
     </span>
   ) : (
     <TopicMark
@@ -228,14 +240,21 @@ function useFilterModel({
   topics,
 }: FilterProps) {
   const live = topics.filter((topic) => !topic.retired);
-  const countIn = (place: ChatPlace) =>
+  // Counted inside the space the column stands in, since that is where
+  // choosing the place takes the list.
+  const countIn = (
+    place: ChatPlace | undefined,
+    within: string[] = filters.topics,
+  ) =>
     chats.filter((chat) =>
-      matchesFilters(chat, { apps: [], place, search: "", topics: [] }),
+      matchesFilters(chat, {
+        apps: [],
+        ...(place ? { place } : {}),
+        search: "",
+        topics: within,
+      }),
     ).length;
-  const isChats =
-    isInbox(filters) &&
-    filters.topics.length === 0 &&
-    filters.apps.length === 0;
+  const isChats = isInbox(filters);
   const chatsView: View = {
     // The rail's Chat, so the chats look the same wherever they are named.
     icon: (size, isOn) => (
@@ -282,14 +301,15 @@ function useFilterModel({
       label: "Archived",
     },
   ];
-  // All is reached only by widening a search past the view it was typed in,
-  // so it names itself on the picker but has no row of its own.
+  // Everything, archived chats among them, is reached only by widening a
+  // search past the view it was typed in, so it names itself on the picker
+  // but has no row of its own.
   const everything: View = {
     icon: (size, isOn) => (
-      <CardsThreeIcon className={size} weight={ICON_WEIGHT(isOn)} />
+      <StackIcon className={size} weight={ICON_WEIGHT(isOn)} />
     ),
     id: "all",
-    label: "All chats",
+    label: "Everything",
   };
   const chosenTopic = live.find((topic) => filters.topics.includes(topic.id));
   const current = isChats
@@ -298,16 +318,34 @@ function useFilterModel({
       (filters.place === "all" ? everything : undefined));
   return {
     chosenTopic,
-    // A topic or an app narrows the list with no place chosen; the picker
-    // then names the topic, or the chats for an app.
+    // A place left behind by a view that is gone, such as Drafts once the
+    // last one is sent, names the chats.
     current: current ?? chatsView,
+    // Every chat's space, at the head of the topics: no topic chosen, with
+    // the chats the place would list across all of them.
+    allChats: {
+      choose: () => {
+        onFiltersChange(toSpace(filters, undefined));
+      },
+      count: countIn(filters.place, []),
+      isOn: chosenTopic === undefined,
+    },
     onDetails: onTopicDetails,
     onNew: onNewTopic,
     topics: live.map((topic) => ({
       choose: () => {
         onFiltersChange(choose(filters, { group: "topics", id: topic.id }));
       },
-      count: chats.filter((chat) => chat.topic === topic.id).length,
+      // What choosing it would list: its chats in the place the column
+      // stands in.
+      count: chats.filter((chat) =>
+        matchesFilters(chat, {
+          apps: [],
+          ...(filters.place ? { place: filters.place } : {}),
+          search: "",
+          topics: [topic.id],
+        }),
+      ).length,
       isOn: chosenTopic?.id === topic.id,
       topic,
     })),
@@ -316,7 +354,7 @@ function useFilterModel({
       choose: () => {
         if (view.id === "chats") {
           const { place: _place, ...rest } = filters;
-          onFiltersChange({ ...rest, apps: [], topics: [] });
+          onFiltersChange(rest);
           return;
         }
         onFiltersChange(choose(filters, { group: "place", id: view.id }));
@@ -333,6 +371,7 @@ function useFilterModel({
  * details by right click or the dots at its edge. A pick closes the list.
  */
 function ViewPicker({
+  allChats,
   chosenTopic,
   current,
   isCompact,
@@ -341,6 +380,7 @@ function ViewPicker({
   topics,
   views,
 }: {
+  allChats: { choose: () => void; count: number; isOn: boolean };
   chosenTopic: Topic | undefined;
   current: View;
   isCompact: boolean;
@@ -360,6 +400,10 @@ function ViewPicker({
     chooseView();
   };
   const label = chosenTopic ? chosenTopic.name : current.label;
+  // Inside a topic, a place other than its inbox follows the topic's name,
+  // so a topic's starred chats never pass for all of its chats.
+  const where =
+    chosenTopic && current.id !== "chats" ? current.label : undefined;
   // The chats are named alone, the way the inbox is; every other view
   // carries its mark beside its name, so a narrowed list never passes for
   // the whole of it. Drawn in to its mark, every view shows that mark.
@@ -369,7 +413,7 @@ function ViewPicker({
     <Popover onOpenChange={setOpen} open={isOpen}>
       <PopoverTrigger asChild>
         <button
-          aria-label={`View: ${label}`}
+          aria-label={`View: ${where ? `${label}, ${where}` : label}`}
           className={cn(
             "flex h-9 max-w-48 min-w-0 shrink-0 items-center rounded-lg text-[15px] font-semibold transition-[padding] duration-200 ease-out motion-reduce:transition-none",
             // Its face starts on the rows' own keyline, 16px in, and the
@@ -399,7 +443,15 @@ function ViewPicker({
             <span
               className={cn("flex w-max items-center gap-1", hasFace && "pl-1")}
             >
-              <span className="max-w-36 truncate">{label}</span>
+              <span className="max-w-36 truncate">
+                {label}
+                {where && (
+                  <span className="font-normal text-foreground/45">
+                    {" "}
+                    · {where}
+                  </span>
+                )}
+              </span>
               <ChevronDown
                 absoluteStrokeWidth
                 className="size-3.5 shrink-0 opacity-50"
@@ -457,6 +509,26 @@ function ViewPicker({
         )}
         {/* The topics scroll between the views and the foot, which stay. */}
         <MenuScrollArea className="flex flex-col gap-0.5 p-0">
+          {topics.length > 0 && (
+            <PickerRow
+              isOn={allChats.isOn}
+              onPick={() => {
+                pick(allChats.choose);
+              }}
+              trailing={<RowCount count={allChats.count} />}
+            >
+              <span
+                className={cn(
+                  "grid size-6 shrink-0 place-items-center",
+                  !allChats.isOn && "text-muted-foreground",
+                )}
+              >
+                {/* Filled, as the topics' icons under it are. */}
+                <ChatsCircleIcon className="size-5" weight="fill" />
+              </span>
+              <span className="truncate">All chats</span>
+            </PickerRow>
+          )}
           {topics.map((entry) => (
             <TopicContextMenu
               key={entry.topic.id}

@@ -46,6 +46,7 @@ import { ROW_CONTROL, RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
+import { TopicGlyph } from "./topic-icons";
 import { TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useChatRename } from "./use-chat-rename";
@@ -93,6 +94,7 @@ export function ChatRow({
   onOpen,
   onSetTopic,
   search = "",
+  spaceTopicId,
   topics,
 }: {
   /** The chat's actions, answered by the list for every row through one set of mutations. */
@@ -114,6 +116,8 @@ export function ChatRow({
   onSetTopic: (topic: null | string) => void;
   /** The words the list is searched for, which the title and the latest line mark where they turn up. */
   search?: string;
+  /** The topic the list stands in, whose name a row leaves off since every row there wears it. */
+  spaceTopicId?: string;
   topics: Topic[];
 }) {
   const filed = topics.find((entry) => entry.id === chat.topic);
@@ -170,7 +174,9 @@ export function ChatRow({
   );
   // The topic in the row's corner, by name; filing is the control in the
   // corner's bar.
-  const pill = filed && <TopicPill quiet topic={filed} />;
+  const pill = filed && filed.id !== spaceTopicId && (
+    <TopicPill quiet topic={filed} />
+  );
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
   const title = rename.isEditing ? (
@@ -439,8 +445,10 @@ export function TopicPill({
   );
   const inside = (
     <>
-      {topic.emoji ? (
-        <span className="text-[10px]">{topic.emoji}</span>
+      {topic.icon || topic.emoji ? (
+        <span className="grid text-[10px]">
+          <TopicGlyph className="size-3" topic={topic} />
+        </span>
       ) : (
         <TopicMark className="size-3.5 text-[10px]" topic={topic} />
       )}

@@ -81,6 +81,7 @@ interface MacModule {
   automationStatus: (bundleId: string, request: string) => Promise<string>;
   promptOnScreen: () => Promise<string>;
   bundleIdentifier: () => Promise<string>;
+  watchTrackpadTouches: (onTouch: (touch: string) => void) => void;
 }
 
 /** The Mac's own apps whose data has privacy settings of its own, by bundle id. */
@@ -272,6 +273,21 @@ function loadModule(): MacModule | null {
       : null;
   }
   return macModule;
+}
+
+/**
+ * Calls `onTouch` whenever fingers come down on the trackpad to scroll and
+ * whenever they lift, for as long as the app runs, read off the scroll
+ * events' own phase. Nothing off macOS and in a build without the module.
+ */
+export function watchTrackpadTouches(
+  onTouch: (touch: "down" | "up") => void,
+): void {
+  loadModule()?.watchTrackpadTouches((touch) => {
+    if (touch === "down" || touch === "up") {
+      onTouch(touch);
+    }
+  });
 }
 
 /**

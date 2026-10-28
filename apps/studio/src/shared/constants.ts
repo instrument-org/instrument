@@ -12,6 +12,11 @@ export const SETUP_STATE_CHANNEL = "setup-state";
 // awaited round trip can outlive the gesture. See electron-main/lib/file-drag.
 export const START_FILE_DRAG_CHANNEL = "start-file-drag";
 
+// Main's word to every window that fingers came down on the trackpad to
+// scroll ("down") or lifted ("up"), which a page's wheel events never say.
+// macOS only. See electron-main/lib/trackpad-touches.
+export const TRACKPAD_TOUCH_CHANNEL = "trackpad-touch";
+
 // One-way word that a code editor took or gave up the keyboard, which the
 // main process reads before every key press reaches the page. See
 // bindAppWindowChords in electron-main/menus/app-window.

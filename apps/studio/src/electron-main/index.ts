@@ -71,6 +71,7 @@ import {
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { registerFileDragHandler } from "./lib/file-drag";
+import { registerTrackpadTouches } from "./lib/trackpad-touches";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
@@ -359,6 +360,7 @@ async function bootstrapPrimaryInstance() {
   }
 
   registerFileDragHandler();
+  registerTrackpadTouches();
 
   watchMainThreadStalls();
   watchProcessCpu();

@@ -62,6 +62,8 @@ export interface TopicChoice {
   emoji: string;
   /** The user's folders the work under it uses, attached to each chat filed there. */
   folders: TopicFolder[];
+  /** One of the app's icons, worn in place of the emoji; empty for none. */
+  icon: string;
   /** What every chat filed under it is given; empty takes them away. */
   instructions: string;
   name: string;
@@ -116,6 +118,7 @@ export function TopicDialog(
           color?: string;
           emoji?: string;
           folders?: TopicFolder[];
+          icon?: string;
           id: string;
           instructions?: string;
           name: string;
@@ -140,6 +143,7 @@ export function TopicDialog(
               TOPIC_COLORS[taken.length % TOPIC_COLORS.length] ?? "#3b6ef6",
             emoji: starterEmoji(taken, taken.length),
             folders: [],
+            icon: "",
             instructions: "",
             name,
           }}
@@ -166,6 +170,7 @@ export function TopicDialog(
           color: topic.color ?? TOPIC_COLORS[8] ?? "#3b6ef6",
           emoji: topic.emoji ?? "",
           folders: topic.folders ?? [],
+          icon: topic.icon ?? "",
           instructions: topic.instructions ?? "",
           name: topic.name,
         }}
@@ -176,6 +181,9 @@ export function TopicDialog(
             ...(chosen.emoji === (topic.emoji ?? "")
               ? {}
               : { emoji: chosen.emoji }),
+            ...(chosen.icon === (topic.icon ?? "")
+              ? {}
+              : { icon: chosen.icon }),
             ...(samePaths(chosen.folders, topic.folders ?? [])
               ? {}
               : { folders: chosen.folders }),
@@ -436,6 +444,7 @@ function TopicForm({
 }) {
   const [name, setName] = useState(initial.name);
   const [emoji, setEmoji] = useState(initial.emoji);
+  const [icon, setIcon] = useState(initial.icon);
   const [color, setColor] = useState(initial.color);
   const [instructions, setInstructions] = useState(initial.instructions);
   const instructionsDictation = useDictatedText({
@@ -459,6 +468,7 @@ function TopicForm({
     if (open) {
       setName(initial.name);
       setEmoji(initial.emoji);
+      setIcon(initial.icon);
       setColor(initial.color);
       setInstructions(initial.instructions);
       setFolders(initial.folders);
@@ -492,9 +502,16 @@ function TopicForm({
   ) {
     setEmoji(best.emoji.unicode);
   }
+  // A mark is an icon or an emoji, so choosing one puts the other away.
   const choose = (picked: string) => {
     setFollows(false);
     setEmoji(picked);
+    setIcon("");
+  };
+  const chooseIcon = (picked: string) => {
+    setFollows(false);
+    setIcon(picked);
+    setEmoji("");
   };
   const nameField = useRef<HTMLInputElement>(null);
 
@@ -508,7 +525,7 @@ function TopicForm({
       return;
     }
     onCommit(
-      { color, emoji, folders, instructions, name: trimmed },
+      { color, emoji, folders, icon, instructions, name: trimmed },
       isFilingFits ? fits.map((chat) => chat.id) : [],
     );
     onOpenChange(false);
@@ -531,8 +548,11 @@ function TopicForm({
       </DialogHeader>
       <div className="flex items-center gap-3">
         <TopicMarkPicker
+          color={color}
           context={name}
+          icon={icon || undefined}
           onEmoji={choose}
+          onIcon={chooseIcon}
           onOpenChange={setPicking}
           open={isPicking}
         >
@@ -545,9 +565,9 @@ function TopicForm({
               // A changed mark fades in where it stands, so one that follows
               // the name reads as an answer arriving rather than a flicker.
               className="animate-in duration-300 fade-in-0 zoom-in-90"
-              key={emoji}
+              key={icon || emoji}
               size="lg"
-              topic={{ color, emoji, name }}
+              topic={{ color, emoji, icon, name }}
             />
           </button>
         </TopicMarkPicker>

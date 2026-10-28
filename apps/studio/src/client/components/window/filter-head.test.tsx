@@ -95,7 +95,7 @@ function pickerRows() {
 }
 
 describe("FilterHead", () => {
-  it("lists the views, then the topics, each with how many chats it holds", () => {
+  it("lists the views, then the topics, each with how many chats it would list", () => {
     const { head } = renderHead({
       chats: [
         chat({ starred: true, topic: "house", unread: true }),
@@ -111,8 +111,21 @@ describe("FilterHead", () => {
       "Unread1",
       "Starred1",
       "Archived",
-      "🏠House2",
+      "All chats2",
+      "🏠House1",
       "💸Money",
+      "New topic",
+    ]);
+  });
+
+  it("offers no All chats row while there are no topics", () => {
+    const { head } = renderHead({ topics: [] });
+    openPicker(head.getByRole("button", { name: "View: Chats" }));
+    expect(pickerRows()).toEqual([
+      "Chats",
+      "Unread1",
+      "Starred",
+      "Archived",
       "New topic",
     ]);
   });
@@ -126,7 +139,7 @@ describe("FilterHead", () => {
     ).toBe("Drafts2");
   });
 
-  it("stands in one view at a time, leaving the topic and keeping the search", () => {
+  it("changes place inside a topic, keeping the topic and the search", () => {
     const { head, onFiltersChange } = renderHead({
       filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
     });
@@ -136,6 +149,7 @@ describe("FilterHead", () => {
       ...NO_FILTERS,
       place: "starred",
       search: "fence",
+      topics: ["house"],
     });
   });
 
@@ -171,6 +185,24 @@ describe("FilterHead", () => {
       ...NO_FILTERS,
       search: "fence",
       topics: ["money"],
+    });
+  });
+
+  it("leaves a topic for every chat with All chats, keeping the place and the search", () => {
+    const { head, onFiltersChange } = renderHead({
+      filters: {
+        ...NO_FILTERS,
+        place: "starred",
+        search: "fence",
+        topics: ["house"],
+      },
+    });
+    openPicker(head.getByRole("button", { name: "View: House, Starred" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "All chats" }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      place: "starred",
+      search: "fence",
     });
   });
 

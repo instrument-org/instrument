@@ -5,7 +5,8 @@
 // answers what the file browser asks of every folder it lists, which comes
 // too often to start a process for.
 //
-// Every function returns a Promise of JSON text, built by `answer`. Adding one
+// Every function but `watchTrackpadTouches`, which calls back for as long as
+// the app runs, returns a Promise of JSON text, built by `answer`. Adding one
 // is a block in `FUNCTIONS` that calls `done` with a dictionary (or an
 // `error` string); main parses it in mac-native.ts, which is where its type
 // lives. Node-API is ABI-stable, so one build serves every Electron version.
@@ -467,6 +468,62 @@ static napi_value promptOnScreen(napi_env env, napi_callback_info info) {
   });
 }
 
+/// Hands one trackpad touch, "down" or "up", to the JS callback it is for.
+static void callWithTouch(napi_env env, napi_value js_callback, void *context, void *data) {
+  char *touch = data;
+  if (env != NULL) {
+    napi_value text;
+    napi_value undefined;
+    napi_create_string_utf8(env, touch, NAPI_AUTO_LENGTH, &text);
+    napi_get_undefined(env, &undefined);
+    napi_call_function(env, undefined, js_callback, 1, &text, NULL);
+  }
+  free(touch);
+}
+
+/// Calls the callback it is given with "down" when fingers come down on the
+/// trackpad to scroll and "up" when they lift, which a page's wheel events
+/// never say: the momentum after a lift arrives as more wheel, and fingers
+/// held still send none. Read off the scroll events' own phase, for the app's
+/// windows only, through a local monitor that passes every event on as it
+/// came. The first call starts it and later calls do nothing; it does not
+/// keep the process alive.
+static napi_value watchTrackpadTouches(napi_env env, napi_callback_info info) {
+  static napi_threadsafe_function watching = NULL;
+  size_t argc = 1;
+  napi_value argv[1];
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  napi_value undefined;
+  napi_get_undefined(env, &undefined);
+  if (watching != NULL || argc < 1) {
+    return undefined;
+  }
+  napi_value name;
+  napi_create_string_utf8(env, "instrument-mac-touches", NAPI_AUTO_LENGTH, &name);
+  napi_create_threadsafe_function(env, argv[0], NULL, name, 0, 1, NULL, NULL, NULL, callWithTouch,
+                                  &watching);
+  napi_unref_threadsafe_function(env, watching);
+  napi_threadsafe_function tsfn = watching;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel
+                                          handler:^NSEvent *(NSEvent *event) {
+                                            const char *touch = NULL;
+                                            if (event.phase & (NSEventPhaseMayBegin | NSEventPhaseBegan)) {
+                                              touch = "down";
+                                            } else if (event.phase &
+                                                       (NSEventPhaseEnded | NSEventPhaseCancelled)) {
+                                              touch = "up";
+                                            }
+                                            if (touch != NULL) {
+                                              napi_call_threadsafe_function(tsfn, strdup(touch),
+                                                                            napi_tsfn_nonblocking);
+                                            }
+                                            return event;
+                                          }];
+  });
+  return undefined;
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
@@ -483,6 +540,7 @@ static const struct {
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},
     {"bundleIdentifier", bundleIdentifier},
+    {"watchTrackpadTouches", watchTrackpadTouches},
 };
 
 NAPI_MODULE_INIT() {

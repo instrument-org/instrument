@@ -104,6 +104,23 @@ A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`), `{ folder
 
 Unlike the window, these are drawn from macOS and a generic browser rather than measured off anything of ours; a page using them says so in its `source` line.
 
+## A prototype, and replaying a chat
+
+A part that defines `META` and `SCREEN` (`{ w, h, draw, controls }`, the skill's "A prototype instead of frames") instead of `states` builds one live screen from the skill's `prototype.html`, with the same build command.
+
+[`replay/`](replay/) plays a chat back from its records in a design under exploration, as such a prototype with a scrubber under it. The point is to draw a design against real chats, with their real pauses, long runs of steps, tasks and failures, rather than against made-up ones:
+
+```bash
+node .agents/wireframe-kit/replay/build-replay.mjs <chat-records-dir> ~/wireframes/YYYY-MM-DD-chat-replay-<what>.html \
+  --design ~/wireframes/<the design's part>.js --title "Chat replay: <what>" --chat "<the chat's title>" [--at <second to open on>]
+```
+
+- `<chat-records-dir>` is a chat's `.instrument/chats/<id>/` folder, with its tasks' logs beside its own. An eval keeps one per chat in its run's workspace, a temp folder the system clears in time, so copy the workspace out if the run is worth replaying later.
+- `--design` is the part whose pieces draw the replay. The replay takes everything above its `// ---- the scenario` line (or its `META`), and needs `says`, `working`, `workedLine`, `head`, `DOT`, `pillDark` and `pillSoft` from it. A design that changes those changes every replay built from it.
+- `records-to-timeline.mjs` is the reader on its own: `node records-to-timeline.mjs <chat-records-dir>` prints the timeline as JSON, with seconds from the chat's start for every message, step, task step, ask, failed request and wake.
+
+In the page, drag the timeline or use ← and → to jump from one event to the next, Space plays at the real pace (the button beside the timeline sets 1×, 4× or 16×), and a folded line of steps opens on a click.
+
 ## The baseline
 
 [`baseline.js`](baseline.js) is a part with one frame per surface as it stands: Chat empty, in Drafts, at work and with its pane, Files with and without its places and with a file open, the New tab page, Apps, Browser with and without a page, the floating chat and the tab it expands into, a menu and a sheet, setup's sign-in, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round, and start each proposal from the nearest frame, changing only what the proposal argues about:

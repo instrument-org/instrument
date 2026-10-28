@@ -16,7 +16,7 @@ const config: KnipConfig = {
   ignore: [
     "registry/**/*",
     ".agents/skills/**/*",
-    ".agents/wireframe-kit/*.js",
+    ".agents/wireframe-kit/**/*.js",
   ],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
@@ -28,7 +28,7 @@ const config: KnipConfig = {
       entry: [
         "scripts/*.ts!",
         "scripts/sandbox-bakeoff/*.ts!",
-        ".agents/wireframe-kit/*.{ts,mjs}!",
+        ".agents/wireframe-kit/**/*.{ts,mjs}!",
       ],
       ignoreBinaries: ["actionlint", "electron"],
       ignoreDependencies: [

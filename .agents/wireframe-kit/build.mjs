@@ -1,8 +1,9 @@
 // node build.mjs <part.js> <out.html>
 // Builds a wireframe of the Studio window from the wireframe skill's shell.html and
 // main.html, this kit (brands.js + window.js + mac.js) and a part that defines META and
-// states. WIREFRAME_SKILL_DIR points at the wireframe skill when it is not installed at
-// ~/.claude/skills/wireframe.
+// states. A part that defines META and SCREEN instead builds a prototype: one live screen
+// from the skill's prototype.html. WIREFRAME_SKILL_DIR points at the wireframe skill when
+// it is not installed at ~/.claude/skills/wireframe.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -17,11 +18,13 @@ const SKILL =
   process.env.WIREFRAME_SKILL_DIR ??
   path.join(os.homedir(), ".claude/skills/wireframe");
 const starter = fs.readFileSync(path.join(SKILL, "shell.html"), "utf8");
-let main = fs.readFileSync(path.join(SKILL, "main.html"), "utf8");
+const part0 = fs.readFileSync(partPath, "utf8");
+const PROTOTYPE = /^const SCREEN\s*=/m.test(part0);
+let main = fs.readFileSync(path.join(SKILL, PROTOTYPE ? "prototype.html" : "main.html"), "utf8");
 const kit = ["brands.js", "window.js", "mac.js"]
   .map((f) => fs.readFileSync(path.join(here, f), "utf8"))
   .join("\n");
-const part = fs.readFileSync(partPath, "utf8");
+const part = part0;
 
 /** @type {(s: string, from: string, to: string, insert: string) => string} */
 const cut = (s, from, to, insert) => {
@@ -34,16 +37,18 @@ const cut = (s, from, to, insert) => {
 // Evaluate kit + marks + part in node, so a broken frame fails here rather than on screen.
 const marks = main.slice(
   main.indexOf("// ---- annotations"),
-  main.indexOf("// ---- the frames"),
+  main.indexOf(PROTOTYPE ? "// ---- the screen" : "// ---- the frames"),
 );
 /** @type {{ __out?: { META: { title: string; line: string; source: string; slotH?: number; tileMin?: number }; states: { title: string; note: string; body: string; w?: number; h?: number }[] } }} */
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext(
-  `${kit}\n${marks}\n${part}\n;globalThis.__out = { META, states };`,
+  PROTOTYPE
+    ? `${kit}\n${marks}\n${part}\n;globalThis.__out = { META, states: [{ title: "Screen", note: "The prototype's screen", body: SCREEN.draw() + (SCREEN.controls ? SCREEN.controls() : ""), w: SCREEN.w, h: SCREEN.h }] };`
+    : `${kit}\n${marks}\n${part}\n;globalThis.__out = { META, states };`,
   ctx,
 );
-if (!ctx.__out) throw new Error("the part defined no META or states");
+if (!ctx.__out) throw new Error(`the part defined no META or ${PROTOTYPE ? "SCREEN" : "states"}`);
 const { META, states } = ctx.__out;
 for (const [i, s] of states.entries()) {
   if (typeof s.body !== "string") throw new Error(`frame ${i + 1} has no body`);
@@ -90,7 +95,7 @@ for (const [i, s] of states.entries()) {
 }
 
 main = cut(main, "// ---- the kit", "// ---- annotations", kit);
-main = cut(main, "// ---- the frames", "// ---- render", part);
+main = cut(main, PROTOTYPE ? "// ---- the screen" : "// ---- the frames", "// ---- render", part);
 main = main.replace(
   /const SLOT_H = \d+;/,
   `const SLOT_H = ${META.slotH || 300};`,
@@ -121,7 +126,9 @@ if (fs.existsSync(repoMeta)) {
 html = html.replace(
   /<main class="[^"]*">[\s\S]*?<\/main>/,
   () =>
-    `<main class="flex min-h-dvh flex-col px-4 pb-8 sm:px-6">\n${main}\n    </main>`,
+    PROTOTYPE
+      ? `<main class="flex h-dvh flex-col">\n${main}\n    </main>`
+      : `<main class="flex min-h-dvh flex-col px-4 pb-8 sm:px-6">\n${main}\n    </main>`,
 );
 // The part shares one module scope with the template's render code, so a top-level
 // name it reuses (`stage`, `layout`, `rack`) is a SyntaxError that blanks the page.
@@ -149,5 +156,5 @@ if (process.env.RAW) {
   fs.writeFileSync(outPath.replace(/\.html$/, ".raw.html"), raw);
 }
 console.log(
-  `${outPath}: ${states.length} frames, ${Math.round(html.length / 1024)} KB`,
+  `${outPath}: ${PROTOTYPE ? "a prototype" : `${states.length} frames`}, ${Math.round(html.length / 1024)} KB`,
 );

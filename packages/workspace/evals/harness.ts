@@ -12,6 +12,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import * as _ from "radashi";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
@@ -26,6 +27,7 @@ import {
 } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { pythonBaseReady } from "../src/lib/python-base";
 import { workspaceLayout } from "../src/lib/workspace-layout";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
@@ -82,6 +84,7 @@ import { createStandInWindow } from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { grantCaseFolders, startRun } from "./lib/start-run";
 import { timeOutTaskTurn } from "./lib/time-out-task";
+import { freshRuntimeDir, sharedRuntimeDir } from "./lib/workspace-cleanup";
 import {
   buildProviderConfigs,
   c,
@@ -681,12 +684,38 @@ export function modelLabelFor(uri: string): string {
   return sanitizeCanonicalId(parsed.ok ? parsed.value.canonicalId : uri);
 }
 
+/** Longer than a refresh may take: resolve, install and import check. */
+const PYTHON_BASE_WAIT_MS = 15 * 60_000;
+
+/**
+ * `ensurePythonBase`, waited out while another run on this computer installs
+ * the shared runtime's base packages: that run holds the refresh lock, so
+ * this one's own call returns at once with nothing installed yet. The wait
+ * only looks for the set to land: calling `ensurePythonBase` again would
+ * remove every set but the one the state names, and the other run renames
+ * its set into place before it writes the state, so a call between the two
+ * would delete it. Once the wait runs out, one more call installs the set
+ * here if the other run gave up.
+ */
+async function settledPythonBase() {
+  const failure = await ensurePythonBase();
+  if (failure || pythonBaseReady()) {
+    return failure;
+  }
+  const deadline = Date.now() + PYTHON_BASE_WAIT_MS;
+  while (!pythonBaseReady() && Date.now() < deadline) {
+    await delay(5000);
+  }
+  return pythonBaseReady() ? undefined : ensurePythonBase();
+}
+
 export async function runEvals(
   evals: EvalCase[],
   {
     concurrency = 8,
     dryRun = false,
     firstTrial = 1,
+    freshRuntime = false,
     maxRunCostUSD = DEFAULT_MAX_RUN_COST_USD,
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
     maxRunTokens,
@@ -698,6 +727,11 @@ export async function runEvals(
     dryRun?: boolean;
     /** The number of this process's first trial, for one of several processes. */
     firstTrial?: number;
+    /**
+     * Builds a runtime from nothing in the run's own workspace, as a first
+     * launch does, rather than using the one every run shares.
+     */
+    freshRuntime?: boolean;
     /** 0 disables. */
     maxRunCostUSD?: number;
     maxRunSeconds?: number;
@@ -716,11 +750,15 @@ export async function runEvals(
     os.tmpdir(),
     `${APP_NAME_SLUG}-evals-${ulid()}`,
   );
+  const runtimeDir = freshRuntime
+    ? freshRuntimeDir(workspaceRootDir)
+    : sharedRuntimeDir();
   const providerConfigs = buildProviderConfigs();
   const registryDir = resolveRegistryDir();
 
   write(`${c.dim}Workspace :${c.reset} ${workspaceRootDir}\n`);
   write(`${c.dim}Registry  :${c.reset} ${registryDir}\n`);
+  write(`${c.dim}Runtime   :${c.reset} ${runtimeDir}\n`);
 
   const catalog = await fetchOpenRouterCatalog(models);
   for (const [alias, target] of catalog.aliasTargets) {
@@ -736,7 +774,6 @@ export async function runEvals(
   // Shells run in the bash worker, as they do in Studio.
   setBashWorkerFactory(createTsxBashWorker);
 
-  const runtimeDir = path.join(workspaceRootDir, "runtime");
   makeToolBinIn(runtimeDir);
 
   const appsConfig = {
@@ -816,11 +853,20 @@ export async function runEvals(
 
   attachChats(actor);
   actor.start();
-  // Awaited, unlike the app's: a case's first command may read them.
-  await prepareBundledSkills(actor.getSnapshot().context.config);
+  // Awaited, unlike the app's: a case's first command may read them. A run
+  // launching beside another can lose the swap into the shared runtime's
+  // `skills/` to it, which leaves the other's copy of the same skills, so a
+  // failure is reported and the run goes on, as the app's does.
+  await prepareBundledSkills(actor.getSnapshot().context.config).catch(
+    (error: unknown) => {
+      write(
+        `${c.dim}Skills    :${c.reset} could not prepare the bundled skills: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    },
+  );
   // Awaited too, so every case starts as a launch that has finished it, and
   // its context says what `python` already has.
-  const pythonBase = await ensurePythonBase();
+  const pythonBase = await settledPythonBase();
   if (pythonBase) {
     write(
       `${c.dim}Python    :${c.reset} base packages not installed: ${pythonBase.output.trim()}\n`,

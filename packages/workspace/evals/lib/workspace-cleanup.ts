@@ -1,20 +1,37 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 /**
- * A run's workspace is a temp folder of 500 to 700 MB, nearly all of it
- * `runtime/`: the Python base, its download cache, bytecode and the skills'
- * environments, which every run builds again from scratch. What the run
- * did (the chats' records, the folders and files it made, the run records
- * `report` rescores from) is well under a megabyte, so once a run is
- * reported only its runtime goes, unless it asked to keep everything
- * (`--keep-workspace`). Runs that never removed theirs filled a disk with
- * hundreds of them.
+ * The runtime every run on this computer uses, as the app keeps one runtime
+ * for every workspace on a computer: the Python base, its download cache,
+ * bytecode and the skills' environments, 500 to 700 MB built once rather
+ * than per run. In the temp folder, so it follows `INSTRUMENT_EVAL_TMPDIR`.
+ * Nothing a run does removes it, and runs sharing it at once rely on the
+ * app's own handling of several processes using one runtime.
+ */
+export function sharedRuntimeDir(): string {
+  return path.join(os.tmpdir(), `${APP_NAME_SLUG}-eval-runtime`);
+}
+
+/**
+ * The runtime a `--fresh-runtime` run builds from nothing in its own
+ * workspace, to measure a first launch.
+ */
+export function freshRuntimeDir(workspaceRootDir: string): string {
+  return path.join(workspaceRootDir, "runtime");
+}
+
+/**
+ * Removes a `--fresh-runtime` run's own runtime once it is reported, nearly
+ * all of its workspace. What the run did (the chats' records, the folders
+ * and files it made, the run records `report` rescores from) is well under
+ * a megabyte and stays.
  */
 export function removeRuntime(workspaceRootDir: string): Promise<void> {
-  return fs.rm(path.join(workspaceRootDir, "runtime"), {
+  return fs.rm(freshRuntimeDir(workspaceRootDir), {
     force: true,
     // The app in this process can still be writing there as it shuts down.
     maxRetries: 10,

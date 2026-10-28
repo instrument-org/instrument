@@ -209,9 +209,6 @@ importers:
       electron-updater:
         specifier: ^6.8.10
         version: 6.8.10(supports-color@10.1.0)
-      emojibase-data:
-        specifier: ^17.0.0
-        version: 17.0.0(emojibase@17.0.0)
       hono:
         specifier: 'catalog:'
         version: 4.13.13
@@ -582,6 +579,9 @@ importers:
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(@swc/core@1.11.24(@swc/helpers@0.5.23))(supports-color@10.1.0)(vite@8.3.4(@types/node@24.13.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.39.0)(tsx@4.23.15)(yaml@2.9.1))
+      emojibase-data:
+        specifier: ^17.0.0
+        version: 17.0.0(emojibase@17.0.0)
       hast-util-from-html:
         specifier: ^2.0.3
         version: 2.0.3

@@ -186,23 +186,17 @@ async function copyVendorAsset({ from, to }: { from: string; to: string }) {
   await fs.rename(staging, to);
 }
 
-// Registered on the main build alone. Every `electron-vite dev` and `build`
-// invocation builds main, and the destinations are read by the main process, so
-// a second registration would only add copies racing each other.
-function copyVendorAssets(): Plugin {
+const resourcesDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "resources",
+);
+
+// The document viewers' engines, served over the app protocol's vendor host
+// from `resources/vendor/` (`client/lib/document-viewers.ts`), by source.
+function viewerWasm() {
   const require = createRequire(import.meta.url);
-  const resourcesDir = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "resources",
-  );
   const vendorDir = path.join(resourcesDir, "vendor");
-  const assets = [
-    {
-      from: require.resolve("@tailwindcss/browser"),
-      to: path.join(resourcesDir, "tailwind-browser.js"),
-    },
-    // Served over the app protocol's vendor host from `resources/`
-    // (`client/lib/document-viewers.ts`).
+  return [
     {
       from: require.resolve("@embedpdf/pdfium/pdfium.wasm"),
       to: path.join(vendorDir, "pdfium.wasm"),
@@ -224,6 +218,20 @@ function copyVendorAssets(): Plugin {
       to: path.join(vendorDir, "sqlite3.wasm"),
     },
   ];
+}
+
+// Registered on the main build alone. Every `electron-vite dev` and `build`
+// invocation builds main, and the destinations are read by the main process, so
+// a second registration would only add copies racing each other.
+function copyVendorAssets(): Plugin {
+  const require = createRequire(import.meta.url);
+  const assets = [
+    {
+      from: require.resolve("@tailwindcss/browser"),
+      to: path.join(resourcesDir, "tailwind-browser.js"),
+    },
+    ...viewerWasm(),
+  ];
   return {
     async buildStart() {
       for (const { from, to } of assets) {
@@ -231,6 +239,38 @@ function copyVendorAssets(): Plugin {
       }
     },
     name: "copy-vendor-assets",
+  };
+}
+
+/**
+ * Drops the renderer's own copies of the viewer engines. Each library falls
+ * back to `new URL("…wasm", import.meta.url)`, so the build emits its wasm
+ * into the renderer's assets, but every viewer is handed the vendor host's
+ * copy before it parses (`client/lib/document-viewers.ts`), workers included,
+ * so the emitted ones are never fetched. Only an asset byte-identical to a
+ * vendored engine goes. Registered on the renderer and its workers, since
+ * either can emit one.
+ */
+function dropViewerWasmCopies(): Plugin {
+  let engines: Buffer[] | undefined;
+  return {
+    apply: "build",
+    enforce: "post",
+    async generateBundle(_options, bundle) {
+      engines ??= await Promise.all(
+        viewerWasm().map(({ from }) => fs.readFile(from)),
+      );
+      for (const [fileName, output] of Object.entries(bundle)) {
+        if (output.type !== "asset" || !fileName.endsWith(".wasm")) {
+          continue;
+        }
+        const source = Buffer.from(output.source);
+        if (engines.some((engine) => engine.equals(source))) {
+          delete bundle[fileName];
+        }
+      }
+    },
+    name: "drop-viewer-wasm-copies",
   };
 }
 
@@ -580,6 +620,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         reactCompilerBabel,
         tailwindcss(),
         xlsxWorkerDom(),
+        dropViewerWasmCopies(),
         excalidrawFonts(),
         ...(isProduction ? [recordBundledPackages("renderer")] : []),
       ],
@@ -599,7 +640,10 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       // The document viewers' parser workers are module workers whose entries
       // code-split, which the default IIFE worker format cannot express, so the
       // build fails without this.
-      worker: { format: "es", plugins: () => [xlsxWorkerDom()] },
+      worker: {
+        format: "es",
+        plugins: () => [xlsxWorkerDom(), dropViewerWasmCopies()],
+      },
     },
   };
 });

@@ -78,6 +78,15 @@ export const publisher = new EventPublisher<{
     id: ChatId;
   };
   /**
+   * A request to change what a chat's row shows (a mark, its topic, its
+   * title) has finished, whether or not it wrote anything. Published by
+   * `chatRowAsked`; the live chat list answers it even when its answer is
+   * the same as the last, since a window paints the request before it lands.
+   */
+  "chat.rowAsked": {
+    id: ChatId;
+  };
+  /**
    * An agent sent a command to a guest. One per command rather than a
    * start/stop pair: the agent's browser work arrives as separate tool calls
    * seconds apart, so where one stretch of it ends is a question for whoever

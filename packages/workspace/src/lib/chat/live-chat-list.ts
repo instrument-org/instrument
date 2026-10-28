@@ -29,8 +29,11 @@ function chatsMoved(changes: RecordChanged[]): ChatId[] {
  * row, since a row's holds name only the apps the workspace has. A chat the
  * index lists that no change named (made behind its back) is read when the
  * next change lands, and one it no longer lists goes. Subscribed before the
- * first read, so nothing lands unheard between the two; an answer the same
- * as the last is not sent again.
+ * first read, so nothing lands unheard between the two. An answer the same
+ * as the last is not sent again, except to a request to change a row
+ * (`chatRowAsked`): a window paints that request before it lands, and a
+ * request that changed nothing (a topic just removed, a chat already gone)
+ * leaves the list as it was, so the same answer is what takes the paint back.
  */
 export async function* liveChatList(
   signal: AbortSignal | undefined,
@@ -39,6 +42,7 @@ export async function* liveChatList(
   const apps = collapsed(
     everyOne(publisher.subscribe("app.updated", { signal })),
   );
+  const asked = publisher.subscribe("chat.rowAsked", { signal });
   const rows = new Map<ChatId, Chat>();
   /** Chats read at least once, whether or not they had a row to show. */
   const read = new Set<ChatId>();
@@ -59,7 +63,11 @@ export async function* liveChatList(
     await readAgain(listChatIds());
     let last = ordered();
     yield last;
-    for await (const moved of mergeGenerators([all(records), apps])) {
+    for await (const moved of mergeGenerators([
+      all(records),
+      apps,
+      all(asked),
+    ])) {
       const listed = listChatIds();
       const known = new Set(listed);
       for (const id of read) {
@@ -72,12 +80,15 @@ export async function* liveChatList(
         unique([
           ...(moved === null
             ? listed
-            : chatsMoved(moved).filter((id) => known.has(id))),
+            : Array.isArray(moved)
+              ? chatsMoved(moved).filter((id) => known.has(id))
+              : [moved.id].filter((id) => known.has(id))),
           ...listed.filter((id) => !read.has(id)),
         ]),
       );
       const next = ordered();
-      if (!isEqual(next, last)) {
+      const wasAsked = moved !== null && !Array.isArray(moved);
+      if (wasAsked || !isEqual(next, last)) {
         last = next;
         yield next;
       }
@@ -87,7 +98,16 @@ export async function* liveChatList(
     // Not awaited: it may be waiting on an app change that ends only when
     // the request's signal does.
     void apps.return(undefined);
+    void asked.return(undefined);
   }
+}
+
+/**
+ * Says a request to change what a chat's row shows has finished, written or
+ * not, so every live chat list answers with the row as it stands.
+ */
+export function chatRowAsked(id: ChatId) {
+  publisher.publish("chat.rowAsked", { id });
 }
 
 /** An iterator as a generator, for merging. */

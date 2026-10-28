@@ -41,7 +41,7 @@ import {
   unarchiveChat,
 } from "./chats";
 import { updateSessionTitle } from "../update-session-title";
-import { liveChatList } from "./live-chat-list";
+import { chatRowAsked, liveChatList } from "./live-chat-list";
 import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
 import { workspaceLayout } from "../workspace-layout";
 import { createTopic } from "./topics";
@@ -1573,6 +1573,29 @@ describe("liveChatList", () => {
     expect((await next())?.[0]?.title).toBe("Weekly shop");
     await setChatStarred(await chatFor(sessionId), true);
     expect((await next())?.[0]?.starred).toBe(true);
+    stop();
+  });
+
+  // A window paints the topic from the click; a topic removed before the
+  // request lands files the chat under none, which writes nothing, so the
+  // only answer that takes the paint back is the same list sent again.
+  it("answers a request to change a row with the row as it stands, though nothing changed", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    const id = await chatFor(sessionId);
+    const { first, next, stop } = await open();
+
+    await setChatTopic(id, "top_removed");
+    recordChanged(id, "settings");
+    expect(await next()).toBeUndefined();
+
+    chatRowAsked(id);
+    expect(await next()).toEqual(first);
+    expect(await next()).toBeUndefined();
+
+    chatRowAsked(ChatIdSchema.parse("chats-not-there"));
+    expect(await next()).toEqual(first);
     stop();
   });
 

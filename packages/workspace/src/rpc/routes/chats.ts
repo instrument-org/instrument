@@ -23,7 +23,7 @@ import {
 } from "../../lib/chat-folders/follow-title";
 import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
-import { liveChatList } from "../../lib/chat/live-chat-list";
+import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
 import { answerQuestion, openAsks, openAsksOf } from "../../lib/chat/open-asks";
@@ -125,14 +125,22 @@ const liveChildTasksRoute = base
     );
   });
 
-/** Acts on the chat an id names; an id that is no chat's does nothing. */
+/**
+ * Acts on the chat an id names; an id that is no chat's does nothing. Every
+ * live chat list answers once it has finished, changed or not, which takes
+ * back what a window painted ahead of the request.
+ */
 async function whenChat(
   id: ChatId,
   act: (chatId: ChatId) => Promise<unknown>,
 ): Promise<void> {
   const chatId = resolveChat(id);
-  if (chatId) {
-    await act(chatId);
+  try {
+    if (chatId) {
+      await act(chatId);
+    }
+  } finally {
+    chatRowAsked(chatId ?? id);
   }
 }
 

@@ -177,6 +177,9 @@ describe("the generated command line", () => {
     expect(
       JSON.parse((await cli(["echo", "beacon", "plain words"])).stdout),
     ).toMatchObject({ data: "plain words" });
+    expect(
+      JSON.parse((await cli(["echo", "beacon", '"quoted"'])).stdout),
+    ).toMatchObject({ data: '"quoted"' });
   });
 
   it("prints the whole result with --json, and writes it with --out", async () => {

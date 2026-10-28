@@ -178,7 +178,9 @@ function cliUsage(capability: Capability): string {
 
 function parseJson(field: Field, text: string): unknown {
   try {
-    return JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
+    // A field that takes text sends a quoted word with its quotes.
+    return field.acceptsText && typeof parsed === "string" ? text : parsed;
   } catch (error) {
     if (field.acceptsText) {
       return text;

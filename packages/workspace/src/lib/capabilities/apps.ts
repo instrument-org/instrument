@@ -496,7 +496,7 @@ export const appsRequest = defineCapability({
     // reads of a long one is the bash tool's to cut.
     return {
       stderr: `${statusLine(method, response)}${note}`,
-      stdout: `${bodyText(response.body)}\n`,
+      stdout: `${responseText(response)}\n`,
     };
   },
   async run({ app: slug, body, method, params, path }, ctx) {
@@ -563,12 +563,19 @@ whole, for jq. The body can come on stdin.`,
     },
     script: { positional: ["app", "method", "path"] },
   },
-  text: (response) => bodyText(response.body),
+  text: responseText,
 });
 
-/** A body as the service would read it, or as a person reads it back: text as it is, JSON as JSON. */
+/** A body as the service would read it: text as it is, JSON as JSON. */
 function bodyText(body: unknown): string {
   return typeof body === "string" ? body : JSON.stringify(body);
+}
+
+/** A response body as the service sent it, so a JSON string keeps its quotes for jq. */
+function responseText({ body, content_type }: Response): string {
+  return typeof body === "string" && content_type?.includes("json")
+    ? JSON.stringify(body)
+    : bodyText(body);
 }
 
 export const appsList = defineCapability({

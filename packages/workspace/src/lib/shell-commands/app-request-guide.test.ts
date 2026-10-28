@@ -237,6 +237,25 @@ describe("app request and the app's guide", () => {
     `);
   });
 
+  it("sends a quoted JSON string with its quotes and prints one back with them", async () => {
+    const slug = `guide-${chats}`;
+    await connectedApiApp(slug);
+    expect(await handsOver(slug)).toBe(true);
+    const fetched = vi.fn((_url: string, _init: RequestInit) =>
+      Promise.resolve(
+        new Response('"hello"', {
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetched);
+
+    const result = await app(["request", slug, "POST", "/value", '"hello"']);
+
+    expect(fetched.mock.calls[0]?.[1].body).toBe('"hello"');
+    expect(result.stdout).toBe('"hello"\n');
+  });
+
   it("counts `app guide` printing the guide as handing it over", async () => {
     const slug = `guide-${chats}`;
     await connectedApiApp(slug);

@@ -157,6 +157,36 @@ const chooseCard = (c, T) => {
 };
 
 /**
+ * A sign-in the chat asked you for, drawn as the app draws it (ConnectCard in apps/studio's tool-connect-app.tsx): a
+ * plain tool card with the app's icon on its plate, "Sign in to Notion" and the chat's reason, then where it signs in
+ * and the buttons, until the app turns up connected and the buttons give way to "Connected."
+ */
+const connectCard = (c, T) => {
+  const done = c.answeredAt != null && T >= c.answeredAt;
+  const host = c.site.replace(/^\w+:\/\//, "").replace(/\/.*$/, "");
+  const icon = c.icon ?? FAVICONS[hostOf(c.site)];
+  const plate = `<span class="grid size-9 shrink-0 place-items-center rounded-lg bg-card p-1.5 shadow-xs ring-1 ring-border">${icon ? `<img src="${icon}" alt="" class="size-full rounded-[3px]" />` : `<span class="grid size-full place-items-center rounded-[3px] bg-foreground/10 text-[13px] font-semibold text-foreground/60">${esc(c.name[0])}</span>`}</span>`;
+  const button = (label, cls) => `<span class="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium ${cls}">${label}</span>`;
+  const controls = done
+    ? `<p class="mt-3 text-xs text-muted-foreground">Connected.</p>`
+    : `<div class="mt-3 flex flex-col gap-2">
+        ${host ? `<p class="text-xs text-muted-foreground">Signs in at <span class="font-medium text-foreground">${esc(host)}</span>.</p>` : ""}
+        <div class="flex flex-wrap items-center gap-2">${button("Sign in here", "bg-foreground text-background")}${button("Sign in with your browser", "border border-border bg-card text-foreground")}${button("Not now", "text-muted-foreground")}</div>
+      </div>`;
+  return `
+  <div class="mt-2 w-full overflow-hidden rounded-2xl border border-border bg-card">
+    <div class="px-4 py-3">
+      <div class="flex items-center gap-3">${plate}
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium">Sign in to ${esc(c.name)}</p>
+          <p class="text-xs leading-5 text-muted-foreground">${esc(c.reason)}</p>
+        </div>
+      </div>${controls}
+    </div>
+  </div>`;
+};
+
+/**
  * Words the chat says around a question card that only announce it: a one-line lead-in in the same call ("Asking which
  * tone you want.") and anything between putting the card up and getting the answer ("I've put the tone question on a
  * card."). The card says it all, so the replay leaves them out, standing in for a change to the choose tool's prompt.
@@ -164,12 +194,15 @@ const chooseCard = (c, T) => {
 const narratesACard = (said) =>
   TL.chat.steps.some(
     (q) =>
-      q.choose?.question &&
-      ((q.end <= said.t && said.t < (q.choose.answeredAt ?? Infinity)) ||
+      waitsOn(q) &&
+      ((q.end <= said.t && said.t < (waitsOn(q).answeredAt ?? Infinity)) ||
         // A one-line lead-in written in the same call as the question ("Asking which tone you want.") only announces
         // the card; anything longer before a question can be worth saying, so it stays.
         (q.call && said.call === q.call && !said.text.trim().includes("\n") && said.text.trim().length <= 90)),
   );
+
+/** A card the chat waits on you to answer, a question or a sign-in, and when you did. */
+const waitsOn = (q) => (q.choose?.question ? q.choose : q.connect ?? null);
 
 /** A call that asks you something, which the transcript draws as its card rather than as a step. */
 const asksYou = (s) => Boolean(s.ask || s.choose?.question || s.tool === "connect_app");
@@ -213,7 +246,8 @@ const EVENTS = (() => {
   const ev = [
     ...c.you.map((y) => ({ t: y.t, kind: "you", text: `You: ${y.text}` })),
     ...c.says.filter((s) => !narratesACard(s)).map((s) => ({ t: s.t, kind: "says", text: `Instrument: ${firstSentence(s.text) || s.text.slice(0, 100)}` })),
-    ...c.steps.map((s) => ({ t: s.t, kind: s.ask || s.choose ? "ask" : s.startsTask ? "task" : "step", text: s.ask ? `Asks to use ${s.ask.target.split("/").filter(Boolean).pop()}` : s.choose ? `Asks you: ${s.choose.question}` : s.startsTask ? `Starts ${s.startsTasks.length > 1 ? `${s.startsTasks.length} tasks` : "a task"}: ${s.startsTasks.join(", ")}` : `Step: ${s.label}` })),
+    ...c.steps.map((s) => ({ t: s.t, kind: s.ask || s.choose || s.connect ? "ask" : s.startsTask ? "task" : "step", text: s.ask ? `Asks to use ${s.ask.target.split("/").filter(Boolean).pop()}` : s.connect ? `Asks you to sign in to ${s.connect.name}` : s.choose ? `Asks you: ${s.choose.question}` : s.startsTask ? `Starts ${s.startsTasks.length > 1 ? `${s.startsTasks.length} tasks` : "a task"}: ${s.startsTasks.join(", ")}` : `Step: ${s.label}` })),
+    ...c.steps.filter((s) => s.connect?.answeredAt != null).map((s) => ({ t: s.connect.answeredAt, kind: "you", text: `You sign in to ${s.connect.name}` })),
     ...c.steps.filter((s) => s.choose?.answer).map((s) => ({ t: s.choose.answeredAt, kind: "you", text: `You pick ${s.choose.answer.selectedChoice ?? "an answer"}${s.choose.answer.note ? `: “${s.choose.answer.note}”` : ""}` })),
     ...[...new Set(c.tabs.map((k) => k.t))].map((t) => {
       const names = c.tabs.filter((k) => k.t === t).map((k) => siteName(k.url));
@@ -376,10 +410,11 @@ const transcriptOf = (sess, T, { busy, lastWake, withTasks = true }) => {
     if (it.kind === "card") {
       flush(false);
       if (it.s.choose?.question) out.push(chooseCard(it.s.choose, T));
+      if (it.s.connect) out.push(connectCard(it.s.connect, T));
       return;
     }
     flush(false);
-    out.push(it.kind === "you" ? you(esc(it.y.text)) : says(md(streamed(it.s, T))));
+    out.push(it.kind === "you" ? you(esc(it.y.text).replace(/\n/g, "<br>")) : says(md(streamed(it.s, T))));
   });
   const endsOnSteps = run.length > 0 && run.some((x) => x.t >= lastWake);
   flush(true);
@@ -400,17 +435,18 @@ const replayView = (T) => {
   // Once a question card is up the chat is waiting on you, not thinking, unless it goes on to other steps while it
   // waits (more than one thing was asked); the words it wrote about the card in that time are left out (narratesACard).
   const waiting = c.steps.some(
-    (q) => q.choose?.question && q.end <= T && T < (q.choose.answeredAt ?? Infinity) && !c.steps.some((s) => s.t > q.end && s.t <= T),
+    (q) => waitsOn(q) && q.end <= T && T < (waitsOn(q).answeredAt ?? Infinity) && !c.steps.some((s) => s.t > q.end && s.t <= T),
   );
   const busy = lastWake > lastStop && !waiting;
   const { html, label: nowLabel } = transcriptOf(c, T, { busy, lastWake });
   const lastSays = c.says.filter((s) => s.t <= T && !narratesACard(s)).at(-1);
   const asking = c.steps.find((s) => askOpen(s, T));
   const choosing = c.steps.find((s) => s.choose?.question && s.t <= T && !(s.choose.answer && T >= s.choose.answeredAt));
+  const signing = c.steps.find((s) => s.connect && s.end <= T && !(s.connect.answeredAt != null && T >= s.connect.answeredAt));
   const list = inboxCol({
     on: 0,
     rows: [
-      { title: REPLAY.chat, preview: lastSays ? firstSentence(lastSays.text) : "", step: asking || choosing ? "" : nowLabel, ask: asking ? `Wants to use ${asking.ask.target.split("/").filter(Boolean).pop()}` : choosing ? choosing.choose.question : "", working: busy && !asking && !choosing, time: "Now", holds: [] },
+      { title: REPLAY.chat, preview: lastSays ? firstSentence(lastSays.text) : "", step: asking || choosing || signing ? "" : nowLabel, ask: asking ? `Wants to use ${asking.ask.target.split("/").filter(Boolean).pop()}` : choosing ? choosing.choose.question : signing ? `Sign in to ${signing.connect.name}` : "", working: busy && !asking && !choosing && !signing, time: "Now", holds: [] },
       ...ROWS.slice(1, 4),
     ],
   }).replace("ph ph-warning-circle shrink-0 text-[14px]", "ph ph-question shrink-0 text-[15px]");

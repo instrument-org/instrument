@@ -1,10 +1,11 @@
-// node build-replay.mjs <records-dir> <out.html> --design <part.js> --title "Chat replay: ..." [--chat "..."] [--pictures] [--line "..."] [--source "..."]
+// node build-replay.mjs <records-dir> <out.html> --design <part.js> --title "Chat replay: ..." [--chat "..."] [--pictures | --icons] [--line "..."] [--source "..."]
 // Builds a replay: one chat's records played back as a prototype, drawn with the pieces of a design part, with a
 // scrubber under it. <records-dir> holds the chat's ses_*.jsonl logs, its tasks' included: a chat's folder under
 // .instrument/chats/<id>/, which an eval keeps in its run's workspace. --design is the wireframe part whose design
 // the replay draws with; the replay takes everything above its "// ---- the scenario" line (or its META), so the
 // part's own scenario stays out. --chat is the chat's title in the window, and --pictures
-// takes a picture of each tab's page for the pane.
+// takes a picture of each tab's page for the pane. --icons fetches only the favicons, for a chat whose pages are
+// behind a sign-in, which a picture taken now would show as a sign-in page.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -23,6 +24,7 @@ const { positionals, values } = parseArgs({
     line: { type: "string" },
     source: { type: "string" },
     pictures: { type: "boolean" },
+    icons: { type: "boolean" },
   },
 });
 const [recordsDir, outPath] = positionals;
@@ -45,14 +47,24 @@ if (values.pictures) {
       tab.title ||= run("get", "title");
       run("screenshot", "--screenshot-format", "jpeg", "--screenshot-quality", "72", shot);
       tab.picture = `data:image/jpeg;base64,${fs.readFileSync(shot).toString("base64")}`;
-      const host = new URL(tab.url).hostname;
-      const icon = await fetch(`https://www.google.com/s2/favicons?domain=${host}&sz=64`);
-      if (icon.ok) tab.icon = `data:${icon.headers.get("content-type") ?? "image/png"};base64,${Buffer.from(await icon.arrayBuffer()).toString("base64")}`;
     } catch (error) {
       console.warn(`no picture of ${tab.url}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
     }
   }
   run("close");
+}
+/** A site's favicon from Google's favicon service, as a data URL. */
+const faviconOf = async (url) => {
+  try {
+    const icon = await fetch(`https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64`);
+    return icon.ok ? `data:${icon.headers.get("content-type") ?? "image/png"};base64,${Buffer.from(await icon.arrayBuffer()).toString("base64")}` : undefined;
+  } catch {
+    return undefined;
+  }
+};
+if (values.pictures || values.icons) {
+  for (const tab of tl.chat.tabs) tab.icon ??= await faviconOf(tab.url);
+  for (const step of tl.chat.steps) if (step.connect?.site) step.connect.icon ??= await faviconOf(step.connect.site);
 }
 const design = fs.readFileSync(values.design, "utf8");
 const cutAt = [design.indexOf("// ---- the scenario"), design.search(/^const META\s*=/m)].find((i) => i >= 0);

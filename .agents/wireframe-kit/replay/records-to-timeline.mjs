@@ -52,6 +52,21 @@ function readSession(lines, t0) {
       thought.set(p.metadata?.messageId, secs(p.metadata?.endedAt ?? o.at, t0));
     } else if (p.type === "data-fromChat" && p.data?.kind === "assignment") {
       out.brief = String(p.data.text ?? "");
+    } else if (p.type === "data-appEvent") {
+      // A sign-in card is answered when the app it asked for turns up connected.
+      for (const step of steps.values()) {
+        const c = step.connect;
+        if (c && c.answeredAt == null && step.end != null && p.data?.apps?.[c.slug]?.connected) {
+          c.answeredAt = at;
+          out.wakes.push({ t: at, session: null, status: "connected", summary: "", files: [] });
+        }
+      }
+    } else if (p.type === "data-browserStatus") {
+      // The browser's own list of tabs names the page each is on, which a command that sent its output elsewhere never said.
+      for (const b of p.data?.tabs ?? []) {
+        const tab = [...tabs.values()].find((x) => x.url === b.url);
+        if (tab && !tab.title) tab.title = String(b.title ?? "").replace(/^\(\d+\+?\)\s*/, "");
+      }
     } else if (p.type === "data-taskEvent") {
       for (const e of p.data?.events ?? []) out.wakes.push({ t: at, session: e.sessionId, status: e.status, summary: e.summary ?? "", files: e.files ?? [] });
     } else if (p.type?.startsWith("tool-") && p.toolCallId) {
@@ -84,6 +99,8 @@ function readSession(lines, t0) {
         const asked = p.output?.state;
         if (s.ask && asked && asked !== "asked" && s.ask.answeredAt == null) Object.assign(s.ask, { answer: asked, answeredAt: at });
         if (p.state === "output-error") s.failed = true;
+        const app = p.type === "tool-connect_app" && p.output?.apps?.find((x) => x.state === "asked");
+        if (app && !s.connect) s.connect = { name: app.name, site: app.site ?? "", slug: app.slug, kind: app.kind ?? "sign-in", reason: input.reason ?? "" };
         readTabs(s, String(input.command ?? ""), typeof p.output?.output === "string" ? p.output.output : "", at);
       }
     }
@@ -125,6 +142,9 @@ function readSession(lines, t0) {
     }
     for (const m of command.matchAll(/instrument tab close\s+(tab_\w+)/g)) if (tabs.has(m[1])) tabs.get(m[1]).closed = at;
     for (const m of command.matchAll(/tab_\w+/g)) uses.add(m[0]);
+    // A page agent-browser opened, when its notes went elsewhere: the tab is on it from when the step began.
+    for (const m of command.matchAll(/agent-browser open\s+["']?(https?:\/\/[^\s"']+)/g))
+      if (!tabs.get("browser")?.url) tabs.set("browser", { id: "browser", url: m[1], title: "", t: step.t, closed: null });
     if (/\bagent-browser\b/.test(command)) uses.add("browser");
     if (uses.size) step.uses = [...uses];
   }

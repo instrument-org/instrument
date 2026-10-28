@@ -194,6 +194,8 @@ describe("the generated command line", () => {
     expect(await written.fs.readFile("/work/out.json")).toBe(
       '{"app":"beacon","params":{}}\n',
     );
+    const json = await cli(["cli-only", "--json", "--out", "out.json"]);
+    expect(await json.fs.readFile("/work/out.json")).toBe("{}\n");
   });
 
   it.each([

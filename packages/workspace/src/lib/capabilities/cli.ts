@@ -329,7 +329,11 @@ function cliSubcommand(
       const used = answer.capability;
       const out = input.value("out");
       if (out !== undefined) {
-        const body = withNewline(used.text(answer.output));
+        const body = withNewline(
+          input.has("json")
+            ? JSON.stringify(answer.output)
+            : used.text(answer.output),
+        );
         try {
           await shell.fs.writeFile(shell.fs.resolvePath(shell.cwd, out), body);
         } catch (error) {

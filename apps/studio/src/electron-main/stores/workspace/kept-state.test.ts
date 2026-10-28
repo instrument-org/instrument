@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createKeptStateStore, rewriteFolderAddresses } from "./kept-state";
 
@@ -37,6 +37,28 @@ it("writes each key to its file on flush, and reads them back in a new store", (
     layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });
+});
+
+it("leaves a file it could not read as it is", () => {
+  fs.writeFileSync(
+    path.join(dir, "layout.json"),
+    JSON.stringify({ "app-tabs.v2": { tabs: ["kept"] } }),
+  );
+  const readFileSync = fs.readFileSync;
+  const held = vi.spyOn(fs, "readFileSync").mockImplementation((...args) => {
+    if (args[0] === path.join(dir, "layout.json")) {
+      throw Object.assign(new Error("resource busy"), { code: "EBUSY" });
+    }
+    return readFileSync(...args);
+  });
+  const store = createKeptStateStore(() => dir);
+  store.set("layout", "sidebar.v1", 240);
+  store.set("view", "zoom.v1", 1.25);
+  store.flush();
+  held.mockRestore();
+
+  expect(read("layout.json")).toEqual({ "app-tabs.v2": { tabs: ["kept"] } });
+  expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
 });
 
 it("writes each file into the folder named for it, making the folder", () => {

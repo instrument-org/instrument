@@ -30,6 +30,8 @@ export function createKeptStateStore(
 ) {
   let files: Map<KeptFile, Record<string, unknown>> | null = null;
   const dirty = new Set<KeptFile>();
+  /** Files that are there and could not be read, left as they are on disk. */
+  const unreadable = new Set<KeptFile>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const pathOf = (file: KeptFile) => path.join(dirOf(file), keptFileName(file));
@@ -40,7 +42,11 @@ export function createKeptStateStore(
     }
     files = new Map();
     for (const file of KEPT_FILES) {
-      const keys = readObject(pathOf(file));
+      const read = readObject(pathOf(file));
+      if (read === undefined) {
+        unreadable.add(file);
+      }
+      const keys = read ?? {};
       files.set(file, readAs[file]?.(keys) ?? keys);
     }
     return files;
@@ -54,6 +60,12 @@ export function createKeptStateStore(
     }
     for (const file of dirty) {
       const target = pathOf(file);
+      if (unreadable.has(file)) {
+        logger.warn(
+          `Not writing kept state over ${target}, which could not be read`,
+        );
+        continue;
+      }
       try {
         writeObject(target, loaded().get(file) ?? {});
       } catch (error) {
@@ -141,7 +153,10 @@ export function rewriteFolderAddresses(
     return value;
   };
   const keys = Object.fromEntries(
-    Object.entries(readObject(file)).map(([key, value]) => [key, visit(value)]),
+    Object.entries(readObject(file) ?? {}).map(([key, value]) => [
+      key,
+      visit(value),
+    ]),
   );
   if (rewritten === 0) {
     return [];
@@ -185,13 +200,22 @@ function movedFilesAddress(
   return `${address.slice(0, at)}?${query.join("&")}`;
 }
 
-/** A file's object, or an empty one for a file that is missing or not an object of JSON. */
-function readObject(file: string): Record<string, unknown> {
+/**
+ * A file's object, or an empty one for a file that is missing or not an
+ * object of JSON; undefined for one that is there and could not be read
+ * (another program holding it, a refused folder), which is no reason to
+ * write over it.
+ */
+function readObject(file: string): Record<string, unknown> | undefined {
   let raw: string;
   try {
     raw = fs.readFileSync(file, "utf8");
-  } catch {
-    return {};
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return {};
+    }
+    logger.warn(`Could not read kept state in ${file}`, error);
+    return undefined;
   }
   try {
     const value: unknown = JSON.parse(raw);

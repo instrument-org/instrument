@@ -11,7 +11,16 @@ import { z } from "zod";
  * They outlive a quit before anyone looked.
  */
 const ProblemsStoreSchema = z.object({
-  pending: z.array(PendingProblemSchema).default([]),
+  // Each read on its own, so one a newer build wrote doesn't take the rest.
+  pending: z
+    .array(z.unknown())
+    .default([])
+    .transform((entries) =>
+      entries.flatMap((entry) => {
+        const parsed = PendingProblemSchema.safeParse(entry);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    ),
 });
 
 type ProblemsStore = z.output<typeof ProblemsStoreSchema>;

@@ -17,7 +17,24 @@ import { z } from "zod";
  */
 const AppConnectionsStoreSchema = z
   .object({
-    connections: z.record(z.string(), AppConnectionSchema).default({}),
+    // Each app's connection read on its own: one a newer build wrote that
+    // won't parse costs that app alone, not every app's connection when the
+    // next change writes the file back.
+    connections: z
+      .record(z.string(), z.unknown())
+      .default({})
+      .transform((entries) =>
+        Object.fromEntries(
+          Object.entries(entries).flatMap(([slug, entry]) => {
+            const parsed = AppConnectionSchema.safeParse(entry);
+            if (parsed.success) {
+              return [[slug, parsed.data] as const];
+            }
+            logger.error(`Dropping app connection ${slug}`, parsed.error);
+            return [];
+          }),
+        ),
+      ),
   })
   .default({ connections: {} });
 

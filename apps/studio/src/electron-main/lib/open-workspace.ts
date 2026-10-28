@@ -10,7 +10,7 @@ import {
   inspectWorkspaceFolder,
   type WorkspaceRefusal,
 } from "./workspace-refusal";
-import { type WorkspaceRun } from "./workspace-run";
+import { noteOpenedWithoutRecords, type WorkspaceRun } from "./workspace-run";
 import {
   claimUnplacedMachineDir,
   DEFAULT_WORKSPACE_ID,
@@ -82,23 +82,29 @@ export function resolveLaunchWorkspace({
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
   const inspected = inspectWorkspaceFolder({ userDataDir, workspace });
-  if (inspected === "lost") {
+  if (inspected?.kind === "lost") {
     for (const step of migrateMachineSettings(userDataDir)) {
       log.info(`Settings migration: ${step}`);
     }
     log.warn(
-      `Not opening ${workspace.path}: it can't be opened there; setup asks for it`,
+      `Not opening ${workspace.path}: ${inspected.reason}${inspected.code ? ` (${inspected.code})` : ""}; setup asks for it`,
     );
     return {
       id: workspace.id,
       kind: "unplaced",
-      lost: workspace.path,
+      lost: { path: workspace.path, reason: inspected.reason },
       machineDir: workspaceMachineDirOf(userDataDir, workspace.id),
     };
   }
-  if (inspected) {
+  if (inspected?.kind === "newer") {
     log.warn(`Not opening ${workspace.path}: a newer build made it`);
     return { kind: "refused", refusal: inspected };
+  }
+  if (inspected?.kind === "no-records") {
+    log.warn(
+      `Opening ${workspace.path} with no .instrument folder in it: it starts as a new workspace`,
+    );
+    noteOpenedWithoutRecords(workspace.path);
   }
   for (const step of [
     ...migrateMachineSettings(userDataDir),

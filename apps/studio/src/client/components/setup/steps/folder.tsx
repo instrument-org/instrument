@@ -13,7 +13,6 @@ import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { folderOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
-import { displayPath } from "@/client/lib/path-utils";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -27,6 +26,7 @@ import { PackedFolder } from "../folder-illustration";
 import { type SetupStepProps } from "../step-props";
 import { useSetupState } from "../use-setup-state";
 import { WelcomeBurst } from "../welcome-burst";
+import { LostFolderPage } from "./lost-folder";
 
 /** How long the page saying the app restarts shows before the restart. */
 const RESTART_NOTICE_MS = 3000;
@@ -48,9 +48,10 @@ type Note = { kind: "denied" } | { kind: "unfinished" };
  * the app is with Get started, before the folder: Continue makes the folder
  * there, or opens the Instrument
  * folder already in it, and the app starts in it with no restart; the
- * window loads again on the next step. When the folder a workspace had went
- * missing, or can't be read, the page says where it was, and the person
- * finds it (Choose Folder…) or makes a new one the same way. For a workspace already running
+ * window loads again on the next step. When the launch couldn't open the
+ * folder a workspace had, the page says why first (`LostFolderPage`), and
+ * the person gets it back, finds it, or starts over in a new one, which
+ * picks as a first launch does. For a workspace already running
  * from the app's own data, moving it, or opening one that is already an
  * Instrument folder, restarts the app, so the page says that first and
  * holds the step on screen meanwhile.
@@ -73,9 +74,13 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   const [moving, setMoving] = useState<"move" | "open" | null>(null);
   // A first launch opens on Welcome, and Get started brings the folder.
   const [started, setStarted] = useState(!isFirst);
+  // Past the page saying why a lost folder couldn't be opened: picking where
+  // it is now or another folder, or starting over in a new one.
+  const [lostPast, setLostPast] = useState<"found" | "new" | null>(null);
   const pick = useFolderPick((destination) => {
     setPicked(destination);
     setNote(null);
+    setLostPast((past) => past ?? "found");
   });
 
   // On a first launch on a Mac, the folder suggested in Documents is looked
@@ -149,6 +154,9 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       if (placed.kind === "refused") {
         await refuse(current, path, placed.reason);
         return;
+      }
+      if (placed.kind === "unreachable") {
+        toast.error(`${APP_NAME} can’t read that folder right now`);
       }
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t set up your folder`, { cause: error });
@@ -264,6 +272,20 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         />
       ) : moving !== null ? (
         <MovingPage how={moving} hasChats={hasChats} restarts={!isUnplaced} />
+      ) : lostFolder !== null && lostPast === null && offered ? (
+        <>
+          <LostFolderPage
+            lost={lostFolder}
+            onFind={() => {
+              void pick.choose(folderOf(lostFolder.path));
+            }}
+            onOpen={() => place(offered, lostFolder.path, { type: "open" })}
+            onStartOver={() => {
+              setLostPast("new");
+            }}
+          />
+          {pick.dialog}
+        </>
       ) : (
         <SetupPage
           footer={
@@ -275,7 +297,13 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
                   ? () => {
                       setStarted(false);
                     }
-                  : onBack
+                  : lostPast !== null
+                    ? () => {
+                        setLostPast(null);
+                        setPicked(null);
+                        setNote(null);
+                      }
+                    : onBack
               }
               onContinue={() => {
                 void proceed();
@@ -284,8 +312,16 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
             />
           }
           hero={<PackedFolder />}
-          subtitle={`This is where ${APP_NAME} keeps your chats, topics and the files it makes. Most people put it in their Documents folder.`}
-          title="Where should your Instrument folder live?"
+          subtitle={
+            lostPast === "new" && picked === null
+              ? `${APP_NAME} starts fresh there. Your old chats stay in your old folder, so you can open it again if it turns up.`
+              : `This is where ${APP_NAME} keeps your chats, topics and the files it makes. Most people put it in their Documents folder.`
+          }
+          title={
+            lostPast === "new" && picked === null
+              ? "Where should your new Instrument folder live?"
+              : "Where should your Instrument folder live?"
+          }
         >
           <div className="mt-8 flex w-140 max-w-full flex-col">
             <FolderLocation
@@ -299,18 +335,6 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
               }
               path={target}
             >
-              {note === null && lostFolder !== null && (
-                <FolderNote
-                  action={{
-                    label: "Choose Folder…",
-                    onClick: () => {
-                      void pick.choose(folderOf(lostFolder));
-                    },
-                  }}
-                  line={`It was in ${displayPath(lostFolder)}. If you moved it, choose where it is now. Or continue to make a new one.`}
-                  title={`${APP_NAME} can’t find your Instrument folder.`}
-                />
-              )}
               {note?.kind === "denied" && (
                 <FolderNote
                   action={{

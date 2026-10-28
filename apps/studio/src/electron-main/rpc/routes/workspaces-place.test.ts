@@ -157,6 +157,23 @@ describe("workspaces.place", () => {
     ).toMatchObject({ kind: "refused", reason: "missing" });
     expect(run.getWorkspaceRun().kind !== "unplaced").toBe(false);
   });
+
+  // Placing writes the record again from what it read, so one that won't
+  // read would be written over with defaults.
+  it("leaves a folder whose record is there but won't read as it is", async () => {
+    const dir = path.join(home, "Documents", "Instrument");
+    const record = path.join(dir, ".instrument", "workspace.json");
+    // A record that is a folder fails to read with a code no folder explains.
+    fs.mkdirSync(record, { recursive: true });
+
+    expect(await place({ path: dir })).toEqual({
+      kind: "unreachable",
+      reason: "unreadable",
+    });
+    expect(fs.statSync(record).isDirectory()).toBe(true);
+    expect(run.getWorkspaceRun().kind).toBe("unplaced");
+    expect(mocks.startWorkspace).not.toHaveBeenCalled();
+  });
 });
 
 describe("workspaces.place after a start that failed", () => {

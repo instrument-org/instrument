@@ -380,6 +380,23 @@ describe("notices", () => {
     expect(notices.listNotices()).toEqual([]);
   });
 
+  describe("a folder opened with its .instrument taken out", () => {
+    it("says the chats weren't there and how to put them back", async () => {
+      const notices = await load();
+      notices.noteStartedOver("/Users/mac-user/Documents/Instrument");
+
+      expect(notices.listNotices()).toMatchObject([
+        {
+          body: expect.stringMatching(
+            /^Instrument couldn't find your chats in “Instrument”, so it started fresh there\. If you deleted its \.instrument folder by mistake, quit Instrument, put the folder back from the .+, and open Instrument again\.$/,
+          ),
+          severity: "important",
+          title: "Your chats weren't in your folder",
+        },
+      ]);
+    });
+  });
+
   describe("chats the conversion left on their database", () => {
     it("says how many are still to come over, and that they are safe", async () => {
       const notices = await load();

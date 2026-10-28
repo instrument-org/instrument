@@ -21,6 +21,34 @@ export const SetupStepSchema = z.enum(SETUP_STEPS);
 export type SetupStep = z.output<typeof SetupStepSchema>;
 
 /**
+ * Why the launch couldn't open the workspace's folder:
+ *
+ * - `missing`: the folder isn't there (moved, renamed, deleted, or on a
+ *   disk that isn't connected);
+ * - `denied`: the system won't let the app read it;
+ * - `cloud`: its record is on this computer by name only, kept by a cloud
+ *   service until it is read, which downloads it;
+ * - `unreadable`: it's there but reading it failed for another reason;
+ * - `refused`: it's somewhere no workspace can be, as an earlier build let
+ *   it be.
+ */
+export const LostReasonSchema = z.enum([
+  "cloud",
+  "denied",
+  "missing",
+  "refused",
+  "unreadable",
+]);
+
+export type LostReason = z.output<typeof LostReasonSchema>;
+
+/** A workspace folder the launch couldn't open: where it is, and why. */
+export interface LostFolder {
+  path: string;
+  reason: LostReason;
+}
+
+/**
  * What setup reads from the computer and the account to decide where it is.
  * Read again at launch and whenever one of them changes, never saved.
  */
@@ -62,11 +90,10 @@ export interface SetupFacts {
    */
   hasWorkspace: boolean;
   /**
-   * Where the workspace's folder was, when the launch found it missing or
-   * couldn't read it: the folder step says so, and the person finds it or
-   * makes a new one. Null otherwise.
+   * The workspace's folder, when the launch couldn't open it, and why: the
+   * folder step says so and offers what fits the reason. Null otherwise.
    */
-  lostFolder: null | string;
+  lostFolder: LostFolder | null;
   /**
    * The workspace is outside the app's data, pinned, or has a move recorded
    * that the next launch finishes.

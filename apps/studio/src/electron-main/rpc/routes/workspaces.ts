@@ -14,6 +14,7 @@ import {
   relaunchApp,
   restartNow,
 } from "@/electron-main/lib/relaunch";
+import { reachWorkspaceRecord } from "@/electron-main/lib/reach-workspace-record";
 import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
 import {
   answerSetupByPlacing,
@@ -46,6 +47,7 @@ import {
 } from "@/electron-main/lib/workspace-move";
 import {
   DEFAULT_WORKSPACE_ID,
+  hasWorkspaceIdentity,
   machineDirOwnedBy,
   readRegistry,
   readWorkspaceIdentity,
@@ -56,6 +58,7 @@ import {
   workspaceMachineDirOf,
   workspacePlaceConcern,
 } from "@/electron-main/lib/workspaces";
+import { LostReasonSchema } from "@/shared/setup";
 import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
@@ -487,6 +490,33 @@ const checkPick = base
   );
 
 /**
+ * Reads the record of the folder the launch couldn't open, for setup's
+ * folder step: downloads it where a cloud service keeps it, and answers
+ * whether it can be opened now (then `place` opens it) or why not.
+ */
+const reachLost = base
+  .output(
+    z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("ready") }),
+      z.object({ kind: z.literal("lost"), reason: LostReasonSchema }),
+    ]),
+  )
+  .handler(async ({ errors }) => {
+    const run = getWorkspaceRun();
+    if (run.kind !== "unplaced" || run.lost === undefined) {
+      throw errors.NOT_FOUND({ message: "No folder went missing" });
+    }
+    const reached = await reachWorkspaceRecord(run.lost.path);
+    if (reached.kind === "lost") {
+      logger.warn(
+        `Still can't open ${run.lost.path}: ${reached.reason}${reached.code ? ` (${reached.code})` : ""}`,
+      );
+      return { kind: "lost" as const, reason: reached.reason };
+    }
+    return { kind: "ready" as const };
+  });
+
+/**
  * Give an unplaced workspace its folder, from setup's folder step: the
  * folder the person picked or found, checked as a move to it would be, then
  * a new workspace made there or the one already there opened. One this
@@ -503,6 +533,7 @@ const place = base
     z.union([
       NotMovableSchema,
       z.object({ kind: z.enum(["on-next-launch", "placed", "relaunching"]) }),
+      z.object({ kind: z.literal("unreachable"), reason: LostReasonSchema }),
     ]),
   )
   .handler(async ({ errors, input }) => {
@@ -511,6 +542,15 @@ const place = base
       throw errors.UNAUTHORIZED({ message: "The workspace has a folder" });
     }
     if (run.kind === "unplaced") {
+      // Placing reads the folder's record and writes it again, so one that
+      // is there and can't be read (still in the cloud, say) is never
+      // placed: it would be written over with what nothing read.
+      const reached = hasWorkspaceIdentity(input.path)
+        ? await reachWorkspaceRecord(input.path)
+        : undefined;
+      if (reached?.kind === "lost") {
+        return { kind: "unreachable" as const, reason: reached.reason };
+      }
       const picked = checkPicked({
         makeFirst: input.create,
         target: input.path,
@@ -672,6 +712,7 @@ export const workspaces = {
   offered,
   open,
   place,
+  reachLost,
   register,
   remove,
   sizes,

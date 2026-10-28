@@ -8,6 +8,7 @@ import { resolveLaunchWorkspace } from "./open-workspace";
 import { choosePlacement, placeWorkspace } from "./place-workspace";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import { checkMoveTarget } from "./workspace-move";
+import { getOpenedWithoutRecords } from "./workspace-run";
 import {
   defaultWorkspacePath,
   readRegistry,
@@ -113,12 +114,20 @@ describe("the launch decision", () => {
     expect(launch()).toEqual({
       id: "default",
       kind: "unplaced",
-      lost: dir,
+      lost: { path: dir, reason: "missing" },
       machineDir,
     });
     expect(fs.existsSync(path.join(machineDir, "keys", "providers.json"))).toBe(
       true,
     );
+  });
+
+  it("opens a folder whose .instrument was taken out, noting it for the bell", () => {
+    const dir = path.join(home, "Instrument");
+    placedBefore(dir, "01PLACED");
+    fs.rmSync(workspaceLayout(dir).dataDir, { recursive: true });
+    expect(launch()).toMatchObject({ kind: "open", workspace: { path: dir } });
+    expect(getOpenedWithoutRecords()).toBe(dir);
   });
 
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
@@ -128,7 +137,10 @@ describe("the launch decision", () => {
       placedBefore(dir, "01PLACED");
       fs.chmodSync(workspaceLayout(dir).dataDir, 0o000);
       try {
-        expect(launch()).toMatchObject({ kind: "unplaced", lost: dir });
+        expect(launch()).toMatchObject({
+          kind: "unplaced",
+          lost: { path: dir, reason: "denied" },
+        });
       } finally {
         fs.chmodSync(workspaceLayout(dir).dataDir, 0o755);
       }

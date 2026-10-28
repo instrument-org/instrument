@@ -15,6 +15,7 @@ import {
   type SignInAccountType,
 } from "@/shared/notices";
 import { chromiumSandboxOff } from "@/electron-main/lib/chromium-sandbox";
+import { osConventionsFor } from "@/shared/os-conventions";
 import { type Condition } from "@/shared/problem-reports";
 import {
   BROWSER_SANDBOX_OFF_COPY,
@@ -28,6 +29,7 @@ import {
   type SandboxOff,
 } from "@instrument-org/workspace/electron";
 import { app } from "electron";
+import path from "node:path";
 
 import { createScopedLogger } from "./electron-logger";
 
@@ -158,9 +160,12 @@ export function listNotices(now = Date.now()): BellNotice[] {
   if (chromiumSandboxOff()) {
     all.push(browserSandboxOffNotice());
   }
-  const { chatsLeftBehind } = getNoticesStore().store;
+  const { chatsLeftBehind, startedOver } = getNoticesStore().store;
   if (chatsLeftBehind) {
     all.push(chatsLeftBehindNotice(chatsLeftBehind));
+  }
+  if (startedOver) {
+    all.push(startedOverNotice(startedOver));
   }
   all.push(...signedOutAccounts().map(signedOutNotice));
   return all
@@ -407,6 +412,31 @@ function chatsLeftBehindNotice({
         ? "Some chats are still being brought over"
         : "One chat is still being brought over",
   };
+}
+
+/**
+ * The notice for a workspace folder a launch found with no `.instrument/` in
+ * it, which started as a new workspace there. Its id carries when, so a
+ * later one is new rather than already dismissed.
+ */
+function startedOverNotice({
+  at,
+  path: dir,
+}: NonNullable<NoticesStore["startedOver"]>): Omit<BellNotice, "seen"> {
+  const { trash } = osConventionsFor(process.platform);
+  return {
+    body: `${APP_NAME} couldn't find your chats in “${path.basename(dir)}”, so it started fresh there. If you deleted its .instrument folder by mistake, quit ${APP_NAME}, put the folder back from the ${trash}, and open ${APP_NAME} again.`,
+    id: `started-over-${at}`,
+    kind: "announcement",
+    publishedAt: new Date(at).toISOString(),
+    severity: "important",
+    title: "Your chats weren't in your folder",
+  };
+}
+
+/** Records that the launch opened `dir` with no `.instrument/` in it. */
+export function noteStartedOver(dir: string): void {
+  getNoticesStore().set("startedOver", { at: Date.now(), path: dir });
 }
 
 /**

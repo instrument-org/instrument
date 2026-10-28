@@ -547,6 +547,13 @@ export interface EvalCase {
    */
   finishesAs?: {
     leavesOpen?: { at: string; id: string }[];
+    /**
+     * What the task cannot go on without, as the lines of a needs fence its
+     * last message ended with: the conversation is woken to a task waiting
+     * on it. With `signInsAnswerAs`, a sign-in the conversation asks for on
+     * that wake is answered once the run is quiet.
+     */
+    needs?: string[];
     said: string;
   };
   /**
@@ -1489,6 +1496,13 @@ export async function runEvals(
           standInWindow,
           workspaceRef: actor,
         });
+        // The wake asks for what the task needs; its card is answered below
+        // only once that turn has put it up.
+        if (evalCase.signInsAnswerAs) {
+          await waitForTreeQuiet(id, {
+            timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+          });
+        }
       }
 
       if (evalCase.signInsEndAs && !stoppedBy && outcome !== "timeout") {
@@ -2172,7 +2186,7 @@ function sanitizeCanonicalId(canonicalId: string): string {
  */
 async function standInForTasks(
   chatId: ChatId,
-  { leavesOpen = [], said }: NonNullable<EvalCase["finishesAs"]>,
+  { leavesOpen = [], needs, said }: NonNullable<EvalCase["finishesAs"]>,
   {
     standInWindow,
     workspaceRef,
@@ -2202,6 +2216,7 @@ async function standInForTasks(
       {
         status: "done",
         summary: said,
+        ...(needs !== undefined && needs.length > 0 ? { needs } : {}),
         ...(leavesOpen.length > 0
           ? {
               tabs: leavesOpen.map(({ at, id }) => ({

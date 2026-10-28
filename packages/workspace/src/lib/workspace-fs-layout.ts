@@ -879,7 +879,7 @@ export function shellPathOfHostSpelling(
  * share everything of the person's; every chat's records, which it reads;
  * and in the chat's record folder the attachments it reads and the handoff
  * notes it writes; the skills it
- * reads and the apps it writes; the runtime's caches and config, which the
+ * reads and the apps the chat writes, which a task only reads; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
  * environments, preload and `bin` links, which they read; its build
  * folders stay closed. Outside it, the temp folders open, and on Windows
@@ -942,7 +942,10 @@ function layoutRules(
     ...layout.skills.map((mount) =>
       system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
     ),
-    ...(layout.apps ? [system("allow", layout.apps.hostRoot)] : []),
+    // The chat authors apps. A task's layout has no apps folder, and every
+    // chat uses what is in it, so a folder of the person's holding it opens
+    // nothing in it to the task's writes either.
+    system(layout.apps ? "allow" : "readOnly", config.appsDir),
     // The person's drafts, readable and never changed: a draft can ask a
     // computer to send it (its `send`), so one the agent wrote would start a
     // turn nobody asked for.
@@ -980,9 +983,24 @@ function layoutRules(
   // Windows' `resolve` has to read for a path that names no drive, so the
   // command dies on a security violation instead of reading the file.
   // Resolved here, before the shell starts.
+  // A task's grant inside the apps folder (an app's own folder, say) is
+  // deeper than the apps folder's rule and would win there, so it reads only.
+  const appsRoots = [config.appsDir, realHostPath(config.appsDir)];
+  const held = layout.apps
+    ? outsideAppData
+    : outsideAppData.map((rule) =>
+        rule.level === "allow" &&
+        appsRoots.some(
+          (apps) =>
+            hostPathWithin(apps, rule.path) !== null ||
+            hostPathWithin(apps, realHostPath(rule.path)) !== null,
+        )
+          ? { ...rule, level: "readOnly" as const }
+          : rule,
+      );
   return {
     ...given,
-    rules: [...outsideAppData, ...own].map((rule) => ({
+    rules: [...held, ...own].map((rule) => ({
       ...rule,
       path: nodePath.resolve(rule.path),
     })),

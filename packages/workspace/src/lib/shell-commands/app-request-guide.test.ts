@@ -75,7 +75,7 @@ describe("app request and the app's guide", () => {
       createAppCommand({
         chatId,
         model,
-        role: "task",
+        role: "chat",
         sessionId: session,
       }).execute(
         args,

@@ -42,6 +42,7 @@ import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
 import { TEXT_TOOLS_EVALS } from "./text-tools";
 import { TIME_ZONE_EVALS } from "./time-zone";
 import { SOURCE_LINKS_EVALS } from "./source-links";
+import { TASK_APP_SETUP_EVALS } from "./task-app-setup";
 import { TASK_SESSION_EVALS } from "./task-sessions";
 import { TASK_TABS_EVALS } from "./task-tabs";
 import { UNPROMPTED_TOOL_EVALS } from "./unprompted-tools";
@@ -103,6 +104,7 @@ export const EVALS = [
   ...TEXT_TOOLS_EVALS,
   ...TIME_ZONE_EVALS,
   ...SOURCE_LINKS_EVALS,
+  ...TASK_APP_SETUP_EVALS,
   ...TASK_SESSION_EVALS,
   ...TASK_TABS_EVALS,
   ...UNPROMPTED_TOOL_EVALS,

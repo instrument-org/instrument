@@ -80,9 +80,12 @@ export interface AppConnectionStore {
 export function describeConnection(
   connection: AppConnection | undefined,
   manifestHash: string,
+  role: "chat" | "task" = "chat",
 ): string {
+  // What to run next, for the chat alone: a task neither tests nor connects.
+  const next = (step: string) => (role === "chat" ? ` (${step})` : "");
   if (!connection) {
-    return "not connected (run `instrument app test`)";
+    return `not connected${next("run `instrument app test`")}`;
   }
   switch (connection.status) {
     case "connected": {
@@ -93,7 +96,7 @@ export function describeConnection(
           : `, ${connection.toolCount} tools`;
       return connection.manifestHash === manifestHash
         ? `connected${who}${tools}`
-        : "connected, but the manifest changed since it was tested (run `instrument app test`)";
+        : `connected, but the manifest changed since it was tested${next("run `instrument app test`")}`;
     }
     case "declined": {
       return "declined by the user; ask again only if they bring it up";
@@ -102,13 +105,13 @@ export function describeConnection(
       return `failed${connection.error ? `: ${connection.error}` : ""}`;
     }
     case "needs-approval": {
-      return "needs the user to allow its server to run on this machine (connect_app)";
+      return `needs the user to allow its server to run on this machine${next("connect_app")}`;
     }
     case "needs-key": {
-      return "needs a key from the user (connect_app)";
+      return `needs a key from the user${next("connect_app")}`;
     }
     case "needs-sign-in": {
-      return "needs the user to sign in (connect_app)";
+      return `needs the user to sign in${next("connect_app")}`;
     }
   }
 }

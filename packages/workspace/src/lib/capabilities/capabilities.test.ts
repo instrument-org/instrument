@@ -488,6 +488,10 @@ describe("the registry", () => {
       ),
     ).toMatchInlineSnapshot(`
       {
+        "apps.disconnect": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
+        "apps.icon": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
+        "apps.new": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
+        "apps.test": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
         "memory.forget": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
         "memory.save": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
         "task.list": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",

@@ -20,13 +20,17 @@ import {
 } from "../lib/permissions/account-can-write";
 import { MAC_APPS } from "../lib/mac-apps/apps";
 import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
-import { APP_COMMAND } from "../lib/shell-commands/app-command";
+import {
+  APP_COMMAND,
+  APPS_ARE_THE_CHATS,
+} from "../lib/shell-commands/app-command";
+import { sessionRole } from "../lib/chat/children";
 import { chatRules } from "../lib/permissions/chat-rules";
 import { reachOf } from "../lib/permissions/rules";
 import { askableFolder, closedNote } from "../lib/permissions/rules-fs";
 import { hostPathOf, shellPath } from "../lib/workspace-fs-layout";
 import { WINDOW_ID } from "../schemas/window-id";
-import { defineCapability } from "../lib/capabilities/define";
+import { defineCapability, type Role } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
 
 /**
@@ -70,7 +74,11 @@ const askPermissionCapability = defineCapability({
         const decided =
           input.kind === "folder"
             ? await folderToAsk(chatId, input.target)
-            : await appToAsk(chatId, input.target);
+            : await appToAsk(
+                chatId,
+                input.target,
+                sessionRole(chatId, sessionId),
+              );
         if (decided.state === "allowed" && decided.macos !== undefined) {
           // The person's rules let it in, so whatever refused it was macOS,
           // which is asking the person, refusing, or keeping it to its own app:
@@ -267,6 +275,7 @@ async function folderToAsk(
 async function appToAsk(
   chatId: Parameters<typeof chatRules>[0]["chatId"],
   given: string,
+  role: Role | undefined,
 ): Promise<Decided> {
   const bundleId = await appBundleId(given);
   if (bundleId === undefined) {
@@ -280,7 +289,7 @@ async function appToAsk(
   const inApps = MAC_APPS.find((each) => each.bundleId === bundleId);
   if (inApps !== undefined) {
     return {
-      message: `${inApps.name} is an app in Apps rather than something to ask for here. Use it with \`${APP_COMMAND.name} call ${inApps.server}\`; if it isn't connected, \`${APP_COMMAND.name} catalog ${inApps.server}\` has its set-up line, then connect_app.`,
+      message: `${inApps.name} is an app in Apps rather than something to ask for here. Use it with \`${APP_COMMAND.name} call ${inApps.server}\`; if it isn't connected, ${role === "chat" ? `\`${APP_COMMAND.name} catalog ${inApps.server}\` has its set-up line, then connect_app.` : APPS_ARE_THE_CHATS}`,
       state: "refused",
     };
   }

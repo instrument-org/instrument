@@ -35,7 +35,7 @@ import {
 import { noteServerGuidance, notedServerGuidance } from "../apps/mcp/guidance";
 import { withAppMcpClient } from "../apps/mcp/run";
 import { SignInAgainError } from "../apps/mcp/tool-auth";
-import { performSignedInRequest } from "../apps/api-oauth";
+import { performSignedInRequest, SignInNeededError } from "../apps/api-oauth";
 import { performAppRequest, redactCredential } from "../apps/request";
 import { type AppInfo, listApps, loadApp, readAppGuide } from "../apps/store";
 import { webInsteadUrl } from "../apps/site";
@@ -46,12 +46,13 @@ import { baselineRecorded } from "../last-told";
 import { ChatReads } from "../chat-reads";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND, APPS_ARE_THE_CHATS } from "../shell-commands/app-command";
 import {
   type CapabilityContext,
   CapabilityFailure,
   defineCapability,
   type Gate,
+  type Role,
 } from "./define";
 import { scriptSurfaceOpen } from "./script-surface";
 
@@ -86,7 +87,7 @@ export function withTimeout(
  */
 export async function requireApp(
   rawSlug: string | undefined,
-  { connected }: { connected: boolean },
+  { connected, role = "chat" }: { connected: boolean; role?: Role },
 ): Promise<AppInfo> {
   if (!rawSlug) {
     throw new Error(
@@ -102,7 +103,7 @@ export async function requireApp(
     const connection = await readConnection(app.slug);
     if (!isConnected(connection, app.manifestHash)) {
       throw new Error(
-        `"${app.slug}" is ${describeConnection(connection, app.manifestHash)}.`,
+        `"${app.slug}" is ${describeConnection(connection, app.manifestHash, role)}.`,
       );
     }
   }
@@ -118,14 +119,16 @@ function webAppRefusal(slug: string, url: string): string {
 async function connectedApp(
   slug: string,
   kind: "api" | "mcp",
+  role: Role,
 ): Promise<AppInfo | Extract<Gate, { kind: "refused" }>> {
   let app: AppInfo;
   try {
-    app = await requireApp(slug, { connected: true });
+    app = await requireApp(slug, { connected: true, role });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
       kind: "refused",
-      message: error instanceof Error ? error.message : String(error),
+      message: role === "chat" ? message : `${message} ${APPS_ARE_THE_CHATS}`,
     };
   }
   const { manifest } = app;
@@ -150,14 +153,19 @@ async function connectedApp(
 async function connectedAppGate(
   slug: string,
   kind: "api" | "mcp",
+  role: Role,
 ): Promise<Gate> {
-  const app = await connectedApp(slug, kind);
+  const app = await connectedApp(slug, kind, role);
   return "kind" in app ? app : { kind: "allowed" };
 }
 
 /** The app `run` works with, once its gate has let the call through. */
-async function gatedApp(slug: string, kind: "api" | "mcp"): Promise<AppInfo> {
-  const app = await connectedApp(slug, kind);
+async function gatedApp(
+  slug: string,
+  kind: "api" | "mcp",
+  role: Role,
+): Promise<AppInfo> {
+  const app = await connectedApp(slug, kind, role);
   if ("kind" in app) {
     throw new CapabilityFailure(app.message, "refused");
   }
@@ -286,6 +294,57 @@ async function mcpGuideGate(
   return { guides: [{ app: app.slug, guide }], kind: "read-first" };
 }
 
+/**
+ * What a task is told when an app it uses needs the user again (a sign-in,
+ * a go-ahead to run, a move to the web), in place of the cards and setup
+ * words only the chat has; nothing for the chat, or for any other failure.
+ */
+function taskNeedsChat(
+  slug: string,
+  role: Role,
+  failure: { cause?: unknown; reason?: string },
+): CapabilityFailure | undefined {
+  if (role === "chat") {
+    return undefined;
+  }
+  const why =
+    failure.cause instanceof SignInAgainError ||
+    failure.cause instanceof SignInNeededError
+      ? "needs the user to sign in again"
+      : failure.reason === "unauthorized"
+        ? "had its sign-in or key refused, so it needs the user again"
+        : failure.reason === "unapproved"
+          ? "needs the user's go-ahead before it runs on this machine"
+          : clientRefused(failure.cause)
+            ? `has to move to the web: its server refuses ${APP_NAME}'s sign-in client`
+            : undefined;
+  return why === undefined
+    ? undefined
+    : new CapabilityFailure(
+        `"${slug}" ${why}. ${APPS_ARE_THE_CHATS}`,
+        "refused",
+      );
+}
+
+/** The key a call sends; in a task, a missing or moved key is the chat's to ask for. */
+async function credentialFor(
+  slug: string,
+  manifest: AppInfo["manifest"],
+  role: Role,
+): Promise<null | string> {
+  try {
+    return await requireAppCredential(slug, manifest);
+  } catch (error) {
+    if (role === "chat") {
+      throw error;
+    }
+    throw new CapabilityFailure(
+      `"${slug}" needs a key from the user. ${APPS_ARE_THE_CHATS}`,
+      "refused",
+    );
+  }
+}
+
 /** Every string in a JSON value, keys included, run through `redact`. */
 function redactValue(
   value: unknown,
@@ -336,7 +395,7 @@ function firstSentence(text: string): string {
  * not been asked yet, its card goes up and the call is not made.
  */
 async function callGate(slug: string, ctx: CapabilityContext): Promise<Gate> {
-  const app = await connectedApp(slug, "mcp");
+  const app = await connectedApp(slug, "mcp", ctx.role);
   if ("kind" in app) {
     return app;
   }
@@ -366,7 +425,7 @@ export const appsCall = defineCapability({
   // as JSON, else the text itself.
   output: z.json(),
   async run({ app: slug, args, tool }, ctx) {
-    const app = await gatedApp(slug, "mcp");
+    const app = await gatedApp(slug, "mcp", ctx.role);
     const { manifest } = app;
     if (!isMcpManifest(manifest)) {
       throw new CapabilityFailure(
@@ -387,7 +446,7 @@ export const appsCall = defineCapability({
           },
         )
       : args;
-    const credential = await requireAppCredential(app.slug, manifest);
+    const credential = await credentialFor(app.slug, manifest, ctx.role);
     const redact = await redactorFor(app.slug, manifest, credential);
     const signal = withTimeout(ctx.signal, REQUEST_TIMEOUT_MS);
     const result = await withAppMcpClient({
@@ -418,9 +477,13 @@ export const appsCall = defineCapability({
       console.warn(
         `App call failed: ${app.slug} ${tool} (${result.error.reason})`,
       );
+      const forTask = taskNeedsChat(app.slug, ctx.role, result.error);
+      if (forTask !== undefined) {
+        throw forTask;
+      }
       const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, manifest))}\`, then connect_app`;
       const next: Partial<Record<typeof result.error.reason, string>> = {
-        forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.`,
+        forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; ${ctx.role === "chat" ? `tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.` : "say in your report what the server said."}`,
         unauthorized:
           manifest.auth.kind === "oauth"
             ? ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app, and if that sign-in fails or is refused, sign in on the web instead: ${web}.`
@@ -498,7 +561,7 @@ function toolMark(
 }
 
 export const appsTools = defineCapability({
-  gate: ({ app }) => connectedAppGate(app, "mcp"),
+  gate: ({ app }, ctx) => connectedAppGate(app, "mcp", ctx.role),
   input: z.object({
     app: AppField,
     tool: z.string().optional().meta({
@@ -516,7 +579,7 @@ export const appsTools = defineCapability({
     tools: z.array(ToolSchema),
   }),
   async run({ app: slug, tool: only }, ctx) {
-    const app = await gatedApp(slug, "mcp");
+    const app = await gatedApp(slug, "mcp", ctx.role);
     const { manifest } = app;
     if (!isMcpManifest(manifest)) {
       throw new CapabilityFailure(
@@ -524,7 +587,7 @@ export const appsTools = defineCapability({
         "refused",
       );
     }
-    const credential = await requireAppCredential(app.slug, manifest);
+    const credential = await credentialFor(app.slug, manifest, ctx.role);
     const redact = await redactorFor(app.slug, manifest, credential);
     const result = await withAppMcpClient({
       credential,
@@ -538,7 +601,10 @@ export const appsTools = defineCapability({
       slug: app.slug,
     });
     if (result.isErr()) {
-      throw new CapabilityFailure(redact(result.error.message));
+      throw (
+        taskNeedsChat(app.slug, ctx.role, result.error) ??
+        new CapabilityFailure(redact(result.error.message))
+      );
     }
     const { guidance, tools } = result.value;
     if (only === undefined) {
@@ -718,7 +784,7 @@ async function otherGuidesToRead(
 
 export const appsRequest = defineCapability({
   async gate({ app: slug }, ctx: CapabilityContext): Promise<Gate> {
-    const app = await connectedApp(slug, "api");
+    const app = await connectedApp(slug, "api", ctx.role);
     if ("kind" in app) {
       return app;
     }
@@ -790,7 +856,7 @@ export const appsRequest = defineCapability({
     };
   },
   async run({ app: slug, body, method, params, path }, ctx) {
-    const app = await gatedApp(slug, "api");
+    const app = await gatedApp(slug, "api", ctx.role);
     if (app.manifest.type !== "api") {
       throw new CapabilityFailure(
         `"${app.slug}" is not an API app.`,
@@ -813,9 +879,11 @@ export const appsRequest = defineCapability({
       ({ result, token: credential } = await performSignedInRequest({
         ...request,
         slug: app.slug,
+      }).catch((error: unknown) => {
+        throw taskNeedsChat(app.slug, ctx.role, { cause: error }) ?? error;
       }));
     } else {
-      credential = await requireAppCredential(app.slug, app.manifest);
+      credential = await credentialFor(app.slug, app.manifest, ctx.role);
       result = await performAppRequest({ ...request, credential });
     }
     if (result.isErr()) {
@@ -869,7 +937,7 @@ function responseText({ body, content_type }: Response): string {
 }
 
 export const appsResources = defineCapability({
-  gate: ({ app }) => connectedAppGate(app, "mcp"),
+  gate: ({ app }, ctx) => connectedAppGate(app, "mcp", ctx.role),
   input: z.object({ app: AppField }),
   name: "apps.resources",
   output: z.object({
@@ -893,7 +961,7 @@ export const appsResources = defineCapability({
     truncated: z.boolean(),
   }),
   async run({ app: slug }, ctx) {
-    const app = await gatedApp(slug, "mcp");
+    const app = await gatedApp(slug, "mcp", ctx.role);
     const { manifest } = app;
     if (!isMcpManifest(manifest)) {
       throw new CapabilityFailure(
@@ -972,7 +1040,7 @@ export const appsResources = defineCapability({
 });
 
 export const appsRead = defineCapability({
-  gate: ({ app }) => connectedAppGate(app, "mcp"),
+  gate: ({ app }, ctx) => connectedAppGate(app, "mcp", ctx.role),
   input: z.object({
     app: AppField,
     uri: z
@@ -990,7 +1058,7 @@ export const appsRead = defineCapability({
   // type and size.
   output: z.string(),
   async run({ app: slug, uri }, ctx) {
-    const app = await gatedApp(slug, "mcp");
+    const app = await gatedApp(slug, "mcp", ctx.role);
     const { manifest } = app;
     if (!isMcpManifest(manifest)) {
       throw new CapabilityFailure(

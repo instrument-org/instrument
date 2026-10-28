@@ -367,7 +367,7 @@ describe("a task whose turn ended on a card", () => {
             I can't read /Users/me/Pantry until the person allows it.
         It cannot go on without:
             folder: /Users/me/Pantry, on the card in this chat waiting for the person's answer, which wakes it
-      Nobody typed anything; this note is why you are awake. Give one waiting on you what you can with \`instrument task send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.
+      Nobody typed anything; this note is why you are awake. Give one waiting on you what you can with \`instrument task send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for. An app it needs is yours to set up and connect with \`connect_app\`; once the note says it is connected, \`instrument task send\` the task on rather than doing its work yourself.
       </instrument-system-note>"
     `);
     expect(

@@ -233,7 +233,7 @@ describe("taskEventModelNote", () => {
         It cannot go on without:
             folder: Desktop, to save the confirmation there
             answer: which of the two Lisbon hotels?
-      Nobody typed anything; this note is why you are awake. Give one waiting on you what you can with \`instrument task send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.
+      Nobody typed anything; this note is why you are awake. Give one waiting on you what you can with \`instrument task send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for. An app it needs is yours to set up and connect with \`connect_app\`; once the note says it is connected, \`instrument task send\` the task on rather than doing its work yourself.
       </instrument-system-note>"
     `);
   });

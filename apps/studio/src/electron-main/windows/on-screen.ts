@@ -25,7 +25,10 @@ function keepsOffScreen() {
 type ScreenWindow = Pick<
   BrowserWindow,
   "isDestroyed" | "maximize" | "minimize" | "show" | "showInactive"
->;
+> & {
+  once: (event: "focus", listener: () => void) => unknown;
+  setAlwaysOnTop: (flag: boolean, level?: "normal", relative?: number) => void;
+};
 
 /** Windows held off screen, each with whether it comes up maximized. */
 const held = new Map<ScreenWindow, { maximized: boolean }>();
@@ -75,7 +78,19 @@ export function putOnScreen(
   if (maximized) {
     window.maximize();
   }
-  if (is.dev || view === "front") {
+  if (view === "front") {
+    // Left in view behind the app the person was using, so it comes back
+    // behind it: `showInactive` alone orders it over every other app's
+    // windows on macOS. One level under normal keeps it below them until it
+    // is first focused, which puts it back at the normal level.
+    if (process.platform === "darwin") {
+      window.setAlwaysOnTop(true, "normal", -1);
+      window.once("focus", () => {
+        window.setAlwaysOnTop(false);
+      });
+    }
+    window.showInactive();
+  } else if (is.dev) {
     window.showInactive();
   } else {
     window.show();

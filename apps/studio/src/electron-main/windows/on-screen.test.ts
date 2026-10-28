@@ -12,12 +12,23 @@ vi.mock("electron", () => ({ default: {} }));
 
 function fakeWindow() {
   const calls: string[] = [];
+  let focus = () => {};
   return {
     calls,
+    focus: () => focus(),
     window: {
       isDestroyed: () => false,
       maximize: () => calls.push("maximize"),
       minimize: () => calls.push("minimize"),
+      once: (event: string, listener: () => void) => {
+        calls.push(`once ${event}`);
+        focus = listener;
+      },
+      setAlwaysOnTop: (flag: boolean, level?: string, relative?: number) => {
+        calls.push(
+          flag ? `setAlwaysOnTop ${level} ${relative}` : "setAlwaysOnTop off",
+        );
+      },
       show: () => calls.push("show"),
       showInactive: () => calls.push("showInactive"),
     },
@@ -87,7 +98,37 @@ describe("putting a window on screen", () => {
   });
 
   it.each([
-    ["front", ["maximize", "showInactive"], false],
+    [
+      "darwin",
+      [
+        "maximize",
+        "setAlwaysOnTop normal -1",
+        "once focus",
+        "showInactive",
+        "setAlwaysOnTop off",
+      ],
+    ],
+    ["win32", ["maximize", "showInactive"]],
+  ] as const)(
+    "brings a window left in view back on %s without focus, behind the app in use",
+    async (platform, expected) => {
+      const real = process.platform;
+      Object.defineProperty(process, "platform", { value: platform });
+      try {
+        const { comeBackAsLeft, putOnScreen } = await load({ dev: false });
+        comeBackAsLeft("front");
+        const { calls, focus, window } = fakeWindow();
+        putOnScreen(window, { maximized: true });
+        // The first focus puts it back at the normal level.
+        focus();
+        expect(calls).toEqual(expected);
+      } finally {
+        Object.defineProperty(process, "platform", { value: real });
+      }
+    },
+  );
+
+  it.each([
     ["minimized", ["minimize"], false],
     ["hidden", [], true],
   ] as const)(

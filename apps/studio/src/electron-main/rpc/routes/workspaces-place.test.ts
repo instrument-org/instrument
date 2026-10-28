@@ -157,6 +157,23 @@ describe("workspaces.place", () => {
     ).toMatchObject({ kind: "refused", reason: "missing" });
     expect(run.getWorkspaceRun().kind !== "unplaced").toBe(false);
   });
+
+  // Placing writes the record again from what it read, so one that won't
+  // read would be written over with defaults.
+  it("leaves a folder whose record is there but won't read as it is", async () => {
+    const dir = path.join(home, "Documents", "Instrument");
+    const record = path.join(dir, ".instrument", "workspace.json");
+    // A record that is a folder fails to read with a code no folder explains.
+    fs.mkdirSync(record, { recursive: true });
+
+    expect(await place({ path: dir })).toEqual({
+      kind: "unreachable",
+      reason: "unreadable",
+    });
+    expect(fs.statSync(record).isDirectory()).toBe(true);
+    expect(run.getWorkspaceRun().kind).toBe("unplaced");
+    expect(mocks.startWorkspace).not.toHaveBeenCalled();
+  });
 });
 
 describe("workspaces.place after a start that failed", () => {
@@ -169,6 +186,18 @@ describe("workspaces.place after a start that failed", () => {
     expect(await place({ path: dir })).toEqual({ kind: "placed" });
     expect(mocks.startWorkspace).toHaveBeenCalledTimes(2);
     expect(run.getResolvedWorkspace()).toMatchObject({ path: dir });
+  });
+
+  // A lost folder's Try Again asks for its record first, then places it.
+  it("answers a lost folder's Try Again as ready, so place starts it again", async () => {
+    const dir = path.join(home, "Documents", "Instrument");
+    mocks.startWorkspace.mockRejectedValueOnce(new Error("no actor"));
+    await expect(place({ create: true, path: dir })).rejects.toThrow(
+      "no actor",
+    );
+    expect(
+      await call(route.workspaces.reachLost, undefined, { context }),
+    ).toEqual({ kind: "ready" });
   });
 });
 

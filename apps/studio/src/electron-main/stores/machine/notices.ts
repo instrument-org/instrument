@@ -35,6 +35,14 @@ const NoticesStoreSchema = z.object({
     .optional()
     .catch(undefined),
   etag: z.string().optional(),
+  /**
+   * The last workspace folder a launch opened with no `.instrument/` in it,
+   * so it started as a new workspace there. One slot: a later one replaces it.
+   */
+  startedOver: z
+    .object({ at: z.number(), path: z.string() })
+    .optional()
+    .catch(undefined),
   fetchedAt: z.number().default(0),
   marks: z.record(z.string(), NoticeMarksSchema).default({}),
   notices: z.array(NoticeSchema).default([]),

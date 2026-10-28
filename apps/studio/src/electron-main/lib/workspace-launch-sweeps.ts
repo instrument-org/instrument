@@ -1,4 +1,7 @@
-import { noteChatsLeftBehind } from "@/electron-main/lib/notices";
+import {
+  noteChatsLeftBehind,
+  noteStartedOver,
+} from "@/electron-main/lib/notices";
 import {
   type ChatRecordsSplit,
   convertAppsToAppFiles,
@@ -29,6 +32,7 @@ import {
   workspaceMachineDir,
   workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
+import { getOpenedWithoutRecords } from "./workspace-run";
 import { workspaceLayoutMarks } from "./workspaces";
 
 /**
@@ -59,6 +63,11 @@ export async function sweepWorkspaceFolder({
   // folders in, where a chat an earlier build left at the workspace's top
   // level is not in its place yet when this runs.
   nameChatDatabases(rootDir);
+
+  const startedOver = getOpenedWithoutRecords();
+  if (startedOver !== undefined) {
+    noteStartedOver(startedOver);
+  }
 
   // The layout sweeps bring what 1.x and the 2.0 betas left into the shape
   // this build reads. They run only on a workspace in the app's own data,

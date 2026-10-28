@@ -21,6 +21,7 @@
  * with `instrument task send` rather than doing its work itself.
  */
 import { listApps } from "../../src/lib/apps/store";
+import { needsNamedIn } from "../../src/lib/parse-needs-block";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { type Session } from "../../src/schemas/session";
 import { askedOnCard } from "../../src/tools/connect-app-output";
@@ -127,10 +128,11 @@ function namedItInItsNeeds(service: RegExp, label: string): Assertion {
   return {
     check: ({ sessions }) => {
       const last = lastText(sessions);
-      const fence = /```needs\n([\s\S]*?)```/.exec(last)?.[1] ?? "";
+      // As the wake reads it, so a fence the wake cannot parse names nothing.
+      const needs = needsNamedIn(last);
       return {
         evidence: JSON.stringify(last.slice(-600)),
-        passed: service.test(fence),
+        passed: needs.some((need) => service.test(need)),
         text,
       };
     },
@@ -138,7 +140,7 @@ function namedItInItsNeeds(service: RegExp, label: string): Assertion {
   };
 }
 
-const LINEAR = /linear/i;
+const ASANA = /asana/i;
 const NEEDED = "github";
 
 const askedThenSentOn: Assertion = {
@@ -161,12 +163,12 @@ const askedThenSentOn: Assertion = {
         step.kind === "bash" && /\binstrument task send\b/.test(step.command),
     );
     // A message sent to the task names the commands it is to run, so only
-    // the chat's own calls count.
+    // the chat's own calls count, to either app the task's work needs.
     const didItItself = after.some(
       (step) =>
         step.kind === "bash" &&
         !/\binstrument task send\b/.test(step.command) &&
-        /\binstrument app (?:call|tools|request) github\b|instrument\.apps?\[?\(?["']github/.test(
+        /\binstrument app (?:call|tools|request) (?:github|linear)\b|instrument\.apps?\[?\(?["'](?:github|linear)/.test(
           step.command,
         ),
     );
@@ -187,12 +189,12 @@ const askedThenSentOn: Assertion = {
 export const TASK_APP_SETUP_EVALS = [
   defineEval({
     assertions: [
-      setUpNoApp(LINEAR, "Linear"),
-      namedItInItsNeeds(LINEAR, "Linear"),
+      setUpNoApp(ASANA, "Asana"),
+      namedItInItsNeeds(ASANA, "Asana"),
     ],
     name: "task-app-setup-refused",
     prompt:
-      "Set up Linear as an app in this workspace (it has a hosted MCP server), then list the user's open Linear issues. Report the list.",
+      "Set up Asana as an app in this workspace (it has a hosted MCP server), then list the user's open Asana tasks. Report the list.",
   }),
   defineEval({
     apps: [

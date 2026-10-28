@@ -34,6 +34,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Chat surface](active/chat-surface.md) | slices 1-9 built |
 | [What the classic window took with it](active/after-the-classic-window.md) | open list |
 | [Grouped activities](active/grouped-activities.md) — one heading over a run of tool calls | built, headings flag off |
+| [Chat transcript redesign](active/chat-transcript-redesign.md): the chat's own steps inline, tasks set apart, drawn against real chats | design rules, not built |
 | [Presentation syntax](active/presentation-syntax.md) — how the agent presents files, data, and artifacts | file group built, rest proposed |
 | [Shortcut table, menu bar, and guide](active/shortcut-table-menu-bar-and-guide.md) | phases 1-3 landed |
 | [Chat stream turn-model refactor](active/chat-stream-turn-model-refactor.md) | partly in place, derive step not started |

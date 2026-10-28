@@ -14,7 +14,7 @@ What the agent can do is defined once per surface rather than once per capabilit
 
 The owner's direction: define each capability once, in a structured way, and generate every mechanism the agent reaches it by, rather than keeping unique behaviors per environment. Breaking changes are allowed.
 
-## Inventory: what the agent reaches today
+## Inventory: what the agent reached before phase 1
 
 "Both" means the chat's session and its tasks. The model tool list is the same in both (the fork reuses the chat's cached prefix, [`agents/instrument.ts`](../../../packages/workspace/src/agents/instrument.ts)); a chat-only tool refuses at execute time. A task's `instrument` lists the chat-only words and refuses them with a note (`CHAT_ONLY_SUBCOMMANDS` in [`create-bash-env.ts`](../../../packages/workspace/src/lib/create-bash-env.ts)).
 

@@ -139,7 +139,6 @@ export function createOverlay(ed: Editor): OverlayApi {
       flash(el, 2200, self);
     }
     layout();
-    setTimeout(layout, 2300);
   }
 
   function showToast(
@@ -163,6 +162,8 @@ export function createOverlay(ed: Editor): OverlayApi {
 
   function init() {
     addEventListener("resize", layout);
+    // A flash that has faded out is dropped at the next layout.
+    ui.flashes.addEventListener("animationend", layout);
     find(ui.toast, ".undo").addEventListener("click", () => {
       ui.toast.hidden = true;
       void ed.history.undo();

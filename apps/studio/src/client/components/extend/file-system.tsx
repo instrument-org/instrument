@@ -201,7 +201,7 @@ export type FileSystemProps = {
    * acts on.
    */
   contextMenuPath?: null | string;
-  /** Folder prefix to open initially, e.g. `"invoices/"`. */
+  /** Folder prefix to open initially, e.g. `"invoices/"`, when the caller does not hold `path`. */
   defaultPath?: string;
   /**
    * The folders the list shows opened in place, by path, when the caller
@@ -209,7 +209,7 @@ export type FileSystemProps = {
    * stands in, for as long as it is mounted.
    */
   openFolders?: ReadonlySet<string>;
-  /** What the toolbar search opens with typed in it. */
+  /** What the toolbar search opens with typed in it, when the caller does not hold `search`. */
   defaultSearch?: string;
   /** The item selected on opening, by path, e.g. `"invoices/march.pdf"`. */
   defaultSelectedPath?: string;
@@ -324,8 +324,18 @@ export type FileSystemProps = {
    * folders are left where they are.
    */
   onOpenSeveral?: (items: FileSystemItem[]) => void;
-  /** Called with the folder prefix on screen whenever it changes. */
+  /**
+   * Called with the folder the browser lists from whenever it changes: its
+   * folder, or in the columns the first of them.
+   */
   onPathChange?: (path: string) => void;
+  /**
+   * The browser walked to a folder: a double-click, ⌘↓, up a folder with
+   * the folder left selected in the one above. A caller holding `path` moves
+   * it there; the browser clears its search and selection for the walk
+   * without reporting either, since the walk is what changed.
+   */
+  onWalk?: (path: string, select: null | string) => void;
   /**
    * A new name typed over an item where it sits, to be written. Return on the
    * item, a second slow click on its name, or `startRename` opens the field;
@@ -393,6 +403,16 @@ export type FileSystemProps = {
     folderPath: string,
     place: "inline" | "pane",
   ) => React.ReactNode;
+  /**
+   * The folder the browser stands in, as a prefix, when the caller holds it:
+   * the caller moves it on `onWalk`. In the columns, selecting a folder or
+   * something in another column is standing there too, so the caller holding
+   * the selection moves `path` with it; the first column stays where the
+   * browser last walked to, as long as `path` is under it.
+   */
+  path?: string;
+  /** What the toolbar search says, when the caller holds it, changed through `onSearchChange`. */
+  search?: string;
   /**
    * The selected item's path, when the caller holds it. Left out, the browser
    * keeps its own; given, the caller can put the selection on something it
@@ -1857,6 +1877,7 @@ export function FileSystem({
   onNewFolder,
   onOpenSeveral,
   onPathChange,
+  onWalk,
   onOpenFolderChange,
   onRenameCommit,
   onSearchChange,
@@ -1867,6 +1888,7 @@ export function FileSystem({
   onTrash,
   onViewChange,
   openFolders,
+  path: pathProp,
   prefetchChildren,
   ref,
   renderFileStage,
@@ -1874,6 +1896,7 @@ export function FileSystem({
   renderHeaderPrimary,
   renderHeaderLead,
   renderUnreadable,
+  search: searchProp,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
@@ -1898,10 +1921,34 @@ export function FileSystem({
     },
     [onShowHiddenFilesChange],
   );
+  // The folder the browser stands in: the caller's, or its own when the
+  // caller does not hold it.
+  const [ownPath, setOwnPath] = React.useState(() =>
+    normalizeFolderPath(defaultPath),
+  );
+  const isPathHeld = pathProp !== undefined;
+  const standingIn = isPathHeld ? normalizeFolderPath(pathProp) : ownPath;
+  // Where the columns start: the folder the browser last walked to, as long
+  // as the folder it stands in is under it, so back and forward through the
+  // folders picked in the columns keep the columns to their left. A folder
+  // standing selected in its own step shows in the column of the folder
+  // above it.
+  const lowestColumn =
+    isPathHeld && standingIn !== "" && selectedPathProp === standingIn
+      ? pathParent(standingIn)
+      : standingIn;
+  const [ownColumnsFrom, setColumnsFrom] = React.useState(lowestColumn);
+  const columnsFrom = lowestColumn.startsWith(ownColumnsFrom)
+    ? ownColumnsFrom
+    : lowestColumn;
+  if (columnsFrom !== ownColumnsFrom) {
+    setColumnsFrom(columnsFrom);
+  }
   // Hidden files leave before the index rather than at the point of drawing a
   // row, so one answer covers all four views, search, the selection and the
-  // arrow keys. A file the browser is not showing is one it does not know.
-  const rootPrefix = normalizeFolderPath(defaultPath);
+  // arrow keys. A file the browser is not showing is one it does not know,
+  // except inside the folder it was taken to.
+  const rootPrefix = columnsFrom;
   const shownItems = React.useMemo(
     () =>
       showHiddenFiles
@@ -1913,11 +1960,9 @@ export function FileSystem({
     () => buildFileSystemIndex(shownItems),
     [shownItems],
   );
-  const [history, setHistory] = React.useState(() => ({
-    index: 0,
-    stack: [normalizeFolderPath(defaultPath)],
-  }));
-  const currentPath = history.stack[history.index] ?? "";
+  // The folder the browser lists from: the one it stands in, or in the
+  // columns the first of them.
+  const currentPath = view === "columns" ? columnsFrom : standingIn;
   // Told before paint, so a caller that lays each folder out its own way
   // draws the new folder in its layout from the first frame.
   React.useLayoutEffect(() => {
@@ -1947,10 +1992,15 @@ export function FileSystem({
       index.files.get(selectedPath) ?? index.folders.get(selectedPath) ?? null
     );
   }, [index, selectedPath]);
-  const [searchInput, setSearchInput] = React.useState(defaultSearch);
+  const [ownSearch, setOwnSearch] = React.useState(defaultSearch);
+  const searchInput = searchProp ?? ownSearch;
+  // What the field last said itself, so a search emptied from outside (back
+  // to a step with none) puts the field away too.
+  const [searchSaid, setSearchSaid] = React.useState(searchInput);
   const changeSearch = React.useCallback(
     (next: string) => {
-      setSearchInput(next);
+      setOwnSearch(next);
+      setSearchSaid(next);
       onSearchChange?.(next);
     },
     [onSearchChange],
@@ -1960,6 +2010,20 @@ export function FileSystem({
   // The kinds search narrows to, by their names in the Kind column; none is
   // every kind.
   const [searchKinds, setSearchKinds] = React.useState<readonly string[]>([]);
+  // Another folder to list from puts the search's kinds and field away, as
+  // walking does, however the browser came to it.
+  const [searchedIn, setSearchedIn] = React.useState(currentPath);
+  if (
+    searchedIn !== currentPath ||
+    (searchInput !== searchSaid && searchInput === "")
+  ) {
+    setSearchedIn(currentPath);
+    setSearchSaid(searchInput);
+    setSearchKinds([]);
+    setIsSearchExpanded(false);
+  } else if (searchInput !== searchSaid) {
+    setSearchSaid(searchInput);
+  }
   const searchQuery = normalizeSearchQuery(searchInput);
   const isSearching = searchQuery.length > 0 || searchKinds.length > 0;
   const clearSearch = React.useCallback(() => {
@@ -2354,21 +2418,36 @@ export function FileSystem({
     },
     [index, loadChildren],
   );
+  // Walking to a folder, with `select` selected in it. Navigation exits
+  // search, like Finder. A caller holding the folder is told of the walk
+  // alone, which takes the search and the selection with it.
   const navigateTo = React.useCallback(
-    (folderPath: string) => {
-      const path = normalizeFolderPath(folderPath);
-      setHistory((previous) => {
-        if (previous.stack[previous.index] === path) return previous;
-        const stack = [...previous.stack.slice(0, previous.index + 1), path];
-        return { index: stack.length - 1, stack };
-      });
-      // Navigation exits search, like Finder.
-      clearSearch();
+    (folderPath: string, select: null | string = null) => {
+      const next = normalizeFolderPath(folderPath);
+      setColumnsFrom(next);
       setIsSearchExpanded(false);
-      selectEntry(null);
-      ensureChildren(path);
+      setSearchKinds([]);
+      if (searchProp === undefined) {
+        changeSearch("");
+      }
+      if (isPathHeld) {
+        selectionRef.current = selectOnly(select);
+        setOwnSelection(selectionRef.current);
+      } else {
+        setOwnPath(next);
+        commitSelection(selectOnly(select));
+      }
+      onWalk?.(next, select);
+      ensureChildren(next);
     },
-    [clearSearch, ensureChildren, selectEntry],
+    [
+      changeSearch,
+      commitSelection,
+      ensureChildren,
+      isPathHeld,
+      onWalk,
+      searchProp,
+    ],
   );
   React.useEffect(() => {
     ensureChildren(currentPath);
@@ -2546,29 +2625,25 @@ export function FileSystem({
     setInternalView(nextView);
     onViewChange?.(nextView);
     if (nextView === "columns" && view !== "columns") {
-      const folder = index.folders.get(currentPath);
-      if (currentPath === "" || !folder) {
+      if (standingIn === "") {
         return;
       }
-      const parent = pathParent(currentPath);
-      setHistory((previous) =>
-        previous.stack[previous.index - 1] === parent
-          ? { ...previous, index: previous.index - 1 }
-          : {
-              ...previous,
-              stack: previous.stack.map((entry, at) =>
-                at === previous.index ? parent : entry,
-              ),
-            },
-      );
+      setColumnsFrom(pathParent(standingIn));
       // What was selected inside the folder stays selected; with nothing
       // selected there, the folder itself is.
-      if (!selectedPath?.startsWith(currentPath)) {
-        selectEntry(folder);
+      if (!selectedPath?.startsWith(standingIn)) {
+        commitSelection(selectOnly(standingIn));
       }
       return;
     }
-    if (view !== "columns" || nextView === "columns" || !selectedEntry) {
+    // A caller holding the folder has it standing where the columns did
+    // already: selecting there moved it.
+    if (
+      isPathHeld ||
+      view !== "columns" ||
+      nextView === "columns" ||
+      !selectedEntry
+    ) {
       return;
     }
     // Several selected stay selected in the folder that lists them.
@@ -2576,13 +2651,7 @@ export function FileSystem({
       navigateTo(selectedEntry.path);
       return;
     }
-    const folder = selectedEntry.parentPath;
-    if (folder !== currentPath) {
-      setHistory((previous) => {
-        const stack = [...previous.stack.slice(0, previous.index + 1), folder];
-        return { index: stack.length - 1, stack };
-      });
-    }
+    setOwnPath(selectedEntry.parentPath);
   };
   const openFile = React.useCallback(
     (file: FileEntry) => {
@@ -3003,9 +3072,7 @@ export function FileSystem({
         }
         // The folder left behind is what is selected above it, the way the
         // Finder and File Explorer both go up.
-        const left = index.folders.get(currentPath) ?? null;
-        navigateTo(pathParent(currentPath));
-        selectEntry(left);
+        navigateTo(pathParent(currentPath), currentPath);
         return true;
       }
       case "rename":
@@ -3073,6 +3140,7 @@ export function FileSystem({
     besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
+    path: standingIn,
     draggable: dragArea.draggable,
     enabledListColumns: listColumns,
     entries: currentEntries,
@@ -3994,6 +4062,8 @@ type FileSystemViewProps = {
   besideWidth: number | undefined;
   columnWidth?: number;
   currentPath: string;
+  /** The folder the browser stands in: in the columns, where the trail goes when nothing selected takes it further. */
+  path: string;
   /**
    * Whether a row drags out of the window. The gesture is on the browser
    * itself; a row only has to say it is a thing that drags, and name itself
@@ -6189,6 +6259,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     marquee,
     onOpen,
     onSelect,
+    path: standingIn,
     renamingPath,
     renderFileStage,
     renderNameField,
@@ -6256,9 +6327,13 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   const deferredIsSeveral = React.useDeferredValue(isSeveral);
   const columnPaths = React.useMemo(() => {
     const paths = [currentPath];
-    if (!deferredSelectedPath?.startsWith(currentPath)) return paths;
-    const targetFolder =
-      deferredSelectedEntry?.kind === "folder" && !deferredIsSeveral
+    // The trail goes as far as the selection opens, or with nothing selected
+    // under the first column, to the folder the browser stands in.
+    const targetFolder = !deferredSelectedPath?.startsWith(currentPath)
+      ? standingIn.startsWith(currentPath)
+        ? standingIn
+        : currentPath
+      : deferredSelectedEntry?.kind === "folder" && !deferredIsSeveral
         ? deferredSelectedEntry.path
         : (deferredSelectedEntry?.parentPath ?? currentPath);
     const relativePath = targetFolder.slice(currentPath.length);
@@ -6274,6 +6349,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     deferredIsSeveral,
     deferredSelectedEntry,
     deferredSelectedPath,
+    standingIn,
   ]);
   // Roving tabindex: all columns together form a single tab stop (the
   // selected row when its column is mounted, else the first row), so

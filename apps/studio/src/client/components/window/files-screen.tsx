@@ -5,7 +5,6 @@ import {
   fileTreeOpenAtom,
   fileTreeWidthAtom,
 } from "@/client/atoms/window";
-import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
 import { ResizeHandle } from "@/client/components/resize-handle";
@@ -70,7 +69,8 @@ import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
-import { useGoFiles } from "./use-files-step";
+import { type SettledStep } from "./files-step";
+import { useFilesStep } from "./use-files-step";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import {
   hostGroupOf,
@@ -145,30 +145,20 @@ const PILE_POSES = [
  * source, the tab keeps the file and shows its text.
  */
 export function FilesScreen({
-  file,
-  path,
-  query,
-  root,
-  select,
-  source,
-  tree,
-  view,
+  step: routed,
 }: {
-  /** The file this tab shows, by where it is on the computer; the folder when absent. */
-  file: string | undefined;
-  path: string;
-  /** What the folder is searched for in this step of the tab's history. */
-  query: string | undefined;
-  root: string;
-  /** What the folder opens with selected, as a path under the root. */
-  select: string | undefined;
-  /** Whether a page's file is shown as its text rather than as the page. */
-  source: boolean;
-  /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
-  tree: string | undefined;
-  /** The layout this step of the tab's history shows the folder in. */
-  view: FileSystemView;
+  /**
+   * The step the tab's address holds: the file it shows (the folder when
+   * there is none), the folder and how it is laid out, what is selected and
+   * searched for in it, and the folder the file's own tree is rooted at.
+   */
+  step: SettledStep;
 }) {
+  // Where the tab stands is the address's alone; every change to it goes
+  // through `go`.
+  const { arrivals, go, step: here } = useFilesStep(routed);
+  const { file, path, query, root, select, tree, view } = here;
+  const source = here.source ?? false;
   const { openScreen, rowField, rowHoldsTools, rowLead, rowReload, rowTail } =
     useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
@@ -182,7 +172,6 @@ export function FilesScreen({
   // person last set it for a tab wide enough.
   const [isTreeFolded, setTreeFolded] = useState(false);
   const router = useRouter();
-  const go = useGoFiles();
   // The tab of a chat's or a draft's group this screen is in, when it is
   // not one of the window's own.
   const groupTab = useGroupTab();
@@ -211,6 +200,7 @@ export function FilesScreen({
   const openFile = (tab: FileTab) => {
     go({
       file: tab.hostPath,
+      select: selectOf(tab.hostPath),
       tree: folder?.hostPath ?? folderOf(tab.hostPath),
       type: "openFile",
     });
@@ -222,7 +212,11 @@ export function FilesScreen({
    * page's own history and not a second time in the tab's.
    */
   const showFile = (hostPath: string, { replace = false } = {}) => {
-    go({ file: hostPath, type: replace ? "followFile" : "openFile" });
+    go({
+      file: hostPath,
+      select: selectOf(hostPath),
+      type: replace ? "followFile" : "openFile",
+    });
   };
   // In a tab of the window's own a file opened from the folder opens beside
   // it: the folder narrows as the file slides in from the right, and widens
@@ -361,8 +355,9 @@ export function FilesScreen({
       : root.startsWith("~/")
         ? `${window.api.homeDir}/${root.slice(2)}`
         : root;
-  const besideSelect =
-    (file && relativeHostPath(rootHostPath, file)) ?? undefined;
+  /** A file under the folder's root, as the folder selects it. */
+  const selectOf = (hostPath: string) =>
+    relativeHostPath(rootHostPath, hostPath) ?? undefined;
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
@@ -796,7 +791,9 @@ export function FilesScreen({
               path={path}
               query={query}
               root={root}
-              select={isFileOpen ? besideSelect : select}
+              arrivals={arrivals}
+              go={go}
+              select={select}
               toolsInRow
               view={view}
               {...(isFileOpen ? {} : quickLook.props)}
@@ -1036,6 +1033,8 @@ export function FilesScreen({
             path={path}
             query={query}
             root={root}
+            arrivals={arrivals}
+            go={go}
             select={select}
             view={view}
             {...quickLook.props}

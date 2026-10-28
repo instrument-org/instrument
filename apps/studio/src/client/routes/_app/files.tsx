@@ -66,20 +66,5 @@ export const Route = createFileRoute("/_app/files")({
 
 function ComputerRoute() {
   // Settled already by `beforeLoad`; read again so the step is typed as one.
-  const { file, path, query, root, select, source, tree, view } = settleArrival(
-    Route.useSearch(),
-    arrivalViewOf,
-  );
-  return (
-    <FilesScreen
-      file={file}
-      path={path}
-      query={query}
-      root={root}
-      select={select}
-      source={source ?? false}
-      tree={tree}
-      view={view}
-    />
-  );
+  return <FilesScreen step={settleArrival(Route.useSearch(), arrivalViewOf)} />;
 }

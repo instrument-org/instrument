@@ -37,6 +37,8 @@ const { positionals, values } = parseArgs({
   options: {
     concurrency: { default: "4", type: "string" },
     model: { multiple: true, type: "string" },
+    repeat: { default: "1", type: "string" },
+    tag: { default: "", type: "string" },
   },
 });
 
@@ -330,6 +332,13 @@ const SALES_CSV = [
   "2026-06,83250",
 ].join("\n");
 
+/** Stand-ins for the folders people attached to the real prompts below. */
+const REAL_FIXTURES = path.join(
+  import.meta.dirname,
+  "fixtures",
+  "activity-grouping",
+);
+
 async function buildFixtures() {
   const root = path.join(os.tmpdir(), `activity-grouping-${ulid()}`);
   const reports = path.join(root, "Reports");
@@ -342,7 +351,19 @@ async function buildFixtures() {
     await fs.writeFile(path.join(notes, name), body, "utf8");
   }
 
-  return { notes, reports, root };
+  // The same notes with writes refused by the filesystem, so the obvious first
+  // move fails. Per-run copies keep the modes; a run's workspace has to be
+  // made writable again before anything can delete it.
+  const lockedNotes = path.join(root, "Locked", "Notes");
+  await fs.mkdir(lockedNotes, { recursive: true });
+  for (const [name, body] of Object.entries(NOTES)) {
+    const file = path.join(lockedNotes, name);
+    await fs.writeFile(file, body, "utf8");
+    await fs.chmod(file, 0o444);
+  }
+  await fs.chmod(lockedNotes, 0o555);
+
+  return { lockedNotes, notes, reports, root };
 }
 
 // ---------------------------------------------------------------------------
@@ -397,7 +418,7 @@ const EVAL_CASES = [
       assertAnnouncedBeforeWorking,
       assertExplanationVoice,
     ],
-    folders: [{ path: fixtures.notes }],
+    folders: [{ path: fixtures.lockedNotes }],
     name: "derailed-by-a-read-only-folder",
     prompt:
       "Tidy up the notes in my Notes folder: give each one a proper title line and fix the formatting, then tell me what you changed.",
@@ -414,6 +435,94 @@ const EVAL_CASES = [
     name: "single-quick-lookup",
     prompt: "What's the Helsinki launch date in my notes?",
   }),
+  // Long enough that a person would want to see what is left: reading, a
+  // page with a table and a chart, and checking it, each several calls.
+  defineEval({
+    assertions: [
+      assertActivityCount({ max: 7, min: 3 }),
+      assertAnnouncedBeforeWorking,
+      assertActivityCadence,
+      assertStillShowsItsFiles,
+    ],
+    folders: [{ path: fixtures.reports }],
+    name: "long-report",
+    prompt:
+      "Build me a one-page HTML report from the sales spreadsheet in my Reports folder: a summary table, a chart of revenue by month, the best and worst months, and three insights. Open it in a browser and check it looks right before you hand it over.",
+  }),
+  // Research on the live web, then two documents: the shape of a person's
+  // errand rather than a file chore.
+  defineEval({
+    assertions: [
+      assertActivityCount({ max: 7, min: 3 }),
+      assertAnnouncedBeforeWorking,
+      assertActivityCadence,
+      assertStillShowsItsFiles,
+    ],
+    name: "research-then-write",
+    prompt:
+      "I'm going to Lisbon for three days next month. Look up the neighborhoods worth staying in and a few things to do, then write me a day-by-day itinerary and a short packing list as markdown files.",
+  }),
+  // Three prompts a person sent the app, word for word, so the grouping is
+  // judged on real requests as well as on cases written for it.
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking, assertActivityCadence],
+    name: "real-mac-studio-lease",
+    prompt:
+      "If I wanted to get a Mac studio and try out their leasing program, what's my total cost of ownership over the few years? I have a Mac Studio M1 first-gen 32 gigs of RAM kind of base model, and I am realizing that from 2022 that I wonder if I get a good upgrade for this and if, like, what my benchmark performance would be, etc., if I did upgrade to the base Model Max Studio, or maybe one notch up on the storage, and I just also want to know how much I'm going to be spending and kind of what the breakdown is \n\nhttps://www.apple.com/shop/buy-mac/mac-studio",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking, assertActivityCadence],
+    name: "real-nashville-night-out",
+    prompt:
+      "Planning on having a night out in Nashville, we like to probably have an earlier dinner and then hang out and do other stuff around 5th and Broadway area. What I'm wondering is: are there any interesting places that have reservations available earlier in the night down there? We do not like country music, so that is not a plus, by the way. Go and look maybe at the reservations and see what's available from a time perspective. You might have to actually load up the website to even figure it out in some cases",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    name: "real-cooling-fan-pictures",
+    prompt:
+      "Can you find me pictures of the most popular personal cooling fans",
+  }),
+  // More prompts a person sent the app. The folders are stand-ins for what
+  // was attached; the caffeine one names its cart as a list, since a run
+  // has no signed-in store.
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    folders: [{ path: path.join(REAL_FIXTURES, "Personal Vault") }],
+    name: "real-frantic-notes",
+    prompt:
+      "Okay, I've been collecting notes over the last couple weeks in kind of a frantic hurry, and I take them in reminders and then I paste them into Obsidian. And what ends up happening is that I need to process them, and the issue is that I am not getting through them very quickly, and so I have the potential that I currently might have some things that I've forgotten about within my notes, and that would include just tasks that are outside the scope of instrument itself. And so, can you comb through here and see if there's anything logical that I might be missing and highlight them and just tell me what ones they are because I have a suspicion that I'm probably missing a few things that should have been tracked elsewhere and I forgot about them? And you can just kind of quote them verbatim, and I'll be able to figure them out. A lot of them will be verbal typos because I did the dictation with my watch",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    name: "real-caffeine-powders",
+    prompt:
+      "Okay, I am looking for. I want to order, although you don't need to place the order, I am looking to purchase some 100-ish milligram caffeine powders or pills that I can mix with drinks to try out a few different ones, aiming for effective cost and hydration is a side benefit, which is nice. So I have a few candidates in my cart here, and I'd like you to help me decide which ones to try. And I'm fine with changing flavors and such too, but I'm really looking for efficacy and cost efficiency\n\n- Liquid I.V. Energy Multiplier, Lemon Ginger, 16 sticks\n- Nutricost Caffeine Pills 100mg, 240 capsules\n- Zipfizz Energy Drink Mix, Pink Grapefruit, 30 tubes\n- Jacked Factory Caffeine Pills 100mg with L-Theanine, 120 capsules",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    name: "real-glass-bottles",
+    prompt:
+      "I'm looking at getting some glass bottles that have easy resealable tops to use for water that I mix with caffeine or flavor drops so that I don't have to just keep using plastic bottles and throwing them away because they have residue and just feel like they age too quickly in terms of falling apart. Can you find some good priced ones for me on Amazon? But I don't really want and add them to my cart. What I don't really want is I don't really want ones that are, unless it's really clearly great. I don't want ones that are purpose-built. I would rather them come filled with water or sparkling water. I'd like them to have nice and easy to seal and reuse caps rather than being bottle-type caps that pop off and don't reseal themselves, and just want them to be a decent price because I still expect to maybe replace them some of the time",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    name: "real-protein-drink",
+    prompt:
+      "Find me the best ready to drink milk-based protein drink on Amazon from a price standpoint, chocolate or vanilla",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    folders: [{ path: path.join(REAL_FIXTURES, "Agent Reference Talk") }],
+    name: "real-talk-feedback",
+    prompt:
+      "Can you take a look at this talk I gave and give me any notes you have for feedback on how I did based on the transcript here and, of course, the slides",
+  }),
+  defineEval({
+    assertions: [assertAnnouncedBeforeWorking],
+    name: "real-etsy-cross-stitch",
+    prompt:
+      "Create a spreadsheet for me with the top trending products for Etsy for cross stitch. Just with their names in the link to the product page. Looking for maybe 10 or so.",
+  }),
   defineEval({
     assertions: [assertNoActivity],
     name: "no-tools-conversation",
@@ -429,13 +538,14 @@ const selectedCases = EVAL_CASES.filter((evalCase) =>
 const { runs, workspaceRootDir } = await runEvals(selectedCases, {
   concurrency: Number.parseInt(values.concurrency, 10),
   models,
+  repeat: Number.parseInt(values.repeat, 10),
 });
 
 const outputDir = path.resolve(
   import.meta.dirname,
   "..",
   "eval-results.local",
-  `activity-grouping-${new Date().toISOString().replaceAll(/[:.]/gu, "-")}`,
+  `activity-grouping-${values.tag ? `${values.tag}-` : ""}${new Date().toISOString().replaceAll(/[:.]/gu, "-")}`,
 );
 
 const rollup = await generateReport({
@@ -482,3 +592,68 @@ for (const run of runs) {
     }`,
   );
 }
+
+// Every call in order with its timing and phase, and the tokens of the step
+// that made it, for drawing how a run would have looked while it ran.
+type TimelinePart =
+  | { text: string; type: "text" }
+  | {
+      activity: unknown;
+      endedAt: unknown;
+      explanation: unknown;
+      startedAt: Date | undefined;
+      tool: string;
+      type: "tool";
+    };
+const timelines = [];
+for (const run of runs) {
+  const sessions = await sessionsFor(run.chatId, run.sessionId);
+  const steps = sessions.flatMap((session) =>
+    session.messages.map((message) => ({
+      createdAt: message.metadata.createdAt,
+      finishedAt:
+        "finishedAt" in message.metadata
+          ? message.metadata.finishedAt
+          : undefined,
+      parts: message.parts.flatMap((part): TimelinePart[] => {
+        if (part.type === "text") {
+          return [{ text: part.text, type: "text" }];
+        }
+        if (!isToolPart(part)) {
+          return [];
+        }
+        const input = part.input as
+          | undefined
+          | { activity?: unknown; explanation?: unknown };
+        return [
+          {
+            activity: input?.activity,
+            endedAt:
+              "endedAt" in part.metadata ? part.metadata.endedAt : undefined,
+            explanation: input?.explanation,
+            startedAt: part.metadata.startedAt,
+            tool: part.type.replace("tool-", ""),
+            type: "tool",
+          },
+        ];
+      }),
+      role: message.role,
+      usage: message.role === "assistant" ? message.metadata.usage : undefined,
+    })),
+  );
+  timelines.push({
+    costUSD: run.costUSD,
+    label: run.label,
+    metrics: run.metrics,
+    name: run.name,
+    steps,
+    trial: run.trial,
+  });
+}
+await fs.writeFile(
+  path.join(outputDir, "timelines.json"),
+  JSON.stringify(timelines, null, 2),
+);
+process.stdout.write(
+  `${c.dim}Timelines :${c.reset} ${path.join(outputDir, "timelines.json")}\n`,
+);

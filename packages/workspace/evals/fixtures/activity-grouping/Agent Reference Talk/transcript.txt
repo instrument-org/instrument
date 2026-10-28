@@ -1,0 +1,23 @@
+Transcript, Agent Reference talk, local meetup, Aug 25
+
+Okay, hi everybody. Thanks for having me. So I'm going to talk about something I've been calling agent reference, and it's basically, um, giving coding agents the actual source code of the libraries they use instead of letting them guess from memory.
+
+So, slide one, the problem. You ask an agent to use some library, and it writes code against an API that, like, existed two versions ago, or never existed at all. And it's really confident about it. It'll write a whole component against a prop that got renamed in March.
+
+Uh, and the usual fix is people paste docs into the chat, or they add an MCP server that searches docs. And that helps a little, but docs are not the code. Docs lag. Docs skip the edge cases. The code is the truth.
+
+So, next slide. What if the agent could just read the source? Like actually open the library's repo at the version you're using and grep it. And that's what agent reference is. It's a little CLI. You say agent-reference get, and the name of the library, and it gives you a path to a checkout at the right version. And then the agent just reads it with the tools it already has. Grep, read file, whatever.
+
+So I'll show you a quick demo. Um, okay, the wifi here is, let's see. Okay. So here I'm asking it to build a combobox with this component library, and instead of guessing, it runs agent-reference get, it opens the combobox source, it finds the actual props, and it writes it correctly the first time. Which, honestly, that never happens without this.
+
+Next slide, how it works. There's a JSON file in your repo that lists the references, and a local one for paths on your own machine that you don't commit. It clones on demand, it pins to the version in your lockfile, and it's all read only.
+
+Um, I should say, the big thing I learned is that agents don't use it unless you tell them when. So the skill description matters more than the tool. Like, I spent more time on the one paragraph that says use this before you read node_modules than on the actual code.
+
+Okay, results slide. On our internal evals, uh, the wrong API rate went from about one in four to almost nothing on the libraries we referenced. I don't have exact numbers here, I should have brought them. And the time per task went up a little because it's reading more, but way fewer retries.
+
+Last slide, what's next. I want to do this for, like, your own other repos too, so the agent can read your API server when it's working on the client. And maybe share reference lists between teams.
+
+So yeah, that's it. Questions? Um, I think we have like five minutes.
+
+[Q&A not transcribed]

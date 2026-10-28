@@ -440,6 +440,9 @@ function cliSubcommand(
         throw new Error(message);
       }
       const used = answer.capability;
+      // A failure its render reports keeps its exit code in every format.
+      const rendered = used.render?.(answer.output, answer.input);
+      const exitCode = rendered?.exitCode ?? 0;
       const out = input.value("out");
       if (out !== undefined) {
         const body = withNewline(
@@ -455,22 +458,21 @@ function cliSubcommand(
           );
         }
         return {
-          exitCode: 0,
+          exitCode,
           stderr: "",
           stdout: `Wrote ${out}: ${describeWritten(body.trimEnd())}, ${Buffer.byteLength(body.trimEnd())} bytes.\n`,
         };
       }
       if (input.has("json")) {
         return {
-          exitCode: 0,
+          exitCode,
           stderr: "",
           stdout: `${JSON.stringify(answer.output)}\n`,
         };
       }
-      const rendered = used.render?.(answer.output, answer.input);
       return rendered
         ? {
-            exitCode: rendered.exitCode ?? 0,
+            exitCode,
             stderr: rendered.stderr ?? "",
             stdout: rendered.stdout,
           }

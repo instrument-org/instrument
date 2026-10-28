@@ -122,7 +122,25 @@ const camel = defineCapability({
   text: (output) => JSON.stringify(output),
 });
 
-const REGISTRY: readonly Capability[] = [echo, camel, chatOnly, cliOnly];
+/** Fails by its render, as `app test` does. */
+const failing = defineCapability({
+  input: z.object({}),
+  name: "test.failing",
+  output: z.object({ passed: z.boolean() }),
+  render: () => ({ exitCode: 1, stderr: "failed\n", stdout: "" }),
+  run: () => Promise.resolve({ passed: false }),
+  summary: "Always fails.",
+  surfaces: { cli: { help: "", words: ["test", "failing"] } },
+  text: () => "failed",
+});
+
+const REGISTRY: readonly Capability[] = [
+  echo,
+  camel,
+  chatOnly,
+  cliOnly,
+  failing,
+];
 
 async function cli(args: string[], stdin = "") {
   const command = generatedCommand(
@@ -211,6 +229,13 @@ describe("the generated command line", () => {
     expect(await json.fs.readFile("/work/out.json")).toBe("{}\n");
   });
 
+  it.each([[["--json"]], [["--out", "out.txt"]], [[]]])(
+    "keeps a rendered failure's exit code with %j",
+    async (flags) => {
+      expect((await cli(["failing", ...flags])).exitCode).toBe(1);
+    },
+  );
+
   it.each([
     ["closed", 1, 'instrument test: "closed" is not connected.\n'],
     ["asks", 1, "instrument test: using asks needs the person's yes.\n"],
@@ -284,7 +309,9 @@ describe("the generated command line", () => {
         instrument test chat-only
             Only the chat has it.
         instrument test cli-only
-            Never in a script."
+            Never in a script.
+        instrument test failing
+            Always fails."
     `);
   });
 });

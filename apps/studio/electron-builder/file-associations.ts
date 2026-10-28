@@ -4,25 +4,12 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { fileKindLabel, type FileType } from "../src/client/lib/get-file-type";
 import {
-  DOCUMENT_EXTENSIONS,
-  fileKindLabel,
-  type FileType,
-  MEDIA_EXTENSIONS,
-} from "../src/client/lib/get-file-type";
-
-/** Every extension a viewer opens, by the viewer that opens it. */
-const VIEWED_EXTENSIONS: Record<string, FileType> = {
-  ...DOCUMENT_EXTENSIONS,
-  ...MEDIA_EXTENSIONS,
-  htm: "html",
-  html: "html",
-  markdown: "markdown",
-  md: "markdown",
-  mdown: "markdown",
-  mdx: "markdown",
-  mkd: "markdown",
-};
+  VIEWED_EXTENSIONS,
+  WINDOWS_EXTENSIONS,
+  WINDOWS_PROG_ID,
+} from "../src/shared/open-with";
 
 const viewedByType = new Map<FileType, string[]>();
 for (const [extension, fileType] of Object.entries(VIEWED_EXTENSIONS)) {
@@ -62,17 +49,9 @@ export function documentTypesWearingAppIcon(
   );
 }
 
-/**
- * The extensions Windows offers Instrument for. Text and JSON are named here
- * because Windows has no content type that covers them the way macOS does.
- */
-export const WINDOWS_EXTENSIONS = [
-  ...Object.keys(VIEWED_EXTENSIONS),
-  "json",
-  "txt",
-].toSorted();
+export { WINDOWS_EXTENSIONS };
 
-const PROG_ID = `${APP_NAME}.File`;
+const PROG_ID = WINDOWS_PROG_ID;
 
 /** The installed executable's file name, as NSIS knows it. */
 

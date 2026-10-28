@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { callMcpTool } from "../apps/mcp/client";
 import { macAppNamed } from "./apps";
 import { type MacAppBackend, type RunResult } from "./backend";
 import { noteHtml } from "./records";
@@ -158,6 +159,35 @@ describe("the helper apps' arguments", () => {
       name: "list_events",
     });
     expect(result.structuredContent).toEqual({ events: [event] });
+  });
+});
+
+describe("a stopped call", () => {
+  it("aborts the helper's run when the caller's signal does", async () => {
+    let started: () => void = () => {};
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let stopped: AbortSignal | undefined;
+    const backend: MacAppBackend = {
+      helper: (_args, signal) => {
+        stopped = signal;
+        started();
+        return new Promise(() => {});
+      },
+      script: () => Promise.resolve(ok("")),
+    };
+    const client = await connect("apple-calendar", backend);
+    const controller = new AbortController();
+    const call = callMcpTool(client, {
+      args: {},
+      name: "list_events",
+      signal: controller.signal,
+    });
+    await running;
+    controller.abort();
+    await expect(call).rejects.toThrow();
+    await expect.poll(() => stopped?.aborted).toBe(true);
   });
 });
 

@@ -254,12 +254,13 @@ export const appsCall = defineCapability({
       : args;
     const credential = await requireAppCredential(app.slug, manifest);
     const redact = await redactorFor(app.slug, manifest, credential);
+    const signal = withTimeout(ctx.signal, REQUEST_TIMEOUT_MS);
     const result = await withAppMcpClient({
       credential,
       manifest,
       manifestHash: app.manifestHash,
-      run: (client) => callMcpTool(client, { args: sent, name: tool }),
-      signal: withTimeout(ctx.signal, REQUEST_TIMEOUT_MS),
+      run: (client) => callMcpTool(client, { args: sent, name: tool, signal }),
+      signal,
       slug: app.slug,
     });
     if (result.isErr()) {

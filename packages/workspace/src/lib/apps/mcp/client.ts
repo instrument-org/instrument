@@ -81,9 +81,16 @@ interface McpToolSummary {
  */
 export async function callMcpTool(
   client: Client,
-  { args, name }: { args: Record<string, unknown>; name: string },
+  {
+    args,
+    name,
+    signal,
+  }: { args: Record<string, unknown>; name: string; signal?: AbortSignal },
 ): Promise<McpCallResult> {
-  const result = await client.callTool({ arguments: args, name });
+  // An abort tells the server the call is canceled, so it stops the work too.
+  const result = await client.callTool({ arguments: args, name }, undefined, {
+    signal,
+  });
   const content: ContentBlock[] = Array.isArray(result.content)
     ? (result.content as ContentBlock[])
     : [];

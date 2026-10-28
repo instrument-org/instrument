@@ -26,6 +26,7 @@ import {
   noteTasksInterruptedByQuit,
   startChatWake,
   wakeAskers,
+  wakeChatWithTaskEvent,
 } from "./wake";
 import { hasWakeOnItsWay } from "./wake-queue";
 
@@ -156,6 +157,32 @@ async function saidByTask(
 }
 
 describe("a stopped task", () => {
+  // A stop that wakes nothing never counts as a wake on its way, however
+  // long the stop's processes take to go: the chat is at rest once the
+  // task's turn is over.
+  it.each([
+    ["the person", { by: "person", wakesChat: true }],
+    ["the chat", { by: "agent", wakesChat: false }],
+    ["the app's quit", { by: "app", wakesChat: false }],
+  ] as const)(
+    "stopped by %s has no wake on its way from its end",
+    async (_who, notice) => {
+      const { chatId, taskSession } = await chatWithTask();
+
+      publisher.publish("session.done", {
+        id: chatId,
+        notice,
+        sessionId: taskSession,
+      });
+      expect(hasWakeOnItsWay(chatId)).toBe(false);
+      await vi.waitFor(async () => {
+        expect((await childTask(chatId, taskSession))?.stoppedBy).toBe(
+          notice.by,
+        );
+      });
+    },
+  );
+
   it("writes the chat a note that the user stopped it, starts no turn, and keeps who did on its row", async () => {
     const { chatId, taskSession } = await chatWithTask();
 
@@ -396,6 +423,53 @@ describe("a wake on its way", () => {
     unsubscribe();
     expect(hasWakeOnItsWay(chatId)).toBe(false);
     expect(changes.at(-1)).toBe("agent");
+  });
+});
+
+describe("a task's finish", () => {
+  // The chat is at work from the moment the task's turn ends: what the task
+  // said is read for the note before the debounce even starts.
+  it("is on its way from the task's end until the chat's turn is asked for", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    await saidByTask(chatId, taskSession, "The vault is tidy.");
+
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
+    expect(hasWakeOnItsWay(chatId)).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(wakesOf(chatId)).toHaveLength(1);
+    }, 5000);
+    await vi.waitFor(() => {
+      expect(hasWakeOnItsWay(chatId)).toBe(false);
+    });
+  });
+
+  // Two tasks finishing together arrive as one note, and a "still at it"
+  // composed before a finish never covers the finish.
+  it("takes in what lands during the debounce, keeping a finish over a stale report", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    const other = await chatTaskFor(chatId, { title: "Sort the inbox" });
+    const event = (sessionId: StoreId.Session, status: "done" | "overdue") => ({
+      activeMs: 1000,
+      handle: sessionId === taskSession ? "t1" : "t2",
+      sessionId,
+      status,
+      summary: status,
+      title: "",
+      tokens: 0,
+    });
+
+    wakeChatWithTaskEvent(chatId, event(taskSession, "done"), workspaceRef);
+    wakeChatWithTaskEvent(chatId, event(other, "overdue"), workspaceRef);
+    wakeChatWithTaskEvent(chatId, event(taskSession, "overdue"), workspaceRef);
+    wakeChatWithTaskEvent(chatId, event(other, "done"), workspaceRef);
+
+    await vi.waitFor(() => {
+      expect(wakesOf(chatId)).toHaveLength(2);
+    }, 5000);
+    expect(
+      wakesOf(chatId).map((each) => (each as { summary: string }).summary),
+    ).toEqual(["done", "done"]);
   });
 });
 

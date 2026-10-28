@@ -41,6 +41,7 @@ import {
   type ChatTask,
   childTask,
   listChildTasks,
+  sessionRole,
   touchTask,
 } from "./children";
 import { stepInFlight } from "./in-flight";
@@ -48,12 +49,7 @@ import { cutForNote, lastAssistantText } from "./latest-session";
 import { appClosedLine, endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
-import {
-  countOnItsWay,
-  enqueueWake,
-  saveNote,
-  type WakePart,
-} from "./wake-queue";
+import { enqueueWake, holdWake, saveNote, type WakePart } from "./wake-queue";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 import { type ChatId } from "../../schemas/chat-id";
 
@@ -103,31 +99,6 @@ export function wakeChatWithTaskEvent(
   schedule(chatId, event, workspaceRef);
 }
 
-const pending = new Map<
-  ChatId,
-  {
-    events: Map<string, TaskEvent>;
-    release: () => void;
-    timer: NodeJS.Timeout;
-  }
->();
-
-/**
- * Delivers a wake counted as on its way (`countOnItsWay`) from its start
- * until it has reached its session or given up.
- */
-async function onItsWay<Value>(
-  chatId: ChatId,
-  delivery: () => Promise<Value>,
-): Promise<Value> {
-  const release = countOnItsWay(chatId);
-  try {
-    return await delivery();
-  } finally {
-    release();
-  }
-}
-
 /**
  * Wakes a chat when a task it created finishes a turn.
  *
@@ -138,15 +109,23 @@ async function onItsWay<Value>(
  * current one if it is not, the same as anything the user types.
  */
 export function startChatWake(workspaceRef: WorkspaceActorRef): void {
-  void (async () => {
-    for await (const payload of publisher.subscribe("session.done")) {
-      try {
-        await onSessionDone(payload, workspaceRef);
-      } catch (error) {
+  // One at a time, in the order the turns ended. A task's end holds its
+  // chat's wake as on its way from the moment it is heard, so the chat never
+  // reads as settled while what the task said is being read for the note.
+  let previous = Promise.resolve();
+  publisher.subscribe("session.done", (payload) => {
+    const release =
+      sessionRole(payload.id, payload.sessionId) === "task" &&
+      endMayWake(payload.notice)
+        ? holdWake(payload.id)
+        : undefined;
+    previous = previous
+      .then(() => onSessionDone(payload, workspaceRef))
+      .catch((error: unknown) => {
         getWorkspaceConfig().captureException(error);
-      }
-    }
-  })();
+      })
+      .finally(release);
+  });
   // The clock on every child: a task that has worked past the mark wakes its
   // chat with where it is, so a task lost in the weeds is found by
   // the agent rather than by the person.
@@ -428,21 +407,6 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
 }
 
-async function deliver(
-  chatId: ChatId,
-  events: TaskEvent[],
-  workspaceRef: WorkspaceActorRef,
-) {
-  // A report is the task's latest activity: the list orders by it, and the
-  // chat's line names a task that finished since the user last wrote by it.
-  await Promise.all(events.map((event) => touchTask(chatId, event.sessionId)));
-  await wakeWith(
-    chatId,
-    { data: { events }, type: "data-taskEvent" },
-    workspaceRef,
-  );
-}
-
 async function onSessionDone(
   {
     id,
@@ -562,6 +526,16 @@ async function onSessionDone(
 }
 
 /**
+ * Whether a task's turn ending this way can wake its chat, as
+ * `onSessionDone` decides: never on a stop that wakes nothing (the chat's
+ * own `instrument task stop`, the app's quit), nor on the person's, which
+ * leaves a note instead.
+ */
+function endMayWake(stop: StopNotice | undefined): boolean {
+  return stop === undefined || (stop.wakesChat && stop.by !== "person");
+}
+
+/**
  * Whether anything has been said in a chat's own session. A store that
  * cannot be read counts as said, so a hiccup does not swallow a task's news.
  */
@@ -611,29 +585,46 @@ function schedule(
   event: TaskEvent,
   workspaceRef: WorkspaceActorRef,
 ) {
-  const existing = pending.get(chatId);
-  if (!replacesPendingEvent(existing?.events.get(event.sessionId), event)) {
-    return;
+  void enqueueWake({
+    // A report is the task's latest activity: the list orders by it, and the
+    // chat's line names a task that finished since the user last wrote by it.
+    beforeNote: async (part) => {
+      if (part.type === "data-taskEvent") {
+        await Promise.all(
+          part.data.events.map((each) => touchTask(chatId, each.sessionId)),
+        );
+      }
+    },
+    chatId,
+    debounceMs: WAKE_DEBOUNCE_MS,
+    key: "tasks",
+    merge: mergeTaskEvents,
+    part: { data: { events: [event] }, type: "data-taskEvent" },
+    workspaceRef,
+  });
+}
+
+/**
+ * The events of a task wake waiting out the debounce with one more, by the
+ * task each is about, or none when the newer one is stale beside what waits.
+ */
+function mergeTaskEvents(
+  waiting: WakePart,
+  next: WakePart,
+): WakePart | undefined {
+  if (waiting.type !== "data-taskEvent" || next.type !== "data-taskEvent") {
+    return next;
   }
-  if (existing) {
-    clearTimeout(existing.timer);
+  const events = new Map(
+    waiting.data.events.map((each) => [each.sessionId, each]),
+  );
+  for (const event of next.data.events) {
+    if (!replacesPendingEvent(events.get(event.sessionId), event)) {
+      return undefined;
+    }
+    events.set(event.sessionId, event);
   }
-  const events = existing?.events ?? new Map<string, TaskEvent>();
-  events.set(event.sessionId, event);
-  const release = existing?.release ?? countOnItsWay(chatId);
-  const timer = setTimeout(() => {
-    pending.delete(chatId);
-    // Counted for its delivery before the debounce lets go, so the chat
-    // never reads as having nothing on its way in between.
-    const delivered = onItsWay(chatId, () =>
-      deliver(chatId, [...events.values()], workspaceRef),
-    );
-    release();
-    delivered.catch((error: unknown) => {
-      getWorkspaceConfig().captureException(error);
-    });
-  }, WAKE_DEBOUNCE_MS);
-  pending.set(chatId, { events, release, timer });
+  return { data: { events: [...events.values()] }, type: "data-taskEvent" };
 }
 
 /**

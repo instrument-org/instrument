@@ -154,6 +154,15 @@ export function enqueueWake(wake: Wake): Promise<void> {
 }
 
 /**
+ * Counts toward the chat's wake being on its way until the returned
+ * release is called, which is safe to call twice: what a source holds
+ * while it works out whether there is news to wake with at all.
+ */
+export function holdWake(chatId: ChatId): () => void {
+  return countOnItsWay(chatId);
+}
+
+/**
  * Whether a wake is on its way to start a turn in one of the chat's
  * sessions: waiting out a debounce with news still to tell, or between that
  * and reaching its session, which writes its note first and may then spend

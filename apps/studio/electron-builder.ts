@@ -195,6 +195,16 @@ const config: Configuration = {
     // `stripTypeScriptTypes` and loads the package only on a Node without it.
     // Electron's Node has it, so the package's ~20MB is weight nothing loads.
     "!**/node_modules/typescript/**",
+    // just-bash registers its `python3` and `js-exec` only when `new Bash`
+    // is given `python` or `javascript`, and create-bash-env.ts passes
+    // neither: the agent's python and node are Instrument's own commands.
+    // That leaves its CPython wasm and the QuickJS runtime `run` unloaded,
+    // along with the `just-bash` CLI and the browser build, since main
+    // imports the package root (`dist/bundle/index.js`). ~17MB.
+    "!**/node_modules/just-bash/vendor/**",
+    "!**/node_modules/just-bash/dist/bin/**",
+    "!**/node_modules/just-bash/dist/bundle/browser.js",
+    "!**/node_modules/run/**",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
     // re-included, not be undone by them.

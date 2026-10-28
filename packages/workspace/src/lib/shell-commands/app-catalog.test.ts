@@ -19,7 +19,7 @@ const chatId = ChatIdSchema.parse("app-catalog-task");
 async function catalog(...words: string[]) {
   const result = await createAppCommand({
     chatId,
-    role: "task",
+    role: "chat",
     sessionId: StoreId.newSessionId(),
   }).execute(
     ["catalog", ...words],

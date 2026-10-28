@@ -163,7 +163,7 @@ beforeEach(async () => {
 async function app(...args: string[]) {
   return createAppCommand({
     chatId,
-    role: "task",
+    role: "chat",
     sessionId: StoreId.newSessionId(),
   }).execute(
     args,

@@ -5,6 +5,7 @@ import { asClause } from "./as-clause";
 import { describeLeftRunning } from "./chat/left-running";
 import { WINDOW_COMMAND } from "./shell-commands/window-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
+import { TOOL_NAMES } from "../tools/name";
 import { systemNote } from "./system-note";
 
 /**
@@ -152,7 +153,7 @@ export function taskEventModelNote(
     ? ""
     : ` What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.${anyTabs ? ` A result on a page is in the tab listed; \`${WINDOW_COMMAND.name} show <id>\` it when the user has something to do there.` : ""}`;
   const asks = anyWaiting
-    ? ` Give one waiting on you what you can with \`${TASK_COMMAND.name} send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.`
+    ? ` Give one waiting on you what you can with \`${TASK_COMMAND.name} send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for. An app it needs is yours to set up and connect with \`${TOOL_NAMES.connectApp}\`; once the note says it is connected, \`${TASK_COMMAND.name} send\` the task on rather than doing its work yourself.`
     : "";
   return systemNote`
     ${

@@ -51,9 +51,18 @@ import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
-import { APP_COMMAND } from "../shell-commands/app-command";
+import {
+  APP_COMMAND,
+  APP_SETUP_IS_THE_CHATS,
+  APPS_ARE_THE_CHATS,
+} from "../shell-commands/app-command";
 import { AppField, appsFolder, requireApp, withTimeout } from "./apps";
-import { type CapabilityContext, defineCapability } from "./define";
+import {
+  CapabilityFailure,
+  type CapabilityContext,
+  defineCapability,
+  type Role,
+} from "./define";
 
 /**
  * The words that set an app up: the directory, writing its folder, testing
@@ -73,7 +82,7 @@ const CATALOG_DETAIL_LIMIT = 10;
 const Said = z.string();
 
 /** The catalog, as lines: what each service is and how it is reached. */
-function describeCatalogEntry(entry: AppCatalogEntry): string {
+function describeCatalogEntry(entry: AppCatalogEntry, role: Role): string {
   const surfaces = entry.interfaces.map((surface) => {
     // Said in words, so the endpoint is not mistaken for one to set up.
     const auth = catalogInterfaceLacksClient(surface)
@@ -126,8 +135,9 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     ...surfaces,
     `  auth: ${methods}`,
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
-    `  set up: ${howTo}`,
-    ...(entry.addAccount
+    // A task sets nothing up, so it is given no line it cannot run.
+    `  set up: ${role === "chat" ? howTo : "by the chat, named in your needs fence"}`,
+    ...(entry.addAccount && role === "chat"
       ? [
           `  another account: on the web, \`${APP_COMMAND.name} new ${entry.slug}-2 --name '${entry.name}' --web ${entry.home ?? `https://${entry.domain}`}\` beside the one already here; its card opens ${entry.name}'s page for adding an account.`,
         ]
@@ -141,12 +151,20 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
   ].join("\n");
 }
 
+/** Writing or changing an app is the chat's: every chat uses it. */
+const CHATS = { roleRefusal: APP_SETUP_IS_THE_CHATS, roles: ["chat"] } as const;
+
 /** What a setup word says, with the newline the command line adds back. */
 function ok(text: string) {
   return text.trimEnd();
 }
 
-async function runCatalog(words: string, signal: AbortSignal | undefined) {
+async function runCatalog(
+  words: string,
+  { role, signal }: Pick<CapabilityContext, "role" | "signal">,
+) {
+  const describe = (entry: AppCatalogEntry) =>
+    describeCatalogEntry(entry, role);
   const query = words.trim();
   const entries = searchAppCatalog(query);
   if (entries.length === 0) {
@@ -158,7 +176,12 @@ async function runCatalog(words: string, signal: AbortSignal | undefined) {
     });
     if (meant.length > 0) {
       return ok(
-        `Nothing in the directory is called "${query}". By what it is for, these may be what is meant, most likely first; ask the user which before setting one up unless one plainly fits.\n\n${meant.map(describeCatalogEntry).join("\n\n")}\n`,
+        `Nothing in the directory is called "${query}". By what it is for, these may be what is meant, most likely first; ask the user which before setting one up unless one plainly fits.\n\n${meant.map(describe).join("\n\n")}\n`,
+      );
+    }
+    if (role === "task") {
+      return ok(
+        `Nothing in the directory matches "${query}". ${APPS_ARE_THE_CHATS}\n`,
       );
     }
     return ok(
@@ -182,7 +205,7 @@ async function runCatalog(words: string, signal: AbortSignal | undefined) {
   }
   const detailed = entries
     .slice(0, CATALOG_DETAIL_LIMIT)
-    .map(describeCatalogEntry)
+    .map(describe)
     .join("\n\n");
   const rest = entries.slice(CATALOG_DETAIL_LIMIT);
   const more =
@@ -200,10 +223,13 @@ async function runDisconnect(slug: string) {
   );
 }
 
-async function runGuide(slug: string, text: string | undefined) {
+async function runGuide(slug: string, text: string | undefined, role: Role) {
   const app = await requireApp(slug, { connected: false });
   const written = text?.trim();
   if (written) {
+    if (role !== "chat") {
+      throw new CapabilityFailure(APP_SETUP_IS_THE_CHATS, "refused");
+    }
     // Every later chat reads the guide, so a key written into it would be
     // in front of every one of them; refused here rather than found later by
     // `test`.
@@ -269,17 +295,23 @@ async function runIcon(
   );
 }
 
-async function runAccount({
-  account,
-  app: slug,
-  clear,
-}: {
-  account: string;
-  app: string;
-  clear: boolean;
-}) {
+async function runAccount(
+  {
+    account,
+    app: slug,
+    clear,
+  }: {
+    account: string;
+    app: string;
+    clear: boolean;
+  },
+  role: Role,
+) {
   const app = await requireApp(slug, { connected: false });
   const named = account.trim();
+  if ((clear || named !== "") && role !== "chat") {
+    throw new CapabilityFailure(APP_SETUP_IS_THE_CHATS, "refused");
+  }
   if (clear) {
     await nameAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
     await appChanged(app.slug);
@@ -699,7 +731,7 @@ export const appsCatalog = defineCapability({
   }),
   name: "apps.catalog",
   output: Said,
-  run: ({ query }, ctx) => runCatalog(query, ctx.signal),
+  run: ({ query }, ctx) => runCatalog(query, ctx),
   summary:
     "The directory: services it knows, each with its endpoints (an MCP server to prefer, an API base) and how each is reached (a sign-in, a key).",
   surfaces: {
@@ -810,6 +842,7 @@ file yourself with your file tools.`,
     },
   },
   text: (said) => said,
+  where: CHATS,
 });
 
 export const appsTest = defineCapability({
@@ -831,6 +864,7 @@ export const appsTest = defineCapability({
     },
   },
   text: ({ report }) => report,
+  where: CHATS,
 });
 
 export const appsGuide = defineCapability({
@@ -840,7 +874,7 @@ export const appsGuide = defineCapability({
   }),
   name: "apps.guide",
   output: Said,
-  run: ({ app, text }) => runGuide(app, text),
+  run: ({ app, text }, ctx) => runGuide(app, text, ctx.role),
   summary: `The app's guide, the body of its ${APP_FILE_NAME}.`,
   surfaces: {
     cli: {
@@ -871,6 +905,7 @@ export const appsIcon = defineCapability({
     },
   },
   text: (said) => said,
+  where: CHATS,
 });
 
 export const appsAccount = defineCapability({
@@ -883,7 +918,7 @@ export const appsAccount = defineCapability({
   }),
   name: "apps.account",
   output: Said,
-  run: (input) => runAccount(input),
+  run: (input, ctx) => runAccount(input, ctx.role),
   summary:
     'Name the account the app is signed in as, the way the user would know it ("jeremy@example.com", "Acme workspace"), so two apps for one service can be told apart; it shows wherever the app does.',
   surfaces: {
@@ -907,4 +942,5 @@ export const appsDisconnect = defineCapability({
     cli: { help: "", positional: ["app"], words: ["app", "disconnect"] },
   },
   text: (said) => said,
+  where: CHATS,
 });

@@ -16,6 +16,7 @@ import {
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
+import { PlaceIcon } from "./place-icons";
 import { ChatRow } from "./chat-row";
 import { byLastUserMessage, byActivity, type Chat, type Topic } from "./chats";
 import { DraftRow } from "./draft-row";
@@ -330,13 +331,22 @@ export function ChatList({
     };
     attempt();
   };
+  const widen = (
+    <button
+      className="text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
+      onClick={onWiden}
+      type="button"
+    >
+      {outside} more outside this filter
+    </button>
+  );
   return (
-    // Fading into the search over it once there is anything scrolled under
-    // it, and at its foot while there is more below. The top pad is the
-    // list's own, so the fade starts right at the search's edge.
+    // Fading into the head over it once there is anything scrolled under
+    // it, and at its foot while there is more below. No pad at the top: the
+    // first row's hairline meets the head, tinted as it is under a topic.
     <div
       className={cn(
-        "min-h-0 flex-1 overflow-y-auto pt-1 pb-4",
+        "min-h-0 flex-1 overflow-y-auto pb-4",
         isScrollable && "scroll-fade-y",
       )}
       data-chat-list
@@ -411,9 +421,23 @@ export function ChatList({
             })}
           </div>
         ) : (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {emptyLine}
-          </p>
+          // In the middle of the list's room, a touch above center where
+          // the eye expects it, under the plate No chat open draws its mark
+          // on, smaller here.
+          <div className="grid h-full place-items-center px-8 pb-16">
+            <div className="flex flex-col items-center text-center text-[13px]">
+              <span
+                aria-hidden
+                className="mb-3 grid size-11 place-items-center rounded-xl text-muted-foreground/30 inset-ring inset-ring-current/60"
+              >
+                <PlaceIcon className="size-6" place="chat" weight="thin" />
+              </span>
+              <p className="max-w-56 leading-5 text-balance text-muted-foreground/60">
+                {emptyLine}
+              </p>
+              {outside > 0 && <p className="mt-2">{widen}</p>}
+            </div>
+          </div>
         )
       ) : (
         // Edge to edge, as the open row's bar and the hover tint are: each
@@ -432,19 +456,11 @@ export function ChatList({
         </div>
       )}
       {/* The search reads inside the place the column stands in, so what it
-        finds elsewhere is said at the list's end, whether or not anything
-        was found here, and pressing it widens the same search to every
-        chat. */}
-      {outside > 0 && !isLoading && (
-        <p className="px-4 py-2 text-center text-sm">
-          <button
-            className="text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
-            onClick={onWiden}
-            type="button"
-          >
-            {outside} more outside this filter
-          </button>
-        </p>
+        finds elsewhere is said at the list's end, or under the empty line
+        when nothing was found here, and pressing it widens the same search
+        to every chat. */}
+      {outside > 0 && !isLoading && rows.length > 0 && (
+        <p className="px-4 py-2 text-center text-sm">{widen}</p>
       )}
     </div>
   );
@@ -484,7 +500,7 @@ function focusComposerWhenDrawn() {
  */
 function RowSkeleton({ peek, title }: { peek: string; title: string }) {
   return (
-    <div className="border-t border-border px-3 py-2.5 first:border-t-0">
+    <div className="border-t border-border/70 px-4 py-2.5">
       <div className="flex h-5 items-center">
         <Skeleton className="h-3" style={{ width: title }} />
       </div>

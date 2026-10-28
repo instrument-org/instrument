@@ -10,8 +10,7 @@ import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
-import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
+import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import {
   type QueryClient,
@@ -136,7 +135,9 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         };
     const mark: RowAction = chat.unread
       ? {
-          icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
+          // The unread view's mark, lit while the chat is unread, the way
+          // the star is lit while it is starred.
+          icon: <NotificationIcon className="size-3.5" weight="fill" />,
           id: "read",
           label: "Mark as read",
           run: () => {
@@ -144,7 +145,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
           },
         }
       : {
-          icon: <EnvelopeSimpleIcon className="size-3.5" />,
+          icon: <NotificationIcon className="size-3.5" />,
           id: "unread",
           label: "Mark as unread",
           run: () => {
@@ -153,7 +154,10 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         };
     const starred: RowAction = chat.starred
       ? {
-          icon: <StarIcon className="size-3.5" weight="fill" />,
+          // In the star's amber, as the starred row's own star is.
+          icon: (
+            <StarIcon className="size-3.5 text-warning-500" weight="fill" />
+          ),
           id: "unstar",
           label: "Unstar",
           run: () => {

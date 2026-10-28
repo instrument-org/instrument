@@ -275,7 +275,7 @@ function peekOf(row: HTMLElement) {
 
 /** The pill of the topic the chat is filed under: a label, not a control. */
 function pillOf(row: HTMLElement) {
-  return row.querySelector<HTMLElement>("span.rounded-full");
+  return row.querySelector<HTMLElement>('[data-slot="topic-pill"]');
 }
 
 async function renderRow(
@@ -372,6 +372,12 @@ async function renderRows(
   const rows = [
     ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
   ];
+  // The pointer is shared across test files and may rest wherever another
+  // left it, over a row just drawn, where the pills step aside for the
+  // row's controls. Each test starts with no row under it.
+  for (const row of rows) {
+    await userEvent.unhover(row);
+  }
   return { ...rendered, onOpen, onSetTopic, openScreen, rows, window };
 }
 
@@ -536,7 +542,7 @@ describe("ChatRow", () => {
 
   it("wears its topic's pill, by name, at the title's end", async () => {
     const { row } = await renderRow(chat({ topic: "money" }));
-    const pills = [...row.querySelectorAll("span.rounded-full")];
+    const pills = [...row.querySelectorAll('[data-slot="topic-pill"]')];
     expect(pills.map((pill) => pill.textContent)).toEqual(["💸Money"]);
   });
 
@@ -695,7 +701,7 @@ describe("ChatRow", () => {
     await userEvent.unhover(row);
     // Out of the flow at rest: it takes no room until the pointer arrives.
     expect(control.getClientRects().length).toBe(0);
-    expect(getComputedStyle(pill).visibility).toBe("visible");
+    expect(pill.getClientRects().length).toBeGreaterThan(0);
     const chipBefore = marksOf(row)[0]?.getBoundingClientRect();
     const titleBefore = titleOf(row).getBoundingClientRect();
     await userEvent.hover(titleOf(row));
@@ -703,7 +709,7 @@ describe("ChatRow", () => {
       expect(control.getClientRects().length).toBeGreaterThan(0);
     });
     // In the row's top corner, where the pills were, which step aside.
-    expect(getComputedStyle(pill).visibility).toBe("hidden");
+    expect(pill.getClientRects().length).toBe(0);
     const box = control.getBoundingClientRect();
     const edge = row.getBoundingClientRect();
     expect(box.top).toBeLessThan(titleBefore.bottom);
@@ -817,11 +823,16 @@ describe("ChatRow", () => {
     if (!line) {
       throw new Error("no line of holds");
     }
-    // One line whatever it holds: every mark at one height, and the row no
-    // taller than one holding what fits.
+    // One line whatever it holds: every mark centered on one height (a bare
+    // mark is shorter than a chip), and the row no taller than one holding
+    // what fits.
     expect(
-      new Set(marks.map((mark) => Math.round(mark.getBoundingClientRect().top)))
-        .size,
+      new Set(
+        marks.map((mark) => {
+          const { height, top } = mark.getBoundingClientRect();
+          return Math.round(top + height / 2);
+        }),
+      ).size,
     ).toBe(1);
     expect(many.getBoundingClientRect().height).toBe(
       few.getBoundingClientRect().height,
@@ -1054,7 +1065,7 @@ describe("the row's actions", () => {
     developerMode.enabled = false;
   });
 
-  it("stand over the row's right end while the pointer is on it, out of the flow at rest", async () => {
+  it("end the title's line while the pointer is on it, out of the flow at rest", async () => {
     const { row } = await renderRow(chat());
     const { bar, labels } = barOf(row);
     expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
@@ -1237,5 +1248,23 @@ describe("the row's actions", () => {
     expect(plain.querySelector('[aria-label="Starred"]')).toBeNull();
     // Taking the star back ends the corner's bar, over where the star stood.
     expect(barOf(starred).labels.at(-1)).toBe("Unstar");
+  });
+
+  it("puts the bar's star exactly where the starred row's star stands at rest", async () => {
+    const { row } = await renderRow(chat({ starred: true, topic: "house" }));
+    const mark = row.querySelector('[aria-label="Starred"]');
+    if (!mark) {
+      throw new Error("no star");
+    }
+    await userEvent.unhover(row);
+    const resting = mark.getBoundingClientRect();
+    await userEvent.hover(titleOf(row));
+    const unstar = actionOf(row, "Unstar");
+    await vi.waitFor(() => {
+      expect(unstar.getClientRects().length).toBeGreaterThan(0);
+    });
+    const raised = unstar.querySelector("svg")?.getBoundingClientRect();
+    expect(raised?.toJSON()).toEqual(resting.toJSON());
+    await userEvent.unhover(titleOf(row));
   });
 });

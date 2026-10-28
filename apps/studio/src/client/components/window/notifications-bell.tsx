@@ -87,7 +87,8 @@ export function NotificationsBell() {
               ? "Notifications, something new"
               : "Notifications"
           }
-          className="relative size-7 [-webkit-app-region:no-drag]"
+          // The new-tab plus's grey, across the bar.
+          className="relative size-7 text-muted-foreground/70 [-webkit-app-region:no-drag]"
           size="icon-sm"
           variant="ghost-toolbar"
         >

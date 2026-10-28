@@ -3,74 +3,94 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { cn } from "@/client/lib/utils";
+import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
+import { type IconProps } from "@phosphor-icons/react";
+import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import { type ReactNode } from "react";
 
 import { type RowAction, stopHere } from "./row-shell";
 
+/** The app's icon defaults, at the regular weight. */
+const ROW_ICONS: IconProps = { ...ICON_CONTEXT_VALUE, weight: "regular" };
+
 /**
- * A row's own controls, in its top corner while the pointer is on the row,
- * where the pills step aside for them, on a tile so what is under them does
- * not show through: the control that files it, then its actions. Out of the flow at rest, so
- * nothing on the row moves when they arrive, and in the flow while one of
- * them holds a menu open, so the menu keeps its anchor. Each is its mark
- * alone, named in its tooltip, and a click on one stops short of the row
- * under it; a right click is the row's, since the bar is over the row's
- * corner whenever the pointer is. The star at the row's foot is not among
- * them: it stays in view.
+ * The end of a row's first line, which wears what the row says at rest (its
+ * pills, its star, its time) and swaps it for the row's own controls while
+ * the pointer is on the row, one of them has focus, or one holds a menu
+ * open: the control that files it, then its actions. In the line's flow, so
+ * the title truncates short of them rather than running under them, and
+ * bare on the row's tint, with no tile. Each is its mark alone, named in its
+ * tooltip, and a click on one stops short of the row under it; a right click
+ * is the row's. Each control is a 24px square around a 16px mark, the box a
+ * starred row's star stands in at rest, so the star the bar ends on lands
+ * where that star was. The marks are drawn in the regular weight rather than
+ * the app's bold, which reads heavy as a row of five.
  */
+
 export function RowActionBar({
   actions,
   isHeld = false,
   leading,
+  resting,
 }: {
   actions: RowAction[];
-  /** Kept in the flow whatever the pointer does: while a menu of one of the controls is on its way out. */
+  /** Kept up whatever the pointer does: while a menu of one of the controls is on its way out. */
   isHeld?: boolean;
   /** The control in front of the actions: the one that files the chat. */
   leading?: ReactNode;
+  /** What the line's end wears while the controls are down. */
+  resting?: ReactNode;
 }) {
   const shown = actions.filter((action) => !action.menuOnly);
   if (shown.length === 0 && !leading) {
-    return null;
+    return resting;
   }
   return (
     <span
-      className={cn(
-        // The shadow's hairline is the tile's one edge.
-        "hidden shrink-0 items-center gap-0.5 rounded-md bg-background p-0.5 shadow-xs group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex",
-        // In the corner outright, over the pills that step aside for it,
-        // 10px from the row's top and from its end, the row's own top
-        // padding.
-        "absolute top-2.5 right-2.5",
-        isHeld && "flex",
-      )}
-      data-slot="row-actions"
-      onAuxClick={stopHere}
-      onClick={stopHere}
-      onKeyDown={stopHere}
+      className="group/corner ml-auto flex shrink-0 items-center"
+      data-held={isHeld || undefined}
     >
-      {leading}
-      {shown.map((action) => (
-        <Tooltip key={action.id}>
-          <TooltipTrigger asChild>
-            <button
-              aria-label={action.label}
-              className="grid size-5 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-              onClick={(event) => {
-                // The press leaves the button, or the bar would stay for
-                // the focus it left there after the pointer had gone.
-                event.currentTarget.blur();
-                action.run();
-              }}
-              type="button"
-            >
-              {action.icon}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{action.label}</TooltipContent>
-        </Tooltip>
-      ))}
+      {resting && (
+        <span className="flex items-center gap-1 group-focus-within/corner:hidden group-hover/row:hidden group-has-data-[state=open]/corner:hidden group-data-held/corner:hidden">
+          {resting}
+        </span>
+      )}
+      <span
+        // 24px controls on a 20px line, which they overhang rather than grow.
+        className="-my-0.5 hidden items-center gap-0.5 group-focus-within/corner:flex group-hover/row:flex group-has-data-[state=open]/corner:flex group-data-held/corner:flex"
+        data-slot="row-actions"
+        onAuxClick={stopHere}
+        onClick={stopHere}
+        onKeyDown={stopHere}
+      >
+        <IconContext.Provider value={ROW_ICONS}>
+          {leading}
+          {shown.map((action) => (
+            <Tooltip key={action.id}>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={action.label}
+                  className={ROW_CONTROL}
+                  onClick={(event) => {
+                    // The press leaves the button, or the bar would stay for
+                    // the focus it left there after the pointer had gone.
+                    event.currentTarget.blur();
+                    action.run();
+                  }}
+                  type="button"
+                >
+                  {action.icon}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{action.label}</TooltipContent>
+            </Tooltip>
+          ))}
+        </IconContext.Provider>
+      </span>
     </span>
   );
 }
+
+/** One of the row's controls: a 24px square around its 16px mark, whatever size the action drew it. */
+export const ROW_CONTROL =
+  "grid size-6 shrink-0 place-items-center rounded-md text-foreground/50 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground [&_svg]:size-4";

@@ -161,7 +161,7 @@ export function HoldMarks({
       {marked.map((item) =>
         item.named ? (
           <button
-            className="inline-flex h-5 max-w-52 shrink-0 items-center gap-1 rounded-md bg-foreground/4 pr-1.5 pl-1 text-[11px] text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+            className="inline-flex h-5 max-w-36 shrink-0 items-center gap-1 rounded-md bg-foreground/4 pr-1.5 pl-1 text-[11px] text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
             key={item.key}
             type="button"
             {...openOf(item)}
@@ -179,7 +179,8 @@ export function HoldMarks({
           <Tooltip key={item.key}>
             <TooltipTrigger asChild>
               <button
-                className="grid size-5 shrink-0 cursor-default place-items-center"
+                // The mark's own size, so marks stand as far apart as chips.
+                className="grid size-4 shrink-0 cursor-default place-items-center"
                 data-inert=""
                 tabIndex={-1}
                 type="button"

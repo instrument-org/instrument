@@ -1,6 +1,7 @@
 import { type Draft } from "@/shared/drafts";
 import { openTopicDetails } from "@/client/atoms/topic-details-modal";
 import { chatFiltersAtom } from "@/client/atoms/window";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -18,7 +19,6 @@ import {
   draftTitle,
   hasWords,
   matchesFilters,
-  NO_FILTERS,
   outsideFilters,
   type Topic,
   widenToSearch,
@@ -27,6 +27,8 @@ import { FilterHead } from "./filter-head";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { TopicDialog } from "./topic-dialog";
 import { TopicBanner } from "./topic-banner";
+import { topicColor } from "./topic-colors";
+import { topicTint } from "./topic-tint";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
@@ -164,33 +166,53 @@ export function ChatPane({
   const deletingChat = chats.find((chat) => chat.id === deletingId);
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col" data-find-surface>
-      <FilterHead
-        chats={chats}
-        drafts={drafts.length}
-        filters={filters}
-        onFiltersChange={setFilters}
-        onNewTopic={() => {
-          setNewTopic({});
-        }}
-        onTopicDetails={(topic) => {
-          openTopicDetails(topic.id);
-        }}
-        topics={topics}
-      />
-      {chosenTopic && (
-        <TopicBanner
-          onDetails={(topic) => {
+    // Its own stacking context, so the topic's wash can sit under the rows
+    // without going under the card. The rows stop a pixel short of the
+    // column's edge, where its line is drawn over them, so two see-through
+    // hairlines never cross; the wash, placed against the padding box,
+    // still reaches under the line.
+    <div
+      className="relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px"
+      data-topic={chosenTopic ? "" : undefined}
+      data-find-surface
+    >
+      {/* The head, and while the list is one topic, the topic's own line
+          under it, with the topic's tint washing down from the card's edge
+          and fading out past the head, behind the first rows. */}
+      <div
+        className={cn("shrink-0", chosenTopic && "topic-tint")}
+        style={chosenTopic ? topicTint(topicColor(chosenTopic)) : undefined}
+      >
+        {/* Sized against the whole column, so a taller window washes
+            further down it. */}
+        {chosenTopic && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--topic-tint-surface)/50 to-transparent dark:from-(--topic-tint-surface)/25"
+          />
+        )}
+        <FilterHead
+          chats={chats}
+          drafts={drafts.length}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onNewTopic={() => {
+            setNewTopic({});
+          }}
+          onTopicDetails={(topic) => {
             openTopicDetails(topic.id);
           }}
-          // Back to the chats, as picking Chats in the head is: the search
-          // is its own thing and stays as it was.
-          onLeave={() => {
-            setFilters({ ...NO_FILTERS, search: filters.search });
-          }}
-          topic={chosenTopic}
+          topics={topics}
         />
-      )}
+        {chosenTopic && (
+          <TopicBanner
+            onDetails={(topic) => {
+              openTopicDetails(topic.id);
+            }}
+            topic={chosenTopic}
+          />
+        )}
+      </div>
       {isAISearch && (
         <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
           AI results
@@ -204,7 +226,7 @@ export function ChatPane({
         emptyLine={
           aiSearch.isLooking
             ? "Looking through your chats…"
-            : emptyLineFor(filters, chats.length)
+            : emptyLineFor(filters, chats.length, chosenTopic)
         }
         // The drafts are kept on this computer, so they are never on
         // their way.
@@ -296,21 +318,29 @@ export function ChatPane({
 }
 
 /** What the list says when it has nothing to show, by where the column stands. */
-function emptyLineFor(filters: ChatFilters, total: number): string {
-  if (filters.search.trim() !== "") {
-    return "Nothing matches.";
+function emptyLineFor(
+  filters: ChatFilters,
+  total: number,
+  topic: Topic | undefined,
+): string {
+  const search = filters.search.trim();
+  if (search !== "") {
+    return `No chats match “${search}”`;
   }
   if (filters.place === "drafts") {
-    return "No drafts yet.";
+    return "You don't have any drafts right now";
   }
   if (filters.place === "unread") {
-    return "You've read everything.";
+    return "You're all caught up";
   }
   if (filters.place === "starred") {
-    return "Nothing is starred.";
+    return "Chats you star will show up here";
   }
   if (filters.place === "archived") {
-    return "Nothing is archived.";
+    return "Chats you archive will show up here";
   }
-  return total === 0 ? "Press New to start a chat." : "Nothing matches.";
+  if (topic) {
+    return `Chats you file under ${topic.name} will show up here`;
+  }
+  return total === 0 ? "Press New to start a chat" : "There's nothing here yet";
 }

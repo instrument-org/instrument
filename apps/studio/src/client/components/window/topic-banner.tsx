@@ -1,64 +1,38 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
-import { XIcon } from "@phosphor-icons/react/X";
 
 import { type Topic } from "./chats";
-import { topicColor } from "./topic-colors";
-import { TopicMark } from "./topic-mark";
-import { topicTint } from "./topic-tint";
 
 /**
- * What sits above the rows while the list is one topic: a card in the
- * topic's tint with its mark and name, Edit for its details, and the start
- * of the instructions every chat under it follows, so what Instrument knows
- * about the topic is in view without opening it. A topic with no
- * instructions is the one line, with Add instructions in Edit's place. The
- * X ahead of the mark is the way out of the topic, back to the chats.
+ * The second line of the list's head while the list is one topic, in the
+ * tint the head wears then: the start of the instructions every chat under
+ * it follows, so what Instrument knows about the topic is in view without
+ * opening it, with Edit topic for its details quietly under them. The topic's
+ * mark and name are the picker's, just above, so they are not said again,
+ * and the picker is the way back to the chats. A topic with no
+ * instructions shows Edit topic alone.
  */
 export function TopicBanner({
   onDetails,
-  onLeave,
   topic,
 }: {
   onDetails: (topic: Topic) => void;
-  /** Takes the list out of the topic. */
-  onLeave: () => void;
   topic: Topic;
 }) {
   const instructions = stripMarkdown(topic.instructions ?? "").trim();
   return (
-    <div
-      className="mx-2 mt-1 mb-1 shrink-0 rounded-lg bg-(--topic-tint-surface) px-3 py-2 text-xs leading-[1.45] topic-tint"
-      style={topicTint(topicColor(topic))}
-    >
-      <div className="flex items-center gap-1.5 font-medium">
-        <button
-          aria-label="Back to Chats"
-          className="-ml-1 grid size-4 shrink-0 place-items-center rounded-sm text-(--topic-tint-ink) hover:bg-(--topic-tint-edge)"
-          onClick={onLeave}
-          title="Back to Chats"
-          type="button"
-        >
-          <XIcon className="size-3" weight="bold" />
-        </button>
-        {topic.emoji ? (
-          <span className="leading-none">{topic.emoji}</span>
-        ) : (
-          <TopicMark className="size-4" topic={topic} />
-        )}
-        <span className="min-w-0 flex-1 truncate">{topic.name}</span>
-        <button
-          className="-mr-1 shrink-0 rounded-sm px-1 font-normal text-(--topic-tint-ink) hover:bg-(--topic-tint-edge)"
-          onClick={() => {
-            onDetails(topic);
-          }}
-          type="button"
-        >
-          {instructions ? "Edit" : "Add instructions"}
-        </button>
-      </div>
+    <div className="flex shrink-0 flex-col items-start gap-1 px-4 pb-3 text-sm leading-5">
       {instructions && (
-        <p className="mt-0.5 line-clamp-2 text-foreground/75">{instructions}</p>
+        <p className="line-clamp-2 text-foreground/75">{instructions}</p>
       )}
+      <button
+        className="text-[13px] text-foreground/45 hover:text-foreground/75"
+        onClick={() => {
+          onDetails(topic);
+        }}
+        type="button"
+      >
+        Edit topic
+      </button>
     </div>
   );
 }

@@ -5,7 +5,10 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ComponentType } from "react";
 
-type PlaceIconProps = { className?: string; weight?: "fill" | "regular" };
+type PlaceIconProps = {
+  className?: string;
+  weight?: "fill" | "regular" | "thin";
+};
 
 // Files is the same folder on every system: the Finder's face belongs to the
 // Finder itself, which `RevealInFolderIcon` draws with its real icon.

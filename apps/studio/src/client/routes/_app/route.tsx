@@ -114,7 +114,10 @@ function ChatColumn({
       isOpen={isOpen}
       label="Resize the inbox"
       onCollapse={onCollapse}
-      panelClassName="bg-background"
+      // Its edge as faint as the rows' hairlines, drawn over what the
+      // column holds rather than as its border, so a topic's wash shows
+      // through it the way it shows through the rows'.
+      panelClassName="border-r-0 bg-background after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-px after:bg-border/70"
       widthAtom={inboxWidthAtom}
     >
       {children}
@@ -390,7 +393,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     // A page's bottom corners follow what they meet: square
                     // against the conversation at the left, round where the
                     // pane reaches the card's own corner.
-                    "[--guest-bottom-radius:0_var(--radius-2xl)]",
+                    "[--guest-bottom-radius:0_10px]",
                   )}
                 >
                   {up && (

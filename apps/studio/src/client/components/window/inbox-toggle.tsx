@@ -16,7 +16,8 @@ export function InboxToggle({ isCollapsible }: { isCollapsible: boolean }) {
     <ToolbarTooltip chord="toggleInbox" label={label}>
       <Button
         aria-label={label}
-        className="size-7 shrink-0 text-foreground/80"
+        // The grey of the glyph across the head that pops the chat out.
+        className="size-7 shrink-0 text-foreground/50"
         disabled={isOpen && !isCollapsible}
         onClick={() => {
           setOpen(!isOpen);
@@ -24,7 +25,7 @@ export function InboxToggle({ isCollapsible }: { isCollapsible: boolean }) {
         size="icon"
         variant="ghost-toolbar"
       >
-        <SidebarSimpleIcon />
+        <SidebarSimpleIcon className="size-4" />
       </Button>
     </ToolbarTooltip>
   );

@@ -3,9 +3,11 @@
  *
  * `instrument app call` runs one tool per command, so a question across a tracker (the
  * open bugs, then each one's comments) is a turn per call, or a bash loop over
- * `instrument app call`, or `--out` files read back with jq. A `node` script can call
- * the same tools as values through `tools.<slug>.<tool>()` and do the whole
- * fan-out in one command. These cases score the answer, and record which of
+ * `instrument app call`, or `--out` files read back with jq. A script can call
+ * the same tools as values through `instrument` (`instrument.apps.<slug>.<tool>()`
+ * in Node, `instrument.app("<slug>").<tool>()` in Python) and do the whole
+ * fan-out in one command. Run with `--bash-only` for the arm with no script
+ * surface. These cases score the answer, and record which of
  * those the model reached for: the fan-out and the cross-tool join should get
  * cheaper with a script, and the single lookup should stay one plain call
  * rather than grow a script it does not need.
@@ -83,7 +85,35 @@ const linksTheFiledIssue: Assertion = {
   text: "links the issue it filed by the address Beacon returned",
 };
 
-const TOOLS_CALL = /\btools(?:\.[a-z]|\[["'])/;
+/**
+ * A script calling `instrument`: Node's `instrument.apps.<slug>`,
+ * `instrument.apps["<slug>"]` or `instrument.app("<slug>")`, Python's
+ * `instrument.app("<slug>")` or `instrument.apps.request(...)`, or either's
+ * `instrument.call(...)`. Matched against JSON-quoted tool input.
+ */
+const SCRIPT_CALL = /\binstrument\.(?:apps?\b[.[(]|call\()/;
+
+/** Which runtime a tool input that calls `instrument` runs in. */
+function scriptRuntime(input: string): "node" | "python" {
+  return /\bimport instrument\b|(?:^|[\s;&|("])python3?\b/.test(input)
+    ? "python"
+    : "node";
+}
+
+/** How many tool inputs call `instrument` from a script, and in which runtime. */
+export function scriptedCalls(sessions: Session.WithMessagesAndParts[]): {
+  node: number;
+  python: number;
+} {
+  const scripted = toolInputs(sessions).filter((input) =>
+    SCRIPT_CALL.test(input),
+  );
+  return {
+    node: scripted.filter((input) => scriptRuntime(input) === "node").length,
+    python: scripted.filter((input) => scriptRuntime(input) === "python")
+      .length,
+  };
+}
 
 /**
  * Always passes: the evidence line is the record of how the calls were made,
@@ -92,16 +122,14 @@ const TOOLS_CALL = /\btools(?:\.[a-z]|\[["'])/;
 const mechanism: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
-    const scripted = toolInputs(sessions).filter((input) =>
-      TOOLS_CALL.test(input),
-    ).length;
+    const scripted = scriptedCalls(sessions);
     const appCalls = commands.filter((command) => /\bapp call\b/.test(command));
     const outs = appCalls.filter((command) => /--out\b/.test(command)).length;
     const loops = appCalls.filter((command) =>
       /\b(?:for|while)\b/.test(command),
     ).length;
     return {
-      evidence: `bash ${commands.length}, app call commands ${appCalls.length} (${outs} with --out, ${loops} in a loop), tools.* in a script ${scripted}`,
+      evidence: `bash ${commands.length}, app call commands ${appCalls.length} (${outs} with --out, ${loops} in a loop), scripts calling instrument ${scripted.node + scripted.python} (node ${scripted.node}, python ${scripted.python})`,
       passed: true,
       text: "records the mechanism",
     };
@@ -112,7 +140,7 @@ const mechanism: Assertion = {
 const noScript: Assertion = {
   check: ({ sessions }) => {
     const scripted = toolInputs(sessions).filter(
-      (input) => TOOLS_CALL.test(input) || /\bnode\b/.test(input),
+      (input) => SCRIPT_CALL.test(input) || /\b(?:node|python3?)\b/.test(input),
     );
     return {
       evidence:

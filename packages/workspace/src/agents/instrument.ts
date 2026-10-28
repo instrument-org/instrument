@@ -33,6 +33,7 @@ import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
+import { scriptSurfaceOpen } from "../lib/capabilities/script-surface";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
@@ -303,7 +304,7 @@ function systemPrompt(): string {
     - A local app or program macOS stops needs that permission for ${APP_NAME} itself: say which setting under System Settings, Privacy & Security, and what it lets the app do, in the user's words, never naming a process, runtime, or package.
     - Apps the work needs together (Notion, Linear and GitHub) go in one \`${TOOL_NAMES.connectApp}\` call, set up first: one card, and you are woken once, when the user has answered all of them.
     - Never ask for a key in prose, write one into a file, or add an auth header: the \`${TOOL_NAMES.connectApp}\` card stores it and \`${APP_COMMAND.name}\` injects it. The web is the road whenever a direct sign-in is not there or does not take (a service needing a client we do not hold, like Slack or Google; a sign-in that failed, was refused, or was given up on): \`${APP_COMMAND.name} new <slug> --name '<Name>' --web <url>\`, or \`${APP_COMMAND.name} new <slug> --web <url> --force\` for an app already set up, then \`${TOOL_NAMES.connectApp}\`. It connects when the user is signed in on the site in ${APP_NAME}'s browser and is worked in a tab there, never with \`${APP_COMMAND.name} call\`. A tab mid sign-in is never navigated away.
-    - Using one: \`${APP_COMMAND.name} tools <slug>\`, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\`, \`${APP_COMMAND.name} request <slug> GET /path\`. A call that changes something is made only for a change the user asked for. When a connected app covers the service on the user's screen, the app is the way, not the page.
+    - Using one: \`${APP_COMMAND.name} tools <slug>\`, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\`, \`${APP_COMMAND.name} request <slug> GET /path\`.${scriptSurfaceOpen() ? ` Many calls, or calls that feed each other, go in one script (\`instrument\` in \`${NODE_COMMAND.name}\`, \`import instrument\` in \`${PYTHON_COMMAND.name}\`); read the app's guide with \`${APP_COMMAND.name} guide <slug>\` before scripting it.` : ""} A call that changes something is made only for a change the user asked for. When a connected app covers the service on the user's screen, the app is the way, not the page.
     - A refused call: \`${APP_COMMAND.name} test <slug>\` says why. A dead sign-in means \`${TOOL_NAMES.connectApp}\` again; a rejected key means asking again, saying what was wrong; a sign-in that failed or was refused goes to the web, as the note says.
 
     # Skills

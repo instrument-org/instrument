@@ -2,12 +2,13 @@
  * How a task works a connected API app, and Python, when a question takes
  * many calls: the baseline the capability layer is measured against.
  *
- * `instrument app request` runs one request per command and has no
- * script surface, so a fan-out over an API app is a turn per request, a bash
- * loop, or requests written to files and read back. Python has no channel at
- * all. These cases score the answer and record which of those the model
- * reached for, beside `app-scripting.ts`, which asks the same questions of an
- * MCP app that a `node` script can call.
+ * `instrument app request` runs one request per command, so a fan-out over an
+ * API app in the shell is a turn per request, a bash loop, or requests written
+ * to files and read back; a script makes the same requests as values through
+ * `instrument`, in Node or Python. These cases score the answer and record
+ * which of those the model reached for, beside `app-scripting.ts`, which asks
+ * the same questions of an MCP app. Run with `--bash-only` for the arm with no
+ * script surface.
  *
  * Lantern serves the same generated tracker as Beacon over REST, so the
  * expected answers are the ones `app-scripting.ts` computes. The errand is
@@ -36,6 +37,7 @@ import {
   COUNTS_URGENT_BY_TEAM,
   LISTS_BUSY_BUGS,
   NAMES_TOP_LABELS,
+  scriptedCalls,
   toolInputs,
 } from "./app-scripting";
 
@@ -392,13 +394,29 @@ function transcriptText(sessions: Session.WithMessagesAndParts[]): string {
     .join("\n");
 }
 
-const TOOLS_CALL = /\btools(?:\.[a-z]|\[["'])/;
 const PYTHON_RUN = /(?:^|[\s;&|(])python3?\b/;
 // Matched against JSON-quoted tool input, where a script's quotes arrive escaped.
 const SUBPROCESS_INSTRUMENT =
   /subprocess[\s\S]{0,300}?\\?["']instrument\\?["']|os\.system\(\s*\\?["']instrument\b/;
 const NOT_A_PROGRAM =
   /No such file or directory: '(?:instrument|\.\/instrument)'/g;
+// What the `instrument` program on a script's PATH says before it exits 127.
+/** What each tool call printed, as text: where a refusal or the stub's answer shows. */
+function outputs(sessions: Session.WithMessagesAndParts[]): string[] {
+  return sessions
+    .flatMap((session) => session.messages)
+    .flatMap((message) => message.parts)
+    .flatMap((part) =>
+      part.type.startsWith("tool-") && "output" in part
+        ? [JSON.stringify(part.output)]
+        : [],
+    );
+}
+
+const STUB_ANSWERED =
+  /Instrument's commands run in its shell, not from a program/;
+// A script stopped on the guide check, as its uncaught exception prints.
+const READ_GUIDE_FIRST = /ReadGuideFirst: Not sent/;
 const LOOPBACK_CURL = /\bcurl\b[^|;]{0,200}127\.0\.0\.1/;
 
 /**
@@ -421,19 +439,26 @@ const mechanism: Assertion = {
     const outs = appCalls.filter((command) =>
       /--out\b|(?<![\d&])>\s*[^&\s]/.test(command),
     ).length;
-    const nodeTools = inputs.filter((input) => TOOLS_CALL.test(input)).length;
+    const scripted = scriptedCalls(sessions);
     const python = commands.filter((command) =>
       PYTHON_RUN.test(command),
     ).length;
     const subprocess = inputs.filter((input) =>
       SUBPROCESS_INSTRUMENT.test(input),
     ).length;
-    const notFound = transcriptText(sessions).match(NOT_A_PROGRAM)?.length ?? 0;
+    const transcript = transcriptText(sessions);
+    const notFound = transcript.match(NOT_A_PROGRAM)?.length ?? 0;
+    const printed = outputs(sessions);
+    // Tool calls that met each, counted once however often the text shows.
+    const stub = printed.filter((output) => STUB_ANSWERED.test(output)).length;
+    const guideFirst = printed.filter((output) =>
+      READ_GUIDE_FIRST.test(output),
+    ).length;
     const curl = commands.filter((command) =>
       LOOPBACK_CURL.test(command),
     ).length;
     return {
-      evidence: `bash ${commands.length}, app commands ${appCalls.length} (${requests} request, ${loops} in a loop, ${outs} to a file), node tools.* ${nodeTools}, python runs ${python}, python scripts calling instrument ${subprocess} (${notFound} not found), curl to the stand-in ${curl}`,
+      evidence: `bash ${commands.length}, app commands ${appCalls.length} (${requests} request, ${loops} in a loop, ${outs} to a file), scripts calling instrument ${scripted.node + scripted.python} (node ${scripted.node}, python ${scripted.python}), calls stopped by ReadGuideFirst ${guideFirst}, python runs ${python}, scripts running instrument as a program ${subprocess} (${stub} calls told how by the stub, ${notFound} not found), curl to the stand-in ${curl}`,
       passed: true,
       text: "records the mechanism",
     };
@@ -452,23 +477,39 @@ function ownRecords<T extends { id: string }>(
 
 const TOPICS = ["pricing", "onboarding", "hiring"] as const;
 
+/**
+ * The docs this run made for each topic, every one whose title names it: a
+ * stray duplicate is a doc like any other, so a check passes when any doc
+ * of the topic satisfies it.
+ */
 function errandDocs(sessions: Session.WithMessagesAndParts[]) {
   const docs = ownRecords(DOCS, sessions);
   return TOPICS.map((topic) => ({
-    doc: docs.find((doc) => doc.title.toLowerCase().includes(topic)),
+    docs: docs.filter((doc) => doc.title.toLowerCase().includes(topic)),
     topic,
   }));
+}
+
+/** The topics no doc of which passes `check`. */
+function topicsFailing(
+  sessions: Session.WithMessagesAndParts[],
+  check: (doc: StoredDoc) => boolean,
+): string[] {
+  return errandDocs(sessions)
+    .filter(({ docs }) => !docs.some(check))
+    .map(({ topic }) => topic);
 }
 
 const madeThreeDocs: Assertion = {
   check: ({ sessions }) => {
     const text = "made a doc for each of pricing, onboarding and hiring";
-    const found = errandDocs(sessions);
-    const missing = found.filter(({ doc }) => !doc).map(({ topic }) => topic);
+    const missing = topicsFailing(sessions, () => true);
     return {
       evidence:
         missing.length === 0
-          ? found.map(({ doc }) => doc?.title).join(" | ")
+          ? errandDocs(sessions)
+              .flatMap(({ docs }) => docs.map((doc) => doc.title))
+              .join(" | ")
           : `missing: ${missing.join(", ")}`,
       passed: missing.length === 0,
       text,
@@ -477,17 +518,18 @@ const madeThreeDocs: Assertion = {
   text: "made a doc for each of pricing, onboarding and hiring",
 };
 
+/** Whether a doc holds the summary paragraph the errand asks for. */
+const summarized = (doc: StoredDoc) => doc.text.trim().length >= 40;
+
 const editedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "wrote a summary paragraph into each doc";
-    const empty = errandDocs(sessions).filter(
-      ({ doc }) => !doc || doc.text.trim().length < 40,
-    );
+    const empty = topicsFailing(sessions, summarized);
     return {
       evidence:
         empty.length === 0
           ? "all three have text"
-          : `no summary: ${empty.map(({ topic }) => topic).join(", ")}`,
+          : `no summary: ${empty.join(", ")}`,
       passed: empty.length === 0,
       text,
     };
@@ -498,19 +540,35 @@ const editedEach: Assertion = {
 const checkedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "read each doc back after editing it";
-    const unread = errandDocs(sessions).filter(
-      ({ doc }) => !doc?.readAfterEdit,
-    );
+    const unread = topicsFailing(sessions, (doc) => doc.readAfterEdit);
     return {
       evidence:
         unread.length === 0
           ? "all three read back"
-          : `not read back: ${unread.map(({ topic }) => topic).join(", ")}`,
+          : `not read back: ${unread.join(", ")}`,
       passed: unread.length === 0,
       text,
     };
   },
   text: "read each doc back after editing it",
+};
+
+/**
+ * Always passes: how many docs past one each topic got, which a correct
+ * run can still leave behind and comparing runs reads.
+ */
+const extraDocs: Assertion = {
+  check: ({ sessions }) => {
+    const extra = errandDocs(sessions).map(
+      ({ docs, topic }) => `${topic} ${Math.max(0, docs.length - 1)}`,
+    );
+    return {
+      evidence: `extra docs per title: ${extra.join(", ")}`,
+      passed: true,
+      text: "records extra docs per title",
+    };
+  },
+  text: "records extra docs per title",
 };
 
 /** The Thursday after `now` (today, when today is a Thursday), as YYYY-MM-DD in local time. */
@@ -546,13 +604,14 @@ const addedTheEvent: Assertion = {
 const draftedTheEmail: Assertion = {
   check: ({ sessions }) => {
     const text = "drafted the email to Aiko linking all three docs";
-    const docs = errandDocs(sessions).flatMap(({ doc }) => (doc ? [doc] : []));
+    const topics = errandDocs(sessions);
     const drafts = ownRecords(DRAFTS, sessions);
     const right = drafts.find(
       (draft) =>
         /^to:.*aiko@example\.com/im.test(draft.raw) &&
-        docs.length === TOPICS.length &&
-        docs.every((doc) => draft.raw.includes(doc.id)),
+        topics.every(({ docs }) =>
+          docs.some((doc) => summarized(doc) && draft.raw.includes(doc.id)),
+        ),
     );
     return {
       evidence: right
@@ -623,6 +682,7 @@ export const APP_SCRIPTING_API_EVALS = [
       checkedEach,
       addedTheEvent,
       draftedTheEmail,
+      extraDocs,
       mechanism,
     ],
     name: "app-scripting-errand-google",

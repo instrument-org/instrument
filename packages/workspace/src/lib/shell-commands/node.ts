@@ -4,11 +4,12 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
-import { type AppToolInvoker } from "../app-tool-hook";
-import { nodeToolsPreloadUrl, openToolsChannel } from "../node-tools-preload";
+import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
+import { scriptSurfaceOpen } from "../capabilities/script-surface";
+import { ensureInstrumentStub } from "../capabilities/stub";
+import { nodePreloadUrl } from "../node-preload";
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
-import { APP_COMMAND } from "./app-command";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import {
@@ -35,17 +36,21 @@ export async function execNode(
   cwd?: AbsolutePath,
   env?: Record<string, string>,
   stdin?: Buffer,
-  invokeTool?: AppToolInvoker,
+  answerScript?: ChannelAnswer,
 ) {
   const signal = ctx.signal;
   // Every script gets the preload, which reads past a package.json the
-  // sandbox refuses; `tools` only works with a tool to answer it.
+  // sandbox refuses; `instrument` only works with a channel to answer it.
   const preload =
-    args[0] === "--version" ? [] : ["--import", await nodeToolsPreloadUrl()];
-  const toolsChannel =
-    invokeTool &&
-    (await openToolsChannel((toolPath, argsJson, stageSignal) =>
-      invokeTool(toolPath, argsJson, stageSignal ?? signal),
+    args[0] === "--version" ? [] : ["--import", await nodePreloadUrl()];
+  const answer = scriptSurfaceOpen() ? answerScript : undefined;
+  if (answer) {
+    await ensureInstrumentStub();
+  }
+  const scriptChannel =
+    answer &&
+    (await openScriptChannel((request, stageSignal) =>
+      answer(request, stageSignal ?? signal),
     ));
   try {
     return await runNative(
@@ -54,7 +59,7 @@ export async function execNode(
       [...preload, ...args],
       {
         cancelSignal: signal,
-        ...(toolsChannel && { toolsChannel }),
+        ...(scriptChannel && { scriptChannel }),
         cwd: cwd ?? workDir(chatId),
         env: {
           ...getWorkspaceConfig().nodeExecEnv,
@@ -64,7 +69,7 @@ export async function execNode(
           ...nodeToolsEnv(),
           // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
           ...ffmpegSubprocessEnv(env?.PATH),
-          ...toolsChannel?.env,
+          ...scriptChannel?.env,
         },
         ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
       },
@@ -77,7 +82,7 @@ export async function execNode(
       }),
     );
   } catch (error) {
-    toolsChannel?.close();
+    scriptChannel?.close();
     throw error;
   }
 }
@@ -108,16 +113,22 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`${APP_COMMAND.name} call\` does and returns the result as a value (\`tools["<slug>"]\` for a slug with a hyphen); only the script \`node\` runs has \`tools\`, not a process that script starts.`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd.`,
   name: "node",
+  /** What the description adds where a script reaches \`instrument\`. */
+  scripting: `The script has an \`instrument\` global for connected apps, returning values: \`await instrument.apps["<slug>"].<tool>({...})\` calls an MCP app's tool, \`await instrument.apps["<slug>"].get("<path>", { params })\` (\`.post(path, { body })\`, ...) an API app and resolves to the parsed body, throwing \`instrument.ReadGuideFirst\` with the guide before an app's first request; only the script \`node\` runs has it, not a process that script starts.`,
 } as const;
 
 /**
- * `node` as a real process. With `invokeTool`, the script gets the `tools`
- * global (`node-tools-preload.ts`), and this command answers each call it
- * makes over a loopback channel opened for that one process.
+ * `node` as a real process. With `answerScript`, the script gets the
+ * `instrument` global (`capabilities/node-runtime.ts`), and this command
+ * answers each call it makes over a loopback channel opened for that one
+ * process.
  */
-export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
+export function createNodeCommand(
+  chatId: ChatId,
+  answerScript?: ChannelAnswer,
+) {
   const command = defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
@@ -197,7 +208,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
         hostCwd,
         env,
         subprocessStdin(ctx.stdin),
-        invokeTool,
+        answerScript,
       );
     }
 
@@ -212,7 +223,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
           hostCwd,
           env,
           stdinProgram ? Buffer.from(stdinProgram, "latin1") : undefined,
-          invokeTool,
+          answerScript,
         );
       }
 
@@ -241,7 +252,7 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
       hostCwd,
       env,
       subprocessStdin(ctx.stdin),
-      invokeTool,
+      answerScript,
     );
   });
   return { ...command, acceptsPipeHandoff: true };

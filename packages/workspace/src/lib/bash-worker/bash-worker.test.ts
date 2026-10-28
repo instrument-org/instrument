@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
+import { type ChannelAnswer } from "../capabilities/channel";
 import { writingChatRecords } from "../records/chat-records";
 import { logFileName } from "../records/file-names";
 import { recordLine } from "../records/record";
@@ -135,20 +136,26 @@ function options(): BashEnvOptions {
   return { sessionId: StoreId.newSessionId(), chatId };
 }
 
-/** Answers a script's `tools.*` with what it was called with, or refuses `tools.no.*`. */
-function echoTool(toolPath: string, argsJson: string) {
-  return toolPath.startsWith("no.")
-    ? Promise.reject(new Error(`refused ${toolPath}`))
-    : Promise.resolve(
-        JSON.stringify({ args: JSON.parse(argsJson), path: toolPath }),
-      );
-}
+/** Answers a script's `instrument` with what it was called with, or refuses `no.*`. */
+const echo: ChannelAnswer = (request) =>
+  Promise.resolve(
+    request.kind === "describe"
+      ? { capabilities: [] }
+      : request.capability.startsWith("no.")
+        ? {
+            error: {
+              kind: "refused",
+              message: `refused ${request.capability}`,
+            },
+          }
+        : { result: { args: request.args, capability: request.capability } },
+  );
 
 function remoteBash(bashOptions = options()) {
   return createRemoteBash(
     bashOptions,
     () => createLocalBashEnv(bashOptions),
-    echoTool,
+    echo,
   );
 }
 
@@ -209,13 +216,13 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     expect(remote.stdout).toContain("Usage: instrument <command> ...");
   });
 
-  it("makes a script's tool calls on the main thread", async () => {
+  it("answers a script's instrument calls on the main thread", async () => {
     const result = await remoteBash().exec(
-      `node --input-type=module -e 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
+      `node --input-type=module -e 'console.log(JSON.stringify(await instrument.apps["my-app"].list({ page: 2 }))); try { await instrument.no.way(); } catch (error) { console.log(error.message); }'`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`
-      "{"args":{"page":2},"path":"my-app.list"}
+      "{"args":{"app":"my-app","args":{"page":2},"tool":"list"},"capability":"apps.call"}
       refused no.way
       "
     `);

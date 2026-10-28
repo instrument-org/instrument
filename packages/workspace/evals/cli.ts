@@ -53,6 +53,7 @@ import {
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
+    "bash-only": { default: false, type: "boolean" },
     concurrency: { default: "8", type: "string" },
     "dry-run": { default: false, type: "boolean" },
     "fresh-runtime": { default: false, type: "boolean" },
@@ -106,6 +107,13 @@ const emitReport = (() => {
       });
     });
 })();
+
+// The bash-only arm: no script reaches `instrument`, and the prompt names no
+// script surface, so a case measures the shell alone against the same model.
+// Read by the workspace per call, and inherited by every trial's process.
+if (values["bash-only"]) {
+  process.env.INSTRUMENT_SCRIPT_CHANNEL = "0";
+}
 
 const subcommand = positionals[0];
 const includeContextMessages = values["include-context"];
@@ -240,6 +248,9 @@ if (
   );
   process.stderr.write(
     "                   --repeat <n> runs every case n times per model, each in trial-<n>/<case>/,\n                   and summary.json gives each case's min/median/max cost and tokens\n",
+  );
+  process.stderr.write(
+    "                   --bash-only opens no script channel and drops the script lines from the prompt\n",
   );
   process.stderr.write(
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,

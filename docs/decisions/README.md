@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-27 | [Scripts reach `instrument`, and the `tools` global is gone](2026-10-27-scripts-reach-instrument.md) |
 | 2026-10-27 | [`instrument window` is what is in front of the person, a tab has one id, and the prompt holds for a task too](2026-10-27-the-window-command-and-one-tab-id.md) |
 | 2026-10-26 | [Each device writes its chat list into the workspace, for a phone to open it from](2026-10-26-each-device-writes-its-chat-list-into-the-workspace.md) |
 | 2026-10-19 | [Accept that a computer on the previous build stops seeing chat settings from an upgraded one](2026-10-19-accept-the-staggered-upgrade-gap-for-chat-settings.md) |
@@ -22,7 +23,7 @@ Newest first. A struck-through entry has been superseded.
 | 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |
 | 2026-10-12 | [Carry the just-bash command-limit and stdin-bytes fixes as a local patch until they are released](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md) |
 | 2026-10-12 | [Programs on the PATH run natively, by name, under the same rules](2026-10-12-programs-on-path-run-natively.md) |
-| 2026-10-12 | [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md) |
+| 2026-10-12 | [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md), its `tools` global superseded by 2026-10-27 |
 | 2026-10-11 | [Carry just-bash's error-code fix as a local patch rather than rewrite the builtins' output](2026-10-11-carry-the-error-code-patch.md) |
 | 2026-10-11 | [The agent works at real paths, held to the Permissions rules](2026-10-11-the-agent-works-at-real-paths.md) |
 | 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |

@@ -7,54 +7,116 @@ import { describe, expect, it } from "vitest";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { knowChat } from "../test/helpers/mock-chat-config";
+import { type ChannelAnswer, openScriptChannel } from "./capabilities/channel";
 import { createLocalBashEnv } from "./create-bash-env";
-import { openToolsChannel } from "./node-tools-preload";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 
-const chatId = ChatIdSchema.parse("node-tools-task");
+const chatId = ChatIdSchema.parse("node-preload-task");
 
-/** Answers `tools.*` with what it was called with, or refuses `tools.no.*`. */
-function echoTool(toolPath: string, argsJson: string) {
-  return toolPath.startsWith("no.")
-    ? Promise.reject(new Error(`refused ${toolPath}`))
-    : Promise.resolve(
-        JSON.stringify({ args: JSON.parse(argsJson), path: toolPath }),
-      );
-}
+/**
+ * Answers a script's `instrument` with what it was called with, refuses
+ * `no.*`, hands `guide.first` back as the guide, and describes
+ * `apps.request` as the registry does.
+ */
+const echo: ChannelAnswer = (request) =>
+  Promise.resolve(
+    request.kind === "describe"
+      ? {
+          capabilities: [
+            {
+              input: {},
+              name: "apps.request",
+              positional: ["app", "method", "path"],
+              summary: "One request.",
+            },
+          ],
+        }
+      : request.capability.startsWith("no.")
+        ? {
+            error: {
+              kind: "refused",
+              message: `refused ${request.capability}`,
+            },
+          }
+        : request.capability === "guide.first"
+          ? { error: { kind: "read-first", message: "Not sent: the guide." } }
+          : request.capability === "apps.request"
+            ? {
+                result: {
+                  body: { args: request.args },
+                  status: 200,
+                  truncated: false,
+                  url: "",
+                },
+              }
+            : {
+                result: { args: request.args, capability: request.capability },
+              },
+  );
 
 async function run(command: string, signal?: AbortSignal) {
   knowChat(chatId);
   await mkdir(chatDir(chatId), { recursive: true });
   const bash = await createLocalBashEnv({
+    answerScript: echo,
     chatId,
-    invokeTool: echoTool,
     sessionId: StoreId.newSessionId(),
   });
   return bash.exec(command, { signal });
 }
 
-describe("node's tools global", () => {
-  it("hands a call's result back as a value", async () => {
+describe("node's instrument global", () => {
+  it("calls an app's tool and hands the result back as a value", async () => {
     const result = await run(
-      `node --input-type=module -e 'const r = await tools["my-app"].list({ page: 2 }); console.log(r.path, r.args.page)'`,
+      `node --input-type=module -e 'const r = await instrument.apps["my-app"].list_issues({ page: 2 }); console.log(r.capability, r.args.app, r.args.tool, r.args.args.page)'`,
     );
     expect(result.stderr).toBe("");
-    expect(result.stdout).toBe("my-app.list 2\n");
+    expect(result.stdout).toBe("apps.call my-app list_issues 2\n");
   });
 
-  it("throws a refusal into the script with its message", async () => {
+  it("maps a capability's positional arguments by its description", async () => {
     const result = await run(
-      `node --input-type=module -e 'try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
+      `node --input-type=module -e 'const r = await instrument.apps.request("lantern", "GET", "/issues", { params: { state: "open" } }); console.log(JSON.stringify(r))'`,
     );
     expect(result.stderr).toBe("");
-    expect(result.stdout).toBe("refused no.way\n");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "{"body":{"args":{"params":{"state":"open"},"app":"lantern","method":"GET","path":"/issues"}},"status":200,"truncated":false,"url":""}
+      "
+    `);
   });
 
-  it("lets a script that never calls a tool exit when its work is done", async () => {
+  it("makes an API app's request from its method, and hands back the body", async () => {
+    const result = await run(
+      `node --input-type=module -e 'const r = await instrument.app("google-drive").post("/files", { body: { name: "Plan" } }); console.log(JSON.stringify(r))'`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "{"args":{"body":{"name":"Plan"},"app":"google-drive","method":"POST","path":"/files"}}
+      "
+    `);
+  });
+
+  it("throws a refusal into the script as an instrument.Error", async () => {
+    const result = await run(
+      `node --input-type=module -e 'try { await instrument.no.way(); } catch (error) { console.log(error instanceof instrument.Error, error.kind, error.message); }'`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("true refused refused no.way\n");
+  });
+
+  it("prints an uncaught ReadGuideFirst by its name, with the guide", async () => {
+    const result = await run(
+      `node --input-type=module -e 'await instrument.guide.first()'`,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("ReadGuideFirst: Not sent: the guide.");
+  });
+
+  it("lets a script that never calls exit when its work is done", async () => {
     const started = Date.now();
-    const result = await run(`node -e 'console.log(typeof tools)'`);
-    expect(result.stdout).toBe("function\n");
+    const result = await run(`node -e 'console.log(typeof instrument)'`);
+    expect(result.stdout).toBe("object\n");
     expect(result.exitCode).toBe(0);
     // An open connection holding the process would leave it running until
     // the test times out.
@@ -63,14 +125,14 @@ describe("node's tools global", () => {
 
   it("stays out of the globals a script walks", async () => {
     const result = await run(
-      `node -e 'console.log(Object.keys(globalThis).includes("tools"), "tools" in globalThis)'`,
+      `node -e 'console.log(Object.keys(globalThis).includes("instrument"), "instrument" in globalThis)'`,
     );
     expect(result.stdout).toBe("false true\n");
   });
 
-  it("leaves a tools global an earlier preload set alone", async () => {
+  it("leaves an instrument global an earlier preload set alone", async () => {
     const result = await run(
-      `echo 'globalThis.tools = "theirs";' > theirs.mjs && node --import ./theirs.mjs -e 'console.log(tools)'`,
+      `echo 'globalThis.instrument = "theirs";' > theirs.mjs && node --import ./theirs.mjs -e 'console.log(instrument)'`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("theirs\n");
@@ -78,14 +140,14 @@ describe("node's tools global", () => {
 
   it("lets a script replace it by assignment", async () => {
     const result = await run(
-      `node -e 'globalThis.tools = 5; console.log(tools)'`,
+      `node -e 'globalThis.instrument = 5; console.log(instrument)'`,
     );
     expect(result.stdout).toBe("5\n");
   });
 
-  it("gives a process the script starts no tools", async () => {
+  it("gives a process the script starts no instrument", async () => {
     const result = await run(
-      `node -e 'console.log(require("child_process").execFileSync(process.execPath, ["-e", "console.log(typeof tools)"], { encoding: "utf8" }).trim())'`,
+      `node -e 'console.log(require("child_process").execFileSync(process.execPath, ["-e", "console.log(typeof instrument)"], { encoding: "utf8" }).trim())'`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("undefined\n");
@@ -93,7 +155,7 @@ describe("node's tools global", () => {
 
   it("keeps the channel's token out of the script's environment", async () => {
     const result = await run(
-      `node -e 'console.log(Object.keys(process.env).filter((name) => name.startsWith("INSTRUMENT_TOOLS")).length)'`,
+      `node -e 'console.log(Object.keys(process.env).filter((name) => name.startsWith("INSTRUMENT_CHANNEL")).length)'`,
     );
     expect(result.stdout).toBe("0\n");
   });
@@ -179,7 +241,7 @@ describe("node's tools global", () => {
   });
 });
 
-describe("openToolsChannel", () => {
+describe("openScriptChannel", () => {
   /** Writes `lines` and reads what comes back until an answer or the close. */
   async function talk(port: number, lines: string[]) {
     const socket = connect({ host: "127.0.0.1", port });
@@ -197,13 +259,13 @@ describe("openToolsChannel", () => {
   }
 
   it("answers a call only after the token", async () => {
-    const channel = await openToolsChannel(echoTool);
+    const channel = await openScriptChannel(echo);
     const [port, token = ""] = Object.values(channel.env)[0]?.split(":") ?? [];
-    const call = JSON.stringify({ argsJson: '{"a":1}', id: 1, path: "x.y" });
+    const call = JSON.stringify({ args: { a: 1 }, capability: "x.y", id: 1 });
     try {
       expect(await talk(Number(port), ["0".repeat(64), call])).toBe("");
       expect(await talk(Number(port), [token, call])).toMatchInlineSnapshot(`
-        "{"id":1,"result":"{\\"args\\":{\\"a\\":1},\\"path\\":\\"x.y\\"}"}
+        "{"id":1,"result":{"args":{"a":1},"capability":"x.y"}}
         "
       `);
     } finally {

@@ -4,6 +4,13 @@ import path from "node:path";
 
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
+import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
+import {
+  ensurePythonRuntime,
+  linkPythonRuntime,
+} from "../capabilities/python-runtime";
+import { scriptSurfaceOpen } from "../capabilities/script-surface";
+import { ensureInstrumentStub } from "../capabilities/stub";
 import { filterShellOutput } from "../filter-shell-output";
 import { pythonBaseDir } from "../python-base";
 import {
@@ -30,6 +37,8 @@ import { hostPathArgs, resolveCommandContext } from "./utils";
 export const PYTHON_COMMAND = {
   description: `Run Python as a real process: a skill's script with that skill's packages, and your own code with what \`pip\` installed in the nearest \`.venv\` up to your work folder. Each also finds the other's packages where its own have none by that name: a skill's script finds what you installed, and your code the packages of the skill you loaded last. It reads and writes the folders you reach where they sit.`,
   name: "python",
+  /** What the description adds where a script reaches \`instrument\`. */
+  scripting: `A script reaches connected apps with \`import instrument\`: \`instrument.app("<slug>").<tool>(...)\` calls an MCP app's tool, \`instrument.app("<slug>").get("<path>", params={...})\` (\`.post(path, body=...)\`, ...) an API app and returns the parsed body; calls are synchronous and safe from threads; \`instrument.ReadGuideFirst\` carries the guide before an app's first request. Run \`instrument\` itself only in the shell, never with \`subprocess\`.`,
 } as const;
 
 export const PYTHON3_COMMAND = {
@@ -40,21 +49,31 @@ export const PYTHON3_COMMAND = {
 export function createPython3Command(
   chatId: ChatId,
   _layout: WorkspaceFsLayout,
+  answerScript?: ChannelAnswer,
 ) {
-  return createPythonCommandNamed(chatId, PYTHON3_COMMAND.name);
+  return createPythonCommandNamed(chatId, PYTHON3_COMMAND.name, answerScript);
 }
 
+/**
+ * With `answerScript`, a script's `import instrument` reaches the shell's
+ * capabilities over a loopback channel opened for that one process.
+ */
 export function createPythonCommand(
   chatId: ChatId,
   _layout: WorkspaceFsLayout,
+  answerScript?: ChannelAnswer,
 ) {
-  return createPythonCommandNamed(chatId, PYTHON_COMMAND.name);
+  return createPythonCommandNamed(chatId, PYTHON_COMMAND.name, answerScript);
 }
 
-function createPythonCommandNamed(chatId: ChatId, name: string) {
+function createPythonCommandNamed(
+  chatId: ChatId,
+  name: string,
+  answerScript: ChannelAnswer | undefined,
+) {
   return {
     ...defineCommand(name, (args, ctx) =>
-      runNativePython(chatId, name, args, ctx),
+      runNativePython(chatId, name, args, ctx, answerScript),
     ),
     acceptsPipeHandoff: true,
   };
@@ -66,6 +85,7 @@ async function runNativePython(
   name: string,
   args: string[],
   ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
+  answerScript: ChannelAnswer | undefined,
 ) {
   // Catch `python -m pip` before hitting the interpreter; the venv has no
   // seeded pip module, so it would fail with "No module named pip". Direct
@@ -105,55 +125,82 @@ async function runNativePython(
   // bare has no site-packages of its own to put one in, so the folder goes on
   // `PYTHONPATH` instead: the same set by the other door, so a chat's first
   // `python -c "import matplotlib"` works before anything has run `pip`.
-  const base =
-    skill.venv === undefined && interpreter.venv === undefined
-      ? pythonBaseDir()
-      : undefined;
+  // `instrument` reaches a script the same two ways: a `.pth` in whichever
+  // virtualenv runs, or its folders on `PYTHONPATH`, the `sitecustomize`
+  // that takes the channel first.
+  // With the script surface closed, `import instrument` finds nothing.
+  const scripted = scriptSurfaceOpen();
+  const venv = skill.venv ?? interpreter.venv;
+  const bare = venv === undefined;
+  const instrument = bare && scripted ? await ensurePythonRuntime() : undefined;
+  if (venv !== undefined && scripted) {
+    await linkPythonRuntime(venv);
+  }
+  const base = bare ? pythonBaseDir() : undefined;
   const pythonPath =
-    [base, env.PYTHONPATH].filter(Boolean).join(path.delimiter) || undefined;
+    [instrument?.site, instrument?.modules, base, env.PYTHONPATH]
+      .filter(Boolean)
+      .join(path.delimiter) || undefined;
 
-  return runNative(
-    ctx,
-    interpreter.python,
-    finalArgs,
-    {
-      cancelSignal: ctx.signal,
-      cwd: hostCwd,
-      // A skill's environment, and the one layered behind the interpreter's,
-      // are what a Python the script starts finds too. The managed Python run
-      // bare reads no packages of the person's own (their user
-      // site-packages), as a virtualenv reads none.
-      env: {
-        ...env,
-        ...(skill.venv
-          ? {
-              PATH: [environmentBinDir(skill.venv), env.PATH]
-                .filter(Boolean)
-                .join(path.delimiter),
-              VIRTUAL_ENV: skill.venv,
-            }
-          : interpreter.venv
-            ? {}
-            : { PYTHONNOUSERSITE: "1" }),
-        ...(pythonPath === undefined ? {} : { PYTHONPATH: pythonPath }),
-        // Last, and handed what `PYTHONPATH` now holds, so a skill's layer
-        // goes in front of the base set rather than over it.
-        ...(skill.layer && pythonLayerEnv(skill.layer, pythonPath)),
+  const answer = scriptSurfaceOpen() ? answerScript : undefined;
+  if (answer) {
+    await ensureInstrumentStub();
+  }
+  const scriptChannel =
+    answer &&
+    (await openScriptChannel((request, stageSignal) =>
+      answer(request, stageSignal ?? ctx.signal),
+    ));
+
+  try {
+    return await runNative(
+      ctx,
+      interpreter.python,
+      finalArgs,
+      {
+        cancelSignal: ctx.signal,
+        ...(scriptChannel && { scriptChannel }),
+        cwd: hostCwd,
+        // A skill's environment, and the one layered behind the interpreter's,
+        // are what a Python the script starts finds too. The managed Python run
+        // bare reads no packages of the person's own (their user
+        // site-packages), as a virtualenv reads none.
+        env: {
+          ...env,
+          ...(skill.venv
+            ? {
+                PATH: [environmentBinDir(skill.venv), env.PATH]
+                  .filter(Boolean)
+                  .join(path.delimiter),
+                VIRTUAL_ENV: skill.venv,
+              }
+            : interpreter.venv
+              ? {}
+              : { PYTHONNOUSERSITE: "1" }),
+          ...(pythonPath === undefined ? {} : { PYTHONPATH: pythonPath }),
+          // Last, and handed what `PYTHONPATH` now holds, so a skill's layer
+          // goes in front of the base set rather than over it.
+          ...(skill.layer && pythonLayerEnv(skill.layer, pythonPath)),
+          ...scriptChannel?.env,
+        },
+        // Buffer, not the latin1-packed string: execa UTF-8 encodes string
+        // input, which would double-encode every non-ASCII byte.
+        ...(stdin
+          ? { input: Buffer.from(stdin, "latin1") }
+          : { stdin: "ignore" as const }),
       },
-      // Buffer, not the latin1-packed string: execa UTF-8 encodes string
-      // input, which would double-encode every non-ASCII byte.
-      ...(stdin
-        ? { input: Buffer.from(stdin, "latin1") }
-        : { stdin: "ignore" as const }),
-    },
-    (result) => ({
-      exitCode: result.exitCode ?? 1,
-      ...mapStreams(shimOutput(result, name), (text) =>
-        filterShellOutput(text),
-      ),
-      ...binaryStdout(result),
-    }),
-  );
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, name), (text) =>
+          filterShellOutput(text),
+        ),
+        ...binaryStdout(result),
+      }),
+    );
+  } catch (error) {
+    scriptChannel?.close();
+    throw error;
+  }
 }
 
 /** Options of Python's own that take the argument after them. */

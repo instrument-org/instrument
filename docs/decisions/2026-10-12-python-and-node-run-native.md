@@ -2,6 +2,8 @@
 
 Date: 2026-10-12
 
+> The `tools` global is superseded by [2026-10-27-scripts-reach-instrument.md](2026-10-27-scripts-reach-instrument.md): scripts in `node` and `python` reach `instrument`, and `tools` is gone.
+
 Supersedes [2026-09-10-python-is-the-sandboxed-interpreter.md](2026-09-10-python-is-the-sandboxed-interpreter.md). Carries out [plans/completed/native-script-runtimes.md](../plans/completed/native-script-runtimes.md).
 
 ## Context

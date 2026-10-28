@@ -14,7 +14,7 @@ import { constants } from "node:os";
 import { PassThrough, type Readable } from "node:stream";
 
 import { inheritedEnv } from "../native-env";
-import { type ToolsChannel } from "../node-tools-preload";
+import { type ScriptChannel } from "../capabilities/channel";
 import {
   launchNative,
   NativeSandboxUnavailableError,
@@ -85,11 +85,11 @@ export interface StageOptions {
   /** Stop the program once its stdout passes this many bytes, as execa's `maxBuffer`. */
   maxStdout?: number;
   /**
-   * Where the program calls tools, closed once it exits. Its calls run under
+   * Where the program calls `instrument`, closed once it exits. Its calls run under
    * the stage's signal, which for a stage handing its stdout on stops after
    * its command.
    */
-  toolsChannel?: ToolsChannel;
+  scriptChannel?: ScriptChannel;
   /** Return at once with a handoff for stdout instead of waiting. */
   offerHandoff: boolean;
   /** The previous stage's handoff token, taken as fd 0. */
@@ -211,7 +211,7 @@ export function startPipeStage(
       options.unsandboxed ? null : undefined,
     );
   } catch (error) {
-    options.toolsChannel?.close();
+    options.scriptChannel?.close();
     if (!(error instanceof NativeSandboxUnavailableError)) {
       throw error;
     }
@@ -312,8 +312,8 @@ export function startPipeStage(
     child.stdin.on("error", () => {});
     child.stdin.end(options.input);
   }
-  if (options.toolsChannel) {
-    const channel = options.toolsChannel;
+  if (options.scriptChannel) {
+    const channel = options.scriptChannel;
     channel.attach(stop.signal);
     child.once("close", () => channel.close());
     child.once("error", () => channel.close());

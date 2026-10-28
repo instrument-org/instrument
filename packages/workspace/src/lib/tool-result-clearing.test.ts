@@ -440,6 +440,38 @@ describe("withRecordedClearing", () => {
     ]);
   });
 
+  it("keeps the command of a call that handed over an app guide", () => {
+    const command = `instrument app guide crm <<'EOF'\n${"g".repeat(1_500)}\nEOF`;
+    const written = [
+      {
+        ...step("a1", []),
+        parts: [
+          {
+            input: { command },
+            metadata: { id: partId("prt_a1_0") },
+            output: { appGuides: [{ app: "crm", hash: "h" }], output: "Wrote" },
+            state: "output-available",
+            toolCallId: "a1-0",
+            type: "tool-bash",
+          },
+        ],
+      } as unknown as SessionMessage.WithParts,
+      user("u2", "a1"),
+    ];
+    const inputs = withRecordedClearing({
+      messages: written,
+      modelMessages: sent(written),
+      through: messageId("a1"),
+    }).flatMap((message) =>
+      message.role === "assistant" && typeof message.content !== "string"
+        ? message.content.flatMap((part) =>
+            part.type === "tool-call" ? [part.input] : [],
+          )
+        : [],
+    );
+    expect(inputs).toEqual([{ command }]);
+  });
+
   it("changes nothing where no clearing is recorded", () => {
     const modelMessages = sent(history);
     expect(

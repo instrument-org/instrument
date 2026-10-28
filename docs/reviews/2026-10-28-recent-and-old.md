@@ -8,7 +8,7 @@ Three blind readers, following `REVIEW.md`: one on the commits since the 10-27 r
 
 ### A. Clearing old tool calls removes an app guide the agent wrote, while the request gate still counts it as handed over
 
-- Status: open
+- Status: fixed
 - Where: [tool-result-clearing.ts:548](/packages/workspace/src/lib/tool-result-clearing.ts#L548), [tool-result-clearing.ts:103](/packages/workspace/src/lib/tool-result-clearing.ts#L103), [tool-result-clearing.ts:389](/packages/workspace/src/lib/tool-result-clearing.ts#L389), [app.ts:746](/packages/workspace/src/lib/shell-commands/app.ts#L746)
 - What: `isClearable` exempts a result whose output carries `appGuides` or `browserSkill`, but `withRecordedClearing` puts every call through the clearing into `callsThrough`, and `withToolResultsCleared` stubs the long string inputs of all of them. `app guide <slug> <<'EOF' … EOF` records its hand-off with no `printed` (the model "has it in its own command"), so once that command is cleared the guide's only copy is gone from what the model sees. `appGuideHandedOver` reads the stored messages, still finds the hand-off, and the next `app request` goes out without showing the guide. This breaks the module's own rule at `:31-35` that what carries instructions is never cleared.
 - Verification: traced statically.

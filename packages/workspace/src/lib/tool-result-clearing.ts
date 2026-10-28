@@ -175,17 +175,29 @@ function clearedInput(
   return characters === 0 ? undefined : { characters, input: cleared };
 }
 
-/** Every stored tool call in `messages`, oldest first. */
+/**
+ * Every stored tool call in `messages` whose input may be cleared, oldest
+ * first: not one that handed over an app guide, since a guide the model wrote
+ * (`app guide <slug> <<EOF`) is in front of it only in that command, and the
+ * request gate reads the hand-off from the history.
+ */
 function toolCalls(
   messages: readonly SessionMessage.WithParts[],
 ): { messageId: StoreId.Message; part: SessionMessagePart.ToolPart }[] {
   return messages.flatMap((message) =>
     message.parts.flatMap((part) =>
-      isToolPart(part) && part.providerExecuted !== true
+      isToolPart(part) &&
+      part.providerExecuted !== true &&
+      !handsOverAppGuides(part)
         ? [{ messageId: message.id, part }]
         : [],
     ),
   );
+}
+
+function handsOverAppGuides(part: SessionMessagePart.ToolPart): boolean {
+  const output: unknown = part.state === "output-available" && part.output;
+  return typeof output === "object" && output !== null && "appGuides" in output;
 }
 
 /**

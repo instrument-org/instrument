@@ -1,17 +1,11 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
-import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import {
   markBackgroundProcessesReported,
   unreportedBackgroundProcesses,
 } from "../background-processes";
-import { chatModelURI } from "../chat-settings";
-import { resolveChat } from "../record-folders";
-import { getWorkspaceConfig } from "../workspace-config";
-import { isWorking } from "./activity";
-import { wakeSessionForJobs } from "./wake";
-import { countOnItsWay } from "./wake-queue";
+import { enqueueWake, type WakePart } from "./wake-queue";
 
 /**
  * How long after a process ends before its session is woken. Long enough that
@@ -20,11 +14,6 @@ import { countOnItsWay } from "./wake-queue";
  * task's finish waits out.
  */
 const JOB_WAKE_DEBOUNCE_MS = 1500;
-
-const pending = new Map<
-  StoreId.Session,
-  { release: () => void; timer: NodeJS.Timeout }
->();
 
 /**
  * Sessions whose last turn was stopped by the user or by the chat. What they
@@ -51,121 +40,70 @@ export function startJobWake(
   workspaceRef: WorkspaceActorRef,
   { debounceMs = JOB_WAKE_DEBOUNCE_MS }: { debounceMs?: number } = {},
 ): void {
-  void (async () => {
-    for await (const { id, sessionId } of publisher.subscribe(
-      "backgroundProcess.settled",
-    )) {
-      schedule(id, sessionId, workspaceRef, debounceMs);
-    }
-  })();
-  void (async () => {
-    for await (const { id, notice, sessionId } of publisher.subscribe(
-      "session.done",
-    )) {
-      if (notice?.by === "person" || notice?.by === "agent") {
-        stopped.add(sessionId);
-      } else {
-        stopped.delete(sessionId);
-      }
-      schedule(id, sessionId, workspaceRef, debounceMs);
-    }
-  })();
-}
-
-function schedule(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  workspaceRef: WorkspaceActorRef,
-  debounceMs: number,
-) {
-  const existing = pending.get(sessionId);
-  clearTimeout(existing?.timer);
-  // Counted while it waits only when it will start a turn: something the
-  // session left running ended unread, and no stop holds the news back.
-  // Every turn's end schedules one, which most have nothing to tell.
-  const release =
-    existing?.release ??
-    countOnItsWay(chatId, {
+  // Heard in the tick they are published, so a stop is recorded before
+  // anything reads whether the session's news still counts.
+  publisher.subscribe("backgroundProcess.settled", ({ id, sessionId }) => {
+    void enqueueWake({
+      chatId: id,
+      debounceMs,
+      key: "jobs",
+      part: () => jobsPart(sessionId),
+      restingOnly: true,
+      sessionId,
+      // A wake waiting counts as on its way only when it will start a turn:
+      // something the session left running ended unread, and no stop holds
+      // the news back.
       stillNews: () =>
         !stopped.has(sessionId) &&
         unreportedBackgroundProcesses(sessionId).length > 0,
-    });
-  const timer = setTimeout(() => {
-    pending.delete(sessionId);
-    deliver(chatId, sessionId, workspaceRef, release).catch(
-      (error: unknown) => {
-        getWorkspaceConfig().captureException(error);
-      },
-    );
-  }, debounceMs);
-  timer.unref();
-  pending.set(sessionId, { release, timer });
-}
-
-async function deliver(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  workspaceRef: WorkspaceActorRef,
-  /** Lets go of the count its debounce held. */
-  waited: () => void,
-) {
-  // Its turn's end schedules this again for whatever it did not read.
-  const ended = isWorkingNow(chatId, sessionId)
-    ? []
-    : unreportedBackgroundProcesses(sessionId);
-  if (ended.length > 0) {
-    // Told before the wake is sent, so nothing can report them a second time.
-    markBackgroundProcessesReported(
-      sessionId,
-      ended.map((process) => process.id),
-    );
-  }
-  if (ended.length === 0 || stopped.has(sessionId)) {
-    waited();
-    return;
-  }
-  // Counted from here until the wake is sent, in the same synchronous run as
-  // the marking, so no read falls between the debounce and the wake.
-  const release = countOnItsWay(chatId);
-  waited();
-  try {
-    // A chat nobody has written in has no model to wake with.
-    if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
-      return;
-    }
-    await wakeSessionForJobs(
-      {
-        data: {
-          events: ended.map((process) => ({
-            command: process.command,
-            durationMs: process.durationMs,
-            ...(process.exitCode === undefined
-              ? {}
-              : { exitCode: process.exitCode }),
-            id: process.id,
-            logFilePath: process.logFilePath,
-            status:
-              process.status === "running"
-                ? "termination-uncertain"
-                : process.status,
-          })),
-        },
-        type: "data-jobEvent",
-      },
       workspaceRef,
-      chatId,
-      sessionId,
-    );
-  } finally {
-    release();
-  }
+    });
+  });
+  publisher.subscribe("session.done", ({ notice, sessionId }) => {
+    if (notice?.by === "person" || notice?.by === "agent") {
+      stopped.add(sessionId);
+    } else {
+      stopped.delete(sessionId);
+    }
+  });
 }
 
-/** Whether the session has a turn running, or false where no workspace is running to ask. */
-function isWorkingNow(chatId: ChatId, sessionId: StoreId.Session): boolean {
-  try {
-    return isWorking(chatId, sessionId);
-  } catch {
-    return false;
+/**
+ * The note for what the session left running that has ended unread, or none
+ * when nothing has or a stop holds it back. Each process it names is marked
+ * told as it is read, and so is each a stop holds back, so none is reported
+ * a second time.
+ */
+function jobsPart(
+  sessionId: StoreId.Session,
+): Extract<WakePart, { type: "data-jobEvent" }> | undefined {
+  const ended = unreportedBackgroundProcesses(sessionId);
+  if (ended.length === 0) {
+    return undefined;
   }
+  markBackgroundProcessesReported(
+    sessionId,
+    ended.map((process) => process.id),
+  );
+  if (stopped.has(sessionId)) {
+    return undefined;
+  }
+  return {
+    data: {
+      events: ended.map((process) => ({
+        command: process.command,
+        durationMs: process.durationMs,
+        ...(process.exitCode === undefined
+          ? {}
+          : { exitCode: process.exitCode }),
+        id: process.id,
+        logFilePath: process.logFilePath,
+        status:
+          process.status === "running"
+            ? "termination-uncertain"
+            : process.status,
+      })),
+    },
+    type: "data-jobEvent",
+  };
 }

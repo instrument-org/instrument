@@ -186,10 +186,7 @@ export function hasWakeOnItsWay(chatId: ChatId): boolean {
  * that never reached its session leaves the chat as it was, which nothing
  * else would say.
  */
-export function countOnItsWay(
-  chatId: ChatId,
-  entry: OnItsWay = {},
-): () => void {
+function countOnItsWay(chatId: ChatId, entry: OnItsWay = {}): () => void {
   const before = hasWakeOnItsWay(chatId);
   const entries = onItsWay.get(chatId) ?? new Set();
   entries.add(entry);

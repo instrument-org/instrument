@@ -259,6 +259,27 @@ describe("a background process that wakes nothing", () => {
     expect(wakesOf(owner.sessionId)).toEqual([]);
   });
 
+  it("is one that ends while a turn runs that the user then stops, even after a later turn", async () => {
+    const owner = await chat();
+    vi.mocked(isWorking).mockReturnValue(true);
+    promote(owner, "sleep 40").exit(0);
+    await pastTheDebounce();
+
+    vi.mocked(isWorking).mockReturnValue(false);
+    publisher.publish("session.done", {
+      id: owner.chatId,
+      notice: { by: "person", wakesChat: false },
+      sessionId: owner.sessionId,
+    });
+    await pastTheDebounce();
+    publisher.publish("session.done", {
+      id: owner.chatId,
+      sessionId: owner.sessionId,
+    });
+    await pastTheDebounce();
+    expect(wakesOf(owner.sessionId)).toEqual([]);
+  });
+
   it("is one that ends after the user stopped the turn", async () => {
     const owner = await chat();
     const job = promote(owner, "sleep 40");

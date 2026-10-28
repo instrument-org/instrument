@@ -210,19 +210,6 @@ export async function wakeAskers(
 }
 
 /**
- * Wakes a session, a task's or the chat's own, with the background processes
- * it left running that have since ended on their own (`job-wake.ts`).
- */
-export async function wakeSessionForJobs(
-  part: Extract<WakePart, { type: "data-jobEvent" }>,
-  workspaceRef: WorkspaceActorRef,
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<void> {
-  await wakeWith(chatId, part, workspaceRef, sessionId);
-}
-
-/**
  * Ends every task at work as the app quits, and leaves each chat a note
  * naming the tasks the quit cut off and what they had running in the
  * background, which the quit kills next. Run before those processes are
@@ -712,21 +699,6 @@ async function stillWorkingEvent({
     title,
     tokens: usage.inputTokens + usage.outputTokens,
   };
-}
-
-function wakeWith(
-  chatId: ChatId,
-  part: WakePart,
-  workspaceRef: WorkspaceActorRef,
-  /** The session to wake: a task that asked, else the chat's own. */
-  askingSessionId?: StoreId.Session,
-) {
-  return enqueueWake({
-    chatId,
-    part,
-    ...(askingSessionId ? { sessionId: askingSessionId } : {}),
-    workspaceRef,
-  });
 }
 
 /** Whether a session that just ended has a turn running again, or false where no workspace is running to ask. */

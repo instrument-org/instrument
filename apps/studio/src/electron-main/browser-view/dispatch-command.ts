@@ -865,11 +865,13 @@ async function waitForTwoFrames(wc: WebContents): Promise<void> {
 // waits on. Its visibilityState is no guide: background throttling is off for
 // guests, so a guest in a covered window reports "visible" while rendering
 // nothing. A page that renders answers one animation frame well inside the
-// probe's window. Fails open when the probe itself errors, and a passing answer
-// is reused briefly so the move, press, and release of one click pay for it
-// once.
+// probe's window. A page busy past that window holds its timer as well as its
+// frame, so a timer that fires late says busy rather than not drawing, and
+// counts as drawing. Fails open when the probe itself errors, and a passing
+// answer is reused briefly so the move, press, and release of one click pay
+// for it once.
 const RENDERING_PROBE_SCRIPT =
-  "new Promise((resolve) => { requestAnimationFrame(() => resolve(true)); setTimeout(() => resolve(false), 150); })";
+  "new Promise((resolve) => { const asked = performance.now(); requestAnimationFrame(() => resolve(true)); setTimeout(() => resolve(performance.now() - asked > 200), 150); })";
 const RENDERING_REUSE_MS = 1000;
 const renderingSeenAt = new WeakMap<BrowserEntry, number>();
 

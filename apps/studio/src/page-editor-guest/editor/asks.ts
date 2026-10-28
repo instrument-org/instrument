@@ -296,7 +296,7 @@ export function createAsks(ed: Editor): AsksApi {
         if (r?.el?.isConnected) {
           r.el.scrollIntoView({ behavior: "smooth", block: "center" });
           ed.overlay.flash(r.el, 2200);
-          setTimeout(ed.overlay.layout, 400);
+          ed.overlay.layout();
         }
       });
       list.append(li);

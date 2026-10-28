@@ -350,7 +350,7 @@ export async function startEditor(bridge: PageEditorBridge) {
           stopKeepingScroll();
           r.el.scrollIntoView({ behavior: "smooth", block: "center" });
           ed.overlay.flash(r.el, 2200);
-          setTimeout(ed.overlay.layout, 400);
+          ed.overlay.layout();
         }
         break;
       }

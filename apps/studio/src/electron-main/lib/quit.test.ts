@@ -23,6 +23,12 @@ describe("requestQuitApproval", () => {
     await expect(quit.requestQuitApproval()).resolves.toBe(true);
   });
 
+  // Setup's first launch has no workspace, so no quit is ever started, and
+  // the window's close handler loops while the two disagree.
+  it("reports a close as approved before the quit is started", () => {
+    expect(quit.isQuitApproved()).toBe(true);
+  });
+
   it.each([
     [true, true],
     [false, false],

@@ -21,9 +21,13 @@ export type RunningWork = {
  */
 export const quitsWithLastWindow = process.platform !== "darwin";
 
-/** True once this quit is approved; no further prompt is needed. */
+/**
+ * True once this quit is approved; no further prompt is needed. Before boot
+ * has started the quit there is nothing to ask about, as `requestQuitApproval`
+ * also says, so a close then goes ahead.
+ */
 export function isQuitApproved() {
-  return quit?.getSnapshot().hasTag("approved") ?? false;
+  return quit?.getSnapshot().hasTag("approved") ?? true;
 }
 
 /** Whether the dev build should run the prompt it normally skips. */

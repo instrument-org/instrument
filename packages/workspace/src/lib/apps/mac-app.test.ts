@@ -31,6 +31,14 @@ import { readConnection } from "./connection";
 import { setUpFromDirectory } from "./set-up";
 import { loadApp, readAppGuide } from "./store";
 
+// These are about where a call goes; the guide before a first call is the
+// app-call and app-request-guide tests' to cover.
+vi.mock("./guide-hand-off", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./guide-hand-off")>()),
+  anyAppGuideHandedOver: () => true,
+  appGuideHandedOver: () => true,
+}));
+
 let scratch: string;
 let standIn: ReturnType<typeof macAppsStandIn>;
 let config: ReturnType<typeof getWorkspaceConfig>;

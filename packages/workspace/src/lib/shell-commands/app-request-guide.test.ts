@@ -11,7 +11,8 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { knowChat } from "../../test/helpers/mock-chat-config";
-import { writeMessage } from "../../test/helpers/told-history";
+import { writeBaseline, writeMessage } from "../../test/helpers/told-history";
+import { currentChatApps } from "../chat-app-changes";
 import {
   appGuidesShown,
   type RecordedAppGuide,
@@ -254,6 +255,18 @@ describe("app request and the app's guide", () => {
 
     expect(fetched.mock.calls[0]?.[1].body).toBe('"hello"');
     expect(result.stdout).toBe('"hello"\n');
+  });
+
+  it("counts a guide the session's start told whole, until it is edited", async () => {
+    const slug = `guide-${chats}`;
+    const { dir } = await connectedApiApp(slug);
+    writeAppGuide(dir, "# Guide\n\nGET /me answers who the key belongs to.");
+    await writeBaseline(chatId, sessionId, { apps: await currentChatApps() });
+
+    expect(await handsOver(slug)).toBe(false);
+
+    writeAppGuide(dir, "# Guide\n\nGET /me answers whose key it is.");
+    expect(await handsOver(slug)).toBe(true);
   });
 
   it("counts `app guide` printing the guide as handing it over", async () => {

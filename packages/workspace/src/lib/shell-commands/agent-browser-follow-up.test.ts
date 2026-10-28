@@ -1,12 +1,18 @@
+import { Script } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   activeTab,
   BrowserFollowUp,
+  LIVE_REGION_SETTLE_MS,
+  liveRegionsArgs,
+  liveRegionText,
   pageAfterText,
   pageEffect,
   parseFollowUpSnapshot,
+  readsLiveRegionsFirst,
   savedScreenshotPath,
+  showsPageText,
 } from "./agent-browser-follow-up";
 
 // Recorded from agent-browser 0.38.1 (`snapshot -i --delta`) against a local
@@ -85,7 +91,7 @@ describe("BrowserFollowUp", () => {
     const followUp = new BrowserFollowUp();
     const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
     for (const { args, exitCode = 0 } of steps) {
-      followUp.note({ args, exitCode, read });
+      followUp.note({ args, exitCode, read, startedAt: 0 });
     }
     return { followUp, read };
   }
@@ -105,8 +111,8 @@ describe("BrowserFollowUp", () => {
 
   it.each([
     {
-      name: "a read after the change",
-      steps: [{ args: ["open", "x.html"] }, { args: ["snapshot", "-i"] }],
+      name: "a read of the page's text after the change",
+      steps: [{ args: ["open", "x.html"] }, { args: ["get", "text", "body"] }],
     },
     {
       name: "a change that failed",
@@ -128,12 +134,107 @@ describe("BrowserFollowUp", () => {
     expect((await followUp.take(signal))?.after).toBe("click");
   });
 
+  it("reads the page's messages from the first change since it was last read", async () => {
+    const followUp = new BrowserFollowUp();
+    const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
+    followUp.note({ args: ["click", "@e1"], exitCode: 0, read, startedAt: 10 });
+    followUp.note({
+      args: ["get", "text", "body"],
+      exitCode: 0,
+      read,
+      startedAt: 20,
+    });
+    followUp.note({ args: ["click", "@e2"], exitCode: 0, read, startedAt: 30 });
+    followUp.note({ args: ["click", "@e3"], exitCode: 0, read, startedAt: 40 });
+    await followUp.take(signal);
+    expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
+      settleMs: LIVE_REGION_SETTLE_MS,
+      since: 30,
+      snapshot: true,
+    });
+  });
+
+  it("waits for the page's messages after an action and not after a navigation", async () => {
+    const followUp = new BrowserFollowUp();
+    const read = vi.fn(() => Promise.resolve({ snapshot: FULL }));
+    followUp.note({
+      args: ["open", "https://example.com"],
+      exitCode: 0,
+      read,
+      startedAt: 5,
+    });
+    await followUp.take(signal);
+    expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
+      settleMs: 0,
+      since: 5,
+      snapshot: true,
+    });
+  });
+
+  it("reads only the page's messages after a call that read the controls itself", async () => {
+    const followUp = new BrowserFollowUp();
+    const read = vi.fn(() =>
+      Promise.resolve({ said: "Saved Ada as contact #1.", snapshot: "" }),
+    );
+    followUp.note({ args: ["click", "@e11"], exitCode: 0, read, startedAt: 7 });
+    followUp.note({ args: ["get", "url"], exitCode: 0, read, startedAt: 8 });
+    followUp.note({
+      args: ["snapshot", "-i"],
+      exitCode: 0,
+      read,
+      startedAt: 9,
+    });
+    expect(await followUp.take(signal)).toEqual({
+      after: "click",
+      kind: "messages",
+      said: "Saved Ada as contact #1.",
+      text: "",
+    });
+    expect(read).toHaveBeenCalledWith(expect.any(AbortSignal), {
+      settleMs: LIVE_REGION_SETTLE_MS,
+      since: 7,
+      snapshot: false,
+    });
+  });
+
+  it("attaches nothing after a read of the controls when the page said nothing", async () => {
+    const { followUp, read } = run([
+      { args: ["open", "x.html"] },
+      { args: ["snapshot", "-i"] },
+    ]);
+    expect(await followUp.take(signal)).toBeUndefined();
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the page's messages onto the attachment", async () => {
+    const followUp = new BrowserFollowUp();
+    followUp.note({
+      args: ["click", "@e1"],
+      exitCode: 0,
+      read: () =>
+        Promise.resolve({
+          said: "Saved.",
+          showing: "3 items",
+          snapshot: UNCHANGED,
+        }),
+      startedAt: 0,
+    });
+    expect(await followUp.take(signal)).toEqual({
+      after: "click",
+      kind: "unchanged",
+      said: "Saved.",
+      showing: "3 items",
+      text: "",
+    });
+  });
+
   it("attaches nothing when the page cannot be read", async () => {
     const followUp = new BrowserFollowUp();
     followUp.note({
       args: ["click", "@e1"],
       exitCode: 0,
       read: () => Promise.reject(new Error("daemon gone")),
+      startedAt: 0,
     });
     expect(await followUp.take(signal)).toBeUndefined();
   });
@@ -253,14 +354,156 @@ const TABS = JSON.stringify({
   success: true,
 });
 
+describe("readsLiveRegionsFirst", () => {
+  it.each([
+    { args: ["click", "@e3"], reads: true },
+    { args: ["press", "Enter"], reads: true },
+    { args: ["check", "@e5"], reads: true },
+    {
+      args: ["find", "role", "button", "click", "--name", "Save"],
+      reads: true,
+    },
+    { args: ["find", "role", "alert", "text"], reads: false },
+    { args: ["open", "https://example.com"], reads: false },
+    { args: ["tab", "2"], reads: false },
+    { args: ["fill", "@e2", "text"], reads: false },
+    { args: [], reads: false },
+  ])("$args -> $reads", ({ args, reads }) => {
+    expect(readsLiveRegionsFirst(args)).toBe(reads);
+  });
+});
+
+describe("showsPageText", () => {
+  it.each([
+    { args: ["snapshot"], shows: true },
+    { args: ["snapshot", "-i"], shows: false },
+    { args: ["snapshot", "--interactive", "--urls"], shows: false },
+    { args: ["get", "text", "body"], shows: true },
+    { args: ["get", "value", "@e2"], shows: false },
+    { args: ["read"], shows: true },
+    { args: ["eval", "document.title"], shows: true },
+    { args: ["screenshot"], shows: true },
+    { args: ["get", "url"], shows: false },
+  ])("$args -> $shows", ({ args, shows }) => {
+    expect(showsPageText(args)).toBe(shows);
+  });
+});
+
+describe("liveRegionsArgs", () => {
+  it("evaluates the script with when the step began and how long to wait", () => {
+    const args = liveRegionsArgs({ settleMs: 500, since: 1_700_000_000_000 });
+    expect(args.slice(0, 2)).toEqual(["--json", "eval"]);
+    expect(args[2]).toMatch(/^\(async \(since, settleMs\) => \{/);
+    expect(args[2]).toMatch(/\}\)\(1700000000000, 500\)$/);
+    // The script is the page's to run, so it has to parse as JavaScript.
+    expect(() => new Script(args[2] ?? "")).not.toThrow();
+  });
+});
+
+describe("liveRegionText", () => {
+  const since = 1000;
+  function output(
+    regions: {
+      changedAt?: number | null;
+      read?: boolean;
+      same?: boolean;
+      text: string;
+    }[],
+    loadedAt = 500,
+  ) {
+    return JSON.stringify({
+      data: {
+        result: {
+          loadedAt,
+          regions: regions.map(
+            ({ changedAt = null, read = true, same = true, text }) => ({
+              changedAt,
+              read,
+              same,
+              text,
+            }),
+          ),
+        },
+      },
+      success: true,
+    });
+  }
+
+  it.each([
+    {
+      name: "a region the step changed",
+      regions: [{ changedAt: 1200, text: "Saved Ada as contact #3." }],
+      expected: { said: "Saved Ada as contact #3." },
+    },
+    {
+      name: "a message the step wrote again in the same words",
+      regions: [{ changedAt: 1001, same: true, text: "Saved." }],
+      expected: { said: "Saved." },
+    },
+    {
+      name: "a region whose text the step changed without a change seen in it",
+      regions: [{ same: false, text: "Email is required." }],
+      expected: { said: "Email is required." },
+    },
+    {
+      name: "a message from before the step",
+      regions: [{ changedAt: 400, text: "Saved Grace as contact #2." }],
+      expected: {},
+    },
+    {
+      name: "a region with no earlier reading",
+      regions: [{ read: false, text: "Last saved two days ago." }],
+      expected: { showing: "Last saved two days ago." },
+    },
+  ])("reads $name", ({ expected, regions }) => {
+    expect(liveRegionText(output(regions), since)).toEqual(expected);
+  });
+
+  it("counts everything in a document the step loaded as new", () => {
+    expect(
+      liveRegionText(
+        output([{ read: false, text: "Your changes were saved." }], 1500),
+        since,
+      ),
+    ).toEqual({ said: "Your changes were saved." });
+  });
+
+  it("keeps several messages inside the budget and counts the rest", () => {
+    const { said } = liveRegionText(
+      output([
+        { changedAt: 1100, text: "a".repeat(300) },
+        { changedAt: 1100, text: "b".repeat(150) },
+        { changedAt: 1100, text: "Third" },
+        { changedAt: 1100, text: "Fourth" },
+      ]),
+      since,
+    );
+    // The second is cut to what is left of the budget, with an ellipsis.
+    expect(said?.split("\n").map((line) => line.length)).toEqual([
+      300, 100, 10,
+    ]);
+    expect(said?.split("\n").at(-1)).toBe("and 2 more");
+  });
+
+  it.each(["", "not json", JSON.stringify({ success: false, data: null })])(
+    "reads nothing from %j",
+    (given) => {
+      expect(liveRegionText(given, since)).toEqual({});
+    },
+  );
+});
+
 describe("savedScreenshotPath", () => {
   it.each([
-    ["✓ Screenshot saved to /work/screenshots/shot-1.png\n", "/work/screenshots/shot-1.png"],
     [
-      "✓ Screenshot saved to map.png\n   [1] @e1 button \"Save\"\n",
-      "map.png",
+      "✓ Screenshot saved to /work/screenshots/shot-1.png\n",
+      "/work/screenshots/shot-1.png",
     ],
-    ["✓ Screenshot unchanged (revision 3, 0.0000% pixels changed)\n", undefined],
+    ['✓ Screenshot saved to map.png\n   [1] @e1 button "Save"\n', "map.png"],
+    [
+      "✓ Screenshot unchanged (revision 3, 0.0000% pixels changed)\n",
+      undefined,
+    ],
     ["✗ Element not found\n", undefined],
   ])("reads %j", (stdout, expected) => {
     expect(savedScreenshotPath(stdout)).toBe(expected);
@@ -316,7 +559,12 @@ describe("pageAfterText", () => {
   function rendered(
     output: string,
     after: string,
-    extra: { said?: string; title?: string; url?: string } = {},
+    extra: {
+      said?: string;
+      showing?: string;
+      title?: string;
+      url?: string;
+    } = {},
   ) {
     const parsed = parseFollowUpSnapshot(output, after);
     if (!parsed) {
@@ -337,7 +585,7 @@ describe("pageAfterText", () => {
 
   it("renders an unchanged page", () => {
     expect(rendered(UNCHANGED, "click")).toMatchInlineSnapshot(
-      `"Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it."`,
+      `"Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is compared only where the page announces it (below, when it did); read the rest with \`get text\` if the action should have changed it."`,
     );
   });
 
@@ -348,7 +596,7 @@ describe("pageAfterText", () => {
         url: "http://127.0.0.1:8731/signin.html",
       }),
     ).toMatchInlineSnapshot(
-      `"Page after \`click\` on “Sign in”, http://127.0.0.1:8731/signin.html (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it."`,
+      `"Page after \`click\` on “Sign in”, http://127.0.0.1:8731/signin.html (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is compared only where the page announces it (below, when it did); read the rest with \`get text\` if the action should have changed it."`,
     );
   });
 
@@ -356,7 +604,7 @@ describe("pageAfterText", () => {
     expect(
       rendered(UNCHANGED, "click", { url: "http://127.0.0.1:8731/" }),
     ).toMatchInlineSnapshot(
-      `"Page after \`click\` on http://127.0.0.1:8731/ (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it."`,
+      `"Page after \`click\` on http://127.0.0.1:8731/ (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is compared only where the page announces it (below, when it did); read the rest with \`get text\` if the action should have changed it."`,
     );
   });
 
@@ -372,6 +620,35 @@ describe("pageAfterText", () => {
       The page's own message: That password is wrong.
       No longer on the page: @e8
       - button "Confirm" [ref=e50]"
+    `);
+  });
+
+  it("renders the page's messages alone", () => {
+    expect(
+      pageAfterText({
+        after: "click",
+        kind: "messages",
+        said: "Saved Ada Okafor as contact #1.",
+        text: "",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Messages on the page after \`click\` (its live regions, read for you, since \`snapshot -i\` leaves out text):
+      The page's own message: Saved Ada Okafor as contact #1."
+    `);
+  });
+
+  it("lists several messages, and says which may be from before the step", () => {
+    expect(
+      rendered(UNCHANGED, "click", {
+        said: "Saved Ada Lovelace as contact #3.\nThe list has 3 contacts.",
+        showing: "Last synced 2 minutes ago.",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is compared only where the page announces it (below, when it did); read the rest with \`get text\` if the action should have changed it.
+      The page's own messages:
+      - Saved Ada Lovelace as contact #3.
+      - The list has 3 contacts.
+      The page's status text, which may be from before this step: Last synced 2 minutes ago."
     `);
   });
 

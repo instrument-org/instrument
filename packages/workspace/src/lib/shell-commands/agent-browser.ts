@@ -53,10 +53,12 @@ import { watchSlowInvocation } from "./agent-browser-slow";
 import {
   currentBrowserFollowUp,
   activeTab,
-  FOLLOW_UP_SAID_ARGS,
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
+  liveRegionsArgs,
+  liveRegionText,
+  readsLiveRegionsFirst,
   savedScreenshotPath,
 } from "./agent-browser-follow-up";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
@@ -739,6 +741,13 @@ export function classifyInvocation(
 
 const DAEMON_RACE_RETRY_DELAY_MS = 250;
 
+/**
+ * How long the read of the page's messages before an action may take. It is
+ * a few milliseconds on a page that answers; the action waits on it, so a
+ * page that does not answer costs no more than this.
+ */
+const LIVE_REGION_READ_TIMEOUT_MS = 2000;
+
 interface SpawnAgentBrowserOptions {
   args: string[];
   cancelSignal: AbortSignal | undefined;
@@ -935,7 +944,35 @@ export function createAgentBrowserCommand({
       managedConfigPath: isInfoOnly ? undefined : configPath,
       stateDir: agentBrowserStateDir,
     };
+    // The session and connection flags this invocation was given, ahead of
+    // the agent's own arguments, so a read of the page reaches the same one.
+    const connectionArgs = commandArgs.slice(
+      0,
+      commandArgs.length - resolvedArgs.length,
+    );
+    const followUp =
+      isInfoOnly || browserFreeRead ? undefined : currentBrowserFollowUp();
+    // What the page's live regions say before an action, for the follow-up
+    // to tell what the action changed in them. A page that cannot be read
+    // leaves the follow-up without that reading, which it says.
+    if (followUp !== undefined && readsLiveRegionsFirst(resolvedArgs)) {
+      await runAgentBrowser({
+        ...spawnOptions,
+        args: [
+          ...connectionArgs,
+          ...liveRegionsArgs({ settleMs: 0, since: 0 }),
+        ],
+        cancelSignal: AbortSignal.any([
+          ...(ctx.signal ? [ctx.signal] : []),
+          AbortSignal.timeout(LIVE_REGION_READ_TIMEOUT_MS),
+        ]),
+        input: undefined,
+      }).catch(() => undefined);
+    }
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
+    // When the command began, which the follow-up reads the page's messages
+    // from.
+    const startedAtEpoch = Date.now();
     // How long the command ran, which tells a capped wait that gave up from
     // a failure that came back before the cap.
     const startedAt = performance.now();
@@ -960,12 +997,6 @@ export function createAgentBrowserCommand({
 
     // A fetch or --help has no page.
     if (!isInfoOnly && !browserFreeRead) {
-      // The session and connection flags this invocation was given, ahead of
-      // the agent's own arguments, so the snapshot reaches the same page.
-      const connectionArgs = commandArgs.slice(
-        0,
-        commandArgs.length - resolvedArgs.length,
-      );
       const screenshot =
         exitCode === 0 &&
         parseAgentBrowserArgs(resolvedArgs).subcommand === "screenshot"
@@ -976,10 +1007,11 @@ export function createAgentBrowserCommand({
           path.resolve(hostCwd, screenshot),
         );
       }
-      currentBrowserFollowUp()?.note({
+      followUp?.note({
         args: resolvedArgs,
         exitCode,
-        read: async (signal) => {
+        startedAt: startedAtEpoch,
+        read: async (signal, { settleMs, since, snapshot: snapshots }) => {
           const run = (readArgs: string[]) =>
             runAgentBrowser({
               ...spawnOptions,
@@ -987,6 +1019,20 @@ export function createAgentBrowserCommand({
               cancelSignal: signal,
               input: undefined,
             });
+          const messages = async () => {
+            const live = await run(liveRegionsArgs({ settleMs, since }));
+            const { said, showing } = liveRegionText(
+              live.exitCode === 0 ? live.stdout : "",
+              since,
+            );
+            return {
+              ...(said === undefined ? {} : { said: scrub(said) }),
+              ...(showing === undefined ? {} : { showing: scrub(showing) }),
+            };
+          };
+          if (!snapshots) {
+            return { ...(await messages()), snapshot: "" };
+          }
           // A click returns before the page it navigated to has loaded, and a
           // snapshot of a loading document has no controls in it. Resolves at
           // once on a page that is already past loading.
@@ -999,15 +1045,12 @@ export function createAgentBrowserCommand({
           // and one page's worth of either is a line of text.
           const [tabs, said] = await Promise.all([
             run(FOLLOW_UP_TABS_ARGS),
-            run(FOLLOW_UP_SAID_ARGS),
+            messages(),
           ]);
-          const active = activeTab(tabs.exitCode === 0 ? tabs.stdout : "");
           return {
-            ...(said.exitCode === 0 && said.stdout.trim()
-              ? { said: scrub(said.stdout).trim() }
-              : {}),
+            ...said,
             snapshot: scrub(snapshot.stdout),
-            ...active,
+            ...activeTab(tabs.exitCode === 0 ? tabs.stdout : ""),
           };
         },
       });

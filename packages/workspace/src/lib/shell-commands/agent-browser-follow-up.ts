@@ -20,7 +20,11 @@ import { parseAgentBrowserArgs } from "./agent-browser-args";
 export const PageAfterSchema = z.object({
   /** The subcommand that changed the page, which the note names. */
   after: z.string(),
-  kind: z.enum(["delta", "full", "unchanged"]),
+  /**
+   * `messages` is the page's messages alone, after a call whose own read of
+   * the page (`snapshot -i`) shows no text outside the controls.
+   */
+  kind: z.enum(["delta", "full", "messages", "unchanged"]),
   /** Lines of a full snapshot left out to keep the attachment bounded. */
   omittedLines: z.number().int().optional(),
   /**
@@ -29,11 +33,17 @@ export const PageAfterSchema = z.object({
    */
   summarized: z.boolean().optional(),
   /**
-   * What the page itself says went wrong or went through, from the element it
-   * marked as its message. A control renaming itself is all the snapshot
-   * shows of a refused sign-in; this is the sentence beside it.
+   * What the page announced with this step, from its live regions (alert,
+   * status, `output`, `aria-live`), one region a line. A control renaming
+   * itself is all the snapshot shows of a refused sign-in, and nothing at all
+   * of a save that went through; this is the sentence beside it.
    */
   said: z.string().optional(),
+  /**
+   * Live-region text the follow-up had no earlier reading of, so it may be
+   * from before this step: shown, and said to be possibly old.
+   */
+  showing: z.string().optional(),
   text: z.string(),
   /** The page this is of, which the snapshot's own lines never name. */
   title: z.string().optional(),
@@ -52,16 +62,199 @@ export const FOLLOW_UP_WAIT_ARGS = ["wait", "--load", "domcontentloaded"];
 export const FOLLOW_UP_TABS_ARGS = ["tab", "list", "--json"];
 
 /**
- * The page's own message about what just happened, from the element it marked
- * as one. A refused sign-in renames its button and says why beside it, and
- * the interactive snapshot carries the renamed button alone. Exits non-zero
- * on a page with no such element, which is most pages, so a failure here is
- * an answer and not an error.
+ * Reads the page's ARIA live regions, the elements a page writes its messages
+ * to for a screen reader to announce: `role` alert or status, `<output>`, and
+ * `aria-live` polite or assertive. `role=log`, `marquee` and `timer` are left
+ * out, since they are transcripts and clocks rather than a reply to a step.
+ *
+ * Run once with `settleMs` 0 before an action, to read what the regions say
+ * then, and again in the follow-up, which reports what changed between the
+ * two. The first run in a document also starts a mutation observer kept on
+ * the window, which stamps each region when anything in or around it changes,
+ * so a message rewritten with the same words still counts as new.
+ *
+ * Given `settleMs`, it waits until that long after `since`, the time the
+ * step began, for a region to change when the page has one and none has
+ * changed since then: a save that answers once its request returns can
+ * write its message after the snapshot. Pages with no live region, which is
+ * most, never wait, and neither does a call that already spent that long
+ * after the step.
+ *
+ * Returns the time the document began loading and, for each outermost region
+ * with visible text, that text (cut to a few sentences), when the observer
+ * last saw it change, whether an earlier run read it, and whether its text is
+ * what that run read.
  */
-export const FOLLOW_UP_SAID_ARGS = ["find", "role", "alert", "text"];
+const LIVE_REGIONS_SCRIPT = `(async (since, settleMs) => {
+  const SELECTOR = '[role~="alert"],[role~="status"],output,[aria-live="polite"],[aria-live="assertive"]';
+  const outermost = (el) => {
+    let found = null;
+    for (let at = el.closest(SELECTOR); at; at = at.parentElement?.closest(SELECTOR) ?? null) found = at;
+    return found;
+  };
+  const key = Symbol.for("instrument.liveRegions");
+  let state = window[key];
+  if (!state) {
+    state = { changedAt: new WeakMap(), read: new WeakMap(), wake: null };
+    const stamp = (region) => { state.changedAt.set(region, Date.now()); state.wake?.(); };
+    const touched = (node, within) => {
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      if (!el) return;
+      const region = outermost(el);
+      if (region) stamp(region);
+      else if (within) for (const inner of el.querySelectorAll(SELECTOR)) stamp(outermost(inner));
+    };
+    new MutationObserver((records) => {
+      for (const record of records) {
+        touched(record.target, record.type === "attributes");
+        for (const added of record.addedNodes) touched(added, true);
+      }
+    }).observe(document.documentElement, {
+      attributeFilter: ["aria-hidden", "aria-live", "class", "hidden", "role", "style"],
+      attributes: true,
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    Object.defineProperty(window, key, { value: state });
+  }
+  const regions = () => [...document.querySelectorAll(SELECTOR)]
+    .filter((el) => !el.parentElement?.closest(SELECTOR))
+    .map((el) => {
+      const shown = (el.checkVisibility?.() ?? true) && !el.closest('[aria-hidden="true"]');
+      return { el, text: shown ? el.innerText.replace(/\\s+/g, " ").trim().slice(0, 1000) : "" };
+    });
+  const loadedAt = performance.timeOrigin;
+  let found = regions();
+  const quiet = found.every(({ el, text }) => (state.changedAt.get(el) ?? 0) < since && (!state.read.has(el) || state.read.get(el) === text));
+  const left = since + settleMs - Date.now();
+  if (left > 0 && loadedAt < since && found.length > 0 && quiet) {
+    await new Promise((resolve) => {
+      const giveUp = setTimeout(resolve, left);
+      state.wake = () => { state.wake = null; clearTimeout(giveUp); setTimeout(resolve, 50); };
+    });
+    state.wake = null;
+    found = regions();
+  }
+  const result = found.filter(({ text }) => text !== "").map(({ el, text }) => ({
+    changedAt: state.changedAt.get(el) ?? null,
+    read: state.read.has(el),
+    same: state.read.get(el) === text,
+    text,
+  }));
+  for (const { el, text } of found) state.read.set(el, text);
+  return { loadedAt, regions: result };
+})`;
 
-/** How much of the page's own message is carried; it is a sentence, not a page. */
+/** The `eval` that reads the live regions; see {@link LIVE_REGIONS_SCRIPT}. */
+export function liveRegionsArgs({
+  settleMs,
+  since,
+}: {
+  settleMs: number;
+  since: number;
+}): string[] {
+  return ["--json", "eval", `${LIVE_REGIONS_SCRIPT}(${since}, ${settleMs})`];
+}
+
+/**
+ * How long after an action began the follow-up waits for a quiet live region
+ * to announce something. A save answered over loopback with no delay wrote its
+ * message after the snapshot in most tries; this also covers a backend that
+ * takes a few hundred milliseconds. An action on a page with a live region
+ * that announces nothing pays all of it.
+ */
+export const LIVE_REGION_SETTLE_MS = 500;
+
+/** How much of what the page announced is carried; it is a sentence, not a page. */
 const SAID_CHAR_BUDGET = 400;
+
+/** Below this much budget left, a further region is counted instead of cut to a stub. */
+const SAID_MIN_REGION_CHARS = 40;
+
+const LiveRegionsSchema = z.object({
+  data: z.object({
+    result: z.object({
+      loadedAt: z.number(),
+      regions: z.array(
+        z.object({
+          changedAt: z.number().nullable(),
+          read: z.boolean(),
+          same: z.boolean(),
+          text: z.string(),
+        }),
+      ),
+    }),
+  }),
+});
+
+/**
+ * What the page announced since `since`, from {@link liveRegionsArgs}'s
+ * output. A region counts as announced when the document loaded after the
+ * step began, when the observer saw it change after then, or when its text is
+ * not what the reading before the action found. One the reading before never
+ * saw, with no change seen, has no reading to compare against, so it is shown
+ * as text that may predate the step; one that was read and has not changed is
+ * left out, since it is old news. Nothing for output that is not the JSON
+ * expected.
+ */
+export function liveRegionText(
+  output: string,
+  since: number,
+): { said?: string; showing?: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    return {};
+  }
+  const live = LiveRegionsSchema.safeParse(parsed);
+  if (!live.success) {
+    return {};
+  }
+  const { loadedAt, regions } = live.data.data.result;
+  const said: string[] = [];
+  const showing: string[] = [];
+  for (const { changedAt, read, same, text } of regions) {
+    if (
+      loadedAt >= since ||
+      (changedAt !== null && changedAt >= since) ||
+      (read && !same)
+    ) {
+      said.push(text);
+    } else if (!read) {
+      showing.push(text);
+    }
+  }
+  const saidLines = withinSaidBudget(said, SAID_CHAR_BUDGET);
+  const showingLines = withinSaidBudget(
+    showing,
+    SAID_CHAR_BUDGET - saidLines.join("\n").length,
+  );
+  return {
+    ...(saidLines.length > 0 ? { said: saidLines.join("\n") } : {}),
+    ...(showingLines.length > 0 ? { showing: showingLines.join("\n") } : {}),
+  };
+}
+
+/**
+ * Each message cut to what is left of `budget`, and once too little is left,
+ * a count of the ones that did not fit.
+ */
+function withinSaidBudget(messages: readonly string[], budget: number) {
+  const kept: string[] = [];
+  let left = budget;
+  for (const [index, message] of messages.entries()) {
+    if (left < SAID_MIN_REGION_CHARS) {
+      kept.push(`and ${messages.length - index} more`);
+      break;
+    }
+    const line = clip(message, left);
+    kept.push(line);
+    left -= line.length + 1;
+  }
+  return kept;
+}
 
 /** What `snapshot -i` prints for a page with no controls in it. */
 const NO_CONTROLS = "(no interactive elements)";
@@ -166,43 +359,117 @@ export function pageEffect(args: string[]): "changes" | "none" | "reads" {
 }
 
 /**
+ * Whether a command acts on the page it is on, rather than loading another:
+ * the live regions are read before it, so the follow-up can tell what it
+ * changed in them, and the follow-up waits a moment for a quiet one. A
+ * navigation needs neither, since everything in the new document is new.
+ */
+export function readsLiveRegionsFirst(args: string[]): boolean {
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  if (subcommand === undefined) {
+    return false;
+  }
+  if (ACTIONS.has(subcommand)) {
+    return true;
+  }
+  return (
+    LOCATORS.has(subcommand) &&
+    subArgs.slice(1).some(({ value }) => ACTIONS.has(value))
+  );
+}
+
+/**
+ * Whether a read puts the page's text in front of the model, its messages
+ * among it. A `snapshot -i` is the controls alone, and `get value`, `attr`
+ * and the like are one field.
+ */
+export function showsPageText(args: string[]): boolean {
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const rest = subArgs.slice(1).map(({ value }) => value);
+  switch (subcommand) {
+    case "get": {
+      return rest[0] === "text" || rest[0] === "html";
+    }
+    case "snapshot": {
+      return !rest.includes("-i") && !rest.includes("--interactive");
+    }
+    default: {
+      return subcommand !== undefined && READS.has(subcommand);
+    }
+  }
+}
+
+/**
  * One bash call's record of whether the page still needs showing. Each
  * successful command that changes the page replaces what is pending with a way
  * to snapshot it; each read clears it; everything else leaves it alone, so the
  * last change wins and a chain ending in a read attaches nothing.
  */
 /** What one follow-up read of the page came back with. */
-export interface PageRead {
-  /** The page's own message, where it marked one. */
+interface PageRead {
+  /** What the page announced with the step, from {@link liveRegionText}. */
   said?: string;
+  /** Live-region text with no earlier reading to compare against. */
+  showing?: string;
   snapshot: string;
   title?: string;
   url?: string;
 }
 
+/**
+ * How a follow-up reads the page: `since` is when the first change it
+ * reports began, `settleMs` how long after then to wait for the page to
+ * announce, and `snapshot` whether to take the snapshot, the page's name and
+ * all, or only its messages (an empty `snapshot`).
+ */
+type ReadPage = (
+  signal: AbortSignal,
+  options: { settleMs: number; since: number; snapshot: boolean },
+) => Promise<PageRead | undefined>;
+
 export class BrowserFollowUp {
-  #pending:
-    | {
-        after: string;
-        read: (signal: AbortSignal) => Promise<PageRead | undefined>;
-      }
+  /** The last change since the page was last read, which the snapshot is after. */
+  #pending: { after: string; read: ReadPage; settles: boolean } | undefined;
+
+  /**
+   * When the first change since the page's text was last read began. A
+   * `snapshot -i` reads the controls and none of the text, so it ends what
+   * is pending above and not this: the page's messages are still unseen.
+   */
+  #unread:
+    | { after: string; read: ReadPage; settles: boolean; since: number }
     | undefined;
 
   note({
     args,
     exitCode,
     read,
+    startedAt,
   }: {
     args: string[];
     exitCode: number;
-    read: (signal: AbortSignal) => Promise<PageRead | undefined>;
+    read: ReadPage;
+    /** When the command began, in epoch milliseconds. */
+    startedAt: number;
   }) {
     const effect = pageEffect(args);
     if (effect === "reads") {
       this.#pending = undefined;
+      if (showsPageText(args)) {
+        this.#unread = undefined;
+      }
     } else if (effect === "changes" && exitCode === 0) {
       const { subcommand = "" } = parseAgentBrowserArgs(args);
-      this.#pending = { after: subcommand, read };
+      const settles = readsLiveRegionsFirst(args);
+      this.#pending = { after: subcommand, read, settles };
+      // From the first change since: what the page announced after an
+      // earlier click in the same call is news too.
+      this.#unread = {
+        after: subcommand,
+        read,
+        settles,
+        since: this.#unread?.since ?? startedAt,
+      };
     }
   }
 
@@ -224,28 +491,49 @@ export class BrowserFollowUp {
     return screenshot;
   }
 
-  /** Read the page if it is still pending, once. */
+  /**
+   * Read the page if it is still pending, once: the snapshot and the page's
+   * messages, or the messages alone when the call read the controls itself.
+   */
   async take(signal: AbortSignal): Promise<PageAfter | undefined> {
     const pending = this.#pending;
+    const unread = this.#unread;
     this.#pending = undefined;
-    if (!pending) {
+    this.#unread = undefined;
+    const last = pending ?? unread;
+    if (last === undefined || unread === undefined) {
       return undefined;
     }
     try {
-      const page = await pending.read(
+      const page = await last.read(
         AbortSignal.any([signal, AbortSignal.timeout(FOLLOW_UP_TIMEOUT_MS)]),
+        {
+          settleMs: last.settles ? LIVE_REGION_SETTLE_MS : 0,
+          since: unread.since,
+          snapshot: pending !== undefined,
+        },
       );
       if (page === undefined) {
         return undefined;
+      }
+      if (pending === undefined) {
+        return page.said === undefined && page.showing === undefined
+          ? undefined
+          : {
+              after: unread.after,
+              kind: "messages",
+              text: "",
+              ...(page.said === undefined ? {} : { said: page.said }),
+              ...(page.showing === undefined ? {} : { showing: page.showing }),
+            };
       }
       const parsed = parseFollowUpSnapshot(page.snapshot, pending.after);
       return parsed === undefined
         ? undefined
         : {
             ...parsed,
-            ...(page.said === undefined
-              ? {}
-              : { said: clip(page.said, SAID_CHAR_BUDGET) }),
+            ...(page.said === undefined ? {} : { said: page.said }),
+            ...(page.showing === undefined ? {} : { showing: page.showing }),
             ...(page.title === undefined ? {} : { title: page.title }),
             ...(page.url === undefined ? {} : { url: page.url }),
           };
@@ -413,12 +701,29 @@ export function pageAfterText(page: PageAfter): string {
   const head = `Page after \`${page.after}\`${where === undefined ? "" : ` on ${where}`} (${source}, run for you)`;
   // Ahead of the controls, since it is the page's answer to what was just
   // done and the controls are what is left to do next.
-  const said =
-    page.said === undefined ? [] : [`The page's own message: ${page.said}`];
+  const said = [
+    ...messageLines(
+      ["The page's own message", "The page's own messages"],
+      page.said,
+    ),
+    ...messageLines(
+      [
+        "The page's status text, which may be from before this step",
+        "The page's status texts, which may be from before this step",
+      ],
+      page.showing,
+    ),
+  ];
   switch (page.kind) {
+    case "messages": {
+      return [
+        `Messages on the page after \`${page.after}\` (its live regions, read for you, since \`snapshot -i\` leaves out text):`,
+        ...said,
+      ].join("\n");
+    }
     case "unchanged": {
       return [
-        `${head}: no interactive element changed since the page's last snapshot. Text outside the controls is not compared; read it with \`get text\` if the action should have changed it.`,
+        `${head}: no interactive element changed since the page's last snapshot. Text outside the controls is compared only where the page announces it (below, when it did); read the rest with \`get text\` if the action should have changed it.`,
         ...said,
       ].join("\n");
     }
@@ -493,7 +798,22 @@ export function activeTab(output: string): { title?: string; url?: string } {
   };
 }
 
-/** The page's own message, cut to one sentence's worth. */
+/**
+ * The page's messages under a label: one on the label's line, several as a
+ * list below the plural one.
+ */
+function messageLines(
+  [one, several]: [string, string],
+  messages: string | undefined,
+): string[] {
+  const lines = messages?.split("\n") ?? [];
+  if (lines.length <= 1) {
+    return lines.map((line) => `${one}: ${line}`);
+  }
+  return [`${several}:`, ...lines.map((line) => `- ${line}`)];
+}
+
+/** One message, on one line and cut to `budget` characters. */
 function clip(text: string, budget: number): string {
   const oneLine = text.replaceAll(/\s*\n\s*/g, " ").trim();
   return oneLine.length > budget ? `${oneLine.slice(0, budget)}…` : oneLine;

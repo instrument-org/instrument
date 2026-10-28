@@ -44,6 +44,7 @@ import {
 } from "./agent-browser";
 import {
   BrowserFollowUp,
+  LIVE_REGION_SETTLE_MS,
   withBrowserFollowUp,
 } from "./agent-browser-follow-up";
 import { NETWORK_IDLE_GAVE_UP, namedWaitGaveUp } from "./agent-browser-wait";
@@ -920,11 +921,26 @@ describe("agent-browser routing", () => {
             }),
           };
         }
-        if (given.includes("alert")) {
+        if (given.includes("eval")) {
           return {
             exitCode: 0,
             stderr: "",
-            stdout: "That password is wrong.\n",
+            stdout: JSON.stringify({
+              data: {
+                result: {
+                  loadedAt: 0,
+                  regions: [
+                    {
+                      changedAt: Date.now(),
+                      read: true,
+                      same: false,
+                      text: "That password is wrong.",
+                    },
+                  ],
+                },
+              },
+              success: true,
+            }),
           };
         }
         return { exitCode: 0, stderr: "", stdout: "unchanged (revision 2)\n" };
@@ -949,29 +965,88 @@ describe("agent-browser routing", () => {
         title: "Sign in",
         url: "http://x/in",
       });
-      expect(calls).toHaveLength(5);
-      expect(calls[1]?.slice(-3)).toEqual([
+      // The page's messages are read before the click, then the page after.
+      expect(calls).toHaveLength(6);
+      expect(calls[0]).toEqual(
+        expect.arrayContaining(["--session", sessionId, "--json", "eval"]),
+      );
+      expect(calls[0]?.at(-1)).toMatch(/\(0, 0\)$/);
+      expect(calls[1]?.slice(-2)).toEqual(["click", "@e1"]);
+      expect(calls[2]?.slice(-3)).toEqual([
         "wait",
         "--load",
         "domcontentloaded",
       ]);
-      expect(calls[2]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
+      expect(calls[3]?.slice(-snapshotArgs.length)).toEqual(snapshotArgs);
       // Together, so either order is the one that happened.
       expect(
         calls
-          .slice(3)
-          .map((call) => call.join(" "))
+          .slice(4)
+          .map((call) => call.slice(0, -1).join(" "))
           .toSorted(),
       ).toEqual([
-        expect.stringContaining("find role alert text"),
-        expect.stringContaining("tab list --json"),
+        expect.stringContaining("--json eval"),
+        expect.stringContaining("tab list"),
       ]);
+      expect(
+        calls
+          .slice(4)
+          .find((call) => call.includes("eval"))
+          ?.at(-1),
+      ).toMatch(new RegExp(`\\(\\d+, ${LIVE_REGION_SETTLE_MS}\\)$`));
     },
   );
 
+  it("reads only the page's messages after a call that took its own interactive snapshot", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("eval")
+        ? {
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({
+              data: {
+                result: {
+                  loadedAt: 0,
+                  regions: [
+                    {
+                      changedAt: Date.now(),
+                      read: true,
+                      same: false,
+                      text: "Saved Ada Okafor as contact #1.",
+                    },
+                  ],
+                },
+              },
+              success: true,
+            }),
+          }
+        : { exitCode: 0, stderr: "", stdout: '- button "Save" [ref=e1]\n' },
+    );
+    const followUp = new BrowserFollowUp();
+
+    await withBrowserFollowUp(followUp, async () => {
+      await command.execute(["click", "@e1"], commandCtx);
+      await command.execute(["snapshot", "-i"], commandCtx);
+    });
+
+    expect(await followUp.take(new AbortController().signal)).toEqual({
+      after: "click",
+      kind: "messages",
+      said: "Saved Ada Okafor as contact #1.",
+      text: "",
+    });
+    // The reading before the click, the click, the model's snapshot, and the
+    // messages after: no second snapshot.
+    expect(
+      (await agentBrowserRuns()).map((run) =>
+        run.args.includes("eval") ? "eval" : run.args.at(-1),
+      ),
+    ).toEqual(["eval", "@e1", "-i", "eval"]);
+  });
+
   it("attaches the page without its name or message when neither read works", async () => {
     await answerAgentBrowser((given) =>
-      given.includes("list") || given.includes("alert")
+      given.includes("list") || given.includes("eval")
         ? { exitCode: 1, stderr: "no", stdout: "" }
         : { exitCode: 0, stderr: "", stdout: "unchanged (revision 2)\n" },
     );

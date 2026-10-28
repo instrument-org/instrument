@@ -1466,12 +1466,13 @@ describe("sessionMachine", () => {
         shouldContinue: instrumentAgent.shouldContinue,
         systemPrompt: instrumentAgent.systemPrompt,
       })),
-      chunkSets: [chooseChunks, finishChunks],
+      // No step follows the call: the answer's wake is the next word.
+      chunkSets: [chooseChunks],
     });
 
     const session = await runTestMachine(result);
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="5">
+      "<session title="Test session" count="4">
         <user>
           <text>Hello, I need help with something.</text>
         </user>
@@ -1497,10 +1498,6 @@ describe("sessionMachine", () => {
         </assistant>
         <session-context instrument realRole="system" />
         <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
       </session>"
     `);
     // The open question is read from the chat's own session.

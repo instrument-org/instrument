@@ -40,7 +40,7 @@ const chooseCapability = defineCapability({
   surfaces: {
     tool: {
       description:
-        "Put a question with multiple choice options to the user on a card in the chat. The card shows them your question and its choices, with a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. It returns at once, and their answer reaches you later as a message of its own. If what you do next depends on the answer, end your turn here. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
+        "Put a question with multiple choice options to the user on a card in the chat. The card shows them your question and its choices, with a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. Your turn ends on this call, and their answer reaches you later as a message of its own, so do what does not depend on the answer first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
       execute: () => Promise.resolve(ok({ asked: true as const })),
       readOnly: true,
       timeoutMs: () => ms("10 seconds"),

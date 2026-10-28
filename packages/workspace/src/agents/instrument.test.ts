@@ -92,6 +92,21 @@ const askPermission =
     type: "tool-ask_permission",
   });
 
+const choose =
+  (output: { asked: true }) =>
+  (messageId: StoreId.Message): SessionMessagePart.Type => ({
+    input: {
+      choices: ["Warm", "Playful"],
+      explanation: "Asking which tone",
+      question: "Which tone should the tagline have?",
+    },
+    metadata: { ...partMetadata(messageId), endedAt: createdAt },
+    output,
+    state: "output-available",
+    toolCallId: `call-${messageId}`,
+    type: "tool-choose",
+  });
+
 const taskNew = bash(
   "instrument task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
@@ -121,6 +136,17 @@ describe("shouldContinueAfterHandingOff", () => {
         messages: [
           user(text("put a copy on my desktop")),
           assistant(askPermission("asked")),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("ends the turn on a question's card, with no step after it for a line", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("write me a tagline, ask me the tone first")),
+          assistant(choose({ asked: true })),
         ],
       }),
     ).resolves.toBe(false);

@@ -6,7 +6,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { ChatReads } from "../chat-reads";
 import { isTypedByUser } from "../typed-by-user";
 import { getWorkspaceConfig } from "../workspace-config";
-import { wakeSessionForSignIn } from "./wake";
+import { enqueueWake } from "./wake-queue";
 
 /**
  * The sessions whose agent asked for an image nothing connected could make,
@@ -72,12 +72,13 @@ export function startSignInWake(workspaceRef: WorkspaceActorRef): void {
             if (history.isErr() || !isWaitingOnSignIn(history.value)) {
               return;
             }
-            await wakeSessionForSignIn(
-              { data: { waitedFor: "image" }, type: "data-signedIn" },
-              workspaceRef,
+            // Joins the session's turn at its next step when it is still going.
+            await enqueueWake({
               chatId,
+              part: { data: { waitedFor: "image" }, type: "data-signedIn" },
               sessionId,
-            );
+              workspaceRef,
+            });
           } catch (error) {
             getWorkspaceConfig().captureException(error);
           }

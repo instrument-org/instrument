@@ -22,7 +22,6 @@ import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
 import { ChatReads } from "../chat-reads";
-import { chatModelURI } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
@@ -229,22 +228,6 @@ export async function wakeAskers(
       enqueueWake({ chatId, part, sessionId, workspaceRef }),
     ),
   );
-}
-
-/**
- * Wakes a session, a task's or the chat's own, that waited on the person
- * signing in to Instrument, or joins its turn when it is still going.
- */
-export async function wakeSessionForSignIn(
-  part: Extract<WakePart, { type: "data-signedIn" }>,
-  workspaceRef: WorkspaceActorRef,
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<void> {
-  if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
-    return;
-  }
-  await wakeWith(chatId, part, workspaceRef, sessionId);
 }
 
 /**

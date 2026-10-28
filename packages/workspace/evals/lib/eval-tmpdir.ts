@@ -4,12 +4,13 @@ import fs from "node:fs";
 /**
  * Moves the run's temp folder off the boot disk when this computer names one.
  *
- * A run's workspace is about 600 MB and a long suite makes hundreds, and a
- * full boot disk stalls the whole machine, so a computer with room elsewhere
- * (an external drive) names a folder there as `INSTRUMENT_EVAL_TMPDIR` in its
- * own `packages/workspace/.env`. Everything a run makes under the temp folder
- * follows it: homes, workspaces, fixtures, the disk gate's free-space check,
- * and the processes it starts, which inherit `TMPDIR`.
+ * The runtime runs share is about 600 MB, a `--fresh-runtime` run builds
+ * one more, and a full boot disk stalls the whole machine, so a computer
+ * with room elsewhere (an external drive) names a folder there as
+ * `INSTRUMENT_EVAL_TMPDIR` in its own `packages/workspace/.env`. Everything a
+ * run makes under the temp folder follows it: the shared runtime, homes,
+ * workspaces, fixtures, the disk gate's free-space check, and the processes
+ * it starts, which inherit `TMPDIR`.
  *
  * The folder has to exist already. A drive that is not mounted leaves its
  * mount point as an ordinary folder on the boot disk, so making the folder

@@ -13,7 +13,7 @@ import {
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -28,6 +28,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../src/types";
 import { EVAL_MACHINE_DIR_NAME } from "./lib/run-record";
+import { freshRuntimeDir, sharedRuntimeDir } from "./lib/workspace-cleanup";
 import { newDeviceId } from "../src/lib/records/device-id";
 
 /**
@@ -78,8 +79,11 @@ export function buildReportWorkspaceConfig(
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
+    // The run's own when it was a `--fresh-runtime` run that kept it.
     runtimeDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "runtime"),
+      existsSync(freshRuntimeDir(absoluteWorkspaceDir))
+        ? freshRuntimeDir(absoluteWorkspaceDir)
+        : sharedRuntimeDir(),
     ),
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "system-skills"),

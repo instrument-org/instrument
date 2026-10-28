@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { freshRuntimeDir } from "./workspace-cleanup";
+
 /**
  * Fixtures and scratch a run or case leaves in the temp folder, by name
  * prefix, which nothing reads after a day.
@@ -18,8 +20,9 @@ const SCRATCH_PREFIXES = [
 /**
  * A run's workspace and home, which hold what its agents did: kept a month
  * for rescoring with `report` and reading what was made, with the runtime of
- * a run that never removed its own (one that crashed, or ran with
- * `--keep-workspace`) stripped after a day.
+ * a `--fresh-runtime` run that never removed its own (one that crashed, or
+ * ran with `--keep-workspace`) stripped after a day. The runtime every other
+ * run shares (`sharedRuntimeDir`) matches neither prefix and is never swept.
  */
 const WORKSPACE_PREFIX = `${APP_NAME_SLUG}-evals-`;
 const HOME_PREFIX = `${APP_NAME_SLUG}-eval-home-`;
@@ -45,7 +48,7 @@ export function sweepOldRuns() {
         if (age > KEEP_RUNS_MS) {
           fs.rmSync(dir, { force: true, recursive: true });
         } else if (age > DAY_MS && name.startsWith(WORKSPACE_PREFIX)) {
-          fs.rmSync(path.join(dir, "runtime"), {
+          fs.rmSync(freshRuntimeDir(dir), {
             force: true,
             recursive: true,
           });

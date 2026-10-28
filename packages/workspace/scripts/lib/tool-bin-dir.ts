@@ -12,9 +12,13 @@ import { runtimeLayout } from "../../src/lib/runtime-dir";
 export function makeToolBinIn(runtimeDir: string): void {
   const binDir = runtimeLayout(runtimeDir).bin;
   fs.mkdirSync(binDir, { recursive: true });
+  // Made beside it and renamed over it, so processes sharing one runtime
+  // folder never find the link missing or race to make it.
   const link = path.join(binDir, "node");
-  fs.rmSync(link, { force: true });
-  fs.symlinkSync(process.execPath, link);
+  const staging = `${link}.${process.pid}`;
+  fs.rmSync(staging, { force: true });
+  fs.symlinkSync(process.execPath, staging);
+  fs.renameSync(staging, link);
   process.env.PATH = [binDir, process.env.PATH]
     .filter(Boolean)
     .join(path.delimiter);

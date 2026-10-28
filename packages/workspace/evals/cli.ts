@@ -55,6 +55,7 @@ const { positionals, values } = parseArgs({
   options: {
     concurrency: { default: "8", type: "string" },
     "dry-run": { default: false, type: "boolean" },
+    "fresh-runtime": { default: false, type: "boolean" },
     "keep-workspace": { default: false, type: "boolean" },
     effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
@@ -253,7 +254,10 @@ if (
     "                   --json prints the report as one line on stdout (see summary.json)\n",
   );
   process.stderr.write(
-    "                   --keep-workspace keeps each run's runtime (the app's Python and caches), which a run removes once reported\n",
+    "                   --fresh-runtime builds the app's Python and caches from nothing in the run's workspace, as a first launch does,\n                   rather than using the runtime every run on this computer shares\n",
+  );
+  process.stderr.write(
+    "                   --keep-workspace keeps a --fresh-runtime run's runtime, which it removes once reported\n",
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
@@ -636,6 +640,7 @@ switch (subcommand) {
       concurrency,
       dryRun,
       firstTrial: trialOfProcess,
+      freshRuntime: values["fresh-runtime"],
       maxRunCostUSD,
       maxRunSeconds,
       maxRunTokens,
@@ -661,7 +666,7 @@ switch (subcommand) {
       if (process.env.APP_CLAUDE_CODE_PATH) {
         await removeClaudeAccountLeftovers();
       }
-      if (!values["keep-workspace"]) {
+      if (values["fresh-runtime"] && !values["keep-workspace"]) {
         await removeRuntime(workspaceRootDir).catch(() => {
           write(
             `${c.yellow}The workspace's runtime could not be removed:${c.reset} ${workspaceRootDir}\n`,

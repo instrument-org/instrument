@@ -595,10 +595,7 @@ export async function describeFeedback(
     ? await describeChatFeedback(chatId, redactor)
     : undefined;
   return {
-    chat: chat && {
-      items: chat.items,
-      taskCount: chat.items.filter((item) => item.kind === "task").length,
-    },
+    chat: chat && { items: chat.items },
     diagnostics: {
       items: diagnosticsItems(
         chatId && { id: chatId, startedWith: chat?.startedWith },

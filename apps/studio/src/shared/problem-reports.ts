@@ -117,8 +117,8 @@ export const FEEDBACK_TOO_LARGE =
 
 /** What a feedback report can carry, for the dialog to offer part by part. */
 export type FeedbackDescription = {
-  /** The chat the feedback is about, with how many tasks it started. */
-  chat?: { items: FeedbackItem[]; taskCount: number };
+  /** The chat the feedback is about. */
+  chat?: { items: FeedbackItem[] };
   diagnostics: { items: FeedbackItem[] };
 };
 

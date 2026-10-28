@@ -46,11 +46,7 @@ import {
 import { APP_NAME } from "@instrument-org/shared";
 import { type Icon } from "@phosphor-icons/react";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
-import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
@@ -87,11 +83,11 @@ function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
 }
 
 /**
- * One width for every step. The form grows with what it shows up to the
- * height, and a file being read takes the whole of it. The window caps both
- * where it is smaller.
+ * The form and what goes down the left, the file picked from it on the right,
+ * at one size so picking another file never moves the dialog. The window caps
+ * both where it is smaller.
  */
-const DIALOG_WIDTH = "38rem";
+const DIALOG_WIDTH = "60rem";
 const DIALOG_HEIGHT = "40rem";
 
 const NOTE_MAX_LENGTH = 5000;
@@ -99,7 +95,6 @@ const NOTE_MAX_LENGTH = 5000;
 type Part = {
   id: string;
   items: FeedbackItem[];
-  sub: string;
   title: string;
 };
 
@@ -159,10 +154,10 @@ async function offerImages(already: number, files: readonly File[]) {
 
 /**
  * Feedback: the person's comments and the images they attach, then what
- * goes with them in parts (the images, the chat, when there is one, and the
- * diagnostics), each a box over its files that opens to list them, every
- * file with its own box and a way to read it as it will be sent. Everything
- * starts checked.
+ * goes with them in parts (the agent's write-up, the chat, when there is one,
+ * and the diagnostics), each a box over its files, every file with its own
+ * box. Beside them is the file picked, as it will be sent, starting on the
+ * first. Everything starts checked.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -182,10 +177,7 @@ export function FeedbackDialogContent({
     value: note,
   });
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set());
-  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  const [viewing, setViewing] = useState<AttachedImage | FeedbackItem | null>(
-    null,
-  );
+  const [picked, setPicked] = useState<string | null>(null);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -215,7 +207,6 @@ export function FeedbackDialogContent({
               {
                 id: "writeup",
                 items: [writeupItem(request.writeup)],
-                sub: "Written by the agent in this chat",
                 title: `${APP_NAME}'s write-up`,
               },
             ]
@@ -225,7 +216,6 @@ export function FeedbackDialogContent({
               {
                 id: "chat",
                 items: described.data.chat.items,
-                sub: chatSubline(described.data.chat.taskCount),
                 title: "This chat",
               },
             ]
@@ -233,14 +223,17 @@ export function FeedbackDialogContent({
         {
           id: "diagnostics",
           items: described.data.diagnostics.items,
-          sub: "Version numbers, recent errors and the app's log",
           title: "Diagnostics",
         },
       ]
     : [];
-  const going = parts
-    .flatMap((part) => part.items)
-    .filter((item) => !leftOut.has(item.id));
+  const allItems = parts.flatMap((part) => part.items);
+  const going = allItems.filter((item) => !leftOut.has(item.id));
+  // A picked image that was removed falls back to the first file.
+  const viewing: AttachedImage | FeedbackItem | undefined =
+    images.find((image) => image.id === picked) ??
+    allItems.find((item) => item.id === picked) ??
+    allItems[0];
   const chatTooLarge =
     bytesGoing(described.data?.chat?.items ?? [], leftOut) > MAX_REPORT_BYTES;
 
@@ -281,19 +274,46 @@ export function FeedbackDialogContent({
         ? `We couldn't gather what goes with your feedback: ${described.error.message}`
         : undefined;
 
-  // One `DialogContent` for every step, so moving between them swaps what is
+  const sendButton = (
+    <Button
+      disabled={
+        described.isPending ||
+        chatTooLarge ||
+        send.isPending ||
+        // Waits for dictated words, so the comments go with them.
+        isDictating(noteDictation.phase) ||
+        (going.length === 0 && images.length === 0 && note.trim() === "")
+      }
+      onClick={() => {
+        send.mutate();
+      }}
+      variant="brand"
+    >
+      {send.isPending ? (
+        <>
+          <Spinner className="size-3.5" />
+          Sending…
+        </>
+      ) : send.isError ? (
+        "Try again"
+      ) : (
+        "Send"
+      )}
+    </Button>
+  );
+
+  // One `DialogContent` for the form and the thanks, so sending swaps what is
   // inside rather than opening the dialog again with its entrance animation.
   return (
     <DialogContent
       className={cn(
-        "flex flex-col overflow-hidden",
-        viewing && "gap-0 p-0",
-        send.isSuccess && "items-center justify-center",
+        "flex flex-col gap-0 overflow-hidden p-0",
+        send.isSuccess && "items-center justify-center p-6",
       )}
       maxHeight={DIALOG_HEIGHT}
       maxWidth={DIALOG_WIDTH}
       onDragOver={(event) => {
-        if (viewing || send.isSuccess) {
+        if (send.isSuccess) {
           return;
         }
         if (event.dataTransfer.types.includes("Files")) {
@@ -302,7 +322,7 @@ export function FeedbackDialogContent({
         }
       }}
       onDrop={(event) => {
-        if (viewing || send.isSuccess) {
+        if (send.isSuccess) {
           return;
         }
         if (event.dataTransfer.files.length > 0) {
@@ -311,16 +331,9 @@ export function FeedbackDialogContent({
           void addImages([...event.dataTransfer.files]);
         }
       }}
-      onEscapeKeyDown={(event) => {
-        // Escape goes back to the list, as the arrow does.
-        if (viewing) {
-          event.preventDefault();
-          setViewing(null);
-        }
-      }}
       onExitComplete={onExitComplete}
       onPaste={(event) => {
-        if (viewing || send.isSuccess) {
+        if (send.isSuccess) {
           return;
         }
         const text = event.clipboardData.getData("text/plain");
@@ -338,9 +351,8 @@ export function FeedbackDialogContent({
         }
       }}
       showCloseButton={false}
-      // Reading a file takes the full height, so a long one has room; the
-      // form and the thanks are as tall as what they show.
-      style={viewing ? { height: DIALOG_HEIGHT } : undefined}
+      // The thanks is as tall as what it shows.
+      style={send.isSuccess ? undefined : { height: DIALOG_HEIGHT }}
     >
       {send.isSuccess ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -350,139 +362,154 @@ export function FeedbackDialogContent({
             The feedback was sent.
           </DialogDescription>
         </div>
-      ) : viewing ? (
-        <FileView
-          onBack={() => {
-            setViewing(null);
-          }}
-          viewing={viewing}
-        />
       ) : (
         <>
-          <div className="flex flex-col gap-1">
-            <DialogTitle>Send feedback</DialogTitle>
-            <DialogDescription>
-              Only the {APP_NAME} team will see what you send.
-            </DialogDescription>
-          </div>
+          <div className="flex min-h-0 flex-1">
+            <div className="flex w-88 shrink-0 flex-col gap-4 border-r border-border p-6">
+              <div className="flex flex-col gap-1.5">
+                <DialogTitle>Send feedback</DialogTitle>
+                <DialogDescription>
+                  Only the {APP_NAME} team will see what you send. Pick anything
+                  below to read it first, and uncheck what you’d rather keep to
+                  yourself.
+                </DialogDescription>
+              </div>
 
-          <div className="flex shrink-0 flex-col gap-1.5">
-            <label className="text-xs font-medium" htmlFor={noteId}>
-              Comments
-            </label>
-            <DictatedTextarea
-              autoFocus
-              className="max-h-40"
-              dictation={noteDictation}
-              id={noteId}
-              maxLength={NOTE_MAX_LENGTH}
-              onChange={(event) => {
-                setNote(event.target.value);
-              }}
-              placeholder={
-                request.writeup
-                  ? "Anything to add? You can also send it as it is."
-                  : "What happened, and what did you expect?"
-              }
-              value={note}
-            />
-          </div>
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <label className="text-xs font-medium" htmlFor={noteId}>
+                  Comments
+                </label>
+                <DictatedTextarea
+                  autoFocus
+                  className="max-h-32"
+                  dictation={noteDictation}
+                  id={noteId}
+                  maxLength={NOTE_MAX_LENGTH}
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                  }}
+                  placeholder={
+                    request.writeup
+                      ? "Anything to add? You can also send it as it is."
+                      : "What happened, and what did you expect?"
+                  }
+                  value={note}
+                />
+              </div>
 
-          <div className="flex shrink-0 flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              {images.map((image) => (
-                <div className="relative" key={image.id}>
-                  <button
-                    aria-label={`View ${image.name}`}
-                    className="block size-14 overflow-hidden rounded-md border border-border bg-muted"
+              <div className="flex shrink-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  {images.map((image) => (
+                    <div className="relative" key={image.id}>
+                      <button
+                        aria-label={`View ${image.name}`}
+                        aria-pressed={viewing === image}
+                        className={cn(
+                          "block size-14 overflow-hidden rounded-md border border-border bg-muted",
+                          viewing === image &&
+                            "ring-2 ring-brand-600 ring-offset-1 ring-offset-background",
+                        )}
+                        onClick={() => {
+                          setPicked(image.id);
+                        }}
+                        type="button"
+                      >
+                        <img
+                          alt=""
+                          className="size-full object-cover"
+                          src={image.src}
+                        />
+                      </button>
+                      <button
+                        aria-label={`Remove ${image.name}`}
+                        className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                        onClick={() => {
+                          setImages((current) =>
+                            current.filter((other) => other.id !== image.id),
+                          );
+                          setImageProblems([]);
+                        }}
+                        type="button"
+                      >
+                        <XIcon className="size-2.5" weight="bold" />
+                      </button>
+                    </div>
+                  ))}
+                  <Button
+                    disabled={images.length >= MAX_FEEDBACK_IMAGES}
                     onClick={() => {
-                      setViewing(image);
+                      pickerRef.current?.click();
                     }}
-                    type="button"
+                    size="sm"
+                    variant="outline"
                   >
-                    <img
-                      alt=""
-                      className="size-full object-cover"
-                      src={image.src}
-                    />
-                  </button>
-                  <button
-                    aria-label={`Remove ${image.name}`}
-                    className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
-                    onClick={() => {
-                      setImages((current) =>
-                        current.filter((other) => other.id !== image.id),
-                      );
-                      setImageProblems([]);
+                    <ImageIcon />
+                    Add images
+                  </Button>
+                  <input
+                    accept={FEEDBACK_IMAGE_TYPES.join(",")}
+                    className="hidden"
+                    multiple
+                    onChange={(event) => {
+                      const files = [...(event.target.files ?? [])];
+                      event.target.value = "";
+                      void addImages(files);
                     }}
-                    type="button"
-                  >
-                    <XIcon className="size-2.5" weight="bold" />
-                  </button>
-                </div>
-              ))}
-              <Button
-                disabled={images.length >= MAX_FEEDBACK_IMAGES}
-                onClick={() => {
-                  pickerRef.current?.click();
-                }}
-                size="sm"
-                variant="outline"
-              >
-                <ImageIcon />
-                Add images
-              </Button>
-              <input
-                accept={FEEDBACK_IMAGE_TYPES.join(",")}
-                className="hidden"
-                multiple
-                onChange={(event) => {
-                  const files = [...(event.target.files ?? [])];
-                  event.target.value = "";
-                  void addImages(files);
-                }}
-                ref={pickerRef}
-                type="file"
-              />
-            </div>
-            {imageProblems.map((line) => (
-              <p
-                className="flex items-start gap-1.5 text-xs text-destructive"
-                key={line}
-              >
-                <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
-                {line}
-              </p>
-            ))}
-          </div>
-
-          {/* What goes takes the room left, and scrolls in it. */}
-          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
-            {described.isPending && (
-              <p className="text-sm text-muted-foreground">
-                Gathering the details…
-              </p>
-            )}
-            {parts.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {parts.map((part) => (
-                  <FeedbackPart
-                    key={part.id}
-                    leftOut={leftOut}
-                    onLeftOut={setLeftOut}
-                    onToggleOpen={() => {
-                      setOpened((current) => toggleItem(part.id, current));
-                    }}
-                    onView={setViewing}
-                    open={opened.has(part.id)}
-                    part={part}
+                    ref={pickerRef}
+                    type="file"
                   />
+                </div>
+                {imageProblems.map((line) => (
+                  <p
+                    className="flex items-start gap-1.5 text-xs text-destructive"
+                    key={line}
+                  >
+                    <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
+                    {line}
+                  </p>
                 ))}
               </div>
-            )}
+
+              {/* What goes takes the room left, and scrolls in it. */}
+              <div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
+                {described.isPending && (
+                  <p className="text-sm text-muted-foreground">
+                    Gathering the details…
+                  </p>
+                )}
+                {parts.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    {parts.map((part) => (
+                      <FeedbackPart
+                        key={part.id}
+                        leftOut={leftOut}
+                        onLeftOut={setLeftOut}
+                        onView={(item) => {
+                          setPicked(item.id);
+                        }}
+                        part={part}
+                        viewing={viewing}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col bg-muted/30">
+              {viewing && (
+                // Keyed so each file picked fades in rather than swapping in place.
+                <div
+                  className="flex min-h-0 flex-1 animate-in flex-col duration-150 fade-in-0"
+                  key={viewing.id}
+                >
+                  <FileView viewing={viewing} />
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 border-t border-border px-6 py-3">
             <div className="min-w-0 flex-1">
               {problem && (
                 <p className="flex items-start gap-1.5 text-xs text-destructive">
@@ -494,33 +521,7 @@ export function FeedbackDialogContent({
             <Button onClick={onClose} variant="outline">
               Cancel
             </Button>
-            <Button
-              disabled={
-                described.isPending ||
-                chatTooLarge ||
-                send.isPending ||
-                // Waits for dictated words, so the comments go with them.
-                isDictating(noteDictation.phase) ||
-                (going.length === 0 &&
-                  images.length === 0 &&
-                  note.trim() === "")
-              }
-              onClick={() => {
-                send.mutate();
-              }}
-              variant="brand"
-            >
-              {send.isPending ? (
-                <>
-                  <Spinner className="size-3.5" />
-                  Sending…
-                </>
-              ) : send.isError ? (
-                "Try again"
-              ) : (
-                "Send"
-              )}
-            </Button>
+            {sendButton}
           </div>
         </>
       )}
@@ -528,105 +529,131 @@ export function FeedbackDialogContent({
   );
 }
 
-/** One part of what goes: its box, what it is, its size, and the caret that opens its files. */
+/**
+ * One part of what goes: its box and name over its files, each with its own
+ * box, the file being read marked.
+ */
 function FeedbackPart({
   leftOut,
   onLeftOut,
-  onToggleOpen,
   onView,
-  open,
   part,
+  viewing,
 }: {
   leftOut: ReadonlySet<string>;
   onLeftOut: (next: ReadonlySet<string>) => void;
-  onToggleOpen: () => void;
   onView: (item: FeedbackItem) => void;
-  open: boolean;
   part: Part;
+  viewing: AttachedImage | FeedbackItem | undefined;
 }) {
   const ids = part.items.map((item) => item.id);
   const state = partState(ids, leftOut);
-  const Caret = open ? CaretUpIcon : CaretDownIcon;
+  const [only] = part.items;
+  // A part of one file is that file's row, under the part's name.
+  if (only && part.items.length === 1) {
+    return (
+      <FileRow
+        included={!leftOut.has(only.id)}
+        item={only}
+        label={part.title}
+        onToggle={() => {
+          onLeftOut(toggleItem(only.id, leftOut));
+        }}
+        onView={onView}
+        shown={viewing === only}
+      />
+    );
+  }
   return (
-    <div className="rounded-lg border border-border px-3 py-2.5">
-      <div className="flex items-start gap-2.5">
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-2.5 px-2 py-1">
         <Checkbox
           aria-label={part.title}
           checked={state}
-          className="mt-0.5"
           onCheckedChange={() => {
             onLeftOut(togglePart(ids, leftOut));
           }}
         />
-        <button
-          aria-expanded={open}
-          className="flex min-w-0 flex-1 items-start gap-2 text-left"
-          onClick={onToggleOpen}
-          type="button"
-        >
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm">{part.title}</span>
-            <span className="text-xs text-muted-foreground">{part.sub}</span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2 pt-0.5 text-xs text-muted-foreground">
-            {state === false
-              ? "Not included"
-              : formatSize(bytesGoing(part.items, leftOut))}
-            <Caret className="size-3.5" />
-          </span>
-        </button>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium">
+          {part.title}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {state === false
+            ? "Not included"
+            : formatSize(bytesGoing(part.items, leftOut))}
+        </span>
       </div>
-      {open && (
-        <div className="mt-1 ml-6 flex flex-col border-l border-border pl-2">
-          {part.items.map((item) => {
-            const ItemIcon = ITEM_ICONS[item.kind];
-            const included = !leftOut.has(item.id);
-            return (
-              <div
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-2 py-0.5 text-[13px]",
-                  !included && "text-muted-foreground",
-                )}
-                key={item.id}
-              >
-                <Checkbox
-                  aria-label={item.label}
-                  checked={included}
-                  onCheckedChange={() => {
-                    onLeftOut(toggleItem(item.id, leftOut));
-                  }}
-                />
-                <button
-                  aria-label={`Read ${item.label}`}
-                  className="-mr-2 flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-1 pr-2 text-left hover:bg-accent"
-                  onClick={() => {
-                    onView(item);
-                  }}
-                  type="button"
-                >
-                  <ItemIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatSize(item.bytes)}
-                  </span>
-                  <CaretRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {part.items.map((item) => (
+        <FileRow
+          className="pl-7"
+          included={!leftOut.has(item.id)}
+          item={item}
+          key={item.id}
+          label={item.label}
+          onToggle={() => {
+            onLeftOut(toggleItem(item.id, leftOut));
+          }}
+          onView={onView}
+          shown={viewing === item}
+        />
+      ))}
     </div>
   );
 }
 
-function chatSubline(taskCount: number) {
-  if (taskCount === 0) {
-    return "The chat, including the files it read";
-  }
-  return taskCount === 1
-    ? "The chat and its task, including the files they read"
-    : `The chat and its ${taskCount} tasks, including the files they read`;
+/** A file of what goes: its box, and the row that shows it beside the list. */
+function FileRow({
+  className,
+  included,
+  item,
+  label,
+  onToggle,
+  onView,
+  shown,
+}: {
+  className?: string;
+  included: boolean;
+  item: FeedbackItem;
+  label: string;
+  onToggle: () => void;
+  onView: (item: FeedbackItem) => void;
+  shown: boolean;
+}) {
+  const ItemIcon = ITEM_ICONS[item.kind];
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2.5 rounded-md pl-2 text-[13px]",
+        shown && "bg-accent",
+        !included && "text-muted-foreground",
+        className,
+      )}
+    >
+      <Checkbox
+        aria-label={label}
+        checked={included}
+        onCheckedChange={onToggle}
+      />
+      <button
+        aria-label={`Read ${item.label}`}
+        aria-pressed={shown}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-1.5 pr-2 text-left",
+          !shown && "hover:bg-accent/60",
+        )}
+        onClick={() => {
+          onView(item);
+        }}
+        type="button"
+      >
+        <ItemIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {included ? formatSize(item.bytes) : "Not included"}
+        </span>
+      </button>
+    </div>
+  );
 }
 
 /** A block of the file view: what it shows, in which language, and what Copy copies. */
@@ -677,31 +704,17 @@ function itemBlocks(item: FeedbackItem): ViewBlock[] {
   ];
 }
 
-/** A file or an image being read, with the arrow back to the list. */
-function FileView({
-  onBack,
-  viewing,
-}: {
-  onBack: () => void;
-  viewing: AttachedImage | FeedbackItem;
-}) {
+/** A file or an image being read, beside the list it was picked from. */
+function FileView({ viewing }: { viewing: AttachedImage | FeedbackItem }) {
   const [showRaw, setShowRaw] = useState(false);
   const blocks = "files" in viewing ? itemBlocks(viewing) : [];
   const hasRecords = blocks.some((block) => block.records);
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <Button
-          aria-label="Back"
-          onClick={onBack}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <ArrowLeftIcon className="size-4" />
-        </Button>
-        <DialogTitle className="min-w-0 flex-1 truncate text-sm font-medium">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium">
           {"files" in viewing ? viewing.label : viewing.name}
-        </DialogTitle>
+        </p>
         {hasRecords && (
           <Tabs
             onValueChange={(value) => {
@@ -719,9 +732,9 @@ function FileView({
             </TabsList>
           </Tabs>
         )}
-        <DialogDescription className="shrink-0 text-xs text-muted-foreground">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {formatSize("files" in viewing ? viewing.bytes : viewing.size)}
-        </DialogDescription>
+        </span>
       </div>
       {"files" in viewing ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">

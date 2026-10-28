@@ -380,9 +380,9 @@ function systemPrompt(): string {
 /**
  * The turn ends once a task has been created or steered, or the user has been
  * asked to connect an app, and the user has heard a line, or at once once the
- * user has been asked for a folder, an app or a tab: the next word about
- * it comes from the wake, and every model given the chance narrates the
- * hand-off a second time. A step that handed off before saying anything gets
+ * user has been asked for a folder, an app or a tab, or asked a question on a
+ * card: the next word about it comes from the wake, and every model given
+ * the chance narrates the hand-off a second time. A step that handed off before saying anything gets
  * one more step, for the line.
  */
 export async function shouldContinueAfterHandingOff({
@@ -398,14 +398,18 @@ export async function shouldContinueAfterHandingOff({
   if (!last) {
     return shouldContinueWithToolCalls({ messages });
   }
-  // A permission card says why it asks itself, so the turn ends on the call
-  // with no step after it for a line, which could land after the answer.
+  // A permission card says why it asks itself, and a question's card is the
+  // whole of the ask, so the turn ends on the call with no step after it for
+  // a line, which could land after the answer.
   if (
     last.parts.some(
       (part) =>
         (part.type === "tool-ask_permission" &&
           part.state === "output-available" &&
           part.output.state === "asked") ||
+        (part.type === "tool-choose" &&
+          part.state === "output-available" &&
+          "asked" in part.output) ||
         (part.type === "tool-bash" &&
           part.state === "output-available" &&
           (part.output.asks?.length ?? 0) > 0),

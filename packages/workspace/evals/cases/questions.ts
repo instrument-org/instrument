@@ -127,6 +127,23 @@ const LEFT_THE_ASKING_TO_THE_CARD: Assertion = {
   text: "left the asking to the card",
 };
 
+/**
+ * Nothing at all between asking and the answer: a line written after the
+ * card can land after the person has already answered it, telling them to
+ * confirm what they just confirmed.
+ */
+const SAID_NOTHING_AFTER_ASKING: Assertion = {
+  check: ({ sessions }) => {
+    const { before } = repliesAroundAnswer(sessions);
+    return {
+      evidence: before.slice(0, 400) || "(nothing)",
+      passed: before === "",
+      text: "said nothing between asking and the answer",
+    };
+  },
+  text: "said nothing between asking and the answer",
+};
+
 const REPLIED: Assertion = {
   check: ({ sessions }) => {
     const reply = replyAfterAnswer(sessions);
@@ -167,6 +184,7 @@ export const QUESTIONS_EVALS = [
       NO_ESCAPE_CHOICES,
       WAITED_FOR_ANSWER,
       LEFT_THE_ASKING_TO_THE_CARD,
+      SAID_NOTHING_AFTER_ASKING,
       REPLIED,
       mentions("sourdough"),
     ],
@@ -181,6 +199,7 @@ export const QUESTIONS_EVALS = [
       NO_ESCAPE_CHOICES,
       WAITED_FOR_ANSWER,
       LEFT_THE_ASKING_TO_THE_CARD,
+      SAID_NOTHING_AFTER_ASKING,
       REPLIED,
     ],
     kind: "chat",
@@ -194,6 +213,7 @@ export const QUESTIONS_EVALS = [
       NO_ESCAPE_CHOICES,
       WAITED_FOR_ANSWER,
       LEFT_THE_ASKING_TO_THE_CARD,
+      SAID_NOTHING_AFTER_ASKING,
       REPLIED,
     ],
     kind: "chat",
@@ -207,6 +227,7 @@ export const QUESTIONS_EVALS = [
       NO_ESCAPE_CHOICES,
       WAITED_FOR_ANSWER,
       LEFT_THE_ASKING_TO_THE_CARD,
+      SAID_NOTHING_AFTER_ASKING,
       REPLIED,
       mentions("Portland"),
     ],

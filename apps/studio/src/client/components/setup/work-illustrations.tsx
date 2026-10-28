@@ -6,7 +6,9 @@ import { type CSSProperties, type ReactNode } from "react";
 /**
  * Figma's Illustration/Vignette pieces: the little pages setup's pictures
  * are made of, at their size in the 560-wide pictures. They take their
- * colors from the `--vignette-*` tokens, so they follow the theme.
+ * colors from the `--vignette-*` tokens, so they follow the theme. A
+ * picture drawn scaled down sets `--vignette-scale` to its scale, which
+ * keeps each card's corner and edge at Figma's 9px and 1px on screen.
  */
 
 /** A sheet: a green header row over a grid with one cell picked. */
@@ -109,13 +111,16 @@ export function ChartIllustration() {
   );
 }
 
-/** A photo, a picture in either theme. */
+/**
+ * A photo, a picture in either theme, its corners rounded to sit evenly
+ * inside the card's, 4px in.
+ */
 export function PhotoIllustration() {
   return (
     <IllustrationCard className="h-18 w-15">
       <img
         alt=""
-        className="absolute top-1 left-1 h-16 w-13 max-w-none"
+        className="absolute top-1 left-1 h-16 w-13 max-w-none rounded-[calc(9px/var(--vignette-scale,1)-4px)]"
         src={photoSrc}
       />
     </IllustrationCard>
@@ -141,7 +146,7 @@ function IllustrationCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[9px] bg-vignette-paper shadow-[0_0_0_1px_var(--color-vignette-edge),0_1px_2px_-1px_rgb(10_13_18/0.06),0_2px_4px_0_rgb(10_13_18/0.04)]",
+        "relative overflow-hidden rounded-[calc(9px/var(--vignette-scale,1))] bg-vignette-paper shadow-[0_0_0_calc(1px/var(--vignette-scale,1))_var(--color-vignette-edge),0_1px_2px_-1px_rgb(10_13_18/0.06),0_2px_4px_0_rgb(10_13_18/0.04)]",
         className,
       )}
     >

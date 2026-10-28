@@ -5,7 +5,7 @@ import { type SignInEnd } from "../lib/apps/connection";
 import { type RecordChanged } from "../lib/record-changes";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { type StopNotice } from "../schemas/stop-notice";
+import { type StopNotice, type Stopper } from "../schemas/stop-notice";
 import {
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -85,6 +85,18 @@ export const publisher = new EventPublisher<{
    */
   "chat.rowAsked": {
     id: ChatId;
+  };
+  /**
+   * A chat stopped working: its agent, every task filed from it and every
+   * wake on its way to it are done. Published by `startChatSettle` once per
+   * stretch of work, for whatever treats a chat at rest as news.
+   */
+  "chat.settled": {
+    /** Who stopped the turn that ended last, when a stop ended it. */
+    by?: Stopper;
+    id: ChatId;
+    /** The chat's own session. */
+    sessionId: StoreId.Session;
   };
   /**
    * An agent sent a command to a guest. One per command rather than a

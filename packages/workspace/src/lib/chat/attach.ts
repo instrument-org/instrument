@@ -3,7 +3,7 @@ import { startAppEvents } from "../apps/events";
 import { startChatFolderWrites } from "../chat-folders/on-turn-end";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
 import { startChatListFile } from "./chat-list-file";
-import { startChatUnreadOnSettle } from "./chats";
+import { startChatSettle, startChatUnreadOnSettle } from "./chats";
 import { startJobWake } from "./job-wake";
 import { startChatRetitle } from "./retitle";
 import { startSignInWake } from "./sign-in-wake";
@@ -31,6 +31,7 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startJobWake(workspaceRef);
   startAppEvents(workspaceRef);
   startSignInWake(workspaceRef);
+  startChatSettle();
   startChatRetitle();
   startChatUnreadOnSettle();
   startChatFolderWrites();

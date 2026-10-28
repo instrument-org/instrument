@@ -1,7 +1,15 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { publisher } from "../../rpc/publisher";
 import {
@@ -39,6 +47,7 @@ import {
   markChatRead,
   markChatStopped,
   markChatUnread,
+  startChatSettle,
   startChatUnreadOnSettle,
   renameChat,
   setChatStarred,
@@ -123,6 +132,11 @@ const freshChat = async () => {
 async function fileTask(sessionId: StoreId.Session, title = "Grocery list") {
   return chatTaskFor(await chatFor(sessionId), { title });
 }
+
+beforeAll(() => {
+  startChatSettle();
+  startChatUnreadOnSettle();
+});
 
 beforeEach(() => {
   running.value = [];
@@ -565,7 +579,6 @@ describe("listChats", () => {
         updatedAt: Date.now(),
       },
     ];
-    startChatUnreadOnSettle();
 
     publisher.publish("session.done", {
       id: await chatFor(sessionId),
@@ -590,7 +603,6 @@ describe("listChats", () => {
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
     pendingWakes.value.add(await chatFor(sessionId));
-    startChatUnreadOnSettle();
 
     publisher.publish("session.done", {
       id: await chatFor(sessionId),
@@ -606,7 +618,6 @@ describe("listChats", () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
-    startChatUnreadOnSettle();
 
     publisher.publish("session.done", {
       id: await chatFor(sessionId),

@@ -28,7 +28,7 @@ import {
   liveMessages,
 } from "./activity";
 import { listChatIds } from "./chat-records";
-import { listChildTasks, sessionRole } from "./children";
+import { listChildTasks } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { shownTitle } from "./shown-title";
@@ -285,33 +285,123 @@ export async function markChatUnread(
 }
 
 /**
- * Marks a chat unread each time it settles: its agent and every task filed
- * from it have stopped, whether on a reply, a question, or an error. A turn
- * the person stopped is no news to them, so it leaves the mark as it was. A turn
- * that leaves something of the chat's still working waits for the one that
- * settles it, the same moment its title is settled and a notification
- * treats as news. A chat the user is looking at as it settles is marked
- * too; the window takes the mark off again at once.
+ * Marks a chat unread each time it settles (`startChatSettle`), whether on
+ * a reply, a question, an error, or a wake that never started its turn,
+ * unless the person's own Stop settled it. A chat the user is looking at as
+ * it settles is marked too; the window takes the mark off again at once.
  */
 export function startChatUnreadOnSettle(): void {
   void (async () => {
-    for await (const { id, notice, sessionId } of publisher.subscribe(
-      "session.done",
-    )) {
+    for await (const settle of publisher.subscribe("chat.settled")) {
       try {
-        // A task's turn ending is news the chat's own next reply carries.
-        if (
-          notice?.by !== "person" &&
-          sessionRole(id, sessionId) === "chat" &&
-          !(await chatIsWorking(id))
-        ) {
-          await markChatUnread(id, { byUser: false });
+        if (settleIsNews(settle)) {
+          await markChatUnread(settle.id, { byUser: false });
         }
       } catch (error) {
         getWorkspaceConfig().captureException(error);
       }
     }
   })();
+}
+
+/**
+ * Whether a chat settling is news to the person: not when their own Stop
+ * settled it, which they know of already.
+ */
+export function settleIsNews({ by }: { by?: Stopper }): boolean {
+  return by !== "person";
+}
+
+/** Whether each chat was last seen working, by `chatIsWorking`. */
+const seenWorking = new Map<ChatId, boolean>();
+
+/** Who stopped the turn that ended last in each chat, when a stop ended it. */
+const lastStopper = new Map<ChatId, Stopper | undefined>();
+
+/** The check each chat has under way, so its checks run one at a time. */
+const settleChecks = new Map<ChatId, Promise<void>>();
+
+/**
+ * Publishes `chat.settled` each time a chat stops working: its agent, every
+ * task filed from it and every wake on its way to it are done, by
+ * `chatIsWorking`, the one rule for whether a chat works. Read again as each
+ * of its sessions ends, and as its agents or its wakes move, so a wake that
+ * gives up without starting a turn settles the chat too. A turn that leaves
+ * something of the chat's still working waits for the one that settles it.
+ * What hears it (the unread mark, the retitle, the completion notification)
+ * asks nothing more about whether the chat is at rest.
+ */
+export function startChatSettle(): void {
+  publisher.subscribe("session.done", ({ id, notice }) => {
+    // The session was at work until now, whatever the agents say yet.
+    seenWorking.set(id, true);
+    lastStopper.set(id, notice?.by);
+    checkSettled(id);
+  });
+  publisher.subscribe("record.changed", ({ id, kind }) => {
+    if (kind === "removed") {
+      seenWorking.delete(id);
+      lastStopper.delete(id);
+      return;
+    }
+    if (kind !== "agent") {
+      return;
+    }
+    // Starting work needs no reading; only stopping may settle the chat.
+    if (mayBeWorking(id)) {
+      seenWorking.set(id, true);
+    } else if (seenWorking.get(id)) {
+      checkSettled(id);
+    }
+  });
+}
+
+/** Whether an agent of the chat is alive or a wake is on its way to it, read without the chat's records. */
+function mayBeWorking(chatId: ChatId): boolean {
+  if (hasWakeOnItsWay(chatId)) {
+    return true;
+  }
+  try {
+    return isWorking(chatId);
+  } catch {
+    return false;
+  }
+}
+
+function checkSettled(chatId: ChatId) {
+  const check = (settleChecks.get(chatId) ?? Promise.resolve())
+    .then(async () => {
+      if (await chatIsWorking(chatId)) {
+        seenWorking.set(chatId, true);
+        return;
+      }
+      // Settled already by a check before this one, or started again since
+      // this one read the chat.
+      if (!seenWorking.get(chatId) || mayBeWorking(chatId)) {
+        return;
+      }
+      seenWorking.set(chatId, false);
+      const sessionId = sessionOfChat(chatId);
+      if (!sessionId) {
+        return;
+      }
+      const by = lastStopper.get(chatId);
+      lastStopper.delete(chatId);
+      publisher.publish("chat.settled", {
+        id: chatId,
+        ...(by ? { by } : {}),
+        sessionId,
+      });
+    })
+    .catch((error: unknown) => {
+      getWorkspaceConfig().captureException(error);
+    });
+  settleChecks.set(chatId, check);
+  void check.finally(() => {
+    if (settleChecks.get(chatId) === check) {
+      settleChecks.delete(chatId);
+    }
+  });
 }
 
 /**

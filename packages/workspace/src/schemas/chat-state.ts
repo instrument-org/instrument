@@ -161,12 +161,12 @@ export type Ask = z.output<typeof AskSchema>;
 // Where this device left off in a chat, in its own `state.<device>.json`.
 // Read on open, and across chats only by the chat list for its open cards,
 // through `openPermissionAsks`.
+// Each field that will not parse costs the chat that field alone.
 export const StoredChatStateSchema = z.object({
-  browserTabs: z.array(HeldTabSchema).default([]),
+  browserTabs: z.array(HeldTabSchema).catch([]).default([]),
   closedTabs: z.array(ClosedTabSchema).catch([]).default([]),
   // The folders and apps the agent is waiting on the person to allow,
-  // oldest first: this computer's to grant. One that will not parse costs
-  // the chat its open cards alone.
+  // oldest first: this computer's to grant.
   waitingOn: z.array(PermissionAskSchema).catch([]).default([]),
 });
 

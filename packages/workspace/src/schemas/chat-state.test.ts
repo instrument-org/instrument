@@ -30,3 +30,21 @@ describe("a chat's held tabs", () => {
     });
   });
 });
+
+describe("a chat's state file", () => {
+  it("keeps its other fields when a held tab will not parse", () => {
+    const closed = {
+      id: "tab_1",
+      reason: "tabCap",
+      url: "https://example.com/",
+    };
+    expect(
+      StoredChatStateSchema.parse({
+        browserTabs: [
+          { id: "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9", openedBy: "later" },
+        ],
+        closedTabs: [closed],
+      }),
+    ).toMatchObject({ browserTabs: [], closedTabs: [closed] });
+  });
+});

@@ -224,12 +224,9 @@ export async function wakeAskers(
   chatId: ChatId,
   askingSessionIds: StoreId.Session[],
 ): Promise<void> {
-  if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
-    return;
-  }
   await Promise.all(
     askingSessionIds.map((sessionId) =>
-      wakeWith(chatId, part, workspaceRef, sessionId),
+      enqueueWake({ chatId, part, sessionId, workspaceRef }),
     ),
   );
 }

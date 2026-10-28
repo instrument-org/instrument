@@ -32,6 +32,7 @@ Open first, earliest check first; closed ones after.
 | [How often and how long the main thread stalls](main-thread-stalls.md) | 2026-11-14, after a week on a beta with the attribution fix | open |
 | [Which processes stay busy, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md) | 2026-11-07, after a week on beta 102 | open |
 | [Why Claude account sessions cold-start](claude-account-cold-starts.md) | 2026-11-07, after a week of Claude account chats | open |
+| [Why reply streams drop partway](dropped-reply-streams.md) | 2026-11-11, after a week on a beta with the cause capture | open |
 | [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md) | 2026-11-21, after a week on the test hosts | open |
 | [Whether the step and output caps ever trip](step-and-output-caps.md) | 2026-11-21 | open |
 | [Whether ChatGPT citation markers are common enough to strip](chatgpt-citation-marker-rate.md) | 2026-11-21 | open |

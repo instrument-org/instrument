@@ -442,6 +442,9 @@ function detailFacts(
     }
     facts.push(["Request", error.url]);
   }
+  if ((error.kind === "api-call" || error.kind === "unknown") && error.cause) {
+    facts.push(["Cause", error.cause]);
+  }
   if (error.kind === "no-such-tool") {
     facts.push(["Tool", error.toolName]);
   }

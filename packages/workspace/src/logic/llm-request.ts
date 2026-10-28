@@ -31,6 +31,7 @@ import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
+import { describeErrorCause } from "../lib/describe-error-cause";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
 import { writingChatRecords } from "../lib/records/chat-records";
@@ -997,7 +998,9 @@ export const llmRequestLogic = fromPromise<
       }
       case APICallError.isInstance(error): {
         const classification = classifyProviderError(error);
+        const cause = describeErrorCause(error);
         assistantMessage.metadata.error = {
+          cause,
           classification: classification.kind,
           kind: "api-call",
           message: error.message,
@@ -1006,6 +1009,17 @@ export const llmRequestLogic = fromPromise<
           statusCode: error.statusCode,
           url: error.url,
         };
+        // A response arrived and then could not be read: a stream dropped
+        // partway, or a body that would not parse. A provider's own refusal
+        // carries no cause, and a request that never connected no status.
+        if (error.statusCode !== undefined && cause !== undefined) {
+          getWorkspaceConfig().captureException(error, {
+            area: "llm-request",
+            chatId: input.chatId,
+            data: { classification: classification.kind },
+            sessionId: input.sessionId,
+          });
+        }
         break;
       }
       // Should not be called now that tool-error above handles this
@@ -1034,6 +1048,7 @@ export const llmRequestLogic = fromPromise<
         // as an error nobody can identify.
         const classification = classifyProviderError(error);
         assistantMessage.metadata.error = {
+          cause: describeErrorCause(error),
           classification: classification.kind,
           kind: "unknown",
           message:

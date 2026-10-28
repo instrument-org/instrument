@@ -1475,6 +1475,7 @@ describe("llmRequestLogic", () => {
             "id": "msg_00000000ZP8888888888888888",
             "metadata": {
               "error": {
+                "cause": "Error: API call failed",
                 "classification": "transient",
                 "kind": "api-call",
                 "message": "Failed to process error response",
@@ -1501,6 +1502,75 @@ describe("llmRequestLogic", () => {
           },
         ]
       `);
+    });
+
+    it("keeps why a dropped stream failed and reports it", async () => {
+      const socket = Object.assign(new Error("other side closed"), {
+        code: "UND_ERR_SOCKET",
+        name: "SocketError",
+      });
+      // As the SDK's `handleFetchError` rebuilds it: retryable, since a
+      // network error is in its chain.
+      const dropped = new APICallError({
+        cause: new TypeError("terminated", { cause: socket }),
+        isRetryable: true,
+        message: "Failed to process successful response",
+        requestBodyValues: {},
+        statusCode: 200,
+        url: "http://127.0.0.1:48100/ai-gateway/providers/instrument/chat/completions",
+      });
+      const testMachine = await createTestMachine({
+        beforeStream: () => {
+          throw dropped;
+        },
+        chunks: [],
+      });
+      const captureException = vi
+        .spyOn(getWorkspaceConfig(), "captureException")
+        .mockImplementation(() => {});
+
+      const { messages } = await runTestMachine(testMachine);
+
+      expect(captureException).toHaveBeenCalledWith(
+        dropped,
+        expect.objectContaining({ area: "llm-request" }),
+      );
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant?.metadata.error).toMatchInlineSnapshot(`
+        {
+          "cause": "TypeError: terminated, caused by SocketError: other side closed (UND_ERR_SOCKET)",
+          "classification": "transient",
+          "kind": "api-call",
+          "message": "Failed to process successful response",
+          "name": "AI_APICallError",
+          "statusCode": 200,
+          "url": "http://127.0.0.1:48100/ai-gateway/providers/instrument/chat/completions",
+        }
+      `);
+    });
+
+    it("does not report a provider's refusal", async () => {
+      const testMachine = await createTestMachine({
+        beforeStream: () => {
+          throw new APICallError({
+            message: "Overloaded",
+            requestBodyValues: {},
+            responseBody: '{"error":{"type":"overloaded_error"}}',
+            statusCode: 529,
+            url: "https://api.anthropic.com/v1/messages",
+          });
+        },
+        chunks: [],
+      });
+      const captureException = vi
+        .spyOn(getWorkspaceConfig(), "captureException")
+        .mockImplementation(() => {});
+
+      await runTestMachine(testMachine);
+
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it("should handle aborted errors", async () => {
@@ -1547,7 +1617,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZQ8888888888888888",
+            "id": "msg_00000000ZS8888888888888888",
             "metadata": {
               "error": {
                 "kind": "aborted",
@@ -1561,8 +1631,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZQ8888888888888889",
-                  "messageId": "msg_00000000ZQ8888888888888888",
+                  "id": "prt_00000000ZS8888888888888889",
+                  "messageId": "msg_00000000ZS8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },
@@ -1615,7 +1685,7 @@ describe("llmRequestLogic", () => {
             "role": "session-context",
           },
           {
-            "id": "msg_00000000ZR8888888888888888",
+            "id": "msg_00000000ZT8888888888888888",
             "metadata": {
               "error": {
                 "classification": "unknown",
@@ -1629,8 +1699,8 @@ describe("llmRequestLogic", () => {
               {
                 "metadata": {
                   "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZR8888888888888889",
-                  "messageId": "msg_00000000ZR8888888888888888",
+                  "id": "prt_00000000ZT8888888888888889",
+                  "messageId": "msg_00000000ZT8888888888888888",
                   "sessionId": "ses_00000000018888888888888888",
                   "stepCount": 1,
                 },

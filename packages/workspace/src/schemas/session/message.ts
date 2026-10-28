@@ -102,11 +102,15 @@ export namespace SessionMessage {
       message: z.string(),
     }),
     z.object({
+      /** The error's `cause` chain, as `describeErrorCause` says it. */
+      cause: z.string().optional(),
       classification: ClassificationSchema,
       kind: z.literal("unknown"),
       message: z.string(),
     }),
     z.object({
+      /** The error's `cause` chain, as `describeErrorCause` says it. */
+      cause: z.string().optional(),
       classification: ClassificationSchema,
       kind: z.literal("api-call"),
       message: z.string(),

@@ -1264,13 +1264,15 @@ describe("listChats", () => {
         minute: 2,
       },
     );
-    // An earlier build's form of the same command, in a stored transcript.
+    // One `show` opening two pages.
     await agentSays(
       chatId,
       sessionId,
       "Updated.\n\n```files\n/Users/sam/Instrument/groceries/list.md\n/Users/sam/Instrument/groceries/prices.csv\n```",
       {
-        commands: ["instrument window show https://www.costco.com/"],
+        commands: [
+          "instrument window show https://www.costco.com/ 'https://www.target.com/'",
+        ],
         minute: 3,
       },
     );
@@ -1283,7 +1285,7 @@ describe("listChats", () => {
         "/Users/sam/Instrument/groceries/list.md",
         "/Users/sam/Instrument/groceries/prices.csv",
       ],
-      sites: ["www.instacart.com", "www.costco.com"],
+      sites: ["www.instacart.com", "www.costco.com", "www.target.com"],
     });
   });
 

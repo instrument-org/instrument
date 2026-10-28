@@ -861,13 +861,16 @@ function newestLast(items: string[]): string[] {
  */
 function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
+  // `show` opens every address it is given, each in a tab of its own.
   for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*instrument\s+window\s+show(?:\s+--in\s+\S+)?\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    /(?:^|[\n;&|])\s*instrument\s+window\s+show\s([^\n;&|]*)/g,
   )) {
-    try {
-      hosts.push(new URL(match[1] ?? "").hostname);
-    } catch {
-      // Not an address the shell would have opened either.
+    for (const [url] of (match[1] ?? "").matchAll(/https?:\/\/[^\s'"]+/g)) {
+      try {
+        hosts.push(new URL(url).hostname);
+      } catch {
+        // Not an address the shell would have opened either.
+      }
     }
   }
   return hosts.filter((host) => host !== "");

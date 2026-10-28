@@ -21,7 +21,11 @@ import {
   resolveUnpackedDir,
 } from "./paths";
 import { pruneForeignBinaries } from "./prune-foreign-binaries";
-import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
+import {
+  pruneGitTooling,
+  relinkGitBuiltins,
+  verifyGitSurvived,
+} from "./prune-git-tooling";
 import {
   THIRD_PARTY_COMPONENTS,
   writeThirdPartyLicenses,
@@ -171,11 +175,17 @@ function pruneUnreachableGitTooling(context: AfterPackContext) {
   }
 
   const removed = pruneGitTooling({ unpackedDir });
+  const relinked = relinkGitBuiltins({ unpackedDir });
   verifyGitSurvived({ unpackedDir });
 
   if (removed.length > 0) {
     console.log(
       `afterPack: pruned ${removed.length} unreachable git files: ${removed.join(", ")}`,
+    );
+  }
+  if (relinked.length > 0) {
+    console.log(
+      `afterPack: relinked ${relinked.length} git builtins that were copies of their target`,
     );
   }
 }

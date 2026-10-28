@@ -1,15 +1,23 @@
 import {
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
+  readlinkSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
+import {
+  pruneGitTooling,
+  relinkGitBuiltins,
+  verifyGitSurvived,
+} from "./prune-git-tooling";
 
 /** A trimmed sample of what dugite ships in `libexec/git-core` on macOS. */
 const GIT_CORE_FILES = [
@@ -126,6 +134,81 @@ describe("pruneGitTooling", () => {
     const unpackedDir = mkdtempSync(path.join(tmpdir(), "prune-git-empty-"));
 
     expect(pruneGitTooling({ unpackedDir })).toStrictEqual([]);
+  });
+});
+
+describe("relinkGitBuiltins", () => {
+  it("turns copies of git and git-remote-http back into symlinks", () => {
+    const unpackedDir = mkdtempSync(path.join(tmpdir(), "relink-git-"));
+    const gitCore = path.join(
+      unpackedDir,
+      "node_modules",
+      "dugite",
+      "git",
+      "libexec",
+      "git-core",
+    );
+    mkdirSync(gitCore, { recursive: true });
+    for (const name of ["git", "git-add", "git-commit"]) {
+      writeFileSync(path.join(gitCore, name), "git binary");
+    }
+    for (const name of ["git-remote-http", "git-remote-https"]) {
+      writeFileSync(path.join(gitCore, name), "remote helper");
+    }
+    writeFileSync(path.join(gitCore, "git-sh-setup"), "a shell script");
+
+    expect(relinkGitBuiltins({ unpackedDir }).sort()).toMatchInlineSnapshot(`
+      [
+        "git-add",
+        "git-commit",
+        "git-remote-https",
+      ]
+    `);
+    expect(
+      readdirSync(gitCore)
+        .sort()
+        .map((name) => {
+          const file = path.join(gitCore, name);
+          return lstatSync(file).isSymbolicLink()
+            ? `${name} -> ${readlinkSync(file)}`
+            : name;
+        }),
+    ).toMatchInlineSnapshot(`
+      [
+        "git",
+        "git-add -> git",
+        "git-commit -> git",
+        "git-remote-http",
+        "git-remote-https -> git-remote-http",
+        "git-sh-setup",
+      ]
+    `);
+    expect(readFileSync(path.join(gitCore, "git-add"), "utf8")).toBe(
+      "git binary",
+    );
+  });
+
+  it("leaves symlinks that are already there alone", () => {
+    const unpackedDir = mkdtempSync(path.join(tmpdir(), "relink-git-"));
+    const gitCore = path.join(
+      unpackedDir,
+      "node_modules",
+      "dugite",
+      "git",
+      "libexec",
+      "git-core",
+    );
+    mkdirSync(gitCore, { recursive: true });
+    writeFileSync(path.join(gitCore, "git"), "git binary");
+    symlinkSync("git", path.join(gitCore, "git-add"));
+
+    expect(relinkGitBuiltins({ unpackedDir })).toStrictEqual([]);
+  });
+
+  it("does nothing without a git-core folder, as on Windows", () => {
+    const unpackedDir = mkdtempSync(path.join(tmpdir(), "relink-git-"));
+
+    expect(relinkGitBuiltins({ unpackedDir })).toStrictEqual([]);
   });
 });
 

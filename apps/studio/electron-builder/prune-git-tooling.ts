@@ -18,8 +18,23 @@
 // Loaded as TS directly: electron-builder runs configs through jiti, so no
 // separate compile step is needed.
 
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+} from "node:fs";
 import path from "node:path";
+
+/**
+ * The programs dugite's macOS and Linux archives link the rest of
+ * `libexec/git-core` to: 142 builtins are symlinks to `git`, and the remote
+ * helpers for https, ftp and ftps are symlinks to `git-remote-http`.
+ */
+const GIT_CORE_LINK_TARGETS = ["git", "git-remote-http"];
 
 /** Standalone tools that ship beside git but are never invoked. */
 const UNREACHABLE_TOOLS = new Set([
@@ -83,6 +98,57 @@ export function pruneGitTooling({ unpackedDir }: { unpackedDir: string }) {
     }
   }
   return removed;
+}
+
+/**
+ * Turn copies in `libexec/git-core` back into the symlinks dugite's archive
+ * shipped. A `node_modules` filled from a cache can hold each builtin as a
+ * full copy of git, about 3.4 MB apiece, which takes the packaged app from
+ * 261 MB to 502 MB zipped; once signed, each copy carries its own signature and
+ * no longer matches the others. Runs before signing, while copies are still
+ * byte-identical to their target. Windows' minGit has no symlinks and is left
+ * alone. Returns the names it relinked.
+ */
+export function relinkGitBuiltins({ unpackedDir }: { unpackedDir: string }) {
+  const gitCore = path.join(
+    unpackedDir,
+    "node_modules",
+    "dugite",
+    "git",
+    "libexec",
+    "git-core",
+  );
+  if (!existsSync(gitCore)) {
+    return [];
+  }
+
+  const targets = GIT_CORE_LINK_TARGETS.flatMap((name) => {
+    const file = path.join(gitCore, name);
+    return existsSync(file) && lstatSync(file).isFile()
+      ? [{ contents: readFileSync(file), name }]
+      : [];
+  });
+
+  const relinked: string[] = [];
+  for (const name of readdirSync(gitCore)) {
+    const file = path.join(gitCore, name);
+    const stat = lstatSync(file);
+    if (!stat.isFile() || targets.some((target) => target.name === name)) {
+      continue;
+    }
+    const target = targets.find(
+      (candidate) =>
+        candidate.contents.length === stat.size &&
+        candidate.contents.equals(readFileSync(file)),
+    );
+    if (!target) {
+      continue;
+    }
+    rmSync(file);
+    symlinkSync(target.name, file);
+    relinked.push(name);
+  }
+  return relinked;
 }
 
 /**

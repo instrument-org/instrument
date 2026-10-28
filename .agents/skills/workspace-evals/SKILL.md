@@ -29,6 +29,8 @@ A run stops itself at `--max-run-cost` ($2, its model requests and searches toge
 
 Every run gets a home directory of its own under `$TMPDIR`, or wherever `INSTRUMENT_EVAL_HOME` points (`evals/lib/sandbox-home.ts`). This is not optional tidiness: every chat reaches the user's real home and their real `~/Documents/Instrument` without being sent either, and every task it starts reaches the same folders, so an unsandboxed suite is several agents at once holding read-write on your actual files. Both folders derive from one `$HOME` for the whole process, so chat cases want `--concurrency 1` and a separate process per model when two runs must not see each other's output.
 
+A computer with room off its boot disk names a folder there as `INSTRUMENT_EVAL_TMPDIR` in its own `packages/workspace/.env` (`evals/lib/eval-tmpdir.ts`), and every run's temp folder, home and workspace go there. The folder has to exist: when its drive is not mounted, the run says so and uses the system's temp folder.
+
 ## Choosing models
 
 **There is no default model set, and `--model` is required.** A list of models living in a source file is one nobody re-reads: it goes stale as providers ship, and it answers whatever question it was written for rather than the one being asked now. A default is also what an unattended agent takes, which is how a change ends up validated against models chosen by whoever last edited a constant. `pnpm eval models [pattern]` asks the configured providers what they can run today, newest first, with each row spelled the way `--model` takes it.

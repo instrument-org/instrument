@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\"",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; bash \"$(dirname \"$d\")/.claude/hooks/worktree-setup.sh\"",
             "timeout": 600
           }
         ]
@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\"",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; bash \"$(dirname \"$d\")/.claude/hooks/worktree-setup.sh\"",
             "timeout": 600
           }
         ]
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 30
           }
         ]
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 30
           }
         ]
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\"",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; bash \"$(dirname \"$d\")/.claude/hooks/worktree-setup.sh\"",
             "timeout": 600
           }
         ]
@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 180
           }
         ]

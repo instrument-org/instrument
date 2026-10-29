@@ -561,11 +561,14 @@ export function PermissionAnswerNote({
       <span>
         {data.answer !== "declined" && data.through === "windows-protection"
           ? `Windows now lets Instrument change ${shown}.`
-          : data.answer === "allowed"
-            ? `You allowed ${shown} in this chat.`
-            : data.answer === "always"
-              ? `You allowed ${shown} for every chat.`
-              : `You didn’t allow ${shown} in this chat.`}
+          : data.answer !== "declined" && data.through === "macos"
+            ? // oxlint-disable-next-line studio/no-os-words -- only macOS's own prompt writes through: macos
+              `Your Mac now lets Instrument use ${shown}.`
+            : data.answer === "allowed"
+              ? `You allowed ${shown} in this chat.`
+              : data.answer === "always"
+                ? `You allowed ${shown} for every chat.`
+                : `You didn’t allow ${shown} in this chat.`}
       </span>
       {data.answer === "always" ? (
         // Where an answer for every chat is taken back.

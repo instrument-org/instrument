@@ -596,6 +596,13 @@ function settle(
           ...(ask.status === "windows-blocked" && {
             through: "windows-protection" as const,
           }),
+          // One of the Mac's own apps is connected for every chat, so a card
+          // about one only ever stood for macOS's prompt.
+          ...(ask.kind === "app" &&
+            (ask.status === "macos-asking" ||
+              ask.status === "macos-refused") && {
+              through: "macos" as const,
+            }),
         },
         type: "data-permissionAnswer",
       },

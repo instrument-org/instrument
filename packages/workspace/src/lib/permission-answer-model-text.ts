@@ -19,7 +19,9 @@ export function permissionAnswerModelNote(
       ? `The person said not now to ${what}. Carry on without it, and say in a line what you skipped because of it.`
       : data.through === "windows-protection"
         ? `The person let ${APP_NAME} through Windows ransomware protection for ${what}. Run again what needed it.`
-        : `The person allowed ${what}${data.answer === "always" ? " for every chat" : " in this chat"}. Run again what needed it.`;
+        : data.through === "macos"
+          ? `macOS now lets ${APP_NAME} into ${what}. Run again what needed it.`
+          : `The person allowed ${what}${data.answer === "always" ? " for every chat" : " in this chat"}. Run again what needed it.`;
   return systemNote`${said}`;
 }
 

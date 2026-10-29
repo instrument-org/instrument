@@ -822,9 +822,10 @@ export namespace SessionMessageDataPart {
     /**
      * Where the yes went when it was not to Instrument's own rules: Windows'
      * ransomware protection, which now lets the app's programs change the
-     * folder.
+     * folder, or macOS's own prompt, which lets the app into one of the
+     * Mac's apps for every chat.
      */
-    through: z.literal("windows-protection").optional(),
+    through: z.enum(["macos", "windows-protection"]).optional(),
   });
 
   export type PermissionAnswerDataPart = z.output<

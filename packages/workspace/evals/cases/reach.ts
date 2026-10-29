@@ -26,7 +26,14 @@ import { listApps } from "../../src/lib/apps/store";
 import { openPermissionAsks } from "../../src/lib/chat/asks";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { type Session } from "../../src/schemas/session";
-import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import { chooseQuestions as questionsOfCard } from "../../src/lib/choose-call";
+import {
+  answerEach,
+  type Assertion,
+  type AssertionResult,
+  defineEval,
+  pickChoice,
+} from "../harness";
 
 /**
  * A day two weeks out, so a run on any date asks about the future: a date
@@ -75,9 +82,10 @@ function chooseQuestions(sessions: Session.WithMessagesAndParts[]): string[] {
     session.messages.flatMap((message) =>
       message.parts.flatMap((part) =>
         part.type === "tool-choose"
-          ? [
-              `${part.input?.question ?? ""} [${(part.input?.choices ?? []).join(" | ")}]`,
-            ]
+          ? questionsOfCard(part.input).map(
+              ({ choices, question }) =>
+                `${question} [${choices.map((choice) => choice.label).join(" | ")}]`,
+            )
           : [],
       ),
     ),
@@ -338,10 +346,7 @@ const triedNoOtherWay: Assertion = {
 
 /** The choice the user would make: the Mac's own app when offered, else the first. */
 function pickTheMacApp(app: RegExp) {
-  return ({ choices }: { choices: string[] }) => ({
-    selectedChoice:
-      choices.find((choice) => app.test(choice)) ?? choices[0] ?? "",
-  });
+  return answerEach((question) => pickChoice(question, app));
 }
 
 /** A task sets no app up: Google Calendar is the chat's to set up and connect. */

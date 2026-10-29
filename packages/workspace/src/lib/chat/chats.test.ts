@@ -156,7 +156,15 @@ const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   const messageId = StoreId.newMessageId();
   const part = {
-    input: { choices: ["Yes", "No"], question: "Which one?" },
+    input: {
+      questions: [
+        {
+          choices: [{ label: "Yes" }, { label: "No" }],
+          header: "Pick",
+          question: "Which one?",
+        },
+      ],
+    },
     metadata: {
       ...partMetadata({ messageId, sessionId }),
       createdAt: at(5),

@@ -144,8 +144,10 @@ const QuestionAskSchema = z.object({
   kind: z.literal("question"),
   /** The message holding the call, where its answer is written too. */
   messageId: StoreId.MessageSchema,
-  /** The question as the agent asked it. */
+  /** The card's line: its question, or its first one and how many more. */
   question: z.string(),
+  /** Every question on the card as the agent asked it, in order. */
+  questions: z.array(z.string()),
 });
 
 export type QuestionAsk = z.output<typeof QuestionAskSchema>;

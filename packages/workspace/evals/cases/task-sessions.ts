@@ -45,7 +45,13 @@ import { listChildTasks } from "../../src/lib/chat/children";
 import { openAsks } from "../../src/lib/chat/open-asks";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
-import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import {
+  answerEach,
+  type Assertion,
+  type AssertionResult,
+  defineEval,
+  pickChoice,
+} from "../harness";
 import { deliveredFile } from "../lib/delivered-file";
 
 type Context = Parameters<Assertion["check"]>[0];
@@ -712,14 +718,7 @@ export const TASK_SESSION_EVALS = [
   defineEval({
     // A task cannot put a card up; what only the person can settle goes in
     // its needs fence, and the chat asks them.
-    answers: [
-      (input) => ({
-        selectedChoice:
-          input.choices.find((choice) => /funny/i.test(choice)) ??
-          input.choices[0] ??
-          "Funny",
-      }),
-    ],
+    answers: [answerEach((question) => pickChoice(question, /funny/i))],
     assertions: [chatAskedForT1sNeed, wrote("sam-note.md", /\S/)],
     kind: "chat",
     name: "task-session-needs-a-pick",

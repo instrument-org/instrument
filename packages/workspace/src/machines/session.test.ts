@@ -222,8 +222,17 @@ describe("sessionMachine", () => {
     },
     {
       input: JSON.stringify({
-        choices: ["Continue", "Stop", "Restart"],
-        question: "What would you like to do next?",
+        questions: [
+          {
+            choices: [
+              { label: "Continue" },
+              { label: "Stop" },
+              { label: "Restart" },
+            ],
+            header: "Next step",
+            question: "What would you like to do next?",
+          },
+        ],
       }),
       toolCallId: chooseToolCallId,
       toolName: "choose",
@@ -1481,12 +1490,23 @@ describe("sessionMachine", () => {
           <tool tool="choose" state="output-available" callId="test-call-choose">
             <input>
               {
-                "choices": [
-                  "Continue",
-                  "Stop",
-                  "Restart"
-                ],
-                "question": "What would you like to do next?"
+                "questions": [
+                  {
+                    "choices": [
+                      {
+                        "label": "Continue"
+                      },
+                      {
+                        "label": "Stop"
+                      },
+                      {
+                        "label": "Restart"
+                      }
+                    ],
+                    "header": "Next step",
+                    "question": "What would you like to do next?"
+                  }
+                ]
               }
             </input>
             <output>

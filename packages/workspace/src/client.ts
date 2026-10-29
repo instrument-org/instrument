@@ -69,6 +69,11 @@ export {
   type UsageSummary,
 } from "./lib/usage-summary-compute";
 export { readWebSearchResults } from "./lib/web-search-results";
+export {
+  chooseAnswer,
+  type ChooseQuestion,
+  chooseQuestions,
+} from "./lib/choose-call";
 export { isInWorkspacePath } from "./lib/workspace-relative-path";
 export { FileUpload } from "./schemas/file-upload";
 export { MountedFolder } from "./schemas/mounted-folder";

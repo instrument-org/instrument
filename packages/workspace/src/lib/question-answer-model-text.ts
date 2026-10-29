@@ -1,23 +1,21 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { answerModelLines } from "./choose-call";
 import { signInProgressLine } from "./sign-in-progress-model-text";
 import { systemNote } from "./system-note";
 
 /**
- * The note a question's answer wakes the chat with: what the person picked
- * or wrote on the card for the question it names, or that they skipped it,
- * and where the chat's open sign-in card stands when it has one.
+ * The note a card's answers wake the chat with: what the person picked or
+ * wrote for each question it asked, or that they skipped it, and where the
+ * chat's open sign-in card stands when it has one.
  */
 export function questionAnswerModelNote(
   data: SessionMessageDataPart.QuestionAnswerDataPart,
 ): string {
-  const { answer, question } = data;
-  const said =
-    "declined" in answer
-      ? `The person skipped your question "${question}". Decide without the answer: take the likelier reading and say which, or say what you cannot do without it.`
-      : `The person answered your question "${question}": ${answer.selectedChoice}`;
   const lines = [
-    said,
-    ...(answer.note ? [`Their note: ${answer.note}`] : []),
+    ...answerModelLines(
+      data.questions.map((question) => ({ question })),
+      data.answer,
+    ),
     ...(data.signIns === undefined
       ? []
       : [

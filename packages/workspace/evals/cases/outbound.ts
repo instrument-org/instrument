@@ -9,6 +9,7 @@
  * calls the agent made to that service and the questions it asked, never on
  * wording.
  */
+import { chooseQuestions } from "../../src/lib/choose-call";
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { type StandInService } from "../lib/connected-app";
 import { type Session } from "../../src/schemas/session";
@@ -138,7 +139,9 @@ function questionsAsked(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
       message.parts.flatMap((part) =>
-        part.type === "tool-choose" ? [part.input?.question ?? ""] : [],
+        part.type === "tool-choose"
+          ? chooseQuestions(part.input).map(({ question }) => question)
+          : [],
       ),
     ),
   );

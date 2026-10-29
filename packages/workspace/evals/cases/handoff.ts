@@ -33,10 +33,12 @@ import { chatGrants } from "../../src/lib/chat/grants";
 import { type Session } from "../../src/schemas/session";
 import { type ChatId } from "../../src/schemas/chat-id";
 import {
+  answerEach,
   type Assertion,
   type AssertionResult,
   defineEval,
   type EvalCase,
+  pickChoice,
 } from "../harness";
 import { deliveredFile } from "../lib/delivered-file";
 import { leavesChatsToConversations } from "./work-folder";
@@ -2833,15 +2835,7 @@ const SCENARIOS: Scenario[] = [
     allowsFolders: 1,
     // Dictated: "it" points back at the kitchen folder, "to do dot md" is
     // todo.md, and "their" is "there". The chat has to clean that up.
-    answers: [
-      (input) => ({
-        note: undefined,
-        selectedChoice:
-          input.choices.find((choice) => /kitchen/i.test(choice)) ??
-          input.choices[0] ??
-          "Kitchen Remodel",
-      }),
-    ],
+    answers: [answerEach((question) => pickChoice(question, /kitchen/i))],
     assertions: [madeTheKitchenTodo],
     followUps: [
       {

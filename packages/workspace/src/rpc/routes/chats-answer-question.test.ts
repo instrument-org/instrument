@@ -88,7 +88,15 @@ async function chatAsking() {
       },
       parts: [
         {
-          input: { choices: ["Tea", "Coffee"], question: "Which one?" },
+          input: {
+            questions: [
+              {
+                choices: [{ label: "Tea" }, { label: "Coffee" }],
+                header: "Pick",
+                question: "Which one?",
+              },
+            ],
+          },
           metadata: {
             createdAt: new Date(),
             endedAt: new Date(),
@@ -118,7 +126,7 @@ it("closes the question, writes the answer onto the call, and wakes the chat wit
 
   await call(
     chats.answerQuestion,
-    { answer: { selectedChoice: "Tea" }, askId, id: chatId },
+    { answer: { replies: [{ picked: ["Tea"] }] }, askId, id: chatId },
     { context: context() },
   );
 
@@ -133,7 +141,7 @@ it("closes the question, writes the answer onto the call, and wakes the chat wit
     .flatMap((message) => message.parts)
     .find((each) => each.metadata.id === partId);
   expect(part).toMatchObject({
-    output: { answer: { selectedChoice: "Tea" }, asked: true },
+    output: { answer: { replies: [{ picked: ["Tea"] }] }, asked: true },
   });
   expect(
     sent
@@ -149,14 +157,14 @@ it("refuses a second answer to the same question", async () => {
   const { askId, chatId } = await chatAsking();
   await call(
     chats.answerQuestion,
-    { answer: { declined: true }, askId, id: chatId },
+    { answer: { replies: [{ skipped: true }] }, askId, id: chatId },
     { context: context() },
   );
 
   await expect(
     call(
       chats.answerQuestion,
-      { answer: { selectedChoice: "Coffee" }, askId, id: chatId },
+      { answer: { replies: [{ picked: ["Coffee"] }] }, askId, id: chatId },
       { context: context() },
     ),
   ).rejects.toThrow("That question was already answered.");

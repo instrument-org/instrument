@@ -352,14 +352,15 @@ const liveAsksRoute = base
   });
 
 /**
- * The person's answer to a question the chat asked with `choose`: a choice,
- * their own words, or skipping it. Closes the question and wakes the chat
- * with the answer, or joins its turn at the next step if it is still going.
+ * The person's answers to a card the chat put up with `choose`: for each
+ * question a choice, their own words, or a skip. Closes the card and wakes
+ * the chat once with every answer, or joins its turn at the next step if it
+ * is still going.
  */
 const answerQuestionRoute = base
   .input(
     z.object({
-      answer: SessionMessageDataPart.QuestionAnswerDataPartSchema.shape.answer,
+      answer: SessionMessageDataPart.QuestionCardAnswerSchema,
       askId: z.string(),
       id: ChatIdSchema,
     }),
@@ -371,7 +372,12 @@ const answerQuestionRoute = base
     const question = await answerQuestion(
       input.id,
       input.askId,
-      async ({ askers, messageId }) => {
+      async ({ askers, messageId, questions }) => {
+        if (input.answer.replies.length !== questions.length) {
+          throw new ORPCError("BAD_REQUEST", {
+            message: `The card asks ${questions.length} questions, and the answer has ${input.answer.replies.length} replies.`,
+          });
+        }
         for (const { partId, sessionId } of askers) {
           if (!partId) {
             continue;
@@ -407,7 +413,7 @@ const answerQuestionRoute = base
             data: {
               answer: input.answer,
               partId,
-              question: question.question,
+              questions: question.questions,
               ...(signIns === undefined ? {} : { signIns }),
             },
             type: "data-questionAnswer",

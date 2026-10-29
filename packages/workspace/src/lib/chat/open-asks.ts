@@ -4,6 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type Stopper } from "../../schemas/stop-notice";
 import { type StoreId } from "../../schemas/store-id";
 import { ChatReads } from "../chat-reads";
+import { askLine, chooseQuestions } from "../choose-call";
 import { sessionOfChat } from "../record-folders";
 import { isTypedByUser } from "../typed-by-user";
 import { openPermissionAsks, sortAsks } from "./asks";
@@ -40,6 +41,9 @@ export function openQuestionsIn(
         "asked" in part.output &&
         part.output.answer === undefined
       ) {
+        const questions = chooseQuestions(part.input).map(
+          ({ question }) => question,
+        );
         open.push({
           askedAt: part.metadata.createdAt,
           askers: [
@@ -48,7 +52,8 @@ export function openQuestionsIn(
           id: part.metadata.id,
           kind: "question",
           messageId: part.metadata.messageId,
-          question: part.input.question,
+          question: askLine(questions.map((question) => ({ question }))),
+          questions,
         });
       }
     }

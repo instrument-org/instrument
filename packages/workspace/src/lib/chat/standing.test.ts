@@ -52,9 +52,14 @@ const activity =
   (explanation: string) =>
   (ids: PartIds): SessionMessage.WithParts["parts"][number] => ({
     input: {
-      choices: ["Desktop", "Documents"],
       explanation,
-      question: "Where?",
+      questions: [
+        {
+          choices: [{ label: "Desktop" }, { label: "Documents" }],
+          header: "Folder",
+          question: "Where?",
+        },
+      ],
     },
     metadata: { ...partMetadata(ids), endedAt: new Date() },
     output: { declined: true, note: undefined },

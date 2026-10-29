@@ -4,10 +4,12 @@ import { z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { TOOL_NAMES } from "../../tools/name";
 import { clipLine, partCreatedAt, partEndedAt } from "../chat/call-label";
+import { chooseQuestions } from "../choose-call";
 import { shownTitle } from "../chat/shown-title";
 import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
@@ -95,12 +97,6 @@ const MONTHS = [
   "November",
   "December",
 ] as const;
-
-/** What a `choose` card asked. */
-const ChooseInputSchema = z.object({
-  choices: z.array(z.string()).optional(),
-  question: z.string(),
-});
 
 /** What a `connect_app` card asked for. */
 const ConnectInputSchema = z.union([
@@ -318,12 +314,25 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
       }
     }
     case "data-questionAnswer": {
-      const { answer } = part.data;
+      const { answer, questions } = part.data;
       const note =
         answer.note === undefined ? "" : ` You added: ${answer.note}`;
-      return "declined" in answer
-        ? `You skipped the question.${note}`
-        : `You chose “${answer.selectedChoice}”.${note}`;
+      const said = (reply: SessionMessageDataPart.QuestionReply | undefined) =>
+        reply === undefined || "skipped" in reply
+          ? "You skipped it."
+          : `You chose ${reply.picked.map((picked) => `“${picked}”`).join(", ")}.`;
+      if (questions.length === 1) {
+        const [reply] = answer.replies;
+        return reply === undefined || "skipped" in reply
+          ? `You skipped the question.${note}`
+          : `${said(reply)}${note}`;
+      }
+      return [
+        ...questions.map(
+          (question, index) => `${question} ${said(answer.replies[index])}`,
+        ),
+        ...(answer.note === undefined ? [] : [`You added: ${answer.note}`]),
+      ].join("\n");
     }
     case "data-setupChanges": {
       return part.data.changes
@@ -354,14 +363,18 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
 /** A card the agent put in the chat, with what it asked. */
 function card(part: SessionMessagePart.ToolPart): string | undefined {
   if (part.type === `tool-${TOOL_NAMES.choose}`) {
-    const asked = ChooseInputSchema.safeParse(part.input);
-    if (!asked.success) {
+    const questions = chooseQuestions(part.input);
+    if (questions.length === 0) {
       return undefined;
     }
-    return [
-      `Asked: ${asked.data.question}`,
-      ...(asked.data.choices ?? []).map((choice) => `- ${choice}`),
-    ].join("\n");
+    return questions
+      .map(({ choices, question }) =>
+        [
+          `Asked: ${question}`,
+          ...choices.map((choice) => `- ${choice.label}`),
+        ].join("\n"),
+      )
+      .join("\n\n");
   }
   const asked = ConnectInputSchema.safeParse(part.input);
   if (!asked.success) {

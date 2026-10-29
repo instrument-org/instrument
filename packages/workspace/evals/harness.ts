@@ -58,6 +58,7 @@ import { chats as chatsRoute } from "../src/rpc/routes/chats";
 import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
+import { type ChooseQuestion, chooseQuestions } from "../src/lib/choose-call";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
@@ -430,21 +431,13 @@ const ANSWER_AFTER_TURN_MAX_MS = 120_000;
 
 export interface EvalCase {
   /**
-   * What the user answers to each `choose` the agent puts to them, in the
-   * order it asks, sent through the same route the card answers with. A
-   * function gets the question as asked, for an answer that picks one of the
-   * choices the model wrote. A question asked past the end of the list is
-   * left open, as one the person has not answered.
+   * What the user answers to each `choose` card the agent puts to them, in
+   * the order it asks, sent through the same route the card answers with. A
+   * function gets the card's questions as asked, for an answer that picks
+   * among the choices the model wrote (`answerEach`). A card asked past the
+   * end of the list is left open, as one the person has not answered.
    */
-  answers?: (
-    | ((
-        input: Extract<
-          SessionMessagePart.ToolPartInputAvailable,
-          { type: "tool-choose" }
-        >["input"],
-      ) => ChooseAnswer)
-    | ChooseAnswer
-  )[];
+  answers?: (((questions: ChooseQuestion[]) => ChooseAnswer) | ChooseAnswer)[];
   /**
    * Connected apps to stand up before the run, each a real loopback server with
    * a real manifest and a connection on record. For the paths that only exist
@@ -641,7 +634,32 @@ interface ChildTaskSessions {
   title: string;
 }
 
-type ChooseAnswer = SessionMessageDataPart.QuestionAnswerDataPart["answer"];
+type ChooseAnswer = SessionMessageDataPart.QuestionCardAnswer;
+
+/**
+ * A card's answer that replies to each of its questions with `reply`, and
+ * sends `note` with them, for a case that answers whatever the model asked.
+ */
+export function answerEach(
+  reply: (question: ChooseQuestion) => SessionMessageDataPart.QuestionReply,
+  note?: string,
+): (questions: ChooseQuestion[]) => ChooseAnswer {
+  return (questions) => ({
+    ...(note === undefined ? {} : { note }),
+    replies: questions.map(reply),
+  });
+}
+
+/** The reply picking the first choice `match` finds in the question's labels, else its first choice. */
+export function pickChoice(
+  question: ChooseQuestion,
+  match?: RegExp,
+): SessionMessageDataPart.QuestionReply {
+  const labels = question.choices.map((choice) => choice.label);
+  const label =
+    (match && labels.find((each) => match.test(each))) ?? labels[0] ?? "";
+  return { picked: [label] };
+}
 
 type FollowUp = FollowUpTiming &
   (
@@ -1018,13 +1036,7 @@ export async function runEvals(
       let overBudget: CompletedRun["overBudget"];
       // What each question was asked with, by its call's part, for an answer
       // that picks one of the choices the model wrote.
-      const chooseInputs = new Map<
-        StoreId.Part,
-        Extract<
-          SessionMessagePart.ToolPartInputAvailable,
-          { type: "tool-choose" }
-        >["input"]
-      >();
+      const chooseInputs = new Map<StoreId.Part, ChooseQuestion[]>();
       let questionsAnswered = 0;
       const handledAskIds = new Set<string>();
       let foldersAllowed = 0;
@@ -1405,7 +1417,7 @@ export async function runEvals(
               part.type === "tool-choose" &&
               part.state === "input-available"
             ) {
-              chooseInputs.set(part.metadata.id, part.input);
+              chooseInputs.set(part.metadata.id, chooseQuestions(part.input));
             }
 
             await answerAsks();

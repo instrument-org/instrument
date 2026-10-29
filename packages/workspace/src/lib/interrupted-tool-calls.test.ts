@@ -124,7 +124,15 @@ function toolPart(
     sessionId: message.metadata.sessionId,
   };
   const call = {
-    input: { choices: ["Desktop", "Documents"], question: "Where?" },
+    input: {
+      questions: [
+        {
+          choices: [{ label: "Desktop" }, { label: "Documents" }],
+          header: "Pick",
+          question: "Where?",
+        },
+      ],
+    },
     metadata,
     toolCallId: `call-${metadata.id}`,
     type: "tool-choose" as const,

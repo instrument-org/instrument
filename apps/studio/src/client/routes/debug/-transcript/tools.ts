@@ -4,7 +4,10 @@ import {
   OUR_PROVIDER_CONFIG,
   type PlanRefusal,
 } from "@instrument-org/shared";
-import { RelativePathSchema } from "@instrument-org/workspace/client";
+import {
+  type ChooseQuestion,
+  RelativePathSchema,
+} from "@instrument-org/workspace/client";
 
 import { call, type ToolCall, type ToolOutput } from "./script";
 
@@ -21,20 +24,35 @@ const OUR_PROVIDER = {
 
 const NO_USAGE = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
-/** A question put to the user, and the answer that came back. */
+/**
+ * Questions put to the user on a card, and the answer that came back: one
+ * question with bare `choices`, or a card of `questions`.
+ */
 export function chose({
   answer,
-  choices,
   explanation,
-  question,
+  ...asked
 }: {
   answer: ToolOutput<"tool-choose">;
-  choices: string[];
   explanation?: string;
-  question: string;
-}): ToolCall {
+} & (
+  | { choices: string[]; question: string }
+  | { questions: ChooseQuestion[] }
+)): ToolCall {
   return call({
-    input: { choices, explanation, question },
+    input: {
+      explanation,
+      questions:
+        "questions" in asked
+          ? asked.questions
+          : [
+              {
+                choices: asked.choices.map((label) => ({ label })),
+                header: "",
+                question: asked.question,
+              },
+            ],
+    },
     output: answer,
     type: "tool-choose",
   });

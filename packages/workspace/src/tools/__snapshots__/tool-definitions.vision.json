@@ -78,7 +78,7 @@
     "name": "bash"
   },
   {
-    "description": "Put a question with multiple choice options to the user on a card in the chat. The card shows them your question and its choices, with a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. Your turn ends on this call, and their answer reaches you later as a message of its own, so do what does not depend on the answer first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
+    "description": "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices, a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -91,24 +91,62 @@
           "description": "A label for this call: a short phrase starting with a verb ending in -ing, e.g. 'Reading the sales spreadsheet'. Generate this before the call's other fields.",
           "type": "string"
         },
-        "choices": {
-          "minItems": 2,
+        "questions": {
+          "minItems": 1,
+          "maxItems": 4,
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "choices": {
+                "minItems": 2,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "description": {
+                      "description": "A short line under the label saying what picking it means, when the label alone does not",
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "The choice as the card shows it, in a few words"
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The choices to pick from, two or more"
+              },
+              "header": {
+                "type": "string",
+                "description": "One to three words naming what the question decides ('Team size'), shown as its tab when the card asks more than one"
+              },
+              "multiSelect": {
+                "description": "True when the user may pick more than one choice",
+                "type": "boolean"
+              },
+              "question": {
+                "type": "string",
+                "description": "The question to present to the user"
+              }
+            },
+            "required": [
+              "choices",
+              "header",
+              "question"
+            ],
+            "additionalProperties": false
           },
-          "description": "Array of choice options for the user to select from"
-        },
-        "question": {
-          "type": "string",
-          "description": "The question to present to the user"
+          "description": "The questions, one to 4, put on one card and answered together"
         }
       },
       "required": [
         "activity",
         "explanation",
-        "choices",
-        "question"
+        "questions"
       ],
       "additionalProperties": false
     },

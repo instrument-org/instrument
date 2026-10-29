@@ -86,11 +86,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
     }
     case "data-questionAnswer": {
-      const answer =
-        "declined" in part.data.answer
-          ? "skipped"
-          : part.data.answer.selectedChoice;
-      return `<data-questionAnswer question="${part.data.question}" answer="${answer}" />`;
+      const answer = part.data.answer.replies
+        .map((reply) =>
+          "skipped" in reply ? "skipped" : reply.picked.join(", "),
+        )
+        .join(" | ");
+      return `<data-questionAnswer question="${part.data.questions.join(" | ")}" answer="${answer}" />`;
     }
     case "data-jobEvent": {
       return `<data-jobEvent events="${part.data.events.map((event) => `${event.id}:${event.status}`).join(",")}" />`;

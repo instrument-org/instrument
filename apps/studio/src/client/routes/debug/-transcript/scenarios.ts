@@ -681,7 +681,11 @@ export const scenarios: Scenario[] = [
       activity("Working through the tools"),
       call({
         error: "No choices provided",
-        input: { choices: [], question: "Which framework?" },
+        input: {
+          questions: [
+            { choices: [], header: "Framework", question: "Which framework?" },
+          ],
+        },
         type: "tool-choose",
       }),
       call({
@@ -970,6 +974,47 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
         answer: { declined: true, note: "Not decided yet. Leave it out." },
         choices: ["Yes", "No"],
         question: "Should it send a digest email?",
+      }),
+      chose({
+        answer: {
+          answer: {
+            note: "Keep it to the dashboards the support team already uses.",
+            replies: [
+              { picked: ["Every hour"] },
+              { skipped: true },
+              { picked: ["Slack", "Email"] },
+            ],
+          },
+          asked: true,
+        },
+        questions: [
+          {
+            choices: [
+              {
+                description: "Fresh enough for the morning standup",
+                label: "Every hour",
+              },
+              { label: "Once a day" },
+            ],
+            header: "Refresh",
+            question: "How often should the dashboard refresh?",
+          },
+          {
+            choices: [{ label: "Last 30 days" }, { label: "Last 90 days" }],
+            header: "Range",
+            question: "How far back should the charts go?",
+          },
+          {
+            choices: [
+              { label: "Slack" },
+              { label: "Email" },
+              { label: "Pager" },
+            ],
+            header: "Alerts",
+            multiSelect: true,
+            question: "Where should alerts go?",
+          },
+        ],
       }),
       prose(
         "The project is set up on React against staging, styled with Tailwind and behind the company login. I left the refresh at the framework's default and the digest email out.",

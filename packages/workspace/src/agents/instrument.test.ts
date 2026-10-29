@@ -96,9 +96,14 @@ const choose =
   (output: { asked: true }) =>
   (messageId: StoreId.Message): SessionMessagePart.Type => ({
     input: {
-      choices: ["Warm", "Playful"],
       explanation: "Asking which tone",
-      question: "Which tone should the tagline have?",
+      questions: [
+        {
+          choices: [{ label: "Warm" }, { label: "Playful" }],
+          header: "Tone",
+          question: "Which tone should the tagline have?",
+        },
+      ],
     },
     metadata: { ...partMetadata(messageId), endedAt: createdAt },
     output,

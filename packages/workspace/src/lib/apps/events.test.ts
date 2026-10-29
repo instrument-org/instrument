@@ -328,15 +328,15 @@ describe("a card asking for several apps", () => {
 
     expect(
       questionAnswerModelNote({
-        answer: { selectedChoice: "you@example.com" },
+        answer: { replies: [{ picked: ["you@example.com"] }] },
         partId: StoreId.newPartId(),
-        question: "Which Google account should I use?",
+        questions: ["Which Google account should I use?"],
         ...(signIns === undefined ? {} : { signIns }),
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The person answered your question "Which Google account should I use?": you@example.com
+      The user answered your question "Which Google account should I use?": you@example.com
       Your sign-in card still waits on the user: connected: Google Drive (drive) as you@example.com; skipped by the user: Google Docs (docs); not answered yet: Gmail (gmail). The card shows them the count, so leave it out; you are woken when every app on it is answered.
       </instrument-system-note>"
     `);

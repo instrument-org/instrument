@@ -847,21 +847,58 @@ export namespace SessionMessageDataPart {
   const QuestionNoteSchema = z.string().trim().min(1).optional();
 
   /**
-   * What the person picked, or wrote, on a question the chat's agent asked
-   * with `choose`, or that they skipped it. Like a permission answer, it wakes
-   * the chat, or joins its turn if it is still going.
+   * One question's answer on a card: what the person picked (a choice's
+   * label, or their own words), or that they skipped it.
    */
-  export const QuestionAnswerDataPartSchema = z.object({
-    answer: z.union([
-      z.object({ declined: z.literal(true), note: QuestionNoteSchema }),
-      z.object({
-        note: QuestionNoteSchema,
-        selectedChoice: z.string().trim().min(1),
-      }),
-    ]),
+  export const QuestionReplySchema = z.union([
+    z.object({ skipped: z.literal(true) }),
+    z.object({ picked: z.array(z.string().trim().min(1)).min(1) }),
+  ]);
+
+  export type QuestionReply = z.output<typeof QuestionReplySchema>;
+
+  /**
+   * The person's answer to a `choose` card: a reply per question, in the
+   * order they were asked, and the one note they wrote with them.
+   */
+  export const QuestionCardAnswerSchema = z.object({
+    note: QuestionNoteSchema,
+    replies: z.array(QuestionReplySchema).min(1),
+  });
+
+  export type QuestionCardAnswer = z.output<typeof QuestionCardAnswerSchema>;
+
+  /** An answer as earlier builds wrote it, to a card's one question. */
+  const OneQuestionAnswerSchema = z.union([
+    z.object({ declined: z.literal(true), note: QuestionNoteSchema }),
+    z.object({
+      note: QuestionNoteSchema,
+      selectedChoice: z.string().trim().min(1),
+    }),
+  ]);
+
+  function fromOneQuestionAnswer(
+    answer: z.output<typeof OneQuestionAnswerSchema>,
+  ): QuestionCardAnswer {
+    return {
+      ...(answer.note === undefined ? {} : { note: answer.note }),
+      replies: [
+        "declined" in answer
+          ? { skipped: true }
+          : { picked: [answer.selectedChoice] },
+      ],
+    };
+  }
+
+  /** A card's answer as stored, read in the current shape whichever build wrote it. */
+  export const StoredQuestionCardAnswerSchema = z.union([
+    QuestionCardAnswerSchema,
+    OneQuestionAnswerSchema.transform(fromOneQuestionAnswer),
+  ]);
+
+  const QuestionAnswerContextSchema = z.object({
     /** The `choose` call it answers, by its part's id. */
     partId: StoreId.PartSchema,
-    question: z.string(),
     /**
      * The apps on the chat's sign-in cards that still wait on the person,
      * with the rest of each card as it stands, so the agent knows where the
@@ -869,6 +906,28 @@ export namespace SessionMessageDataPart {
      */
     signIns: SignInProgressSchema.optional(),
   });
+
+  /**
+   * What the person answered on a card the chat's agent put up with
+   * `choose`. Like a permission answer, it wakes the chat, or joins its turn
+   * if it is still going. Earlier builds wrote one question's answer, which
+   * reads as a card of one.
+   */
+  export const QuestionAnswerDataPartSchema = z.union([
+    QuestionAnswerContextSchema.extend({
+      answer: QuestionCardAnswerSchema,
+      /** The card's questions, in the order the replies answer them. */
+      questions: z.array(z.string()).min(1),
+    }),
+    QuestionAnswerContextSchema.extend({
+      answer: OneQuestionAnswerSchema,
+      question: z.string(),
+    }).transform(({ answer, question, ...rest }) => ({
+      ...rest,
+      answer: fromOneQuestionAnswer(answer),
+      questions: [question],
+    })),
+  ]);
 
   export type QuestionAnswerDataPart = z.output<
     typeof QuestionAnswerDataPartSchema

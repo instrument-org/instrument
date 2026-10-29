@@ -1,33 +1,59 @@
 /**
- * Does the conversation go on sensibly after a question is answered?
+ * Does the conversation go on sensibly after a card is answered, and does
+ * it put what it needs to ask on one card?
  *
- * A `choose` can come back four ways: one of the choices, the user's own
- * words, a skip, and any of those with a note. The last three are easy for a
- * model to mishandle in ways no unit test sees: asking the same question
- * again after a skip, ignoring a note, or treating an answer it did not offer
- * as a mistake. Each case asks for something small enough that the
- * conversation does it itself, tells it to ask first, and answers one way.
+ * A `choose` card's question can come back four ways: one of the choices,
+ * the user's own words, a skip, and any of those with a note. The last three
+ * are easy for a model to mishandle in ways no unit test sees: asking the
+ * same question again after a skip, ignoring a note, or treating an answer it
+ * did not offer as a mistake. Each case asks for something small enough that
+ * the conversation does it itself, tells it to ask first, and answers one way.
+ *
+ * A card holds up to four questions, answered together. The cases that need
+ * several answers check they arrive on one card rather than a card each,
+ * which would wake the chat on the first answer with the rest still open.
  *
  * The call returns at once and the answer arrives later as a message of its
  * own, so each case also scores what the agent did in between: a tagline
  * written before the tone was picked is the work done without the answer.
  */
+import {
+  type ChooseQuestion,
+  chooseQuestions,
+} from "../../src/lib/choose-call";
 import { type Session } from "../../src/schemas/session";
-import { type Assertion, defineEval } from "../harness";
+import { type Assertion, answerEach, defineEval, pickChoice } from "../harness";
 
 const PROMPT =
   "Write me a one-line tagline for my bakery. Ask me which tone I want first, as a choice.";
 
-function chooseParts(sessions: Session.WithMessagesAndParts[]) {
+/** Each `choose` card the conversation put up, as its questions. */
+function cards(sessions: Session.WithMessagesAndParts[]): ChooseQuestion[][] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
-      message.parts.filter((part) => part.type === "tool-choose"),
+      message.parts.flatMap((part) =>
+        part.type === "tool-choose" ? [chooseQuestions(part.input)] : [],
+      ),
     ),
   );
 }
 
+function describeCards(all: ChooseQuestion[][]): string {
+  return all
+    .map((questions, index) =>
+      [
+        `card ${index + 1}:`,
+        ...questions.map(
+          ({ choices, header, multiSelect, question }) =>
+            `  ${header ? `[${header}] ` : ""}${question}${multiSelect ? " (several)" : ""} [${choices.map((choice) => choice.label).join(" | ")}]`,
+        ),
+      ].join("\n"),
+    )
+    .join("\n");
+}
+
 /**
- * What the conversation said after the last question, split at its answer:
+ * What the conversation said after the last card, split at its answer:
  * the words between asking and the answer arriving, and the words after.
  */
 function repliesAroundAnswer(sessions: Session.WithMessagesAndParts[]): {
@@ -61,33 +87,74 @@ function replyAfterAnswer(sessions: Session.WithMessagesAndParts[]): string {
 
 const ASKED_ONCE: Assertion = {
   check: ({ sessions }) => {
-    const parts = chooseParts(sessions);
+    const all = cards(sessions);
     return {
-      evidence: parts
-        .map(
-          (part) =>
-            `${part.input?.question ?? ""} [${(part.input?.choices ?? []).join(" | ")}]`,
-        )
-        .join("\n"),
-      passed: parts.length === 1,
+      evidence: describeCards(all),
+      passed: all.length === 1 && all[0]?.length === 1,
       text: "asked exactly one question",
     };
   },
   text: "asked exactly one question",
 };
 
+/** Everything it needed went on one card, with a header on each question. */
+function askedOnOneCard(atLeast: number): Assertion {
+  const text = `asked ${atLeast} or more questions on one card, each with a header`;
+  return {
+    check: ({ sessions }) => {
+      const all = cards(sessions);
+      const [card] = all;
+      return {
+        evidence: describeCards(all),
+        passed:
+          all.length === 1 &&
+          card !== undefined &&
+          card.length >= atLeast &&
+          card.every(({ header }) => header.trim() !== ""),
+        text,
+      };
+    },
+    text,
+  };
+}
+
+const LET_THEM_PICK_SEVERAL: Assertion = {
+  check: ({ sessions }) => {
+    const all = cards(sessions);
+    return {
+      evidence: describeCards(all),
+      passed: all.flat().some((question) => question.multiSelect === true),
+      text: "let them pick more than one",
+    };
+  },
+  text: "let them pick more than one",
+};
+
+/** One card was enough: a skip is an answer, not a reason to ask again. */
+const ASKED_NO_SECOND_CARD: Assertion = {
+  check: ({ sessions }) => {
+    const all = cards(sessions);
+    return {
+      evidence: describeCards(all),
+      passed: all.length === 1,
+      text: "put up no second card after the answer",
+    };
+  },
+  text: "put up no second card after the answer",
+};
+
 const NO_ESCAPE_CHOICES: Assertion = {
   check: ({ sessions }) => {
-    const choices = chooseParts(sessions).flatMap(
-      (part) => part.input?.choices ?? [],
-    );
-    const escapes = choices.filter((choice) =>
+    const labels = cards(sessions)
+      .flat()
+      .flatMap(({ choices }) => choices.map((choice) => choice.label));
+    const escapes = labels.filter((label) =>
       /\b(?:other|skip|something else|none of|surprise me|your call)\b/i.test(
-        choice ?? "",
+        label,
       ),
     );
     return {
-      evidence: escapes.join(", ") || choices.join(", "),
+      evidence: escapes.join(", ") || labels.join(", "),
       passed: escapes.length === 0,
       text: "wrote no Other or Skip choice of its own",
     };
@@ -171,68 +238,109 @@ function mentions(word: string): Assertion {
   };
 }
 
+const ONE_QUESTION_ASSERTIONS = [
+  ASKED_ONCE,
+  NO_ESCAPE_CHOICES,
+  WAITED_FOR_ANSWER,
+  LEFT_THE_ASKING_TO_THE_CARD,
+  SAID_NOTHING_AFTER_ASKING,
+  REPLIED,
+];
+
+// Three picks the email needs, each with a few obvious choices, and nothing
+// open-ended for prose to ask: what is scored is whether they share a card.
+const WELCOME_EMAIL_PROMPT =
+  "Write a short welcome email for new customers of Rise Bakery in Portland, signed by me, Dana. Before you write it, let me choose its tone, its length, and whether it offers a first-order discount.";
+
 export const QUESTIONS_EVALS = [
   defineEval({
     answers: [
-      (input) => ({
-        note: "Mention our sourdough.",
-        selectedChoice: input.choices[0] ?? "",
-      }),
+      answerEach((question) => pickChoice(question), "Mention our sourdough."),
     ],
-    assertions: [
-      ASKED_ONCE,
-      NO_ESCAPE_CHOICES,
-      WAITED_FOR_ANSWER,
-      LEFT_THE_ASKING_TO_THE_CARD,
-      SAID_NOTHING_AFTER_ASKING,
-      REPLIED,
-      mentions("sourdough"),
-    ],
+    assertions: [...ONE_QUESTION_ASSERTIONS, mentions("sourdough")],
     kind: "chat",
     name: "questions-choice-with-note",
     prompt: PROMPT,
   }),
   defineEval({
-    answers: [{ selectedChoice: "Deadpan, like a bored museum guard" }],
-    assertions: [
-      ASKED_ONCE,
-      NO_ESCAPE_CHOICES,
-      WAITED_FOR_ANSWER,
-      LEFT_THE_ASKING_TO_THE_CARD,
-      SAID_NOTHING_AFTER_ASKING,
-      REPLIED,
+    answers: [
+      { replies: [{ picked: ["Deadpan, like a bored museum guard"] }] },
     ],
+    assertions: ONE_QUESTION_ASSERTIONS,
     kind: "chat",
     name: "questions-own-answer",
     prompt: PROMPT,
   }),
   defineEval({
-    answers: [{ declined: true }],
-    assertions: [
-      ASKED_ONCE,
-      NO_ESCAPE_CHOICES,
-      WAITED_FOR_ANSWER,
-      LEFT_THE_ASKING_TO_THE_CARD,
-      SAID_NOTHING_AFTER_ASKING,
-      REPLIED,
-    ],
+    answers: [{ replies: [{ skipped: true }] }],
+    assertions: ONE_QUESTION_ASSERTIONS,
     kind: "chat",
     name: "questions-skipped",
     prompt: PROMPT,
   }),
   defineEval({
-    answers: [{ declined: true, note: "You pick. We're in Portland." }],
-    assertions: [
-      ASKED_ONCE,
-      NO_ESCAPE_CHOICES,
-      WAITED_FOR_ANSWER,
-      LEFT_THE_ASKING_TO_THE_CARD,
-      SAID_NOTHING_AFTER_ASKING,
-      REPLIED,
-      mentions("Portland"),
+    answers: [
+      {
+        note: "You pick. We're in Portland.",
+        replies: [{ skipped: true }],
+      },
     ],
+    assertions: [...ONE_QUESTION_ASSERTIONS, mentions("Portland")],
     kind: "chat",
     name: "questions-skipped-with-note",
     prompt: PROMPT,
+  }),
+  defineEval({
+    // Nothing says to ask them together: three picks go on one card rather
+    // than a card each, or a card and then another after its answer.
+    answers: [answerEach((question) => pickChoice(question))],
+    assertions: [
+      askedOnOneCard(3),
+      NO_ESCAPE_CHOICES,
+      SAID_NOTHING_AFTER_ASKING,
+      REPLIED,
+    ],
+    kind: "chat",
+    name: "questions-several-on-one-card",
+    prompt: WELCOME_EMAIL_PROMPT,
+  }),
+  defineEval({
+    // The first question is skipped and the rest answered: it carries on
+    // with what it has rather than asking the skipped one again.
+    answers: [
+      (questions) => ({
+        replies: questions.map((question, index) =>
+          index === 0 ? { skipped: true } : pickChoice(question),
+        ),
+      }),
+    ],
+    assertions: [askedOnOneCard(2), REPLIED, ASKED_NO_SECOND_CARD],
+    kind: "chat",
+    name: "questions-several-one-skipped",
+    prompt: WELCOME_EMAIL_PROMPT,
+  }),
+  defineEval({
+    answers: [
+      answerEach((question) =>
+        question.multiSelect === true
+          ? {
+              picked: question.choices
+                .map((choice) => choice.label)
+                .filter((label) => /babka|croissant/i.test(label)),
+            }
+          : pickChoice(question),
+      ),
+    ],
+    assertions: [
+      LET_THEM_PICK_SEVERAL,
+      SAID_NOTHING_AFTER_ASKING,
+      REPLIED,
+      mentions("babka"),
+      mentions("croissant"),
+    ],
+    kind: "chat",
+    name: "questions-pick-several",
+    prompt:
+      "Draft this week's newsletter blurb for my bakery featuring some of our products: sourdough, croissants, babka, and cookies. Ask me which ones to feature first; I may want more than one.",
   }),
 ];

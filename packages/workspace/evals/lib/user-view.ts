@@ -1,3 +1,4 @@
+import { chooseQuestions } from "../../src/lib/choose-call";
 import { type Session } from "../../src/schemas/session";
 
 /**
@@ -42,11 +43,13 @@ export function renderUserView(
       for (const part of message.parts) {
         if (part.type === "text" && part.text.trim() !== "") {
           lines.push({ at, text: `**Assistant:** ${part.text.trim()}` });
-        } else if (part.type === "tool-choose" && part.input) {
-          lines.push({
-            at,
-            text: `**Assistant (question card):** ${part.input.question ?? ""} [${(part.input.choices ?? []).join(" / ")}]`,
-          });
+        } else if (part.type === "tool-choose") {
+          for (const { choices, question } of chooseQuestions(part.input)) {
+            lines.push({
+              at,
+              text: `**Assistant (question card):** ${question} [${choices.map((choice) => choice.label).join(" / ")}]`,
+            });
+          }
         }
       }
     }

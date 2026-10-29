@@ -111,7 +111,15 @@ describe("bubbleMessage", () => {
     const ask =
       (state: "input-available" | "input-streaming"): PartOf =>
       (messageId) => ({
-        input: { choices: ["This", "That"], question: "Which one?" },
+        input: {
+          questions: [
+            {
+              choices: [{ label: "This" }, { label: "That" }],
+              header: "Pick",
+              question: "Which one?",
+            },
+          ],
+        },
         metadata: partMetadata(messageId),
         state,
         toolCallId: StoreId.ToolCallSchema.parse("call-ask"),

@@ -1,6 +1,6 @@
 # Chat attachments by reference
 
-**Status:** proposed, 2026-10-02. Nothing built. Held back while the window and Finder code is churning; written down so it lands before public chats pile up data in the old shape.
+**Status:** overtaken. [instrument-folder.md](../active/instrument-folder.md) built attachments by reference as its phase F3 (`b8f84a90b`): a file the person hands over from disk is opened to the chat where it lies, and only pasted content and what lands in a draft's folder (`Drafts/<date>/`) is saved into the chat's `attachments/` on send. Nothing here was built as written. `request_folder`, which this plan leans on, is gone too (`0c6d43ffc`): a call that names a folder out of reach raises a permission card instead.
 
 ## Why
 

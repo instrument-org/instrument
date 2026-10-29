@@ -1,6 +1,6 @@
 # Plan: conversation storage the agent can read across
 
-Status: the backing-store change (phases 0-2, 4-5) is not started; storage is still per-task SQLite. Two pieces landed around it on option C's terms instead: the metadata index as [chat-list-index](../completed/chat-list-index.md) (one derived index per workspace, per-chat stores stay the truth), and the agent's cross-chat search as `chat search`, an on-demand fan-out (`lib/shell-commands/chat.ts`). Owner: TBD. Split out from [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) because it is a separate axis: that plan decides where the user's _files_ live, this one decides where the app's _conversation data_ lives. Neither blocks the other.
+Status: overtaken by [chat-records.md](../active/chat-records.md), which replaced per-chat SQLite with append-only JSONL logs per session per device and a rebuildable `workspace.db` on each computer; none of this plan's backing-store phases (0-2, 4-5) were built as written. Two pieces landed around it on option C's terms first: the metadata index as [chat-list-index](chat-list-index.md) (one derived index per workspace, per-chat stores stay the truth), and the agent's cross-chat search, first as `chat search`, an on-demand fan-out, and then by mounting every chat's records read-only at `$INSTRUMENT_CHATS` for the agent's own tools (`79abdd81f`). Split out from [user-chosen-working-folder.md](user-chosen-working-folder.md) because it is a separate axis: that plan decides where the user's _files_ live, this one decides where the app's _conversation data_ lives.
 
 ## Problem
 
@@ -78,7 +78,7 @@ The unanimous agreement is more actionable than the disagreement:
 
 1. **All four separate list-view data from conversation bodies.** A `threads` table, a `session_materialized` rollup, flat columns on `session`. Nobody computes a task list by reading conversations. We should treat "what the sidebar needs" as its own store no matter which option wins.
 2. **All four store bodies as opaque JSON with promoted columns.** Nobody models message parts relationally. Our Zod-validated blobs are already the right shape.
-3. **Three of four are explicitly append-only** with derived rollups, and the fourth supports branching through parent pointers. Given [edit-user-message-in-place.md](edit-user-message-in-place.md) is already planned, an append-only model with parent pointers gets conversation branching nearly for free, where mutable rows make it a migration.
+3. **Three of four are explicitly append-only** with derived rollups, and the fourth supports branching through parent pointers. Given [edit-user-message-in-place.md](../active/edit-user-message-in-place.md) is already planned, an append-only model with parent pointers gets conversation branching nearly for free, where mutable rows make it a migration.
 4. **All four generate an opaque id and store the human-readable name separately.** See [Naming, identity, and where the files live](#naming-identity-and-where-the-files-live) — this is the agreement that costs us the most, because it is the one we currently violate.
 
 ## Naming, identity, and where the files live
@@ -133,7 +133,7 @@ The consequence for the agent's browser is concrete and belongs on both plans: i
 
 ## What the sidebar needs, and why the index is not optional
 
-The list view is about to want things it cannot have today: how many messages a conversation holds, and **which files the agent linked or produced in it**. The second is the point of the [presentation](presentation-syntax.md) work — an agent that can richly reference files is only half a feature if those references are invisible until you open the conversation.
+The list view is about to want things it cannot have today: how many messages a conversation holds, and **which files the agent linked or produced in it**. The second is the point of the [presentation](../active/presentation-syntax.md) work — an agent that can richly reference files is only half a feature if those references are invisible until you open the conversation.
 
 **Neither is reachable now, and that is a deliberate cost boundary rather than an oversight.** `get-tasks.ts` globs the tasks directory and does a few small metadata reads per task, concurrency-capped, with a comment recording that a serial loop otherwise dominates list latency. It never opens `task.db`. The Task schema matches that budget exactly: every field on it is answerable from a small file sitting beside the conversation, and none is derived from the conversation body. Message counts and linked files are the first two fields that fall on the wrong side of that line.
 
@@ -173,7 +173,7 @@ Four plans now interlock, and the order matters more than usual because two of t
 2. **[The folder work's phases 1 and 2](../completed/user-chosen-working-folder.md#phases)** — the `WorkingDir` brand, then the mount rename. This is what makes "the agent's mount set" a thing that can vary per task rather than a constant.
 3. **This plan's phases 1 through 3** — prototype the write path, introduce the storage seam, build the metadata index. Independent of the folder work and can run in parallel with it; Reference B is the evidence that the seam is worth having before the backing decision, not after.
 4. **Conversation-scoped assets** need both: a conversation that owns a directory (this plan) and an origin that serves more than one root (the folder plan). It is the join point, and it is where the two plans stop being separable.
-5. **[Presentation](presentation-syntax.md) and [chat file links](../completed/chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the task's layout) whose interface does not change even though everything under it does.
+5. **[Presentation](../active/presentation-syntax.md) and [chat file links](../completed/chat-file-links.md)** sit on top of all of it and are shippable ahead of it, because they extend a mechanism (a markdown link resolved against the task's layout) whose interface does not change even though everything under it does.
 
 The one ordering trap: the agent's cross-conversation search capability (phase 6 here) reads much better after the folder work, because "find the task where I set up the deploy script" is far more useful when tasks are associated with real folders the user recognizes than when they are associated with directories we invented.
 

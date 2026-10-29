@@ -1,6 +1,6 @@
 # Plan: an AI usage panel in Settings
 
-Status: landed. Capture, store, RPC and the Settings section are built and checked against real requests; what is left is listed under "Known gaps".
+Status: landed in full (`427559098` and the commits after it). Capture, store, RPC and the Settings section are built and checked against real requests. The section is named "Activity" in Settings, not "AI usage". The small gaps under "Known gaps" are not scheduled.
 
 ## Problem
 
@@ -62,7 +62,7 @@ Indexes on `started_at` and on each filterable column paired with `started_at` k
 |---|---|---|
 | `workspace` | `logic/server/index.ts` registers the telemetry integration and opens the store. Call sites pass a purpose: `logic/llm-request.ts`, `lib/generate-title-from-user-message.ts`, `lib/web-search.ts`, `lib/generate-images.ts`, `lib/decision-model.ts` and the decision RPC route | The store (schema, insert, filtered page, totals, CSV), the telemetry integration, and an RPC route over the store |
 | `ai-gateway` | `lib/providers/claude-account/step-stream.ts` passes `thinking_tokens` through as reasoning | |
-| `studio` | `atoms/settings-modal.ts` gains `"AI usage"` in `SettingsTab`; the modal's nav and the settings search index gain the entry; decision callers pass their purpose | The section: virtualized table, filter chips, detail page |
+| `studio` | `atoms/settings-modal.ts` gains `"Activity"` in `SettingsTab`; the modal's nav and the settings search index gain the entry; decision callers pass their purpose | The section: virtualized table, filter chips, detail page |
 
 Untouched: the provider proxy, `chat.db` and its schema, how messages are saved, the agent machines, model list fetches (not model requests).
 

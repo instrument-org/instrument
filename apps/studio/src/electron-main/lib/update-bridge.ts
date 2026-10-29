@@ -397,6 +397,10 @@ Start-Process -FilePath ${quote(install.uninstaller)} -ArgumentList '/S' -Wait
 $deadline = (Get-Date).AddSeconds(120)
 while ((Test-Path -LiteralPath ${quote(install.exe)}) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
 Log "NSIS install removed: $(-not (Test-Path -LiteralPath ${quote(install.exe)}))"
+# The uninstaller leaves its folder behind, empty.
+if ((Test-Path -LiteralPath ${quote(install.folder)}) -and -not (Get-ChildItem -LiteralPath ${quote(install.folder)} -Force | Select-Object -First 1)) {
+  Remove-Item -LiteralPath ${quote(install.folder)} -Force -ErrorAction SilentlyContinue
+}
 foreach ($cache in @(${updaterCaches.map(quote).join(", ")})) {
   if (Test-Path -LiteralPath $cache) {
     Remove-Item -LiteralPath $cache -Recurse -Force -ErrorAction SilentlyContinue

@@ -41,6 +41,7 @@ const config: KnipConfig = {
       entry: [
         "scripts/*.{ts,tsx,js}!",
         "electron-builder/win-cloud-hsm-sign.js!",
+        "electron-builder/win-sign-file.js!",
         "src/client/components/ui/*.tsx!",
         "src/client/router.tsx!",
         "src/client/main.tsx!",

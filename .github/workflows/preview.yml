@@ -237,6 +237,27 @@ jobs:
           WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
           WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
 
+      # The Windows install and its updates are Velopack's: the unpacked app
+      # electron-builder just signed, packed per channel with a delta from
+      # each channel's last release (docs/architecture/releasing.md). vpk is
+      # pinned to the velopack package the app loads.
+      - if: matrix.os == 'windows'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "8.0.x"
+      - if: matrix.os == 'windows'
+        name: Install vpk
+        shell: pwsh
+        run: |
+          $version = node -p "require('./apps/studio/package.json').dependencies.velopack"
+          dotnet tool install --global vpk --version $version
+      - if: matrix.os == 'windows'
+        name: Pack Velopack release
+        run: node apps/studio/scripts/velopack-pack.ts --unpacked "apps/studio/dist/win-unpacked" --out "apps/studio/dist/velopack"
+        env:
+          WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+
       - if: matrix.os == 'linux'
         name: Package Linux
         run: pnpm --filter @instrument-org/studio exec electron-builder --linux --${{ matrix.arch }} --publish never
@@ -266,6 +287,16 @@ jobs:
         with:
           archive: false
           path: apps/studio/dist/*.exe
+          retention-days: 30
+          if-no-files-found: error
+      # The same preview as a Velopack install, which updates the way a
+      # release does when pointed at a feed of its own.
+      - if: matrix.os == 'windows'
+        name: Upload Windows Velopack Setup
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: apps/studio/dist/velopack/*-Setup.exe
           retention-days: 30
           if-no-files-found: error
       # The archive runs anywhere but needs a root-owned chrome-sandbox; the

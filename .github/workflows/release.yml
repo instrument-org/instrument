@@ -196,11 +196,33 @@ jobs:
           WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
           WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
 
+      # The Windows install and its updates are Velopack's: the unpacked app
+      # electron-builder just signed, packed per channel with a delta from
+      # each channel's last release (docs/architecture/releasing.md). vpk is
+      # pinned to the velopack package the app loads.
+      - if: matrix.os == 'windows-latest'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "8.0.x"
+      - if: matrix.os == 'windows-latest'
+        name: Install vpk
+        shell: pwsh
+        run: |
+          $version = node -p "require('./apps/studio/package.json').dependencies.velopack"
+          dotnet tool install --global vpk --version $version
+      - if: matrix.os == 'windows-latest'
+        name: Pack Velopack release
+        run: node apps/studio/scripts/velopack-pack.ts --unpacked "${{ runner.temp }}/dist/win-unpacked" --out "${{ runner.temp }}/dist/velopack"
+        env:
+          WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+
       - if: matrix.os == 'windows-latest'
         name: Verify Signatures
         shell: pwsh
         run: |
           & "${{ env.SIGNTOOL_PATH }}" verify /pa /all "${{ runner.temp }}\dist\*.exe"
+          & "${{ env.SIGNTOOL_PATH }}" verify /pa /all "${{ runner.temp }}\dist\velopack\*.exe"
         env:
           SIGNTOOL_PATH: signtool.exe
 
@@ -256,6 +278,7 @@ jobs:
             ${{ runner.temp }}/dist/*.yml
             ${{ runner.temp }}/dist/*.blockmap
             ${{ runner.temp }}/dist/*.snap
+            ${{ runner.temp }}/dist/velopack/*
             !${{ runner.temp }}/dist/builder-debug.yml
           retention-days: 30
           if-no-files-found: ignore
@@ -317,12 +340,14 @@ jobs:
             --no-progress \
             --exclude "*.png" \
             --exclude "sourcemaps-*" \
-            --exclude "*.yml"
+            --exclude "*.yml" \
+            --exclude "velopack/*.json"
           aws s3 sync artifacts/ s3://instrument-releases/ \
             --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
             --no-progress \
             --exclude "*" \
-            --include "*.yml"
+            --include "*.yml" \
+            --include "velopack/*.json"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

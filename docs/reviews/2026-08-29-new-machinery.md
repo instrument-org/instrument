@@ -23,7 +23,7 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 ### C. Spawned apps' unmapped provider types collide on `OPENAI_API_KEY`/`OPENAI_BASE_URL`
 
 - Status: superseded `7006cb89a`
-- Where: [env-for-provider-configs.ts:45-46](/packages/ai-gateway/src/lib/env-for-provider-configs.ts#L45-L46), [bundled-providers.ts:171](/packages/ai-gateway/src/lib/bundled-providers.ts#L171)
+- Where: `env-for-provider-configs.ts:45-46`, [bundled-providers.ts:171](/packages/ai-gateway/src/lib/bundled-providers.ts#L171)
 - What: nine provider types fell back to `OPENAI_*` and were assigned in list order, so adding LM Studio after OpenAI silently pointed a task app's `new OpenAI()` at LM Studio. The app runtime was deleted.
 
 ### D. Every media read persists a fresh copy of the same bytes
@@ -75,7 +75,7 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 ### K. The task app's console pipeline has no consumer
 
 - Status: superseded `7006cb89a`
-- Where: [index.ts:120](/packages/shim-client/src/client/index.ts#L120), [error-overlay.tsx:35](/packages/shim-client/src/iframe/components/error-overlay.tsx#L35)
+- Where: `index.ts:120`, `error-overlay.tsx:35`
 - What: the task app was the top document, so `window.parent === window` and every console message was posted to itself; "Open console" did nothing and each console call paid a `JSON.stringify`. The app runtime was deleted.
 
 ### L. Two gaps the dangling-tool-call sweep does not cover
@@ -114,7 +114,7 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 ### Q. A folder-changes docblock says session context is rebuilt at most hourly
 
 - Status: superseded `6984bd6d3`
-- Where: [attached-folder-changes.ts:20](/packages/workspace/src/lib/attached-folder-changes.ts#L20)
+- Where: [attached-folder-changes.ts:20](/packages/workspace/src/lib/folder-changes.ts#L20)
 - What: stale since session context became immutable. The file was deleted when grants replaced attachments.
 
 ### R. The rollover's session save can lose a title written at the same moment
@@ -147,7 +147,7 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 ### V. Two dev instances share one application-data folder
 
 - Status: open
-- Where: [register-telemetry.ts:31](/apps/studio/src/electron-main/lib/register-telemetry.ts#L31), [model-cache.ts:70-77](/apps/studio/src/electron-main/stores/model-cache.ts#L70-L77)
+- Where: `register-telemetry.ts:31`, [model-cache.ts:70-77](/apps/studio/src/electron-main/stores/machine/model-cache.ts#L70-L77)
 - What: dev only. The `app.lock` non-graceful-exit detector read the other instance's live lock, `diskModelCache`'s read-modify-write is last-writer-wins across processes, and every `conf` store leaves a `.tmp-` file when killed mid-write.
 - Note: the lock half was fixed in `2c47cdab0` (the marker records its pid and a live other process is skipped). The model cache is unchanged; the `conf` leftovers were not re-checked.
 
@@ -174,13 +174,13 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 ### Z. The live usage summary re-reads the whole chat per change batch
 
 - Status: open
-- Where: [index.ts:705-725](/packages/workspace/src/rpc/routes/task/index.ts#L705-L725)
+- Where: [index.ts:705-725](/packages/workspace/src/rpc/routes/chat/index.ts#L705-L725)
 - What: every batch of changed messages re-reads every message of every session. Mounts only in developer mode. Same shape at HEAD in `rpc/routes/chat/index.ts`.
 
 ### AA. Session replay writes cloned messages with one shared `createdAt`
 
 - Status: superseded `e44f9aafe`
-- Where: [session-replay.ts:177-188](/packages/workspace/src/lib/session-replay.ts#L177-L188)
+- Where: `session-replay.ts:177-188`
 - What: every replayed message got the same timestamp, which falsified forensic timelines and mimicked a stranded-parts bug during mining. Session replay was deleted; the seeder rebases timestamps by offset.
 
 ### AB. A Google 429 reporting a quota of 0 is retried like a rate limit
@@ -207,7 +207,7 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 ### AE. Exception autocapture ships unredacted paths
 
 - Status: not a defect
-- Where: [telemetry.ts:83](/apps/studio/src/client/lib/telemetry.ts#L83)
+- Where: `telemetry.ts:83`
 - What: refuted on verification. The analytics client was removed in `2c47cdab0`.
 
 ### AF. Context-overflow errors are retried verbatim

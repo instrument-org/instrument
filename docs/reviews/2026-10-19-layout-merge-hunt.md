@@ -36,7 +36,7 @@ A retroactive review of the workspace-layout merge and what landed around it, re
 ### E. Saving drafts deletes a draft that just arrived from another computer
 
 - Status: fixed `8df5e5b90`
-- Where: [drafts-folder.ts:129](/apps/studio/src/electron-main/stores/workspace/drafts-folder.ts#L129)
+- Where: `drafts-folder.ts:129`
 - What: the window saved all drafts as one list, and the save removed every `DRAFT.md` (pasted files included) whose id the list lacked. A draft synced in from another computer waits about 150 ms on disk before the window hears of it, and a save in that gap deletes it; the deletion then syncs back.
 
 ### F. Bookmarks saved on one computer overwrite the other's
@@ -55,13 +55,13 @@ A retroactive review of the workspace-layout merge and what landed around it, re
 ### H. Renaming a chat's folder while the app runs splits its work into two folders
 
 - Status: fixed `cdf24d8fe`
-- Where: [chat-folder.ts:66](/packages/workspace/src/lib/chat-folders/chat-folder.ts#L66), [sweep.ts:219](/packages/workspace/src/lib/chat-folders/sweep.ts#L219)
+- Where: [chat-folder.ts:66](/packages/workspace/src/lib/chat-folders/chat-folder.ts#L66), `sweep.ts:219`
 - What: the app knew a chat's `Chats/` folder only by a stored name, and at the end of a turn a missing named folder was answered by claiming a fresh one from the title. A rename in a file manager while the app runs left finished work in two folders, and the launch adoption never reconnected the renamed one because nothing was missing any more. `CHAT.md` already carried the chat id to find it by.
 
 ### I. Every launch reads every chat's whole history before the window opens
 
 - Status: fixed `18b015bd1`
-- Where: [sweep.ts:207](/packages/workspace/src/lib/chat-folders/sweep.ts#L207), [create-workspace-actor.ts:164](/apps/studio/src/electron-main/lib/create-workspace-actor.ts#L164)
+- Where: `sweep.ts:207`, [create-workspace-actor.ts:164](/apps/studio/src/electron-main/lib/create-workspace-actor.ts#L164)
 - What: boot awaited a pass that read, folded and rendered every chat's logs and every `CHAT.md`, even when nothing changed, while its comments claimed it cost a folder listing. Measured at about 300 ms for 688 chats, growing linearly.
 
 ### J. REVIEW.md protects files the app no longer has

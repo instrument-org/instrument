@@ -150,7 +150,7 @@ Where a skill does earn its place is everything past one rectangle: contact shee
 ### Phase 3: teach the instinct -- landed
 
 14. A downscaled image read carries the trigger inline: it says small text may not have survived and points at `region`. This fires exactly when detail was lost and nowhere else.
-15. One bullet in the main agent prompt next to the existing verification guidance ([main.ts](../../../packages/workspace/src/agents/main.ts)): seeing an image is not reading it, and a confident first impression of a small detail is often wrong.
+15. One bullet in the main agent prompt next to the existing verification guidance (`main.ts`): seeing an image is not reading it, and a confident first impression of a small detail is often wrong.
 16. **Not done:** the `agent-browser` skill cross-reference, where screenshots are the dominant dense image. Registry is read-only, so that edit belongs in the skills repo.
 
 ### Phase 4: measure -- landed

@@ -28,7 +28,7 @@ What the guard is worth, then, is removing the _easy and accidental_ route, and 
 
 ## Implementation
 
-- [Private address guard](../../packages/workspace/src/lib/private-address.ts)
+- Private address guard
 - [web_fetch tool](../../packages/workspace/src/tools/web-fetch.ts)
 - [Sandbox network policy](../../packages/workspace/src/lib/create-bash-env.ts) (`denyPrivateRanges`)
 - Carried by PR #72.

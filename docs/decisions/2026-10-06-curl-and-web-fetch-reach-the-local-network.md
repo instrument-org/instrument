@@ -32,7 +32,7 @@ Connected apps get the same reach as `curl`, rather than a narrower one. A self-
 
 ## Implementation
 
-- [Workspace server check](../../packages/workspace/src/lib/workspace-server-address.ts)
-- [Shell fetch](../../packages/workspace/src/lib/sandbox-fetch.ts), wired in [create-bash-env.ts](../../packages/workspace/src/lib/create-bash-env.ts)
+- Workspace server check
+- Shell fetch, wired in [create-bash-env.ts](../../packages/workspace/src/lib/create-bash-env.ts)
 - [web_fetch](../../packages/workspace/src/tools/web-fetch.ts)
 - [App URL check](../../packages/workspace/src/lib/apps/safe-url.ts)

@@ -346,7 +346,7 @@ Worth landing separately, but the shapes line up closely enough to be worth writ
 
 A subagent is the same lifecycle as a background process: start it, give it an id, read its progress, wait for it, kill it. So the registry here reads like a second implementer waiting to happen.
 
-We are closer to subagents than to background shell was. The machine plumbing already exists and is unused: [`spawnAgent`](../../../packages/workspace/src/lib/spawn-agent.ts) is already passed to every tool's `execute`, [`session.ts`](../../../packages/workspace/src/machines/session.ts) already builds it, `session.spawnSubAgent` is already handled in [`machines/workspace/index.ts`](../../../packages/workspace/src/machines/workspace/index.ts), and sessions already carry `parentSessionId`. What is missing is a tool, a second entry in `agents/all.ts` (or permission to spawn `main` again), and a way to show a nested session in the transcript.
+We are closer to subagents than to background shell was. The machine plumbing already exists and is unused: `spawnAgent` is already passed to every tool's `execute`, [`session.ts`](../../../packages/workspace/src/machines/session.ts) already builds it, `session.spawnSubAgent` is already handled in [`machines/workspace/index.ts`](../../../packages/workspace/src/machines/workspace/index.ts), and sessions already carry `parentSessionId`. What is missing is a tool, a second entry in `agents/all.ts` (or permission to spawn `main` again), and a way to show a nested session in the transcript.
 
 Where they differ, and why they should probably not share one registry as-is:
 

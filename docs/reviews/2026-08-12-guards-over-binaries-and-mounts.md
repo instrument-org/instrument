@@ -9,7 +9,7 @@ Asked for a review of the commits from 2026-07-05 through v1.6.0-beta.0 (`642af0
 ### A. The project mount's private dir is readable and writable outside bash
 
 - Status: fixed `5981801ec`
-- Where: [resolve-agent-path.ts:317-318](/packages/workspace/src/lib/resolve-agent-path.ts#L317-L318), [workspace-fs-layout.ts:440](/packages/workspace/src/lib/workspace-fs-layout.ts#L440); the mount at [workspace-fs-layout.ts:229-240](/packages/workspace/src/lib/workspace-fs-layout.ts#L229-L240)
+- Where: `resolve-agent-path.ts:317-318`, [workspace-fs-layout.ts:440](/packages/workspace/src/lib/workspace-fs-layout.ts#L440); the mount at [workspace-fs-layout.ts:229-240](/packages/workspace/src/lib/workspace-fs-layout.ts#L229-L240)
 - What: `/project` mounts read-write on the premise that `buildBashFs` masks its `.instrument`, but the private-dir check in `resolveAgentPath` and `resolveReadOnlyHostPath` applied only to the task mount, so `read_file`, `write_file`, `edit_file` and `rg` reached `/project/.instrument/settings.json`. An agent appending a read-write folder there got it mounted in every task of the project on the next turn. The fix makes the mask a property of the mount (`masksPrivateDir`) read by every resolver and by `buildBashFs`.
 
 ### B. The `rg` wrapper's private-dir guard does not hold
@@ -59,13 +59,13 @@ Asked for a review of the commits from 2026-07-05 through v1.6.0-beta.0 (`642af0
 ### I. Any ancestor named like the home folder is relabeled `Home`
 
 - Status: superseded `beb9bc00c`
-- Where: [assign-mount-names.ts:69](/packages/workspace/src/lib/assign-mount-names.ts#L69)
+- Where: `assign-mount-names.ts:69`
 - What: a namesake-collision qualifier compared an ancestor segment with `path.basename(os.homedir())`, so an unrelated folder with that name was labeled `Home`. The file was deleted when the agent moved to real paths.
 
 ### J. Attached folders were qualified with an ancestor even without a collision
 
 - Status: fixed `bcfceb033`
-- Where: [assign-folder-names.ts:52-57](/packages/workspace/src/lib/assign-folder-names.ts#L52-L57) at `642af072e`
+- Where: `assign-folder-names.ts:52-57` at `642af072e`
 - What: `~/Documents/test` mounted at `/mnt/Documents-test`, and the agent called it "the documents-test folder". Found in the first pass and fixed before the re-validation.
 
 ### K. Suffix byte ranges are answered 416

@@ -6,7 +6,7 @@ A user reported that a large retail site refused the in-app browser, serving a h
 
 ## How to take the reading again
 
-`scripts/self-report-probe.mjs` in the [studio-chrome-devtools skill](../../.agents/skills/studio-chrome-devtools/SKILL.md) reaches into a guest through the host page's `<webview>` handle and reports the surface below. Open a page in the guest first, because an `about:blank` guest reports almost nothing.
+`.agents/skills/studio-chrome-devtools/scripts/self-report-probe.mjs` in the [studio-chrome-devtools skill](../../.agents/skills/studio-chrome-devtools/SKILL.md) reaches into a guest through the host page's `<webview>` handle and reports the surface below. Open a page in the guest first, because an `about:blank` guest reports almost nothing.
 
 ```bash
 node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs run \

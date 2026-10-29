@@ -42,7 +42,7 @@ The pin is exact because a range across a package with prerelease tags could res
 
 ## Alternatives weighed
 
-**Vendor per-platform, the way `uv` is vendored.** The machinery already exists: `scripts/download-uv.ts` into `resources/`, unpacked via `asarUnpack`, verified in `afterPack`. BtbN/FFmpeg-Builds covers linux x64/arm64 and win x64 with maintained, checksummed, current releases. macOS is the problem: it would come from osxexperts.net, a single maintainer with no API and no published checksums, which is a worse supply chain than an npm package with an integrity hash, for the same underlying build.
+**Vendor per-platform, the way `uv` is vendored.** The machinery already exists: `apps/studio/scripts/download-uv.ts` into `resources/`, unpacked via `asarUnpack`, verified in `afterPack`. BtbN/FFmpeg-Builds covers linux x64/arm64 and win x64 with maintained, checksummed, current releases. macOS is the problem: it would come from osxexperts.net, a single maintainer with no API and no published checksums, which is a worse supply chain than an npm package with an integrity hash, for the same underlying build.
 
 **Build ffmpeg ourselves in CI.** Real work, a permanent maintenance surface, and a macOS runner in the release path. Not warranted to move one version.
 

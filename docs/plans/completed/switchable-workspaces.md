@@ -116,7 +116,7 @@ The first boot after upgrade always resolves Default, since no registry exists y
 
 ### 4. The app window's Chromium profile per workspace
 
-The in-app browser is already per workspace: every guest runs on one session at `<workspace root>/.instrument/browser-session` (`getBrowserSessionDir` in `packages/workspace/src/lib/task-dir-utils.ts`), so cookies, cache, IndexedDB, and service workers follow the workspace once its root changes. Two workspaces signed into two Gmail accounts already works.
+The in-app browser is already per workspace: every guest runs on one session at `<workspace root>/.instrument/browser-session` (`getBrowserSessionDir` in `packages/workspace/src/lib/chat-dir-utils.ts`), so cookies, cache, IndexedDB, and service workers follow the workspace once its root changes. Two workspaces signed into two Gmail accounts already works.
 
 What does not follow is the app window itself, which runs on Electron's default session in userData. Its `localStorage` holds every `studio.*` key: tabs, recents, drafts, compose, bookmarks, visited pages (the browser history), and the rest, all of which point at one workspace's chats and pages.
 
@@ -186,7 +186,7 @@ It gives a fresh `Instrument (<timestamp>)` userData via `ELECTRON_USE_NEW_USER_
 
 
 - Two workspaces open at once as separate windows of one process. Needs two workspace actors in one process. Step 8 already gets two workspaces running at once as two processes, each with its own window state.
-- A per-workspace output folder in place of the shared `~/Documents/Instrument` (`packages/workspace/src/lib/orchestrator/output-folder.ts`).
+- A per-workspace output folder in place of the shared `~/Documents/Instrument` (`packages/workspace/src/lib/chat/output-folder.ts`).
 - Replacing electron-store (see Decisions).
 - `<userData>/Partitions/browser-*`, left by an older per-task browser layout. Nothing in the current code opens them.
 - Closing the window when the last tab closes. `closeTab` in `apps/studio/src/client/lib/tabs-model.ts` seeds a fresh tab today; changing that is independent of this plan.

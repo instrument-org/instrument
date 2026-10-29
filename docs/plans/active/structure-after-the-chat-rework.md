@@ -70,7 +70,7 @@ Size M, value high.
 
 One stop is spread over the machine's `stop` event (`StopReason`), a module map in `wake.ts` (`ExpectedStop { by, wakesChat }` by session) and `stoppedBy` on the row (d4d1d30be, 2e31ae013). Shape: `{ by, wakesChat }` rides on `stop` into the session's context and out on `session.done`; wake reads it from the payload and its map goes.
 
-Beside it, the session machine's `UsingReadOnlyTools`/`UsingNonReadOnlyTools` × `Running`/`Paused` tree, `markUsedNonReadOnlyTools`, `usedNonReadOnlyTools` on `session.done` and the `agent.paused`/`agent.using-non-read-only-tools` tags have no consumer (only `agent.alive` and `agent.running` are read; `instrument.ts:163` works out write use again). Collapse to `Running | Stopping | AgentDone` and drop `agent.usingTool` (its other reader is a log line in `scripts/run-workspace.ts:161`).
+Beside it, the session machine's `UsingReadOnlyTools`/`UsingNonReadOnlyTools` × `Running`/`Paused` tree, `markUsedNonReadOnlyTools`, `usedNonReadOnlyTools` on `session.done` and the `agent.paused`/`agent.using-non-read-only-tools` tags have no consumer (only `agent.alive` and `agent.running` are read; `instrument.ts:163` works out write use again). Collapse to `Running | Stopping | AgentDone` and drop `agent.usingTool` (its other reader is a log line in `packages/workspace/scripts/run-workspace.ts:161`).
 
 And the workspace machine's registry: sessions are `Map<ChatId, SessionActorRef[]>` found by scanning snapshots (`machines/workspace/index.ts:141-152,184-203,285-345`). Shape: `Map<SessionId, { chatId, ref }>`; `prepareToTrashChat`'s one-element array and counter go.
 

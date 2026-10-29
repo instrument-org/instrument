@@ -4,7 +4,7 @@
 
 ## Symptom
 
-A relative-timestamp component paused its timers on `visibilitychange` → hidden and rebuilt them on the paired `visible`. Reading [the comment in `routes/_app/projects/$id/index.tsx`](../../apps/studio/src/client/routes/_app/projects/$id/index.tsx) — "Electron does not fire [visibilitychange] when the OS window regains focus (the view is never marked hidden)" — that looked like a broken event pair worth defending against, and it grew a `window.focus` fallback and a 60s watchdog poll to guarantee the pause could always be undone.
+A relative-timestamp component paused its timers on `visibilitychange` → hidden and rebuilt them on the paired `visible`. Reading the comment in `routes/_app/projects/$id/index.tsx` — "Electron does not fire [visibilitychange] when the OS window regains focus (the view is never marked hidden)" — that looked like a broken event pair worth defending against, and it grew a `window.focus` fallback and a 60s watchdog poll to guarantee the pause could always be undone.
 
 The premise was wrong, and the machinery guarded a failure mode that cannot happen.
 

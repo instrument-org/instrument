@@ -12,7 +12,7 @@ This is about to matter more than it does today. The near-term goal is for the a
 
 So the cost separates by **how often the question is asked**, not by whether it fans out:
 
-- **Per render is unaffordable.** The list view runs on every window open, and it is why [get-tasks.ts](../../../packages/workspace/src/lib/get-tasks.ts) never opens `task.db`. Message counts and linked-file projections fall on this side, and no fan-out makes them viable. This is the case that justifies the index in phase 3.
+- **Per render is unaffordable.** The list view runs on every window open, and it is why `get-tasks.ts` never opens `task.db`. Message counts and linked-file projections fall on this side, and no fan-out makes them viable. This is the case that justifies the index in phase 3.
 - **On demand is affordable today.** An agent-invoked content search at ~220ms needs neither the index nor this plan. It should not wait on either.
 
 Two constraints on any fan-out written before the storage change lands. It must open `node:sqlite` directly and close immediately, **not** go through `getSessionsStoreStorage`: that accessor caches one storage instance per task in a module-level map that is only evicted by explicit disposal, and its own comment records that the db0 driver never closes the database. Routing a 310-task search through it would leave 310 databases resident for the life of the process, and would run `runStoreMigrations` against each. And the bodies are superjson-encoded, so a search term containing a quote, backslash, or newline has to be escaped or the query silently returns nothing — the same trap this document already notes for the ripgrep design.
@@ -23,8 +23,8 @@ Two repo skills are the current cost, already paid: `chat-database-query` exists
 
 **There is no relational schema to migrate.** The task database is a key-value store, not a modeled one:
 
-- [session-store-storage.ts](../../../packages/workspace/src/lib/session-store-storage.ts) builds an [unstorage](https://unstorage.unjs.io) instance over a `db0` connector over `node:sqlite`, writing to a single table named `sessions`.
-- [store.ts](../../../packages/workspace/src/lib/store.ts) accesses it purely through hierarchical string keys and prefix scans: `storage.getKeys(StorageKey.MESSAGES_KEY)`, `getItemRaw`, `setItemRaw`. Keys are built in [storage-key.ts](../../../packages/workspace/src/lib/storage-key.ts) by joining segments (`messages:<sessionId>:<messageId>`, `sessions:<sessionId>`, and so on).
+- `session-store-storage.ts` builds an [unstorage](https://unstorage.unjs.io) instance over a `db0` connector over `node:sqlite`, writing to a single table named `sessions`.
+- `store.ts` accesses it purely through hierarchical string keys and prefix scans: `storage.getKeys(StorageKey.MESSAGES_KEY)`, `getItemRaw`, `setItemRaw`. Keys are built in [storage-key.ts](../../../packages/workspace/src/lib/storage-key.ts) by joining segments (`messages:<sessionId>:<messageId>`, `sessions:<sessionId>`, and so on).
 - Values are Zod-validated on the way in and out ([set-parsed-storage-item.ts](../../../packages/workspace/src/lib/set-parsed-storage-item.ts), [get-parsed-storage-item.ts](../../../packages/workspace/src/lib/get-parsed-storage-item.ts)), so the schema lives in TypeScript, not in the database.
 - Everything funnels through one function, `getSessionsStoreStorage(taskId)`, with a per-task cache and disposal bookkeeping.
 
@@ -135,7 +135,7 @@ The consequence for the agent's browser is concrete and belongs on both plans: i
 
 The list view is about to want things it cannot have today: how many messages a conversation holds, and **which files the agent linked or produced in it**. The second is the point of the [presentation](presentation-syntax.md) work — an agent that can richly reference files is only half a feature if those references are invisible until you open the conversation.
 
-**Neither is reachable now, and that is a deliberate cost boundary rather than an oversight.** [get-tasks.ts](../../../packages/workspace/src/lib/get-tasks.ts) globs the tasks directory and does a few small metadata reads per task, concurrency-capped, with a comment recording that a serial loop otherwise dominates list latency. It never opens `task.db`. The [Task schema](../../../packages/workspace/src/schemas/task.ts) matches that budget exactly: every field on it is answerable from a small file sitting beside the conversation, and none is derived from the conversation body. Message counts and linked files are the first two fields that fall on the wrong side of that line.
+**Neither is reachable now, and that is a deliberate cost boundary rather than an oversight.** `get-tasks.ts` globs the tasks directory and does a few small metadata reads per task, concurrency-capped, with a comment recording that a serial loop otherwise dominates list latency. It never opens `task.db`. The Task schema matches that budget exactly: every field on it is answerable from a small file sitting beside the conversation, and none is derived from the conversation body. Message counts and linked files are the first two fields that fall on the wrong side of that line.
 
 The naive versions both fail, and they fail the same way:
 

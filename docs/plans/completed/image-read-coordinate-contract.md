@@ -36,7 +36,7 @@ Two tests hold the contract down, both stated as properties rather than as expec
 
 **P1.** The tool description told the model it could narrow further by reading a region "of what you get back". It could not. Every region is interpreted against the view of the **original** image, so coordinates read off a magnified crop land somewhere unrelated.
 
-One correction to the review: only the tool description carried this, in both the tool text and the `region` parameter's own description. The agent prompt in [main.ts](../../../packages/workspace/src/agents/main.ts) says only "read the image again with `region` set to that area", which is true as written.
+One correction to the review: only the tool description carried this, in both the tool text and the `region` parameter's own description. The agent prompt in `main.ts` says only "read the image again with `region` set to that area", which is true as written.
 
 ### What to do
 

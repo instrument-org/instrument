@@ -51,20 +51,20 @@ Three properties, each load-bearing:
 
 **The date stays first**, so a listing of the workspace folder remains chronological alongside normal tasks. Note that the product's task list does not sort by folder name at all; it sorts by `lastActivityAt` and `createdAt`, which for a temporary task come from memory and behave identically. The ordering benefit is for a human browsing the folder on disk.
 
-**The double hyphen is unforgeable.** [`taskFolderSlug`](../../../packages/workspace/src/lib/task-folder-slug.ts) matches `/[a-z0-9]+/g` and joins tokens with exactly one hyphen; [`generateTaskFolderName`](../../../packages/workspace/src/lib/generate-task-folder-name.ts) joins the date prefix with exactly one hyphen and appends collision suffixes as `-N`. No path through the normal generator produces two adjacent hyphens, whatever the user types, so `id.includes("--")` is a total and unspoofable predicate. A prompt of literally "temporary p7k3m9x2" still yields `2026-08-15-temporary-p7k3m9x2`, one hyphen, correctly treated as a normal task. No reserved-word list, no escaping, no guard code. [`SubdomainPartSchema`](../../../packages/workspace/src/schemas/subdomain-part.ts) is `/^[a-z0-9-]+$/`, so the form validates with no schema change, and the punycode `xn--` reservation binds only at positions three and four, which a date prefix never occupies.
+**The double hyphen is unforgeable.** [`taskFolderSlug`](../../../packages/workspace/src/lib/folder-slug.ts) matches `/[a-z0-9]+/g` and joins tokens with exactly one hyphen; `generateTaskFolderName` joins the date prefix with exactly one hyphen and appends collision suffixes as `-N`. No path through the normal generator produces two adjacent hyphens, whatever the user types, so `id.includes("--")` is a total and unspoofable predicate. A prompt of literally "temporary p7k3m9x2" still yields `2026-08-15-temporary-p7k3m9x2`, one hyphen, correctly treated as a normal task. No reserved-word list, no escaping, no guard code. [`SubdomainPartSchema`](../../../packages/workspace/src/schemas/subdomain-part.ts) is `/^[a-z0-9-]+$/`, so the form validates with no schema change, and the punycode `xn--` reservation binds only at positions three and four, which a date prefix never occupies.
 
 **The suffix is opaque, not a prompt slug.** A normal task id is derived from the user's first message, which would put message content in the one place a delete-on-quit design cannot hide it. Temporary tasks get a generated identifier instead.
 
 Putting the flag in the id rather than in a settings field or a marker file is what makes the rest cheap:
 
-- **No extra disk reads.** [`get-tasks`](../../../packages/workspace/src/lib/get-tasks.ts) already globs `tasks/*/` and already parses each folder name into a `TaskId`. The predicate is a string test, not a `stat`.
+- **No extra disk reads.** `get-tasks` already globs `tasks/*/` and already parses each folder name into a `TaskId`. The predicate is a string test, not a `stat`.
 - **It cannot be toggled onto an existing task.** Turning it on would mean renaming the folder, which changes the primary key and every reference to the task. The property is structural rather than a bit somebody can flip into a data-loss bug.
 - **It cannot drift out of sync.** A settings field and a folder can disagree; a folder cannot disagree with itself.
 - **It survives when nothing else does.** Because settings live in memory (below), the name is the only thing left on disk after a crash, so it is the only viable candidate.
 
 ### Storage: swap the backing, not the callers
 
-**Conversation.** [`getSessionsStoreStorage`](../../../packages/workspace/src/lib/session-store-storage.ts) is the only place in the repository that opens a task database, and everything above it speaks the five-method `WrappedStorage` contract over a flat key space. For a temporary task it returns an [unstorage](https://unstorage.unjs.io) memory driver instead of the `db0` sqlite one. No caller changes.
+**Conversation.** `getSessionsStoreStorage` is the only place in the repository that opens a task database, and everything above it speaks the five-method `WrappedStorage` contract over a flat key space. For a temporary task it returns an [unstorage](https://unstorage.unjs.io) memory driver instead of the `db0` sqlite one. No caller changes.
 
 Do not attempt this by suppressing writes. The store is not a write-behind log; it is the source of truth for the live transcript, which the renderer re-reads on every streaming batch, and for the next turn's model input, which [`prepare-model-messages`](../../../packages/workspace/src/lib/prepare-model-messages.ts) rebuilds from it. Silencing the writer produces an empty chat and an agent with no memory. Swap the backing and keep every write.
 
@@ -89,7 +89,7 @@ A task carrying `node_modules` and a virtual environment is tens of thousands of
 1. **Rename** `tasks/<id>` to `tasks/.reaping-<id>`. One atomic operation regardless of size. Because `get-tasks` globs `*/` and glob skips dot-prefixed entries by default, the task leaves the product the instant the rename lands. Confirm this against the broken-task sweeper in Settings, Storage, so a folder being reaped is never surfaced as a corrupted task.
 2. **Reap** with a recursive removal in the background, after quit or at the next launch.
 
-Reuse the ordering already established in [`trash-task`](../../../packages/workspace/src/lib/trash-task.ts), which is load bearing and hard won: wait for the browser view and the agent-browser daemon to reap so the profile is unlocked, dispose the store handle, and remove `node_modules` first because pnpm hard links break deletion on Windows. Removing the automatic runtime boot behavior will shrink the `node_modules` pressure that motivated that ordering, but rename-then-reap remains correct regardless, because it is about not blocking quit rather than about size.
+Reuse the ordering already established in [`trash-task`](../../../packages/workspace/src/lib/trash-chat.ts), which is load bearing and hard won: wait for the browser view and the agent-browser daemon to reap so the profile is unlocked, dispose the store handle, and remove `node_modules` first because pnpm hard links break deletion on Windows. Removing the automatic runtime boot behavior will shrink the `node_modules` pressure that motivated that ordering, but rename-then-reap remains correct regardless, because it is about not blocking quit rather than about size.
 
 Delete with a real recursive removal, **not** `shell.trashItem`. The current path files a deleted task into the system trash, which for a temporary task would be a comic failure.
 
@@ -119,13 +119,13 @@ Item 1 first, because everything else reads the predicate.
 
 | # | Change | Where | Size |
 | --- | --- | --- | --- |
-| 1 | `--temporary` id form plus an `isTemporary(id)` predicate | [`generate-task-folder-name.ts`](../../../packages/workspace/src/lib/generate-task-folder-name.ts), [`task-id.ts`](../../../packages/workspace/src/schemas/task-id.ts) | Small |
-| 2 | Memory driver behind the existing storage seam | [`session-store-storage.ts`](../../../packages/workspace/src/lib/session-store-storage.ts) | Small |
-| 3 | Settings adapter, memory or file backing, plus the naming refactor below | [`task-record.ts`](../../../packages/workspace/src/lib/task-record.ts) | Medium |
+| 1 | `--temporary` id form plus an `isTemporary(id)` predicate | `generate-task-folder-name.ts`, `task-id.ts` | Small |
+| 2 | Memory driver behind the existing storage seam | `session-store-storage.ts` | Small |
+| 3 | Settings adapter, memory or file backing, plus the naming refactor below | [`task-record.ts`](../../../packages/workspace/src/lib/chat-record.ts) | Medium |
 | 4 | Per-task in-memory partition; `partitionDir` becomes a directory-or-name union | [`browser-view/`](../../../apps/studio/src/electron-main/browser-view/) | Medium |
-| 5 | Rename-then-reap deletion, recursive removal rather than the system trash | [`trash-task.ts`](../../../packages/workspace/src/lib/trash-task.ts) | Small |
+| 5 | Rename-then-reap deletion, recursive removal rather than the system trash | [`trash-task.ts`](../../../packages/workspace/src/lib/trash-chat.ts) | Small |
 | 6 | Quit hook and name-pattern boot sweep, ordered ahead of the layout migration | [`create-workspace-actor.ts`](../../../apps/studio/src/electron-main/lib/create-workspace-actor.ts) | Medium |
-| 7 | Disable zip export for temporary tasks | [`rpc/routes/task/`](../../../packages/workspace/src/rpc/routes/task/) | Tiny |
+| 7 | Disable zip export for temporary tasks | `rpc/routes/task/` | Tiny |
 | 8 | Stale-task landing state after a restart; exclude from recently-closed tabs | [`atoms/tabs.ts`](../../../apps/studio/src/client/atoms/tabs.ts), router | Small |
 | 9 | Sidebar icon, header sentence, creation disclosure, new-task entry point | `client/components/` | Small to medium |
 

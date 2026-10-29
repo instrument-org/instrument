@@ -18,6 +18,6 @@ The branch operation copies the task database, removes later messages, and clear
 
 ## Implementation
 
-- [Branch task operation](../../packages/workspace/src/lib/branch-task.ts)
+- Branch task operation
 - [Assistant message footer](../../apps/studio/src/client/components/assistant-messages-footer.tsx)
 - [Commit 73a76c106](https://github.com/instrument-org/instrument/commit/73a76c1064ac582a027479332ff3080107c6d53a)

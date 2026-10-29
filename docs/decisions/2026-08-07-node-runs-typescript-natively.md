@@ -46,5 +46,5 @@ jiti also enabled the V8 compile cache and wrote its own transform cache into th
 
 - [Node command](../../packages/workspace/src/lib/shell-commands/node.ts)
 - [Bash command registry](../../packages/workspace/src/lib/create-bash-env.ts)
-- [File index exclusions](../../packages/workspace/src/lib/get-task-files.ts)
-- [Agent prompt](../../packages/workspace/src/agents/main.ts)
+- File index exclusions
+- Agent prompt

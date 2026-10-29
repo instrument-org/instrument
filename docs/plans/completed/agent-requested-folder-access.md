@@ -64,7 +64,7 @@ So: **no Full Disk Access, no new entitlements, no install-time consent.** Add t
 
 ### 1. The discovery agent
 
-A second entry in [AGENTS](../../../packages/workspace/src/agents/all.ts), spawned through the `spawnAgent` primitive that already threads through tool execution and already runs nested sessions with working abort, replay, and completion.
+A second entry in `AGENTS`, spawned through the `spawnAgent` primitive that already threads through tool execution and already runs nested sessions with working abort, replay, and completion.
 
 **Its filesystem is one read-only mount.** `buildWorkspaceFsLayout` already expresses this: a mount is a host root plus a `readOnly` flag, and read-only mounts already get symlink containment on every read plus native-bridge quarantine. The discovery layout is the ordinary layout with one extra read-only mount whose host root is the user's home directory.
 

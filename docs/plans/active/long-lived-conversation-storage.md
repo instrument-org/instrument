@@ -8,7 +8,7 @@ The product is moving to one long-lived parent conversation that delegates to ta
 
 1. **History behind a rollover is unreachable.** [apply-context-rollover.ts](../../../packages/workspace/src/lib/apply-context-rollover.ts) keeps the user's messages and drops every assistant turn, tool call, and tool result. Every dropped message stays in `task.db`, but the agent has no path to that store, so the only bridge across the boundary is the handoff notes it wrote about itself. A parent that runs for months crosses that boundary constantly.
 2. **Image reads dominate storage and nothing reclaims space.** Half of every byte stored is `read_file` output, almost all of it base64 image data, in a database opened with `auto_vacuum` off. A task that dies young never notices. A parent conversation accumulates the same tail with no end.
-3. **The database is configured for one reader-writer.** No pragma is set anywhere in [session-store-storage.ts](../../../packages/workspace/src/lib/session-store-storage.ts), so the journal mode is the default rollback journal. A reader blocks the writer and the writer blocks readers. The parent inspecting a running task is exactly one reader against one live writer.
+3. **The database is configured for one reader-writer.** No pragma is set anywhere in `session-store-storage.ts`, so the journal mode is the default rollback journal. A reader blocks the writer and the writer blocks readers. The parent inspecting a running task is exactly one reader against one live writer.
 
 ## What the databases hold
 
@@ -97,7 +97,7 @@ Each phase makes the next one safer rather than depending on it, and any of them
 
 ### 2. The live store's configuration
 
-- Open every task database in WAL mode with a busy timeout, and enable incremental vacuum, in [session-store-storage.ts](../../../packages/workspace/src/lib/session-store-storage.ts). Neither touches the shape of any data. WAL is the precondition for the parent reading a running task; incremental vacuum is what lets a months-long store give space back after compaction.
+- Open every task database in WAL mode with a busy timeout, and enable incremental vacuum, in `session-store-storage.ts`. Neither touches the shape of any data. WAL is the precondition for the parent reading a running task; incremental vacuum is what lets a months-long store give space back after compaction.
 - Leave `user_version` alone. The `__migration_version__` row works and moving it is churn.
 - Add an index only when a query needs one. The parent plan's prior art is explicit: store the blob, promote a field to a column when a read asks for it.
 

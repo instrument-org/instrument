@@ -21,6 +21,6 @@ An isolated-task option will select that task's `<task>/.instrument/browser-sess
 
 ## Implementation
 
-- [Browser session path](../../packages/workspace/src/lib/task-dir-utils.ts)
+- [Browser session path](../../packages/workspace/src/lib/chat-dir-utils.ts)
 - [Browser target creation](../../packages/workspace/src/rpc/routes/browser.ts)
 - [Electron session attachment](../../apps/studio/src/electron-main/browser-view/manager.ts)

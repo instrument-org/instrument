@@ -25,9 +25,9 @@ A directory per task is also a poor fit now that most tasks are not projects. It
 
 | Concern                      | Where it lives now                                                                                                                                                           |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Task directory               | Derived, not stored: `taskDir(id)` in [task-dir-utils.ts](../../../packages/workspace/src/lib/task-dir-utils.ts) joins the workspace singleton's `tasksDir` with the task id |
+| Task directory               | Derived, not stored: `taskDir(id)` in [task-dir-utils.ts](../../../packages/workspace/src/lib/chat-dir-utils.ts) joins the workspace singleton's `tasksDir` with the task id |
 | Agent's writable root        | The task dir, mounted at `/task` ([workspace-fs-layout.ts](../../../packages/workspace/src/lib/workspace-fs-layout.ts))                                                      |
-| User folders                 | Copied in as attachments, or mounted **read-only** under `/mnt/<name>` ([attached-folder-mounts.ts](../../../packages/workspace/src/lib/attached-folder-mounts.ts))          |
+| User folders                 | Copied in as attachments, or mounted **read-only** under `/mnt/<name>` (`attached-folder-mounts.ts`)          |
 | Temp, screenshots, downloads | Under the task dir, via `getTaskTmpDir` / `getScreenshotsDir` / `getDownloadsDir`                                                                                            |
 | Native binaries              | Bridged to real host paths for `/task` **only**; every other virtual path quarantines to a nonexistent path inside the task dir                                              |
 
@@ -52,7 +52,7 @@ Concretely, one concept splits into two:
 - `taskDir` (ours, private, still derived from the id, always under `tasksDir`): database, state, temp, screenshots, downloads.
 - `workingDir` (the user's chosen folder, or a created scratch dir, or absent): the agent's read/write surface.
 
-Everything in [task-dir-utils.ts](../../../packages/workspace/src/lib/task-dir-utils.ts) that currently takes a `TaskDir` needs auditing for which of the two it meant. The `TaskDir` brand in [paths.ts](../../../packages/workspace/src/schemas/paths.ts) is the right lever: introduce a distinct `WorkingDir` brand so the compiler finds the call sites instead of us finding them by hand. Persist the chosen path in task settings; `AbsolutePathSchema` is already the established shape for a stored host path ([folder-attachment.ts](../../../packages/workspace/src/schemas/folder-attachment.ts)).
+Everything in [task-dir-utils.ts](../../../packages/workspace/src/lib/chat-dir-utils.ts) that currently takes a `TaskDir` needs auditing for which of the two it meant. The `TaskDir` brand in [paths.ts](../../../packages/workspace/src/schemas/paths.ts) is the right lever: introduce a distinct `WorkingDir` brand so the compiler finds the call sites instead of us finding them by hand. Persist the chosen path in task settings; `AbsolutePathSchema` is already the established shape for a stored host path (`folder-attachment.ts`).
 
 Expect this step to touch more files than the rest of the plan combined, and expect it to be almost entirely mechanical once the brands are in place.
 
@@ -116,11 +116,11 @@ Today one mechanism does both jobs, because we own the directory: scan it, and w
 
 **Browsing is polled, not watched.** A file tree over the working folder is a genuinely good affordance, and it does not need a watcher: the tree polls itself while it is on screen, which is what the file-list panel already does ([file-references-without-a-watcher.md](../completed/file-references-without-a-watcher.md)). The reason that scales here and a watcher does not is what each one's cost is proportional to. A poll costs what is expanded; a watcher costs the tree, and the tree is now one the user picked.
 
-That points at lazy per-directory reads rather than the whole-tree index. [get-task-files.ts](../../../packages/workspace/src/lib/get-task-files.ts) ignores `node_modules`, `.venv`, and friends because a Python scientific stack alone runs past the index cap, and that ignore list was tuned for a directory whose shape we knew. Pointed at a monorepo, an ignore list is a guess about someone else's repository; expanding only what the user opened is not a guess at all, and it makes the cap a per-directory concern rather than a global one.
+That points at lazy per-directory reads rather than the whole-tree index. `get-task-files.ts` ignores `node_modules`, `.venv`, and friends because a Python scientific stack alone runs past the index cap, and that ignore list was tuned for a directory whose shape we knew. Pointed at a monorepo, an ignore list is a guess about someone else's repository; expanding only what the user opened is not a guess at all, and it makes the cap a per-directory concern rather than a global one.
 
 **Attribution comes from somewhere else.** "What did the agent change this turn" was never going to come from watching the directory, because a user edit and an agent edit are the same filesystem event. It has to come from the agent's own actions.
 
-**We can attribute more than "tool calls" implies, because our bash is not a real shell.** just-bash executes against a virtual `IFileSystem` we supply, so every mutation a shell command makes goes through an interface we control. The mechanism already exists and is already in production: [skill-write-tracking-fs.ts](../../../packages/workspace/src/lib/skill-write-tracking-fs.ts) wraps a filesystem and records `writeFile`, `appendFile`, `mkdir`, `rm`, `mv`, `cp`, `link`, `symlink`, `chmod`, and `utimes` without changing behavior, and it is already mounted on `/skills` in [workspace-fs-layout.ts](../../../packages/workspace/src/lib/workspace-fs-layout.ts). Wrapping `/work` in the same tracker gives per-turn attribution across the file tools and the entire shell surface, for a small fraction of the cost of snapshot-and-diff.
+**We can attribute more than "tool calls" implies, because our bash is not a real shell.** just-bash executes against a virtual `IFileSystem` we supply, so every mutation a shell command makes goes through an interface we control. The mechanism already exists and is already in production: `skill-write-tracking-fs.ts` wraps a filesystem and records `writeFile`, `appendFile`, `mkdir`, `rm`, `mv`, `cp`, `link`, `symlink`, `chmod`, and `utimes` without changing behavior, and it is already mounted on `/skills` in [workspace-fs-layout.ts](../../../packages/workspace/src/lib/workspace-fs-layout.ts). Wrapping `/work` in the same tracker gives per-turn attribution across the file tools and the entire shell surface, for a small fraction of the cost of snapshot-and-diff.
 
 The real gap is narrower than the whole shell: **real subprocesses.** `ffmpeg`, `python`, `node`, and `pnpm` run against the kernel through `resolveNativeHostPath` and never touch our virtual filesystem, so their writes are invisible to the tracker. That is a genuinely unsolvable case short of OS-level instrumentation, and it is the honest limit of what the change record can claim.
 
@@ -154,7 +154,7 @@ Two things still follow from this plan:
 - **Agent-facing byproducts stay readable.** `getScreenshotsDir`, `getTaskTmpDir`, and the tool-output spill logs live under `work/` so the agent can read back paths it is handed. Moving them to `/scratch` keeps that working as long as `/scratch` is a mount, and the private dir must stay outside it. A generated image or a screenshot the transcript renders belongs to the **conversation**, and scratch is disposable by definition; that category is planned in [conversation-storage.md](../active/conversation-storage.md#conversation-scoped-assets)).
 - **Every `file://` page shares one origin.** Two tasks' pages, and a person's own, share `localStorage` and IndexedDB. That was already true of every page the person opened, and a shared working folder does not change it.
 
-**The task id stops being able to do all of its jobs.** It is currently the primary key, the folder name, and the human-readable title at once — a prompt-derived slug from [generate-task-folder-name.ts](../../../packages/workspace/src/lib/generate-task-folder-name.ts). Every one of those jobs pulls a different way here: the folder name stops existing, and a title the user can rename cannot be a key. Splitting it into a generated id plus a stored title is phase 0 of [conversation-storage.md](../active/conversation-storage.md#phases)) and a prerequisite for this work too.
+**The task id stops being able to do all of its jobs.** It is currently the primary key, the folder name, and the human-readable title at once — a prompt-derived slug from `generate-task-folder-name.ts`. Every one of those jobs pulls a different way here: the folder name stops existing, and a title the user can rename cannot be a key. Splitting it into a generated id plus a stored title is phase 0 of [conversation-storage.md](../active/conversation-storage.md#phases)) and a prerequisite for this work too.
 
 #### The security consequence, which is the part that is not mechanical
 
@@ -176,7 +176,7 @@ Two caveats to keep: request access at the moment output is first written, never
 
 Losing the automatic `output/` preview means the agent has to say what it wants shown. That grew into its own subject: the full design is in **[presentation-syntax.md](../active/presentation-syntax.md))**. It is shippable ahead of the folder work and does not depend on it. What follows is the summary that this plan needs.
 
-Half of it already ships: a markdown link renders as an interactive chip that opens an in-app preview ([TaskFileLink in markdown.tsx:175](../../../apps/studio/src/client/components/markdown.tsx#L175)), and the prompt already instructs the agent to use it ([main.ts:167](../../../packages/workspace/src/agents/main.ts#L167)).
+Half of it already ships: a markdown link renders as an interactive chip that opens an in-app preview ([TaskFileLink in markdown.tsx:175](../../../apps/studio/src/client/components/markdown.tsx#L175)), and the prompt already instructs the agent to use it (`main.ts:167`).
 
 What is missing is expressiveness. A single link cannot say "show these six images as a gallery," "embed this at full width," "here is the folder, browsable inline," or "preview this large." The goal is a richer authoring vocabulary the agent writes directly into its response, in the spirit of the embed syntaxes that note-taking tools use.
 
@@ -201,7 +201,7 @@ Coordinate the streaming behavior with [incremental-live-transcript-updates.md](
 
 ### One consequence elsewhere
 
-[main.ts:160](../../../packages/workspace/src/agents/main.ts#L160) currently tells the agent _not_ to report real paths, because `/task` is a sandbox root and quoting it misleads the user. With a user-chosen working folder that guidance inverts: the folder is theirs, they know where it is, and naming a real path is helpful rather than misleading.
+`main.ts:160` currently tells the agent _not_ to report real paths, because `/task` is a sandbox root and quoting it misleads the user. With a user-chosen working folder that guidance inverts: the folder is theirs, they know where it is, and naming a real path is helpful rather than misleading.
 
 ## Agent-requested folder access
 
@@ -215,7 +215,7 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 
 ## What breaks, and what to do about it
 
-- **The `output/` preview convention.** Files written to `output/` automatically become previews ([main.ts:234](../../../packages/workspace/src/agents/main.ts#L234)). That rule dies with the magic directory. Its replacement is [Rich file presentation](#rich-file-presentation) above.
+- **The `output/` preview convention.** Files written to `output/` automatically become previews (`main.ts:234`). That rule dies with the magic directory. Its replacement is [Rich file presentation](#rich-file-presentation) above.
 - **Two folder concepts need two names.** Sources (read-only, many) and the working folder (writable, singular) are deliberately distinct, so the risk is not blurred semantics but two affordances that look alike. This is a vocabulary problem before it is a code problem. Flagged for design.
 - **Concurrency: accepted, with a narrower residual risk.** Two tasks sharing a working folder is allowed. Scratch is per-task and created on demand, so the tooling never collides; what remains is two agents editing the same file, which is the same hazard as a person editing alongside an agent and wants the same answer (a visible change record) rather than a lock. Not worth serializing tasks over.
 - **Tool-output spill logs** live under `work/` so the agent can read back paths it was handed. If `work/` is no longer guaranteed to exist, that path needs a private home.
@@ -240,7 +240,7 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 6. **Folderless by default.** On-demand scratch, `~/Documents/Instrument/` for deliverables, and agent-requested folder access with the in-chat permission prompt.
 7. **The file tree.** Browsing the working folder as an expandable tree, with lazy per-directory reads and a poll while it is on screen. Attached folders expand in it too, so one tree answers "what can I open" regardless of which mount a file sits on.
 
-   **Separable from the six phases above, and the only one that is.** Most of it already exists: [task-files.tsx](../../../apps/studio/src/client/components/task/task-files.tsx) builds an expandable tree, polls itself while open, and already lists attached folders. What is missing is expanding an attached folder's *contents* rather than naming it as a row, and reading a directory when it is opened rather than walking the whole task up front. Neither waits on the working-folder concept: they are improvements to a surface that ships today, and doing them first is what makes this phase small when the rest arrives.
+   **Separable from the six phases above, and the only one that is.** Most of it already exists: `task-files.tsx` builds an expandable tree, polls itself while open, and already lists attached folders. What is missing is expanding an attached folder's *contents* rather than naming it as a row, and reading a directory when it is opened rather than walking the whole task up front. Neither waits on the working-folder concept: they are improvements to a surface that ships today, and doing them first is what makes this phase small when the rest arrives.
 
 Phases 1 through 3 are invisible to the user and are most of the work. That is the honest shape of this: the feature is a folder picker, the cost is a refactor of what a task directory means.
 

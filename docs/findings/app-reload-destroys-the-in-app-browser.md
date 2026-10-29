@@ -11,7 +11,7 @@ The guest is a `<webview>` element in the renderer's document, deliberately — 
 What follows is not just the elements going away:
 
 - Each guest's `destroyed` fires, `handleDetach` deletes the main-process entry, and the desired-target set the pool reconciles against empties ([manager.ts](../../apps/studio/src/electron-main/browser-view/manager.ts), [entry.ts](../../apps/studio/src/electron-main/browser-view/entry.ts)).
-- Destruction reaches the lifecycle machine of the guest's owner (the window, or a task no chat owns) as `targetDestroyedExternally`, which sends it to `Stopping` — so the machine closes the owner's remaining targets and calls `closeAgentBrowserSessionsForSessions` ([task-browser.ts](../../packages/workspace/src/machines/task-browser.ts)). An agent mid-`agent-browser` loses its CDP connection and its session.
+- Destruction reaches the lifecycle machine of the guest's owner (the window, or a task no chat owns) as `targetDestroyedExternally`, which sends it to `Stopping` — so the machine closes the owner's remaining targets and calls `closeAgentBrowserSessionsForSessions` ([task-browser.ts](../../packages/workspace/src/machines/window-browser.ts)). An agent mid-`agent-browser` loses its CDP connection and its session.
 - The panel remounts, sees no attached target, and auto-opens a fresh one at `about:blank`.
 
 What survives: the browser profile on disk, so cookies and storage are intact and a re-navigation lands logged in; and `lastUrl`/`lastTitle` per session in the session store ([browser-state.ts](../../packages/workspace/src/lib/browser-state.ts)), so the app still knows the page it lost.

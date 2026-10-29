@@ -30,5 +30,5 @@ Turn identity is now available to any boundary that needs it without a parameter
 
 - [Turn context](../../packages/workspace/src/lib/turn-context.ts)
 - [Tool execution boundary](../../packages/workspace/src/lib/stream-tool.ts)
-- [Skill change tracking](../../packages/workspace/src/lib/workspace-skill-index.ts)
+- Skill change tracking
 - [Why `WorkspaceConfig` is a module singleton instead](../../packages/workspace/src/lib/workspace-config.ts)

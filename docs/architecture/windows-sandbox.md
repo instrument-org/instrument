@@ -12,7 +12,7 @@ A native program the agent runs (`python`, `node`, `uv`, `pnpm`, `git`, `ffmpeg`
 
 ### How MXC holds a program
 
-`wrapNativeCommand` (`lib/native-sandbox/index.ts`) returns MXC's launcher, `wxc-exec.exe`, which Studio ships alone in `resources/mxc/` (`scripts/download-mxc.ts`, pinned by hash; it is signed by Microsoft and needs nothing else from the package). `launchNative` then builds the request once the working folder and environment are known, since the container inherits neither from the launcher, and every caller spawns through it.
+`wrapNativeCommand` (`lib/native-sandbox/index.ts`) returns MXC's launcher, `wxc-exec.exe`, which Studio ships alone in `resources/mxc/` (`apps/studio/scripts/download-mxc.ts`, pinned by hash; it is signed by Microsoft and needs nothing else from the package). `launchNative` then builds the request once the working folder and environment are known, since the container inherits neither from the launcher, and every caller spawns through it.
 
 The request asks for MXC's process container (Tier 1) and nothing else: no fallback that would add entries to the ACLs of the person's folders. UI stays on, since anything importing USER32 (node, Electron run as node) fails to start without it; the clipboard and input injection stay closed. The network is open, as it is to native commands everywhere. A held program runs at low integrity, with the administrators group deny-only.
 

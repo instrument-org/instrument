@@ -23,7 +23,7 @@ Two rules separate the last item from the rest, and everything else follows from
 Two mechanisms currently infer presentation from side effects, and both are the same mistake:
 
 - Files written to `output/` become previews automatically, keyed off a magic directory.
-- Skill changes become a card automatically, produced by diffing the workspace skills directory across a turn ([workspace-skill-index.ts](../../../packages/workspace/src/lib/workspace-skill-index.ts), rendered by [skill-changes-card.tsx](../../../apps/studio/src/client/components/skill-changes-card.tsx)).
+- Skill changes become a card automatically, produced by diffing the workspace skills directory across a turn (`workspace-skill-index.ts`, rendered by `skill-changes-card.tsx`).
 
 The consequence is that the agent can only surface a skill it just _mutated_. A user asking "do we have a skill for this?" has no representation at all, which is the same gap retrieval had for files.
 
@@ -177,7 +177,7 @@ Syntax is the surface. What is built parses to a list of paths, and the shape it
 
 **Nothing resolves over the network while rendering.** A card draws from its path: the basename is the label, the extension gives the type and icon, and `assetBase + path` is the URL. Truth is established when someone clicks. The reasoning is in [file-references-without-a-watcher.md](../completed/file-references-without-a-watcher.md), whose first step this is; what remains here is what the fence itself does with a path.
 
-A line is drawn only if it is **addressable** (task-relative or absolute, with no backslash or `..` segment) because the lines come from model output and a malformed path among them has to read as prose rather than as an affordance that cannot work ([task-file-path.ts](../../../packages/workspace/src/lib/task-file-path.ts), shared with the chip so one path grammar covers both).
+A line is drawn only if it is **addressable** (task-relative or absolute, with no backslash or `..` segment) because the lines come from model output and a malformed path among them has to read as prose rather than as an affordance that cannot work ([task-file-path.ts](../../../packages/workspace/src/lib/chat-file-path.ts), shared with the chip so one path grammar covers both).
 
 Not built: globs and directories, and an item cap.
 

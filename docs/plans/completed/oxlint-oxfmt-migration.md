@@ -1,6 +1,6 @@
 # oxlint / oxfmt migration
 
-Status: **completed**. ESLint is gone: oxlint is the only linter and oxfmt the only formatter. The endgame below landed by cutting rather than porting: import sorting and the other ordering and style rules (perfectionist, unicorn, regexp, yml/jsonc/package-json sorting, typescript-eslint stylistic) were dropped instead of moved, after agent transcripts showed they were most of what lint reported and none of what it caught. The rules that encode decisions about Instrument itself moved to local oxlint plugins (`apps/studio/oxlint-rules.ts`, `packages/workspace/oxlint-rules.ts`) and native `no-restricted-imports` / `no-restricted-properties`. The rest of this document is the record of how it got there.
+Status: **completed**. ESLint is gone: oxlint is the only linter and oxfmt the only formatter. The endgame below landed by cutting rather than porting: import sorting and the other ordering and style rules (perfectionist, unicorn, regexp, yml/jsonc/package-json sorting, typescript-eslint stylistic) were dropped instead of moved, after agent transcripts showed they were most of what lint reported and none of what it caught. The rules that encode decisions about Instrument itself moved to local oxlint plugins (`apps/studio/oxlint-rules.ts`, `apps/studio/oxlint-rules.ts`) and native `no-restricted-imports` / `no-restricted-properties`. The rest of this document is the record of how it got there.
 
 ## Done (this branch)
 

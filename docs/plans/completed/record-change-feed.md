@@ -4,9 +4,9 @@ Status: completed. Steps 1 to 6 landed; the per-row wire format is the next step
 
 ## Problem
 
-Live views learn that something changed from lists of events kept by hand. About 30 sites publish by hand (`task.updated` after a settings write that already published it, `task.stateUpdated` after every state write, `session.updated` for a seen mark), and each live route merges its own list: `chatChanges` eight sources under a fifteen-line comment, `childTaskChanges` seven topics plus message batches plus a part filter that listens to every task in the workspace. A row field whose source is not on a list goes stale, which is how f70745055 (a deleted chat kept its row), f35967ae8 (a row said working after the turn ended) and 0a89e81ee (app changes did not move rows) happened. Each change in any chat rebuilds the whole chat list (about 270 ms on a real workspace, per [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md)).
+Live views learn that something changed from lists of events kept by hand. About 30 sites publish by hand (`task.updated` after a settings write that already published it, `task.stateUpdated` after every state write, `session.updated` for a seen mark), and each live route merges its own list: `chatChanges` eight sources under a fifteen-line comment, `childTaskChanges` seven topics plus message batches plus a part filter that listens to every task in the workspace. A row field whose source is not on a list goes stale, which is how f70745055 (a deleted chat kept its row), f35967ae8 (a row said working after the turn ended) and 0a89e81ee (app changes did not move rows) happened. Each change in any chat rebuilds the whole chat list (about 270 ms on a real workspace, per [chat-list-payload-and-parentage.md](../active/chat-list-payload-and-parentage.md)).
 
-One task's standing (working, held, step, newest session) is answered by five routes, three of them polled every two seconds by the renderer (`task-working.ts`, `newest-session.ts`, `created-task-card.tsx`). Studio main imports `workspacePublisher` and publishes `app.updated` plus `app.event` in hand-kept pairs at about twenty sites, which is the coupling [agent-turn-off-the-main-thread.md](agent-turn-off-the-main-thread.md) has to cut.
+One task's standing (working, held, step, newest session) is answered by five routes, three of them polled every two seconds by the renderer (`task-working.ts`, `newest-session.ts`, `created-task-card.tsx`). Studio main imports `workspacePublisher` and publishes `app.updated` plus `app.event` in hand-kept pairs at about twenty sites, which is the coupling [agent-turn-off-the-main-thread.md](../active/agent-turn-off-the-main-thread.md) has to cut.
 
 ## Steps
 
@@ -29,8 +29,8 @@ Beyond the plan: trashing one task with the `task` command now reaches listeners
 
 ## Next, not in this plan
 
-- **Rows on the wire.** Step 2 recomputes only the moved rows but still sends the whole array, so the payload cost (2.1 MB, most of it `root`) stays until the list sends upserts and removals by chat id and the client folds them into its cache. That is a protocol change for `chat-list-query.ts` and every reader of the list, best done with the `firstAsk` change in [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md).
-- **Transcript patches** ([incremental-live-transcript-updates.md](incremental-live-transcript-updates.md)): the feed says which record moved; the transcript still needs which message and how.
+- **Rows on the wire.** Step 2 recomputes only the moved rows but still sends the whole array, so the payload cost (2.1 MB, most of it `root`) stays until the list sends upserts and removals by chat id and the client folds them into its cache. That is a protocol change for `chat-list-query.ts` and every reader of the list, best done with the `firstAsk` change in [chat-list-payload-and-parentage.md](../active/chat-list-payload-and-parentage.md).
+- **Transcript patches** ([incremental-live-transcript-updates.md](../active/incremental-live-transcript-updates.md)): the feed says which record moved; the transcript still needs which message and how.
 
 ## Out of scope
 

@@ -105,7 +105,7 @@ A session survives content the provider will not accept, without a human editing
 
 ### Phase 3: make the repair stick
 
-10. When the stripped retry succeeds, record it. A flag on the offending parts is better than deletion: the transcript still shows something was there, and `Store.removeMessage` ([store.ts:347](../../../packages/workspace/src/lib/store.ts#L347)) is a blunter tool than this needs.
+10. When the stripped retry succeeds, record it. A flag on the offending parts is better than deletion: the transcript still shows something was there, and `Store.removeMessage` (`store.ts:347`) is a blunter tool than this needs.
 11. `normalizeModelImages` (and its future siblings) skip flagged parts, so later turns neither send nor re-probe them.
 12. Surface it in the transcript. The user should see that an attachment could not be sent, and the model should be told too, so it can say so rather than behaving as though the image were still there.
 

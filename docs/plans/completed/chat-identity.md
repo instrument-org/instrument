@@ -45,4 +45,4 @@ Out of scope: memory files keep the session they recorded (`chat:`), which the w
 - The seven version mechanisms (`.layout-version`, the store migration count, the index key, `settingsVersion`, and the files with none). Step 2 gives the JSON files one writer, not one version.
 - Making `ChatId` and `TaskId` disjoint. Record-generic code (the store, `taskDir`, the session machine, the RPC inputs chats and tasks share) takes `TaskId`, so a chat id stays assignable to it.
 - Studio's persisted window state (tab groups, compose entries) if it turns out to be keyed by session id beyond what step 5 can convert; that is reported rather than guessed.
-- The change feed and `listChats` payload work in [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md), beyond the per-chat task lookup step 1 needs.
+- The change feed and `listChats` payload work in [chat-list-payload-and-parentage.md](../active/chat-list-payload-and-parentage.md), beyond the per-chat task lookup step 1 needs.

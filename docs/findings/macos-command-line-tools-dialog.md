@@ -18,7 +18,7 @@ Eleven more tools link libxcselect without being stubs: `atos`, `devicectl`, `fi
 
 **Nothing in the affected path compiles.** The `spreadsheet` skill locks `pandas`, `numpy`, and `openpyxl`, all of which have `cp312-macosx_11_0_arm64` wheels, and its JS side is a tarball dependency with no native addons. `$CC` was never read.
 
-**The actual caller is uv, provisioning its managed interpreter.** `scripts/clt-shim-audit.ts` shadows every stub name with a logging pass-through and runs the real `load_skill` installs. One non-benign hit, on a cold cache:
+**The actual caller is uv, provisioning its managed interpreter.** `packages/workspace/scripts/clt-shim-audit.ts` shadows every stub name with a logging pass-through and runs the real `load_skill` installs. One non-benign hit, on a cold cache:
 
 ```
 install_name_tool (1x)
@@ -43,7 +43,7 @@ The other spawns outside the profile: `osascript` scripts that tell an allowed a
 
 ## Checking it
 
-`scripts/clt-shim-audit.ts` runs on an ordinary Mac with the tools present, where no dialog can appear, and asserts the useful invariants instead: which stubs a real skill install reaches, and that none of them could have asked for the installer.
+`packages/workspace/scripts/clt-shim-audit.ts` runs on an ordinary Mac with the tools present, where no dialog can appear, and asserts the useful invariants instead: which stubs a real skill install reaches, and that none of them could have asked for the installer.
 
 ```bash
 cd packages/workspace
@@ -75,7 +75,7 @@ shell boundary:
 
 Both passes run on the macOS legs of `release.yml` and on `smoke-test.yml`. Both exit non-zero on a failed install, an interpreter that cannot run, or a stub outside `EXPECTED_SHIMS`: a name no previous run reached is a new way for the dialog to appear, so it fails rather than scrolling past in a log. `sandboxed` also fails on a stub that had the installer service in reach, or a command the shell did not add the note to.
 
-`CLT_SHIM_NAMES` in `scripts/lib/clt-shims.ts` is the list of stubs the passes shadow: the binaries in macOS 27's `/usr/bin` that import `xcselect_invoke_xcrun`. Nothing re-derives it from the running OS, so a stub a later macOS adds is not shadowed until the list gains it.
+`CLT_SHIM_NAMES` in `packages/workspace/scripts/lib/clt-shims.ts` is the list of stubs the passes shadow: the binaries in macOS 27's `/usr/bin` that import `xcselect_invoke_xcrun`. Nothing re-derives it from the running OS, so a stub a later macOS adds is not shadowed until the list gains it.
 
 ## What is still open
 

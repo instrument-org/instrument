@@ -210,7 +210,7 @@ Every uutils command names the path it was refused in the message's last `: ` se
 
 ## Size and packaging
 
-Studio vendors the release archives the way it vendors uv (`scripts/download-uutils.ts`, pinned by sha256, into `resources/uutils/`, inside `asarUnpack`), keeping only `coreutils`, `diffutils` (for `cmp`), and on macOS and Linux `grep` and `xargs`. afterPack checks each one is there and runs.
+Studio vendors the release archives the way it vendors uv (`apps/studio/scripts/download-uutils.ts`, pinned by sha256, into `resources/uutils/`, inside `asarUnpack`), keeping only `coreutils`, `diffutils` (for `cmp`), and on macOS and Linux `grep` and `xargs`. afterPack checks each one is there and runs.
 
 | Target | Installed | gzip (zip, tar.gz) | xz (NSIS, deb) |
 | --- | --- | --- | --- |

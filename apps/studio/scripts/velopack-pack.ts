@@ -173,7 +173,7 @@ async function main() {
     ]);
   }
   if (template) {
-    await checkSignatures(out, mainExe);
+    await checkSignatures(out, mainExe, version);
   }
 }
 
@@ -181,11 +181,14 @@ async function main() {
  * Runs the check the installed app makes before applying an update over
  * every full package just packed, so a release whose signing missed a file
  * fails here rather than being refused by every app it would have updated,
- * which could then never take the release that fixes it.
+ * which could then never take the release that fixes it. The earlier
+ * releases downloaded beside them for the deltas were checked when they
+ * were packed.
  */
-async function checkSignatures(out: string, mainExe: string) {
-  for (const name of readdirSync(out).filter((file) =>
-    file.endsWith("-full.nupkg"),
+async function checkSignatures(out: string, mainExe: string, version: string) {
+  // `<id>-<version>-<channel>-full.nupkg`
+  for (const name of readdirSync(out).filter(
+    (file) => file.includes(`-${version}-`) && file.endsWith("-full.nupkg"),
   )) {
     const unpacked = await unpackPackageExecutables(path.join(out, name));
     try {

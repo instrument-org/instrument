@@ -302,7 +302,8 @@ export async function readSignatures(
 /**
  * Unpacks the executables of a Velopack package (a zip, its app under
  * `lib/app/`) into a folder of their own, for `readSignatures`. Windows'
- * own `tar` reads zips.
+ * own `tar` (bsdtar) reads zips, and is named by its path: GNU tar, which
+ * Git for Windows puts on some PATHs, reads neither zips nor `--include`.
  */
 export async function unpackPackageExecutables(
   packageFile: string,
@@ -313,7 +314,7 @@ export async function unpackPackageExecutables(
   };
   try {
     await promisify(execFile)(
-      "tar",
+      path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe"),
       [
         "-xf",
         packageFile,

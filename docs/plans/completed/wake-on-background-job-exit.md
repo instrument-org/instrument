@@ -1,6 +1,6 @@
 # Wake on background job exit
 
-Status: **draft, not started** (checked 2026-10-02: nothing subscribes to `backgroundProcesses.changed` to start a turn). Follow-on to [background shell processes](background-shell-processes.md), whose workspace half has landed. In 2.0 the conversation is already woken when a task it started ends, and by the clock when one runs past four minutes; a background job exiting inside a task still wakes nothing. Nothing here changes the shell; it is one subscriber, one tool input, and one transcript marker.
+Status: **overtaken.** A session is woken when a background process ends on its own (`31a8c6e34`, `lib/chat/job-wake.ts`), in a different shape from this draft: every process that ends without anyone asking it to stop wakes its session once the session is at rest, after a 1.5 s debounce, with a `data-jobEvent` note naming each process, how it ended, `fg bg_N` and its log. There is no `wakeOnExit` opt-in, no 30-second floor and no cap on unattended turns; a session whose last turn was stopped is not woken. Follow-on to [background shell processes](../active/background-shell-processes.md).
 
 ## Problem
 

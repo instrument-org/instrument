@@ -1,6 +1,6 @@
 # Explicit permission asks
 
-Status: **active.** The server side is built; the card is built separately. What remains is landing both and the evals in Checks.
+Status: **landed in full** in `489ff735f`: `ask_permission` (`tools/ask-permission.ts`) is the only way a card goes up, refusals name what to ask for and raise nothing, `refusedPathIn` and `refusalNote` are gone, the macOS look after Allow keeps a refused folder open as `macos-refused`, and the permission evals look for the call. The macOS look was reworked after (`0e199fb8a`, `a3f8cc58c`). Open point 2 (a Linux eval) was not run; `connect_app` stays its own hand-off.
 
 ## Problem
 

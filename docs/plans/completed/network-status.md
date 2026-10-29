@@ -1,6 +1,6 @@
 # Plan: one network status, shown in the window's corner
 
-Status: building.
+Status: **landed in full**: the status, the window-bar pill and its card in `f5721409f` (which replaced `PlatformApiIndicator`), setup's pill opening the card in `2d35eedf9`. The card's Status link waits on a status page.
 
 When the computer is offline, or online but Instrument's servers don't answer, the window's corner says so with one pill, in setup and in the app alike. No screen handles the network itself: forms, sheets and sign-in pages stay as they are, and a request that fails while the pill is up fails the way it always does.
 

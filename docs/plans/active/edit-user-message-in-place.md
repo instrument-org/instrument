@@ -1,6 +1,6 @@
 # Edit a user message in place (rewind + rerun)
 
-Status: **proposed, not started on main.** Owner: TBD. Nothing in the app edits or rewinds a user message today. An unmerged backend prototype (`message.restartFrom`, commit `85267e810`) predates 2.0 and was never merged.
+Status: **proposed, not started.** Owner: TBD. Nothing in the app edits or rewinds a user message. An unmerged backend prototype (`message.restartFrom`, commit `85267e810`) predates 2.0 and was never merged. "Why this is mostly easy" and the store half of "Key files" predate the chat records: `task.db` and `lib/store.ts` (`getMessageIdsAfter`, `removeMessage`) are gone, and a session is an append-only log per device, so a rewind is something appended, not a truncation. Redo that part of the design before picking this up.
 
 ## Goal
 

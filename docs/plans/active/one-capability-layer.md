@@ -202,7 +202,7 @@ A script call never blocks waiting on a card. Blocking would hold a process, and
 | Gate | CLI | Script | Turn |
 | --- | --- | --- | --- |
 | `refused` | exit 1 with the message | `instrument.Error` (`kind: "refused"`) | continues; the agent reports what it skipped |
-| `ask` | exit 1, "ask for X with `ask_permission`" | `NeedsPermission`, carrying `ask` | continues until the agent calls `ask_permission`, which ends it. Matches [explicit-permission-asks.md](explicit-permission-asks.md): running into a gate raises no card |
+| `ask` | exit 1, "ask for X with `ask_permission`" | `NeedsPermission`, carrying `ask` | continues until the agent calls `ask_permission`, which ends it. Matches [explicit-permission-asks.md](../completed/explicit-permission-asks.md): running into a gate raises no card |
 | `card` (macOS's own answer) | exit 2 | `CardShown` | ends after the bash call returns, through the raised asks, as a command's card does today, whatever the script did after catching it |
 | `read-first` | nothing sent, stdout empty, the guide on stderr, exit 3 | `ReadGuideFirst`, whose message is the guide | continues; the agent reruns with the guide in context. Either way the hand-off counts only once the bash call's output shows the printed guide whole (`appGuidesShown`), so a guide sent to `/dev/null`, filtered by a pipe or caught and dropped by a script is handed over again |
 

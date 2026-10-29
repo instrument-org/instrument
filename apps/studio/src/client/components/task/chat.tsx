@@ -24,6 +24,7 @@ import {
   useFolderItems,
 } from "@/client/components/draft-staging";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
+import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
@@ -205,26 +206,29 @@ export function ChatConversation({
   if (unsettled.length !== pending.length) {
     setPending(unsettled);
   }
-  // A model picked and not sent yet, said now the way the send will say it,
-  // so the choice shows in the transcript at once: from the plus menu it is
-  // otherwise gone the moment the menu closes. The send stores the choice,
-  // the two agree again and this gives way to the note the turn records.
+  // The model the next send runs on, as this computer reaches it, when it is
+  // not the one the last reply asked: said now the way the send will say it,
+  // so a pick shows in the transcript at once (from the plus menu it is
+  // otherwise gone the moment the menu closes), and a chat's model changed on
+  // another computer shows before the send rather than above the message
+  // after it. Once a message waits below the last reply, the turn records
+  // the note above that message and this gives way to it.
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const pickedModel =
-    selectedModelURI !== initialSelectedModelURI
-      ? modelsData?.models.find((model) => model.uri === selectedModelURI)
-      : undefined;
-  const pendingModelChange = pickedModel
-    ? modelChangeSincePreviousTurn({ messages, model: pickedModel })
-    : undefined;
+  const nextModel = reachModel(modelsData, selectedModelURI).model;
   const shownMessages = [
     ...messages,
     ...unsettled
       .filter((entry) => entry.message.metadata.sessionId === selectedSessionId)
       .map((entry) => entry.message),
   ];
+  const pendingModelChange =
+    nextModel &&
+    shownMessages.findLast((message) => message.role !== "session-context")
+      ?.role === "assistant"
+      ? modelChangeSincePreviousTurn({ messages, model: nextModel })
+      : undefined;
   /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
   const showPending = (
     prompt: string,

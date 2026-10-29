@@ -39,13 +39,17 @@ export function modelChangeSincePreviousTurn({
       continue;
     }
 
-    // By address where one was recorded, since the same model from another
-    // provider is a different model to ask; by id for a turn from before.
-    const asked = message.metadata.aiGatewayModel?.uri;
+    // By kind of provider where one was recorded, since the same model from
+    // another provider is a different model to ask; by id for a turn from
+    // before. Never by connection: each computer reaches a chat's model
+    // through its own connection of that kind, so a chat continued on another
+    // computer asks the same model under a different address.
+    const asked = message.metadata.aiGatewayModel;
     if (
       asked === undefined
         ? message.metadata.modelId === model.canonicalId
-        : asked === model.uri
+        : asked.canonicalId === model.canonicalId &&
+          asked.params.provider === model.params.provider
     ) {
       return undefined;
     }

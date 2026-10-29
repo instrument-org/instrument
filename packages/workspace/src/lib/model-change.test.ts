@@ -15,7 +15,12 @@ const assistant = (modelId: string, contextLength?: number, name?: string) =>
       aiGatewayModel:
         contextLength === undefined
           ? undefined
-          : { contextLength, name, params: { provider: "openai" } },
+          : {
+              canonicalId: modelId,
+              contextLength,
+              name,
+              params: { provider: "instrument", providerConfigId: "here" },
+            },
       modelId,
     },
     parts: [],
@@ -60,7 +65,7 @@ describe("modelChangeSincePreviousTurn", () => {
         contextLength: 1_000_000,
         modelId: "roomier-model",
         name: "Roomier Model",
-        provider: "openai",
+        provider: "instrument",
       },
       to: {
         contextLength: 200_000,
@@ -76,6 +81,7 @@ describe("modelChangeSincePreviousTurn", () => {
     const elsewhere = {
       metadata: {
         aiGatewayModel: {
+          canonicalId: "current-model",
           name: "Mock Model",
           params: { provider: "openrouter" },
           providerName: "Other Provider",
@@ -92,6 +98,30 @@ describe("modelChangeSincePreviousTurn", () => {
         model,
       })?.from.providerName,
     ).toBe("Other Provider");
+  });
+
+  it("sees no move when another computer asked through its own connection", () => {
+    const elsewhere = {
+      metadata: {
+        aiGatewayModel: {
+          canonicalId: "current-model",
+          params: {
+            provider: "instrument",
+            providerConfigId: "other-computer",
+          },
+          uri: "author/current-model?provider=instrument&providerConfigId=other-computer",
+        },
+        modelId: "current-model",
+      },
+      parts: [],
+      role: "assistant",
+    } as unknown as SessionMessage.WithParts;
+    expect(
+      modelChangeSincePreviousTurn({
+        messages: [user(), elsewhere, user()],
+        model,
+      }),
+    ).toBeUndefined();
   });
 
   it("carries an absent window through rather than inventing one", () => {

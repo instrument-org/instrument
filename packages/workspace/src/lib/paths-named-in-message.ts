@@ -1,11 +1,7 @@
 import { type SessionMessage } from "../schemas/session/message";
 import { filesNamedIn } from "./parse-files-block";
 import { isChatFileHref, chatFilePathFromHref } from "./chat-file-href";
-
-// A Markdown link target. Only a link: a path sitting in prose is text, and the
-// renderer draws no chip for it. Which targets name a file rather than a web
-// page is `isChatFileHref`'s to say, the same as it is for the renderer.
-const LINK_TARGET = /\[[^\]]*\]\(\s*([^)\s]+)/gu;
+import { linkTargetsIn } from "./link-targets";
 
 /**
  * Every file path the message already puts on screen as something to click.
@@ -48,9 +44,14 @@ function collectPaths(message: SessionMessage.WithParts): Set<string> {
     named.add(path);
   }
 
-  for (const match of text.matchAll(LINK_TARGET)) {
-    const target = match[1];
-    if (target !== undefined && isChatFileHref(target)) {
+  // Only a link: a path sitting in prose is text, and the renderer draws no
+  // chip for it. Which targets name a file rather than a web page is
+  // `isChatFileHref`'s to say, the same as it is for the renderer.
+  // Parsing is what a reply costs here, read for every reply of a chat each
+  // time its digest is derived, and text with none of these draws no link.
+  const mayLink = ["](", "]:", "<"].some((mark) => text.includes(mark));
+  for (const target of mayLink ? linkTargetsIn(text) : []) {
+    if (isChatFileHref(target)) {
       named.add(chatFilePathFromHref(target));
     }
   }

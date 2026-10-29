@@ -60,6 +60,23 @@ describe("pathsNamedInMessage", () => {
     expect([...named]).toEqual([]);
   });
 
+  // A bare space ends no link target: the renderer reads no link there at
+  // all, so the text before the space names nothing either.
+  it.each([
+    "See [the script](/Users/mac-user/Documents/Instrument Preview/run.py).",
+    "Run `[the script](output/run.py)` again.",
+  ])("counts no link the renderer does not draw: %s", (text) => {
+    expect([...pathsNamedInMessage(assistantSaying(text))]).toEqual([]);
+  });
+
+  it("counts a path with a space in angle brackets, as the renderer links it", () => {
+    const named = pathsNamedInMessage(
+      assistantSaying("See [the script](<output/my run.py>)."),
+    );
+
+    expect([...named]).toEqual(["output/my run.py"]);
+  });
+
   // The path the chip opens, so that the grid recognizes the file the reply
   // already showed. Percent decoding is the whole of the difference, and a
   // filename holding a bare percent sign is the case that used to throw.

@@ -1036,6 +1036,7 @@ describe("listChats", () => {
     const connections = getWorkspaceConfig().apps.connections;
     await connections.set("apple-reminders", {
       status: "needs-approval",
+      updatedAt: 1,
       waitingChats: [chatId],
     });
     const sessionId = await session(chatId, "Dentist");
@@ -1089,16 +1090,20 @@ describe("listChats", () => {
       text: "Waiting for you to connect Reminders",
     });
 
-    await connections.set("apple-reminders", { status: "connected" });
-    recordChanged(chatId);
+    await connections.set("apple-reminders", {
+      status: "connected",
+      updatedAt: 2,
+    });
+    recordChanged(chatId, "state");
     expect((await listChats())[0]?.state).toBe("idle");
 
     await connections.set("apple-reminders", {
       status: "needs-approval",
+      updatedAt: 1,
       waitingChats: [chatId],
     });
     await userSays(chatId, sessionId, "never mind", 7);
-    recordChanged(chatId);
+    recordChanged(chatId, "state");
     expect((await listChats())[0]?.state).toBe("idle");
   });
 
@@ -1126,6 +1131,7 @@ describe("listChats", () => {
     );
     await getWorkspaceConfig().apps.connections.set("apple-reminders", {
       status: "needs-approval",
+      updatedAt: 1,
       waitingChats: [chatId],
     });
     const sessionId = await session(chatId, "Dentist");
@@ -1178,7 +1184,7 @@ describe("listChats", () => {
       at(6),
     );
     expect(stopped.isOk()).toBe(true);
-    recordChanged(chatId);
+    recordChanged(chatId, "state");
     expect((await listChats())[0]?.state).not.toBe("waiting");
   });
 

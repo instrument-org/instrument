@@ -1,6 +1,6 @@
 # Move the agent turn off the Electron main thread
 
-Status: **active.** The interpreter runs in a worker thread (below); the utility process is not started. Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
+Status: **active.** The interpreter runs in a worker thread (`57faeef2c`, below); the utility process (migration steps 2 through 7) is not started. Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
 
 ## Problem
 
@@ -46,7 +46,7 @@ The boundary is also worth more than the mitigations are. A pipeline stage buffe
 
 ### Moves into the child
 
-The workspace actor and its whole machine tree, the just-bash sandbox and every tool, the per-task runtimes, the session store and the task databases, the background process registry, the workspace HTTP server with the CDP bridge, the mounted ai-gateway app, and the orchestrator wake. These are pure Node today and need no adaptation beyond being started differently.
+The workspace actor and its whole machine tree, the just-bash sandbox and every tool, the per-task runtimes, the chat records and `workspace.db`, the background process registry, the workspace HTTP server with the CDP bridge, the mounted ai-gateway app, and the orchestrator wake. These are pure Node today and need no adaptation beyond being started differently.
 
 ### Stays in main, reached by the child through a proxy
 
@@ -74,7 +74,7 @@ Subprocess containment. A process boundary alone does not kill the agent's tool 
 
 A smaller move than the utility process takes the part of the stall the finding measures: the just-bash interpreter, its filesystem, and every command that only does host work run in one long-lived `node:worker_threads` worker (`packages/workspace/src/lib/bash-worker/`). Studio runs every shell there; `INSTRUMENT_BASH_WORKER=0` keeps it on main, and tests and `run-bash` stay on their own thread unless it is `1`. `createBashEnv` hands back an `exec` that posts to the worker, so the bash tool does not change.
 
-The commands that act on state only main holds (`MAIN_THREAD_COMMANDS` in `create-bash-env.ts`: `task`, `chat`, `memory`, `tab`, `app`, `agent-browser`, `jobs`, `fg`, `kill`) are stand-ins in the worker that send their argv, cwd, environment and stdin back to main, which runs the real command in the async context the tool call was made in. Three other pieces of main-owned state are reached the same way: a skill written through the shell is credited to the turn that wrote it, each task's venv has one creator, and the process trees the worker starts are reported so main can end them if the worker dies.
+The commands that act on state only main holds (`MAIN_THREAD_COMMANDS` in `create-bash-env.ts`: `instrument`, whose subcommands include `task`, `memory`, `tab` and `app`, plus `agent-browser`, `jobs`, `fg`, `kill`) are stand-ins in the worker that send their argv, cwd, environment and stdin back to main, which runs the real command in the async context the tool call was made in. Three other pieces of main-owned state are reached the same way: a skill written through the shell is credited to the turn that wrote it, each task's venv has one creator, and the process trees the worker starts are reported so main can end them if the worker dies.
 
 Measured in Studio against a 60,000-file task folder, three concurrent `find` scans moved a renderer's RPC round trip to main from 154 ms at the median and 291 ms at worst to 2 ms and 26 ms. It does not move anything else on this page: the store writes, the model stream and the message yields stay on main, and one worker serves every task, so one task's long synchronous walk still delays the others' shells.
 

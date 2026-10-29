@@ -1,6 +1,6 @@
 # Plan: a cheaper chat list rebuild
 
-Status: accepted, not started. Follows [chat-list-index.md](../completed/chat-list-index.md), which deferred both changes below: stage A kept `ChatSchema` unchanged so no client code moved, and the per-chat task scan was expected to go once the index held parentage, which it does not.
+Status: half landed. Tasks by chat landed with [chat-identity.md](../completed/chat-identity.md): the index keeps each chat's tasks and `chatTaskIds` is gone. The first ask as text is not started: `ChatSchema.root` still carries the whole first message, and the client still reads it through `askOf`. Follows [chat-list-index.md](../completed/chat-list-index.md), which deferred both changes below: stage A kept `ChatSchema` unchanged so no client code moved.
 
 ## Problem
 
@@ -33,7 +33,7 @@ Done as part of [chat-identity.md](../completed/chat-identity.md): the index kee
 - `ChatDigest.root?: SessionMessage.UserWithParts` becomes `firstAsk: string` (the first user message's text parts joined, as `askOf` does today) and `firstAskedAt?: Date` (that message's `createdAt`). `chatFor` takes `createdAt` from `firstAskedAt` and the untitled title from `firstAsk`.
 - `ChatSchema.root` becomes `firstAsk: string`, paired with the existing `lastAsk`.
 - `askOf` is retired: its callers (`matchesSearch` in `window/chats.ts`, `use-topic-backfill.ts`, `use-chat-search-fallback.ts`) read `chat.firstAsk`. The fixtures in `chats.test.ts` and `chat-row.browser.test.tsx` follow.
-- `INDEX_VERSION` in `lib/workspace-index.ts` goes from 1 to 2, so every stored digest is derived again once, as [chat-list-index.md](../completed/chat-list-index.md) says a change of shape is handled.
+- `INDEX_VERSION` in `lib/workspace-index.ts` goes up by one, so every stored digest is derived again once, as [chat-list-index.md](../completed/chat-list-index.md) says a change of shape is handled.
 
 Expected: about 0.5 MB per rebuild, and stored digests shrink by about the same share.
 

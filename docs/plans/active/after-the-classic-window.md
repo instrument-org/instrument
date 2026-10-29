@@ -12,11 +12,11 @@ The app window lists the tasks its chats started (`workspace.chats.live.tasks`),
 
 ## Features without a counterpart
 
-- **Subscribe page.** Plan picker and checkout. Kept: `plans.get`, `stripe.createCheckoutSession`, `stripe.getInvoicePreview`, `useLiveSubscriptionStatus`. Settings still has the account card and "Manage subscription" (`stripe.createPortalSession`), so a subscriber can manage a plan but nobody can start one from the app. The page itself was only reachable from the dev panel.
+- **Subscribe page.** Not coming back: plans are chosen on the website. Every buy, trial, upgrade and manage button (Settings > Account among them) opens the website through `billing.openWebsite`, and the `stripe.*` routes are gone.
 - **Export and import a task as a zip.** Deleted: `utils.exportZip`, `workspace.task.exportZip`, `workspace.task.import`, `lib/export-task-zip.ts`, `lib/import-task.ts`. A chat's menu offers "Copy chat location" in developer mode, which names the chat's record and work folders, and nothing that takes the files with it. The scripts that read a transcript take a folder, not a zip.
 - **Open a task in an editor or terminal** (VS Code, Cursor, iTerm and the rest, developer mode). Deleted: `utils.openTaskIn`, `utils.getSupportedEditors`, `shared/schemas/editors.ts`, and the app icons for them.
 - **Server exceptions banner.** Back in the app window as a red count beside the dev badge (developer mode), opening the exceptions with copy and clear and a way into Settings' diagnostic log.
-- **Per-task usage summary** (tokens across the task). Back in the task page's header in developer mode, from `workspace.task.live.usageSummary`. Usage per reply is gone from the footer on purpose.
+- **Per-task usage summary** (tokens across the task). Back in the task page's header in developer mode, from `workspace.chats.live.usageSummary`. Usage per reply is gone from the footer on purpose.
 - **Background processes control** in the task header: back, as the "still running" pill with a stop for each command.
 - **Task search.** Cmd+K searched tasks, projects and debug pages by name. Not coming back as a palette; [chat-search-in-the-omnibar.md](../completed/chat-search-in-the-omnibar.md) proposed finding chats and tasks from the omnibar, superseded once each tab's omnibar was scoped to what that tab holds.
 - **Tasks list** with filters and bulk delete. Not coming back: tasks are the chat's to manage, and the Tasks screen lists a chat's tasks, or every chat's.
@@ -25,10 +25,10 @@ The app window lists the tasks its chats started (`workspace.chats.live.tasks`),
 - **Welcome modal and tutorial task.** Deleted, and not migrated; to be replaced by a first run designed for the app window.
 - **Transcript viewer** (developer mode). Deleted, with `transcript.content`, the route that rendered a transcript for it. A transcript is rendered from the chat's records with `script:dump-session-transcript`; `/debug/components/transcript` is the chat transcript's component gallery, not a viewer.
 - **Chat replay** (developer mode). Deleted: `workspace.debug.replaySession`, `workspace.replay.*`, `lib/session-replay.ts`, and the replay sessions a task's activity reported. The seeder inserts recorded transcripts without re-running them.
-- **Pins and unread marks on tasks.** Deleted; tasks are a detail the chat manages and need neither. Chats have their own: `starredAt` on the chat's session, and a seen watermark per chat (`chatSeen` in the window's state, `.instrument/window.json`). The legacy migration carries 1.x `pinnedAt` over as a star and `unreadIndicator` over as the watermark.
+- **Pins and unread marks on tasks.** Deleted; tasks are a detail the chat manages and need neither. Chats have their own: a star and an unread mark, both settings on the chat's session. The legacy migration carries 1.x `pinnedAt` over as the star and `unreadIndicator` over as the unread mark.
 - **Projects.** Topics replace them; the legacy migration makes each project a topic, with its instructions and folders. The import strips every task's `projectId` and sets `projects/` aside, so the project route, `lib/project.ts`, and the `/project` mount are gone; a 1.x transcript's project notes name the project from the name stored on the part.
 
 ## Edge cases the removal surfaced
 
-- **A notification for a task with no chat only raises the window.** `revealTask` opens the inbox for a chat and does nothing else for a 1.x task, which could open `/tasks/<id>`.
+- **A notification for a task with no chat only raised the window.** Resolved: the legacy migration turns every 1.x task into a chat, and a notification names a chat (`revealChat`).
 - **Chords cannot be driven over CDP.** Injected keys never reach `before-input-event` or the menu, so Cmd+R, the dialog guard on tab chords, Help > Keyboard Shortcuts and the Developer theme chords were checked by reading only.

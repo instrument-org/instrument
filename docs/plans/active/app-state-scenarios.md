@@ -1,6 +1,6 @@
 # Plan: app-state scenarios
 
-Status: started. `studio-drive.mjs boot --scenario` and setup's scenarios (`fixtures/scenarios/`) are built, with the setup record, sentinel ChatGPT sign-ins, the folder's place and `--account`; the account states through the local API (step 2's account half) are not.
+Status: started. `studio-drive.mjs boot --scenario` and setup's scenarios (`fixtures/scenarios/`) are built, with the setup record, sentinel ChatGPT sign-ins, the folder's place and `--account`; the account states through the local API (step 2's account half) and the contact sheet (step 4) are not.
 
 ## Problem
 

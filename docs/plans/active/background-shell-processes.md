@@ -1,6 +1,6 @@
 # Background shell processes
 
-Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and the user sees it in the task header (`task-background-processes.tsx`) and on the call that started it; [background-processes.md](../../architecture/background-processes.md) is the evergreen description. Still open: the live log a promoted command writes is not shown in the card, and the two-hour cap fires unannounced (see [What the user and the agent are told](#what-the-user-and-the-agent-are-told)). No subagent tool: in 2.0 the chat delegates through the `task` command to separate tasks instead, and `spawnAgent` stays unused.
+Status: **active.** The workspace half works end to end and is covered by tests, the agent is told what it left running, and the user sees it in the task header (`task-background-processes.tsx`) and on the call that started it; [background-processes.md](../../architecture/background-processes.md) is the evergreen description. Still open: the live log a promoted command writes is not shown in the card, and the two-hour cap fires unannounced (see [What the user and the agent are told](#what-the-user-and-the-agent-are-told)). No subagent tool: in 2.0 the chat delegates through `instrument task` to separate tasks instead, and the unused `spawnAgent` plumbing the Subagents section below describes is gone.
 
 ## Problem
 

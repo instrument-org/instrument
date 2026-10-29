@@ -16,7 +16,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { call, type InferRouterOutputs } from "@orpc/server";
 import { isAppInFront } from "@/electron-main/windows/app-in-front";
-import { Notification } from "electron";
+import { app, Notification } from "electron";
 import { sleep } from "radashi";
 
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
@@ -222,6 +222,16 @@ function canShowAgentCompletionNotification({
   canRevealChat: () => boolean;
   inFront: boolean;
 }) {
+  // An instance an agent boots off screen (`studio-drive boot` without
+  // `--visible`) is never in front, so it would notify on every reply, and its
+  // first one puts macOS's prompt up for that run's own bundle identifier.
+  if (
+    !app.isPackaged &&
+    process.env.STUDIO_DRIVE_PURPOSE &&
+    process.env.STUDIO_DRIVE_VISIBLE !== "1"
+  ) {
+    return false;
+  }
   return shouldShowAgentCompletionNotification({
     canRevealChat: canRevealChat(),
     isAppWindowFocused: inFront,

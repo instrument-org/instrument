@@ -6,7 +6,7 @@ The strings the operating system shows about Instrument outside its own window: 
 
 | Field | Where it is set | Value |
 | --- | --- | --- |
-| `productName` | `APP_PRODUCT_NAME` in `packages/shared/src/constants.ts`, through `productName` and `extraMetadata.productName` in `apps/studio/electron-builder.ts` | `Instrument`, or `Instrument <preview>` for a preview build |
+| `productName` | `APP_PRODUCT_NAME` in `packages/shared/src/constants.ts`, through `productName` and `extraMetadata.productName` in `apps/studio/electron-builder.ts` | `Instrument`, or `Instrument Preview (<name>)` for a preview build |
 | `description` | `apps/studio/package.json` | `Private AI workspace on your computer`. Follows the subhead on the website's home page |
 | `author.name` | `apps/studio/package.json` | `Instrument`, the product name people know, rather than the legal entity, which can change without the app's metadata changing with it |
 | `author.email` | `apps/studio/package.json` | `oss@tryinstrument.com` |
@@ -15,15 +15,16 @@ The strings the operating system shows about Instrument outside its own window: 
 | `linux.category` | `apps/studio/electron-builder.ts` | `Office`, the freedesktop main category closest to the Mac one |
 | `mac.extendInfo.NS*UsageDescription` | `apps/studio/electron-builder.ts` | One sentence per permission, each naming what the agent does with it and when |
 | `nsis.shortcutName`, `nsis.uninstallDisplayName` | `apps/studio/electron-builder.ts` | `${productName}` |
+| `--packTitle`, `--packAuthors` | `vpk pack` in `apps/studio/scripts/velopack-pack.ts` | `productName`, and the legal entity |
 
 ## Surfaces
 
 **macOS.** The bundle name and the menu bar take `productName`. Finder's Get Info shows `NSHumanReadableCopyright` (the copyright line) and the category is what Finder groups it under when a folder is grouped by Application Category. Each permission prompt shows its `NS*UsageDescription` under the system's own question, the first time a task reaches that resource. The DMG mounts as `productName version`.
 
-**Windows.** The `.exe`'s Properties > Details tab shows File description and Product name (both `productName`), Company (`author.name`), and Copyright. The Add/Remove Programs entry takes its name from `uninstallDisplayName` and its Publisher from `author.name`. The installer's UAC prompt and SmartScreen show the signing certificate's subject instead, the legal entity, which `win.signtoolOptions.publisherName` must list verbatim for an update to install. Nothing compares that to `author.name`, so Publisher can name the product while the verified signer names the company.
+**Windows.** The `.exe`'s Properties > Details tab shows File description and Product name (both `productName`), Company (`author.name`), and Copyright. An NSIS install's Add/Remove Programs entry takes its name from `uninstallDisplayName` and its Publisher from `author.name`; a Velopack install's takes them from `--packTitle` and `--packAuthors`. The installer's UAC prompt and SmartScreen show the signing certificate's subject instead, the legal entity, which `win.signtoolOptions.publisherName` (an NSIS install's updates) and `WINDOWS_PUBLISHER_NAMES` in `packages/shared/src/constants.ts` (a Velopack install's) must list verbatim for an update to install. Nothing compares that to `author.name`, so an NSIS install's Publisher can name the product while the verified signer names the company.
 
 **Linux.** The `.desktop` entry takes `Name` from `productName`, `Comment` from `description`, and `Categories` from `linux.category`. The `.deb` and `.rpm` take their summary from `description` and their Maintainer and Vendor from `author`, rendered `Instrument <oss@tryinstrument.com>`; a `linux.maintainer` would replace both, which is why none is set. Software centers show the summary as the one-liner under the name.
 
 ## Changing one
 
-`description` is the field most likely to move with positioning, and it lands on Linux only, so a change there has no Mac or Windows surface to check. A change to `author.name` moves Company, Publisher, copyright, Maintainer, and Vendor together. `productName` also names the userData folder and the keychain's Safe Storage item, so it is not a copy change: renaming it orphans every existing install's data.
+`description` is the field most likely to move with positioning, and it lands on Linux only, so a change there has no Mac or Windows surface to check. A change to `author.name` moves Company, an NSIS install's Publisher, copyright, Maintainer, and Vendor together. `productName` also names the userData folder and the keychain's Safe Storage item, so it is not a copy change: renaming it orphans every existing install's data.

@@ -100,7 +100,7 @@ Ownership moves in one case: when the chat hands work to a task partway, `instru
 | `kill <pid>` of a child inside a job | that one program; the job runs on | the same |
 | Task stopped (the person's stop on its row or page, or `instrument task stop --all`) | that task's processes, handed-over jobs included; the chat's own Stop ends only its turn | `stopRunningProcesses`, from `session.stop` in [`rpc/routes/session.ts`](../../packages/workspace/src/rpc/routes/session.ts) and [`task/stop.ts`](../../packages/workspace/src/lib/capabilities/task/stop.ts) |
 | Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-chat.ts`](../../packages/workspace/src/lib/trash-chat.ts) |
-| App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
+| App quits | everything | `killAllBackgroundProcesses` in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
 | **Turn ends** | **nothing — deliberate** (one that ends afterward wakes the session, below) | — |
 

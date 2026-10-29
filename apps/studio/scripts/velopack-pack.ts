@@ -108,11 +108,12 @@ async function main() {
   );
   const signer = path.join(studioDir, "electron-builder", "win-sign-file.js");
   // A test host signs with a stand-in certificate through a command of its
-  // own; a release always signs through the HSM.
+  // own; a release always signs through the HSM. vpk puts a batch of paths,
+  // each already quoted, in place of {{file}}, so it stands unquoted here.
   const template =
     process.env.VELOPACK_TEST_SIGN_TEMPLATE ??
     (process.env.WIN_GCP_KMS_KEY_VERSION
-      ? `"${process.execPath}" "${signer}" "{{file}}"`
+      ? `"${process.execPath}" "${signer}" {{file}}`
       : undefined);
   const signing = template ? ["--signTemplate", template] : [];
   if (signing.length === 0) {

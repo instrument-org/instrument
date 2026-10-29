@@ -152,7 +152,7 @@ declare namespace NodeJS {
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       /** How many threads Node's file I/O pool has; read once, when the pool starts (`thread-pool.ts`). */
       UV_THREADPOOL_SIZE: string | undefined;
-      /** scripts/velopack-pack.ts on a test host: the command that signs one file (`{{file}}`) with a stand-in certificate. */
+      /** scripts/velopack-pack.ts on a test host: the command that signs the files vpk puts, quoted, in place of `{{file}}`, with a stand-in certificate. */
       VELOPACK_TEST_SIGN_TEMPLATE: string | undefined;
       WAYLAND_DISPLAY: string | undefined;
       WIN_CERT_PATH: string | undefined;

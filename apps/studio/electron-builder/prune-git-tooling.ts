@@ -67,7 +67,7 @@ const UNREACHABLE_TOOLS = new Set([
 
 /** Unreachable files and folders outside the program folders, by path from the git root. */
 const UNREACHABLE_PATHS = [
-  "mingw64/doc/git-credential-manager",
+  "ucrt64/doc/git-credential-manager",
   "usr/bin/file.exe",
   "usr/bin/msys-magic-1.dll",
   "usr/share/misc/magic.mgc",
@@ -75,7 +75,7 @@ const UNREACHABLE_PATHS = [
 
 /**
  * Prefixes of the .NET Framework assemblies and native libraries the
- * Windows credential manager ships beside git in `mingw64/bin`, and of the
+ * Windows credential manager ships beside git in `ucrt64/bin`, and of the
  * helper that picks a credential helper. Git and its own libraries are named
  * `git*`, `lib*` and `zlib1.dll`, so none of these is git's.
  */
@@ -120,7 +120,7 @@ const DOTNET_RUNTIME_PREFIXES = [
  *
  * Directories that do not exist are skipped, which is what makes this work
  * across dugite's two layouts: macOS and Linux use `git/`, while Windows ships
- * minGit under `git/mingw64/`.
+ * minGit under `git/ucrt64/`.
  */
 export function pruneGitTooling({ unpackedDir }: { unpackedDir: string }) {
   const gitRoot = path.join(unpackedDir, "node_modules", "dugite", "git");
@@ -131,8 +131,8 @@ export function pruneGitTooling({ unpackedDir }: { unpackedDir: string }) {
   const searchDirs = [
     path.join(gitRoot, "bin"),
     path.join(gitRoot, "libexec", "git-core"),
-    path.join(gitRoot, "mingw64", "bin"),
-    path.join(gitRoot, "mingw64", "libexec", "git-core"),
+    path.join(gitRoot, "ucrt64", "bin"),
+    path.join(gitRoot, "ucrt64", "libexec", "git-core"),
   ];
 
   const removed: string[] = [];
@@ -243,7 +243,7 @@ export function verifyGitSurvived({ unpackedDir }: { unpackedDir: string }) {
   const required = [
     path.join(gitRoot, "bin", "git"),
     path.join(gitRoot, "bin", "git.exe"),
-    path.join(gitRoot, "mingw64", "bin", "git.exe"),
+    path.join(gitRoot, "ucrt64", "bin", "git.exe"),
   ].filter((candidate) => existsSync(candidate));
 
   if (required.length === 0) {

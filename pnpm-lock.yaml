@@ -185,8 +185,8 @@ importers:
         specifier: 'catalog:'
         version: 1.7.7(@opentelemetry/api@1.9.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(solid-js@1.9.15)(svelte@5.56.7(@typescript-eslint/types@8.40.0))(vitest@5.0.5)(vue@3.5.40(typescript@7.0.2))
       dugite:
-        specifier: 3.2.3
-        version: 3.2.3
+        specifier: 3.3.2
+        version: 3.3.2
       electron-context-menu:
         specifier: ^4.1.2
         version: 4.1.2
@@ -941,8 +941,8 @@ importers:
         specifier: ^8.0.3
         version: 8.0.4
       dugite:
-        specifier: 3.2.3
-        version: 3.2.3
+        specifier: 3.3.2
+        version: 3.3.2
       execa:
         specifier: ^9.6.0
         version: 9.6.0
@@ -6250,8 +6250,8 @@ packages:
       sqlite3:
         optional: true
 
-  dugite@3.2.3:
-    resolution: {integrity: sha512-kPBJ0uevCPY4pcGl0R0+dgC/prPBvnHN9109ZUUWDttkWHz4HqFGwyFri9Btmd2YucAXIJTYMGECh/Q5VAfpfA==}
+  dugite@3.3.2:
+    resolution: {integrity: sha512-deO3178Y8uQ0y4Es5eD31PST78nyWskfqLDi+Za5UBHYvdlMMwuFirwShgCuX+8aT3B1BZ6xlr4Bb8j0eq4Bag==}
     engines: {node: '>= 20'}
 
   dunder-proto@1.0.1:
@@ -15125,7 +15125,7 @@ snapshots:
       sql.js: 1.14.1
     optional: true
 
-  dugite@3.2.3:
+  dugite@3.3.2:
     dependencies:
       progress: 2.0.3
       tar-stream: 3.1.7

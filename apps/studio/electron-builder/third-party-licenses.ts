@@ -43,9 +43,9 @@ const CHECKED_IN_LICENSES_DIR = path.join(STUDIO_DIR, "licenses");
 const FFMPEG_PACKAGE_VERSION = "7.1.0-rc.1";
 const FFMPEG_RELEASE_TAG = "b7.1.0-rc.1";
 const FFMPEG_UPSTREAM_TAG = "n7.1";
-const DUGITE_NATIVE_TAG = "v2.53.0-4";
-const GIT_TAG = "v2.53.0";
-const MINGIT_TAG = "v2.53.0.windows.4";
+const DUGITE_NATIVE_TAG = "v2.56.0-2";
+const GIT_TAG = "v2.56.0";
+const MINGIT_TAG = "v2.56.0.windows.4";
 const VSCODE_RIPGREP_VERSION = "1.18.0";
 const RIPGREP_TAG = "15.0.0";
 
@@ -92,7 +92,7 @@ function packageVersion(dir: string) {
   return version;
 }
 
-/** The dugite-native release dugite downloads its git build from, e.g. `v2.53.0-4`. */
+/** The dugite-native release dugite downloads its git build from, e.g. `v2.56.0-2`. */
 function dugiteGitTag(dugiteDir: string) {
   const embedded = readFileSync(
     path.join(dugiteDir, "script", "embedded-git.json"),

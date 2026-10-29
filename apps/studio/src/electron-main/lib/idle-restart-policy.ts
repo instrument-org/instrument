@@ -99,7 +99,8 @@ function blockerOf(
   if (facts.work !== "idle") {
     return facts.work === "busy" ? "work-busy" : "work-unknown";
   }
-  if (facts.windows.focused) {
+  // A locked screen hides a focused window too, so the lock wins.
+  if (facts.windows.focused && facts.person.lockedSince === undefined) {
     return "focused";
   }
   if (facts.windows.fullScreen) {

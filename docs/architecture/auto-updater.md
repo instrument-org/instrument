@@ -79,7 +79,7 @@ Nothing restarts while any of these holds:
 - two automatic attempts at this update from this running version have already been made;
 - the app restarted on its own less than an hour ago, whatever the reason, which keeps a fault that restarts without the version changing from doing it over and over;
 - an agent is mid-turn, a job is running, or someone is dictating, which is everything the quit prompt would ask about; or, on Windows, an app is using the microphone or the camera, which its consent store says (`capture-in-use.ts`). macOS gives no cheap way to ask, so there that check is skipped. A check that fails or takes longer than 10 seconds reads as busy, where a quit the person asked for goes ahead;
-- a window has focus, or is full screen.
+- a window has focus while the screen is unlocked, or a window is full screen. A locked screen hides a focused window as well, so the lock restarts the app even when it was in front.
 
 With none of that in the way, the first of these restarts the app, unseen:
 

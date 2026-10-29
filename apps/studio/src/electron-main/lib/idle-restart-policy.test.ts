@@ -73,11 +73,6 @@ describe("what holds a restart back", () => {
     ["work running", { work: "busy" }, "work-busy"],
     ["work that could not be counted", { work: "unknown" }, "work-unknown"],
     [
-      "a focused window",
-      { windows: { focused: true, fullScreen: false, shown: true } },
-      "focused",
-    ],
-    [
       "a full-screen window",
       { windows: { focused: false, fullScreen: true, shown: true } },
       "full-screen",
@@ -93,6 +88,29 @@ describe("what holds a restart back", () => {
       expect(step.state.quietSince).toBeUndefined();
     },
   );
+
+  it.each([
+    [
+      "holds a restart back while unlocked",
+      { awayMs: 15 * MINUTE, lockedSince: undefined },
+      { blocker: "focused", type: "wait" },
+    ],
+    [
+      "gives way to a screen locked for a minute",
+      { awayMs: 0, lockedSince: T0 - MINUTE },
+      { reason: "locked", type: "restart" },
+    ],
+  ] as const)("a focused window %s", (_, person, verdict) => {
+    expect(
+      stepIdleRestart({
+        facts: facts({
+          person,
+          windows: { focused: true, fullScreen: false, shown: true },
+        }),
+        state: FRESH,
+      }).verdict,
+    ).toEqual(verdict);
+  });
 
   it("waits while the person is at the computer and nothing says otherwise", () => {
     expect(stepIdleRestart({ facts: facts(), state: FRESH }).verdict)

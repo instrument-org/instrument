@@ -141,13 +141,14 @@ macOS Command chords are their own silent failure under CDP: macOS resolves them
 
 ## Which page a chord means
 
-A focused `<webview>` swallows renderer keydowns, so the chords that can mean a page (Back, Forward, Reload Page, Print, Find, Zoom In, Zoom Out, Actual Size) arrive only as native accelerators. The main process passes each on to the app window as pressed, as a `window.command` (zoom from the app window's menu only; every other window's zoom is the app's own), and [`page-chords.ts`](../../apps/studio/src/client/lib/page-chords.ts) in the window decides which page it means, in one place:
+A focused `<webview>` swallows renderer keydowns, so the chords that can mean a page (Back, Forward, Reload Page, Print, Zoom In, Zoom Out, Actual Size, and Find) arrive only as native accelerators. The main process passes each on to the app window as pressed, as a `window.command` (zoom from the app window's menu only; every other window's zoom is the app's own), and [`page-chords.ts`](../../apps/studio/src/client/lib/page-chords.ts) in the window decides which page it means, in one place:
 
 - history and zoom mean the page on screen that holds the keyboard, and otherwise the window's own;
-- reload and print mean that page, and otherwise the page the person is looking at;
-- find means the page the person is looking at, whose panel has the find bar.
+- reload and print mean that page, and otherwise the page the person is looking at.
 
-The page the person is looking at is the browser panel registered in [`foreground-browser-registry.ts`](../../apps/studio/src/client/lib/foreground-browser-registry.ts) while its guest is live, its tab is foreground, and no overlay covers it. A guest can be on screen without holding keyboard focus (the common case, since clicking the chat or the URL bar hands focus back to the host), which is why reload and find fall back to it. Focus an agent's own command caused is never consulted: main keeps no record of it for chords.
+Find is not a page chord: Cmd+F and Cmd+G go to the search of the innermost surface the keyboard is in, a page holding it among them, else the surface the person was last in ([`find-targets.ts`](../../apps/studio/src/client/lib/find-targets.ts)).
+
+The page the person is looking at is the browser panel registered in [`foreground-browser-registry.ts`](../../apps/studio/src/client/lib/foreground-browser-registry.ts) while its guest is live, its tab is foreground, and no overlay covers it. A guest can be on screen without holding keyboard focus (the common case, since clicking the chat or the URL bar hands focus back to the host), which is why reload and print fall back to it. Focus an agent's own command caused is never consulted: main keeps no record of it for chords.
 
 Cmd+R has no app-wide meaning at all: a claimed chord reloads the guest and an unclaimed one does nothing, and the app window's View menu leaves out the reload roles that would otherwise bind it to the window. Reloading the renderer destroys every guest with it — the `<webview>` elements go with the document, main reaps their entries, every page comes back at `about:blank`, and the lifecycle machine closes the `agent-browser` sessions driving them — which is more than anyone pressing Cmd+R is asking for. That reload is reachable on `reloadApp` (Cmd+Shift+R), whose Developer group binds only in developer mode, and on the button an app crash puts on screen. See [app-reload-destroys-the-in-app-browser](../findings/app-reload-destroys-the-in-app-browser.md).
 

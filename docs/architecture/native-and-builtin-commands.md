@@ -7,7 +7,7 @@ Which commands in the agent's shell run as real programs and which run as just-b
 `create-bash-env.ts` builds the shell. A command name resolves in this order:
 
 1. **The shell's own builtins and keywords** (`cd`, `export`, `printf`, `test`, `[[`, functions the script defines). Nothing shadows these.
-2. **Our custom commands**, registered after just-bash's bundled commands so each shadows the bundled command of the same name: the GNU text commands below, `rg`, `du`, `git`, the interpreters, the Mac helpers, `which`, `jobs`/`fg`/`kill`, and `instrument`, whose subcommands are Instrument's own: `app` in every shell, and a chat's `task`, `chat`, `memory` and `tab`.
+2. **Our custom commands**, registered after just-bash's bundled commands so each shadows the bundled command of the same name: the GNU text commands below, `rg`, `du`, `git`, the interpreters, the Mac helpers, `which`, `jobs`/`fg`/`kill`, and `instrument`, whose subcommands are Instrument's own: `app`, `memory`, `task`, `window` and `x`, where a task's shell only reads with `memory` and `window` and has no `task`.
 3. **just-bash's bundled commands** (`cat`, `ls`, `sed`, `awk`, `jq`, `curl`, ...), less `which`, which ours replaces.
 4. **Any program on the computer's PATH**, through the `resolveExternalCommand` hook our just-bash patch adds (`shell-commands/path-program.ts`): the first regular file this user may execute, or on Windows the name with each PATHEXT extension. A name with a `/` runs natively when it names a `#!` script or a Mach-O, ELF or PE binary.
 

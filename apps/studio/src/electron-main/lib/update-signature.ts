@@ -106,40 +106,54 @@ export function isPublisherSubject(
 }
 
 /**
- * Whether a signer is one of the third parties whose files Instrument ships
- * under their own signature, by the organization the certificate names.
+ * A third party whose own files Instrument ships under that party's
+ * signature, named file by file (paths as reports give them) so that a file
+ * signed by it anywhere else in an update is refused.
  */
-function isTrustedThirdParty(
-  subject: null | string,
-  organizations: readonly string[],
-): boolean {
-  const organization = subject
-    ? parseDistinguishedName(subject).get("O")
-    : undefined;
+export type ThirdPartyFiles = {
+  files: readonly string[];
+  organization: string;
+};
+
+/**
+ * Whether a report is one of `thirdParty`'s named files, signed by it: the
+ * organization its certificate names has to be the third party's.
+ */
+function isThirdPartyFile(
+  report: SignatureReport,
+  thirdParty?: ThirdPartyFiles,
+) {
+  if (!thirdParty || !report.subject) {
+    return false;
+  }
+  const organization = parseDistinguishedName(report.subject).get("O");
   return (
     organization !== undefined &&
-    organizations.some((name) => sameName(name, organization))
+    sameName(thirdParty.organization, organization) &&
+    thirdParty.files.some(
+      (file) => file.toLowerCase() === report.file.toLowerCase(),
+    )
   );
 }
 
 /**
  * Whether an update's executables are all ones Instrument ships: every one
- * validly signed, by the publisher or by one of `thirdParties` (Microsoft's
- * own libraries arrive signed by Microsoft, and keep that signature), with
- * the files the app cannot run without (`required`) signed by the publisher
- * itself. An update with no executables at all, or missing a required one,
+ * validly signed, by the publisher, or by `thirdParty` where it is one of the
+ * files named for it (Microsoft's own libraries arrive signed by Microsoft,
+ * and keep that signature), with the files the app cannot run without
+ * (`required`) signed by the publisher itself. An update with no executables at all, or missing a required one,
  * is refused rather than waved through.
  */
 export function judgeSignatures({
   publisherNames,
   reports,
   required,
-  thirdParties = [],
+  thirdParty,
 }: {
   publisherNames: readonly string[];
   reports: readonly SignatureReport[];
   required: readonly string[];
-  thirdParties?: readonly string[];
+  thirdParty?: ThirdPartyFiles;
 }): SignatureVerdict {
   const problems: string[] = [];
   const byFile = new Map(
@@ -166,7 +180,7 @@ export function judgeSignatures({
       problems.push(`${report.file} is ${describeStatus(report.status)}`);
     } else if (
       !isPublisherSubject(report.subject, publisherNames) &&
-      !isTrustedThirdParty(report.subject, thirdParties) &&
+      !isThirdPartyFile(report, thirdParty) &&
       !required.some((file) => file.toLowerCase() === report.file.toLowerCase())
     ) {
       problems.push(
@@ -180,12 +194,20 @@ export function judgeSignatures({
 }
 
 /**
+ * The files of a Velopack package that keep Microsoft's own signature, by
+ * their path in the package's app folder: Chromium's DirectX shader
+ * compilers, which Electron ships signed. Everything else in a package is
+ * the publisher's, so a Microsoft-signed file appearing anywhere else fails
+ * the release's check (scripts/velopack-pack.ts) until it is named here.
+ */
+export const MICROSOFT_SIGNED_FILES = ["d3dcompiler_47.dll", "dxil.dll"];
+
+/**
  * The rule for a Velopack package of the app, which the app applies before
  * installing one and the release applies before publishing one: the app and
  * Velopack's updater (`Squirrel.exe` in the package) signed by the
- * publisher, and everything else by the publisher or by Microsoft, whose own
- * libraries (Chromium's DirectX compilers, the .NET assemblies of Git's
- * credential manager, MXC's launcher) keep their signature.
+ * publisher, the files of `MICROSOFT_SIGNED_FILES` by the publisher or by
+ * Microsoft, and everything else by the publisher.
  */
 export function judgeUpdatePackage({
   mainExe,
@@ -200,7 +222,10 @@ export function judgeUpdatePackage({
     publisherNames,
     reports,
     required: [mainExe, "Squirrel.exe"],
-    thirdParties: ["Microsoft Corporation"],
+    thirdParty: {
+      files: MICROSOFT_SIGNED_FILES,
+      organization: "Microsoft Corporation",
+    },
   });
 }
 

@@ -127,10 +127,13 @@ describe("judgeSignatures", () => {
         publisherNames: PUBLISHER_NAMES,
         reports,
         required,
-        thirdParties: ["Microsoft Corporation"],
+        thirdParty: {
+          files: ["d3dcompiler_47.dll", "x.dll", "y.dll"],
+          organization: "Microsoft Corporation",
+        },
       });
 
-    it("accepts a library signed by a trusted third party", () => {
+    it("accepts a named library signed by the third party", () => {
       expect(
         judge([
           signed("Instrument.exe"),
@@ -155,6 +158,33 @@ describe("judgeSignatures", () => {
           signed("Instrument.exe"),
           signed("Squirrel.exe"),
           signed("x.dll", "CN=Microsoft Corporation, O=Microsoft Corp"),
+        ]).ok,
+      ).toBe(false);
+    });
+
+    it("refuses a file the third party signed that is not named for it", () => {
+      expect(
+        judge([
+          signed("Instrument.exe"),
+          signed("Squirrel.exe"),
+          signed("resources/x.dll", MICROSOFT),
+          signed("Other.dll", MICROSOFT),
+        ]),
+      ).toEqual({
+        ok: false,
+        problems: [
+          `resources/x.dll is signed by someone else (${MICROSOFT})`,
+          `Other.dll is signed by someone else (${MICROSOFT})`,
+        ],
+      });
+    });
+
+    it("refuses a named file signed by someone other than the third party", () => {
+      expect(
+        judge([
+          signed("Instrument.exe"),
+          signed("Squirrel.exe"),
+          signed("x.dll", `CN="Example, Inc.", O="Example, Inc."`),
         ]).ok,
       ).toBe(false);
     });
@@ -219,6 +249,21 @@ describe("judgeUpdatePackage", () => {
         reports,
       }).ok,
     ).toBe(true);
+  });
+
+  it("refuses a Microsoft-signed file it does not name", () => {
+    expect(
+      judgeUpdatePackage({
+        mainExe: "Instrument.exe",
+        publisherNames: PUBLISHER_NAMES,
+        reports: [...reports, signed("System.Text.Json.dll", MICROSOFT)],
+      }),
+    ).toEqual({
+      ok: false,
+      problems: [
+        `System.Text.Json.dll is signed by someone else (${MICROSOFT})`,
+      ],
+    });
   });
 
   it("wants Velopack's updater from the publisher", () => {

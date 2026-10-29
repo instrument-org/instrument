@@ -1654,7 +1654,7 @@ describe("ChatBubbles and a provider error", () => {
     );
 
     expect(screen.getByRole("alert").textContent).toMatchInlineSnapshot(
-      `"Provider problemTry againDetails"`,
+      `"Provider problemTry againDetailsSend a report"`,
     );
   });
 });

@@ -4,10 +4,12 @@ import {
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import {
+  type ChatId,
   describeMessageError,
   type SessionMessage,
 } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +20,7 @@ import {
   type SignInAccountType,
 } from "@/shared/notices";
 
+import { openReportDialog } from "../atoms/report-dialog";
 import { openSettings } from "../atoms/settings-modal";
 import { useSignInAgain } from "../hooks/use-sign-in-again";
 import { stopLineText } from "../lib/billing";
@@ -26,6 +29,7 @@ import {
   requiresAutoModelRecovery,
 } from "../lib/parse-platform-api-error";
 import { readModelStatus } from "../lib/model-status";
+import { feedbackReport } from "../lib/problem-reports";
 import { planAccountStop, planAccountStopLine } from "../lib/plan-account-stop";
 import { isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
@@ -46,6 +50,8 @@ type MessageErrorData = NonNullable<
 >;
 
 interface MessageErrorProps {
+  /** The chat a report about the error sends along. */
+  chatId: ChatId;
   /**
    * One quiet line in the reply's column, for the bubbles: what happened and
    * the actions, with our sentence and the provider's account under Details.
@@ -79,6 +85,7 @@ interface MessageErrorProps {
  * summary, since the turn after it is what the reader is following.
  */
 export function MessageError({
+  chatId,
   compact = false,
   endedTurn = false,
   isAgentRunning,
@@ -94,6 +101,7 @@ export function MessageError({
   );
   const [showDetails, setShowDetails] = useState(false);
   const [expandedPast, setExpandedPast] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
   const signInAgain = useSignInAgain();
 
   if (!error) {
@@ -196,6 +204,51 @@ export function MessageError({
       : undefined,
   });
 
+  // A turn the person stopped, a throttle waited out, a sign-in or a limit
+  // of their own account has its fix on the card already; anything else may
+  // be ours to fix.
+  const reportable =
+    !isHiddenFromReader &&
+    classification !== "auth" &&
+    classification !== "usage-limit" &&
+    error.kind !== "api-key";
+  const sendReport = () => {
+    openReportDialog(
+      feedbackReport({
+        chatId,
+        onSent: () => {
+          setReportSent(true);
+        },
+        surface: "model-error",
+        writeup: {
+          text: detailsText(detailFacts(error, message), detailBody(error)),
+          title: `${title}: ${error.message}`.slice(0, 300),
+        },
+      }),
+    );
+  };
+  const reportButton = (size: "sm" | "xs") =>
+    reportSent ? (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 px-2 text-muted-foreground",
+          size === "sm" ? "h-8" : "-my-1 h-6",
+        )}
+      >
+        <CheckIcon className="size-3.5 text-brand-600" />
+        Report sent
+      </span>
+    ) : (
+      <Button
+        className={cn("text-muted-foreground", size === "xs" && "-my-1")}
+        onClick={sendReport}
+        size={size}
+        variant="ghost"
+      >
+        Send a report
+      </Button>
+    );
+
   const past = !isLastMessage;
   if (past && !expandedPast) {
     return (
@@ -246,6 +299,7 @@ export function MessageError({
             />
             Details
           </Button>
+          {reportable && reportButton("xs")}
         </div>
         {showDetails && (
           <div className="flex flex-col gap-1 pl-5.5 text-muted-foreground">
@@ -279,7 +333,9 @@ export function MessageError({
             <p className="text-muted-foreground/80">{providerLine}</p>
           )}
 
-          {(showActions && actions.length > 0) || canReadProviderText ? (
+          {(showActions && actions.length > 0) ||
+          canReadProviderText ||
+          reportable ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {showActions &&
                 actions.map((action, index) => (
@@ -311,6 +367,7 @@ export function MessageError({
                   Details
                 </Button>
               )}
+              {reportable && reportButton("sm")}
             </div>
           ) : null}
 
@@ -520,12 +577,7 @@ function ErrorDetails({
   message: SessionMessage.Assistant;
 }) {
   const facts = detailFacts(error, message);
-  const responseBody =
-    error.kind === "api-call" && error.responseBody
-      ? prettyBody(error.responseBody)
-      : undefined;
-  const toolInput =
-    error.kind === "invalid-tool-input" ? error.input : undefined;
+  const body = detailBody(error);
 
   return (
     <div className="relative mt-2 flex flex-col gap-3 rounded-lg bg-black/3 p-3 pr-10 text-xs dark:bg-white/3">
@@ -533,11 +585,7 @@ function ErrorDetails({
         className="absolute top-2 right-2 size-6 rounded-sm p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
         iconSize={14}
         label="Copy error details"
-        onCopy={() =>
-          navigator.clipboard.writeText(
-            detailsText(facts, responseBody ?? toolInput),
-          )
-        }
+        onCopy={() => navigator.clipboard.writeText(detailsText(facts, body))}
         tooltip="Copy error details"
       />
       <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1">
@@ -548,13 +596,21 @@ function ErrorDetails({
           </div>
         ))}
       </dl>
-      {(responseBody ?? toolInput) && (
+      {body && (
         <pre className="font-mono break-words whitespace-pre-wrap text-foreground">
-          {responseBody ?? toolInput}
+          {body}
         </pre>
       )}
     </div>
   );
+}
+
+/** What the provider sent back, or the tool input the model got wrong. */
+function detailBody(error: MessageErrorData): string | undefined {
+  if (error.kind === "api-call" && error.responseBody) {
+    return prettyBody(error.responseBody);
+  }
+  return error.kind === "invalid-tool-input" ? error.input : undefined;
 }
 
 function prettyBody(body: string): string {

@@ -915,6 +915,7 @@ const BubbleRowView = memo(function BubbleRowView({
     case "error": {
       return (
         <MessageError
+          chatId={chatId}
           compact
           endedTurn={row.endedTurn}
           isAgentRunning={row.isAgentRunning}

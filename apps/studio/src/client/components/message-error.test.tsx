@@ -1,10 +1,16 @@
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
-import { type SessionMessage } from "@instrument-org/workspace/client";
+import {
+  ChatIdSchema,
+  type SessionMessage,
+} from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../atoms/settings-modal", () => ({ openSettings: vi.fn() }));
+
+const openReportDialog = vi.hoisted(() => vi.fn());
+vi.mock("../atoms/report-dialog", () => ({ openReportDialog }));
 
 const signInAgain = vi.hoisted(() => vi.fn());
 vi.mock("../hooks/use-sign-in-again", () => ({
@@ -118,6 +124,7 @@ function renderError({
   return renderWithProviders(
     <TooltipProvider>
       <MessageError
+        chatId={ChatIdSchema.parse("2026-10-29-model-error")}
         isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
@@ -310,6 +317,7 @@ describe("MessageError", () => {
     });
 
     expect(screen.getByText("Signed out of Grok")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Send a report" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(signInAgain).toHaveBeenCalledWith("grok-account", undefined);
   });
@@ -332,6 +340,43 @@ describe("MessageError", () => {
 
     expect(screen.queryByText("Signed out of ChatGPT")).toBeNull();
     expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+  });
+
+  it("sends a report with the chat and what the provider said", () => {
+    renderError({
+      error: {
+        classification: "unknown",
+        kind: "api-call",
+        message: "Internal Server Error",
+        name: "AI_APICallError",
+        responseBody: '{"error":{"message":"upstream exploded"}}',
+        statusCode: 500,
+        url: "http://localhost/ai-gateway/providers/instrument/responses",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Send a report" }));
+    expect(openReportDialog.mock.calls[0]?.[0]).toMatchInlineSnapshot(`
+      {
+        "chatId": "2026-10-29-model-error",
+        "kind": "feedback",
+        "onSent": [Function],
+        "surface": "model-error",
+        "writeup": {
+          "text": "Error: Internal Server Error
+      Model: Test Model
+      Status: 500
+      Request: http://localhost/ai-gateway/providers/instrument/responses
+
+      {
+        "error": {
+          "message": "upstream exploded"
+        }
+      }",
+          "title": "Something went wrong: Internal Server Error",
+        },
+      }
+    `);
   });
 
   it("says nothing about a throttle the session already got past", () => {

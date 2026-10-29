@@ -179,6 +179,31 @@ export function judgeSignatures({
     : { ok: false, problems };
 }
 
+/**
+ * The rule for a Velopack package of the app, which the app applies before
+ * installing one and the release applies before publishing one: the app and
+ * Velopack's updater (`Squirrel.exe` in the package) signed by the
+ * publisher, and everything else by the publisher or by Microsoft, whose own
+ * libraries (Chromium's DirectX compilers, the .NET assemblies of Git's
+ * credential manager, MXC's launcher) keep their signature.
+ */
+export function judgeUpdatePackage({
+  mainExe,
+  publisherNames,
+  reports,
+}: {
+  mainExe: string;
+  publisherNames: readonly string[];
+  reports: readonly SignatureReport[];
+}): SignatureVerdict {
+  return judgeSignatures({
+    publisherNames,
+    reports,
+    required: [mainExe, "Squirrel.exe"],
+    thirdParties: ["Microsoft Corporation"],
+  });
+}
+
 function describeStatus(status: string) {
   switch (status) {
     case "NotSigned":

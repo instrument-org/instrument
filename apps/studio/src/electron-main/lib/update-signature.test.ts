@@ -4,6 +4,7 @@ import {
   isExecutableFile,
   isPublisherSubject,
   judgeSignatures,
+  judgeUpdatePackage,
   parseDistinguishedName,
   type SignatureReport,
 } from "./update-signature";
@@ -199,5 +200,34 @@ describe("isExecutableFile", () => {
     ["e.js", false],
   ])("%s", (file, expected) => {
     expect(isExecutableFile(file)).toBe(expected);
+  });
+});
+
+describe("judgeUpdatePackage", () => {
+  const MICROSOFT = `CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US`;
+  const reports = [
+    signed("Instrument.exe"),
+    signed("Squirrel.exe", REISSUED),
+    signed("dxil.dll", MICROSOFT),
+  ];
+
+  it("takes Microsoft's libraries as they ship", () => {
+    expect(
+      judgeUpdatePackage({
+        mainExe: "Instrument.exe",
+        publisherNames: PUBLISHER_NAMES,
+        reports,
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("wants Velopack's updater from the publisher", () => {
+    expect(
+      judgeUpdatePackage({
+        mainExe: "Instrument.exe",
+        publisherNames: PUBLISHER_NAMES,
+        reports: reports.slice(0, 1),
+      }),
+    ).toEqual({ ok: false, problems: ["Squirrel.exe is missing"] });
   });
 });

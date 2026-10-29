@@ -18,7 +18,7 @@ import {
   type UpdaterPort,
 } from "./create-app-updater";
 import {
-  judgeSignatures,
+  judgeUpdatePackage,
   readSignatures,
   unpackPackageExecutables,
 } from "./update-signature";
@@ -85,15 +85,10 @@ export async function verifyPackageSignatures(
   const unpacked = await unpackPackageExecutables(packageFile);
   try {
     const reports = await readSignatures(unpacked.folder);
-    const verdict = judgeSignatures({
+    const verdict = judgeUpdatePackage({
+      mainExe: exeName,
       publisherNames: WINDOWS_PUBLISHER_NAMES,
       reports,
-      // Velopack ships its updater inside each package as Squirrel.exe.
-      required: [exeName, "Squirrel.exe"],
-      // Microsoft's own libraries (Chromium's DirectX compilers, the .NET
-      // assemblies of Git's credential manager, MXC's launcher) ship with
-      // Microsoft's signature, which signing them again would replace.
-      thirdParties: ["Microsoft Corporation"],
     });
     if (!verdict.ok) {
       log.error(

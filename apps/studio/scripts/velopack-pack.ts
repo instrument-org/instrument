@@ -10,7 +10,13 @@
 // WIN_GCP_KMS_KEY_VERSION is set; without it the packages are unsigned, which
 // a released app refuses to install (lib/update-signature.ts).
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import semver from "semver";
@@ -21,7 +27,13 @@ import {
   APP_PRODUCT_NAME,
   APP_VELOPACK_ID,
   VELOPACK_FEED_URL,
+  WINDOWS_PUBLISHER_NAMES,
 } from "../../../packages/shared/src/constants.ts";
+import {
+  judgeUpdatePackage,
+  readSignatures,
+  unpackPackageExecutables,
+} from "../src/electron-main/lib/update-signature.ts";
 
 const studioDir = path.resolve(import.meta.dirname, "..");
 const studioPackage = JSON.parse(
@@ -66,7 +78,7 @@ function checkVpkVersion() {
   }
 }
 
-function main() {
+async function main() {
   const { values } = parseArgs({
     options: {
       feed: { type: "string" },
@@ -159,8 +171,40 @@ function main() {
       ...signing,
     ]);
   }
+  if (template) {
+    await checkSignatures(out, mainExe);
+  }
+}
+
+/**
+ * Runs the check the installed app makes before applying an update over
+ * every full package just packed, so a release whose signing missed a file
+ * fails here rather than being refused by every app it would have updated,
+ * which could then never take the release that fixes it.
+ */
+async function checkSignatures(out: string, mainExe: string) {
+  for (const name of readdirSync(out).filter((file) =>
+    file.endsWith("-full.nupkg"),
+  )) {
+    const unpacked = await unpackPackageExecutables(path.join(out, name));
+    try {
+      const verdict = judgeUpdatePackage({
+        mainExe,
+        publisherNames: WINDOWS_PUBLISHER_NAMES,
+        reports: await readSignatures(unpacked.folder),
+      });
+      if (!verdict.ok) {
+        throw new Error(
+          `${name} would be refused by the app: ${verdict.problems.join("; ")}`,
+        );
+      }
+      console.log(`${name}: ${verdict.checked} executables signed`);
+    } finally {
+      unpacked.dispose();
+    }
+  }
 }
 
 if (import.meta.main) {
-  main();
+  await main();
 }

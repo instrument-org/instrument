@@ -17,7 +17,7 @@ Everything below is the parse. React's own work — 51,600 DOM elements — was 
 
 `EditMap.add` walked the whole list of edits recorded so far looking for one at the same index, and the resolver calls it once per cell. A document with _n_ cells therefore did _n²/2_ comparisons — 4 s at 500 KB, 22.9 s at 2 MB, doubling to roughly four times the cost each step. Nothing about it is per-table: 12,000 rows cost the same whether they sit in one table or a thousand.
 
-The fix is an index. `patches/micromark-extension-gfm-table@2.1.1.patch` keeps a `Map` from index to change beside the array, so `add` is a lookup rather than a scan. Order is unchanged — the map is still sorted by index in `consume`, and there is one entry per index either way — and parsing the file, plus nine hand-written cases covering alignment, escaped pipes, ragged rows, blockquotes and lists, produces a byte-identical tree. 2 MB goes from 22,727 ms to 436 ms and the curve is linear again.
+The fix is an index, which `micromark-extension-gfm-table` 2.1.2 ships upstream (micromark/micromark-extension-gfm-table#17): it keeps a `Map` from index to change beside the array, so `add` is a lookup rather than a scan. Order is unchanged — the map is still sorted by index in `consume`, and there is one entry per index either way — and parsing the file, plus nine hand-written cases covering alignment, escaped pipes, ragged rows, blockquotes and lists, produces a byte-identical tree. 2 MB goes from 22,727 ms to 436 ms and the curve is linear again.
 
 ### `remend` runs on documents that have already arrived
 

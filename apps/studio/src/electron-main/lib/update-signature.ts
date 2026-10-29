@@ -200,7 +200,7 @@ export function judgeSignatures({
  * the publisher's, so a Microsoft-signed file appearing anywhere else fails
  * the release's check (scripts/velopack-pack.ts) until it is named here.
  */
-export const MICROSOFT_SIGNED_FILES = ["d3dcompiler_47.dll", "dxil.dll"];
+const MICROSOFT_SIGNED_FILES = ["d3dcompiler_47.dll", "dxil.dll"];
 
 /**
  * The rule for a Velopack package of the app, which the app applies before

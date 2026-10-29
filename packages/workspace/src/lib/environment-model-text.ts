@@ -1,4 +1,6 @@
 import { FOLDER_VARIABLES } from "../constants";
+import { MAC_APPS } from "./mac-apps/apps";
+import { APP_COMMAND } from "./shell-commands/app-command";
 import {
   type Environment,
   type EnvironmentChange,
@@ -40,7 +42,7 @@ const VARIABLE_FOLDERS = [
 
 /**
  * What working on this platform asks of the agent, beyond what every
- * computer does: the Mac's own apps as a place things can go, and Windows
+ * computer does: the Mac's own apps as apps to set up, and Windows
  * paths. Told in the system information, and again when a chat moves to a
  * computer on another platform, never in the system prompt, which reads the
  * same on every computer.
@@ -48,7 +50,7 @@ const VARIABLE_FOLDERS = [
 export function platformGuidance(platform: string): string | undefined {
   switch (platform) {
     case "darwin": {
-      return "The Mac's own apps (Reminders, Calendar, Notes) are among the places a reminder, an event, or a note can go.";
+      return `The Mac's own ${MAC_APPS.map((app) => app.name).join(", ")} are apps like any other (${MAC_APPS.map((app) => `\`${app.server}\``).join(", ")}), set up from \`${APP_COMMAND.name} catalog\`.`;
     }
     case "win32": {
       return "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` in the shell is the temp folder (`%TEMP%`); a script gets it from its language (`tempfile.gettempdir()`, `os.tmpdir()`, `$env:TEMP`) rather than writing `/tmp`. `tasklist` lists every process on the computer; a program you start (PowerShell's `Get-Process` included) may see only its own.";

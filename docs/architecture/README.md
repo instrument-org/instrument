@@ -14,6 +14,7 @@ Nothing here carries a status or a date. If a statement stops being true, correc
 - [auth-callback-server.md](auth-callback-server.md) — loopback callback ownership, canonical paths, and assembled-router tests.
 - [agent-sandbox.md](agent-sandbox.md) — how agent tools are held to the Permissions rules: path-scoped file I/O, the just-bash filesystem, the agent-browser allowlist, and the real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux.
 - [bash-sandbox-mounts-and-native-binaries.md](bash-sandbox-mounts-and-native-binaries.md) — how the folders a chat reaches are mounted at their real paths, why a folder inside another is reached through the outer one, and the just-bash quirks that follow.
+- [background-processes.md](background-processes.md): what happens to a `bash` command that outlives its wait: the promotion rule, the `jobs`/`fg`/`kill` commands, who owns a running process and what ends one, and the caps.
 - [threat-model.md](threat-model.md): what the agent's limits protect, what they deliberately do not, and how to decide whether a security finding needs a fix. Read before reviewing or changing containment.
 - [native-sandbox-off.md](native-sandbox-off.md): what it means when the agent's programs run without a sandbox on macOS or Linux, why it happens, and how the app decides and warns. Settings › Permissions links to it.
 - [windows-sandbox.md](windows-sandbox.md): how MXC holds native commands on Windows, the canary that decides whether it can on a machine, what Settings says where it cannot, and what it leaves open.

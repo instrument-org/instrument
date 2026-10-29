@@ -42,6 +42,7 @@ Grouped by area; status is the short form of each file's own line.
 | [A folder opened from the panel is not a Files & Folders grant](macos-folder-grants-open-panel-vs-prompt.md): why System Settings disagrees with what the app reads | open, working as macOS designs it |
 | [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md) | resolved |
 | [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): compatibility, speed, start cost and size of running `sort`, `find`, `grep` and the rest natively on every platform | resolved, shipped as a fixed table |
+| [The chat folder the agent cannot write to](the-chat-folder-the-agent-cannot-write-to.md): the shell knew the chat's folder and could not write into it while the workspace sat in the app's own data | settled |
 
 ### The agent browser and the in-app browser
 
@@ -104,6 +105,8 @@ Grouped by area; status is the short form of each file's own line.
 | [Connector authentication notes](connector-authentication-technical-notes.md) | reference, partly overtaken by apps |
 | [Syncing a data folder through file sync](syncing-a-data-folder-through-file-sync.md): what iCloud Drive, Dropbox, Google Drive, OneDrive and Syncthing do to files two devices share, and the format rules that survive them | research, nothing built |
 | [One permission decision, expressed four times](one-permission-decision-expressed-four-times.md) — the rules, then Seatbelt, bubblewrap and MXC, with the native path inferring its answer from a program's stderr | open, storage deliberately unchanged |
+| [A chat whose conversion is refused reads as empty](a-chat-whose-conversion-is-refused-reads-as-empty.md): nothing is lost, but the chat opens blank and says nothing about why | half closed, the chat itself still silent |
+| [A part the store took is not a record yet](a-part-the-store-took-is-not-a-record-yet.md) | closed by the write gate |
 
 ### Model and context
 
@@ -134,3 +137,4 @@ Grouped by area; status is the short form of each file's own line.
 | [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | fixed |
 | [Driving Studio over CDP: what makes it flaky](driving-studio-for-ui-capture.md) | partly addressed |
 | [A driven chord opens the About panel](a-driven-chord-opens-the-about-panel.md) — a keycode macOS reads as another key, landing on the one menu item carrying no key equivalent | fixed |
+| [A stalled disk parks whatever reads it](a-stalled-disk-parks-the-whole-test-run.md): an attached disk that stops answering blocks every read forever | app bounded, real-binary tests exposed |

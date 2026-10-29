@@ -141,7 +141,7 @@ describe("connect_app", () => {
       .toMatchInlineSnapshot(`
         {
           "type": "text",
-          "value": "One card asking the user to connect Linear (linear), Notion (notion) is in the conversation, a row for each. Say one line and end your turn. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.
+          "value": "One card asking the user to connect Linear (linear), Notion (notion) is in the conversation, a row for each. Your turn ended on it. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.
         - jira is not on the card and is not connected: No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.
         The user cannot connect an app that is not on the card. Fix each one now and ask for it with connect_app on its own, or tell the user, in your line, that it is not connected and why.",
         }
@@ -164,7 +164,7 @@ describe("connect_app", () => {
     expect(said(one)).toMatchInlineSnapshot(`
       {
         "type": "text",
-        "value": "A card asking the user to sign in to Linear is in the conversation. Say one line and end your turn: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.",
+        "value": "A card asking the user to sign in to Linear is in the conversation. Your turn ended on it: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.",
       }
     `);
   });

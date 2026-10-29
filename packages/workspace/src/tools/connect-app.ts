@@ -65,7 +65,7 @@ const connectAppCapability = defineCapability({
   surfaces: {
     tool: {
       description: dedent`
-    Ask the user to connect apps whose folders you have written in the apps folder. One card appears in the conversation with a row for each app and a count of how many are connected: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. Name every app the work needs in one call: several calls make several cards. It returns at once; say one line and end your turn. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect apps whose folders you have written in the apps folder. One card appears in the conversation with a row for each app and a count of how many are connected: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
       execute: async ({ input, chatId }) => {
         const slugs = [...new Set(input.slugs)];
@@ -199,7 +199,7 @@ function oneAppModelOutput(output: ConnectAppResult): ToolResultPart["output"] {
     case "key": {
       return {
         type: "text",
-        value: `A card asking the user for a key for ${output.name} is in the conversation. Say one line and end your turn: you will be woken with a note when they save it or decline, and \`${APP_COMMAND.name} test ${output.slug}\` is the next step then. Do not poll, and do not test before the note.`,
+        value: `A card asking the user for a key for ${output.name} is in the conversation. Your turn ended on it: you will be woken with a note when they save it or decline, and \`${APP_COMMAND.name} test ${output.slug}\` is the next step then. Do not poll, and do not test before the note.`,
       };
     }
     case "none": {
@@ -211,19 +211,19 @@ function oneAppModelOutput(output: ConnectAppResult): ToolResultPart["output"] {
     case "run": {
       return {
         type: "text",
-        value: `A card asking the user to let ${output.name}'s server run on this machine is in the conversation. Say one line and end your turn: you will be woken with a note when they allow it or decline, and the app installs and connects on its own when they do. Do not poll, and do not test before the note.`,
+        value: `A card asking the user to let ${output.name}'s server run on this machine is in the conversation. Your turn ended on it: you will be woken with a note when they allow it or decline, and the app installs and connects on its own when they do. Do not poll, and do not test before the note.`,
       };
     }
     case "sign-in": {
       return {
         type: "text",
-        value: `A card asking the user to sign in to ${output.name} is in the conversation. Say one line and end your turn: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.`,
+        value: `A card asking the user to sign in to ${output.name} is in the conversation. Your turn ended on it: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.`,
       };
     }
     case "web": {
       return {
         type: "text",
-        value: `A card asking the user to sign in to ${output.name} on the web is in the conversation: it opens the sign-in in the window's browser. Say one line and end your turn: you will be woken with a note when they say they are signed in or decline, and the app is connected then. Do not poll, and do not test before the note.`,
+        value: `A card asking the user to sign in to ${output.name} on the web is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they say they are signed in or decline, and the app is connected then. Do not poll, and do not test before the note.`,
       };
     }
   }
@@ -241,7 +241,7 @@ function cardModelOutput(
   const lines: string[] = [];
   if (rows.length > 0) {
     lines.push(
-      `One card asking the user to connect ${rows.map((row) => `${row.name} (${row.slug})`).join(", ")} is in the conversation, a row for each. Say one line and end your turn. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.`,
+      `One card asking the user to connect ${rows.map((row) => `${row.name} (${row.slug})`).join(", ")} is in the conversation, a row for each. Your turn ended on it. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.`,
     );
   }
   for (const result of results) {

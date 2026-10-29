@@ -378,12 +378,12 @@ function systemPrompt(): string {
 }
 
 /**
- * The turn ends once a task has been created or steered, or the user has been
- * asked to connect an app, and the user has heard a line, or at once once the
- * user has been asked for a folder, an app or a tab, or asked a question on a
- * card: the next word about it comes from the wake, and every model given
- * the chance narrates the hand-off a second time. A step that handed off before saying anything gets
- * one more step, for the line.
+ * The turn ends once a task has been created or steered and the user has
+ * heard a line, or at once once the user has been asked for a folder, an
+ * app or a tab, or asked a question or to connect an app on a card: the
+ * next word about it comes from the wake, and every model given the chance
+ * narrates the hand-off a second time. A step that handed off to a task
+ * before saying anything gets one more step, for the line.
  */
 export async function shouldContinueAfterHandingOff({
   messages,
@@ -398,9 +398,9 @@ export async function shouldContinueAfterHandingOff({
   if (!last) {
     return shouldContinueWithToolCalls({ messages });
   }
-  // A permission card says why it asks itself, and a question's card is the
-  // whole of the ask, so the turn ends on the call with no step after it for
-  // a line, which could land after the answer.
+  // A permission card and a sign-in card say why they ask themselves, and a
+  // question's card is the whole of the ask, so the turn ends on the call
+  // with no step after it for a line, which could land after the answer.
   if (
     last.parts.some(
       (part) =>
@@ -410,6 +410,9 @@ export async function shouldContinueAfterHandingOff({
         (part.type === "tool-choose" &&
           part.state === "output-available" &&
           "asked" in part.output) ||
+        (part.type === "tool-connect_app" &&
+          part.state === "output-available" &&
+          askedOnCard(part.output).length > 0) ||
         (part.type === "tool-bash" &&
           part.state === "output-available" &&
           (part.output.asks?.length ?? 0) > 0),
@@ -422,13 +425,9 @@ export async function shouldContinueAfterHandingOff({
       // A task started or sent work. One held until the user answers
       // something (the system's folder ask) is not a hand-off: it waits on
       // them, and the turn stays open to say so.
-      (part.type === "tool-bash" &&
-        part.state === "output-available" &&
-        (part.output.handOffs?.length ?? 0) > 0) ||
-      // A card asking the user to connect an app: the answer comes as a wake.
-      (part.type === "tool-connect_app" &&
-        part.state === "output-available" &&
-        askedOnCard(part.output).length > 0),
+      part.type === "tool-bash" &&
+      part.state === "output-available" &&
+      (part.output.handOffs?.length ?? 0) > 0,
   );
   if (!handedOff) {
     return shouldContinueWithToolCalls({ messages });

@@ -107,6 +107,32 @@ const choose =
     type: "tool-choose",
   });
 
+const connectApp =
+  (state: "asked" | "connected") =>
+  (messageId: StoreId.Message): SessionMessagePart.Type => ({
+    input: {
+      explanation: "Asking to connect Reminders",
+      reason: "So I can add the reminder.",
+      slugs: ["apple-reminders"],
+    },
+    metadata: { ...partMetadata(messageId), endedAt: createdAt },
+    output: {
+      apps: [
+        state === "asked"
+          ? {
+              kind: "run",
+              name: "Reminders",
+              slug: "apple-reminders",
+              state,
+            }
+          : { name: "Reminders", slug: "apple-reminders", state },
+      ],
+    },
+    state: "output-available",
+    toolCallId: `call-${messageId}`,
+    type: "tool-connect_app",
+  });
+
 const taskNew = bash(
   "instrument task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
@@ -150,6 +176,28 @@ describe("shouldContinueAfterHandingOff", () => {
         ],
       }),
     ).resolves.toBe(false);
+  });
+
+  it("ends the turn on a sign-in card, with no step after it for a line", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("remind me to call the dentist")),
+          assistant(connectApp("asked")),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("carries on when the app asked for was already connected", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("remind me to call the dentist")),
+          assistant(connectApp("connected")),
+        ],
+      }),
+    ).resolves.toBe(true);
   });
 
   it("ends the turn on a card a bash command raised, with no step after it", async () => {

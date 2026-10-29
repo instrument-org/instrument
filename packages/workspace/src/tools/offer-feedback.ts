@@ -61,7 +61,8 @@ const offerFeedbackCapability = defineCapability({
     }),
   }),
   name: "feedback.offer",
-  summary: "Offers the person a card to send the Instrument team a problem in the app.",
+  summary:
+    "Offers the person a card to send the Instrument team a problem in the app.",
   surfaces: {
     tool: {
       description: dedent`
@@ -92,7 +93,7 @@ const offerFeedbackCapability = defineCapability({
       toModelOutput: ({ output }) => ({
         type: "text",
         value: output.offered
-          ? "The user sees your write-up on a card and decides there; your reply carries on with the work."
+          ? "The user sees your write-up on a card and decides there, so your reply leaves the card to speak for itself and carries on with the work."
           : output.reason === "background"
             ? "No card: only the chat offers this. Say what broke in your report to the chat."
             : "No card was shown this time, as is usual; your reply carries on with the work.",

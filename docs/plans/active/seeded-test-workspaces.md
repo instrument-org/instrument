@@ -2,7 +2,7 @@
 
 Status: corpus (`fixtures/workspaces/`), seeder (`pnpm workspace:seed`), recorder and `studio-drive --workspace` wiring landed, on the 2.0 chat layout. CI (step 4) is the remaining step; no workflow under `.github/` seeds or drives a workspace yet (checked 2026-10-29).
 
-Context for why this is wanted: [driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) lists ambient workspace state as the last unaddressed source of flakiness in scripted runs. Adjacent and worth reading before starting, because both move where task data lives: [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) and [conversation-storage.md](./conversation-storage.md).
+Context for why this is wanted: [driving-studio-for-ui-capture.md](../../findings/driving-studio-for-ui-capture.md) lists ambient workspace state as the last unaddressed source of flakiness in scripted runs. Adjacent and worth reading before starting, because both move where task data lives: [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) and [conversation-storage.md](../completed/conversation-storage.md).
 
 ## Summary
 

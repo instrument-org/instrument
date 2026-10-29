@@ -17,48 +17,52 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Status |
 | --- | --- |
-| [Context compaction](active/context-compaction.md) — let a task outlive the model's context window | phases 0-2 built |
+| [Context compaction](active/context-compaction.md) — let a task outlive the model's context window | phases 0-2 built, phase 3 narrowly, phase 5 open |
 | [Repeat search results](active/repeat-search-results.md) — stop paying for the same excerpt twice | proposed, unblocked |
-| [Immutable session context](active/immutable-session-context.md) — append-only corrections, for cache reuse | phases 1-4 landed |
 | [Session recovery from unsendable content](active/session-recovery-from-unsendable-content.md) | phases 1 and 4 landed |
-| [Model request controls](active/model-request-controls.md) — reasoning effort and the rest, read from the catalog | per-task level, no UI control |
+| [Model request controls](active/model-request-controls.md) — reasoning effort and the rest, read from the catalog | phases 1 and 3 built, per-task effort taken out |
 | [Degenerate stream loops](active/degenerate-stream-loops.md): detecting and ending a reply stuck repeating itself | proposed |
-| [Tool-result media dedup](active/tool-result-media-dedup.md): store media once, by content hash | proposal, not started |
-| [Subscription inference](active/subscription-inference.md): inference through the user's Claude and ChatGPT subscriptions | ChatGPT route landed |
+| [Subscription inference](active/subscription-inference.md): inference through the user's Claude and ChatGPT subscriptions | ChatGPT and Claude routes released |
 | [Memory](active/memory.md): what the conversation keeps about the user | built, global only |
+| [Auto mode](active/auto-mode.md) | design only, nothing scheduled |
 
 ### The chat, the transcript, and the composer
 
 | Plan | Status |
 | --- | --- |
-| [Chat surface](active/chat-surface.md) | slices 1-9 built |
 | [What the classic window took with it](active/after-the-classic-window.md) | open list |
-| [Grouped activities](active/grouped-activities.md) — one heading over a run of tool calls | built, headings flag off |
+| [Grouped activities](active/grouped-activities.md) — one heading over a run of tool calls | built, heading does not release autoscroll |
 | [Chat transcript redesign](active/chat-transcript-redesign.md): the chat's own steps inline, tasks set apart, drawn against real chats | design rules, not built |
 | [Presentation syntax](active/presentation-syntax.md) — how the agent presents files, data, and artifacts | file group built, rest proposed |
 | [Shortcut table, menu bar, and guide](active/shortcut-table-menu-bar-and-guide.md) | phases 1-3 landed |
 | [Chat stream turn-model refactor](active/chat-stream-turn-model-refactor.md) | partly in place, derive step not started |
-| [Incremental live transcript updates](active/incremental-live-transcript-updates.md) | proposed |
+| [Incremental live transcript updates](active/incremental-live-transcript-updates.md) | chat uses live bubbles, task transcripts not |
 | [Transcript virtualization](active/transcript-virtualization.md) | phase 0 landed |
 | [Full-height transcript scrollbar](active/full-height-transcript-scrollbar.md) | proposed |
-| [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
+| [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | not started, design predates chat records |
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills and apps |
 | [Render a file to look at it](active/render-a-file-to-look-at-it.md): letting a task look at what it made | proposed, nothing built |
+| [Chat list payload and parentage](active/chat-list-payload-and-parentage.md) | tasks by chat landed, first ask not started |
 
 ### Files, folders, skills, and storage
 
 | Plan | Status |
 | --- | --- |
-| [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | index and search landed, storage not started |
 | [Legacy data migration](active/legacy-data-migration.md): bringing 1.x tasks and projects into chats | built, backfill and eval left |
 | [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, unblocked |
+| [Chat records as append-only logs, one per session per device](active/chat-records.md) | built, two parts open |
+| [The instrument folder](active/instrument-folder.md) | built, F4 not started |
+| [Testing the instrument folder](active/testing-the-instrument-folder.md) | Windows pass done, Mac and Linux passes open |
+| [Workspace layout](active/workspace-layout.md) | landed, hand-moved folder case left |
+| [Choose where Instrument keeps files](active/choose-where-instrument-keeps-files.md) | folder step built, later write failure open |
+| [Moving files in the Finder](active/finder-moving-files.md) | phases 1, 2, 4 and most of 3 landed |
+| [Word, PowerPoint and Excel through LibreOffice](active/office-documents-with-libreoffice.md) | proposed, not started |
 
 ### Background work
 
 | Plan | Status |
 | --- | --- |
 | [Background shell processes](active/background-shell-processes.md) | built, live log and cap notice open |
-| [Wake on background job exit](active/wake-on-background-job-exit.md) | draft, not started |
 | [Agent turn off the main thread](active/agent-turn-off-the-main-thread.md) | worker thread landed, utility process not started |
 | [The workspace as a host every client attaches to](active/workspace-host-and-protocol.md): the protocol, the command line, several workspaces, a cloud host | proposed, nothing built |
 
@@ -72,31 +76,57 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Status |
 | --- | --- |
-| [Plugins](active/plugins.md) — the order to build it in, and how to tell whether it works | phase 1 landed as Apps |
-| [Privacy-first diagnostics and feedback](active/privacy-first-diagnostics-and-feedback.md) | proposal |
-| [AI usage panel](active/ai-usage-panel.md): a request log in Settings | planned, not started |
-| [Window notices](active/window-notices.md): a bell in the window bar for damaged chats, error reports and the like | proposed, not started |
-| [One capability layer](active/one-capability-layer.md): each capability defined once, with the `instrument` command, the script modules and model tools generated from it | phase 0 baseline and phase 2 (the Mac apps as bundled MCP apps) done |
+| [Plugins](active/plugins.md) — the order to build it in, and how to tell whether it works | phase 1 landed as Apps, 2 not adopted, 3 overtaken |
+| [Privacy-first diagnostics and feedback](active/privacy-first-diagnostics-and-feedback.md) | stall watchdog built, journal and screen not started |
+| [Window notices](active/window-notices.md): a bell in the window bar for damaged chats, error reports and the like | bell built with seven kinds of row |
+| [App directory uplift](active/app-directory-uplift.md) | icons, tiers and Mac apps landed, connect open |
+| [Onboarding setup assistant](active/onboarding-setup-assistant.md) | building, every step has a page |
+| [Sign in through the API](active/sign-in-through-the-api.md) | sign-in and notices landed, offline mode not started |
+| [Sign in with Apple](active/sign-in-with-apple.md) | planned, not started |
+| [One Mac update feed for both architectures](active/intel-mac-update-feed.md) | not started |
+| [Windows sandbox with MXC](active/windows-sandbox-mxc.md) | phase 2 built but the bake-off runner, phase 3 not started |
 
 ### Development, testing, and dependencies
 
 | Plan | Status |
 | --- | --- |
-| [Dependency upgrade sweep](active/dependency-upgrade-sweep.md) — what upstream has already fixed for us | first pass landed, electron/execa/dugite left |
-| [Dependency work behind the PR queue](active/dependency-work-behind-the-pr-queue.md) — what waits for a quiet branch | AI SDK done, rest not started |
+| [Dependency upgrade sweep](active/dependency-upgrade-sweep.md) — what upstream has already fixed for us | two passes landed, execa 10 and brace-expansion left |
+| [Dependency work behind the PR queue](active/dependency-work-behind-the-pr-queue.md) — what waits for a quiet branch | items 1-2 done, 3-5 partly |
 | [Seeded test workspaces](active/seeded-test-workspaces.md) | CI step remaining |
 | [Seeded workspaces on Windows](active/seeded-workspaces-on-windows.md) | helper landed, host not enrolled |
-| [Driving Studio in batches](active/driving-studio-in-batches.md) | runner and one recipe landed |
+| [Driving Studio in batches](active/driving-studio-in-batches.md) | runner and four recipes landed |
 | [Agent driving Studio friction](active/agent-driving-studio-friction.md) | largely addressed |
 | [radashi to es-toolkit migration](active/radashi-to-es-toolkit-migration.md) | planned, not started |
-| [Radix upgrade, and whether to move to Base UI](active/radix-upgrade-and-base-ui-migration.md) | proposal, not started |
-| [React Compiler blind spots](active/react-compiler-blind-spots.md) | proposal, not started |
-| [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-7, 11, 12 done; 8, 10, 13 folded into other work |
+| [Radix upgrade, and whether to move to Base UI](active/radix-upgrade-and-base-ui-migration.md) | phase 0 landed, phases 1-4 not started |
+| [React Compiler blind spots](active/react-compiler-blind-spots.md) | mostly not started |
+| [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-7 and 10-13 done, parts of 14-15 |
+| [App state scenarios](active/app-state-scenarios.md) | started, account states and contact sheet open |
 
 ## Completed
 
 | Plan | Outcome |
 | --- | --- |
+| [Chat attachments by reference](completed/chat-attachments-by-reference.md) | overtaken by the instrument folder |
+| [Dictation](completed/dictation.md) | landed, transcription tool not started |
+| [Explicit permission asks](completed/explicit-permission-asks.md) | landed, Linux eval not run |
+| [Stars and changes in Files](completed/files-stars-and-changes.md) | abandoned, nothing built |
+| [Long-lived conversation storage](completed/long-lived-conversation-storage.md) | overtaken by chat records |
+| [Network status](completed/network-status.md) | landed in full |
+| [Immutable session context](completed/immutable-session-context.md) — append-only corrections, for cache reuse | landed in full |
+| [Tool-result media dedup](completed/tool-result-media-dedup.md): store media once, by content hash | overtaken by content-addressed blobs |
+| [Chat surface](completed/chat-surface.md) | landed, then reshaped |
+| [Conversation storage](completed/conversation-storage.md) — conversation data the agent can read across | overtaken by chat records |
+| [Wake on background job exit](completed/wake-on-background-job-exit.md) | overtaken by waking on any job end |
+| [AI usage panel](completed/ai-usage-panel.md): a request log in Settings | landed as Settings › Activity |
+| [One capability layer](completed/one-capability-layer.md): each capability defined once, with the `instrument` command, the script modules and model tools generated from it | landed in full |
+| [A 1.x task becomes the chat](completed/1x-task-becomes-the-chat.md) | built |
+| [One identity for a chat](completed/chat-identity.md) | landed |
+| [The names in a visible file's front matter](completed/front-matter-names.md) | built |
+| [Implicit state machines outside the Finder](completed/implicit-state-machines.md) | done |
+| [One path namespace for a chat and its tasks](completed/one-path-namespace.md) | landed |
+| [One change feed for records](completed/record-change-feed.md) | landed |
+| [Sandbox and workspace adjustments](completed/sandbox-and-workspace-adjustments.md) | landed |
+| [One navigation model per window tab](completed/window-tab-model.md) | done |
 | [Reminders and Calendar app](completed/mac-reminders-and-calendar-app.md): a built-in app on macOS | superseded: landed as commands, then as bundled MCP apps |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
 | [Skills mount instead of copy](completed/skills-mount-instead-of-copy.md): skills read where they are, dependencies built once | landed |

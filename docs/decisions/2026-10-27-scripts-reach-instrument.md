@@ -2,7 +2,7 @@
 
 Date: 2026-10-27
 
-Supersedes the `tools` part of [2026-10-12-python-and-node-run-native.md](2026-10-12-python-and-node-run-native.md). Carries out phase 1 of [plans/active/one-capability-layer.md](../plans/active/one-capability-layer.md).
+Supersedes the `tools` part of [2026-10-12-python-and-node-run-native.md](2026-10-12-python-and-node-run-native.md). Carries out phase 1 of [plans/active/one-capability-layer.md](../plans/completed/one-capability-layer.md).
 
 ## Context
 

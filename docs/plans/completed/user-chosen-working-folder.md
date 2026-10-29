@@ -1,6 +1,6 @@
 # Plan: folders decoupled from tasks, writable in place
 
-Status: overtaken by 2.0's folder model; this plan's route was not built. What landed instead: a chat reaches the home folder and `~/Documents/Instrument/` always, plus the folders sent in it and the folders of its topics, all read and write with no access choice (`3dcf5ccd3`); `~/Documents/Instrument/` is where work lands when nobody named a folder (`83f51a8cc`); topics replaced projects as the folder grouping; and the window browses This Mac as a folder view (`42bf5bbc5`), which retired `task-files.tsx`. Not built, and not planned elsewhere: the `/work` + `/scratch` split of `/task`, a stored per-task working directory, and folderless tasks (every task still gets a directory). Supersedes an earlier proposal to move the workspace root into the user's documents directory; see [Why moving the workspace is unnecessary](#why-moving-the-workspace-is-unnecessary). Conversation data is a separate axis, planned in [conversation-storage.md](../active/conversation-storage.md).
+Status: overtaken by 2.0's folder model; this plan's route was not built. What landed instead: a chat reaches the home folder and `~/Documents/Instrument/` always, plus the folders sent in it and the folders of its topics, all read and write with no access choice (`3dcf5ccd3`); `~/Documents/Instrument/` is where work lands when nobody named a folder (`83f51a8cc`); topics replaced projects as the folder grouping; and the window browses This Mac as a folder view (`42bf5bbc5`), which retired `task-files.tsx`. Not built, and not planned elsewhere: the `/work` + `/scratch` split of `/task`, a stored per-task working directory, and folderless tasks (every task still gets a directory). Supersedes an earlier proposal to move the workspace root into the user's documents directory; see [Why moving the workspace is unnecessary](#why-moving-the-workspace-is-unnecessary). Conversation data is a separate axis, planned in [conversation-storage.md](conversation-storage.md).
 
 ## Summary
 
@@ -143,7 +143,7 @@ That split resolves the location question rather than trading it off, and it cha
 
 Also: task creation stops materializing a directory tree. A conversation that never touches a file should produce no directory at all.
 
-Note the ordering constraint: the private directory currently also holds `task.db`, so "no directory until needed" is only fully reachable once conversation data stops living in a per-task file. That is [conversation-storage.md](../active/conversation-storage.md)), and it is why the two plans are related but separable. Until it lands, a fileless task still creates its private directory, which is invisible and cheap.
+Note the ordering constraint: the private directory currently also holds `task.db`, so "no directory until needed" is only fully reachable once conversation data stops living in a per-task file. That is [conversation-storage.md](conversation-storage.md)), and it is why the two plans are related but separable. Until it lands, a fileless task still creates its private directory, which is invisible and cheap.
 
 ### 6. A page opens where its file lives
 
@@ -151,10 +151,10 @@ Nothing serves a task's files over HTTP. A page the agent opens loads at its own
 
 Two things still follow from this plan:
 
-- **Agent-facing byproducts stay readable.** `getScreenshotsDir`, `getTaskTmpDir`, and the tool-output spill logs live under `work/` so the agent can read back paths it is handed. Moving them to `/scratch` keeps that working as long as `/scratch` is a mount, and the private dir must stay outside it. A generated image or a screenshot the transcript renders belongs to the **conversation**, and scratch is disposable by definition; that category is planned in [conversation-storage.md](../active/conversation-storage.md#conversation-scoped-assets)).
+- **Agent-facing byproducts stay readable.** `getScreenshotsDir`, `getTaskTmpDir`, and the tool-output spill logs live under `work/` so the agent can read back paths it is handed. Moving them to `/scratch` keeps that working as long as `/scratch` is a mount, and the private dir must stay outside it. A generated image or a screenshot the transcript renders belongs to the **conversation**, and scratch is disposable by definition; that category is planned in [conversation-storage.md](conversation-storage.md#conversation-scoped-assets)).
 - **Every `file://` page shares one origin.** Two tasks' pages, and a person's own, share `localStorage` and IndexedDB. That was already true of every page the person opened, and a shared working folder does not change it.
 
-**The task id stops being able to do all of its jobs.** It is currently the primary key, the folder name, and the human-readable title at once — a prompt-derived slug from `generate-task-folder-name.ts`. Every one of those jobs pulls a different way here: the folder name stops existing, and a title the user can rename cannot be a key. Splitting it into a generated id plus a stored title is phase 0 of [conversation-storage.md](../active/conversation-storage.md#phases)) and a prerequisite for this work too.
+**The task id stops being able to do all of its jobs.** It is currently the primary key, the folder name, and the human-readable title at once — a prompt-derived slug from `generate-task-folder-name.ts`. Every one of those jobs pulls a different way here: the folder name stops existing, and a title the user can rename cannot be a key. Splitting it into a generated id plus a stored title is phase 0 of [conversation-storage.md](conversation-storage.md#phases)) and a prerequisite for this work too.
 
 #### The security consequence, which is the part that is not mechanical
 
@@ -228,7 +228,7 @@ It should reuse the same prompt component as user-initiated folder attachment, s
 - No data migration. Existing tasks keep their current directory as their working directory; the new path applies to new tasks.
 - The `/skills` mount, unchanged. `/mnt` keeps its read-only semantics with no exceptions; what changes is that a writable root exists elsewhere.
 - The explicit file-link mechanism. Markdown links already render as preview chips; that path is extended, not replaced.
-- Conversation storage. Per-task databases stay as they are until [conversation-storage.md](../active/conversation-storage.md)) is scheduled on its own.
+- Conversation storage. Per-task databases stay as they are until [conversation-storage.md](conversation-storage.md)) is scheduled on its own.
 
 ## Phases
 

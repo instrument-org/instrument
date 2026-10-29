@@ -92,7 +92,7 @@ Size M, value high (the recompute cost is inferred, not measured; measure before
 
 `rpc/routes/message.ts:254-292` (retry with `sleep(50)` twice, then reload), `store.ts:90-95,148-154` (skip messages missing mid-write), `store.ts:497-508` (`publish: false` ordering).
 
-A message is 1+N unstorage rows written without a transaction, and three places work around the gaps. A chat is now one SQLite file and `store-table.ts:30-55` already runs BEGIN/COMMIT for migrations. Shape: a transactional `saveMessageWithParts` on the db0 instance; the three workarounds go. [conversation-storage.md](conversation-storage.md) phases 0 to 2 cover this but describe per-task `task.db`; rewrite that plan's premises rather than following it as written.
+A message is 1+N unstorage rows written without a transaction, and three places work around the gaps. A chat is now one SQLite file and `store-table.ts:30-55` already runs BEGIN/COMMIT for migrations. Shape: a transactional `saveMessageWithParts` on the db0 instance; the three workarounds go. [conversation-storage.md](../completed/conversation-storage.md) phases 0 to 2 cover this but describe per-task `task.db`; rewrite that plan's premises rather than following it as written.
 
 Size M, value med-high.
 

@@ -1,6 +1,6 @@
 # Plan: a built-in Reminders and Calendar app on macOS
 
-Status: superseded. The EventKit helper landed as the `instrument calendar` and `contacts` commands, and those became bundled MCP apps (Calendar, Reminders, Contacts, with Mail, Notes and Messages beside them) in phase 2 of [one-capability-layer.md](../active/one-capability-layer.md). Update and delete, write-only access on macOS 14+, and recurrence are follow-up tools there.
+Status: superseded. The EventKit helper landed as the `instrument calendar` and `contacts` commands, and those became bundled MCP apps (Calendar, Reminders, Contacts, with Mail, Notes and Messages beside them) in phase 2 of [one-capability-layer.md](one-capability-layer.md). Update and delete, write-only access on macOS 14+, and recurrence are follow-up tools there.
 
 ## Problem
 

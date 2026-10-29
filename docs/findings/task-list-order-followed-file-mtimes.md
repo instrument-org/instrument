@@ -61,7 +61,7 @@ Size was never the argument. Across a 596-task workspace `settings.json` ran a m
 
 What is real is a difference in *lifetime*, and it is preserved as a nested key rather than a second file:
 
-- The top level is what the app asks **about** a task: title, pin, unread, project, timestamps. The list reads it for every task in the workspace, and the cross-task index in [conversation-storage.md](../plans/active/conversation-storage.md) projects exactly these and is specified as rebuildable from them. They need a durable per-task home on disk permanently.
+- The top level is what the app asks **about** a task: title, pin, unread, project, timestamps. The list reads it for every task in the workspace, and the cross-task index in [conversation-storage.md](../plans/completed/conversation-storage.md) projects exactly these and is specified as rebuildable from them. They need a durable per-task home on disk permanently.
 - `state` is where the user left off **inside** one task: draft, open tabs, chosen model, attached folders. Read when a task is open, never queried across tasks, and nothing will ever index it.
 
 Two conditions came with the merge, because without them it would have been a downgrade:

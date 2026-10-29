@@ -6,7 +6,7 @@ A chat's folder today is two things at once: the agent's working directory (its 
 
 Every other agent product keeps conversation records apart from where the agent works, reads skills in place, and works at real paths. This plan does the same, and in doing so makes the workspace a single folder a person picks, could back up, and could later sync.
 
-Related: [choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md) (the onboarding step that picks the folder; this plan makes that folder the workspace, and leaves the step itself to that plan), [skills-mount-instead-of-copy.md](../completed/skills-mount-instead-of-copy.md) (its remaining step, removing the copy, was done here), [chat-attachments-by-reference.md](chat-attachments-by-reference.md) and [conversation-storage.md](conversation-storage.md) (independent; not changed here).
+Related: [choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md) (the onboarding step that picks the folder; this plan makes that folder the workspace, and leaves the step itself to that plan), [skills-mount-instead-of-copy.md](../completed/skills-mount-instead-of-copy.md) (its remaining step, removing the copy, was done here), [chat-attachments-by-reference.md](../completed/chat-attachments-by-reference.md) and [conversation-storage.md](../completed/conversation-storage.md) (independent; not changed here).
 
 ## Words
 

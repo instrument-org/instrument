@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Whether the computer is online and Instrument's servers answer, kept in
  * main and shown as one pill in the window's corner; see
- * `docs/plans/active/network-status.md`.
+ * `docs/plans/completed/network-status.md`.
  */
 export const NetworkStatusSchema = z.enum([
   "online",

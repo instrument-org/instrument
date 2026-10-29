@@ -2,7 +2,7 @@
 
 Status: not built; overtaken by 2.0. The design targets the 1.x model, where a task was the conversation the user saw in the sidebar, lived at `tasks/<id>/`, had its own browser profile, and could be zip-exported. In 2.0 the conversation is a chat that owns its tasks (`chats/<id>/tasks/<id>/`), the workspace has one browser profile, and zip export is gone (`853317c6a`). A temporary conversation, if wanted, would be a temporary chat and needs a fresh design; the tiers, the id-as-flag idea, and rename-then-reap below still apply.
 
-Related, because both move where conversation data lives and would change the mechanism below if they land first: [conversation-storage.md](../active/conversation-storage.md) and [user-chosen-working-folder.md](user-chosen-working-folder.md). Related on the claim rather than the code: [privacy-first-diagnostics-and-feedback.md](../active/privacy-first-diagnostics-and-feedback.md), whose carve-out about the hosted model path applies here verbatim.
+Related, because both move where conversation data lives and would change the mechanism below if they land first: [conversation-storage.md](conversation-storage.md) and [user-chosen-working-folder.md](user-chosen-working-folder.md). Related on the claim rather than the code: [privacy-first-diagnostics-and-feedback.md](../active/privacy-first-diagnostics-and-feedback.md), whose carve-out about the hosted model path applies here verbatim.
 
 ## Summary
 
@@ -135,7 +135,7 @@ Sizes are estimates from reading the code, not measurements. Nothing on this lis
 
 Item 3 is the right moment to rename `task-record` and its exports, because the file is being opened to have a seam put in it and a seam is easier to name well than to rename once callers depend on it. Worth folding in: the file and function names, the settings-versus-state split that the adapter has to model explicitly, and naming the storage contract so it visibly pairs with the one the session store already uses.
 
-Worth resisting: reshaping the settings schema, which is a migration; the broader task id and title split, which [conversation-storage.md](../active/conversation-storage.md) should own; and anything that makes the diff hard to review, since this is the file where a subtle mistake loses someone's draft.
+Worth resisting: reshaping the settings schema, which is a migration; the broader task id and title split, which [conversation-storage.md](conversation-storage.md) should own; and anything that makes the diff hard to review, since this is the file where a subtle mistake loses someone's draft.
 
 ## Deliberately out of v1
 
@@ -150,7 +150,7 @@ Worth resisting: reshaping the settings schema, which is a migration; the broade
 ## Risks
 
 - **Crash residue for tier 2.** Between a crash and the next launch, a temporary task's files sit in the workspace. This is a weaker promise than a browser makes, and it is the direct cost of the agent being able to run real work. The copy says "deleted when you quit" rather than "never written" for this tier, which is accurate.
-- **The storage plans would change this.** [conversation-storage.md](../active/conversation-storage.md) moves conversations into a central index, at which point "delete the folder, delete the data" stops being true and temporary tasks need their entries excluded or purged. Build against the storage seam rather than the file layout, and add a line to that plan when this lands.
+- **The storage plans would change this.** [conversation-storage.md](conversation-storage.md) moves conversations into a central index, at which point "delete the folder, delete the data" stops being true and temporary tasks need their entries excluded or purged. Build against the storage seam rather than the file layout, and add a line to that plan when this lands.
 
 ## Acceptance criteria
 

@@ -30,7 +30,7 @@ on:
           - linux
           - all
       update_test_version:
-        description: "Test only, macOS: also package this preview at this higher version, to test an update between the two"
+        description: "Test only, macOS and Windows: also package this preview at this higher version, to test an update between the two"
         required: false
         type: string
 
@@ -258,6 +258,34 @@ jobs:
           WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
           WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
 
+      # Each version is packed for every channel it reaches, each with a
+      # Setup; the one uploaded is the preview's own channel's.
+      - if: matrix.os == 'windows'
+        name: Find the Windows preview's channel
+        id: channel
+        shell: bash
+        run: |
+          echo "channel=$(node -p "(require('semver').prerelease(require('./package.json').version)?.[0]) ?? 'latest'")" >> "$GITHUB_OUTPUT"
+        working-directory: apps/studio
+
+      # TEST SEAM: the Windows half of the Mac step above. The app is packaged
+      # again at the higher version and packed into a Velopack feed of its own,
+      # with a delta from the first build's packages, so a test host pointed
+      # at it (INSTRUMENT_TEST_UPDATE_FEED) updates one build into the other,
+      # and an NSIS install of the first build moves onto Velopack from it.
+      - if: matrix.os == 'windows' && inputs.update_test_version
+        name: Package Windows again at the test update version
+        shell: bash
+        run: |
+          node -e 'const f="apps/studio/package.json";const fs=require("fs");const p=JSON.parse(fs.readFileSync(f));p.version=process.env.UPDATE_TEST_VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
+          pnpm --filter @instrument-org/studio exec electron-builder --win dir --x64 --publish never
+          node apps/studio/scripts/velopack-pack.ts --unpacked "$ELECTRON_BUILDER_OUTPUT_DIR/win-unpacked" --out "apps/studio/dist/velopack-update" --feed "apps/studio/dist/velopack"
+        env:
+          ELECTRON_BUILDER_OUTPUT_DIR: ${{ runner.temp }}/dist-update
+          UPDATE_TEST_VERSION: ${{ inputs.update_test_version }}
+          WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+
       - if: matrix.os == 'linux'
         name: Package Linux
         run: pnpm --filter @instrument-org/studio exec electron-builder --linux --${{ matrix.arch }} --publish never
@@ -296,8 +324,20 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: false
-          path: apps/studio/dist/velopack/*-Setup.exe
+          path: apps/studio/dist/velopack/*-${{ steps.channel.outputs.channel }}-Setup.exe
           retention-days: 30
+          if-no-files-found: error
+      # Both feeds whole, zipped: the first build's and the test update's,
+      # which also lists the first build's packages and a delta from them.
+      - if: matrix.os == 'windows' && inputs.update_test_version
+        name: Upload Windows Velopack feeds
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: velopack-feeds
+          path: |
+            apps/studio/dist/velopack
+            apps/studio/dist/velopack-update
+          retention-days: 7
           if-no-files-found: error
       # The archive runs anywhere but needs a root-owned chrome-sandbox; the
       # AppImage runs as downloaded where fusermount is installed.

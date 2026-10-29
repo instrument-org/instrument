@@ -1,6 +1,6 @@
 # Plan: chat surface
 
-Status: slices 1 through 8 built; 9 landed under its own plan, [app-level tabs](../completed/app-level-tabs.md). The output dropdown slice 8 built was later removed with page types: the person never picks what kind of thing comes back.
+Status: landed, then partly reshaped. Slices 1 through 8 were built; 9 landed under its own plan, [app-level tabs](app-level-tabs.md). Later work changed parts of it: the output dropdown slice 8 built was removed with page types (the person never picks what kind of thing comes back), and what a chat holds shows as a row of tiles over its composer (`chat-tiles.tsx`) beside a pane of tabs (`right-pane.tsx`), not as a rail along its right edge.
 
 ---
 

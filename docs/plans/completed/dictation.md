@@ -1,6 +1,6 @@
 # Plan: dictation
 
-Status: in progress.
+Status: landed (`b57a3a2ca`, with mic access in Settings from `bafc2b9b5`): live dictation in the composer, the problem report, topic instructions and the question card's note, transcribed by the API. The follow-up transcription tool for the agent is not started; the agent is still pointed at the `local-ml` skill for speech-to-text.
 
 ## Problem
 

@@ -10,13 +10,20 @@ import { ColumnsIcon } from "@phosphor-icons/react/Columns";
 import {
   type Column,
   type ColumnDef,
+  columnFilteringFeature,
+  columnResizingFeature,
   type ColumnSizingState,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
+  columnSizingFeature,
+  columnVisibilityFeature,
+  type ColumnVisibilityState,
+  createFilteredRowModel,
+  createSortedRowModel,
+  globalFilteringFeature,
+  type ReactTable,
+  rowSortingFeature,
   type SortingState,
-  useReactTable,
-  type VisibilityState,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Papa from "papaparse";
@@ -66,6 +73,17 @@ const MAX_COLUMN_WIDTH = 420;
 const WIDTH_SAMPLE_ROWS = 200;
 const CHARACTER_WIDTH = 7.2;
 const CELL_PADDING = 24;
+
+const features = tableFeatures({
+  columnFilteringFeature,
+  columnResizingFeature,
+  columnSizingFeature,
+  columnVisibilityFeature,
+  filteredRowModel: createFilteredRowModel(),
+  globalFilteringFeature,
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
 
 /**
  * A cell's display text, or `null` for a value that is genuinely absent.
@@ -162,10 +180,6 @@ export function DataGrid({
   rows: CellValue[][];
   title?: string;
 }) {
-  // `useReactTable` holds a mutable instance across renders, which the compiler
-  // cannot memoize safely. See TanStack/table#6137.
-  "use no memo";
-
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const filterRef = useRef<HTMLInputElement>(null);
@@ -181,7 +195,8 @@ export function DataGrid({
   // second row of menu items, which is what the pair of Copy entries this
   // replaced had become.
   const [copyHeaders, setCopyHeaders] = useState(true);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useState<ColumnVisibilityState>({});
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [selection, setSelection] = useState<null | {
     anchor: CellPosition;
@@ -204,7 +219,7 @@ export function DataGrid({
     [columns, rows],
   );
 
-  const columnDefs = useMemo<ColumnDef<CellValue[]>[]>(
+  const columnDefs = useMemo<ColumnDef<typeof features, CellValue[]>[]>(
     () =>
       columns.map((column, index) => ({
         // Blank and absent are the same thing to sort and filter, and both are
@@ -220,7 +235,7 @@ export function DataGrid({
         header: column.name,
         id: String(index),
         size: measured[index] ?? MIN_COLUMN_WIDTH,
-        sortingFn: compareCells,
+        sortFn: compareCells,
         // Pins blanks to the end whichever way the column is sorted. A
         // comparator cannot do this itself: a descending sort negates whatever
         // it returns, so deliberate blanks-last becomes blanks-first.
@@ -229,14 +244,11 @@ export function DataGrid({
     [columns, measured],
   );
 
-  // oxlint-disable-next-line react/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
     columnResizeMode: "onChange",
     columns: columnDefs,
     data: rows,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    features,
     globalFilterFn: containsText,
     onColumnSizingChange: setColumnSizing,
     onColumnVisibilityChange: setColumnVisibility,
@@ -260,6 +272,7 @@ export function DataGrid({
   const visibleRows = table.getRowModel().rows;
   const visibleColumns = table.getVisibleLeafColumns();
 
+  // oxlint-disable-next-line react/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: visibleRows.length,
     estimateSize: () => ROW_HEIGHT,
@@ -1172,10 +1185,8 @@ function ColumnMenu({
   table,
 }: {
   columns: GridColumn[];
-  table: ReturnType<typeof useReactTable<CellValue[]>>;
+  table: ReactTable<typeof features, CellValue[]>;
 }) {
-  "use no memo";
-
   return (
     <DropdownMenu>
       <Tooltip>
@@ -1402,12 +1413,14 @@ function HeaderCell({
   onResize,
   spec,
 }: {
-  column: Column<CellValue[]>;
+  column: Column<typeof features, CellValue[]>;
   flash: boolean;
   left: number;
   onResize?: (event: unknown) => void;
   spec?: GridColumn;
 }) {
+  // The column is the same object from one render to the next while its sort
+  // and size change, so memoizing on it would draw them stale.
   "use no memo";
 
   const sorted = column.getIsSorted();

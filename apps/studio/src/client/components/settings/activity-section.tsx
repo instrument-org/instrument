@@ -45,8 +45,11 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   type Column,
   type ColumnDef,
-  getCoreRowModel,
-  useReactTable,
+  columnSizingFeature,
+  columnVisibilityFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -469,7 +472,14 @@ const CELLS: Record<ColumnId, (row: Row) => ReactNode> = {
   ),
 };
 
-const columnDefs: ColumnDef<Row>[] = COLUMN_IDS.map((id) => {
+// Sorting is the server's: the table keeps only which column and direction.
+const features = tableFeatures({
+  columnSizingFeature,
+  columnVisibilityFeature,
+  rowSortingFeature,
+});
+
+const columnDefs: ColumnDef<typeof features, Row>[] = COLUMN_IDS.map((id) => {
   const spec = COLUMNS[id];
   return {
     accessorFn: (row) => row[spec.field],
@@ -871,24 +881,18 @@ function LogTable({
   setSort: (sort: Sort) => void;
   sort: Sort;
 }) {
-  // `useReactTable` holds a mutable instance across renders, which the compiler
-  // cannot memoize safely. See TanStack/table#6137.
-  "use no memo";
-
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(scroller);
   const [prefs, setPrefs] = useAtom(columnPrefsAtom);
   // The column a right click landed on, for the menu's sort and hide items.
   const [menuColumn, setMenuColumn] = useState<ColumnId | null>(null);
 
-  // oxlint-disable-next-line react/incompatible-library
-  const table = useReactTable({
-    columnResizeMode: "onChange",
+  const table = useTable({
     columns: columnDefs,
     data: rows,
     enableMultiSort: false,
     enableSortingRemoval: false,
-    getCoreRowModel: getCoreRowModel(),
+    features,
     getRowId: (row) => row.id,
     manualSorting: true,
     onColumnSizingChange: (updater) => {
@@ -939,6 +943,7 @@ function LogTable({
   // Every row is one line at a fixed height, so only the scrollport is
   // measured, in layout px: inside the window's CSS `zoom` the default reads
   // the on-screen rect.
+  // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: tableRows.length,
     estimateSize: () => ROW_HEIGHT,
@@ -1142,11 +1147,13 @@ function HeaderCell({
   onContextMenu,
   onResize,
 }: {
-  column: Column<Row>;
+  column: Column<typeof features, Row>;
   id: ColumnId;
   onContextMenu: () => void;
   onResize: (width: number) => void;
 }) {
+  // The column is the same object from one render to the next while its sort
+  // and size change, so memoizing on it would draw them stale.
   "use no memo";
 
   const zoom = useAtomValue(zoomAtom);

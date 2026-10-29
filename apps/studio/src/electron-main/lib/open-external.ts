@@ -41,10 +41,10 @@ export async function openExternal(url: string): Promise<boolean> {
   if (os.platform() === "linux") {
     try {
       await execAsync("which xdg-open");
-      // Workaround for https://github.com/electron/electron/issues/28436
+      // Opening a link in Firefox on Ubuntu under Wayland failed with
+      // Electron's XDG_CURRENT_DESKTOP set, so xdg-open runs without it.
       await new Promise<undefined>((resolve, reject) => {
         const env = { ...process.env };
-        delete env.GDK_BACKEND;
         delete env.XDG_CURRENT_DESKTOP;
 
         const child = spawn("xdg-open", [url], {

@@ -42,7 +42,6 @@ declare namespace NodeJS {
       ELECTRON_USER_DATA_DIR: string | undefined;
       FAKE_MICROPHONE: string | undefined;
       FORCE_DEV_AUTO_UPDATE: string | undefined;
-      GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
       /** Dev and preview builds only: each minute of the automatic restart's waits becomes a second. */
       IDLE_RESTART_FAST: string | undefined;

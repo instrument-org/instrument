@@ -76,14 +76,9 @@ export async function openNotificationSettings(): Promise<boolean> {
     await shell.openExternal(target.url);
     return true;
   }
-  // Electron may set GDK_BACKEND for itself, which a GTK program it starts
-  // would otherwise inherit (https://github.com/electron/electron/issues/28436).
-  const env = { ...process.env };
-  delete env.GDK_BACKEND;
   return new Promise((resolve) => {
     const child = spawn(target.command, target.args, {
       detached: true,
-      env,
       stdio: "ignore",
     });
     child.once("spawn", () => {

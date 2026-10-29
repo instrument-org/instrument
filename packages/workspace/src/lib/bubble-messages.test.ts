@@ -140,6 +140,23 @@ describe("bubbleMessage", () => {
     ).toEqual(["tool-choose"]);
   });
 
+  it.each(["tool-choose", "tool-connect_app"] as const)(
+    "draws no %s card whose call failed, a bad input included",
+    (type) => {
+      const failed: PartOf = (messageId) => ({
+        errorText: "Invalid input for tool: Type validation failed",
+        input: undefined,
+        metadata: { ...partMetadata(messageId), endedAt: at },
+        state: "output-error",
+        toolCallId: StoreId.ToolCallSchema.parse("call-card"),
+        type,
+      });
+      expect(
+        kinds(bubbleMessage(assistant([failed]), { composing: false })),
+      ).toEqual([]);
+    },
+  );
+
   it("keeps an image call only when it ran into a sign-in or the plan", () => {
     const failed =
       (errorType: "api-call" | "no-image-model" | "refused"): PartOf =>

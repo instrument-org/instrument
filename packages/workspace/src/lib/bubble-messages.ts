@@ -68,19 +68,19 @@ function keepsPart(part: SessionMessagePart.Type, composing: boolean) {
     case "text": {
       return !composing;
     }
-    // A card that asks the user draws once it has the whole question.
+    // A card that asks the user draws once it has the whole question. A call
+    // that failed asked nothing: the agent's to fix, as for every card below.
     case "tool-choose": {
-      return part.state !== "input-streaming";
+      return part.state !== "input-streaming" && part.state !== "output-error";
     }
     // A sign-in card draws once the call names its apps, unless the tool
     // refused every one, which is the agent's to fix rather than the user's to read.
     case "tool-connect_app": {
       return (
-        part.state === "output-error" ||
-        (part.state === "output-available" &&
-          connectAppResults(part.output).some(
-            (result) => result.state !== "failure",
-          ))
+        part.state === "output-available" &&
+        connectAppResults(part.output).some(
+          (result) => result.state !== "failure",
+        )
       );
     }
     // An offer draws only once the app showed its card; a refused one is

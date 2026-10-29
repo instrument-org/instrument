@@ -177,6 +177,10 @@ const config: Configuration = {
     // .wasm are reachable from Node; the asm.js, browser, and debug variants are
     // ~17MB of the package's 18MB and nothing loads them.
     "!**/node_modules/sql.js/dist/{sql-asm*,worker.sql-*,*-debug.*,sql-wasm-browser.*}",
+    // Velopack's addon for every system it supports; only x64 Windows loads
+    // one, and the others are not executables Windows can check the
+    // signature of, which every one in a Windows update must have.
+    "!**/node_modules/velopack/lib/native/velopack_nodeffi_{linux,osx,win_arm64,win_x86}*",
     // date-fns resolves its default locale by requiring `locale/en-US`, so
     // that one locale and the builders it shares under `locale/_lib` load
     // whether or not anything asks for a locale by name. Nothing here asks:

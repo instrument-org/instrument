@@ -263,6 +263,18 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     version: packageVersion,
   },
   {
+    // The Windows installer and updater's SDK. The package names no license
+    // file; the text is the repository's.
+    checkedIn: ["LICENSE"],
+    files: [],
+    id: "velopack",
+    license: () => "MIT",
+    name: "Velopack (velopack)",
+    origin: { from: "studio", package: "velopack" },
+    ships: ["node_modules/velopack/"],
+    version: packageVersion,
+  },
+  {
     files: ["LICENSE"],
     id: "tailwindcss-browser",
     license: () => "MIT",

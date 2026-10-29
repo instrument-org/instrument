@@ -49,6 +49,8 @@ declare namespace NodeJS {
       IDLE_RESTART_SIMULATE: string | undefined;
       /** Test seam, preview builds only: the update feed a preview checks, which turns its updater on. */
       INSTRUMENT_TEST_UPDATE_FEED: string | undefined;
+      /** Test seam, set when a Windows build is made, never for a release: the Velopack feed it reads. */
+      INSTRUMENT_VELOPACK_FEED_URL: string | undefined;
       /** scripts/billing-e2e.ts: the internal repo's apps/api checkout. */
       INSTRUMENT_API_DIR: string | undefined;
       /** `0` keeps the agent's bash interpreter on the main thread instead of its worker. */
@@ -150,6 +152,8 @@ declare namespace NodeJS {
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       /** How many threads Node's file I/O pool has; read once, when the pool starts (`thread-pool.ts`). */
       UV_THREADPOOL_SIZE: string | undefined;
+      /** scripts/velopack-pack.ts on a test host: the command that signs one file (`{{file}}`) with a stand-in certificate. */
+      VELOPACK_TEST_SIGN_TEMPLATE: string | undefined;
       WAYLAND_DISPLAY: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;

@@ -170,19 +170,20 @@ describe("writeThirdPartyLicenses", () => {
 
     expect(entries.map(({ folder, license }) => `${folder}: ${license}`))
       .toMatchInlineSnapshot(`
-      [
-        "ffmpeg: GPL-2.0-or-later",
-        "git: GPL-2.0-only",
-        "ripgrep: MIT OR Unlicense",
-        "pnpm: MIT",
-        "agent-browser: Apache-2.0",
-        "pdfium: MIT AND BSD-3-Clause",
-        "react-docx: MIT",
-        "react-pptx: MIT",
-        "react-xlsx: MIT",
-        "sqlite: blessing",
-        "tailwindcss-browser: MIT",
-      ]
-    `);
+        [
+          "ffmpeg: GPL-2.0-or-later",
+          "git: GPL-2.0-only",
+          "ripgrep: MIT OR Unlicense",
+          "pnpm: MIT",
+          "agent-browser: Apache-2.0",
+          "pdfium: MIT AND BSD-3-Clause",
+          "react-docx: MIT",
+          "react-pptx: MIT",
+          "react-xlsx: MIT",
+          "sqlite: blessing",
+          "velopack: MIT",
+          "tailwindcss-browser: MIT",
+        ]
+      `);
   });
 });

@@ -235,6 +235,9 @@ importers:
       ulid:
         specifier: ^3.0.1
         version: 3.0.1
+      velopack:
+        specifier: 1.2.161
+        version: 1.2.161
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -2334,6 +2337,9 @@ packages:
 
   '@neon-rs/load@0.0.4':
     resolution: {integrity: sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw==}
+
+  '@neon-rs/load@0.2.6':
+    resolution: {integrity: sha512-7p8j+guEhGTJNJISgmHO0homqGYAc0SDfmgGZfluMcQnimcceMY87b4hdqufp+7YmsOVC4W/JvT3/Tpi3/gy+Q==}
 
   '@noble/ciphers@2.2.0':
     resolution: {integrity: sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA==}
@@ -9471,6 +9477,10 @@ packages:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
 
+  velopack@1.2.161:
+    resolution: {integrity: sha512-N6wK4Z43MF1CBaq1X0Y2w6OTqO4CmVQIZ4Q7/nb8aJAGY31dIopAIh0HiV/SlfBYJ46cdcS+UUnHOWi0DXgHcg==}
+    engines: {node: '>=20.0.0 <26.0.0'}
+
   vfile-location@5.0.3:
     resolution: {integrity: sha512-5yXvWDEgqeiYiBe1lbxYF7UMAIm/IcopxMHrMQDq3nvKcjPKIhZklUKL+AE7J7uApI4kwe2snsK+eI6UTj9EHg==}
 
@@ -11591,6 +11601,8 @@ snapshots:
 
   '@neon-rs/load@0.0.4':
     optional: true
+
+  '@neon-rs/load@0.2.6': {}
 
   '@noble/ciphers@2.2.0': {}
 
@@ -18773,6 +18785,10 @@ snapshots:
       spdx-expression-parse: 3.0.1
 
   vary@1.1.2: {}
+
+  velopack@1.2.161:
+    dependencies:
+      '@neon-rs/load': 0.2.6
 
   vfile-location@5.0.3:
     dependencies:

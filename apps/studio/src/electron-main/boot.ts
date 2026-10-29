@@ -9,6 +9,13 @@ import path from "node:path";
 
 enableCompileCache();
 
+// Velopack starts the Windows app to run its install and update hooks, which
+// end the process; they are answered before anything of the app loads.
+if (process.platform === "win32") {
+  const { answerVelopackLaunch } = await import("./lib/velopack");
+  answerVelopackLaunch();
+}
+
 // Awaited at the top level, so the app registers its schemes before `ready`.
 await import("./index");
 

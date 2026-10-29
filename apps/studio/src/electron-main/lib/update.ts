@@ -11,6 +11,7 @@ import {
   APP_FLAVOR,
   APP_UPDATER_CACHE_DIR_NAME,
   RELEASES_BUCKET_URL,
+  VELOPACK_FEED_URL,
 } from "@instrument-org/shared";
 import { app, BrowserWindow, autoUpdater as nativeUpdater } from "electron";
 import pkg, { type UpdateInfo } from "electron-updater";
@@ -19,8 +20,16 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import semver from "semver";
 
 import { getMachinePreferences } from "../stores/machine/preferences";
+import {
+  createBridgePort,
+  nsisInstall,
+  reportMoveToVelopack,
+} from "./update-bridge";
+import { createVelopackPort } from "./update-velopack";
+import { settleOpenWith, velopackRoot } from "./velopack";
 import {
   forgetRelaunchMarker,
   recordInstallRequest,
@@ -45,6 +54,11 @@ const TEST_UPDATE_FEED =
   APP_FLAVOR.kind === "preview"
     ? process.env.INSTRUMENT_TEST_UPDATE_FEED || undefined
     : undefined;
+// Where the Windows app reads its Velopack feed: a preview's test feed, a
+// test build's (set when it was built, never for a release), or the bucket's.
+const VELOPACK_FEED =
+  TEST_UPDATE_FEED ??
+  (process.env.INSTRUMENT_VELOPACK_FEED_URL || VELOPACK_FEED_URL);
 // macOS on Intel is the only custom channel, otherwise use the defaults.
 const MACOS_INTEL_CHANNEL = "latest-x64";
 
@@ -109,7 +123,8 @@ export function createStudioAppUpdater({
   // download finishes, so this runs first on the same quit.
   app.on("quit", checkBeforeInstallOnQuit);
 
-  const port: UpdaterPort = {
+  const windows = simulatedInstall ? undefined : createWindowsPort();
+  const port: UpdaterPort = windows?.port ?? {
     checkForUpdates: async ({ download }) => {
       // electron-updater reads `autoDownload` synchronously while the check
       // runs, so setting it around the call is enough to scope it to this check.
@@ -193,7 +208,10 @@ export function createStudioAppUpdater({
       restoreWindows();
       withdrawQuit?.();
     },
-    getCurrentVersion: () => app.getVersion(),
+    // The move from NSIS installs the running version under Velopack, which
+    // the updater would otherwise take for nothing to do.
+    getCurrentVersion: () =>
+      windows?.kind === "bridge" ? "0.0.0" : app.getVersion(),
     installAsksForPassword: installAsksForPassword({
       packageType: readPackageType(),
       platform: os.platform(),
@@ -216,6 +234,72 @@ export function createStudioAppUpdater({
   });
 
   return updater;
+}
+
+/**
+ * The Windows updater, by what installed the app: Velopack's for a Velopack
+ * install, and the move to Velopack for an NSIS one. Undefined elsewhere,
+ * where electron-updater updates the app.
+ */
+function createWindowsPort() {
+  const isActive = () =>
+    APP_FLAVOR.kind !== "preview" || TEST_UPDATE_FEED !== undefined;
+  const onInstall = ({
+    automatic,
+    version,
+  }: {
+    automatic: boolean;
+    version: string;
+  }) => {
+    // An automatic install is an update the person did not ask for, so the
+    // next launch says it landed the way an ordinary quit's update does.
+    if (!automatic) {
+      recordInstallRequest(version);
+    }
+  };
+  // With no channel chosen, a prerelease reads its own channel and a release
+  // `latest`, which is how electron-updater picks one for the NSIS install.
+  const channel = () =>
+    getChannel() ??
+    semver.prerelease(app.getVersion())?.[0]?.toString() ??
+    "latest";
+  const root = velopackRoot();
+  if (root) {
+    reportMoveToVelopack(scopedLogger);
+    setTimeout(() => {
+      try {
+        settleOpenWith();
+      } catch (error) {
+        scopedLogger.warn(
+          new Error("Could not register Open With", { cause: error }),
+        );
+      }
+    }, 5000).unref();
+    return {
+      kind: "velopack" as const,
+      port: createVelopackPort({
+        feed: VELOPACK_FEED,
+        getChannel: channel,
+        isActive,
+        log: scopedLogger,
+        onInstall,
+        root,
+      }),
+    };
+  }
+  if (nsisInstall()) {
+    return {
+      kind: "bridge" as const,
+      port: createBridgePort({
+        feed: VELOPACK_FEED,
+        getChannel: channel,
+        isActive,
+        log: scopedLogger,
+        onInstall,
+      }),
+    };
+  }
+  return undefined;
 }
 
 /**

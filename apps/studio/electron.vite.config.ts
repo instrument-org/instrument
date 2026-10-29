@@ -55,6 +55,8 @@ const mainKeepsExternal = [
   "dugite",
   "ffmpeg-ffprobe-static",
   "just-bash",
+  // Loads its native addon by a path relative to its own files.
+  "velopack",
   "ws",
 ];
 
@@ -495,6 +497,13 @@ export default defineConfig(({ command }) => {
       },
       define: {
         ...previewDefine,
+        // TEST SEAM: a Windows build made with this set reads its Velopack
+        // feed there (a folder or a URL) instead of the releases bucket's, so
+        // the update and the move from NSIS can run against a local feed on a
+        // test host. A release is built without it.
+        "process.env.INSTRUMENT_VELOPACK_FEED_URL": JSON.stringify(
+          process.env.INSTRUMENT_VELOPACK_FEED_URL ?? "",
+        ),
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
         __FFMPEG_FFPROBE_STATIC_PATH__: JSON.stringify(
           ffmpegFfprobeStaticValue,

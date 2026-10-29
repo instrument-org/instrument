@@ -127,6 +127,22 @@ export const GIT_AGENT_EMAIL = `agent@${APP_DOMAIN}`;
 export const GIT_AGENT_NAME = `${APP_NAME} Agent`;
 export const SETTINGS_FILE_NAME = `settings.json`;
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
+/**
+ * What Velopack knows the Windows app by: the folder it installs into under
+ * %LOCALAPPDATA%, its uninstall entry, and the names of its packages and
+ * Setup in the update feed. A preview's is its own, as its identity is.
+ */
+export const APP_VELOPACK_ID =
+  APP_FLAVOR.kind === "preview"
+    ? `${APP_NAME_SLUG}-preview-${APP_FLAVOR.name}`
+    : APP_NAME;
+// The Windows update feed, beside electron-updater's manifests.
+export const VELOPACK_FEED_URL = `${RELEASES_BUCKET_URL}/velopack`;
+/**
+ * The subject every Windows executable Instrument ships is signed under. The
+ * certificate has been issued in both casings, so a comparison folds case.
+ */
+export const WINDOWS_PUBLISHER_NAMES = ["Finalpoint, LLC", "FINALPOINT, LLC"];
 export const PRIVATE_FOLDER_NAME = `.instrument`;
 
 /**

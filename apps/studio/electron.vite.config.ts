@@ -39,13 +39,6 @@ const freezeNative = process.env.DISABLE_DEV_RELAUNCH === "true";
 // targets through `pnpm run dev`) have to keep it.
 process.env.REMOTE_DEBUGGING_PORT ??= "48160";
 
-// electron-vite deep-clones the config before resolving async plugin factories,
-// so this one is awaited here rather than inline in `plugins`. Drop the hoist
-// once https://github.com/alex8088/electron-vite/issues/902 ships.
-const reactCompilerBabel = await babel({
-  presets: [reactCompilerPreset()],
-});
-
 const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
 const monorepoPackages = ["workspace", "shared", "ai-gateway"];
@@ -496,28 +489,6 @@ export default defineConfig(({ command }) => {
             }
             warn(warning);
           },
-          // electron-vite supplies __filename/__dirname/require to ESM chunks by
-          // regex-scanning the rendered output for the last static import and
-          // splicing its shim in after it. At this bundle's size the last match
-          // is import-shaped text inside a comment or a string rather than a
-          // real import: in the dev bundle it lands inside a vendored package's
-          // doc comment, where it is inert. A match inside a string literal
-          // instead corrupts the chunk, and rolldown then emits the entry as
-          // zero bytes. This banner is byte-identical to that shim (the variant
-          // electron-vite picks for Electron >=30), which satisfies its
-          // already-shimmed check so it skips the splice and every chunk
-          // carries the declarations at the top instead. Compare it against
-          // electron-vite's own copy when upgrading, and drop it once
-          // https://github.com/alex8088/electron-vite/issues/906 ships.
-          output: {
-            banner: `
-// -- CommonJS Shims --
-import __cjs_mod__ from 'node:module';
-const __filename = import.meta.filename;
-const __dirname = import.meta.dirname;
-const require = __cjs_mod__.createRequire(import.meta.url);
-`,
-          },
         },
         sourcemap: isProduction,
         watch: freezeNative ? null : {}, // Rebuild and relaunch on a source change
@@ -617,7 +588,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
           routesDirectory: "./client/routes",
         }),
         react(),
-        reactCompilerBabel,
+        babel({ presets: [reactCompilerPreset()] }),
         tailwindcss(),
         xlsxWorkerDom(),
         dropViewerWasmCopies(),

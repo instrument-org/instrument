@@ -204,7 +204,7 @@
     "dotenv": "^16.6.1",
     "electron": "^44.9.3",
     "electron-builder": "26.17.0",
-    "electron-vite": "6.0.0-beta.1",
+    "electron-vite": "6.0.0",
     "emojibase-data": "^17.0.0",
     "hast-util-from-html": "^2.0.3",
     "hast-util-sanitize": "^5.0.2",

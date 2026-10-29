@@ -1,4 +1,5 @@
 import { highlightLoaded, syntaxLanguage } from "@/shared/syntax-highlight";
+import { noop } from "radashi";
 import { useEffect, useState } from "react";
 
 // Highlighting injects a per-token DOM node for every line at once, so its
@@ -33,11 +34,15 @@ export function useSyntaxHighlighting({
       return;
     }
     let live = true;
-    void description.load().then(() => {
-      if (live) {
-        setLoaded(description.name);
-      }
-    });
+    // A grammar that fails to load leaves the text plain.
+    description
+      .load()
+      .then(() => {
+        if (live) {
+          setLoaded(description.name);
+        }
+      })
+      .catch(noop);
     return () => {
       live = false;
     };

@@ -16,6 +16,7 @@ import {
 import { createRequire } from "node:module";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { noop } from "radashi";
 import { parse } from "tldts";
 
 /**
@@ -240,7 +241,8 @@ function injectCosmeticFilters(
     return;
   }
   if (styles.length > 0) {
-    void event.sender.insertCSS(styles, { cssOrigin: "user" });
+    // Rejects when the page goes away first, which needs no styles.
+    event.sender.insertCSS(styles, { cssOrigin: "user" }).catch(noop);
   }
   if (scripts.length === 0) {
     return;

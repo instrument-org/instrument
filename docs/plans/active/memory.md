@@ -1,6 +1,6 @@
 # Memory: what the conversation keeps about the user
 
-Status: built, first version, global only. One folder of Markdown files the conversation's agent writes through a `memory` command and every chat is told about; a Memory tab in Settings reads them, forgets one, and starts an import from the coding agents already on this computer or from a chat tool on the web. Per-topic memory, editing a memory in place, and the row in the reply the wireframe draws are the next version.
+Status: built, first version, global only. One folder of Markdown files the conversation's agent writes through a `memory` command and every chat is told about; a Memory tab in Settings reads them, forgets one, and starts an import from the coding agents already on this computer or from a chat tool on the web. The memories live in `Memory/` at the workspace's top level (an earlier build's `memory/` is moved there by `lib/memory/move.ts`), and the command is a capability-registry word (`lib/capabilities/memory.ts`). A task can list and read memories but not change them: its `memory save` and `forget` refuse, and its layout holds `Memory/` read-only (`f92146ad6`). Per-topic memory, editing a memory in place, and the row in the reply the wireframe draws are the next version.
 
 ## The rule
 
@@ -12,7 +12,7 @@ A memory is what was true when it was saved. When it disagrees with what the use
 
 ## Where it lives
 
-`memory/` at the workspace root, beside `apps/` and `skills/`. One file per memory, named by a slug (`pacific-time.md`, `no-stevia.md`): a short frontmatter naming the chat it was learned in (`from`, `chat`) and when (`at`), then the memory as text, written to the user in a sentence ("You are on Pacific time and mornings are best for calls."). A file with no frontmatter is still a memory, dated by the file, so a note the user drops into the folder counts. The folder is the system of record; nothing is indexed or cached from it.
+`Memory/` at the workspace's top level, beside `Apps/` and `Skills/`. One file per memory, named by a slug (`pacific-time.md`, `no-stevia.md`): a short frontmatter naming the chat it was learned in (`from`, `chat`) and when (`at`), then the memory as text, written to the user in a sentence ("You are on Pacific time and mornings are best for calls."). A file with no frontmatter is still a memory, dated by the file, so a note the user drops into the folder counts. The folder is the system of record; nothing is indexed or cached from it.
 
 Why files and not rows: the surveyed harnesses that have memory at all keep it as Markdown in a per-user folder, with a database only as a derived index, because the person has to be able to read and edit it with nothing but a file manager. Why one file per memory and not one list: the wireframe's per-item trash glyph, and correction by replacement under a name, are each one file operation, and the same operations the user can do by hand.
 

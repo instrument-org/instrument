@@ -1,6 +1,6 @@
 # Model request controls
 
-Status: **phases 1 and 3 built, and the level lives on the task** (`63170dd53`). A task's `settings.json` carries `reasoningEffort`, which a child task copies from its chat and nothing the conversation's agent runs can set and a chat's task list shows as an Effort chip; a task with none asks for the catalog's own default when the model reasons anyway (`catalogEffort`). Title generation asks for low. Nothing a user touches names a level yet: phase 2 (what a direct provider key is still waiting on) and phase 4 (the picker control) have not started.
+Status: **phases 1 and 3 built; the level no longer lives on the task.** `63170dd53` put `reasoningEffort` in a task's `settings.json`; `a6dd21f9f` took it out of the chat again, since nothing in the app ever set it. Every request asks for its model's catalog default (`catalogEffort`) unless the process pins one through `WorkspaceConfig.reasoningEffort`, which only an eval's `--effort` sets, and a task's Effort chip shows that catalog default. Title generation asks for low. Nothing a user touches names a level: phase 2 (what a direct provider key is still waiting on) and phase 4 (the picker control) have not started, and where a chosen level would be stored is open again.
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # Storage for a conversation that runs for months
 
-Status: proposed, not started. Owner: TBD. The on-ramp to option D in [conversation-storage.md](conversation-storage.md): the moves that are safe to make now, that the two-level agent needs before anything else, and that make every later phase of that plan cheaper. It replaces that plan's phase 1 with a prototype that carries none of the risks its own risk list names, and it does not depend on that plan's phase 0.
+Status: **overtaken, not built as written.** [chat-records.md](../active/chat-records.md) supersedes it: a chat's sessions are append-only JSONL logs per device under `.instrument/chats/<id>/`, which are the truth, media lives content-addressed in the chat's `blobs/`, the list comes from a derived `workspace.db`, and `task.db` and its KV store are gone, so there is no SQLite live store to put in WAL mode. The agent reaches past chats read-only through `$INSTRUMENT_CHATS`. Originally the on-ramp to option D in [conversation-storage.md](conversation-storage.md).
 
 ## Problem
 
@@ -93,7 +93,7 @@ Each phase makes the next one safer rather than depending on it, and any of them
 - Render at the boundary. [prepare-model-messages.ts](../../../packages/workspace/src/lib/prepare-model-messages.ts) is the only code that records one, right after `Store.saveSession` succeeds. Serialize the messages from the previous boundary through the newest id and append them. Non-fatal on every failure path: a rollover that could not write its record is still a rollover, and the turn proceeds.
 - The line shape borrows the one the measurement shows agents can navigate: `type`, `message.content[]`, `tool_use` blocks carrying `name` and `input`, `timestamp`. Matching it buys the model's priors for free; inventing a third shape spends them.
 - Three sentences in `contextRolloverNotice`, both the with-notes and the no-notes branches, since an agent that wrote no notes needs the record more: the path, that it is large enough to refill the window this reset cleared, and the access pattern (search for a distinctive string, then read a bounded slice with `read_file`'s `offset` and `limit`). Inline what the next turn needs; name the path for what a later turn might.
-- Prove it with a real agent. A shrunk context window makes the boundary reachable in a three-turn conversation, which [context-compaction.md](context-compaction.md) already asks for. Then `pnpm eval run` across the model set with a question whose answer exists only behind the boundary, one arm per format. The question a unit test cannot answer is the one that killed the first rollover: whether a model with a real user message in front of it spends a tool call on a file it was merely told about.
+- Prove it with a real agent. A shrunk context window makes the boundary reachable in a three-turn conversation, which [context-compaction.md](../active/context-compaction.md) already asks for. Then `pnpm eval run` across the model set with a question whose answer exists only behind the boundary, one arm per format. The question a unit test cannot answer is the one that killed the first rollover: whether a model with a real user message in front of it spends a tool call on a file it was merely told about.
 
 ### 2. The live store's configuration
 
@@ -120,7 +120,7 @@ After phase 4 the remaining work is the parent plan's phases 4 through 6: the st
 ## Interaction with other plans
 
 - [conversation-storage.md](conversation-storage.md) is the long form and stays the plan of record for the migration. This plan takes its phase 1 and does it without the live write path, and it does not need its phase 0: the id split exists because one value is key, folder name, DNS label, and title, and the title job goes away when tasks stop being user-facing. That plan's option D is where this one lands.
-- [context-compaction.md](context-compaction.md) gains a retrievable archive, which lowers what its summarizing phase has to achieve. A summary only has to make the agent know a thing exists, not preserve it losslessly.
+- [context-compaction.md](../active/context-compaction.md) gains a retrievable archive, which lowers what its summarizing phase has to achieve. A summary only has to make the agent know a thing exists, not preserve it losslessly.
 - [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) is independent. The record's virtual path does not move when `work/` moves on disk, because every consumer resolves through the mount table.
 - [skills-mount-instead-of-copy.md](../completed/skills-mount-instead-of-copy.md) step 3 gates the cross-task half. Today no task can see another task's directory at all; the parent reading a task's record needs a mount that does not exist, and a real binary writing there needs the native bridge to take the layout. Phase 1 here is single-task and needs neither.
 

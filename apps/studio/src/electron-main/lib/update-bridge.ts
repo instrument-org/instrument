@@ -31,7 +31,7 @@ import {
   type UpdaterPort,
 } from "./create-app-updater";
 import { judgeSignatures, readSignatures } from "./update-signature";
-import { UnsignedUpdateError } from "./update-velopack";
+import { hasFeedFile, joinFeed, UnsignedUpdateError } from "./update-velopack";
 
 type Logger = {
   error: (message: string, ...args: unknown[]) => void;
@@ -96,12 +96,6 @@ export function newestFullRelease(
     }
   }
   return newest && semver.gte(newest, runningVersion) ? newest : undefined;
-}
-
-function joinFeed(feed: string, name: string) {
-  return /^https?:\/\//i.test(feed)
-    ? `${feed.replace(/\/+$/, "")}/${encodeURIComponent(name)}`
-    : path.join(feed, name);
 }
 
 // A file in the feed, which is a URL or, on a test host, a folder.
@@ -253,8 +247,11 @@ export function createBridgePort({
     checkForUpdates: async ({ download: shouldDownload }) => {
       let version: string | undefined;
       try {
-        const text = await readFeedText(feed, `releases.${getChannel()}.json`);
-        version = newestFullRelease(JSON.parse(text), app.getVersion());
+        const name = `releases.${getChannel()}.json`;
+        if (await hasFeedFile(feed, name)) {
+          const text = await readFeedText(feed, name);
+          version = newestFullRelease(JSON.parse(text), app.getVersion());
+        }
       } catch (error) {
         handlers?.failed(
           error instanceof Error ? error : new Error(String(error)),

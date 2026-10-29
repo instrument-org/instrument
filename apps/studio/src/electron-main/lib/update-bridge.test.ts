@@ -1,8 +1,13 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("electron", () => ({ app: {}, net: {} }));
+const fetch = vi.fn<(url: string) => Promise<Response>>();
+vi.mock("electron", () => ({ app: {}, net: { fetch } }));
 
 const { newestFullRelease, updaterCacheDirs } = await import("./update-bridge");
+const { hasFeedFile } = await import("./update-velopack");
 
 const feed = (...assets: { Type: string; Version: string }[]) => ({
   Assets: assets.map((asset) => ({ FileName: "x.nupkg", ...asset })),
@@ -74,5 +79,35 @@ describe("updaterCacheDirs", () => {
     expect(
       updaterCacheDirs("updaterCacheDirName: 'instrument-desktop-updater'\r\n"),
     ).toEqual(["instrument-desktop-updater"]);
+  });
+});
+
+describe("hasFeedFile", () => {
+  // No release on the channel yet: no update, not a failed check.
+  it.each([
+    [200, true],
+    [404, false],
+  ])("reads a %i from the bucket as %s", async (status, expected) => {
+    fetch.mockResolvedValueOnce(new Response(null, { status }));
+    await expect(
+      hasFeedFile("https://example.test/velopack", "releases.latest.json"),
+    ).resolves.toBe(expected);
+  });
+
+  it("fails the check on any other answer", async () => {
+    fetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await expect(
+      hasFeedFile("https://example.test/velopack", "releases.latest.json"),
+    ).rejects.toThrow("503");
+  });
+
+  it("looks in a test host's folder", async () => {
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), "feed-"));
+    fs.writeFileSync(path.join(folder, "releases.beta.json"), "{}");
+    await expect(hasFeedFile(folder, "releases.beta.json")).resolves.toBe(true);
+    await expect(hasFeedFile(folder, "releases.latest.json")).resolves.toBe(
+      false,
+    );
+    fs.rmSync(folder, { recursive: true });
   });
 });

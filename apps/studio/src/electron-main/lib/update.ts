@@ -20,7 +20,6 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import semver from "semver";
 
 import { getMachinePreferences } from "../stores/machine/preferences";
 import {
@@ -257,12 +256,9 @@ function createWindowsPort() {
       recordInstallRequest(version);
     }
   };
-  // With no channel chosen, a prerelease reads its own channel and a release
-  // `latest`, which is how electron-updater picks one for the NSIS install.
-  const channel = () =>
-    getChannel() ??
-    semver.prerelease(app.getVersion())?.[0]?.toString() ??
-    "latest";
+  // With no channel chosen, every build reads `latest`, a beta build too, as
+  // electron-updater does on macOS and Linux.
+  const channel = () => getChannel() ?? "latest";
   const root = velopackRoot();
   if (root) {
     reportMoveToVelopack(scopedLogger);

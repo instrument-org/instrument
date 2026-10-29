@@ -2,7 +2,7 @@
 // electron-updater fills on macOS and Linux, so the install flow, the
 // automatic restart and the update UI run unchanged over it.
 import { APP_NAME, WINDOWS_PUBLISHER_NAMES } from "@instrument-org/shared";
-import { app } from "electron";
+import { app, net } from "electron";
 import type {
   ProgressInfo,
   UpdateCheckResult,
@@ -105,6 +105,36 @@ export async function verifyPackageSignatures(
   } finally {
     unpacked.dispose();
   }
+}
+
+// Where a feed file is: under a URL, or on a test host, in a folder.
+export function joinFeed(feed: string, name: string) {
+  return /^https?:\/\//i.test(feed)
+    ? `${feed.replace(/\/+$/, "")}/${encodeURIComponent(name)}`
+    : path.join(feed, name);
+}
+
+/**
+ * Whether the feed has this file. A channel no release has been published
+ * to has no `releases.<channel>.json`, which is no update rather than a
+ * failed check.
+ */
+export async function hasFeedFile(feed: string, name: string) {
+  const location = joinFeed(feed, name);
+  if (!/^https?:\/\//i.test(location)) {
+    return fs.existsSync(location);
+  }
+  const response = await net.fetch(location, {
+    cache: "no-store",
+    method: "HEAD",
+  });
+  if (response.status === 404) {
+    return false;
+  }
+  if (!response.ok) {
+    throw new Error(`${name}: ${response.status} ${response.statusText}`);
+  }
+  return true;
 }
 
 export function createVelopackPort({
@@ -247,9 +277,11 @@ export function createVelopackPort({
 
   return {
     checkForUpdates: async ({ download: shouldDownload }) => {
-      let update: null | Velopack.UpdateInfo;
+      let update: null | Velopack.UpdateInfo = null;
       try {
-        update = await managerOrThrow().checkForUpdatesAsync();
+        if (await hasFeedFile(feed, `releases.${getChannel()}.json`)) {
+          update = await managerOrThrow().checkForUpdatesAsync();
+        }
       } catch (error) {
         handlers?.failed(asError(error));
         throw error;

@@ -292,6 +292,10 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
   if ("error" in target) {
     return { failed: true, said: target.error, target: arg };
   }
+  const same = await tabOnSameFile(target, ctx);
+  if (same !== undefined) {
+    return showInPlaceOf(same, arg, target, ctx);
+  }
   const answer = await ask({ kind: "open", show: true, target }, ctx);
   if (answer?.error) {
     return { failed: true, said: answer.error, target: arg };
@@ -304,6 +308,79 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
     failed: false,
     said: `Opened ${describeTarget(target)} in front${tabId ? ` (tab ${tabId})` : ""}`,
     ...(tabId ? { tab: tabId } : {}),
+    target: arg,
+  };
+}
+
+/**
+ * A page tab of the chat's on a file with the same bytes as the one to show,
+ * which no task is working in. A page checked in the work folder and then
+ * copied where the user keeps it is one page, so its tab is the one to show
+ * the copy in.
+ */
+async function tabOnSameFile(
+  target: WindowTabTarget,
+  ctx: CapabilityContext,
+): Promise<string | undefined> {
+  const { layout, readShellFile, shellPath } = ctx;
+  if (
+    target.kind !== "path" ||
+    target.path.endsWith("/") ||
+    layout === undefined ||
+    readShellFile === undefined ||
+    shellPath === undefined
+  ) {
+    return undefined;
+  }
+  const listed = (await ask({ kind: "list" }, ctx))?.tabs ?? [];
+  const holders = await tabHolders(ctx.chatId);
+  const pages = listed.flatMap((tab) => {
+    const path =
+      tab.kind === "page" && !holders.has(tab.id) && tab.url
+        ? agentPathOfFileUrl(layout, tab.url)
+        : null;
+    return path === null ? [] : [{ id: tab.id, path }];
+  });
+  if (pages.length === 0) {
+    return undefined;
+  }
+  const shown = await shellPath(target.path);
+  let bytes: Uint8Array | undefined;
+  for (const page of pages) {
+    const found = await shellPath(page.path);
+    if (found.kind !== "file" || found.size !== shown.size) {
+      continue;
+    }
+    if (found.path === shown.path) {
+      return page.id;
+    }
+    bytes ??= await readShellFile(shown.path).catch(() => new Uint8Array());
+    const theirs = await readShellFile(found.path).catch(() => undefined);
+    if (theirs !== undefined && Buffer.from(theirs).equals(bytes)) {
+      return page.id;
+    }
+  }
+  return undefined;
+}
+
+/** Shows a file in front, in the tab that showed the same page. */
+async function showInPlaceOf(
+  tabId: string,
+  arg: string,
+  target: WindowTabTarget,
+  ctx: CapabilityContext,
+): Promise<Outcome> {
+  const replaced = await ask({ kind: "replace", tabId, target }, ctx);
+  const error = replaced ? replaced.error : NO_WINDOW;
+  if (error !== undefined) {
+    return { failed: true, said: error, target: arg };
+  }
+  const now = replaced?.tabId ?? tabId;
+  await ask({ kind: "show", tabId: now }, ctx);
+  return {
+    failed: false,
+    said: `Opened ${describeTarget(target)} in front (tab ${now}), in place of tab ${tabId}, which showed the same page.`,
+    tab: now,
     target: arg,
   };
 }

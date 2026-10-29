@@ -105,6 +105,7 @@ async function shellPath(
   return {
     kind: found.isDirectory ? "folder" : found.isFile ? "file" : "other",
     path,
+    ...(found.isFile ? { size: found.size } : {}),
   };
 }
 

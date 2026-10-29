@@ -76,6 +76,8 @@ export interface CapabilityContext {
 export interface ShellPath {
   kind: "file" | "folder" | "none" | "other";
   path: string;
+  /** A file's length in bytes. */
+  size?: number;
 }
 
 /** What a gate decides before the work runs: the same answer on every surface. */

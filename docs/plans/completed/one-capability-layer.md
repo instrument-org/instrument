@@ -1,6 +1,6 @@
 # One capability layer
 
-Status: **phases 0 to 3 done**: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and every model tool and `instrument` word on the registry with the role split as its data (evals below), then a final eval pass on Haiku and Sonnet; the owner's answers are in Decisions.
+Status: **landed in full** (phase 3 in `5d7ff3d5b`), phases 0 to 3: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and every model tool and `instrument` word on the registry with the role split as its data (evals below), then a final eval pass on Haiku and Sonnet; the owner's answers are in Decisions.
 
 ## Problem
 
@@ -49,7 +49,7 @@ The owner settled these; the design below follows them.
 
 - **One name: `instrument`.** The CLI, the Node global and the Python module are all `instrument`. The `tools` global is deleted, and no compatibility name keeps it.
 - **One generated CLI form for every app, and no hand-written subcommands.** Every capability flows through the registry and its one gate, so there is never a second way to do the same powerful thing that skips the permission path. The Mac apps' tools are `instrument app call apple-calendar add_event '{...}'` like any app's; nothing keeps `instrument calendar` as an alias. The rest of `instrument` (`memory`, `task`, `window`, `x`) is generated from the registry too.
-- **Sends are script-callable.** Once the person granted Mail or Messages, a script sending is no worse than a bash loop sending, which the shell already allows. If sends need more protection later, it is a review of each call or each script in the shape of [auto mode](auto-mode.md), and it attaches at the registry's single gate, which every surface passes through.
+- **Sends are script-callable.** Once the person granted Mail or Messages, a script sending is no worse than a bash loop sending, which the shell already allows. If sends need more protection later, it is a review of each call or each script in the shape of [auto mode](../active/auto-mode.md), and it attaches at the registry's single gate, which every surface passes through.
 - **Scripts keep the guide check.** A script's first request to an API app throws `ReadGuideFirst` with the guide, as the CLI hands it back today, and the `app` and `node`/`python` descriptions say to read an app's guide before scripting it.
 - **A preflight ask is built only if an eval shows it helps** (phase 1).
 - **Python is synchronous first**, with calls safe from threads for fan-out.

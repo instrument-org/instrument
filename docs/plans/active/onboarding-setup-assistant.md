@@ -1,6 +1,6 @@
 # Plan: the onboarding setup assistant
 
-Status: building. The designs are in Figma (Instrument 2.0 file, page R6, node 4238-2276), the source of truth for every screen and its copy. Where Figma has no frame (Grok, out of usage during setup, the beta folder move, Welcome back's place, card and intro trials, the beta offer, the test notification's click, a step added by an update), the wireframes fill in until the design does. Tracked in Linear FP-1356 (design) and FP-1368 (testing against real accounts).
+Status: building. The four streams under [Building it](#building-it) are in (the facts and record in `setup-facts.ts`, the window held by `setup-state.ts`, the shared sign-in with `checkAccount` and `ConnectOutcome`, the offline pill), every step in `SETUP_STEPS` has a page under `components/setup/steps/`, and `studio-drive.mjs boot --scenario` boots the setup states; the pages are still being brought to the designs, and the manual pass against real accounts is open. The designs are in Figma (Instrument 2.0 file, page R6, node 4238-2276), the source of truth for every screen and its copy. Where Figma has no frame (Grok, out of usage during setup, the beta folder move, Welcome back's place, card and intro trials, the beta offer, the test notification's click, a step added by an update), the wireframes fill in until the design does. Tracked in Linear FP-1356 (design) and FP-1368 (testing against real accounts).
 
 Onboarding is what a person goes through from first launch to an app that works: a way to get AI (an Instrument plan, a ChatGPT, Claude or Grok plan, or their own API key), the main model, the workspace folder, notifications, and the look.
 
@@ -61,7 +61,7 @@ Onboarding, the Add a provider sheet, Settings and the notes above the reply box
 - **Google (Instrument):** browser sign-in, with a timeout. Answers: ready, declined, canceled, sign-up refused, failed. The plan comes from `billing.status`, as everywhere else.
 - **ChatGPT and Claude:** browser sign-in, then the account check (`checkAccount`: one small request on the plan), with a deadline and Cancel. Answers: ready, no paid plan, out of usage (with the reset time), signed out, canceled, failed. The default model is set only once the check says ready, so a failed account never becomes the default.
 - **Grok:** device code (the page shows the code beside Cancel); the plan is read at sign-in (`no-subscription`, SuperGrok or X Premium+).
-- **Copy:** one module turns an answer into words for each surface. Network trouble is not an answer of its own: the offline pill says it ([network-status.md](network-status.md)).
+- **Copy:** one module turns an answer into words for each surface. Network trouble is not an answer of its own: the offline pill says it ([network-status.md](../completed/network-status.md)).
 
 A result that arrives after the person has left the page is dropped, and a retry that lands on the same page resets its waiting state.
 
@@ -80,7 +80,7 @@ Four streams run in parallel, then the pages:
 1. **Setup logic.** The facts, the record, `currentSetupStep` with tests (every step, quit at each, the finished rule, a step added later), the `setup` RPC routes, removing `hasCompletedProviderSetup` and `onboardingVersion` and their writers, and scenarios (below).
 2. **The window.** Everything under "The window", against `isSetupUp()` (`electron-main/lib/setup-state.ts`).
 3. **Shared sign-in.** The connect flows, `checkAccount`, and the copy module, wired into the Add a provider sheet, Settings and the reply-box notes.
-4. **Offline.** [network-status.md](network-status.md).
+4. **Offline.** [network-status.md](../completed/network-status.md).
 5. **The pages**, once the first three are in, from Figma frame by frame.
 
 ## Scenarios

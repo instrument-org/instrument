@@ -8,7 +8,7 @@ The rehearsal over a real 1.x install passes whole, and Windows and Linux each m
 
 The Instrument folder becomes something a person can open in Finder, Spotlight or Obsidian: a folder per chat with its transcript as Markdown and what the agent made, their drafts, topics, memories, skills and apps as plain files. The app's records stay in the hidden `.instrument/`, which ends fully closed to the agent. Attachments stop being copies: what the person hands over from disk is opened to the chat where it lies.
 
-Supersedes [chat-attachments-by-reference.md](chat-attachments-by-reference.md) (its finding that libuv does not clone on macOS still holds for the one copy left, pasted content). Folder choice at first launch belongs to [choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md) and the onboarding work; this plan keeps Settings › Storage's move as the way to choose for now.
+Supersedes [chat-attachments-by-reference.md](../completed/chat-attachments-by-reference.md) (its finding that libuv does not clone on macOS still holds for the one copy left, pasted content). Folder choice at first launch belongs to [choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md) and the onboarding work; this plan keeps Settings › Storage's move as the way to choose for now.
 
 ## Decisions
 

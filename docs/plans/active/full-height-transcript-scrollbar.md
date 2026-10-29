@@ -1,6 +1,6 @@
 # Plan: run the transcript scrollbar the full height of the pane
 
-Status: proposed, not started (checked 2026-10-02: the composer is still a flex sibling below the scroller in `task/chat.tsx`). Cosmetic goal with a load-bearing constraint: it must not cost anything in the transcript's follow-bottom behavior, and it must not introduce JS layout measurement. Turn anchoring has landed since this was written and moves where the composer has to go; see "What anchoring costs this plan".
+Status: proposed, not started: the composer is still a flex sibling below the `MessageScroller` in `task/chat.tsx`. Cosmetic goal with a load-bearing constraint: it must not cost anything in the transcript's follow-bottom behavior, and it must not introduce JS layout measurement. Turn anchoring has landed since this was written and moves where the composer has to go; see "What anchoring costs this plan".
 
 ---
 

@@ -1,6 +1,6 @@
 # Plan: grouping a run of tool calls under what it is for
 
-Status: **in progress -- the `activity` field, the heading, and collapsing groups are built; the cadence nudge and the animated swap are not.** The heading is a field on every task-agent call rather than a tool of its own; the `start_activity` tool it replaced is gone (see "A field on every call, not a control tool" below). Owner: TBD.
+Status: **in progress -- the `activity` field, the heading, and collapsing groups are built; the cadence nudge and the animated swap are not.** The heading is a field on every task-agent call rather than a tool of its own; the `start_activity` tool it replaced is gone (see "A field on every call, not a control tool" below). The scroller's `releaseAutoScroll`, which the swap animation and the expand jump wait on, exists (`useReleaseAutoScroll`) but is not called when a group opens. Owner: TBD.
 
 A transcript that gives every call its own sentence repeats itself: "Reading the note", "Reading the next note", "Reading the third note". The user needs one line above the run of them saying why it is happening. The research behind this, including what Manus, Codex, ACP, and Gemini CLI actually expose, is [Research: Grouped Tool-Call Activities in Provider-Agnostic Agent Harnesses](https://app.notion.com/p/3b38f368f2d781c2b942ea62328f7a0e).
 

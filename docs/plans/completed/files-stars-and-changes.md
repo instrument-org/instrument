@@ -1,6 +1,6 @@
 # Plan: stars and changed-since-you-looked marks in Files
 
-Status: not started. The layout they slot into has landed: a file opens beside its folder, the folder's controls sit in the tab's row, and the sort menu holds Sort by, Group by and Show hidden files. Nothing below is built. The sync shape is a proposal no one has reviewed yet.
+Status: **abandoned, nothing built.** The owner dropped stars and changed-since-you-looked marks from Files after the List view landed without them (`185a8602d`..`63af08322`: each file's own title over its name). The layout this was meant to slot into did land: a file opens beside its folder, and the sort menu holds Sort by, Group by and Show hidden files. Kept for the marks-log sync shape, which was never reviewed.
 
 Two things carried over from the Index reader, a separate app that showed a folder of documents newest first and marked what changed:
 

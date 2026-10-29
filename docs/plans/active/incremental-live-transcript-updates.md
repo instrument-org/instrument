@@ -1,6 +1,6 @@
 # Plan: incremental live transcript updates
 
-Status: proposed, not started. Follow-up to the live message subscription rework (`workspace: re-read only changed messages in live message subscription`), which cut per-update store work to O(changed) but left the wire and client-render costs at O(session). Pairs with `chat-stream-turn-model-refactor.md`, which is the rendering half of this.
+Status: partly overtaken. The chat's own bubbles no longer read `message.live.list`: they come from `message.live.bubbles` (`791dfd8e8`), a reset and then change events carrying only the upserted and removed messages, applied on the client by `applyBubbleFeedEvent` (lever B for the chat). A task's transcript (`window/child-tasks.tsx`) still reads `message.live.list`, the full array every yield, and nothing reconciles it by id (lever A), so this plan still applies there. Follow-up to the live message subscription rework (`workspace: re-read only changed messages in live message subscription`), which cut per-update store work to O(changed). Pairs with `chat-stream-turn-model-refactor.md`, which is the rendering half of this.
 
 ---
 

@@ -5,6 +5,7 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { RouterProvider } from "@tanstack/react-router";
+import { noop } from "radashi";
 import { useAtomValue } from "jotai";
 import {
   type ReactNode,
@@ -158,7 +159,7 @@ export function GroupItem({
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={(url) => {
           if (up.kind === "page" && page) {
-            void page.load(url);
+            void page.load(url).catch(noop);
           } else {
             browser?.open(url, { group, replacing: up });
           }

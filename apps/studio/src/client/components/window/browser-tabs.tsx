@@ -22,6 +22,7 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
+import { noop } from "radashi";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -445,7 +446,8 @@ export function BrowserTabs({
             const shown = selectedTabIn(current, onScreen);
             return shown ? pageNavigated(current, shown.id) : current;
           });
-          void guest.load(url);
+          // A rejection is a failed or interrupted load, which did-fail-load shows.
+          void guest.load(url).catch(noop);
         }
       },
       navigateTab: (tabId, url) => {
@@ -456,7 +458,7 @@ export function BrowserTabs({
         change((current) => pageNavigated(current, tabId, url));
         const guest = getGuest(targetOf(tab));
         if (guest) {
-          void guest.load(url);
+          void guest.load(url).catch(noop);
           return;
         }
         void rpcClient.workspace.browser.open.call({

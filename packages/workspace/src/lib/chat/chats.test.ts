@@ -1011,6 +1011,177 @@ describe("listChats", () => {
     });
   });
 
+  it("waits on a sign-in card until its app is answered, and not once the user writes past it", async () => {
+    const chatId = await freshChat();
+    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      appsDir: AbsolutePathSchema.parse(appsDir),
+    });
+    fs.mkdirSync(path.join(appsDir, "Reminders"), { recursive: true });
+    fs.writeFileSync(
+      path.join(appsDir, "Reminders", APP_FILE_NAME),
+      [
+        "---",
+        "id: apple-reminders",
+        "type: mcp-local",
+        "package: apple-reminders",
+        "runtime: bundled",
+        "auth:",
+        "  kind: none",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    const connections = getWorkspaceConfig().apps.connections;
+    await connections.set("apple-reminders", {
+      status: "needs-approval",
+      waitingChats: [chatId],
+    });
+    const sessionId = await session(chatId, "Dentist");
+    await userSays(chatId, sessionId, "remind me to call the dentist", 1);
+    const messageId = StoreId.newMessageId();
+    const saved = await ChatWrites.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: {
+          createdAt: at(5),
+          finishedAt: at(5),
+          finishReason: "stop",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        parts: [
+          {
+            input: { reason: "To add it.", slugs: ["apple-reminders"] },
+            metadata: {
+              ...partMetadata({ messageId, sessionId }),
+              createdAt: at(5),
+              endedAt: at(5),
+            },
+            output: {
+              apps: [
+                {
+                  kind: "run",
+                  name: "Reminders",
+                  slug: "apple-reminders",
+                  state: "asked",
+                },
+              ],
+            },
+            state: "output-available",
+            toolCallId: "call_connect",
+            type: "tool-connect_app",
+          },
+        ],
+        role: "assistant",
+      },
+      await chatFor(sessionId),
+    );
+    expect(saved.isOk()).toBe(true);
+
+    const [asked] = await listChats();
+    expect(asked?.state).toBe("waiting");
+    expect(asked?.latest).toEqual({
+      at: at(5).getTime(),
+      kind: "question",
+      text: "Waiting for you to connect Reminders",
+    });
+
+    await connections.set("apple-reminders", { status: "connected" });
+    recordChanged(chatId);
+    expect((await listChats())[0]?.state).toBe("idle");
+
+    await connections.set("apple-reminders", {
+      status: "needs-approval",
+      waitingChats: [chatId],
+    });
+    await userSays(chatId, sessionId, "never mind", 7);
+    recordChanged(chatId);
+    expect((await listChats())[0]?.state).toBe("idle");
+  });
+
+  it("stops waiting on a sign-in card once the user stops the chat", async () => {
+    const chatId = await freshChat();
+    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      appsDir: AbsolutePathSchema.parse(appsDir),
+    });
+    fs.mkdirSync(path.join(appsDir, "Reminders"), { recursive: true });
+    fs.writeFileSync(
+      path.join(appsDir, "Reminders", APP_FILE_NAME),
+      [
+        "---",
+        "id: apple-reminders",
+        "type: mcp-local",
+        "package: apple-reminders",
+        "runtime: bundled",
+        "auth:",
+        "  kind: none",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    await getWorkspaceConfig().apps.connections.set("apple-reminders", {
+      status: "needs-approval",
+      waitingChats: [chatId],
+    });
+    const sessionId = await session(chatId, "Dentist");
+    await userSays(chatId, sessionId, "remind me to call the dentist", 1);
+    const messageId = StoreId.newMessageId();
+    await ChatWrites.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: {
+          createdAt: at(5),
+          finishedAt: at(5),
+          finishReason: "stop",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        parts: [
+          {
+            input: { reason: "To add it.", slugs: ["apple-reminders"] },
+            metadata: {
+              ...partMetadata({ messageId, sessionId }),
+              createdAt: at(5),
+              endedAt: at(5),
+            },
+            output: {
+              apps: [
+                {
+                  kind: "run",
+                  name: "Reminders",
+                  slug: "apple-reminders",
+                  state: "asked",
+                },
+              ],
+            },
+            state: "output-available",
+            toolCallId: "call_connect",
+            type: "tool-connect_app",
+          },
+        ],
+        role: "assistant",
+      },
+      await chatFor(sessionId),
+    );
+    expect((await listChats())[0]?.state).toBe("waiting");
+
+    const stopped = await ChatWrites.stopped(
+      await chatFor(sessionId),
+      sessionId,
+      "person",
+      at(6),
+    );
+    expect(stopped.isOk()).toBe(true);
+    recordChanged(chatId);
+    expect((await listChats())[0]?.state).not.toBe("waiting");
+  });
+
   it("waits on an open card, even while the turn that raised it winds down", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

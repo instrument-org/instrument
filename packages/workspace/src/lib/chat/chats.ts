@@ -11,6 +11,7 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
+import { signInCardsSinceTyped, signInsWaiting } from "../apps/sign-in-group";
 import { listApps } from "../apps/store";
 import { ChatWrites } from "../chat-writes";
 import { cappedTitle } from "../chat-folders/folder-name";
@@ -545,6 +546,8 @@ interface ChatDigest {
   lastStep?: { at: number; text: string };
   /** The questions the chat's agent asked that are still open (`openQuestionsIn`). */
   questions: QuestionAsk[];
+  /** The sign-in cards its agent put up since the user last wrote (`signInCardsSinceTyped`). */
+  signIns: ReturnType<typeof signInCardsSinceTyped>;
   /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
   stepInTurn?: string;
   /** Whether the user stopped the chat's own turn, and no turn has started since. */
@@ -591,6 +594,20 @@ function asksOf(cards: Ask[]): { at: number; text: string }[] {
     at: card.askedAt.getTime(),
     text: cardLine(card),
   }));
+}
+
+/** The chat's sign-in card as one more thing it waits on the user for. */
+function signInWaitOf(
+  waiting: Awaited<ReturnType<typeof signInsWaiting>>,
+): { at: number; text: string }[] {
+  return waiting === undefined
+    ? []
+    : [
+        {
+          at: waiting.at,
+          text: `Waiting for you to connect ${waiting.names.join(", ")}`,
+        },
+      ];
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -646,12 +663,12 @@ async function chatFor(
     ownWorking,
     state,
     working,
-  } = stateOf(
-    chatId,
-    digest,
-    filed,
-    sortAsks([...(await openPermissionAsks(chatId)), ...digest.questions]),
-  );
+  } = stateOf(chatId, digest, filed, [
+    ...asksOf(
+      sortAsks([...(await openPermissionAsks(chatId)), ...digest.questions]),
+    ),
+    ...signInWaitOf(await signInsWaiting(digest.signIns)),
+  ]);
   const ask = state === "working" ? undefined : anyAsk;
 
   const [lead] = runningTasks;
@@ -857,6 +874,7 @@ function digestOf(
     }),
     ...(lastStep && { lastStep }),
     questions: openQuestionsIn(messages, stop),
+    signIns: signInCardsSinceTyped(messages, stop),
     ...(stepInTurn !== undefined && { stepInTurn }),
     stopped,
   };
@@ -1142,16 +1160,15 @@ function webHostOf(url: string): string {
 
 /**
  * Where a chat stands by `chatStateOf`, read from its digest, the tasks
- * running in it, and its open cards, with what its line says it waits on
- * the user for.
+ * running in it, and what it waits on the user for (`asksOf`), with what its
+ * line says it waits on the user for.
  */
 function stateOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
-  cards: Ask[],
+  asks: { at: number; text: string }[],
 ) {
-  const asks = asksOf(cards);
   const askedAt = asks.length
     ? Math.max(...asks.map((ask) => ask.at))
     : undefined;

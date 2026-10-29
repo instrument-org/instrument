@@ -1,11 +1,15 @@
+import { unique } from "radashi";
+
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type Stopper } from "../../schemas/stop-notice";
 import { type StoreId } from "../../schemas/store-id";
 import { askedOnCard, connectAppResults } from "../../tools/connect-app-output";
 import { ChatReads } from "../chat-reads";
 import { sessionOfChat } from "../record-folders";
 import { signInsSettled } from "../sign-in-progress-model-text";
+import { isTypedByUser } from "../typed-by-user";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AppConnection, readConnection } from "./connection";
 import { loadApp } from "./store";
@@ -21,6 +25,8 @@ interface CardApp {
 /** A sign-in card in a session's history. */
 interface SignInCard {
   apps: CardApp[];
+  /** When its call put it up. */
+  askedAt: Date;
   /** The apps its call named that could not be asked, with why. */
   notOnCard: SessionMessageDataPart.NotOnCard | undefined;
   /**
@@ -79,12 +85,57 @@ function signInCardsIn(messages: SessionMessage.WithParts[]): SignInCard[] {
       );
       cards.push({
         apps: rows,
+        askedAt: part.metadata.createdAt,
         notOnCard: failed.length === 0 ? undefined : failed,
         toldSettled: false,
       });
     }
   }
   return cards.filter((card) => card.apps.length > 0);
+}
+
+/**
+ * The sign-in cards asked since the person last wrote or stopped the chat,
+ * oldest first. One they moved past is theirs to come back to, not one the
+ * chat waits on, as with an open question (`openQuestionsIn`).
+ */
+export function signInCardsSinceTyped(
+  messages: SessionMessage.WithParts[],
+  stop: { at: Date; by: Stopper } | undefined,
+): { apps: CardApp[]; askedAt: number }[] {
+  const typed = messages.findLast(
+    (message) => message.role === "user" && isTypedByUser(message),
+  );
+  const since = Math.max(
+    typed?.metadata.createdAt.getTime() ?? 0,
+    stop?.by === "person" ? stop.at.getTime() : 0,
+  );
+  return signInCardsIn(messages).flatMap((card) =>
+    card.askedAt.getTime() > since
+      ? [{ apps: card.apps, askedAt: card.askedAt.getTime() }]
+      : [],
+  );
+}
+
+/**
+ * The apps on those cards still waiting on the user, by name, with when the
+ * newest card naming one was asked; undefined when none waits.
+ */
+export async function signInsWaiting(
+  cards: { apps: CardApp[]; askedAt: number }[],
+): Promise<{ at: number; names: string[] } | undefined> {
+  let at: number | undefined;
+  const names: string[] = [];
+  for (const card of cards) {
+    const waiting = (await signInProgress(card.apps))?.filter(
+      (row) => row.standing === "waiting",
+    );
+    if (waiting?.length) {
+      at = card.askedAt;
+      names.push(...waiting.map((row) => row.name));
+    }
+  }
+  return at === undefined ? undefined : { at, names: unique(names) };
 }
 
 /** The card in a session's history that `slug` has its row on, if any. */

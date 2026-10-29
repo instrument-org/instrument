@@ -32,7 +32,7 @@ Grouped by area; status is the short form of each file's own line.
 | Finding | Status |
 | --- | --- |
 | [Private-dir masking is not a boundary](private-dir-masking-is-not-a-boundary.md) — the mask stops the shell, not native interpreters | open, known gap |
-| [The WASM Python aborts at exit on some install paths](the-wasm-python-aborts-at-exit-on-some-install-paths.md) — the worker's own path length decides whether finalization survives; pinned, offered upstream as #423 to #425 | contained; pin merged upstream |
+| [The WASM Python aborts at exit on some install paths](the-wasm-python-aborts-at-exit-on-some-install-paths.md) — the worker's own path length decides whether finalization survives; pinned, offered upstream as #423 to #425 | moot, Python runs native |
 | [The loopback block is curl-only](loopback-block-is-curl-only.md) — same shape, different command | open, working as designed |
 | [The asset origin was open to any local reader](asset-origin-is-open-to-any-local-reader.md) — unauthenticated, wildcard-CORS loopback origin keyed by a guessable task id | moot, origin removed |
 | [macOS Command Line Tools dialog](macos-command-line-tools-dialog.md) — a Python skill popped the system installer | resolved |
@@ -51,7 +51,7 @@ Grouped by area; status is the short form of each file's own line.
 | [An entitlement that signs, notarizes, and will not launch](an-entitlement-that-notarizes-and-will-not-launch.md) — team-scoped entitlements need an embedded provisioning profile; every gate passes and launchd still refuses | resolved, entitlement re-landed |
 | [What refuses the in-app browser](what-refuses-the-in-app-browser.md) — the standing register: identity, escalation ladder, and where each known refusal stands | standing |
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
-| [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |
+| [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | moot here, CDP gap open upstream |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
 | [Network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md) | worked around |
 | [Agent clicks land where the element was](agent-clicks-land-where-the-element-was.md) | worked around, open upstream |
@@ -65,10 +65,10 @@ Grouped by area; status is the short form of each file's own line.
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | superseded; the guest is resized instead |
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | moot, iframe removed |
-| [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; probed, blocked on Electron 44 | open, not implemented |
+| [WebMCP readiness](webmcp-agent-browser-readiness.md) — calling a third-party site's own tools; works since the Electron 44 upgrade | working, context cost open |
 | [A bare Chrome identity is what Google refuses](a-bare-chrome-identity-is-what-google-refuses.md) — the token strip meant to make the browser look ordinary is what got it blocked | fixed |
 | [The client hints are ours, not Chromium's](browser-client-hints-are-ours-not-chromium-s.md) — Electron emits none, so the header identity is entirely what we write | brand mismatch fixed |
-| [What the in-app browser reports about itself](in-app-browser-self-report.md) — every difference from a real Chrome, measured side by side; identity and languages fixed, and the 429 that prompted it refuses client shape rather than counting requests | partly fixed |
+| [What the in-app browser reports about itself](in-app-browser-self-report.md) — every difference from a real Chrome, measured side by side; identity and languages fixed, and the 429 that prompted it refuses client shape rather than counting requests | partly fixed, readings predate Electron 44 |
 
 ### Renderer and layout
 
@@ -81,7 +81,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Markdown that is mostly tables](markdown-that-is-mostly-tables.md) — two quadratic parses cost twenty seconds on a 2 MB file, and why `content-visibility` was rejected | fixed; the DOM is what is left |
 | [What marks a renderer hidden](electron-page-visibility.md) — and what does not | resolved, guidance |
 | [Task file links resolve at render time](task-file-links-resolve-at-render-time.md) | resolved |
-| [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | moot, unread marks removed |
+| [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | applied, unread is a per-device setting |
 | [Route preloading does not pay](route-preloading-does-not-pay.md): a local chunk costs single-digit milliseconds, so slow screens wait on data or rendering | closed, measured |
 | [A thumbnail request nobody wants is still drawn](a-thumbnail-request-nobody-wants-is-still-drawn.md): the protocol never hears an image's request cancelled, so the renderer asks only for what was seen | contained, measured |
 
@@ -89,13 +89,13 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
-| [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | open; seen twice, stage pinned, loop unknown |
+| [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | open; teardown is a machine, deadlines still plain timers |
 | [A quit confirmation outlives the window](quit-confirmation-outlives-the-window.md) — Windows/Linux ordering | resolved, guidance |
 | [An update check un-stages the macOS build](update-check-un-stages-the-macos-build.md) | resolved |
 | [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | fixed, verified |
 | [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md) — the ozone pin, why dropping it did not take, and what it cost | fixed |
 | [Main log retention and transport](main-log-retention-and-transport.md) | partly addressed |
-| [Windows long paths in the task directory](windows-long-paths.md) | partly fixed |
+| [Windows long paths in the task directory](windows-long-paths.md) | partly fixed, new prefix not re-measured |
 | [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) | resolved |
 | [The agent's filesystem work stalls the window](agent-filesystem-work-stalls-the-window.md) — not by blocking it; the freeze is filesystem latency for everything else on the thread | contained, shell off main |
 | [A dictated paste lands the old clipboard](dictated-paste-lost-to-a-status-poll.md) — a two-second poll read every filed task's whole transcript on the thread a paste waits on | fixed, measured |
@@ -103,7 +103,7 @@ Grouped by area; status is the short form of each file's own line.
 | [The file-open cache is sized for a vanished cost](file-open-cache-is-sized-for-a-vanished-cost.md) | open, deliberate |
 | [The task list ordered itself by file mtime](task-list-order-followed-file-mtimes.md) — so reading a task counted as changing it | fixed |
 | [Connector authentication notes](connector-authentication-technical-notes.md) | reference, partly overtaken by apps |
-| [Syncing a data folder through file sync](syncing-a-data-folder-through-file-sync.md): what iCloud Drive, Dropbox, Google Drive, OneDrive and Syncthing do to files two devices share, and the format rules that survive them | research, nothing built |
+| [Syncing a data folder through file sync](syncing-a-data-folder-through-file-sync.md): what iCloud Drive, Dropbox, Google Drive, OneDrive and Syncthing do to files two devices share, and the format rules that survive them | research, chat records built on it |
 | [One permission decision, expressed four times](one-permission-decision-expressed-four-times.md) — the rules, then Seatbelt, bubblewrap and MXC, with the native path inferring its answer from a program's stderr | open, storage deliberately unchanged |
 | [A chat whose conversion is refused reads as empty](a-chat-whose-conversion-is-refused-reads-as-empty.md): nothing is lost, but the chat opens blank and says nothing about why | half closed, the chat itself still silent |
 | [A part the store took is not a record yet](a-part-the-store-took-is-not-a-record-yet.md) | closed by the write gate |

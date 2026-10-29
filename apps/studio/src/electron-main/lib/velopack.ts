@@ -1,7 +1,8 @@
 // The Windows app installs and updates through Velopack: Setup puts it in
 // `%LOCALAPPDATA%\<APP_VELOPACK_ID>\`, with `Update.exe` and a launcher stub at
 // the top and the app itself in `current\`, which every update replaces whole.
-import { APP_FLAVOR } from "@instrument-org/shared";
+import { APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
+import { app } from "electron";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -46,7 +47,8 @@ const claimsFileTypes = APP_FLAVOR.kind === "release";
 
 /**
  * Answers Velopack's own launches of the app (installed, about to be
- * updated, updated, about to be uninstalled), each of which ends the process
+ * updated, updated, about to be uninstalled, which also takes out the app's
+ * link protocol), each of which ends the process
  * once answered, before anything of the app loads. Velopack's launch of the
  * app also lands here and carries on.
  *
@@ -76,6 +78,9 @@ export function answerVelopackLaunch() {
       if (claimsFileTypes) {
         unregisterOpenWith(exePath);
       }
+      // Registered by every launch (index.ts); Electron removes it only
+      // while it still names this executable.
+      app.removeAsDefaultProtocolClient(APP_PROTOCOL);
     })
     .run();
 }

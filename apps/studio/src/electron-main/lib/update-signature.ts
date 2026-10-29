@@ -243,6 +243,20 @@ function describeStatus(status: string) {
 }
 
 /**
+ * The environment for Windows PowerShell, without `PSModulePath`: a process
+ * started from PowerShell 7 inherits one naming 7's modules first, and
+ * Windows PowerShell then fails to load its own `Get-AuthenticodeSignature`.
+ * Left unset, Windows PowerShell builds its default.
+ */
+function windowsPowerShellEnv() {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) => key.toLowerCase() !== "psmodulepath",
+    ),
+  );
+}
+
+/**
  * Reads the signature of every executable under `folder`, in one PowerShell
  * process. Windows only.
  */
@@ -270,7 +284,7 @@ export async function readSignatures(
       script,
     ],
     {
-      env: { ...process.env, INSTRUMENT_SIGNATURE_ROOT: folder },
+      env: { ...windowsPowerShellEnv(), INSTRUMENT_SIGNATURE_ROOT: folder },
       maxBuffer: 64 * 1024 * 1024,
       timeout: 5 * 60_000,
       windowsHide: true,

@@ -1,6 +1,6 @@
 # OpenAI models cite our search results in ChatGPT's private-use encoding, and the fix costs more than the bug
 
-**Status:** known, deliberately not fixed. A working implementation is parked on the `spike/citation-marker-strip` branch. Revisit if the rate climbs or OpenRouter declines to normalize it. Checked 2026-10-02: nothing in the code strips the span; not re-measured since OpenAI models moved to OpenRouter's Responses API (f35744340).
+**Status:** known, deliberately not fixed. A working implementation was parked on the `spike/citation-marker-strip` branch, which is no longer on the remote or in the primary checkout, so the description of it below is all that is left. Revisit if the rate climbs or OpenRouter declines to normalize it. Checked 2026-10-29: nothing in the code strips the span; not re-measured since OpenAI models moved to OpenRouter's Responses API (f35744340).
 
 ## What shows up
 

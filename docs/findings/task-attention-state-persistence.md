@@ -1,6 +1,6 @@
 # Task attention state (unread / needs-input) must be persisted per task, not derived from live status
 
-**Status:** applied to 2.0 chats: the unread mark is persisted per chat on its session record (`unreadAt`, `unreadByUser` in `schemas/session/index.ts`), set when the chat settles and by the user, and cleared on view by `readDelay` (`apps/studio/src/client/components/window/read-on-view.ts`), carrying over 1.x's dwell and hand-mark rules. What the chat is doing (working, waiting on the user, failed) stays derived live, per the rule below; only "not yet looked at" is persisted. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161).
+**Status:** applied to 2.0 chats: the unread mark is persisted per chat as its `unread` setting (`new` or `marked`, a `set` line in `settings.<device>.jsonl`, `records/record.ts`), read back onto the session as `unreadAt` and `unreadByUser` (`schemas/session/index.ts`), set when the chat settles and by the user, and cleared on view by `readDelay` (`apps/studio/src/client/components/window/read-on-view.ts`), carrying over 1.x's dwell and hand-mark rules. What the chat is doing (working, waiting on the user, failed) stays derived live, per the rule below; only "not yet looked at" is persisted. Recorded 2026-07-08 while building the unread-indicators feature (FP-1161).
 
 ## Context
 

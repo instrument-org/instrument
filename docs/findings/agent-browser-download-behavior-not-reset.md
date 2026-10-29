@@ -1,6 +1,6 @@
 # agent-browser `download` never restores the browser's download behavior
 
-**Status:** open upstream, contained here. The skill caveat this page names was removed with external-browser targeting; what contains it now is that the wrapper passes no download directory for an external browser (`shell-commands/agent-browser.ts`) and the `external_browser` flag ships off. The upstream fix is written but unpublished and needs an explicit go-ahead to file; `handle_download` still never restores the behavior at upstream v0.38.2 (the pin is `^0.38.1`); the flag still defaults off. Checked 2026-10-02.
+**Status:** moot here. The external browser this was about was removed in a122c799b, and the wrapper refuses `--cdp`, `--auto-connect` and the other reaches outside the app (`isExternalBrowserInvocation` in `shell-commands/agent-browser.ts`); the in-app guest's authorization is cleared by `downloads.ts`. Upstream, `handle_download` restores the configured download behavior after `download` since #2027 (in v0.39.4, the pin), but skips a CDP connection, which is the case described below, so the upstream gap is still open; the fix below was never filed. Checked 2026-10-29.
 
 ## Issue
 

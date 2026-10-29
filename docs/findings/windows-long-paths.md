@@ -1,6 +1,6 @@
 # Windows long paths in the task directory
 
-**Status:** partly fixed, still open, checked 2026-10-02. Git is fixed; the 260-character ceiling is not, so anything else the agent runs can still hit it. Since the 2.0 layout a chat's task lives at `…\workspace\chats\<chat id>\tasks\<task id>\`, so the prefix measured below is now longer by `chats\<chat id>\`.
+**Status:** partly fixed, still open, checked 2026-10-29. Git is fixed; the 260-character ceiling is not, so anything else the agent runs can still hit it. Since 5c6316ca9 every session of a chat, tasks included, works in `C:\Users\<user>\.instrument\work\<workspace>\<chat id>\`, so the prefix measured below (under `AppData\Roaming`) is shorter now but still spends part of the 260; not re-measured.
 
 ## Symptom
 

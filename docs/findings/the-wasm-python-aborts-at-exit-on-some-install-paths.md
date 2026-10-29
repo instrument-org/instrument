@@ -1,6 +1,6 @@
 # The WASM Python aborts at exit on some install paths
 
-**Status:** contained 2026-09-10, offered upstream 2026-09-11 as vercel-labs/just-bash#423 (the pin), #424 (the errnos), and #425 (the tracebacks). Found on `just-bash@3.4.1` (vendored CPython 3.13.2, Emscripten) while wiring the sandboxed `python`. Carried as the fourth part of `patches/just-bash@3.4.1.patch` (see `docs/decisions/2026-09-10-carry-the-python-worker-patch.md`), guarded by `create-bash-env-python.test.ts`, until the three ship in a version we install. Checked 2026-10-02: still contained, we still install 3.4.1 with the patch. #423 was closed in favor of upstream's own #444, which merged the same `thisProgram` pin on 2026-09-27; #424 and #425 are still open.
+**Status:** moot. The agent's `python` runs the native interpreter since fe20e54a7, so the shell registers no WASM `python3`, and the program-name pin that stopped the abort shipped upstream as #444 in `just-bash@3.6.0`, which we install. #424 (the errnos) and #425 (the tracebacks) are still carried as the inert `python3 worker` part of `patches/just-bash-sources/sources.json` until the next rebuild ([just-bash-upstream.md](../architecture/just-bash-upstream.md)); `create-bash-env-python.test.ts` is gone. Checked 2026-10-29. Found on `just-bash@3.4.1` (vendored CPython 3.13.2, Emscripten) while wiring the sandboxed `python`; the body describes that build.
 
 Every `python3` run in this repository exited 1, including `python3 -c "print('hi')"`, with the right stdout followed by:
 

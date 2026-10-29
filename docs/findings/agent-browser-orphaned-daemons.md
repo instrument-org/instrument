@@ -1,6 +1,6 @@
 # Orphaned agent-browser daemons
 
-**Status:** partly fixed. Per-session close presents the right daemon fingerprint and skips sessions with no live daemon, so a reap no longer starts the daemons it meant to close. Recorded 2026-08-05, quit-path recurrence observed 2026-08-12 on the installed macOS `v1.6.0-beta.4` build. Still open, checked 2026-10-02: no pid backstop exists, and upstream `main.rs` still drops the runtime untimed after `run_daemon` at v0.38.2 (the pin is `^0.38.1`).
+**Status:** partly fixed. Per-session close presents the right daemon fingerprint and skips sessions with no live daemon, so a reap no longer starts the daemons it meant to close. Recorded 2026-08-05, quit-path recurrence observed 2026-08-12 on the installed macOS `v1.6.0-beta.4` build. Still open, checked 2026-10-29: no pid backstop exists, and upstream `main.rs` still drops the runtime untimed after `run_daemon` at v0.39.4 (the pin).
 
 ## Symptom
 

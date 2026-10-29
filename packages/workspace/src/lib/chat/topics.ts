@@ -123,7 +123,7 @@ export async function createTopic({
  * with the folders granted under it on this computer.
  */
 export async function listTopics(): Promise<ListedTopic[]> {
-  const topics = readTopicsSync(getWorkspaceConfig().rootDir);
+  const topics = await readTopics(getWorkspaceConfig().rootDir);
   const granted = await everyTopicsFolderPaths();
   return topics.map((topic) => {
     const paths = granted.get(topic.id) ?? [];
@@ -141,7 +141,7 @@ export function newTopicId(at?: number): string {
 /**
  * Every topic under a workspace root, in list order. Synchronous and
  * file-level, for the boot migrations that write topics before the workspace
- * is up, and for everything else, since a topic is one small file.
+ * is up, and for the writes, which read the topics they change.
  */
 export function readTopicsSync(rootDir: string): Topic[] {
   const dir = topicsDirOf(rootDir);
@@ -151,19 +151,50 @@ export function readTopicsSync(rootDir: string): Topic[] {
   } catch {
     return [];
   }
-  const topics = entries
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-    .flatMap((entry) => {
-      const topic = readTopicFolder(path.join(dir, entry.name));
+  return inListOrder(
+    topicFolderNames(entries).flatMap((name) => {
+      const topic = readTopicFolder(path.join(dir, name));
       return topic ? [topic] : [];
-    })
-    .sort(
-      (a, b) =>
-        a.created.getTime() - b.created.getTime() || a.id.localeCompare(b.id),
-    );
+    }),
+  );
+}
+
+/**
+ * Every topic under a workspace root, in list order, read off the main
+ * thread and all at once. A `TOPIC.md` a cloud drive moved off this computer
+ * takes most of a second to read, while the drive downloads it.
+ */
+async function readTopics(rootDir: string): Promise<Topic[]> {
+  const dir = topicsDirOf(rootDir);
+  let entries: fs.Dirent[];
+  try {
+    entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const read = await Promise.all(
+    topicFolderNames(entries).map((name) =>
+      readTopicFolderAsync(path.join(dir, name)),
+    ),
+  );
+  return inListOrder(read.flatMap((topic) => (topic ? [topic] : [])));
+}
+
+function topicFolderNames(entries: fs.Dirent[]): string[] {
+  return entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .map((entry) => entry.name);
+}
+
+/** The ones in use in the order they were made, then the retired ones. */
+function inListOrder(topics: Topic[]): Topic[] {
+  const sorted = topics.toSorted(
+    (a, b) =>
+      a.created.getTime() - b.created.getTime() || a.id.localeCompare(b.id),
+  );
   return [
-    ...topics.filter((topic) => !topic.retired),
-    ...topics.filter((topic) => topic.retired),
+    ...sorted.filter((topic) => !topic.retired),
+    ...sorted.filter((topic) => topic.retired),
   ];
 }
 
@@ -395,6 +426,23 @@ function readTopicFolder(folderPath: string): Topic | undefined {
     return undefined;
   }
   return { ...topic, name: path.basename(folderPath) };
+}
+
+async function readTopicFolderAsync(
+  folderPath: string,
+): Promise<Topic | undefined> {
+  const file = path.join(folderPath, TOPIC_FILE_NAME);
+  let topic;
+  try {
+    const [text, stat] = await Promise.all([
+      fs.promises.readFile(file, "utf8"),
+      fs.promises.stat(file),
+    ]);
+    topic = parseTopicFile(text, { at: stat.mtime });
+  } catch {
+    return undefined;
+  }
+  return topic ? { ...topic, name: path.basename(folderPath) } : undefined;
 }
 
 /** Where every topic's folder is, under a workspace root. */

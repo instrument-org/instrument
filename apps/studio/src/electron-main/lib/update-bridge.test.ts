@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: {}, net: {} }));
 
-const { newestFullRelease } = await import("./update-bridge");
+const { newestFullRelease, updaterCacheDirs } = await import("./update-bridge");
 
 const feed = (...assets: { Type: string; Version: string }[]) => ({
   Assets: assets.map((asset) => ({ FileName: "x.nupkg", ...asset })),
@@ -46,5 +46,33 @@ describe("newestFullRelease", () => {
     ["an invalid version", feed({ Type: "Full", Version: "latest" })],
   ])("offers nothing for %s", (_name, value) => {
     expect(newestFullRelease(value, "1.0.0")).toBeUndefined();
+  });
+});
+
+describe("updaterCacheDirs", () => {
+  it("takes the folder the install's app-update.yml names, and this build's", () => {
+    expect(
+      updaterCacheDirs(
+        "bucket: instrument-releases\nprovider: s3\nupdaterCacheDirName: instrument-updater\nchannel: beta\n",
+      ),
+    ).toEqual(["instrument-updater", "instrument-desktop-updater"]);
+  });
+
+  it("takes this build's alone without a readable file", () => {
+    expect(updaterCacheDirs(undefined)).toEqual(["instrument-desktop-updater"]);
+  });
+
+  it.each([
+    ["a path", "updaterCacheDirName: ..\\Programs\n"],
+    ["a parent", "updaterCacheDirName: ..\n"],
+    ["nothing", "updaterCacheDirName:\n"],
+  ])("never names a folder outside its own from %s", (_name, yml) => {
+    expect(updaterCacheDirs(yml)).toEqual(["instrument-desktop-updater"]);
+  });
+
+  it("reads a quoted name once", () => {
+    expect(
+      updaterCacheDirs("updaterCacheDirName: 'instrument-desktop-updater'\r\n"),
+    ).toEqual(["instrument-desktop-updater"]);
   });
 });

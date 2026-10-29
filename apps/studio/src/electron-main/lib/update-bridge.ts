@@ -7,6 +7,7 @@
 import {
   APP_NAME,
   APP_PRODUCT_NAME,
+  APP_UPDATER_CACHE_DIR_NAME,
   APP_VELOPACK_ID,
   WINDOWS_PUBLISHER_NAMES,
 } from "@instrument-org/shared";
@@ -305,6 +306,25 @@ export function createBridgePort({
   };
 }
 
+/**
+ * The folders under %LOCALAPPDATA% where electron-updater kept the NSIS
+ * install's downloads: the one the install's `app-update.yml` names, which
+ * is where its installer left a copy of itself, and the one this build
+ * points electron-updater at. Each holds an installer or two of a few hundred
+ * megabytes that nothing reads once the app is Velopack's.
+ */
+export function updaterCacheDirs(appUpdateYml: string | undefined): string[] {
+  const named = appUpdateYml
+    ? /^updaterCacheDirName:[ \t]*["']?([^"'\r\n]+?)["']?[ \t]*\r?$/m.exec(
+        appUpdateYml,
+      )?.[1]
+    : undefined;
+  return [...new Set([named, APP_UPDATER_CACHE_DIR_NAME])].filter(
+    (name): name is string =>
+      name !== undefined && /^[\w.-]+$/.test(name) && !/^\.+$/.test(name),
+  );
+}
+
 function quote(value: string) {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -349,6 +369,9 @@ function startMove({
       `${APP_PRODUCT_NAME}.lnk`,
     ),
   ];
+  const updaterCaches = updaterCacheDirs(
+    readTextIfAny(path.join(install.folder, "resources", "app-update.yml")),
+  ).map((name) => path.join(app.getPath("appData"), "..", "Local", name));
   const logFile = path.join(userData, BRIDGE_LOG_NAME);
   const script = `$ErrorActionPreference = 'Continue'
 $log = ${quote(logFile)}
@@ -374,6 +397,12 @@ Start-Process -FilePath ${quote(install.uninstaller)} -ArgumentList '/S' -Wait
 $deadline = (Get-Date).AddSeconds(120)
 while ((Test-Path -LiteralPath ${quote(install.exe)}) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
 Log "NSIS install removed: $(-not (Test-Path -LiteralPath ${quote(install.exe)}))"
+foreach ($cache in @(${updaterCaches.map(quote).join(", ")})) {
+  if (Test-Path -LiteralPath $cache) {
+    Remove-Item -LiteralPath $cache -Recurse -Force -ErrorAction SilentlyContinue
+    Log "Removed $($cache): $(-not (Test-Path -LiteralPath $cache))"
+  }
+}
 foreach ($pair in $kept) {
   Copy-Item -LiteralPath $pair[1] -Destination $pair[0] -Force
   Remove-Item -LiteralPath $pair[1] -Force
@@ -404,6 +433,14 @@ Log 'move to Velopack done'
     },
   ).unref();
   log.info(`Handed the move to Velopack to ${scriptFile}`);
+}
+
+function readTextIfAny(file: string) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
 }
 
 /**

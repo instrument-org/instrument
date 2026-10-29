@@ -7,17 +7,12 @@ allowBuilds:
   "@vscode/ripgrep": true
   agent-browser: true
   better-sqlite3: false
-  core-js: true
   dugite: true
   electron: true
   electron-winstaller: true
   esbuild: true
   ffmpeg-ffprobe-static: true
   msw: true
-  protobufjs: true
-  sharp: true
-  tree-sitter-javascript: true
-  unrs-resolver: true
 blockExoticSubdeps: true
 
 catalog:
@@ -59,11 +54,6 @@ ignoredOptionalDependencies:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - agent-browser
-  # Security release (GHSA-jr5w-w6x2-84p9, compromised eMudhra intermediate
-  # CAs) taken ahead of the age cutoff. Exact version, so the age guard still
-  # covers every later Electron release; the entry goes inert once 44.9.3
-  # passes the cutoff and can be dropped.
-  - "electron@44.9.3"
   # Document-viewer libraries pinned to exact pre-1.0 versions. The viewers are
   # written against these exact releases, so a newer publish is a deliberate
   # upgrade rather than something to float onto.
@@ -72,27 +62,6 @@ minimumReleaseAgeExclude:
   - "@extend-ai/react-xlsx"
   # Transitive, version-locked by @extend-ai/react-xlsx.
   - "@dukelib/sheets-wasm"
-  # Security release (GHSA-4p2c-m292-ghmh, DoS in RPCHandler deserialization)
-  # taken the day it shipped. Exact versions, so the age guard still covers
-  # every later oRPC release; the entries go inert once 1.15.2 passes the
-  # cutoff and can be dropped.
-  - "@orpc/client@1.15.2"
-  - "@orpc/contract@1.15.2"
-  - "@orpc/interop@1.15.2"
-  - "@orpc/server@1.15.2"
-  - "@orpc/shared@1.15.2"
-  - "@orpc/standard-server-aws-lambda@1.15.2"
-  - "@orpc/standard-server-fastify@1.15.2"
-  - "@orpc/standard-server-fetch@1.15.2"
-  - "@orpc/standard-server-node@1.15.2"
-  - "@orpc/standard-server-peer@1.15.2"
-  - "@orpc/standard-server@1.15.2"
-  - "@orpc/tanstack-query@1.15.2"
-  # The agent's sandbox, taken five days after release with its patch rebuilt
-  # and verified against it. Exact version, so later just-bash releases still
-  # wait out the guard; the entry goes inert once 3.6.0 passes the cutoff and
-  # can be dropped.
-  - "just-bash@3.6.0"
 
 overrides:
   "@electron/rebuild>node-abi": 4.35.0

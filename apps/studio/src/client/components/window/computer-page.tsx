@@ -122,8 +122,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
-import { useNavigate } from "@tanstack/react-router";
-import { useAtom, useAtomValue } from "jotai";
+import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
@@ -145,6 +144,8 @@ import {
 } from "@/client/lib/browser-pool";
 
 import { useWindow } from "./context";
+import { arrivalView } from "./files-step";
+import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
@@ -287,7 +288,9 @@ const EDGE_DIVIDER_CLASSNAME =
  * itself, so walking the folders leaves the tab where it is.
  */
 export function ComputerPage({
+  arrivals,
   beside,
+  go,
   onFolderChange,
   onOpenFile,
   onQuickLook,
@@ -299,8 +302,10 @@ export function ComputerPage({
   root,
   select,
   toolsInRow = false,
-  view: viewInHistory,
+  view,
 }: {
+  /** How many times the tab's address has moved on its own (`useFilesStep`). */
+  arrivals: number;
   /**
    * A file open beside the folder, which narrows to `width` with its places
    * put away and its controls in the row's section over it, behind `toggle`.
@@ -326,6 +331,8 @@ export function ComputerPage({
     toggle: ReactNode;
     width: number;
   };
+  /** Moves the tab: every change to where it stands goes through here. */
+  go: GoFiles;
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
   /** A file the user opened, when a granted folder covers it. */
@@ -335,32 +342,31 @@ export function ComputerPage({
   /** The file the selection moved to while Quick Look is up, for it to show. */
   onQuickLookFollow?: (target: LookTarget, from?: () => Element | null) => void;
   path: string;
-  /** What the folder opens searched for: this step's search, from the address. */
+  /** What the folder is searched for: this step's search. */
   query?: string;
   /** Whether Quick Look is up: the arrows then move the selection under it. */
   quickLookOpen?: boolean;
   /** How often every folder on screen is re-read; false to read each once. */
   refreshInterval?: false | number;
   root: string;
-  /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
+  /** What is selected in this step, as a path under the root: a file shown in its folder, the file open beside it. */
   select?: string;
   /** Whether the folder's controls go in the tab's row, in a tab of the window's own, rather than a header of their own. */
   toolsInRow?: boolean;
-  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
-  view?: FileSystemView;
+  /** The layout this step of the tab's history shows the folder in. */
+  view: FileSystemView;
 }) {
   const { askAbout, openScreen, rowLead, rowTail } = useWindow();
   const isBesideOpen = beside !== undefined && !beside.isClosing;
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
   const { resolvedTheme } = useTheme();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
   // width and the dotfiles answer survive walking into the next folder. The
   // layout and order are kept per folder, below; this is the layout a folder
   // of no layout of its own opens in when arrived at directly.
-  const [defaultView, setDefaultView] = useAtom(computerViewAtom);
+  const setDefaultView = useSetAtom(computerViewAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [openFolderPaths, setOpenFolderPaths] = useAtom(
     computerOpenFoldersAtom,
@@ -419,61 +425,42 @@ export function ComputerPage({
     prefixes: readonly string[];
     root: string;
   }>(() => ({ prefixes: prefixesOf(path), root }));
+  // A folder arriving takes its own listing and every one above it, held
+  // with the rest under the same root.
+  const isLoaded =
+    loaded.root === root &&
+    prefixesOf(path).every((prefix) => loaded.prefixes.includes(prefix));
+  if (!isLoaded) {
+    setLoaded((previous) => ({
+      prefixes:
+        previous.root === root
+          ? unique([...previous.prefixes, ...prefixesOf(path)])
+          : prefixesOf(path),
+      root,
+    }));
+  }
   const prefixes = loaded.root === root ? loaded.prefixes : prefixesOf(path);
-  // The folder the browser has open, as it last said; the address follows it.
-  const [current, setCurrent] = useState(path);
+  // The folder the browser lists from, as it last said, with the root it said
+  // it under: the step's folder, or in the columns the first of them.
+  const [listedFrom, setListedFrom] = useState({ path, root });
+  const current = listedFrom.root === root ? listedFrom.path : path;
   // The path rather than the item: the items are rebuilt on every re-read,
-  // and a selection held as one of them would change with each.
-  const [selectedPath, setSelectedPath] = useState<null | string>(
-    select ?? null,
-  );
+  // and a selection held as one of them would change with each. The step
+  // holds it, so back to a folder finds selected what was left selected.
+  const selectedPath = select ?? null;
+  const setSelectedPath = (next: null | string) => {
+    go({ path: next, type: "select" });
+  };
   // Everything selected, when a ⌘- or Shift-click made it several. It stands
   // while it holds `selectedPath`, the one the keyboard is on: the page moving
   // the selection itself, onto a thing just made or renamed, moves it to one.
   const [selectedPaths, setSelectedPaths] = useState<readonly string[]>([]);
-  // What the browser's search field says, which walking to a folder empties.
-  const [searchText, setSearchText] = useState(query ?? "");
   const allSelectedPaths =
     selectedPath === null
       ? []
       : selectedPaths.includes(selectedPath)
         ? selectedPaths
         : [selectedPath];
-  // The address this page wrote last, so one that arrives from outside can
-  // be told from the page's own echo of what the browser showed. A ref, not
-  // state: the router answers a write in a render of its own, ahead of any
-  // state set beside the write, and a page that read stale state there took
-  // every selection for an arrival and reopened the browser at it.
-  const written = useRef(`${root}#${path}`);
-  // How many times the browser has been opened at an address from outside.
-  // It takes only a starting folder, so a Recent entry, the omnibox, or
-  // history landing here while the screen is up opens it again there.
-  const [openings, setOpenings] = useState(0);
-  // Whether the address on screen was handed to the page rather than written
-  // by it, until the browser has caught up with it: the folder the browser
-  // first settles on there stands for that address, and replaces it rather
-  // than stepping past it.
-  const arrived = useRef(true);
-  useEffect(() => {
-    const here = `${root}#${path}`;
-    const [writtenRoot] = written.current.split("#");
-    if (written.current === here) {
-      return;
-    }
-    const rootChanged = root !== writtenRoot;
-    written.current = here;
-    arrived.current = true;
-    setCurrent(path);
-    setSelectedPath(select ?? null);
-    setSearchText(query ?? "");
-    setLoaded((previous) => ({
-      prefixes: rootChanged
-        ? prefixesOf(path)
-        : unique([...previous.prefixes, ...prefixesOf(path)]),
-      root,
-    }));
-    setOpenings((count) => count + 1);
-  }, [path, query, root, select]);
 
   // `~` names the home folder, which the workspace expands for a folder it is
   // being asked to read. Nothing else does: a path this hands to an action
@@ -744,10 +731,9 @@ export function ComputerPage({
     }
     // The thing renamed stays selected under its new name, so the column it
     // sits in stays open rather than closing under a selection that has gone;
-    // a press elsewhere that put the name field away chose something else.
-    setSelectedPath((selected) =>
-      selected === item.path ? siblingPath(item.path, name) : selected,
-    );
+    // a press elsewhere that put the name field away chose something else,
+    // which the step has by the time the rename is written.
+    go({ from: item.path, to: siblingPath(item.path, name), type: "rename" });
     reread();
   };
   const duplicate = async (picked: FileSystemItem[]) => {
@@ -1105,11 +1091,8 @@ export function ComputerPage({
 
   const listingOf = (prefix: string) =>
     listings[prefixes.indexOf(prefix)]?.data;
-  // Whether the folder the page is holding belongs to the root it was handed.
-  // A new root arrives a render ahead of the reset that clears the folder
-  // under it, and writing the address in between paired the root being opened
-  // with the folder being left: an address to a folder that is not there,
-  // written to history for the back button to return to.
+  // Whether the listings held are the root's: a new root takes its own in
+  // the render it arrives in, and nothing is read against the old ones.
   const settled = loaded.root === root;
   // The recents are rooted nowhere, so no place in the list is the one open.
   // A root under `~` is the same folder spelled out below the home folder.
@@ -1125,19 +1108,12 @@ export function ComputerPage({
   // to the tab: walking from folder to folder (a double-click, the columns,
   // back and forward) keeps it, and each step of the tab's history holds the
   // layout it was shown in. Arriving at a folder directly (a place, a new
-  // tab, a typed path) is the one time a folder's own layout counts, the one
-  // it was last set to by hand, or else the one last chosen anywhere. The
-  // order belongs to the folder however it is reached, and one never set is
-  // by name; the recents are a list of their own and open newest first.
-  const folderKeyOf = (prefix: string) =>
-    isRecents ? RECENTS_ROOT : hostPathOf(prefix, rootHostPath ?? root);
+  // tab, a typed path) is the one time a folder's own layout counts
+  // (`arrivalViewOf`). The order belongs to the folder however it is reached,
+  // and one never set is by name; the recents are a list of their own and
+  // open newest first.
+  const folderKeyOf = (prefix: string) => folderViewKey(root, prefix, homePath);
   const currentKey = folderKeyOf(current);
-  // List is a folder's only when set on it by hand: what a folder never set
-  // opens in is the last of the others chosen.
-  const view =
-    viewInHistory ??
-    folderViews[folderKeyOf(path)]?.view ??
-    (defaultView === "list" ? "columns" : defaultView);
   // The List leads each page with the title it gives itself, read for the
   // files listed while it is the layout, and again for a file once it is
   // written.
@@ -1170,18 +1146,6 @@ export function ComputerPage({
         return item.kind === "file" && title ? { ...item, title } : item;
       })
     : items;
-  // A direct arrival's layout written into its step, so back to it shows it
-  // the way it was even after the folder's own or the default moves on.
-  useEffect(() => {
-    if (viewInHistory !== undefined) {
-      return;
-    }
-    void navigate({
-      replace: true,
-      search: (previous) => ({ ...previous, view }),
-      to: "/files",
-    });
-  }, [navigate, view, viewInHistory]);
   const sortOf = (key: string) =>
     folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
   const groupOf = (key: string) => folderViews[key]?.group ?? null;
@@ -1201,22 +1165,11 @@ export function ComputerPage({
     });
   }
 
-  // The folder on screen. In the columns a selected folder shows its contents
-  // in the next column, so it is the one the user is looking at, and a
-  // selected file is in the folder that lists it. Every other layout shows
-  // the browser's own folder whatever is selected in it: selecting a folder
-  // there, or a file in a folder opened in place in the list, is not going
-  // anywhere, and neither the address nor back and forward move for it.
-  // Several selected open nothing past the column that lists them.
-  const onScreen =
-    selectedPath === null || view !== "columns"
-      ? current
-      : selectedPath.endsWith("/") && allSelectedPaths.length === 1
-        ? selectedPath
-        : selectedPath.slice(
-            0,
-            selectedPath.lastIndexOf("/", selectedPath.length - 2) + 1,
-          );
+  // The folder on screen: the step's own. In the columns a selected folder
+  // shows its contents in the next column, so selecting one there is
+  // standing in it, and the step moves with it (`nextStep`). Every other
+  // layout shows the step's folder whatever is selected in it.
+  const onScreen = path;
   const currentListing = listingOf(onScreen);
   // The folder standing on screen, by its path: the listing's own once it has
   // arrived, the root the sidebar resolved until then. The recents are a list
@@ -1265,107 +1218,6 @@ export function ComputerPage({
   const groupBy = (group: FileSystemGroupKey | null) => {
     keepLook({ group, sort: shown.sort, view });
   };
-  // The folder on screen as the address last had it. An address arriving
-  // from outside (back, forward, the sidebar) changes `path` a render before
-  // the browser is reopened there, and in that render `onScreen` is still the
-  // folder being left: written to the address then, it put back the folder
-  // back had just left, so one press of back never moved the Finder. Only the
-  // folder on screen moving is a step of the page's own.
-  const lastOnScreen = useRef(path);
-  useEffect(() => {
-    if (!settled) {
-      return;
-    }
-    if (onScreen === path) {
-      lastOnScreen.current = onScreen;
-      arrived.current = false;
-      return;
-    }
-    if (lastOnScreen.current === onScreen) {
-      return;
-    }
-    // Written once the folder has settled: going into a folder in the columns
-    // clears the selection a render before the browser stands in the folder,
-    // and the folder above, on screen for that one render, is no step.
-    const timer = setTimeout(() => {
-      lastOnScreen.current = onScreen;
-      written.current = `${root}#${onScreen}`;
-      const replace = arrived.current;
-      arrived.current = false;
-      // Each folder walked to is a step of the tab's history, so back and
-      // forward (the bar's arrows, the thumb buttons, the chords) walk the
-      // folders the way the Finder's own do.
-      void navigate({
-        replace,
-        search: (previous) => ({
-          ...previous,
-          path: onScreen,
-          query: searchText || undefined,
-          root,
-          select: undefined,
-          view,
-        }),
-        to: "/files",
-      });
-    });
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [navigate, onScreen, path, root, searchText, settled, view]);
-
-  // The search and the selection are kept in the step on screen as they
-  // change, so back to it, after a file took the tab or a folder was walked
-  // into, finds the folder the way it was left. Only while the folder on
-  // screen is the step's: walking to a folder empties the search and the
-  // selection a render before the step moves, and that is no change to the
-  // step being left. A file open beside the folder has the selection, so
-  // only the search is kept there.
-  const parentOfSelected =
-    selectedPath === null
-      ? null
-      : selectedPath.slice(
-          0,
-          selectedPath.lastIndexOf("/", selectedPath.length - 2) + 1,
-        );
-  const stepSelect =
-    selectedPath !== null && parentOfSelected === path
-      ? selectedPath
-      : undefined;
-  useEffect(() => {
-    if (!settled || onScreen !== path) {
-      return;
-    }
-    const nextQuery = searchText || undefined;
-    const nextSelect = isBesideOpen ? select : stepSelect;
-    if (nextQuery === query && nextSelect === select) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      void navigate({
-        replace: true,
-        search: (previous) => ({
-          ...previous,
-          query: nextQuery,
-          ...(isBesideOpen ? {} : { select: nextSelect }),
-        }),
-        to: "/files",
-      });
-    });
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [
-    isBesideOpen,
-    navigate,
-    onScreen,
-    path,
-    query,
-    searchText,
-    select,
-    settled,
-    stepSelect,
-  ]);
-
   // Files dropped on the folder are copied into it: onto a folder's row, into
   // that folder; onto a file's row, into the folder that lists it; anywhere
   // else, into the folder the pointer is over (a column's own, in the
@@ -1553,22 +1405,24 @@ export function ComputerPage({
   const isActiveTab = useIsActiveTab();
   // Beside a file, the file has the keyboard: the folder takes it only for an
   // address opened in it, never as the tab comes up or the file opens.
-  const focusedOpening = useRef(isBesideOpen ? openings : null);
+  // An opening is the address moving on its own, or a new root.
+  const opening = `${root}#${arrivals}`;
+  const focusedOpening = useRef(isBesideOpen ? opening : null);
   useEffect(() => {
     if (!hasRows || !isActiveTab || isTypingTarget(document.activeElement)) {
       return;
     }
-    if (isBesideOpen && focusedOpening.current === openings) {
+    if (isBesideOpen && focusedOpening.current === opening) {
       return;
     }
-    focusedOpening.current = openings;
+    focusedOpening.current = opening;
     const row = browserRef.current?.querySelector<HTMLElement>(
       '[role="option"][tabindex="0"]',
     );
     row?.focus({ preventScroll: true });
     // Once per opening, when its rows are first there, or when its tab comes
     // up.
-  }, [openings, hasRows, isActiveTab, isBesideOpen]);
+  }, [opening, hasRows, isActiveTab, isBesideOpen]);
 
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
@@ -1721,16 +1575,6 @@ export function ComputerPage({
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBesideOpen, pickedKey]);
-  // The file beside moved on from somewhere other than the folder, a link
-  // in it or the page it is going to another file: picked here too when
-  // it is listed, so the folder and the file agree.
-  const isSelectListed = select !== undefined && itemsByPath.has(select);
-  useEffect(() => {
-    if (isBesideOpen && isSelectListed) {
-      setSelectedPath(select);
-      setSelectedPaths([select]);
-    }
-  }, [isBesideOpen, isSelectListed, select]);
 
   // A type with no viewer here goes to the app the computer would use, the way
   // a double-click in the system's file manager does: a disk image mounts and
@@ -1920,28 +1764,24 @@ export function ComputerPage({
   );
   const rootTo = (folder: string, prefix = "") => {
     setPlacesOpen(false);
-    void navigate({
-      search: { path: prefix, root: folder },
-      to: "/files",
+    go({
+      path: prefix,
+      root: folder,
+      type: "arrive",
+      view: arrivalViewOf(folder, prefix),
     });
   };
   // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac).
   const leaveRoot = () => {
-    const search = rootParentSearch(rootHostPath, view, {
+    const above = rootParentSearch(rootHostPath, {
       isDisk: places.data?.volumes.some(
         (volume) => volume.kind === "drive" && volume.path === rootHostPath,
       ),
     });
-    if (search) {
-      // A file open beside the folder stays open while it goes up.
-      void navigate({
-        search: (previous) => ({
-          ...search,
-          file: previous.file,
-          tree: previous.tree,
-        }),
-        to: "/files",
-      });
+    // A walk of the tab's own, so it keeps the layout on screen, and a file
+    // open beside the folder stays open while it goes up.
+    if (above) {
+      go({ ...above, type: "walk" });
     }
   };
 
@@ -2210,14 +2050,10 @@ export function ComputerPage({
   // as walking there does, and the tab's layout with it: a file open beside
   // a folder with no layout of its own is one just arrived from elsewhere.
   const besideTo = (folder: string) => {
-    void navigate({
-      search: (previous) => ({
-        ...previous,
-        path: "",
-        root: folder === "" ? RECENTS_ROOT : folder === homePath ? "~" : folder,
-        select: undefined,
-      }),
-      to: "/files",
+    go({
+      path: "",
+      root: folder === "" ? RECENTS_ROOT : folder === homePath ? "~" : folder,
+      type: "walk",
     });
   };
   const volumeNames = new Map(
@@ -2579,9 +2415,6 @@ export function ComputerPage({
                         ? (menuItem?.path ?? null)
                         : null
                   }
-                  defaultPath={path}
-                  defaultSearch={query}
-                  defaultSelectedPath={select}
                   // Every row here is a thing on this computer, and drags out of
                   // the window as one: to the desktop, a Finder window, another
                   // app. What lands there is the OS's copy; nothing here moves.
@@ -2596,7 +2429,9 @@ export function ComputerPage({
                   }
                   getHostPath={(item) => hostPathOfItem(item) || undefined}
                   items={titledItems}
-                  key={`${root}#${openings}`}
+                  // A new root is a new browser; a step under the same root
+                  // is handed to the one on screen.
+                  key={root}
                   listColumns={listColumns}
                   listColumnWidths={listColumnWidths}
                   loadChildren={async ({ path: prefix }) => {
@@ -2642,14 +2477,36 @@ export function ComputerPage({
                   }}
                   onListColumnsChange={setListColumns}
                   onListColumnWidthsChange={setListColumnWidths}
-                  onPathChange={setCurrent}
+                  path={path}
+                  onPathChange={(listed) => {
+                    setListedFrom((previous) =>
+                      previous.path === listed && previous.root === root
+                        ? previous
+                        : { path: listed, root },
+                    );
+                  }}
+                  onWalk={(to, selected) => {
+                    setSelectedPaths([]);
+                    go({
+                      path: to,
+                      select: selected ?? undefined,
+                      type: "walk",
+                    });
+                  }}
                   onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
                   onRenameCommit={rename}
                   canRenameItem={(item) => keptInPlace(item) === undefined}
-                  onSearchChange={setSearchText}
+                  search={query ?? ""}
+                  onSearchChange={(next) => {
+                    go({ query: next, type: "search" });
+                  }}
                   onSelectionChange={(item, all) => {
-                    setSelectedPath(item?.path ?? null);
                     setSelectedPaths(all.map((each) => each.path));
+                    go({
+                      path: item?.path ?? null,
+                      several: all.length > 1,
+                      type: "select",
+                    });
                   }}
                   onGroupChange={groupBy}
                   onShowHiddenFilesChange={setShowHiddenFiles}
@@ -2691,11 +2548,7 @@ export function ComputerPage({
                     });
                     // The step on screen takes the new layout rather than a
                     // new step being made for it, the way the Finder's does.
-                    void navigate({
-                      replace: true,
-                      search: (previous) => ({ ...previous, view: next }),
-                      to: "/files",
-                    });
+                    go({ type: "setLayout", view: next });
                   }}
                   pendingFolders={pendingFolders}
                   // Resting on a folder reads it ahead, so opening it in place
@@ -3344,13 +3197,41 @@ function combineListings(
 
 /**
  * Where up from the top of a tab's tree goes: the folder the root sits in,
- * with the root selected in it, in the layout on screen. Going up is a step
- * of the tab's own, as walking into a folder is, so it keeps the tab's
- * layout. Nothing is above a disk.
+ * with the root selected in it. Nothing is above a disk.
  */
+/**
+ * What a folder's layout and order are kept under: where it is on the
+ * computer, a root under `~` spelled out below the home folder, or the
+ * recents' own root for the recents.
+ */
+function folderViewKey(root: string, prefix: string, home: string | undefined) {
+  if (root === RECENTS_ROOT) {
+    return RECENTS_ROOT;
+  }
+  const rootHostPath =
+    root === "~" && home
+      ? home
+      : root.startsWith("~/") && home
+        ? joinHostPath(home, root.slice(2))
+        : root;
+  return joinHostPath(rootHostPath, prefix);
+}
+
+/**
+ * The layout a folder opens in when arrived at directly, read from what the
+ * window keeps: the folder's own, or the last one chosen anywhere.
+ */
+export function arrivalViewOf(root: string, prefix: string) {
+  const store = getDefaultStore();
+  const key = folderViewKey(root, prefix, window.api.homeDir);
+  return arrivalView(
+    store.get(computerFolderViewsAtom)[key]?.view,
+    store.get(computerViewAtom),
+  );
+}
+
 export function rootParentSearch(
   rootHostPath: string | undefined,
-  view: FileSystemView,
   /** Whether the root is the top of a disk, though a folder is above it: `/Volumes/Backup`. */
   { isDisk = false }: { isDisk?: boolean | undefined } = {},
 ) {
@@ -3360,13 +3241,12 @@ export function rootParentSearch(
   // Up from the top of a disk is the computer, every disk side by side.
   const above = parentFolderOf(rootHostPath);
   if (above === null || isDisk) {
-    return { path: "", root: COMPUTER_ROOT, view };
+    return { path: "", root: COMPUTER_ROOT };
   }
   return {
     path: "",
     root: above,
     select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
-    view,
   };
 }
 

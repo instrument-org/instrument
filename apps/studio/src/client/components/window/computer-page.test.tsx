@@ -40,34 +40,26 @@ it.each([
   },
 );
 
-// Up from the top of the tab's tree is a step of the tab's own, as walking
-// into a folder is, so the folder above opens in the layout on screen rather
-// than in its own or the last one chosen anywhere.
+// Up from the top of the tab's tree selects the root in the folder above.
+// It is a walk, which keeps the tab's layout (files-step.test.ts).
 it.each(["/Users/sam/Documents", "C:\\Users\\sam\\Documents"])(
-  "keeps the tab's layout going up from its root at %s",
+  "goes up from its root at %s with the root selected",
   (root) => {
-    expect(rootParentSearch(root, "list")).toMatchObject({
-      select: "Documents/",
-      view: "list",
-    });
+    expect(rootParentSearch(root)).toMatchObject({ select: "Documents/" });
   },
 );
 
 it.each(["/", "C:\\", "\\\\server\\share"])(
   "goes up from the top of the disk at %s to the computer",
   (root) => {
-    expect(rootParentSearch(root, "list")).toEqual({
-      path: "",
-      root: "computer:",
-      view: "list",
-    });
+    expect(rootParentSearch(root)).toEqual({ path: "", root: "computer:" });
   },
 );
 
 it("goes up from a disk mounted in a folder to the computer", () => {
-  expect(
-    rootParentSearch("/Volumes/Backup", "list", { isDisk: true }),
-  ).toMatchObject({ root: "computer:" });
+  expect(rootParentSearch("/Volumes/Backup", { isDisk: true })).toMatchObject({
+    root: "computer:",
+  });
 });
 
 // Without Full Disk Access the app cannot find what it moved to the Trash, so

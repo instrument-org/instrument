@@ -1,8 +1,24 @@
+import { arrivalViewOf } from "@/client/components/window/computer-page";
 import { FilesScreen } from "@/client/components/window/files-screen";
-import { createFileRoute } from "@tanstack/react-router";
+import { settleArrival } from "@/client/components/window/files-step";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 export const Route = createFileRoute("/_app/files")({
+  // An address with no layout is one arriving from outside the tab. It is
+  // settled here, once, into the step it stands for, so back to it shows it
+  // the way it was even after the folder's own layout or the last one chosen
+  // moves on.
+  beforeLoad: ({ search }) => {
+    if (search.view === undefined) {
+      // oxlint-disable-next-line typescript/only-throw-error
+      throw redirect({
+        replace: true,
+        search: settleArrival(search, arrivalViewOf),
+        to: "/files",
+      });
+    }
+  },
   component: ComputerRoute,
   validateSearch: z.object({
     /** A file open in a tab beside the folder, by where it is on the computer. */
@@ -37,9 +53,9 @@ export const Route = createFileRoute("/_app/files")({
      * The layout this step of the tab's history shows the folder in, so back
      * and forward show each folder the way it looked. Absent on an address
      * that arrives at a folder directly (a place, a new tab, a typed path),
-     * which opens in the folder's own layout and is then written here. A
-     * layout this build does not know, from an old bookmark or a typed
-     * address, reads as absent rather than failing the route.
+     * which `beforeLoad` settles. A layout this build does not know, from an
+     * old bookmark or a typed address, reads as absent rather than failing
+     * the route.
      */
     view: z
       .enum(["columns", "gallery", "icons", "list", "table"])
@@ -49,18 +65,6 @@ export const Route = createFileRoute("/_app/files")({
 });
 
 function ComputerRoute() {
-  const { file, path, query, root, select, source, tree, view } =
-    Route.useSearch();
-  return (
-    <FilesScreen
-      file={file}
-      path={path}
-      query={query}
-      root={root}
-      select={select}
-      source={source ?? false}
-      tree={tree}
-      view={view}
-    />
-  );
+  // Settled already by `beforeLoad`; read again so the step is typed as one.
+  return <FilesScreen step={settleArrival(Route.useSearch(), arrivalViewOf)} />;
 }

@@ -551,6 +551,53 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       expect(reachOf(task.rules, app, "write").level).not.toBe("allow");
     });
 
+    // What every chat remembers is the chat's to keep, so a task reads the
+    // memories and changes none, granted their folder or not.
+    it.runIf(shape.workspace !== undefined).each([false, true])(
+      "leaves the memories to the chat to change (their folder granted: %s)",
+      (granted) => {
+        const folder = path.join(paths.workspace, MEMORY_FOLDER_NAME);
+        const memory = path.join(folder, "no-stevia.md");
+        const grants = granted ? [folder] : [];
+        const task = layoutUnder(paths, {
+          ...person,
+          apps: false,
+          grants,
+          opened: grants,
+        });
+        expect(reachOf(task.rules, memory, "read").level).toBe("allow");
+        expect(reachOf(task.rules, memory, "write").level).not.toBe("allow");
+      },
+    );
+
+    // Held by the sandbox too, before the first memory makes the folder.
+    it
+      .runIf(
+        shape.workspace !== undefined &&
+          (seatbeltAvailable() || bwrapAvailable()),
+      )
+      .each([
+        ["changes the workspace's top level", "echo x > report.md", 0],
+        [
+          "changes no memory",
+          `mkdir -p ${MEMORY_FOLDER_NAME} && echo x > ${MEMORY_FOLDER_NAME}/new.md`,
+          1,
+        ],
+      ])("a task's native command %s", async (_name, script, exitCode) => {
+      const task = layoutUnder(paths, { ...person, apps: false });
+      const spawned = wrapNativeCommand(
+        "/bin/sh",
+        ["-c", script],
+        nativeReachFor(task.rules, task),
+      );
+      const result = await execa(
+        spawned.file,
+        launchNative(spawned, { env: {} }).args,
+        { cwd: paths.workspace, reject: false },
+      );
+      expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+    });
+
     it.each(reachTable(paths).filter(([, , , level]) => level === "never"))(
       "refuses %s plainly, naming nothing to ask for",
       (_name, op, hostPath) => {

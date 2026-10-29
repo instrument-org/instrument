@@ -60,7 +60,9 @@ afterEach(async () => {
 /** The agent's own filesystem, the one its shell and file tools write through. */
 async function agentFs({ folders }: { folders?: string[] } = {}) {
   const files = await toolFs(
+    // The chat's, which keeps the memories.
     buildWorkspaceFsLayout({
+      apps: true,
       chatHostRoot: WorkDirSchema.parse(path.join(rootDir, "work")),
       ...(folders && {
         folders: Object.fromEntries(

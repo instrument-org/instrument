@@ -16,6 +16,14 @@ To S3, not to the GitHub release. The publish job syncs the installers and the e
 
 A release therefore carries zero attached assets. That is the normal shape, not an upload that failed.
 
+### Windows: Velopack
+
+Windows installs and updates through [Velopack](https://github.com/velopack/velopack), not electron-builder's NSIS installer. The Windows leg still runs electron-builder, which signs the app and leaves it unpacked in `win-unpacked/`, and then [`velopack-pack.ts`](../../apps/studio/scripts/velopack-pack.ts) packs that folder with `vpk`, once per channel the version is released on (a stable release on `latest`, `beta` and `alpha`; a beta on `beta` and `alpha`; an alpha on `alpha`, as electron-builder's update files are). For each channel it first downloads that channel's previous release from the feed, so the package comes with a delta from it, then writes the full package, the delta, the channel's `Instrument-<channel>-Setup.exe`, and `releases.<channel>.json`. `vpk` signs every executable in the package that is not signed already, Velopack's own `Update.exe` and launcher included, through the same cloud HSM (`--signTemplate` running [`win-sign-file.js`](../../apps/studio/electron-builder/win-sign-file.js)), and the leg's signature check covers the Setups too. `vpk` is the version of the `velopack` package the app loads, which the workflow reads from `apps/studio/package.json`, since the `Update.exe` a package carries is `vpk`'s and has to speak the SDK's protocol. The packages carry the app's `APP_BUNDLE_ID` as their shortcuts' AppUserModelID, which the app sets for itself and Windows matches toasts by.
+
+The leg uploads them under `velopack/`, and the publish job syncs that folder to the bucket's `velopack/` with the rest, holding `releases.*.json` back with the `.yml` manifests until everything they name is there. `releases.<channel>.json` lists the releases in the folder the leg packed: the channel's previous release and this one. An app further behind finds no delta from its version and downloads the full package.
+
+The NSIS installer and `latest.yml` are still built and published, for the move: an install made before Velopack updates through electron-updater to the newest NSIS build, and that build, finding itself installed by NSIS, moves to the Velopack install (`update-bridge.ts`, [auto-updater.md](auto-updater.md#windows-velopack)). Both keep the app's data under its product name in AppData, so nothing moves with it. The NSIS half can stop once no install older than the first Velopack release is left to update.
+
 ## The draft, and why the build is already live
 
 That sync is the release. Once the manifests land, every running app can see the new version and will offer it.

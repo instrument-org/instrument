@@ -1,6 +1,6 @@
 # Killing a degenerate stream loop
 
-**Status:** proposed, 2026-09-07. Nothing built (checked 2026-10-02). The detector below is calibrated against 289 real eval sessions and the separation is decisive. The response policy is settled: kill the turn, record a real error, and let the orchestrator above the task recover — no in-place resample.
+**Status:** half built. The detector (change 1 under [The gap that makes the recovery work](#the-gap-that-makes-the-recovery-work)) is not built. Change 2 landed on its own (`10dfecaab`): a task whose turn ended in a failure wakes the chat with `status: "error"` and a line saying how it ended, so a detector's kill would reach the chat as an error rather than a success. The detector below is calibrated against 289 real eval sessions and the separation is decisive. The response policy is settled: kill the turn, record a real error, and let the orchestrator above the task recover — no in-place resample.
 
 ## What actually happens
 

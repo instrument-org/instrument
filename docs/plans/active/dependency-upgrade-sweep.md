@@ -1,6 +1,6 @@
 # Dependency sweep: what upstream has fixed for us
 
-Status: second pass landed. Electron is on 44.4.5 with the Node pins (repo, Studio, and the skills repo behind `registry/`) moved to its bundled 24.21.0, which retired the blocker below. The same pass took electron-builder 26.17.0 (dropping our app-builder-lib patch), Radix to current patches, Tailwind's Vite plugin to 4.3.3, hono 4.13, the AI SDK 7.0.116 line, pnpm 11.28, Zod 4.6, TanStack Query 5.104 and Router 1.170.39, better-auth 1.7.6, and overrides for dompurify and defu. A later pass took TypeScript 7.0 (the editor reaches it through the TypeScript 7 extension) and dugite 3.2.3, whose git is 2.53.0. Still open: execa 10 (an untouched API migration) and the `brace-expansion` override. Version claims go stale fast, so re-check anything here before acting on it.
+Status: two passes landed; execa 10 (an untouched API migration) and the `brace-expansion` override are still open. The second pass moved Electron to 44 with the Node pins (repo, Studio, and the skills repo behind `registry/`) on its bundled Node, which retired the blocker below, and took electron-builder (dropping our app-builder-lib patch), Radix to current patches, Tailwind's Vite plugin, hono 4.13, the AI SDK 7 line, pnpm 11.28, Zod 4.6, TanStack Query and Router, better-auth 1.7, and overrides for dompurify and defu. A later pass took TypeScript 7.0 and dugite 3.2 and later 3.3; just-bash is on 3.6. Patch releases have moved every one of these since (Electron 44.9.3, Node `>=24.22.0` at HEAD), so re-check any version here before acting on it.
 
 This is a read of the dependency tree against what we have actually been churning on: the auto-updater, the Windows launch path, the file watcher, the agent browser, the bash sandbox, and the chat transcript. It ranks by "does upstream already fix a bug we paid for", not by how far behind a version number is.
 
@@ -216,10 +216,10 @@ Two things to know about the test run: the workspace suite failed twice under `t
 
 ## What is left
 
-1. **electron**, once the Node pin moves in this repo and the skills repo together.
+1. ~~**electron**~~: done, as 44 with the Node pins moved together.
 2. ~~**The AI SDK**~~: done, as the v7 migration (`241d44b06`) rather than the v6 patch bump.
 3. **The sandbox-reachable `brace-expansion` DoS**, which needs an `overrides` entry plus a `pnpm dedupe` rather than a direct bump, and was left out of the security batch to keep that lockfile diff attributable.
-4. **just-bash 3.2.0, execa 10, dugite 3.2.2**: API migrations wearing version bumps, each worth its own review.
+4. **execa 10**: an API migration wearing a version bump, worth its own review. just-bash (3.6) and dugite (3.3) are done.
 5. Everything in "decide rather than drift" gets a plan doc, not a commit.
 
 Validation for anything that touches the agent loop, the sandbox, or a tool surface follows [validate-changes](../../../.agents/skills/validate-changes/SKILL.md): unit tests do not show whether a model still finds the affordance. Nothing landed here has been through an eval run or a launched app.

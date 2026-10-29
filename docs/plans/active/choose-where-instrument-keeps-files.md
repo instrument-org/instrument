@@ -1,6 +1,6 @@
 # Plan: the user chooses where Instrument keeps files
 
-Status: agreed, the step not started. Tracked in Linear FP-1351. The unchosen location has moved to `~/Instrument` ahead of the step, so the prompt below is out of the way of a first launch; an install that already made `~/Documents/Instrument` keeps using it.
+Status: the step is built, as setup's first step (`9246172a7`, with the Welcome page before it from `b92123c54`). It differs from "What ships" in one way: rather than opening the system panel at once, it suggests a new folder in Documents, made only on Continue (which is when macOS asks), and Change picks another place the way Settings › Storage does. Still owed: the last row of the table under [When the folder is not there, or cannot be read](#when-the-folder-is-not-there-or-cannot-be-read). Tracked in Linear FP-1351.
 
 Instrument keeps what it makes in one folder every chat reaches, mounted as `Instrument`. That folder was `~/Documents/Instrument`, created without asking. On a fresh macOS install the first touch raised the system's "access files in your Documents folder" prompt, and since the app window loads behind onboarding, that prompt landed on the first onboarding screen before anything had said why. The folder-icon step then waited behind the prompt and timed out after 5 seconds. A preview build (Actions › Preview Build) showed all of this, because its first launch is a real one. The home folder is guarded by nothing, which is why the unchosen location is there now; what is still to build is the person choosing it.
 
@@ -47,10 +47,10 @@ The location is a folder on someone's disk, so every way a folder goes wrong is 
 | The folder was made by a newer build | The same window, offering to update, which runs the updater with no workspace open | yes |
 | A folder inside it is gone (`Chats/`, `Drafts/`, `Topics/`, ...) | A notice in the bell naming which, saying nothing is lost, and the list says the folder is gone rather than offering to start a chat | yes |
 | The folder was moved by hand and the person points the app at it again | It is recognized as the same workspace and keeps its rules, topics and drafts; the window's tabs and the recent files do not follow | partly |
-| The person declines the panel, or picks a folder that cannot be written | The fallback, `~/Instrument`, decided by a failed write rather than by a check up front | no |
+| The person refuses Documents, or picks a folder that cannot be written | Documents refused (or missing) falls back to `~/Instrument` with a note, decided by a failed write rather than by a check up front; any other folder that cannot be written is refused at Continue | yes |
 | A write fails later (the disk filled, the volume was unplugged, the folder went read-only) | Nothing of its own: the failure surfaces wherever it happened | no |
 
-The last two are what this plan still owes. The last one matters most for a folder on a network or external volume, which is exactly the kind of folder someone picks on purpose.
+The last one is what this plan still owes. It matters most for a folder on a network or external volume, which is exactly the kind of folder someone picks on purpose.
 
 ## Changing the location later
 

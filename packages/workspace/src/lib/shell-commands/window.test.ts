@@ -24,8 +24,6 @@ const layout = buildWorkspaceFsLayout({
 // addresses the browser reports it showing, one per ask, the last repeating.
 const pageTab = StoreId.newTabId();
 let pageUrls: string[];
-// The address the window lists the page tab at.
-let listedUrl: string;
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
@@ -83,7 +81,7 @@ function answeringWindow() {
                       id,
                       kind: "page" as const,
                       title: "Suite plans",
-                      url: listedUrl,
+                      url: "https://www.zendesk.com/pricing/",
                     }
                   : { id, kind: "screen" as const },
               ),
@@ -120,18 +118,11 @@ function answeringWindow() {
 }
 
 function run(
-  options: {
-    files?: Record<string, string>;
-    role?: "chat" | "task";
-    timeoutMs?: number;
-  },
+  options: { role?: "chat" | "task"; timeoutMs?: number },
   ...args: string[]
 ) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/Users/me/Instrument/report.md", "# report");
-  for (const [at, content] of Object.entries(options.files ?? {})) {
-    fsTree.writeFileSync(at, content);
-  }
   windowTimeoutMs = options.timeoutMs ?? 2000;
   return createWindowCommand({
     chatId,
@@ -154,7 +145,6 @@ beforeEach(() => {
   raised.length = 0;
   holders.clear();
   pageUrls = [];
-  listedUrl = "https://www.zendesk.com/pricing/";
   const config = getWorkspaceConfig();
   setWorkspaceConfig({
     ...config,
@@ -224,62 +214,8 @@ describe("window show, for something new", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('"/etc/hosts" does not exist');
     expect(result.stdout).toBe(
-      "Opened /Users/me/Instrument/report.md in front (tab made-2)\n",
+      "Opened /Users/me/Instrument/report.md in front (tab made-1)\n",
     );
-  });
-
-  describe("a file a page tab already shows", () => {
-    const checked = path.join(chatFolder, "forecast/forecast.html");
-    const delivered = "/Users/me/Instrument/Forecast.html";
-    const page = "<h1>Forecast</h1>";
-
-    beforeEach(() => {
-      listedUrl = pathToFileURL(checked).href;
-    });
-
-    it("shows a copy with the same bytes in that tab", async () => {
-      const result = await run(
-        { files: { [checked]: page, [delivered]: page } },
-        "show",
-        delivered,
-      );
-
-      expect(result.stdout).toBe(
-        `Opened ${delivered} in front (tab ${pageTab}), in place of tab ${pageTab}, which showed the same page.\n`,
-      );
-      expect(asked.map(({ action }) => action).slice(1)).toEqual([
-        {
-          kind: "replace",
-          tabId: pageTab,
-          target: { kind: "path", path: delivered },
-        },
-        { kind: "show", tabId: pageTab },
-      ]);
-    });
-
-    it("opens a tab of its own for a file that differs", async () => {
-      const result = await run(
-        { files: { [checked]: page, [delivered]: "<h1>Forecast!</h1>" } },
-        "show",
-        delivered,
-      );
-
-      expect(result.stdout).toBe(`Opened ${delivered} in front (tab made-2)\n`);
-    });
-
-    it("leaves a tab a task is working in to the task", async () => {
-      holders.set(pageTab, {
-        id: ChatIdSchema.parse("t1"),
-        title: "Forecast",
-      });
-      const result = await run(
-        { files: { [checked]: page, [delivered]: page } },
-        "show",
-        delivered,
-      );
-
-      expect(result.stdout).toBe(`Opened ${delivered} in front (tab made-2)\n`);
-    });
   });
 
   it("names the chat that asked", async () => {

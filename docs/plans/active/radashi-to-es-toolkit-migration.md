@@ -1,6 +1,6 @@
 # Plan: radashi → es-toolkit migration (Instrument monorepo)
 
-**Status:** planned, not started (checked 2026-10-02: radashi is imported in 121 files, es-toolkit in none). Land it late in a quiet stretch to avoid a stale/conflict-heavy diff.
+**Status:** planned, not started (checked 2026-10-29: radashi is imported in 148 files, es-toolkit in none). Land it late in a quiet stretch to avoid a stale/conflict-heavy diff.
 
 ---
 

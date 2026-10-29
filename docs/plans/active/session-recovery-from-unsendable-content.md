@@ -1,6 +1,6 @@
 # Recovering a session whose history the provider will not accept
 
-Status: **in progress** (checked 2026-10-02). Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not: an `unsendable-content` refusal still ends the task, now with a named error ("Content the model refused", `describe-message-error.ts`) that tells the user to start a new task. Phases 2 and 3 are unblocked: "Relationship to context compaction" ends with the two plans proceeding independently.
+Status: **in progress** (checked 2026-10-29: `get-error-action.ts` still stops on `unsendable-content`). Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not: an `unsendable-content` refusal still ends the task, now with a named error ("Content the model refused", `describe-message-error.ts`) that tells the user to start a new task. Phases 2 and 3 are unblocked: "Relationship to context compaction" ends with the two plans proceeding independently.
 
 ## Problem
 

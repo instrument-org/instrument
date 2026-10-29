@@ -1,6 +1,6 @@
 # One shortcut table: in-app menu bar and a shortcut guide
 
-Status: **phases 1-3 landed, phase 4 not started** (checked 2026-10-02; the table, binder, and guide carried over into the 2.0 app window). Owner: TBD. The table is [shared/shortcuts.ts](../../../apps/studio/src/shared/shortcuts.ts), the native menu is a projection over it, and the shortcut guide reads the same descriptors. What remains is the in-app menu bar for Windows/Linux.
+Status: **phases 1-3 landed, phase 4 not started** (checked 2026-10-29: `components/ui/menubar.tsx` is used only by the dev panel; the table, binder, and guide carried over into the 2.0 app window). Owner: TBD. The table is [shared/shortcuts.ts](../../../apps/studio/src/shared/shortcuts.ts), the native menu is a projection over it, and the shortcut guide reads the same descriptors. What remains is the in-app menu bar for Windows/Linux.
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # Letting a task look at what it made
 
-**Status:** proposed, 2026-09-07. Nothing built (checked 2026-10-02). Since it was written, a task's `show` command was removed (`90418ed30`; the conversation's `tab` command is how a file reaches the screen) and a task no longer has an `output/` folder (`c3c8df767`), so the examples below use `work/`. Written up because the measurement that motivates it is unusually clean and will go stale otherwise.
+**Status:** proposed, 2026-09-07. Nothing built (checked 2026-10-29: no `render` command, and `read_file` returns no preview for an SVG). Since it was written, a task's `show` command was removed (`90418ed30`; the conversation's `tab` command is how a file reaches the screen) and a task no longer has an `output/` folder (`c3c8df767`), so the examples below use `work/`. Written up because the measurement that motivates it is unusually clean and will go stale otherwise.
 
 ## Why
 

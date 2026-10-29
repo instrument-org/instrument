@@ -1,6 +1,6 @@
 # Plan: virtualize the transcript
 
-Status: proposed. Phase 0 (tail-first rendering) has landed (`5c745cfd0`); phases 1 through 3 are not started (checked 2026-10-02: no long-chat fixture, no placeholders).
+Status: proposed. Phase 0 (tail-first rendering) has landed (`5c745cfd0`); phases 1 through 3 are not started (checked 2026-10-29: no long-chat fixture, no placeholders).
 
 ## Why
 

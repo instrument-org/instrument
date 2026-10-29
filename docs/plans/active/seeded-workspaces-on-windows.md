@@ -1,6 +1,6 @@
 # Plan: seeded workspaces on the Windows test host
 
-Status: the helper side has landed; enrolling and verifying a host has not (no repo evidence of either as of 2026-10-02). `windows-studio-host.mjs` grew a `dev-seeded` target and a `seed` command, and the skill documents both. What remains is machine state and evidence: add the `devSeeded` block to a host profile, create the seeded scheduled task, and run steps 1 and 5 there. Nothing in the repo is waiting on that.
+Status: the helper side has landed; enrolling and verifying a host has not (no repo evidence of either, checked 2026-10-29). `windows-studio-host.mjs` grew a `dev-seeded` target and a `seed` command, and the skill documents both. What remains is machine state and evidence: add the `devSeeded` block to a host profile, create the seeded scheduled task, and run steps 1 and 5 there. Nothing in the repo is waiting on that.
 
 Owner: whoever owns `.agents/skills/test-studio-on-windows/`. The seeder side is done and needs nothing from this work.
 
@@ -55,7 +55,7 @@ The helper refuses a `userDataDir` that is relative or inside the checkout, befo
 
 ### 3. The seeded scheduled task
 
-Landed as the second option: a `dev-seeded` target with its own task, CDP port and user data directory, whose action already sets `ELECTRON_USER_DATA_DIR` and `SKIP_ONBOARDING=true`. Nothing is rewritten at run time, a plain `start --target dev` is untouched, and `status` reports each task's real action. `start` validates both variables against the profile before it starts anything.
+Landed as the second option: a `dev-seeded` target with its own task, CDP port and user data directory, whose action already sets `ELECTRON_USER_DATA_DIR`, `SKIP_ONBOARDING=true` and `INSTRUMENT_WORKSPACE` (the `workspace` folder inside that directory). Nothing is rewritten at run time, a plain `start --target dev` is untouched, and `status` reports each task's real action. `start` validates all three against the profile before it starts anything.
 
 Two consequences worth knowing:
 

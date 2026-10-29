@@ -1,6 +1,6 @@
 # Testing the Instrument folder
 
-Status: under way. The migration rehearsal is built and has run on this machine's two real workspaces; the Windows pass is part-way. Written 2026-10-16, after F1 landed and F3 and F4 began.
+Status: under way. Section 1 (the migration rehearsal) is built and passes. Section 2 passes all eight steps on Windows; Linux has the migration and renames checked and waits on credentials for live turns; the Mac pass is not recorded. Section 3 (two computers) is not started. Section 4's eval cases were updated for the chat's own folder (`1d61e95f7`, `10cf632fa`); no run is recorded here. Written 2026-10-16, after F1 landed and F3 and F4 began.
 
 What changed is where a person's data lives and what moves it there. The unit tests cover the pieces; they cannot cover a real install's data, a second computer, or an agent actually using a folder. This is what to do before any of it reaches a build.
 

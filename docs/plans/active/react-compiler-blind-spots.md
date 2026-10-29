@@ -1,6 +1,6 @@
 # Plan: the code React Compiler never sees
 
-Status: proposal, not started (checked 2026-10-02: the lowercase markdown overrides and the four `Date`-carrying memos are unchanged). The audit below predates 2.0: `NavTaskItem` and `tasks-data-table/columns.tsx` went with the 1.x window, `markdownCode` no longer exists, and 2.0 added `memo` on `MarkdownBlock`, `ListedChat` (`window/chat-list.tsx`), and `FileSystemColumn`, none re-audited. Owner: TBD. Written after two frozen-clock bugs traced to the same root: a value read during render that the compiler cached and never recomputed.
+Status: proposal, mostly not started (checked 2026-10-29). Of A, `MarkdownPre` and `MarkdownImage` (the lifted `img`) are capitalized now, by unrelated changes (`aed8faa8e`, `0c02b2b86`); `markdownDetails`, `markdownOrderedList` and `markdownParagraph` are still lowercase. C is unchanged: `ReasoningMessage` still takes `Date` props. The audit below predates 2.0: `NavTaskItem` and `tasks-data-table/columns.tsx` went with the 1.x window, `markdownCode` no longer exists, and 2.0 added `memo` on `MarkdownBlock`, `ListedChat` (`window/chat-list.tsx`), `FileSystemColumn`, and `BubbleBoxItem`, `RecordRowView` and `BubbleRowView` (`chat-bubbles.tsx`), none re-audited. Owner: TBD. Written after two frozen-clock bugs traced to the same root: a value read during render that the compiler cached and never recomputed.
 
 ## Problem
 

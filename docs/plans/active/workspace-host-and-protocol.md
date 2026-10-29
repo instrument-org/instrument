@@ -1,6 +1,6 @@
 # The workspace as a host every client attaches to
 
-Status: **proposed, nothing built.** The research and the direction are below. The desktop process split this depends on, a utility child per workspace, is [moving the agent turn off the main thread](agent-turn-off-the-main-thread.md), which owns the transport, the handshake, crash handling and quit. This plan owns everything a client sees across that boundary: the protocol, the command line, several workspaces at once, and a host that runs somewhere other than this computer.
+Status: **proposed, nothing built** (checked 2026-10-29: no host process, no protocol router, no command line). The research and the direction are below. The desktop process split this depends on, a utility child per workspace, is [moving the agent turn off the main thread](agent-turn-off-the-main-thread.md), which owns the transport, the handshake, crash handling and quit. This plan owns everything a client sees across that boundary: the protocol, the command line, several workspaces at once, and a host that runs somewhere other than this computer.
 
 ## Goals
 

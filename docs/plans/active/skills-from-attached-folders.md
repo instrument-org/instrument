@@ -1,6 +1,6 @@
 # Skills from attached folders
 
-Status: proposed, not started (checked 2026-10-02: `getSkillSources` reads no attached folders). Step 3 of [skills mount instead of copy](../completed/skills-mount-instead-of-copy.md), which it waited on, has landed: a skill is read where it is. A folder the person attaches is reached at its own path ([the decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md)), so read the plan's `/mnt` mount paths as that path.
+Status: proposed, not started (checked 2026-10-29: `getSkillSources` reads no attached folders). Step 3 of [skills mount instead of copy](../completed/skills-mount-instead-of-copy.md), which it waited on, has landed: a skill is read where it is. A folder the person attaches is reached at its own path ([the decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md)), so read the plan's `/mnt` mount paths as that path.
 
 ## Problem
 

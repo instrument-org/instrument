@@ -1,6 +1,6 @@
 # Windows sandbox: MXC behind `wrapNativeCommand`
 
-Status: **active.** Phase 1 is built: the canary and an MXC backend, verified on the test PC (below). Phase 2 is built but for the bake-off runner: MXC holds native commands by default wherever the launcher ships and the canary passes, `INSTRUMENT_MXC=0` turns it off, and the Settings notice shows only where it does not hold; what a chat's programs need under the container (Node's package.json look, the `tools` channel, the folders under `AppData` programs keep, `uvx`) is done and verified on the PC; the ssh-agent is measured and left open. Phase 3 is not started. [windows-sandbox.md](../../architecture/windows-sandbox.md) is the evergreen description and changes only as each phase lands.
+Status: **active.** Phase 1 is built: the canary and an MXC backend, verified on the test PC (below). Phase 2 is built but for the bake-off runner: MXC holds native commands by default wherever the launcher ships and the canary passes, `INSTRUMENT_MXC=0` turns it off, and the Settings notice, with a critical bell notice since `970871632`, shows only where it does not hold; what a chat's programs need under the container (Node's package.json look, the `tools` channel, the folders under `AppData` programs keep, `uvx`) is done and verified on the PC; the ssh-agent is measured and left open. Phase 3 is not started. [windows-sandbox.md](../../architecture/windows-sandbox.md) is the evergreen description and changes only as each phase lands.
 
 ## Problem
 

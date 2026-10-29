@@ -1,6 +1,6 @@
 # Plan: notices behind a bell in the window bar
 
-Status: proposed, not started. The bell is the chosen direction; nothing is built.
+Status: the bell is built (`NotificationsBell` in `WindowCorner`): problem reports (`4f94e0d72`), notices from the API (`1f62dc2af`), an update's result, a sandbox that is off, a signed-out account, chats left behind on an old database and a workspace that started over. Not built: the row for chats that can't be opened, chats that finished while the inbox is off screen, providers that stopped working and apps that lost their connection; the dev-only `ServerExceptionsIndicator` is still separate.
 
 Things the app needs a person to know about turn up in places nobody checks. Chats whose folders cannot be read are listed in Settings > Storage (FP-1333) and vanish from Chat without a word. Error reporting's default, "Prompt me" (FP-1322), needs somewhere to ask. This plan gives them one place: a bell in the window bar's right corner, with a count and a short list.
 

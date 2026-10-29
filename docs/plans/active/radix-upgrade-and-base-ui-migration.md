@@ -1,6 +1,6 @@
 # Radix upgrade, and whether to move to Base UI
 
-Status: proposal, not started (checked 2026-10-02: still on the August 2025 Radix versions, no Base UI). Phase 0 stands alone and is worth doing on its own. Phases 1+ are optional and should only start when `components/ui/` is otherwise quiet, because every step rewrites shared wrappers that large UI work touches.
+Status: phase 0 landed (`fa27ad0e2` took the July 2026 Radix releases, `894c2cdd6` the 2026-10-05 ones); phases 1 to 4 not started, no Base UI (checked 2026-10-29). Phases 1+ are optional and should only start when `components/ui/` is otherwise quiet, because every step rewrites shared wrappers that large UI work touches.
 
 ## The question
 

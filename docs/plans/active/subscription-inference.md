@@ -1,6 +1,6 @@
 # Inference through the user's Claude and ChatGPT subscriptions
 
-Status: **ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37). Claude route spiked: works end to end on macOS, not yet shipped** (checked 2026-10-07). Policy snapshot verified 2026-10-07 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before shipping.
+Status: **ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37). Claude route built too (`claude-account`, offered beside ChatGPT with no flag; every release since v2.0.0-beta.55 carries it); the open questions below are still open** (checked 2026-10-29). Policy snapshot verified 2026-10-07 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before shipping.
 
 ## Goal
 

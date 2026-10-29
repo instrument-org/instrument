@@ -55,7 +55,7 @@ export interface CdpMethodRule {
 }
 
 /** The agent-browser release whose commands this table was read from. */
-export const CDP_METHODS_READ_FROM = "0.39.1";
+export const CDP_METHODS_READ_FROM = "0.39.4";
 
 const TARGET_TREE =
   "the guest's debugger would answer with every Electron target (the app window, DevTools), so the bridge answers with the tabs the task holds";

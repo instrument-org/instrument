@@ -62,7 +62,7 @@
     "@orpc/server": "catalog:",
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.18.0",
-    "agent-browser": "^0.39.1",
+    "agent-browser": "^0.39.4",
     "ai": "catalog:",
     "date-fns": "^4.1.0",
     "db0": "^0.3.1",

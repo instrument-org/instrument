@@ -166,7 +166,7 @@ describe("endOfTurnNote", () => {
       These links in your reply open nothing:
       - \`squares.csv\`: no file there
       - \`instrument://memory/no-stevia\`: no memory by that name
-      Find where each really is, then send one short follow-up with links that open (a files fence with full paths for files). Say plainly of anything that was not made that it was not. The user already has the rest of your reply, so say only that.
+      Find where each really is, then send one short follow-up of a sentence or two with links that open (a files fence with full paths for files). Say plainly of anything that was not made that it was not. The user already has the rest of your reply, so repeat none of it.
       </instrument-system-note>"
     `);
   });

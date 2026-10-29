@@ -37,7 +37,7 @@ async function linksThatOpenNothing({
   const ask =
     role === "task"
       ? "Find where each really is, then write your reply again whole with links that open, since it is what the chat receives. Say plainly of anything that was not made that it was not."
-      : "Find where each really is, then send one short follow-up with links that open (a files fence with full paths for files). Say plainly of anything that was not made that it was not. The user already has the rest of your reply, so say only that.";
+      : "Find where each really is, then send one short follow-up of a sentence or two with links that open (a files fence with full paths for files). Say plainly of anything that was not made that it was not. The user already has the rest of your reply, so repeat none of it.";
   return `These links in your reply open nothing:\n${listed}\n${ask}`;
 }
 

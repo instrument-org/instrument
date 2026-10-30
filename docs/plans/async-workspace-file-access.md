@@ -1,6 +1,6 @@
 # Async access to the synced workspace folder
 
-Status: open. Steps 1 and 2 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, and "workspace: read other devices' synced store files off the main thread" the synced store. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Steps 3 to 6 are open.
+Status: open. Steps 1 to 3 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, and "workspace: read app files off the main thread and only once they change" `listApps`. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Steps 4 to 6 are open.
 
 ## Problem
 

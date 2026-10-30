@@ -8,6 +8,7 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { readOwnFile, writeOwnFile } from "../own-file";
 import { shellPath } from "../shell-path";
+import { CachedReads } from "../workspace-files";
 import { macAppNamed } from "../mac-apps/apps";
 import { APP_COMMAND } from "../shell-commands/app-command";
 import { macAppGuide } from "./mac-app-guide";
@@ -88,8 +89,8 @@ export async function listApps(appsDir: AbsolutePath): Promise<{
 /**
  * One app by its id, found by reading the apps folder: its name is its
  * folder's, which the person may rename at any time, so nothing but the `id`
- * in its `APP.md` says which app a folder holds. A handful of small files, so
- * no cache stands between the folder and the answer.
+ * in its `APP.md` says which app a folder holds. The folder is listed on
+ * every look, and a file is read again once it changes.
  */
 export async function loadApp(
   appsDir: AbsolutePath,
@@ -341,6 +342,15 @@ async function appFolderNames(appsDir: string): Promise<string[]> {
  */
 const NO_APP_FILE = new Set(["EISDIR", "ELOOP", "ENOENT", "ENOTDIR"]);
 
+function isNoAppFile(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    NO_APP_FILE.has(error.code)
+  );
+}
+
 /**
  * An app's file as text, read as the app itself rather than through the
  * sandbox: a program the agent runs can put a link at any name in here, and
@@ -354,13 +364,37 @@ function readAppFileText(appsDir: string, folder: string): string | undefined {
       folder: appsDir,
     }).toString("utf8");
   } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string" &&
-      NO_APP_FILE.has(error.code)
-    ) {
+    if (isNoAppFile(error)) {
       return undefined;
+    }
+    throw error;
+  }
+}
+
+/**
+ * What each app's file says, kept until the file's size or modification time
+ * changes: the chat list reads every app on each refresh, and the files
+ * rarely change.
+ */
+const appFiles = new CachedReads(parseAppFile);
+
+/**
+ * What an app's file says, read as {@link readAppFileText} reads it, off the
+ * main thread and waiting for a file a sync service keeps by name only, since
+ * nothing else downloads it. `none` where the folder has no such file; throws
+ * for one it could not read.
+ */
+async function readAppFile(
+  appsDir: string,
+  folder: string,
+): Promise<AppFileRead> {
+  try {
+    return await appFiles.read(path.join(appsDir, folder, APP_FILE_NAME), {
+      ownFolder: appsDir,
+    });
+  } catch (error) {
+    if (isNoAppFile(error)) {
+      return parseAppFile("");
     }
     throw error;
   }
@@ -376,22 +410,21 @@ async function readAppFolders(appsDir: AbsolutePath): Promise<
     read: AppFileRead | { kind: "unreadable"; message: string };
   }[]
 > {
-  return (await appFolderNames(appsDir)).map((folder) => {
-    try {
-      return {
-        folder,
-        read: parseAppFile(readAppFileText(appsDir, folder) ?? ""),
-      };
-    } catch (error) {
-      return {
-        folder,
-        read: {
-          kind: "unreadable" as const,
-          message: `${APP_FILE_NAME} could not be read: ${String(error)}`,
-        },
-      };
-    }
-  });
+  return Promise.all(
+    (await appFolderNames(appsDir)).map(async (folder) => {
+      try {
+        return { folder, read: await readAppFile(appsDir, folder) };
+      } catch (error) {
+        return {
+          folder,
+          read: {
+            kind: "unreadable" as const,
+            message: `${APP_FILE_NAME} could not be read: ${String(error)}`,
+          },
+        };
+      }
+    }),
+  );
 }
 
 function appInfoOf(

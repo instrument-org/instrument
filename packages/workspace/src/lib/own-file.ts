@@ -11,6 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import fsPromises from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -120,6 +121,34 @@ export function readOwnFile({
   } finally {
     closeSync(fd);
   }
+}
+
+/**
+ * A file opened to read as {@link openOwnFile} opens it, through
+ * `fs.promises` so a file a sync service keeps by name only downloads off
+ * the main thread. Refuses one that is not a file.
+ */
+export async function openOwnFileToRead({
+  file,
+  folder,
+}: {
+  file: string;
+  folder: string;
+}): Promise<fsPromises.FileHandle> {
+  ownFolder({ dir: path.dirname(file), folder });
+  const handle = await fsPromises.open(
+    file,
+    constants.O_RDONLY |
+      (constants.O_NOFOLLOW ?? 0) |
+      (constants.O_NONBLOCK ?? 0),
+  );
+  if (!(await handle.stat()).isFile()) {
+    await handle.close();
+    throw Object.assign(new Error(`EISDIR: ${file} is not a file`), {
+      code: "EISDIR",
+    });
+  }
+  return handle;
 }
 
 /**

@@ -1,7 +1,8 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -32,6 +33,7 @@ const drafts = {
 const made: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     made.splice(0).map((dir) => fs.rm(dir, { force: true, recursive: true })),
   );
@@ -154,6 +156,55 @@ describe("listing the apps", () => {
     expect(invalid[0]?.slug).toBe("linear");
     expect(invalid[0]?.message).toContain("auth");
   });
+
+  it("reads an app's file again only once it changes, and a new folder's when it appears", async () => {
+    await writeApp(apps, "Drafts", { ...drafts, id: "drafts" });
+    await writeApp(apps, "Notes", { ...drafts, id: "notes" });
+    const first = await listApps(apps);
+    const opened = vi.spyOn(fsSync.promises, "open");
+
+    const again = await listApps(apps);
+    expect(opened).not.toHaveBeenCalled();
+    expect(again.apps[0]?.manifest).toBe(first.apps[0]?.manifest);
+
+    await writeApp(apps, "Notes", { ...drafts, id: "notes" }, "Mine.");
+    await writeApp(apps, "Things", { ...drafts, id: "things" });
+    await fs.rm(path.join(apps, "Drafts"), { recursive: true });
+    const changed = await listApps(apps);
+    // The files are read at once, so in no set order.
+    expect(
+      opened.mock.calls
+        .map(([file]) => path.relative(apps, String(file)))
+        .toSorted(),
+    ).toMatchInlineSnapshot(`
+      [
+        "Notes/APP.md",
+        "Things/APP.md",
+      ]
+    `);
+    expect(changed.apps.map((app) => app.name)).toEqual(["Notes", "Things"]);
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "waits for a file kept in the cloud only, off the main thread",
+    async () => {
+      await writeApp(apps, "Drafts", { ...drafts, id: "drafts" });
+      const stat = fsSync.promises.stat;
+      // Contents and no blocks on disk: a file only in the cloud.
+      vi.spyOn(fsSync.promises, "stat").mockImplementation(async (file) =>
+        Object.assign(await stat(file), { blocks: 0 }),
+      );
+      const opened = vi.spyOn(fsSync.promises, "open");
+
+      const { apps: listed } = await listApps(apps);
+
+      expect(listed.map((app) => app.slug)).toEqual(["drafts"]);
+      expect(opened).toHaveBeenCalledWith(
+        path.join(apps, "Drafts", APP_FILE_NAME),
+        expect.any(Number),
+      );
+    },
+  );
 });
 
 describe("writing an app's folder", () => {

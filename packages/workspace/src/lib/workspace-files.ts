@@ -1,5 +1,7 @@
 import fs from "node:fs";
 
+import { openOwnFileToRead } from "./own-file";
+
 /**
  * The way to read the contents of a file under the workspace root.
  *
@@ -20,10 +22,14 @@ import fs from "node:fs";
 export const NOT_HERE_YET: unique symbol = Symbol("not here yet");
 export type NotHereYet = typeof NOT_HERE_YET;
 
-/** Whether a read waits for a file kept by name only, or passes over it. */
-export type ReadOptions = { evicted?: "pass" | "wait" };
-type Waits = { evicted?: "wait" };
-type Passes = { evicted: "pass" };
+/**
+ * Whether a read waits for a file kept by name only, or passes over it; and,
+ * for a file in a folder the agent's programs can change, that folder, from
+ * which down to the file no link is followed (`openOwnFile`).
+ */
+export type ReadOptions = { evicted?: "pass" | "wait"; ownFolder?: string };
+type Waits = { evicted?: "wait"; ownFolder?: string };
+type Passes = { evicted: "pass"; ownFolder?: string };
 
 /**
  * Whether a file's contents are only in the cloud (macOS's dataless files,
@@ -159,7 +165,10 @@ export class CachedReads<T> {
     }
     // Stat-ed before the read, so a change that lands during it is read
     // again next time.
-    const value = this.#parse(await readText(file), file);
+    const value = this.#parse(
+      await readText(file, { ...options, evicted: "wait" }),
+      file,
+    );
     this.#cache.set(file, { mtimeMs: stats.mtimeMs, size: stats.size, value });
     return value;
   }
@@ -167,13 +176,16 @@ export class CachedReads<T> {
 
 async function withHandle<T>(
   file: string,
-  { evicted = "wait" }: ReadOptions,
+  { evicted = "wait", ownFolder }: ReadOptions,
   read: (handle: fs.promises.FileHandle) => Promise<T>,
 ): Promise<NotHereYet | T> {
   if (evicted === "pass" && keptByNameOnly(await fs.promises.stat(file))) {
     return NOT_HERE_YET;
   }
-  const handle = await fs.promises.open(file, "r");
+  const handle =
+    ownFolder === undefined
+      ? await fs.promises.open(file, "r")
+      : await openOwnFileToRead({ file, folder: ownFolder });
   try {
     return await read(handle);
   } finally {

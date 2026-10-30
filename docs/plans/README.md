@@ -32,7 +32,7 @@ Each entry is the plan's title and the opening of its status.
 - [Move the agent turn off the Electron main thread](agent-turn-off-the-main-thread.md): Active.
 - [The app directory, made connectable and drawn well](app-directory-uplift.md): In progress.
 - [App-state scenarios](app-state-scenarios.md): Started.
-- [Async access to the synced workspace folder](async-workspace-file-access.md): Steps 1 and 2 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activ...
+- [Async access to the synced workspace folder](async-workspace-file-access.md): Steps 1 to 3 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activi...
 - [Auto mode](auto-mode.md): Design only, nothing scheduled.
 - [Background shell processes](background-shell-processes.md): Active.
 - [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): On hold, not started.

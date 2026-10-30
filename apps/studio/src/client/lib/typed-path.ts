@@ -1,3 +1,5 @@
+import { getFileType } from "./get-file-type";
+
 /**
  * Words typed or pasted into an address field that name a place on the
  * computer, the one reading every field shares (the tab's address field, the
@@ -53,6 +55,11 @@ export function typedPathOf(
   });
   const isWindows = platform === "win32";
   if (/^file:/i.test(unquoted)) {
+    // A page's address with a query or a fragment names a place in the
+    // page, which only the page reaches; its path alone would lose it.
+    if (isPlaceInPage(unquoted)) {
+      return;
+    }
     const written = pathOfFileUrl(unquoted);
     return written === undefined ? undefined : found(written);
   }
@@ -149,6 +156,20 @@ export function withoutTrailingSeparators(path: string) {
   return path.length > 1 && !/^[a-z]:[\\/]$/i.test(path)
     ? path.replace(/[\\/]+$/, "") || path[0] || path
     : path;
+}
+
+/** Whether a `file://` address is an HTML file's with a query or a fragment after it. */
+function isPlaceInPage(address: string) {
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    return false;
+  }
+  return (
+    (url.search !== "" || url.hash !== "") &&
+    getFileType({ filename: url.pathname }) === "html"
+  );
 }
 
 /** A `file://` address as the path it names, the home folder as `~`. */

@@ -786,9 +786,11 @@ function useRows({
   }
 
   if (mode === "files") {
-    // A `file://` address is a page, the way a browser opens it, where the
-    // path it names opens the file's own view.
-    const filePage = siteFromWords(words);
+    // A `file://` address to a place in a page (`?frame=2`) opens the page
+    // there, the way a browser opens it; any other names a path, which opens
+    // the file's own view like the path typed.
+    const filePage =
+      typedPathHere(words) === undefined ? siteFromWords(words) : undefined;
     const filePagePath = hostPathOfFileUrl(filePage?.url);
     if (filePage && filePagePath !== undefined) {
       return {

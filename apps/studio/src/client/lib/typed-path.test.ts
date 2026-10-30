@@ -14,6 +14,7 @@ describe("typedPathOf", () => {
     ["/Users/casey/My\\ File.pdf", "/Users/casey/My File.pdf", false],
     ["file:///~/testing123fake", "~/testing123fake", false],
     ["file:///Users/casey/a%20b.html", "/Users/casey/a b.html", false],
+    ["file:///Users/casey/notes.md#todo", "/Users/casey/notes.md", false],
   ])("reads %j on a Mac as %j", (words, shown, alsoSearch) => {
     expect(typedPathOf(words, "darwin")).toMatchObject({
       alsoSearch,
@@ -50,6 +51,9 @@ describe("typedPathOf", () => {
     ["~\\Documents", "darwin"],
     ["C:\\Users", "darwin"],
     ["documents/tax.pdf", "darwin"],
+    ["file:///Users/casey/wireframe.html?frame=2", "darwin"],
+    ["file:///Users/casey/wireframe.htm#intro", "darwin"],
+    ["file:///C:/Users/casey/wireframe.html?frame=2", "win32"],
     ["https://example.com", "darwin"],
     ["weather tomorrow", "linux"],
     ['""', "darwin"],

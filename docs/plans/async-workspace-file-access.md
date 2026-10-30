@@ -1,6 +1,6 @@
 # Async access to the synced workspace folder
 
-Status: open. Not started beyond the first case: `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. The module, the lint rule and the other reads below are not built.
+Status: open. Steps 1 and 2 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, and "workspace: read other devices' synced store files off the main thread" the synced store. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Steps 3 to 6 are open.
 
 ## Problem
 
@@ -22,7 +22,7 @@ Nothing reads the contents of a file in the synced workspace folder synchronousl
 
 ### One module for reading the synced folder
 
-Add `packages/workspace/src/lib/workspace-files.ts` (name open), the one way code reads the contents of a file under the workspace root:
+Add `packages/workspace/src/lib/workspace-files.ts`, the one way code reads the contents of a file under the workspace root:
 
 - Async only. Reads go through `fs.promises`, so a download waits on the thread pool and not on the caller's thread.
 - Says when a file is evicted. A caller chooses what an evicted file means: wait for it (an async read that downloads it), or pass over it and answer "not here yet" (a list that would otherwise download everything to show a row). The default is to wait, since passing over is only right where a later look will pick the file up.

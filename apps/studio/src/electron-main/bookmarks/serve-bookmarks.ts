@@ -49,7 +49,7 @@ export function serveBookmarks(): void {
  */
 export async function openBookmarks(device: DeviceId): Promise<void> {
   const layout = workspaceLayout(getWorkspaceFolder());
-  const synced = openSyncedStore({
+  const synced = await openSyncedStore({
     device,
     devicesDir: layout.devicesDir,
     domain: "bookmarks",
@@ -73,7 +73,7 @@ export async function openBookmarks(device: DeviceId): Promise<void> {
   }
   // A change a watch missed shows once the person comes back to a window.
   app.on("browser-window-focus", () => {
-    synced.look();
+    void synced.look();
   });
   store = opened;
   // A window that loaded before the workspace opened read none.

@@ -4,6 +4,7 @@ import { isEqual } from "radashi";
 
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
 import { RecordWriter } from "../records/record-writer";
+import { readBytes } from "../workspace-files";
 import { SyncedFold } from "./synced-fold";
 import {
   checkDomain,
@@ -42,8 +43,12 @@ export interface SyncedStore {
   /** Every key that has a value, under `prefix` when one is given. */
   entries(prefix?: string): Map<string, unknown>;
   get(key: string): unknown;
-  /** Reads every other device's file for what it gained since it was last read. */
-  look(): void;
+  /**
+   * Reads every other device's file for what it gained since it was last
+   * read, answering once it has. Looks run one at a time, and a failed one
+   * goes to `onError`.
+   */
+  look(): Promise<void>;
   /** Hears of the keys each change made here or arriving from elsewhere changed; answers the stop. */
   subscribe(listener: (keys: ReadonlySet<string>) => void): () => void;
 }
@@ -67,8 +72,11 @@ export interface SyncedStoreOptions {
 const SETTLE_MS = 250;
 const DEVICE_FOLDER = new RegExp(`^${DEVICE_ID_PATTERN}$`);
 
-/** Opens a store, reading every device's file of it as it stands. */
-export function openSyncedStore({
+/**
+ * Opens a store, reading every device's file of it as it stands, downloading
+ * any a cloud service keeps by name only.
+ */
+export async function openSyncedStore({
   device,
   devicesDir,
   domain,
@@ -77,7 +85,7 @@ export function openSyncedStore({
   platform = process.platform,
   settleMs = SETTLE_MS,
   watch = true,
-}: SyncedStoreOptions): SyncedStore {
+}: SyncedStoreOptions): Promise<SyncedStore> {
   checkDomain(domain);
   const fold = new SyncedFold();
   const listeners = new Set<(keys: ReadonlySet<string>) => void>();
@@ -102,7 +110,7 @@ export function openSyncedStore({
 
   // This device's file is folded from what its writer writes, as it writes
   // it, and from its bytes on disk as the store opens.
-  let ownBytes = readIfThere(ownFile);
+  let ownBytes = await readIfThere(ownFile);
   fold.add(ownFile, ownBytes);
   let written = new Set<string>();
   const writer = new RecordWriter<SyncedRecord>(
@@ -139,7 +147,7 @@ export function openSyncedStore({
     return files;
   };
 
-  const look = () => {
+  const lookOnce = async () => {
     if (closed) {
       return;
     }
@@ -156,24 +164,36 @@ export function openSyncedStore({
         continue;
       }
       seen.set(file, { mtimeMs: stat.mtimeMs, size: stat.size });
-      for (const key of fold.add(file, readIfThere(file))) {
+      const bytes = await readIfThere(file);
+      if (closed) {
+        return;
+      }
+      for (const key of fold.add(file, bytes)) {
         changed.add(key);
       }
     }
     tell(changed);
   };
 
-  look();
+  let looking = Promise.resolve();
+  const look = (): Promise<void> => {
+    looking = looking.then(lookOnce).catch(onError);
+    return looking;
+  };
 
+  // Watching from before the first look, so a change that lands while it
+  // reads is looked at again.
   let stopWatch: (() => void) | undefined;
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
   if (watch) {
     const settle = () => {
       clearTimeout(settleTimer);
-      settleTimer = setTimeout(look, settleMs);
+      settleTimer = setTimeout(() => void look(), settleMs);
     };
     stopWatch = watchDevices(devicesDir, platform, domain, settle, onError);
   }
+
+  await look();
 
   return {
     apply: async (ops) => {
@@ -322,9 +342,9 @@ function watchFolder(
   };
 }
 
-function readIfThere(file: string): Buffer {
+async function readIfThere(file: string): Promise<Buffer> {
   try {
-    return fs.readFileSync(file);
+    return await readBytes(file);
   } catch {
     return Buffer.alloc(0);
   }

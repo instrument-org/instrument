@@ -31,8 +31,8 @@ afterEach(() => {
   fs.rmSync(dir, { force: true, recursive: true });
 });
 
-function synced(device: DeviceId, now = () => Date.now()) {
-  const store = openSyncedStore({
+async function synced(device: DeviceId, now = () => Date.now()) {
+  const store = await openSyncedStore({
     device,
     devicesDir: path.join(dir, "devices"),
     domain: "bookmarks",
@@ -43,9 +43,9 @@ function synced(device: DeviceId, now = () => Date.now()) {
   return store;
 }
 
-function bookmarksOf(device: DeviceId) {
+async function bookmarksOf(device: DeviceId) {
   const heard: BookmarksSnapshot[] = [];
-  const store = synced(device);
+  const store = await synced(device);
   return {
     bookmarks: createBookmarkStore({
       onChange: (snapshot) => heard.push(snapshot),
@@ -65,7 +65,7 @@ const page = (id: string, order: number) => ({
 
 describe("createBookmarkStore", () => {
   it("writes a window's ops as a key per bookmark and acks the batch", async () => {
-    const { bookmarks, heard } = bookmarksOf(HERE);
+    const { bookmarks, heard } = await bookmarksOf(HERE);
     await bookmarks.apply({
       client: "w1",
       ops: [
@@ -100,7 +100,7 @@ describe("createBookmarkStore", () => {
   });
 
   it("acks a batch that changes nothing", async () => {
-    const { bookmarks, heard } = bookmarksOf(HERE);
+    const { bookmarks, heard } = await bookmarksOf(HERE);
     await bookmarks.apply({
       client: "w1",
       ops: [{ id: "gone", type: "remove" }],
@@ -110,26 +110,26 @@ describe("createBookmarkStore", () => {
   });
 
   it("tells the windows what another device changed", async () => {
-    const here = bookmarksOf(HERE);
-    const there = bookmarksOf(THERE);
+    const here = await bookmarksOf(HERE);
+    const there = await bookmarksOf(THERE);
     await there.bookmarks.apply({
       client: "w9",
       ops: [{ bookmark: page("x", 0), type: "add" }],
       seq: 1,
     });
-    here.store.look();
+    await here.store.look();
     expect(here.heard.at(-1)?.bookmarks).toEqual([page("x", 0)]);
     await here.bookmarks.apply({
       client: "w1",
       ops: [{ id: "x", type: "remove" }],
       seq: 1,
     });
-    there.store.look();
+    await there.store.look();
     expect(there.heard.at(-1)?.bookmarks).toEqual([]);
   });
 
   it("passes over a value it cannot read as a bookmark", async () => {
-    const store = synced(HERE);
+    const store = await synced(HERE);
     await store.apply([
       { key: "bookmark/odd", t: "set", value: { title: 3 } },
       {
@@ -163,7 +163,7 @@ describe("importBookmarksFile", () => {
         { id: "b", url: "https://b.example/" },
       ],
     });
-    const store = synced(HERE);
+    const store = await synced(HERE);
     expect(await importBookmarksFile(file(), store)).toBe(2);
     expect(fs.existsSync(file())).toBe(false);
     expect(
@@ -177,23 +177,27 @@ describe("importBookmarksFile", () => {
 
   it("writes them as of the file's last change, so a later remove elsewhere stands", async () => {
     write({ "bookmarks.v1": [{ id: "a", title: "A", url: "https://a/" }] });
-    const there = synced(THERE);
+    const there = await synced(THERE);
     await importBookmarksFile(file(), there);
     await there.apply([{ key: "bookmark/a", t: "del" }]);
     // The same file reaches this device before its removal does.
     write({ "bookmarks.v1": [{ id: "a", title: "A", url: "https://a/" }] });
-    const here = synced(HERE);
+    const here = await synced(HERE);
     await importBookmarksFile(file(), here);
     expect(here.entries()).toEqual(new Map());
   });
 
   it("leaves a file it cannot read where it is", async () => {
     fs.writeFileSync(file(), "not json");
-    expect(await importBookmarksFile(file(), synced(HERE))).toBeUndefined();
+    expect(
+      await importBookmarksFile(file(), await synced(HERE)),
+    ).toBeUndefined();
     expect(fs.existsSync(file())).toBe(true);
   });
 
   it("does nothing without a file", async () => {
-    expect(await importBookmarksFile(file(), synced(HERE))).toBeUndefined();
+    expect(
+      await importBookmarksFile(file(), await synced(HERE)),
+    ).toBeUndefined();
   });
 });

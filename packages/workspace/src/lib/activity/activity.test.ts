@@ -457,22 +457,15 @@ describe("the log in the workspace", () => {
   });
 
   it.runIf(process.platform === "darwin")(
-    "passes over another device's file kept in the cloud only until it is downloaded",
+    "waits for another device's file kept in the cloud only",
     async () => {
       await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
       const stat = fsSync.promises.stat;
       // Contents and no blocks on disk: a file only in the cloud.
-      const evicted = vi
-        .spyOn(fsSync.promises, "stat")
-        .mockImplementation(async (file) =>
-          Object.assign(await stat(file), { blocks: 0 }),
-        );
-      const opened = vi.spyOn(fsSync.promises, "open");
+      vi.spyOn(fsSync.promises, "stat").mockImplementation(async (file) =>
+        Object.assign(await stat(file), { blocks: 0 }),
+      );
 
-      expect(await ids()).toEqual([]);
-      expect(opened).not.toHaveBeenCalled();
-
-      evicted.mockRestore();
       expect(await ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
     },
   );

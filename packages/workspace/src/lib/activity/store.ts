@@ -5,12 +5,7 @@ import { ulid } from "ulid";
 
 import { getWorkspaceConfig } from "../workspace-config";
 import { versionMatches, workspaceTables } from "../workspace-db";
-import {
-  type LinesRead,
-  NOT_HERE_YET,
-  type NotHereYet,
-  readLinesFrom,
-} from "../workspace-files";
+import { type LinesRead, readLinesFrom } from "../workspace-files";
 import { activityFileOf, activityFiles, lineOf, rowOf } from "./log-file";
 import {
   ACTIVITY_FACETS,
@@ -181,8 +176,9 @@ const openStore = workspaceTables((database) => {
  * since it was last read, whole lines only, and adds the rows it has not
  * seen. A file that shrank, which one writer appending never does but a
  * sync engine replacing it might, is read again from its start. A file a
- * cloud service keeps by name only is passed over rather than downloaded,
- * and so is one that cannot be read now; the next look tries it again.
+ * cloud service keeps by name only is waited for while it downloads, since
+ * nothing else ever downloads another device's activity file; the read is
+ * off the main thread. One that cannot be read now is tried on the next look.
  * Cheap when nothing changed: a stat per file.
  */
 async function catchUpActivity(database: DatabaseSync): Promise<void> {
@@ -216,13 +212,10 @@ async function catchUpActivity(database: DatabaseSync): Promise<void> {
       continue;
     }
     const from = seen && stat.size >= seen.readTo ? seen.readTo : 0;
-    let read: LinesRead | NotHereYet;
+    let read: LinesRead;
     try {
-      read = await readLinesFrom(file, from, { evicted: "pass" });
+      read = await readLinesFrom(file, from);
     } catch {
-      continue;
-    }
-    if (read === NOT_HERE_YET) {
       continue;
     }
     database.exec("BEGIN");

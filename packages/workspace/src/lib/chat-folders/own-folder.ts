@@ -6,6 +6,7 @@ import { parallel } from "radashi";
 import { CHAT_FILE_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { readJsonRecordSync, updateJsonRecord } from "../json-record-file";
+import { keptByNameOnly } from "../workspace-files";
 import { chatLinkedInText, LINK_HEAD_BYTES } from "./chat-transcript";
 
 /**
@@ -188,7 +189,11 @@ export function chatLinkedInFolder(folder: string): ChatId | undefined {
   return chatLinkedInFileSync(path.join(folder, CHAT_FILE_NAME));
 }
 
-/** Nothing for a file a cloud service keeps by name only, which is left unread. */
+/**
+ * Nothing for a file a cloud service keeps by name only, which is left
+ * unread. A file this passes over by mistake is read by
+ * {@link findChatFolderNames} anyway.
+ */
 function chatLinkedInFileSync(file: string): ChatId | undefined {
   let handle: number | undefined;
   try {
@@ -220,21 +225,6 @@ async function chatLinkedInFile(file: string): Promise<ChatId | undefined> {
   } finally {
     await handle?.close();
   }
-}
-
-/**
- * Whether a file's contents are only in the cloud (macOS's dataless files,
- * iCloud Drive's evicted ones among them), told without reading it: it has
- * contents and no blocks on disk. A file this passes over by mistake is
- * read by {@link findChatFolderNames} anyway.
- */
-function keptByNameOnly(stats: fs.Stats): boolean {
-  return (
-    process.platform === "darwin" &&
-    stats.isFile() &&
-    stats.size > 0 &&
-    stats.blocks === 0
-  );
 }
 
 /** The folders directly under `chats`, by name, hidden ones aside. */

@@ -10,7 +10,7 @@ The commit that adds this file puts every streamed Responses request through the
 
 ## The signal
 
-An exception reported from area `ai-gateway` with the message "Responses stream ended without a terminal event", the same line in the main-process log as a warning prefixed `[ai-gateway]`. Its data carries `provider`, `path`, `first` (the first attempt's distinct event types, the last few, whether output had begun, and `unreadByClient`, the types the SDK ignores), `retry` (absent when output had begun; otherwise `completed`, `ended-early`, `refused` with `retryStatus`, `failed` or `canceled`) and `second` (the retry's events, when it also ended early).
+An exception reported from area `ai-gateway` with the message "Responses stream ended without a terminal event", the same line in the main-process log as a warning prefixed `[ai-gateway]`. Its data carries `provider`, `path`, `first` (the first attempt's distinct event types, the last few, whether output had begun, `endedMidEvent` when the body stopped partway through an event, and `unreadByClient`, the types the SDK ignores), `retry` (absent when output had begun; otherwise `completed`, `ended-early`, `refused` with `retryStatus`, `failed` or `canceled`) and `second` (the retry's events, when it also ended early).
 
 - **`retry: completed`, `first.lastEventTypes` ending at `response.created` or `response.in_progress`**: the case first seen, and the retry is the fix.
 - **`retry: ended-early`**: a provider that keeps closing early on the same request; the person sees "Reply was cut off" after the workspace's own retries.

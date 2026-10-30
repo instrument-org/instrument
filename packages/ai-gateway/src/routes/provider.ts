@@ -117,7 +117,9 @@ providerApp.all("/:providerConfigId/*", async (context) => {
           body: JSON.stringify(body),
           headers,
           method: "POST",
+          signal: context.req.raw.signal,
         }),
+      signal: context.req.raw.signal,
     });
     const answered = await withoutRetryOnSpentLimit(upstream);
     return streamed ? answered : collapseResponsesStream(answered);
@@ -132,7 +134,9 @@ providerApp.all("/:providerConfigId/*", async (context) => {
             body: await context.req.arrayBuffer(),
             headers,
             method: "POST",
+            signal: context.req.raw.signal,
           }),
+        signal: context.req.raw.signal,
       })
     : await proxy(targetUrl.toString(), {
         body: context.req.raw.body,

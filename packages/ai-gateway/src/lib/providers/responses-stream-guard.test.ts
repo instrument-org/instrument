@@ -75,12 +75,19 @@ const whole = [
   completed,
 ];
 
-function sse(events: Event[]): Response {
+/** Whole events, then `tail` as the body's last bytes, unterminated. */
+function sse(events: Event[], tail = ""): Response {
   return new Response(
-    events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+    events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") + tail,
     { headers: { "content-type": "text/event-stream" } },
   );
 }
+
+/** A body cut off partway through a text delta. */
+const halfDelta =
+  'data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"del';
+/** `response.completed` with no blank line after it. */
+const unterminatedCompleted = `data: ${JSON.stringify(completed)}\n`;
 
 /** A guard over upstream answers handed out in turn, with what it reported. */
 async function guarded(...answers: (() => Response)[]) {
@@ -126,6 +133,7 @@ describe("guardResponsesStream", () => {
       [
         {
           "first": {
+            "endedMidEvent": false,
             "eventTypes": [
               "response.created",
             ],
@@ -169,6 +177,7 @@ describe("guardResponsesStream", () => {
       [
         {
           "first": {
+            "endedMidEvent": false,
             "eventTypes": [
               "response.created",
               "response.output_item.added",
@@ -222,15 +231,12 @@ describe("guardResponsesStream", () => {
 });
 
 describe("what the SDK makes of a guarded stream", () => {
-  async function run(...answers: Event[][]) {
+  async function run(...answers: (() => Response)[]) {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const guardedFetch: typeof globalThis.fetch = () =>
       guardResponsesStream({
         onEndedEarly: () => {},
-        send: () => {
-          const next = answers.shift();
-          return Promise.resolve(sse(next ?? []));
-        },
+        send: () => Promise.resolve(answers.shift()?.() ?? sse([])),
       });
     fetch.mockImplementation(guardedFetch);
     const model = createOpenAI({ apiKey: "key", fetch }).responses(
@@ -274,18 +280,128 @@ describe("what the SDK makes of a guarded stream", () => {
   });
 
   it("reports a failure the workspace can read before any output", async () => {
-    const [error] = await run([created], [created]);
+    const [error] = await run(
+      () => sse([created]),
+      () => sse([created]),
+    );
     expect(error?.error).toMatchObject({
       message: "The model's reply stopped before it finished.",
       responseBody: expect.stringContaining("stream_ended_early"),
     });
   });
 
-  it("reports a failure the workspace can read after output began", async () => {
-    const [error] = await run([created, messageAdded, textDelta]);
-    expect(error?.error).toMatchObject({
-      code: "stream_ended_early",
-      message: "The model's reply stopped before it finished.",
+  it.each([
+    { name: "after output began", tail: "" },
+    { name: "cut off partway through an event", tail: halfDelta },
+    {
+      name: "ending on a response.completed it never finished",
+      tail: unterminatedCompleted,
+    },
+  ])(
+    "reports a failure the workspace can read $name, ahead of any other",
+    async ({ tail }) => {
+      const errors = await run(() =>
+        sse([created, messageAdded, textDelta], tail),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.error).toMatchObject({
+        code: "stream_ended_early",
+        message: "The model's reply stopped before it finished.",
+      });
+    },
+  );
+});
+
+describe("guardResponsesStream, framing", () => {
+  it("passes on no part of an event the body ended inside", async () => {
+    const { reports, response } = await guarded(() =>
+      sse([created, messageAdded, textDelta], halfDelta),
+    );
+    const text = await response.text();
+    expect(text).not.toContain('"del\n');
+    expect(eventTypes(text)).toEqual([
+      "response.created",
+      "response.output_item.added",
+      "response.output_text.delta",
+      "error",
+    ]);
+    expect(reports[0]?.first.endedMidEvent).toBe(true);
+  });
+
+  it("does not count a terminal event the client would never dispatch", async () => {
+    const { reports, response } = await guarded(() =>
+      sse([created, messageAdded, textDelta], unterminatedCompleted),
+    );
+    expect(eventTypes(await response.text()).at(-1)).toBe("error");
+    expect(reports[0]?.first).toMatchObject({
+      endedMidEvent: true,
+      lastEventTypes: [
+        "response.created",
+        "response.output_item.added",
+        "response.output_text.delta",
+      ],
     });
+  });
+
+  it("frames events split across chunks and ended by \\r\\n", async () => {
+    const text = [created, completed]
+      .map((event) => `data: ${JSON.stringify(event)}\r\n\r\n`)
+      .join("");
+    const bytes = new TextEncoder().encode(text);
+    const { reports, response } = await guarded(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              // Split inside the first event's blank line.
+              const cut = text.indexOf("\r\n\r\n") + 3;
+              controller.enqueue(bytes.slice(0, cut));
+              controller.enqueue(bytes.slice(cut));
+              controller.close();
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    expect(await response.text()).toBe(text);
+    expect(reports).toEqual([]);
+  });
+});
+
+describe("guardResponsesStream, when the client goes away", () => {
+  it("lets go of the held body and does not ask again", async () => {
+    const client = new AbortController();
+    let upstreamCanceled = false;
+    const send = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream({
+            cancel() {
+              upstreamCanceled = true;
+            },
+            start(controller) {
+              controller.enqueue(
+                new TextEncoder().encode(
+                  `data: ${JSON.stringify(created)}\n\n`,
+                ),
+              );
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+      ),
+    );
+    const reports: StreamEndedEarly[] = [];
+    const guarding = guardResponsesStream({
+      onEndedEarly: (report) => reports.push(report),
+      send,
+      signal: client.signal,
+    });
+    await vi.waitFor(() => expect(send).toHaveBeenCalled());
+    client.abort();
+    await (await guarding).text();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(upstreamCanceled).toBe(true);
+    expect(reports).toEqual([]);
   });
 });

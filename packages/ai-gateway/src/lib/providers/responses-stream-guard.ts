@@ -61,6 +61,8 @@ const DISTINCT_EVENT_CAP = 32;
 
 /** What one attempt's stream carried, by event type only. */
 interface StreamEvents {
+  /** Whether the body ended partway through an event, which was dropped. */
+  endedMidEvent: boolean;
   /** Every distinct event type, in the order each first arrived. */
   eventTypes: string[];
   /** The last few event types, oldest first. */
@@ -92,24 +94,35 @@ interface Opened {
   log: EventLog;
   /** Absent once the body has ended. */
   reader?: Reader;
+  /** The client's request, whose abort cancels the body. */
+  signal?: AbortSignal;
   /** What the body threw while it was being read, if it did. */
   thrown?: { error: unknown };
 }
 
 type AttemptEnd = "canceled" | "completed" | "ended-early" | "failed";
 
+/**
+ * `signal` is the client's request: once it is aborted the upstream body is
+ * let go, and a stream that closed early is not asked for again.
+ */
 export async function guardResponsesStream({
   onEndedEarly,
   send,
+  signal,
 }: {
   onEndedEarly: (report: StreamEndedEarly) => void;
   send: () => Promise<Response>;
+  signal?: AbortSignal;
 }): Promise<Response> {
   const first = await send();
   if (!isEventStream(first)) {
     return first;
   }
-  const opened = await openStream(first.body);
+  const opened = await openStream(first.body, signal);
+  if (signal?.aborted) {
+    return relay(first, opened, () => {});
+  }
   // Past the lifecycle events, or broken rather than closed: either way not
   // the early close a retry is for.
   if (opened.log.pastLifecycle || opened.thrown) {
@@ -136,7 +149,7 @@ export async function guardResponsesStream({
     });
     return second;
   }
-  return relay(second, await openStream(second.body), (end, log) => {
+  return relay(second, await openStream(second.body, signal), (end, log) => {
     onEndedEarly({
       first: firstEvents,
       retry: end,
@@ -155,37 +168,53 @@ function isEventStream(
   );
 }
 
-/** Reads the body until the first event past the lifecycle ones, or its end. */
-async function openStream(body: ReadableStream<Uint8Array>): Promise<Opened> {
+/**
+ * Reads the body until the first event past the lifecycle ones, or its end.
+ * An aborted client cancels the body, held or relayed.
+ */
+async function openStream(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal | undefined,
+): Promise<Opened> {
   const reader = body.getReader();
   const held: Uint8Array[] = [];
   const log = new EventLog();
+  const cancel = () => {
+    reader.cancel(signal?.reason).catch(() => {});
+  };
+  if (signal?.aborted) {
+    cancel();
+  } else {
+    signal?.addEventListener("abort", cancel, { once: true });
+  }
   for (;;) {
     let result: ReadableStreamReadResult<Uint8Array>;
     try {
       result = await reader.read();
     } catch (error) {
-      return { held, log, thrown: { error } };
+      return { held, log, signal, thrown: { error } };
     }
     if (result.done) {
       log.end();
-      return { held, log };
+      return { held, log, signal };
     }
-    held.push(result.value);
-    log.push(result.value);
+    const complete = log.push(result.value);
+    if (complete) {
+      held.push(complete);
+    }
     if (log.pastLifecycle) {
-      return { held, log, reader };
+      return { held, log, reader, signal };
     }
   }
 }
 
 /**
- * The held events, then the rest of the body as it arrives, then an `error`
- * event if the body ends before a terminal one.
+ * The held events, then the rest of the body as each event completes, then
+ * an `error` event if the body ends before a terminal one.
  */
 function relay(
   upstream: Response,
-  { held, log, reader, thrown }: Opened,
+  { held, log, reader, signal, thrown }: Opened,
   onEnd: (end: AttemptEnd, log: EventLog) => void,
 ): Response {
   let ended = false;
@@ -198,6 +227,9 @@ function relay(
   const close = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     if (log.terminal) {
       end("completed");
+    } else if (signal?.aborted) {
+      // The body ended because the client went away, not upstream.
+      end("canceled");
     } else {
       controller.enqueue(endedEarlyEvent(log));
       end("ended-early");
@@ -219,21 +251,26 @@ function relay(
         close(controller);
         return;
       }
-      let result: ReadableStreamReadResult<Uint8Array>;
-      try {
-        result = await reader.read();
-      } catch (error) {
-        end("failed");
-        controller.error(error);
-        return;
+      for (;;) {
+        let result: ReadableStreamReadResult<Uint8Array>;
+        try {
+          result = await reader.read();
+        } catch (error) {
+          end("failed");
+          controller.error(error);
+          return;
+        }
+        if (result.done) {
+          log.end();
+          close(controller);
+          return;
+        }
+        const complete = log.push(result.value);
+        if (complete) {
+          controller.enqueue(complete);
+          return;
+        }
       }
-      if (result.done) {
-        log.end();
-        close(controller);
-        return;
-      }
-      log.push(result.value);
-      controller.enqueue(result.value);
     },
     start: (controller) => {
       for (const chunk of held) {
@@ -251,10 +288,9 @@ function relay(
 }
 
 /**
- * The `error` event in the nested shape `@ai-sdk/openai` parses. A body cut
- * off inside an event leaves that event unfinished, and the blank line ahead
- * of this one ends it, so the client reads a malformed event rather than
- * this one's data run into it.
+ * The `error` event in the nested shape `@ai-sdk/openai` parses. Only whole
+ * events were passed on, so the client's parser is between events when it
+ * arrives.
  */
 function endedEarlyEvent(log: EventLog): Uint8Array {
   const event = {
@@ -266,44 +302,67 @@ function endedEarlyEvent(log: EventLog): Uint8Array {
     sequence_number: log.lastSequence + 1,
     type: "error",
   };
-  return new TextEncoder().encode(
-    `${log.cutMidEvent ? "\n\n" : ""}data: ${JSON.stringify(event)}\n\n`,
-  );
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
-/** Reads event types off a Responses stream as it passes, content unkept. */
+/**
+ * A blank line, which is what ends an event: two line endings in a row, each
+ * `\r\n`, `\r` or `\n`, as the client's parser reads them.
+ */
+const EVENT_END = /(?:\r\n|\r(?!\n)|\n)(?:\r\n|\r(?!\n)|\n)/g;
+const LINE_END = /\r\n|\r|\n/;
+
+/**
+ * Frames a Responses stream into whole events as it passes, and reads their
+ * types, content unkept. An event counts only once the blank line ending it
+ * arrives, since that is when the client's parser dispatches it; one the body
+ * ends inside of is never dispatched, so it is never passed on either.
+ */
 class EventLog {
-  cutMidEvent = false;
+  /** Whether the body ended partway through an event, which was dropped. */
+  endedMidEvent = false;
   lastSequence = -1;
   pastLifecycle = false;
   terminal = false;
 
   private decoder = new TextDecoder();
   private distinct = new Set<string>();
+  private encoder = new TextEncoder();
   private pending = "";
   private recent: string[] = [];
 
   end() {
     this.pending += this.decoder.decode();
-    if (this.pending.trim() !== "") {
-      this.cutMidEvent = true;
-      this.read(this.pending);
-    }
+    this.endedMidEvent = this.pending.trim() !== "";
     this.pending = "";
   }
 
-  push(chunk: Uint8Array) {
+  /** The whole events this chunk completes, as bytes to pass on. */
+  push(chunk: Uint8Array): undefined | Uint8Array {
     this.pending += this.decoder.decode(chunk, { stream: true });
-    const blocks = this.pending.split(/\r?\n\r?\n/);
-    this.pending = blocks.pop() ?? "";
-    for (const block of blocks) {
+    // A `\r` at the end may be the first half of a `\r\n`.
+    const searched = this.pending.endsWith("\r")
+      ? this.pending.slice(0, -1)
+      : this.pending;
+    let complete = 0;
+    for (const match of searched.matchAll(EVENT_END)) {
+      complete = match.index + match[0].length;
+    }
+    if (complete === 0) {
+      return undefined;
+    }
+    const events = this.pending.slice(0, complete);
+    this.pending = this.pending.slice(complete);
+    for (const block of events.split(EVENT_END)) {
       this.read(block);
     }
+    return this.encoder.encode(events);
   }
 
   summary(): StreamEvents {
     const eventTypes = [...this.distinct];
     return {
+      endedMidEvent: this.endedMidEvent,
       eventTypes,
       lastEventTypes: [...this.recent],
       outputBegan: this.pastLifecycle,
@@ -313,7 +372,7 @@ class EventLog {
 
   private read(block: string) {
     const data = block
-      .split(/\r?\n/)
+      .split(LINE_END)
       .filter((line) => line.startsWith("data:"))
       .map((line) => line.slice(5).trimStart())
       .join("\n");

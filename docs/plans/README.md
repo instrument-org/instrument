@@ -32,6 +32,7 @@ Each entry is the plan's title and the opening of its status.
 - [Move the agent turn off the Electron main thread](agent-turn-off-the-main-thread.md): Active.
 - [The app directory, made connectable and drawn well](app-directory-uplift.md): In progress.
 - [App-state scenarios](app-state-scenarios.md): Started.
+- [Async access to the synced workspace folder](async-workspace-file-access.md): Not started beyond the first case: `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted...
 - [Auto mode](auto-mode.md): Design only, nothing scheduled.
 - [Background shell processes](background-shell-processes.md): Active.
 - [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): On hold, not started.

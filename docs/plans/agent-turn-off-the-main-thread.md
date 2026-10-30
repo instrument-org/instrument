@@ -1,6 +1,6 @@
 # Move the agent turn off the Electron main thread
 
-Status: open. Active. The interpreter runs in a worker thread (`57faeef2c`, below); the utility process (migration steps 2 through 7) is not started. Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
+Status: open. Active. The interpreter runs in a worker thread (`57faeef2c`, below); the utility process (migration steps 2 through 7) is not started. Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do. A synced workspace widened the scope: one process per workspace, moving a workspace without restarting the app, and the agent running without Studio ([below](#what-a-synced-workspace-adds)).
 
 ## Problem
 
@@ -84,6 +84,21 @@ A dictation tool that pastes and then restores the clipboard 60 ms later loses t
 
 Two consequences for this plan. The poll's cost follows the workspace into a utility process and half of it is on the renderer anyway, so the fix belongs in the reads, not the process split. And the stall sampler in step 2 is worth more than it looked: a `KeyboardEvent.timeStamp` probe cannot see this class of stall, since in Electron it is the renderer's receive time, so input latency has to be measured from outside the page or inferred from main's event-loop delay.
 
+## What a synced workspace adds
+
+A workspace in iCloud Drive froze the app for six minutes opening a chat, and a launch on the same computer spent six minutes starting the workspace, likely on the same reads. The chat folder lookup read every `Chats/*/CHAT.md` synchronously, and each one iCloud had evicted blocked main until it downloaded. That one is fixed, and [async access to the synced workspace folder](async-workspace-file-access.md) covers the rest of its class. It still bears on this plan in two ways.
+
+The process split turns that kind of stall from a frozen window into a slow workspace, but a sync read in the child still holds every chat in it. So the async plan lands first and stays in force after this one.
+
+It also widens what the child is for. The same boundary is what these need:
+
+- **One process per workspace.** Several workspaces open at once, each window holding a port to its own workspace's process, instead of one workspace per app run.
+- **Moving a workspace without restarting the app.** Today a folder move restarts the whole app (`workspaces.move`, then the next launch moves `.instrument/`). With the workspace in its own process, the move stops that process, moves the folder and starts it again, and the windows reconnect.
+- **The agent without Studio.** The child is plain Node already. Run under Node with a host that answers the proxied callbacks without Electron (no browser views; credentials from the environment or a file), it is the agent from a command line or on a server.
+- **A backend that reloads on its own in development**, rather than the whole app relaunching on a main-process edit.
+
+Step 3 below is where these become choices: one child per workspace rather than one child for the app is cheap to decide then and expensive to change later.
+
 ## Migration order
 
 Each step is meant to be shippable and reversible on its own.
@@ -113,4 +128,5 @@ Every part update yields the complete sorted message array to the renderer, up t
 - [The agent's filesystem work stalls the window](../findings/agent-filesystem-work-stalls-the-window.md) is the measurement and the mechanism.
 - [Quit teardown can livelock](../findings/quit-teardown-can-livelock-the-app.md) is the teardown constraint this plan inherits.
 - [A watchman probe froze boot on Windows](../findings/windows-watchman-probe-freezes-boot.md) is the same class of bug and names the instrument step 2 builds.
+- [Async access to the synced workspace folder](async-workspace-file-access.md) removes the sync reads that block on a file a sync service evicted; it lands before this plan's step 5.
 - [Background processes](../architecture/background-processes.md) and [the in-app browser](../architecture/in-app-browser.md) describe two of the subsystems that cross the boundary.

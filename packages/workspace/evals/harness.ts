@@ -86,6 +86,7 @@ import {
   endSignIn,
   type SignInOutcome,
 } from "./lib/sign-in-ends";
+import { launchSharedChrome, setSharedChrome } from "./lib/shared-chrome";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { grantCaseFolders, startRun } from "./lib/start-run";
@@ -613,6 +614,13 @@ export interface EvalCase {
    * `--tab` accept a page tab's id.
    */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
+  /**
+   * One real headless Chrome behind the window's tabs for the run
+   * (`lib/shared-chrome.ts`), so the chat and its tasks reach the same pages
+   * through the CDP bridge as in the app, rather than each a Chrome of its
+   * own. Follow-ups carry `viewing` too, as every message in the app does.
+   */
+  sharedBrowser?: boolean;
 }
 
 interface AssertionContext {
@@ -824,7 +832,11 @@ export async function runEvals(
       ? { oauth: cardOnlySignIns() }
       : {}),
   };
-  const standInWindow = createStandInWindow();
+  const sharedChrome = evals.some((evalCase) => evalCase.sharedBrowser)
+    ? await launchSharedChrome()
+    : undefined;
+  setSharedChrome(sharedChrome);
+  const standInWindow = createStandInWindow(sharedChrome);
   const stopStandInWindow = standInWindow.listen();
   const macAppsStandInFor = evals.some((evalCase) => evalCase.macApps)
     ? macAppsStandIn(path.join(workspaceRootDir, "mac-apps"))
@@ -840,10 +852,12 @@ export async function runEvals(
       appVersion: "0.0.0-test",
       // No window, so a task starts a browser of its own; the stand-in
       // answers for the window's tabs the conversation names.
-      browser: standInWindow.browser({
-        ...createStubBrowserConfig(),
-        hasNoWindow: true,
-      }),
+      browser: sharedChrome
+        ? sharedChrome.browser(createStubBrowserConfig())
+        : standInWindow.browser({
+            ...createStubBrowserConfig(),
+            hasNoWindow: true,
+          }),
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
@@ -1663,7 +1677,15 @@ export async function runEvals(
         }
         await call(
           messageRoute.create,
-          { id, modelURI: uri, prompt: followUp.prompt, sessionId },
+          {
+            id,
+            modelURI: uri,
+            prompt: followUp.prompt,
+            sessionId,
+            ...(evalCase.sharedBrowser && evalCase.viewing
+              ? { viewing: evalCase.viewing }
+              : {}),
+          },
           { context },
         );
         lastSentAt = Date.now();
@@ -1834,6 +1856,7 @@ export async function runEvals(
   await appFixtures.close();
   stopStandInWindow();
   actor.stop();
+  sharedChrome?.close();
 
   return { runs: completed, workspaceRootDir };
 }

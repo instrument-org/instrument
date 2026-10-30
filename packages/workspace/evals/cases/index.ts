@@ -45,6 +45,7 @@ import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_APP_SETUP_EVALS } from "./task-app-setup";
 import { TASK_SESSION_EVALS } from "./task-sessions";
 import { TASK_TABS_EVALS } from "./task-tabs";
+import { TAB_LOCK_EVALS } from "./tab-lock";
 import { UNPROMPTED_TOOL_EVALS } from "./unprompted-tools";
 import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SCRIPTING_EVALS } from "./web-scripting";
@@ -107,6 +108,7 @@ export const EVALS = [
   ...TASK_APP_SETUP_EVALS,
   ...TASK_SESSION_EVALS,
   ...TASK_TABS_EVALS,
+  ...TAB_LOCK_EVALS,
   ...UNPROMPTED_TOOL_EVALS,
   ...UNREADABLE_MEDIA_EVALS,
   ...WEB_SCRIPTING_EVALS,

@@ -7,7 +7,9 @@
  * new id and puts it in front, `close` and `show --in` act on the list, and a page tab reads as a live target
  * so `instrument task new --tab` accepts it. A task handed one still browses in a Chrome
  * of its own (the run has no guests), so a case scores what the conversation
- * decided, not what a task saw in the tab.
+ * decided, not what a task saw in the tab. Given a shared Chrome
+ * (`sharedBrowser`), each page tab is a real page there instead, which every
+ * session of the chat reaches through the bridge and `read` reads.
  */
 import { publisher } from "../../src/rpc/publisher";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
@@ -23,6 +25,7 @@ import {
   browserTargetOf,
   parseBrowserTargetId,
 } from "../../src/types";
+import { type SharedChrome } from "./shared-chrome";
 
 export interface StandInTab {
   at: string;
@@ -30,7 +33,7 @@ export interface StandInTab {
   kind: "page" | "screen";
 }
 
-export function createStandInWindow() {
+export function createStandInWindow(chrome?: SharedChrome) {
   const tabs = new Map<string, StandInTab>();
   /** The user's own tabs outside the chat that a note named, which `window request` asks for and a Move takes into `tabs`. */
   const theirs = new Map<string, StandInTab>();
@@ -128,6 +131,55 @@ export function createStandInWindow() {
     }
   };
 
+  /**
+   * The window's answer, with the shared Chrome (when the run has one) made
+   * to match: a page tab opened, sent elsewhere, closed, brought back or read
+   * there, so every session of the chat reaches the same page.
+   */
+  const actOnPages = async (
+    action: WindowTabAction,
+  ): Promise<Omit<WindowTabAnswer, "requestId">> => {
+    if (!chrome) {
+      return act(action);
+    }
+    if (action.kind === "read") {
+      const tab = tabs.get(action.tabId);
+      if (!tab || tab.kind !== "page") {
+        return { error: `no tab ${action.tabId} is open in this chat.` };
+      }
+      await chrome.ensure(tab.id, tab.at);
+      const text = await chrome.evaluate(tab.id, "document.body.innerText");
+      return { tabId: tab.id, text: typeof text === "string" ? text : "" };
+    }
+    const answer = act(action);
+    const { tabId } = answer;
+    if (action.kind === "open" && tabId && action.target.kind === "page") {
+      await chrome.ensure(tabId, action.target.url ?? "about:blank");
+    } else if (
+      action.kind === "replace" &&
+      tabId &&
+      action.target.kind === "page"
+    ) {
+      await chrome.ensure(tabId);
+      await chrome.navigate(tabId, action.target.url ?? "about:blank");
+    } else if (action.kind === "restore" && tabId) {
+      await chrome.ensure(tabId, tabs.get(tabId)?.at);
+    } else if (action.kind === "close" && tabId) {
+      await chrome.remove(tabId);
+    } else if (action.kind === "list" && answer.tabs) {
+      const live = new Map(chrome.pages().map((page) => [page.id, page]));
+      return {
+        tabs: answer.tabs.map((tab) => {
+          const page = live.get(tab.id);
+          return tab.kind === "page" && page
+            ? { ...tab, title: page.title, url: page.url }
+            : tab;
+        }),
+      };
+    }
+    return answer;
+  };
+
   /** A page tab of the window, by its target id. */
   const pageOf = (targetId: string) => {
     const tab =
@@ -169,12 +221,17 @@ export function createStandInWindow() {
     /** Answers the run's asks of the window until the returned function is called. */
     listen(): () => void {
       return publisher.subscribe("window.tab", (ask) => {
-        const answer = act(ask.action);
-        publisher.publish("window.tabDone", {
-          id: ask.id,
-          requestId: ask.requestId,
-          ...answer,
-        });
+        void actOnPages(ask.action)
+          .catch((error: unknown) => ({
+            error: error instanceof Error ? error.message : String(error),
+          }))
+          .then((answer) => {
+            publisher.publish("window.tabDone", {
+              id: ask.id,
+              requestId: ask.requestId,
+              ...answer,
+            });
+          });
       });
     },
     /** Opens a page tab under the id given, the way a task's own tab arrives behind. */
@@ -201,6 +258,9 @@ export function createStandInWindow() {
             // A page is at an address; a file or a screen at a path or route.
             kind: /^[a-z][a-z+.-]*:/i.test(tab.at) ? "page" : "screen",
           });
+          if (chrome && /^https?:/i.test(tab.at)) {
+            void chrome.ensure(tab.id, tab.at);
+          }
         }
       }
     },

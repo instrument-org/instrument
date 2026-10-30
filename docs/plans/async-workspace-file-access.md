@@ -1,6 +1,6 @@
 # Async access to the synced workspace folder
 
-Status: open. Steps 1 to 4 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, "workspace: read app files off the main thread and only once they change" `listApps`, "studio,workspace: read drafts off the main thread and only once they change" the drafts, and "workspace: read the chat index off the main thread before the workspace starts" the chat index. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Steps 5 and 6 are open.
+Status: open. Steps 1 to 4 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, "workspace: read app files off the main thread and only once they change" `listApps`, "studio,workspace: read drafts off the main thread and only once they change" the drafts, and "workspace: read the chat index off the main thread before the workspace starts" the chat index. Step 5 converted the rows a plain `await` covers ("workspace: read an app's guide and icon off the main thread", "workspace: read a skill's package.json off the main thread") and left the rest synchronous for the allowlist, each row saying why. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Step 6 is open.
 
 ## Problem
 
@@ -10,7 +10,7 @@ Everything in `packages/workspace` and Studio's main process runs on the Electro
 
 `async` on the function does not help. A handler declared `async` that calls `fs.readFileSync` still holds the thread for the whole read; only an awaited `fs.promises` call hands the read to libuv's thread pool. `listApps` (`apps/store.ts`) is the clearest example: it is `async`, and reads every `APP.md` synchronously inside a `.map`.
 
-Metadata calls (`stat`, `lstat`, `readdir`, `existsSync`, `realpath`) do not download a file, so they are cheap even on an evicted one. The danger is reading contents: `readFileSync`, `openSync` plus `readSync`, `appendFileSync`, and the repo's sync wrappers over them (`readJsonRecordSync`, `updateJsonRecordSync`, `readOwnFile`).
+Metadata calls (`stat`, `lstat`, `readdir`, `existsSync`, `realpath`) do not download a file, so they are cheap even on an evicted one. The danger is reading contents: `readFileSync`, `openSync` plus `readSync`, `appendFileSync`, and the repo's sync wrappers over them (`readJsonRecordSync`, `updateJsonRecordSync`).
 
 Moving the workspace to a utility process ([agent turn off the main thread](agent-turn-off-the-main-thread.md)) changes the symptom, not the cause: a sync read there stalls every chat in the workspace instead of the window. So this plan stands on its own and should land first.
 
@@ -31,13 +31,13 @@ Add `packages/workspace/src/lib/workspace-files.ts`, the one way code reads the 
 
 ### A lint rule so it stays fixed
 
-`packages/workspace/.oxlintrc.json` has no local plugin today; Studio's is `apps/studio/oxlint-rules.ts`, loaded through `jsPlugins`. Add a rule (in a workspace plugin, or by loading the shared rules file there too) that reports a call to a content-reading sync `fs` API, or to `readJsonRecordSync`, `updateJsonRecordSync` and `readOwnFile`, in `packages/workspace/src` and `apps/studio/src/electron-main`, outside an allowlist:
+`packages/workspace/.oxlintrc.json` has no local plugin today; Studio's is `apps/studio/oxlint-rules.ts`, loaded through `jsPlugins`. Add a rule (in a workspace plugin, or by loading the shared rules file there too) that reports a call to a content-reading sync `fs` API, or to `readJsonRecordSync` and `updateJsonRecordSync`, in `packages/workspace/src` and `apps/studio/src/electron-main`, outside an allowlist:
 
 - tests and test helpers;
 - the bash worker (`lib/bash-worker/`), which runs off the main thread;
 - launch-only sweeps and migrations, listed by file, each with a comment saying it runs before the window is useful;
 - modules that only touch local disk (machine folder, runtime folder, work folders), listed by file;
-- sync reads kept on purpose, each with its reason: `discover` in `record-folders.ts`, which `resolveChat` runs synchronously and which reads only a log head already downloaded, passing over an evicted one; `chatLinkedInFileSync` in `chat-folders/own-folder.ts`, for the shell's synchronous layout, which passes over an evicted `CHAT.md` the same way; `readDraftsSync` for `rewrite-stored-paths.ts`, which runs before the workspace opens; and `ownsDraftFolder` and `pastedIntoOthers` in `drafts/draft-folder.ts`, which read only in a folder that has more than one `DRAFT*.md`.
+- sync reads kept on purpose, each with its reason: `discover` in `record-folders.ts`, which `resolveChat` runs synchronously and which reads only a log head already downloaded, passing over an evicted one; `chatLinkedInFileSync` in `chat-folders/own-folder.ts`, for the shell's synchronous layout, which passes over an evicted `CHAT.md` the same way; `readDraftsSync` for `rewrite-stored-paths.ts`, which runs before the workspace opens; and `ownsDraftFolder` and `pastedIntoOthers` in `drafts/draft-folder.ts`, which read only in a folder that has more than one `DRAFT*.md`; and the step 5 rows left synchronous, each with the reason its row gives: `insertActivity` in `activity/store.ts`, `withOthersKept` in `drafts/draft-folder.ts` and `refresh` in Studio's `drafts/draft-store.ts`, `chat/topics.ts`, `rewrite-file.ts`, and Studio's `lib/workspaces.ts`.
 
 The rule cannot tell a synced path from a local one, so the allowlist carries that judgment, file by file. That keeps it reviewable: adding a file to the list is a visible decision in a diff. Metadata calls are not reported.
 
@@ -60,20 +60,20 @@ The audit behind this plan traced every sync call in `packages/workspace/src` an
 | where | reads | runs | fix |
 |---|---|---|---|
 | `invalid-chat-folders.ts` → `record-folders.ts` `chatSessionIn` | log heads of every chat | Settings > Storage | done: async |
-| `apps/icon.ts` `findAppIcon` | each app's `icon.png` or `icon.svg` | `apps.list`, per app | async, stat-gated |
-| `apps/store.ts` `readAppGuide` | one `APP.md`, or each in `otherGuidesToRead` | the `app` command and app setup | async |
-| `activity/store.ts` `insertActivity` (`appendFileSync`) | this device's own activity file | every model request | async append; if the sync service evicted the file, the append waits for a download |
-| `drafts/draft-folder.ts` `writeDraftFile` → `withOthersKept` | the draft's own `DRAFT.md`, for the keys this build does not write | every write of a draft | async, or the store hands over what its last look read |
-| Studio `drafts/draft-store.ts` `refresh` | the file of each draft an op changes | each change the composer makes to a draft | async, or the store's last look |
+| `apps/icon.ts` `findAppIcon` | each app's `icon.png` or `icon.svg` | `apps.list`, per app | done: async through `readBytes` with `ownFolder`. Not stat-gated: `CachedReads` parses text, and one small file per app is not worth a bytes mode |
+| `apps/store.ts` `readAppGuide`, `writeAppGuide` | one `APP.md`, or each in `otherGuidesToRead` | the `app` command and app setup | done: both read through `listApps`' `CachedReads`; `writeAppGuide` is async, and its one caller already was |
+| `activity/store.ts` `insertActivity` (`appendFileSync`) | this device's own activity file | every model request | left synchronous, for the allowlist. An async append needs a queue to keep lines in order and a flush the quit waits for, since a quit runs no promise to its end. The file is this device's own and appended on every request, so a sync service rarely evicts it |
+| `drafts/draft-folder.ts` `writeDraftFile` → `withOthersKept` | the draft's own `DRAFT.md`, for the keys this build does not write | every write of a draft | left synchronous, for the allowlist. `writeDraftFile` runs in the draft store's `apply`, which stays synchronous because a quit runs no promise to its end; handing over the last look's keys would drop one another device added since. The file is the one the store last read or wrote |
+| Studio `drafts/draft-store.ts` `refresh` | the file of each draft an op changes | each change the composer makes to a draft | left synchronous, for the allowlist: it runs in `apply`, as above, and its point is to read what the file says now, which the last look may not |
 
 ### Low: reads contents rarely
 
 | where | reads | runs | fix |
 |---|---|---|---|
-| `chat/topics.ts` `readTopicsSync`, `rewriteTopicSync` | every `Topics/*/TOPIC.md` | creating, updating or retiring a topic | switch to the async `readTopics` already there |
-| `memory/store.ts` through `rewrite-file.ts` | the memory being saved | each memory save | async |
-| Studio `lib/workspaces.ts` `readJson` | `.instrument/workspace.json` | `workspaces.current` per window load; Settings' workspace list | async, cached for the run |
-| `skill-runtime.ts` `getSkillRuntime` | a skill's `package.json` under `Skills/` | `load_skill`, skill validation | async |
+| `chat/topics.ts` `readTopicsSync`, `rewriteTopicSync` | every `Topics/*/TOPIC.md` | creating, updating or retiring a topic | left synchronous, for the allowlist. Each write reads the topics, checks the name, and writes in one synchronous run, so two creates or renames cannot interleave; async would need a lock around each. `listTopics` reads every `TOPIC.md` async first, so they are usually downloaded |
+| `memory/store.ts` through `rewrite-file.ts` | the memory being saved | each memory save | left synchronous, for the allowlist. `rewriteFileSync` is a read, render and rename that topics share and that relies on running in one go (its temp name is per process); an async copy for memory alone would be a second version of it |
+| Studio `lib/workspaces.ts` `readJson` | `.instrument/workspace.json` | `workspaces.current` per window load; Settings' workspace list | left synchronous, for the allowlist. `readWorkspaceIdentity` has about fifteen synchronous callers, most in launch and workspace-move code, so async means an async twin or that ripple. The launch reads the open workspace's file first (and checks it with `isDataless`), so `workspaces.current` reads a file already here; only Settings' list reads other workspaces' |
+| `skill-runtime.ts` `getSkillRuntime` | a skill's `package.json` under `Skills/` | `load_skill`, skill validation | done: async; every caller already was |
 
 ### Metadata only, and launch only
 
@@ -87,7 +87,7 @@ About twenty one-time sweeps and migrations read synchronously at launch (`migra
 2. **The activity tail and the synced store**: the smallest changes, and the activity one blocks today on any computer whose other devices' activity files were evicted.
 3. **`listApps`**: the hottest path. A stat-gated cache removes most of the reads; the async read removes the rest.
 4. **Drafts, then the chat index.** The index is the largest change, since `resolveChat` and the code under it are synchronous by design; building the index before first use keeps them synchronous over memory.
-5. **The medium and low rows.**
+5. **The medium and low rows.** Done: the ones a plain `await` covers are async, and the rest are on the allowlist with their reasons.
 6. **The lint rule and its allowlist**, last, once the code it would report is gone, so it lands green and stays that way.
 
 Each step ships on its own.

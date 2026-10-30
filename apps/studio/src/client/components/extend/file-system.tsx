@@ -111,6 +111,11 @@ import {
   runHits,
 } from "./file-system-marquee";
 import {
+  admitPreview,
+  attachedPreviews,
+  EMPTY_PREVIEW_POOL,
+} from "./file-system-preview-pool";
+import {
   RENAME_IDLE,
   type RenameEvent,
   type RenameState,
@@ -2488,17 +2493,12 @@ export function FileSystem({
   // without a current host stay mounted but DETACHED from the DOM — a
   // detached subtree costs no layout, paint, or style-recalc work, so idle
   // pool members never slow down interactions in the visible viewer.
-  const [stagePool, setStagePool] = React.useState<string[]>([]);
-  const [stageRecency] = React.useState(() => new Map<string, number>());
-  const stageClockRef = React.useRef(0);
+  const [stagePool, setStagePool] = React.useState(EMPTY_PREVIEW_POOL);
   const [stageContainers] = React.useState(
     () => new Map<string, HTMLDivElement>(),
   );
   const [stageHosts] = React.useState(() => new Map<string, HTMLElement>());
   const [, bumpStageHosts] = React.useState(0);
-  // Bumped on every admission so the attach set recomputes when recency
-  // changes without a pool membership change.
-  const [stageVersion, setStageVersion] = React.useState(0);
   const [dialogStageHost, setDialogStageHost] =
     React.useState<HTMLElement | null>(null);
   const registerStageHost = React.useCallback(
@@ -2518,11 +2518,8 @@ export function FileSystem({
     (element: HTMLDivElement | null) => setDialogStageHost(element),
     [],
   );
-  // Admits a file into the pool (idempotent), evicting the least recently
-  // admitted path beyond the cap. The pool array keeps insertion order —
-  // reordering would churn the host registrations — so recency lives in a
-  // separate map; the version bump re-renders so the attach set below
-  // tracks recency even when pool membership is unchanged.
+  // Admits a file into the pool as the newest shown, evicting the one shown
+  // longest ago beyond the cap.
   const poolStagePath = React.useCallback(
     (path: string) => {
       if (!index.files.has(path)) return;
@@ -2534,26 +2531,9 @@ export function FileSystem({
           "flex size-full min-h-0 min-w-0 items-center justify-center contain-layout contain-paint";
         stageContainers.set(path, container);
       }
-      stageRecency.set(path, ++stageClockRef.current);
-      setStageVersion((version) => version + 1);
-      setStagePool((previous) => {
-        if (previous.includes(path)) return previous;
-        const next = [...previous, path];
-        if (next.length <= GALLERY_STAGE_POOL_SIZE) return next;
-        let evicted = next[0];
-        for (const candidate of next) {
-          if (candidate === path) continue;
-          if (
-            (stageRecency.get(candidate) ?? 0) <
-            (evicted === undefined ? 0 : (stageRecency.get(evicted) ?? 0))
-          ) {
-            evicted = candidate;
-          }
-        }
-        return next.filter((candidate) => candidate !== evicted);
-      });
+      setStagePool((pool) => admitPreview(pool, path, GALLERY_STAGE_POOL_SIZE));
     },
-    [index, stageContainers, stageRecency],
+    [index, stageContainers],
   );
   const dialogStagePath =
     openedFile !== null && openedFile.kind !== "image"
@@ -2564,27 +2544,22 @@ export function FileSystem({
   // detached at zero rendering cost. Memoized so host ref callbacks
   // downstream stay referentially stable — recomputing every render would
   // re-register hosts in a loop.
-  const attachedStagePaths = React.useMemo(() => {
-    void stageVersion;
-    const attached = [...stagePool]
-      .sort((a, b) => (stageRecency.get(b) ?? 0) - (stageRecency.get(a) ?? 0))
-      .slice(0, GALLERY_STAGE_ATTACHED_COUNT);
-    if (
-      dialogStagePath &&
-      stagePool.includes(dialogStagePath) &&
-      !attached.includes(dialogStagePath)
-    ) {
-      attached.push(dialogStagePath);
-    }
-    return attached;
-  }, [dialogStagePath, stagePool, stageRecency, stageVersion]);
+  const attachedStagePaths = React.useMemo(
+    () =>
+      attachedPreviews(
+        stagePool,
+        GALLERY_STAGE_ATTACHED_COUNT,
+        dialogStagePath,
+      ),
+    [dialogStagePath, stagePool],
+  );
   // Reparent each pooled container to its current host. No dependency
   // array: host registration mutates maps in place, so the cheap loop
   // (pool ≤ GALLERY_STAGE_POOL_SIZE) runs every commit instead of chasing
   // every mutation source.
   React.useLayoutEffect(() => {
     for (const [path, container] of stageContainers) {
-      if (!stagePool.includes(path)) {
+      if (!stagePool.paths.includes(path)) {
         // Evicted — React already unmounted the portal's children.
         container.remove();
         stageContainers.delete(path);
@@ -3582,7 +3557,7 @@ export function FileSystem({
         {/* The pooled previews. Rendered inside <Dialog> so the dialog
             variant's close toolbar button keeps its context; each portal's
             container never changes, the container's parent does. */}
-        {stagePool.map((path) => {
+        {stagePool.paths.map((path) => {
           const file = index.files.get(path);
           const container = stageContainers.get(path);
           if (!file || !container) return null;

@@ -140,6 +140,9 @@ export function planError(
       case "overloaded": {
         return [529, "overloaded_error", true];
       }
+      case "server_error": {
+        return [502, "api_error", true];
+      }
       case "invalid_request":
       case "model_not_found": {
         return [400, "invalid_request_error", false];

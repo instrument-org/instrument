@@ -1,5 +1,6 @@
 import {
   type AIProviderType,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
@@ -256,6 +257,43 @@ describe("getErrorAction", () => {
           url: "https://example.com",
         });
         expect(getErrorAction(message)).toEqual({ type: "retry" });
+      });
+    });
+  });
+
+  describe("Claude account", () => {
+    const claudeAccountError = (
+      statusCode: number,
+      classification: "rate-limit" | "transient",
+    ) =>
+      createMessage(
+        {
+          classification,
+          kind: "api-call",
+          message: "Claude Code failed",
+          name: "AI_APICallError",
+          statusCode,
+          url: "claude-account://",
+        },
+        CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
+      );
+
+    it.each([
+      [429, "rate-limit"],
+      [502, "transient"],
+      [529, "transient"],
+    ] as const)(
+      "stops on a %i, which Claude Code already retried",
+      (statusCode, classification) => {
+        expect(
+          getErrorAction(claudeAccountError(statusCode, classification)),
+        ).toEqual({ type: "stop" });
+      },
+    );
+
+    it("retries Claude Code itself failing", () => {
+      expect(getErrorAction(claudeAccountError(500, "transient"))).toEqual({
+        type: "retry",
       });
     });
   });

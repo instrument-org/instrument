@@ -1,4 +1,7 @@
-import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+import {
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { gatewayResponseBodySchema } from "./gateway-response-body";
@@ -30,6 +33,25 @@ function isOurConcurrencyLimit(message: SessionMessage.Assistant) {
   return result.success && result.data.error.code === "concurrency-limit";
 }
 
+/**
+ * Statuses a Claude account gives the API's own failures (throttling, overload,
+ * a server error), which reach us only once Claude Code has spent its own
+ * retries on them. A failure of Claude Code itself, such as the process
+ * exiting, has none of these, and a retry starts a new process.
+ */
+const CLAUDE_CODE_RETRIED_STATUSES = new Set([429, 502, 529]);
+
+function isAfterClaudeCodeRetries(message: SessionMessage.Assistant) {
+  const error = message.metadata.error;
+  return (
+    error?.kind === "api-call" &&
+    error.statusCode !== undefined &&
+    CLAUDE_CODE_RETRIED_STATUSES.has(error.statusCode) &&
+    message.metadata.aiGatewayModel?.params.provider ===
+      CLAUDE_ACCOUNT_PROVIDER_CONFIG.type
+  );
+}
+
 export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
   const error = message.metadata.error;
   if (!error) {
@@ -42,6 +64,10 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
 
   // Retrying cannot help until the user frees space.
   if (error.kind === "aborted" || error.kind === "disk-full") {
+    return { type: "stop" };
+  }
+
+  if (isAfterClaudeCodeRetries(message)) {
     return { type: "stop" };
   }
 

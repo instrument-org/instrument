@@ -216,7 +216,7 @@ async function installSkill({
   const skillDir = AbsolutePathSchema.parse(
     path.join(registrySkillsDir, skillName),
   );
-  const runtime = getSkillRuntime(skillDir, skillName);
+  const runtime = await getSkillRuntime(skillDir, skillName);
   if ("error" in runtime) {
     throw new Error(runtime.error);
   }

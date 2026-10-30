@@ -285,7 +285,7 @@ async function loadSkill(name: string): Promise<string> {
   if (!("skill" in resolved)) {
     throw new Error(`No skill answers to ${name}.`);
   }
-  const runtime = getSkillRuntime(resolved.skill.skillDir, name);
+  const runtime = await getSkillRuntime(resolved.skill.skillDir, name);
   if ("error" in runtime) {
     throw new Error(runtime.error);
   }

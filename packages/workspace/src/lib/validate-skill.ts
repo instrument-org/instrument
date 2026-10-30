@@ -189,7 +189,7 @@ export async function validateSkill({
     );
   }
 
-  const runtime = getSkillRuntime(skillDir, skillName);
+  const runtime = await getSkillRuntime(skillDir, skillName);
   if ("error" in runtime) {
     add("error", "load-would-fail", runtime.error);
   }

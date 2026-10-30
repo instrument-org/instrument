@@ -111,7 +111,7 @@ const loadSkillCapability = defineCapability({
 
         const skill = resolved.skill;
 
-        const runtime = getSkillRuntime(skill.skillDir, skill.name);
+        const runtime = await getSkillRuntime(skill.skillDir, skill.name);
         if ("error" in runtime) {
           return executeError(runtime.error);
         }

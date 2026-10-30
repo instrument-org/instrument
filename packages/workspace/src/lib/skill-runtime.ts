@@ -2,6 +2,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 
 import { isRecord } from "./skills";
+import { readText } from "./workspace-files";
 
 /**
  * Which dependency installs a skill triggers when it is loaded, or the reason
@@ -14,17 +15,17 @@ export type SkillRuntime =
   | { error: string }
   | { node: boolean; python: boolean };
 
-export function getSkillRuntime(
+export async function getSkillRuntime(
   skillDir: string,
   skillName: string,
-): SkillRuntime {
+): Promise<SkillRuntime> {
   const packageJsonPath = path.join(skillDir, "package.json");
   let node = false;
 
   if (fsSync.existsSync(packageJsonPath)) {
     let packageJson: unknown;
     try {
-      packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, "utf8"));
+      packageJson = JSON.parse(await readText(packageJsonPath));
     } catch {
       return {
         error: `Skill "${skillName}" has an invalid package.json.`,

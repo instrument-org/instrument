@@ -21,3 +21,4 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | --- | --- |
 | [One mechanism, not per-case fixes](one-mechanism-not-per-case-fixes.md) | Shared abstractions and shared controls over bespoke handling |
 | [Give the agent the truth, not clever affordances](give-the-agent-the-truth.md) | Real paths, real records, raw formats over helpers |
+| [Built for regular people](built-for-regular-people.md) | The person works above the technical details |

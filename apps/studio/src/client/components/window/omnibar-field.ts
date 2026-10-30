@@ -16,6 +16,8 @@ export interface OmnibarField {
    * sits.
    */
   isFocused: boolean;
+  /** What the box opened with: the place, which counts as nothing typed. */
+  place: string;
   /** The words in the box, without the rest the field writes in ahead of the caret. */
   query: string;
 }
@@ -25,8 +27,12 @@ export type OmnibarFieldEvent =
   | { place?: string | undefined; type: "blur" }
   /** The box empties, and nothing else about it changes. */
   | { type: "clear" }
-  /** The caret goes into the box, which opens for typing. */
-  | { type: "focus" }
+  /**
+   * The caret goes into the box, which opens for typing. `place` is the
+   * place as it stands now, when that is more than the box rested on: a
+   * page's address with where the page has gone in itself.
+   */
+  | { place?: string | undefined; type: "focus" }
   /** The arrows pick a row. */
   | { index: number; type: "highlight" }
   /** Words typed or taken away; `canComplete` says whether the edit was a letter typed at the end. */
@@ -46,6 +52,7 @@ export function initialOmnibarField(
     highlight: 0,
     isEditing,
     isFocused: false,
+    place: query,
     query,
   };
 }
@@ -64,6 +71,7 @@ export function omnibarField(
         highlight: 0,
         isEditing: false,
         isFocused: false,
+        place: event.place ?? state.place,
         query: event.place ?? state.query,
       };
     }
@@ -71,7 +79,15 @@ export function omnibarField(
       return { ...state, query: "" };
     }
     case "focus": {
-      return { ...state, isEditing: true, isFocused: true };
+      return event.place === undefined
+        ? { ...state, isEditing: true, isFocused: true }
+        : {
+            ...state,
+            isEditing: true,
+            isFocused: true,
+            place: event.place,
+            query: event.place,
+          };
     }
     case "highlight": {
       return { ...state, highlight: event.index };

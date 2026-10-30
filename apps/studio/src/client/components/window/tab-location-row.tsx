@@ -84,6 +84,7 @@ export function TabLocationRow({
   fieldEnd,
   fillsTab = false,
   leading,
+  liveAddress,
   location,
   onBack,
   onClose,
@@ -102,6 +103,8 @@ export function TabLocationRow({
   fillsTab?: boolean;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
+  /** The address of the page up as it stands, read when the field is pressed: a page's file, with wherever the page has gone in itself. */
+  liveAddress?: () => string | undefined;
   location: TabLocation;
   /** Back through what the thing up has been at, drawn with forward; a row over a screen that is the tab's own route leaves both to the window's bar. */
   onBack?: () => void;
@@ -188,6 +191,7 @@ export function TabLocationRow({
         <Omnibar
           initial={locationText(location)}
           key={locationText(location)}
+          {...(liveAddress ? { liveAddress } : {})}
           location={location}
           {...(onSite ? { onSite } : {})}
           {...(onVisit ? { onVisit } : {})}
@@ -581,12 +585,10 @@ function locationText(location: TabLocation) {
     case "chat": {
       return location.title;
     }
-    // A page of a file is at its `file://` address, the one a browser opens
-    // it at, so it carries over to one as it stands.
+    // A file is at its `file://` address, the one a browser opens it at, so
+    // what is copied from the field carries over to one as it stands.
     case "file": {
-      return location.asPage
-        ? fileUrlOf(location.path)
-        : expandHomePath(location.path, window.api.homeDir);
+      return fileUrlOf(expandHomePath(location.path, window.api.homeDir));
     }
     // Written out in full, since a path from the home folder's name is not
     // one the field can open.

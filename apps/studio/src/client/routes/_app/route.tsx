@@ -30,6 +30,7 @@ import { ChatScreen } from "@/client/components/window/chat-screen";
 import { ContextChips } from "@/client/components/window/context-chip";
 import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
+import { liveHostedFileAddress } from "@/client/components/window/hosted-page";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { isPaneOpen } from "@/client/components/window/draft-context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
@@ -497,6 +498,7 @@ function RouteScreen({ href }: { href: string }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
   const tabId = useTabId();
+  const { allTabs } = useWindowTabs();
   const {
     picked,
     view: screenView,
@@ -542,7 +544,17 @@ function RouteScreen({ href }: { href: string }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
-        <TabLocationRow fillsTab location={location} {...rowProps} />
+        <TabLocationRow
+          fillsTab
+          {...(location.kind === "file"
+            ? {
+                liveAddress: () =>
+                  liveHostedFileAddress(allTabs, tabId, location.path),
+              }
+            : {})}
+          location={location}
+          {...rowProps}
+        />
       )}
       <WindowContext
         value={{

@@ -149,3 +149,37 @@ describe("a folder's names a whole path reaches", () => {
       .toMatchTextContent(row);
   });
 });
+
+// Pressed, the field holds what a browser would show for the page as it
+// stands now, so what is copied from it opens there; that address is the
+// place, not words typed, so it asks for nothing.
+describe("a page's file pressed into", () => {
+  it("holds the page's address as it stands, selected whole", async () => {
+    const shown = "file:///Users/casey/w.html";
+    const live = `${shown}?frame=2`;
+    await renderInBrowser(
+      <Omnibar
+        initial={shown}
+        liveAddress={() => live}
+        location={{
+          asPage: true,
+          kind: "file",
+          name: "w.html",
+          path: "/Users/casey/w.html",
+        }}
+        resting={<span>w.html</span>}
+      />,
+    );
+    const field = page.getByRole("combobox");
+    // Out of the pointer's way while the place rests over it; the row hands
+    // it the caret on a press, as here.
+    field.element().focus();
+
+    await expect.element(field).toHaveValue(live);
+    const box = field.element();
+    expect(
+      box instanceof HTMLInputElement && [box.selectionStart, box.selectionEnd],
+    ).toEqual([0, live.length]);
+    await expect.element(field).toHaveAttribute("aria-expanded", "false");
+  });
+});

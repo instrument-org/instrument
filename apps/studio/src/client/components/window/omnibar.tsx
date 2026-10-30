@@ -179,6 +179,7 @@ interface OmniRow {
  */
 export function Omnibar({
   initial = "",
+  liveAddress,
   location,
   onSite,
   onVisit,
@@ -186,6 +187,12 @@ export function Omnibar({
 }: {
   /** What the field says when it is edited: the place, ready to be typed over. */
   initial?: string;
+  /**
+   * The address of what is up as it stands when the field is pressed, read
+   * then rather than kept: a page's, with wherever it has gone in itself.
+   * Undefined when it has none, which leaves `initial`.
+   */
+  liveAddress?: () => string | undefined;
   /** Where the tab is, which is what the field reaches and where a relative path starts. */
   location: TabLocation;
   /** Where a site goes when one is asked for: the tab's own guest, on a page. Absent, a new tab. */
@@ -204,7 +211,7 @@ export function Omnibar({
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
   });
-  const [{ canComplete, highlight, isEditing, isFocused, query }, send] =
+  const [{ canComplete, highlight, isEditing, isFocused, place, query }, send] =
     useReducer(
       omnibarField,
       initialOmnibarField(initial, resting === undefined),
@@ -213,7 +220,7 @@ export function Omnibar({
   const listId = useId();
   // What was typed over the place, which is what the rows answer to; the
   // place itself, left as it was, asks for nothing.
-  const typed = query.trim() === initial.trim() ? "" : query;
+  const typed = query.trim() === place.trim() ? "" : query;
 
   // A new tab the user opened should be ready to type in, but this field also
   // appears when a channel with no tabs is switched to, and there the caret
@@ -437,7 +444,13 @@ export function Omnibar({
           });
         }}
         onFocus={(event) => {
-          send({ type: "focus" });
+          const live = resting === undefined ? undefined : liveAddress?.();
+          // In the box before the selection below, which a render would
+          // otherwise move to the end when it wrote the address in.
+          if (live !== undefined) {
+            event.currentTarget.value = live;
+          }
+          send({ place: live, type: "focus" });
           // The place, selected whole, so typing replaces it the way it does
           // in a browser's address bar.
           event.currentTarget.select();

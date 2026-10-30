@@ -1,7 +1,12 @@
+import { type WindowTab } from "@/client/atoms/window";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { getGuest, goGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { isPageEditAddress } from "@instrument-org/shared";
+import {
+  expandHomePath,
+  isPageEditAddress,
+  withoutPageEditParam,
+} from "@instrument-org/shared";
 import {
   browserTargetOf,
   type BrowserTargetId,
@@ -51,6 +56,33 @@ export function hostedPageStep(
   }
   const path = hostPathOfFileUrl(url);
   return path === undefined ? { kind: "site", url } : { kind: "file", path };
+}
+
+/**
+ * Where a page on a file stands now, as a browser would show it: the file's
+ * address with the query and fragment the page has gone to in itself, and
+ * without Edit's. Nothing when the guest is gone or on another file (a page
+ * kept blank, or still loading the file it was sent to), whose address would
+ * not be this file's.
+ */
+export function liveFileAddress(target: BrowserTargetId, path: string) {
+  const url = getGuest(target)?.url();
+  return url &&
+    hostPathOfFileUrl(url) === expandHomePath(path, window.api.homeDir)
+    ? withoutPageEditParam(url)
+    : undefined;
+}
+
+/** {@link liveFileAddress} for the page a file tab draws beside its tree, by the tab's id. */
+export function liveHostedFileAddress(
+  tabs: readonly WindowTab[],
+  tabId: string,
+  path: string,
+) {
+  const hosted = tabs.find(
+    (tab) => tab.group === hostGroupOf(tabId) && tab.kind === "page",
+  );
+  return hosted && liveFileAddress(browserTargetOf(hosted.id), path);
 }
 
 /**

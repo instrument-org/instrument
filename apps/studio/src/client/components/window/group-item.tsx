@@ -22,6 +22,7 @@ import { useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { PageAskButton } from "./file-ask-button";
 import { GroupTabContext } from "./group-tab";
+import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
@@ -143,6 +144,12 @@ export function GroupItem({
   // The router of a screen that is up; read before the early returns, as a hook.
   const router = useGroupTabRouter(up.id);
 
+  /** Where the page on a file up here stands now: the page tab's own, or the one a file's viewer draws. */
+  const liveAddressOf = (path: string) =>
+    targetId === undefined
+      ? liveHostedFileAddress(windowTabs.allTabs, up.id, path)
+      : liveFileAddress(targetId, path);
+
   /**
    * The row over what is up, the one the pane beside a chat draws: its
    * arrows walk the page's own history or the screen's trail, and its field
@@ -153,6 +160,9 @@ export function GroupItem({
       <TabLocationRow
         canGoBack={canGoBack}
         canGoForward={canGoForward}
+        {...(location.kind === "file"
+          ? { liveAddress: () => liveAddressOf(location.path) }
+          : {})}
         location={location}
         {...(onClose ? { onClose } : {})}
         {...(onExpand ? { onExpand } : {})}

@@ -13,6 +13,7 @@ const editing: OmnibarField = {
   highlight: 2,
   isEditing: true,
   isFocused: true,
+  place: "",
   query: "git",
 };
 
@@ -24,6 +25,10 @@ describe("omnibarField", () => {
     const cases = {
       clear: [editing, { type: "clear" }],
       focus: [initialOmnibarField("~/code", false), { type: "focus" }],
+      "focus, on a page gone on in itself": [
+        initialOmnibarField("file:///Users/casey/w.html", false),
+        { place: "file:///Users/casey/w.html?frame=2", type: "focus" },
+      ],
       highlight: [editing, { index: 3, type: "highlight" }],
       "input, a letter at the end": [
         editing,
@@ -50,6 +55,7 @@ describe("omnibarField", () => {
           "highlight": 2,
           "isEditing": true,
           "isFocused": true,
+          "place": "",
           "query": "",
         },
         "focus": {
@@ -57,13 +63,23 @@ describe("omnibarField", () => {
           "highlight": 0,
           "isEditing": true,
           "isFocused": true,
+          "place": "~/code",
           "query": "~/code",
+        },
+        "focus, on a page gone on in itself": {
+          "canComplete": false,
+          "highlight": 0,
+          "isEditing": true,
+          "isFocused": true,
+          "place": "file:///Users/casey/w.html?frame=2",
+          "query": "file:///Users/casey/w.html?frame=2",
         },
         "highlight": {
           "canComplete": true,
           "highlight": 3,
           "isEditing": true,
           "isFocused": true,
+          "place": "",
           "query": "git",
         },
         "input, a letter at the end": {
@@ -71,6 +87,7 @@ describe("omnibarField", () => {
           "highlight": 0,
           "isEditing": true,
           "isFocused": true,
+          "place": "",
           "query": "gith",
         },
         "input, a letter taken away": {
@@ -78,6 +95,7 @@ describe("omnibarField", () => {
           "highlight": 0,
           "isEditing": true,
           "isFocused": true,
+          "place": "",
           "query": "gi",
         },
         "revert": {
@@ -85,6 +103,7 @@ describe("omnibarField", () => {
           "highlight": 0,
           "isEditing": true,
           "isFocused": true,
+          "place": "",
           "query": "git",
         },
         "take": {
@@ -92,6 +111,7 @@ describe("omnibarField", () => {
           "highlight": 0,
           "isEditing": true,
           "isFocused": true,
+          "place": "",
           "query": "github.com",
         },
       }
@@ -106,6 +126,7 @@ describe("omnibarField", () => {
           "highlight": 0,
           "isEditing": false,
           "isFocused": false,
+          "place": "~/code",
           "query": "~/code",
         }
       `);
@@ -118,6 +139,7 @@ describe("omnibarField", () => {
         "highlight": 0,
         "isEditing": false,
         "isFocused": false,
+        "place": "",
         "query": "git",
       }
     `);
@@ -134,6 +156,7 @@ describe("omnibarField", () => {
         "highlight": 0,
         "isEditing": true,
         "isFocused": false,
+        "place": "",
         "query": "",
       }
     `);

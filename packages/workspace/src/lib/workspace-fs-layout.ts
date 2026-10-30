@@ -19,7 +19,11 @@ import {
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Listings, ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { shellPath } from "./shell-path";
-import { appUpdateCaches, windowsProgramFolders } from "./permissions/places";
+import {
+  appInstallFolders,
+  appUpdateCaches,
+  windowsProgramFolders,
+} from "./permissions/places";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import {
   type AbsolutePath,
@@ -885,9 +889,9 @@ export function shellPathOfHostSpelling(
  * environments, preload and `bin` links, which they read; its build
  * folders stay closed. Outside it, the temp folders open, and on Windows
  * the folders under `AppData` programs keep for themselves are readable
- * (`windowsProgramFolders`). A person's rule inside the app's own data opens
- * nothing there, and one on a folder holding it is outranked by the deeper
- * rule that closes it.
+ * (`windowsProgramFolders`), the app's own install among them. A person's
+ * rule inside the app's own data or its install opens nothing there, and one
+ * on a folder holding it is outranked by the deeper rule that closes it.
  */
 function layoutRules(
   layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules },
@@ -969,10 +973,11 @@ function layoutRules(
   ];
   // Inside it by name or by where the rule's path really leads: a folder
   // named anywhere that is a link into the app's data opens nothing there.
-  const closedRoots = appData.flatMap((closed) => [
-    closed.path,
-    realHostPath(closed.path),
-  ]);
+  // The same for the app's install on Windows, which every chat only reads.
+  const closedRoots = [
+    ...appData.map((closed) => closed.path),
+    ...appInstallFolders(given.home),
+  ].flatMap((closed) => [closed, realHostPath(closed)]);
   const outsideAppData = given.rules.filter((rule) => {
     const real = realHostPath(rule.path);
     return !closedRoots.some(

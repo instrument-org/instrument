@@ -62,7 +62,7 @@ Each of these holds one of the lines above, and a change that weakens one needs 
 - The startup places, login items and shell startup files, are closed to changes whatever the settings say (line 3).
 - The runtime folders (the managed Python, the skill environments, the preload, `bin`) are read-only to chats, and the skills the app ships are built in folders no chat reaches (line 3).
 - Installs are held to hash and release-age checks (line 3).
-- The updater's downloads in the caches (electron-updater's folder, and ShipIt's on macOS) are the app's own data, closed while the rest of the caches is open, since an update installs from them outside every sandbox (line 3).
+- The updater's downloads in the caches (electron-updater's folder, and ShipIt's on macOS) are the app's own data, closed while the rest of the caches is open, since an update installs from them outside every sandbox (line 3). On Windows the app's own install (`%LOCALAPPDATA%\<Velopack id>\`: `Update.exe`, the launcher stub, the app in `current\`) is read-only to every chat whatever the person allows, and its `packages\`, which Velopack applies from, is closed the same way (line 3).
 - pnpm's install step outside the sandbox (an install, and on Windows what `npx` fetches) runs no package's code, and goes outside only for a project the rules let the chat write that names registry packages alone and has no link out of its `node_modules` (lines 1 and 3).
 - The browser bridge passes only the commands on its list, a local file is checked before a page loads it, and `instrument window read` refuses a file the agent could not open itself (line 1).
 - App credentials are bound to their service's origin, and an app's manifest cannot name a command line (lines 2 and 3).

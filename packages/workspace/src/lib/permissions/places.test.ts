@@ -107,7 +107,9 @@ describe("the app-files place", () => {
             "AppData",
           ],
           "unlisted": undefined,
-          "updateCaches": [],
+          "updateCaches": [
+            "AppData/Local/Instrument/packages",
+          ],
         },
       }
     `);
@@ -218,6 +220,59 @@ describe("windowsProgramFolders", () => {
         "write AppData/Local/Programs/Python/python.exe: never",
         "read AppData/Local/Other/x: ask",
         "read AppData/Local/Google/Chrome/User Data/x: never",
+      ]
+    `);
+  });
+
+  it("keeps the app's install read-only and its packages closed with App files allowed", () => {
+    const allowed = {
+      ...rules,
+      rules: [
+        ...rules.rules.map((rule) =>
+          "place" in rule && rule.place === "appFiles"
+            ? { ...rule, level: "allow" as const }
+            : rule,
+        ),
+        ...appUpdateCaches(home, "win32").map((folder) => ({
+          appData: true as const,
+          level: "never" as const,
+          path: folder,
+          source: "system" as const,
+        })),
+      ],
+    };
+    expect(
+      (
+        [
+          ["AppData/Local/Instrument/Update.exe", "read"],
+          ["AppData/Local/Instrument/Update.exe", "write"],
+          ["AppData/Local/Instrument/Instrument.exe", "write"],
+          ["AppData/Local/Instrument/current/Instrument.exe", "read"],
+          ["AppData/Local/Instrument/current/resources/app.asar", "write"],
+          [
+            "AppData/Local/Instrument/packages/Instrument-1.0.0-full.nupkg",
+            "read",
+          ],
+          [
+            "AppData/Local/Instrument/packages/Instrument-1.0.0-full.nupkg",
+            "write",
+          ],
+          ["AppData/Local/Other/x", "write"],
+        ] as const
+      ).map(
+        ([place, op]) =>
+          `${op} ${place}: ${reachOf(allowed, path.join(home, place), op).level}`,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "read AppData/Local/Instrument/Update.exe: allow",
+        "write AppData/Local/Instrument/Update.exe: never",
+        "write AppData/Local/Instrument/Instrument.exe: never",
+        "read AppData/Local/Instrument/current/Instrument.exe: allow",
+        "write AppData/Local/Instrument/current/resources/app.asar: never",
+        "read AppData/Local/Instrument/packages/Instrument-1.0.0-full.nupkg: never",
+        "write AppData/Local/Instrument/packages/Instrument-1.0.0-full.nupkg: never",
+        "write AppData/Local/Other/x: allow",
       ]
     `);
   });

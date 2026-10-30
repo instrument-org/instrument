@@ -1,6 +1,8 @@
 import {
   APP_BUNDLE_ID,
+  APP_NAME,
   APP_UPDATER_CACHE_DIR_NAME,
+  APP_VELOPACK_ID,
 } from "@instrument-org/shared";
 import { existsSync } from "node:fs";
 import os from "node:os";
@@ -221,20 +223,47 @@ const STARTUP_PLACES = [
 ];
 
 /**
+ * Where Velopack installs the app on Windows: `Update.exe`, the launcher stub
+ * the shortcuts start, the downloaded `packages\`, and the app in `current\`,
+ * all run outside every sandbox. This build's own folder, and the shipping
+ * app's when this is a preview, since a preview's chat could otherwise change
+ * what the shipping app runs. Readable by every chat, as the agent's `node`
+ * and the bundled tools run from `current\`, and changed by none: a person's
+ * rule inside it opens nothing there.
+ */
+export function appInstallFolders(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  if (platform !== "win32") {
+    return [];
+  }
+  return [...new Set([APP_VELOPACK_ID, APP_NAME])].map((id) =>
+    path.join(home, "AppData", "Local", id),
+  );
+}
+
+/**
  * Folders under `AppData` on Windows that programs keep for themselves, and
  * people keep no files in, readable by every chat so the app-files place
  * does not ask about them: `Programs`, where per-user installs go (Python
  * from python.org, VS Code, Cursor), which a program on the PATH reads to
- * run. A rule deeper in it still decides there.
+ * run, and the app's own install (`appInstallFolders`). A person's rule
+ * deeper in `Programs` still decides there.
  */
 export function windowsProgramFolders(home = os.homedir()): string[] {
-  return [path.join(home, "AppData", "Local", "Programs")];
+  return [
+    path.join(home, "AppData", "Local", "Programs"),
+    ...appInstallFolders(home, "win32"),
+  ];
 }
 
 /**
  * Where the app's updater keeps a download before installing it, in the
- * caches the app-files place opens: electron-updater's folder, and on a Mac
- * the folder ShipIt stages the new build in and the app's own web cache.
+ * caches the app-files place opens: electron-updater's folder, on a Mac the
+ * folder ShipIt stages the new build in and the app's own web cache, and on
+ * Windows the Velopack install's `packages\`, whose package Velopack applies
+ * without checking it again when it finds one already there.
  * An install runs outside every sandbox (on Linux as root, through dpkg), so
  * these are the app's own data, closed to every chat.
  */
@@ -250,9 +279,12 @@ export function appUpdateCaches(
       path.join(caches, APP_BUNDLE_ID),
     ];
   }
-  return platform === "linux"
-    ? [path.join(home, ".cache", APP_UPDATER_CACHE_DIR_NAME)]
-    : [];
+  if (platform === "linux") {
+    return [path.join(home, ".cache", APP_UPDATER_CACHE_DIR_NAME)];
+  }
+  return appInstallFolders(home, platform).map((root) =>
+    path.join(root, "packages"),
+  );
 }
 
 /** The startup places as paths in `home`. */

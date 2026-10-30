@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
-import { ownFolder, readOwnFile, writeOwnFile } from "../own-file";
+import { ownFolder, writeOwnFile } from "../own-file";
+import { readBytes } from "../workspace-files";
 
 /**
  * An app's own icon: a file in its folder, drawn in place of its Mac app's
@@ -79,9 +80,8 @@ export async function findAppIcon(
   for (const fileName of APP_ICON_FILE_NAMES) {
     try {
       return {
-        bytes: readOwnFile({
-          file: path.join(appDir, fileName),
-          folder: path.dirname(appDir),
+        bytes: await readBytes(path.join(appDir, fileName), {
+          ownFolder: path.dirname(appDir),
         }),
         fileName,
       };

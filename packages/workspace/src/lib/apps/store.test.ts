@@ -323,7 +323,7 @@ describe("an app's guide", () => {
       ].join("\n"),
     );
 
-    writeAppGuide(dir, "What it is for now.");
+    await writeAppGuide(dir, "What it is for now.");
 
     expect(await fs.readFile(path.join(dir, APP_FILE_NAME), "utf8"))
       .toMatchInlineSnapshot(`
@@ -341,6 +341,22 @@ describe("an app's guide", () => {
       What it is for now.
       "
     `);
+  });
+
+  it("is read and written, with the icon, off the main thread", async () => {
+    const apps = await freshApps("guide-async");
+    await writeApp(apps, "Drafts", { ...drafts, id: "drafts" }, "Mine.");
+    const dir = absolutePathJoin(apps, "Drafts");
+    await writeAppIcon(dir, svgIcon, "icon.svg");
+    const opened = vi.spyOn(fsSync.promises, "open");
+
+    await writeAppGuide(dir, "What it is for now.");
+    expect(await readAppGuide(dir)).toBe("What it is for now.\n");
+    expect((await findAppIcon(dir))?.fileName).toBe("icon.svg");
+
+    expect(
+      opened.mock.calls.map(([file]) => path.relative(dir, String(file))),
+    ).toEqual([APP_FILE_NAME, APP_FILE_NAME, "icon.svg"]);
   });
 });
 
@@ -446,9 +462,7 @@ describe.skipIf(process.platform === "win32")(
             "SECRET",
           );
           expect(await readAppGuide(dir)).toBeNull();
-          expect(() => {
-            writeAppGuide(dir, "overwritten");
-          }).toThrow();
+          await expect(writeAppGuide(dir, "overwritten")).rejects.toThrow();
           await expect(
             setAppAccount(apps, slug, "someone@example.com"),
           ).rejects.toThrow();

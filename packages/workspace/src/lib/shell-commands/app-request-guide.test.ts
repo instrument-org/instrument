@@ -188,7 +188,7 @@ describe("app request and the app's guide", () => {
   it("sends nothing the first time, printing the guide on stderr and exiting 3", async () => {
     const slug = `guide-${chats}`;
     await connectedApiApp(slug);
-    writeAppGuide(
+    await writeAppGuide(
       (await loadApp(getWorkspaceConfig().appsDir, slug))._unsafeUnwrap().dir,
       "# Guide\n\nGET /me answers who the key belongs to.",
     );
@@ -260,12 +260,15 @@ describe("app request and the app's guide", () => {
   it("counts a guide the session's start told whole, until it is edited", async () => {
     const slug = `guide-${chats}`;
     const { dir } = await connectedApiApp(slug);
-    writeAppGuide(dir, "# Guide\n\nGET /me answers who the key belongs to.");
+    await writeAppGuide(
+      dir,
+      "# Guide\n\nGET /me answers who the key belongs to.",
+    );
     await writeBaseline(chatId, sessionId, { apps: await currentChatApps() });
 
     expect(await handsOver(slug)).toBe(false);
 
-    writeAppGuide(dir, "# Guide\n\nGET /me answers whose key it is.");
+    await writeAppGuide(dir, "# Guide\n\nGET /me answers whose key it is.");
     expect(await handsOver(slug)).toBe(true);
   });
 
@@ -293,7 +296,7 @@ describe("app request and the app's guide", () => {
     const { dir } = await connectedApiApp(slug);
     expect(await handsOver(slug)).toBe(true);
 
-    writeAppGuide(dir, "# Guide\n\nEvery path takes a trailing slash.");
+    await writeAppGuide(dir, "# Guide\n\nEvery path takes a trailing slash.");
 
     expect(await handsOver(slug)).toBe(true);
     expect(await handsOver(slug)).toBe(false);

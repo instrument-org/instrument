@@ -1,12 +1,10 @@
 import {
   closeSync,
   constants,
-  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -99,27 +97,6 @@ export function ownFolder({
         { code: link ? "ELOOP" : "ENOTDIR" },
       );
     }
-  }
-}
-
-/** A file's bytes, read as {@link openOwnFile} opens it. */
-export function readOwnFile({
-  file,
-  folder,
-}: {
-  file: string;
-  folder: string;
-}): Buffer {
-  const fd = openOwnFile({ file, flags: constants.O_RDONLY, folder });
-  try {
-    if (!fstatSync(fd).isFile()) {
-      throw Object.assign(new Error(`EISDIR: ${file} is not a file`), {
-        code: "EISDIR",
-      });
-    }
-    return readFileSync(fd);
-  } finally {
-    closeSync(fd);
   }
 }
 

@@ -6,7 +6,7 @@ import { omit } from "radashi";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
-import { readOwnFile, writeOwnFile } from "../own-file";
+import { writeOwnFile } from "../own-file";
 import { shellPath } from "../shell-path";
 import { CachedReads } from "../workspace-files";
 import { macAppNamed } from "../mac-apps/apps";
@@ -122,28 +122,28 @@ export async function loadApp(
 }
 
 /** The app's guide: the body of its `APP.md`, or nothing where it has none. */
-export function readAppGuide(appDir: AbsolutePath): Promise<null | string> {
-  let text: string | undefined;
+export async function readAppGuide(
+  appDir: AbsolutePath,
+): Promise<null | string> {
+  let read: AppFileRead;
   try {
-    text = readAppFileText(path.dirname(appDir), path.basename(appDir));
+    read = await readAppFile(path.dirname(appDir), path.basename(appDir));
   } catch {
     // Unreadable for now: nothing to show.
+    return null;
   }
-  const read = parseAppFile(text ?? "");
-  return Promise.resolve(
-    read.kind === "app" && read.app.guide !== "" ? `${read.app.guide}\n` : null,
-  );
+  return read.kind === "app" && read.app.guide !== ""
+    ? `${read.app.guide}\n`
+    : null;
 }
 
 /**
  * Writes the app's guide, keeping the manifest above it and every key found
  * with it, since the guide is the body of the one file the manifest is in.
  */
-export function writeAppGuide(appDir: AbsolutePath, guide: string) {
+export async function writeAppGuide(appDir: AbsolutePath, guide: string) {
   const appsDir = path.dirname(appDir);
-  const read = parseAppFile(
-    readAppFileText(appsDir, path.basename(appDir)) ?? "",
-  );
+  const read = await readAppFile(appsDir, path.basename(appDir));
   if (read.kind !== "app") {
     throw new Error(
       `${path.join(appDir, APP_FILE_NAME)} is not an app, so there is no guide to write.`,
@@ -352,26 +352,6 @@ function isNoAppFile(error: unknown): boolean {
 }
 
 /**
- * An app's file as text, read as the app itself rather than through the
- * sandbox: a program the agent runs can put a link at any name in here, and
- * nothing on the way to the file is followed (`readOwnFile`). Undefined where
- * the folder has no such file; throws for one it could not read.
- */
-function readAppFileText(appsDir: string, folder: string): string | undefined {
-  try {
-    return readOwnFile({
-      file: path.join(appsDir, folder, APP_FILE_NAME),
-      folder: appsDir,
-    }).toString("utf8");
-  } catch (error) {
-    if (isNoAppFile(error)) {
-      return undefined;
-    }
-    throw error;
-  }
-}
-
-/**
  * What each app's file says, kept until the file's size or modification time
  * changes: the chat list reads every app on each refresh, and the files
  * rarely change.
@@ -379,10 +359,12 @@ function readAppFileText(appsDir: string, folder: string): string | undefined {
 const appFiles = new CachedReads(parseAppFile);
 
 /**
- * What an app's file says, read as {@link readAppFileText} reads it, off the
- * main thread and waiting for a file a sync service keeps by name only, since
- * nothing else downloads it. `none` where the folder has no such file; throws
- * for one it could not read.
+ * What an app's file says, read as the app itself rather than through the
+ * sandbox: a program the agent runs can put a link at any name in here, and
+ * nothing on the way to the file is followed (`ownFolder`). Read off the main
+ * thread, waiting for a file a sync service keeps by name only, since nothing
+ * else downloads it. `none` where the folder has no such file; throws for one
+ * it could not read.
  */
 async function readAppFile(
   appsDir: string,

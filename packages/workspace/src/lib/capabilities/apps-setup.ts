@@ -241,7 +241,7 @@ async function runGuide(slug: string, text: string | undefined, role: Role) {
         `guide: not written, it has a secret in it (${secrets.join(", ")}). A guide never keeps a key, token or password: write how the service works without it. The app's key is kept apart from its folder and added to each request.`,
       );
     }
-    writeAppGuide(app.dir, written);
+    await writeAppGuide(app.dir, written);
     const stored = await readAppGuide(app.dir);
     if (stored !== null) {
       recordAppGuideHandOff({ app: app.slug, guide: stored });

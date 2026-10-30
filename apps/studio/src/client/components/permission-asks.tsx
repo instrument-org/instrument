@@ -135,13 +135,18 @@ function PermissionAskCard({
   const retry = useMutation(
     rpcClient.workspace.permissions.retry.mutationOptions(),
   );
+  // The look runs on the computer the card belongs to, where the prompt is.
+  const looks = asking && ask.here;
   useEffect(() => {
-    if (asking) {
+    if (looks) {
       retry.mutate({ askId: ask.id, id: chatId });
     }
     // Once a card starts asking; the look waits as long as the prompt does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asking, ask.id]);
+  }, [looks, ask.id]);
+  // Another computer's card, which this one can't answer: what it waits on
+  // there, in place of the answers.
+  const elsewhere = ask.answerable ? undefined : elsewhereLine(ask);
   const holds = isFolder ? signInLine(ask.target) : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({
@@ -188,7 +193,9 @@ function PermissionAskCard({
           </div>
         ) : null}
       </div>
-      {asking || isPrivate || blocked ? (
+      {elsewhere ? (
+        <p className="mt-0.5 text-[13px] text-muted-foreground">{elsewhere}</p>
+      ) : asking || isPrivate || blocked ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">
           {asking
             ? // oxlint-disable-next-line studio/no-os-words -- macOS alone asks this way
@@ -239,33 +246,40 @@ function PermissionAskCard({
           <span>{holds}</span>
         </p>
       ) : null}
+      {!ask.here && ask.answerable ? (
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          {`Your answer goes to ${ask.computer}, which asked for this.`}
+        </p>
+      ) : null}
       {/* A chat too narrow for the three in a row stacks them, each the
       card's width, rather than wrapping into a ragged pair. */}
-      <div className="mt-3 flex items-center gap-2 @max-xs/asks:flex-col @max-xs/asks:items-stretch @max-xs/asks:gap-1.5">
-        {refused ? (
-          <MacFixes ask={ask} busy={busy} chatId={chatId} />
-        ) : blocked ? (
-          <WindowsFixes ask={ask} busy={busy} chatId={chatId} />
-        ) : isTab ? (
-          <AnswerButton {...choice("allowed")}>Move tab here</AnswerButton>
-        ) : asking || isPrivate ? null : (
-          <>
-            <AnswerButton {...choice("allowed")}>
-              Allow in this chat
-            </AnswerButton>
-            <AnswerButton {...choice("always")} variant="outline">
-              Always allow
-            </AnswerButton>
-          </>
-        )}
-        <AnswerButton
-          {...choice("declined")}
-          className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
-          variant="ghost"
-        >
-          {isTab ? "Skip" : isPrivate ? "OK" : "Don’t allow"}
-        </AnswerButton>
-      </div>
+      {elsewhere ? null : (
+        <div className="mt-3 flex items-center gap-2 @max-xs/asks:flex-col @max-xs/asks:items-stretch @max-xs/asks:gap-1.5">
+          {refused ? (
+            <MacFixes ask={ask} busy={busy} chatId={chatId} />
+          ) : blocked ? (
+            <WindowsFixes ask={ask} busy={busy} chatId={chatId} />
+          ) : isTab ? (
+            <AnswerButton {...choice("allowed")}>Move tab here</AnswerButton>
+          ) : asking || isPrivate ? null : (
+            <>
+              <AnswerButton {...choice("allowed")}>
+                Allow in this chat
+              </AnswerButton>
+              <AnswerButton {...choice("always")} variant="outline">
+                Always allow
+              </AnswerButton>
+            </>
+          )}
+          <AnswerButton
+            {...choice("declined")}
+            className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
+            variant="ghost"
+          >
+            {isTab ? "Skip" : isPrivate ? "OK" : "Don’t allow"}
+          </AnswerButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -291,6 +305,21 @@ function cardTitle(ask: Ask, name: string): string {
           ? "Can Instrument use this tab?"
           : "Can Instrument use this app?";
   }
+}
+
+/**
+ * What another computer's card waits on there, said on a device that can't
+ * answer it: an answer given and not yet taken up, one taken that the
+ * system there still needs, or a card only that computer's screen answers.
+ */
+function elsewhereLine(ask: Ask): string {
+  if (ask.answered && !ask.answered.taken) {
+    return `You answered from ${ask.answered.by}. It takes effect once ${ask.computer} picks it up.`;
+  }
+  if (ask.answered) {
+    return `You answered from ${ask.answered.by}, and ${ask.computer} needs you to finish it there.`;
+  }
+  return `You can answer this on ${ask.computer}.`;
 }
 
 /** A page's site, the way its address bar shows it; the address itself when it has none. */

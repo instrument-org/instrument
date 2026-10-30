@@ -2,6 +2,7 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { startAppEvents } from "../apps/events";
 import { startChatFolderWrites } from "../chat-folders/on-turn-end";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
+import { startCardAnswers } from "./card-answers";
 import { startChatListFile } from "./chat-list-file";
 import { startChatSettle, startChatUnreadOnSettle } from "./chats";
 import { startJobWake } from "./job-wake";
@@ -15,7 +16,8 @@ import { startWorkDirReap } from "./work-dir-reap";
  * actor: a way for its `task` command to reach the machine, the subscribers
  * that wake it when a child finishes, a background process it left running
  * ends, the user acts on an app, or signs in to Instrument for an image it
- * asked for, the one
+ * asked for, the one that takes another device's answers to this
+ * computer's permission cards, the one
  * that names a chat again once its first exchange settles, the one that
  * marks a chat unread each time it settles, the one that writes the
  * chat's transcript into its folder as each turn ends, the one that
@@ -31,6 +33,7 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startJobWake(workspaceRef);
   startAppEvents(workspaceRef);
   startSignInWake(workspaceRef);
+  startCardAnswers(workspaceRef);
   startChatSettle();
   startChatRetitle();
   startChatUnreadOnSettle();

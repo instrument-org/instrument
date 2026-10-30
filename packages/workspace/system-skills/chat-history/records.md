@@ -10,6 +10,8 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `session`: the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own, and `startedAs`, the title it was started with
   - `sites`: the hosts the session's browser has been on, oldest first, in `visited`; the newest record stands
   - `stop`: the turn was stopped, `by` saying who: `person`, `agent` (the chat's agent stopping its task) or `app` (it quit)
+  - `card`: a permission card for a folder, app or tab the agent asked for, whole in `card`, written by the computer it belongs to (`card.device`) and only there; the newest record of a card's `id` stands, one with `answer` took that answer, and one with `closedAt` is no longer up
+  - `answer`: a device's answer to the card `card` names, the device being the log's: `allowed`, `always` or `declined`, the first in the logs winning, or `stopped`, a Stop that took `session` (every session, when none) off it
   - A message's `role`:
     - `assistant`: you
     - `session-context`: what the app told you at the start, the same in every chat and no part of the conversation

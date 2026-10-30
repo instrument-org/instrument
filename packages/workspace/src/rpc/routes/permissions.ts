@@ -7,7 +7,6 @@ import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { homeDataLayout, workspaceLayout } from "../../lib/workspace-layout";
 import { nativeSandboxOff, type SandboxOff } from "../../lib/native-sandbox";
 import {
-  type Level,
   LevelSchema,
   PLACE_DEFAULTS,
   PlaceIdSchema,
@@ -20,34 +19,32 @@ import {
   resetPermissionSettings,
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
-import { appBundleId, grantApp } from "../../lib/permissions/apps";
+import { appBundleId } from "../../lib/permissions/apps";
 import {
-  closeAsk,
-  type MacosAskStatus,
-  setMacosStatus,
+  answerableElsewhere,
+  computerName,
+  openCard,
+  openCards,
+  thisDevice,
 } from "../../lib/chat/asks";
-import { openAsks } from "../../lib/chat/open-asks";
 import {
-  lookAsTheApp,
+  answerAsk,
+  settle,
+  withFolderLevel,
+} from "../../lib/chat/card-answers";
+import {
   macAppStanding,
-  macosRefusalStatus,
   macosRefusedFolders,
-  watchMacosPrompt,
 } from "../../lib/permissions/macos";
 import { allowThroughProtection } from "../../lib/permissions/windows-protection";
-import { grantFolder } from "../../lib/chat/grants";
-import { setDenied } from "../../lib/permissions/denials";
-import { wakeAskers } from "../../lib/chat/wake";
-import { askWindow } from "../../lib/chat/window-tab";
-import { updateHeldTabs } from "../../lib/held-tabs";
-import { parseBrowserTargetId } from "../../types";
-import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
-import { type PermissionAsk } from "../../schemas/chat-state";
+import {
+  CardDecisionSchema,
+  type PermissionCard,
+} from "../../schemas/permission-card";
 import { type ChatId } from "../../schemas/chat-id";
-import { type WorkspaceActorRef } from "../../machines/workspace";
 
 const PermissionsViewSchema = z.object({
   /**
@@ -191,46 +188,6 @@ const setPlace = base
     ),
   );
 
-/**
- * Settings with a folder set to `level`. A folder that is a built-in place
- * on its own (Documents, Desktop, Downloads) changes that place instead, so
- * the list never shows one folder twice with two answers. A place made of
- * several folders, or one that also holds the home folder's hidden entries,
- * keeps a rule for the one folder, which opens no more than was asked.
- */
-function withFolderLevel(
-  settings: PermissionSettings,
-  folder: AbsolutePath,
-  level: Level,
-): PermissionSettings {
-  for (const place of placePaths()) {
-    const [only, ...others] = place.paths;
-    if (
-      place.id !== "output" &&
-      only !== undefined &&
-      others.length === 0 &&
-      !place.closedUnlessAllowed &&
-      hostPathWithin(only, folder) === "/"
-    ) {
-      return {
-        ...settings,
-        folders: settings.folders.filter((f) => f.path !== folder),
-        places: { ...settings.places, [place.id]: level },
-      };
-    }
-  }
-  const known = settings.folders.find((f) => f.path === folder);
-  return {
-    ...settings,
-    folders: known
-      ? settings.folders.map((f) => (f.path === folder ? { ...f, level } : f))
-      : [
-          ...settings.folders,
-          { addedAt: getCurrentDate(), level, path: folder },
-        ],
-  };
-}
-
 /** Adds or changes a folder's own rule. */
 const setFolder = base
   .input(z.object({ level: LevelSchema, path: AbsolutePathSchema }))
@@ -318,48 +275,47 @@ const removeApp = base
   );
 
 /**
- * The person's answer to an ask: allowed in this chat, allowed always, or
- * not now, which the chat keeps whoever asked. Every session that asked is
- * woken with the answer, or hears it at its next step if its turn is still
+ * The person's answer to a card, from any device the chat is open on:
+ * allowed in this chat, allowed always, or not now, which the chat keeps
+ * whoever asked. On the computer the card belongs to it is taken at once,
+ * after any answer another device gave first, which wins; every session that
+ * asked is woken with it, or hears it at its next step if its turn is still
  * going. On macOS a folder or app allowed is asked of macOS first, which is
  * when the system's own prompt for it comes up, and the call settles once
  * that is answered; one the system refuses keeps its card, `macos-refused`,
- * until `retry` gets in or the person declines.
+ * until `retry` gets in or the person declines. On any other device the
+ * answer is recorded for that computer to take (`card-answers.ts`).
  */
 const answer = base
   .input(
     z.object({
       askId: z.string(),
-      decision: z.enum(["allowed", "always", "declined"]),
+      decision: CardDecisionSchema,
       id: ChatIdSchema,
     }),
   )
   .output(z.void())
   .handler(async ({ context, input }) => {
-    const ask = await openPermissionAsk(input.id, input.askId);
-    if (input.decision === "declined") {
-      await decline(input.id, ask, context.workspaceRef);
-      return;
-    }
-    if (ask.kind === "tab") {
-      await moveTabIn(input.id, ask, context.workspaceRef);
-      return;
-    }
-    await grant(input.id, ask, input.decision);
-    await settle(input.id, ask, input.decision, context.workspaceRef);
+    await answerAsk(
+      input.id,
+      input.askId,
+      input.decision,
+      context.workspaceRef,
+    );
   });
 
 /**
  * Asks macOS again about a folder or app it refused, after the person
  * picked the folder in the system's panel or allowed it in System Settings,
  * or waits out the prompt a card that is `macos-asking` stands for, and
- * wakes the askers with the yes they gave once the app gets in.
+ * wakes the askers with the yes they gave once the app gets in. Only the
+ * computer the card belongs to can.
  */
 const retry = base
   .input(z.object({ askId: z.string(), id: ChatIdSchema }))
   .output(z.void())
   .handler(async ({ context, input }) => {
-    const ask = await openPermissionAsk(input.id, input.askId);
+    const ask = await ownOpenCard(input.id, input.askId);
     if (
       (ask.status !== "macos-refused" &&
         ask.status !== "macos-asking" &&
@@ -383,7 +339,7 @@ const allowThroughProtectionRoute = base
   .input(z.object({ askId: z.string(), id: ChatIdSchema }))
   .output(z.object({ outcome: z.enum(["allowed", "canceled", "failed"]) }))
   .handler(async ({ context, input }) => {
-    const ask = await openPermissionAsk(input.id, input.askId);
+    const ask = await ownOpenCard(input.id, input.askId);
     if (ask.status !== "windows-blocked" || process.platform !== "win32") {
       throw new ORPCError("BAD_REQUEST", {
         message: "That request isn't waiting on ransomware protection.",
@@ -403,251 +359,45 @@ const allowThroughProtectionRoute = base
     return { outcome };
   });
 
-/** Says not now to every permission card the chat has open. */
+/**
+ * Says not now to every permission card the chat has open that this
+ * device can answer: every one of this computer's, and another computer's
+ * that need not be answered on its own screen.
+ */
 const declineAll = base
   .input(z.object({ id: ChatIdSchema }))
   .output(z.void())
   .handler(async ({ context, input }) => {
-    const asks = (await openAsks(input.id)).filter(
-      (ask): ask is PermissionAsk => ask.kind !== "question",
+    const device = thisDevice();
+    const asks = (await openCards(input.id)).filter(
+      ({ answer: given, card }) =>
+        card.device === device ||
+        answerableElsewhere(card, given !== undefined),
     );
     await Promise.all(
-      asks.map((ask) => decline(input.id, ask, context.workspaceRef)),
+      asks.map(({ card }) =>
+        answerAsk(input.id, card.id, "declined", context.workspaceRef),
+      ),
     );
   });
 
-async function openPermissionAsk(
+/** One of this computer's open cards, which only it can act on. */
+async function ownOpenCard(
   chatId: ChatId,
   askId: string,
-): Promise<PermissionAsk> {
-  const ask = (await openAsks(chatId)).find(
-    (open): open is PermissionAsk =>
-      open.id === askId && open.kind !== "question",
-  );
-  if (!ask) {
+): Promise<PermissionCard> {
+  const open = await openCard(chatId, askId);
+  if (!open) {
     throw new ORPCError("NOT_FOUND", {
       message: "That request was already answered.",
     });
   }
-  return ask;
-}
-
-async function decline(
-  chatId: ChatId,
-  ask: PermissionAsk,
-  workspaceRef: WorkspaceActorRef,
-): Promise<void> {
-  // A check still looking inside finds the card gone and wakes nobody.
-  const closed = await closeAsk(chatId, ask.id);
-  if (!closed) {
-    return;
+  if (open.card.device !== thisDevice()) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: `That request needs answering on ${await computerName(open.card.device)}.`,
+    });
   }
-  // A tab kept is the person's to keep; asking again later is no worse for it.
-  if (ask.kind !== "tab") {
-    await setDenied(chatId, ask.kind, ask.target, true);
-  }
-  await wakeAskers(
-    {
-      data: {
-        answer: "declined",
-        kind: ask.kind,
-        ...(ask.page && { page: ask.page }),
-        target: ask.target,
-      },
-      type: "data-permissionAnswer",
-    },
-    workspaceRef,
-    chatId,
-    closed.askers.map((asker) => asker.sessionId),
-  );
-}
-
-/**
- * Moves the tab a card asked for out of the person's own tabs and into the
- * chat, page and all, and wakes the askers. The first to ask drives it, as
- * a tab handed over: the person's, never closed by the agent. A tab closed
- * before the answer wakes them with that instead.
- */
-async function moveTabIn(
-  chatId: ChatId,
-  ask: PermissionAsk,
-  workspaceRef: WorkspaceActorRef,
-): Promise<void> {
-  const closed = await closeAsk(chatId, ask.id);
-  if (!closed) {
-    return;
-  }
-  const took = await askWindow({
-    action: { kind: "take", tabId: ask.target },
-    askedBy: chatId,
-    group: chatId,
-  });
-  const tabId = parseBrowserTargetId(ask.target);
-  const driver = closed.askers[0]?.sessionId;
-  const moved =
-    took !== undefined && took.error === undefined && tabId !== null;
-  if (moved && driver !== undefined) {
-    await updateHeldTabs(chatId, driver, (tabs) => [
-      ...tabs.filter((tab) => tab.id !== tabId),
-      { id: tabId, inWindow: true, openedBy: "handed" },
-    ]);
-  }
-  await wakeAskers(
-    {
-      data: {
-        answer: moved ? "allowed" : "gone",
-        kind: "tab",
-        ...(ask.page && { page: ask.page }),
-        target: ask.target,
-      },
-      type: "data-permissionAnswer",
-    },
-    workspaceRef,
-    chatId,
-    closed.askers.map((asker) => asker.sessionId),
-  );
-}
-
-/** Lets the chat use what the ask is for, and every chat with Always allow. */
-async function grant(
-  chatId: ChatId,
-  ask: PermissionAsk,
-  decision: "allowed" | "always",
-): Promise<void> {
-  const { kind, target } = ask;
-  // A tab is moved, never granted (`moveTabIn`).
-  if (kind === "tab") {
-    return;
-  }
-  await setDenied(chatId, kind, target, false);
-  if (kind === "folder") {
-    await grantFolder({ chatId, path: target, source: "card" });
-    if (decision === "always") {
-      const folder = AbsolutePathSchema.parse(target);
-      await updatePermissionSettings((settings) =>
-        withFolderLevel(settings, folder, "allow"),
-      );
-    }
-    return;
-  }
-  await grantApp(chatId, target);
-  if (decision === "always") {
-    const bundleId = await appBundleId(target);
-    await updatePermissionSettings((settings) => ({
-      ...settings,
-      apps: [
-        ...settings.apps.filter(
-          (app) => app.name.toLowerCase() !== target.toLowerCase(),
-        ),
-        {
-          addedAt: getCurrentDate(),
-          bundleId,
-          level: "allow",
-          name: target,
-        },
-      ],
-    }));
-  }
-}
-
-/** The look inside running for each ask, so an Allow from another window joins it. */
-const settling = new Map<string, Promise<void>>();
-
-/**
- * Closes an allowed ask and wakes its askers, once macOS lets the app into
- * the folder or the app: asking waits as long as the system's own prompt is
- * up, and the card says macOS is asking meanwhile. One macOS refuses stays
- * open, keeping the yes. Off macOS nothing is asked.
- *
- * An asker whose own command waits on the folder (`waits`) is never woken:
- * the command carries on by itself once macOS answers, and wakes its
- * session when it ends. So a card a command raised goes quietly when its
- * look gets in, whatever was on screen meanwhile.
- */
-function settle(
-  chatId: ChatId,
-  ask: PermissionAsk,
-  decision: "allowed" | "always",
-  workspaceRef: WorkspaceActorRef,
-): Promise<void> {
-  const running = settling.get(ask.id);
-  if (running) {
-    return running;
-  }
-  const settled = (async () => {
-    const kept = await macosKeepsOut(ask, () =>
-      setMacosStatus(chatId, ask.id, "macos-asking", decision),
-    );
-    if (kept !== undefined) {
-      await setMacosStatus(chatId, ask.id, kept, decision);
-      return;
-    }
-    const closed = await closeAsk(chatId, ask.id);
-    const woken = closed?.askers.filter((asker) => asker.waits !== true);
-    if (!woken?.length) {
-      return;
-    }
-    await wakeAskers(
-      {
-        data: {
-          answer: decision,
-          kind: ask.kind,
-          target: ask.target,
-          ...(ask.status === "windows-blocked" && {
-            through: "windows-protection" as const,
-          }),
-          // One of the Mac's own apps is connected for every chat, so a card
-          // about one only ever stood for macOS's prompt.
-          ...(ask.kind === "app" &&
-            (ask.status === "macos-asking" ||
-              ask.status === "macos-refused") && {
-              through: "macos" as const,
-            }),
-        },
-        type: "data-permissionAnswer",
-      },
-      workspaceRef,
-      chatId,
-      woken.map((asker) => asker.sessionId),
-    );
-  })().finally(() => {
-    settling.delete(ask.id);
-  });
-  settling.set(ask.id, settled);
-  return settled;
-}
-
-/**
- * How macOS keeps the app from what `ask` is for, once the person said
- * yes: the card's status, or undefined when it lets the app in (or off
- * macOS). A folder is looked inside, and an app asked of macOS, which raises
- * the system's prompt nobody has answered yet; `onAsking` runs once when
- * that prompt is on screen while the answer waits.
- */
-async function macosKeepsOut(
-  ask: PermissionAsk,
-  onAsking: () => Promise<void>,
-): Promise<Exclude<MacosAskStatus, "macos-asking"> | undefined> {
-  if (process.platform !== "darwin") {
-    return undefined;
-  }
-  if (ask.kind === "folder") {
-    return (await lookAsTheApp(ask.target, onAsking)) === "system"
-      ? macosRefusalStatus(ask.target)
-      : undefined;
-  }
-  const bundleId = await appBundleId(ask.target);
-  if (bundleId === undefined) {
-    return undefined;
-  }
-  const standing = macAppStanding(
-    { bundleId, name: ask.target },
-    { request: true },
-  );
-  const watched = watchMacosPrompt(standing, onAsking);
-  const standingAnswer = await standing;
-  await watched;
-  return standingAnswer === "denied" ? "macos-refused" : undefined;
+  return open.card;
 }
 
 export const permissions = {

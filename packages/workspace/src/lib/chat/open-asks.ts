@@ -10,10 +10,9 @@ import { isTypedByUser } from "../typed-by-user";
 import { openPermissionAsks, sortAsks } from "./asks";
 
 /**
- * What a chat waits on the person for: its permission cards, this
- * computer's (`asks.ts`), and the questions its agent asked, read from its
- * records. Apart from `asks.ts` because the questions read the records,
- * which the permission rules that raise a card must not reach.
+ * What a chat waits on the person for: its permission cards, every
+ * computer's (`asks.ts`), and the questions its agent asked, both read from
+ * its records.
  */
 
 /**

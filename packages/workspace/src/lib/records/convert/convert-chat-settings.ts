@@ -192,8 +192,10 @@ async function carryState(
   if (!isRecord(state)) {
     return false;
   }
-  // The app guides handed are read from the chat's history, not kept.
-  const { appGuidesRead: _handed, asks, ...rest } = state;
+  // The app guides handed are read from the chat's history, not kept, and a
+  // card an earlier build kept here was this device's alone: its agent asks
+  // again when it next needs what the card was for.
+  const { appGuidesRead: _handed, asks: _asks, ...rest } = state;
   let wrote = false;
   await updateJsonRecord(
     chatStatePath(ChatDirSchema.parse(dir), deviceId),
@@ -202,15 +204,7 @@ async function carryState(
         return undefined;
       }
       wrote = true;
-      return {
-        ...rest,
-        // A question the agent asked is read from the chat's records.
-        ...(asks !== undefined && {
-          waitingOn: Array.isArray(asks)
-            ? asks.filter((ask) => !isRecord(ask) || ask.kind !== "question")
-            : asks,
-        }),
-      };
+      return rest;
     },
   );
   return wrote;

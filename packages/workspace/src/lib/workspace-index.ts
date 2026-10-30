@@ -18,7 +18,7 @@ import { versionMatches, workspaceTables } from "./workspace-db";
  * built under another version is thrown away and rebuilt from the records as it
  * is read: the index is derived, so it is never migrated. Its tables are in `workspace.db`, beside tables it never touches.
  */
-const INDEX_VERSION = 17;
+const INDEX_VERSION = 18;
 
 /**
  * What the index keeps, one row per session: each a value derived from that

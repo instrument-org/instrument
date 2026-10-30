@@ -9,14 +9,26 @@ import { setChatModel } from "../../lib/chat-settings";
 import { heldTabs } from "../../lib/held-tabs";
 import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
-import { recordAsk } from "../../lib/chat/asks";
+import { closeAsksOf, recordAsk } from "../../lib/chat/asks";
+import { takeCardAnswers } from "../../lib/chat/card-answers";
+import { chatGrants } from "../../lib/chat/grants";
 import { openAsks } from "../../lib/chat/open-asks";
+import {
+  ChatRecords,
+  installChatRecords,
+  writingChatRecords,
+} from "../../lib/records/chat-records";
+import { writeDeviceFile } from "../../lib/records/device-file";
+import { newDeviceId } from "../../lib/records/device-id";
+import { workspaceLayout } from "../../lib/workspace-layout";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { type CardDecision } from "../../schemas/permission-card";
 import { chatDenials } from "../../lib/permissions/denials";
 import {
   readPermissionSettings,
   updateChatPermissions,
 } from "../../lib/permissions/rules";
-import { sessionOfChat } from "../../lib/record-folders";
+import { chatDir, sessionOfChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -655,6 +667,224 @@ describe("permissions.answer", () => {
       expect(wokenSince(sentBefore)).toEqual([
         { answer: ["declined"], sessionId: own },
       ]);
+    });
+  });
+
+  // Every device writes its own logs into one synced folder; here each is
+  // a `ChatRecords` of its own over the same chats folder, and the one in
+  // place is the device the call runs on.
+  describe("from another computer", () => {
+    const owner = () => {
+      const records = writingChatRecords();
+      if (!records) {
+        throw new Error("expected the test's records in place");
+      }
+      return records;
+    };
+    const made: ChatRecords[] = [];
+    afterEach(async () => {
+      await Promise.all(made.splice(0).map((records) => records.dispose()));
+    });
+
+    /** A device with a name, its records over the same chats folder. */
+    async function computer(name: string, device = newDeviceId()) {
+      await writeDeviceFile({
+        device,
+        devicesDir: workspaceLayout(getWorkspaceConfig().rootDir).devicesDir,
+        file: { name, platform: "darwin" },
+      });
+      if (device === owner().device) {
+        return owner();
+      }
+      const records = new ChatRecords({
+        app: "0.0.0-test",
+        device,
+        dirOf: chatDir,
+        fsync: false,
+      });
+      made.push(records);
+      return records;
+    }
+
+    /**
+     * Runs `act` as the device `records` writes for, once it has read what
+     * the others wrote, then puts the owner back.
+     */
+    async function on<T>(records: ChatRecords, act: () => Promise<T>) {
+      const home = owner();
+      await records.catchUp(chatIdNow);
+      installChatRecords(records);
+      try {
+        return await act();
+      } finally {
+        installChatRecords(home);
+      }
+    }
+    let chatIdNow = ChatIdSchema.parse("unset");
+
+    /** A folder card raised on the owner, "Studio Mac", which a phone and a laptop see. */
+    async function raised() {
+      const ref = await chatWithTask();
+      chatIdNow = ref.chatId;
+      await computer("Studio Mac", owner().device);
+      const pantry = "/Users/me/Pantry";
+      await recordAsk(
+        { chatId: ref.chatId, reason: "To stock it.", sessionId: ref.task },
+        "folder",
+        pantry,
+      );
+      const [card] = await openAsks(ref.chatId);
+      if (!card || card.kind === "question") {
+        throw new Error("expected the folder's card");
+      }
+      return { ...ref, card, pantry };
+    }
+
+    const answer = (chatId: ChatId, askId: string, decision: CardDecision) =>
+      call(
+        permissions.answer,
+        { askId, decision, id: chatId },
+        { context: context() },
+      );
+
+    it("shows the owner's card elsewhere, answerable and named for its computer", async () => {
+      const { card, chatId } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+
+      expect(await on(phone, () => openAsks(chatId))).toEqual([
+        expect.objectContaining({
+          answerable: true,
+          computer: "Studio Mac",
+          here: false,
+          id: card.id,
+          status: "open",
+        }),
+      ]);
+    });
+
+    it("takes the first answer in log order, and the grant is the owner's", async () => {
+      const { card, chatId, own, pantry, task } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+      const laptop = await computer("MacBook Air");
+      await on(phone, () => answer(chatId, card.id, "always"));
+      // The laptop's no lands after it, as one given before the phone's had
+      // synced there would.
+      await laptop.catchUp(chatId);
+      await laptop.answer(chatId, own, { card: card.id, decision: "declined" });
+      const sentBefore = sent.length;
+      // The owner hears both arrive.
+      await owner().catchUp(chatId);
+      await takeCardAnswers(chatId, context().workspaceRef);
+
+      expect(await chatGrants(chatId)).toEqual([
+        expect.objectContaining({ path: pantry }),
+      ]);
+      expect((await readPermissionSettings()).folders).toEqual([
+        expect.objectContaining({ level: "allow", path: pantry }),
+      ]);
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["always"], sessionId: task },
+      ]);
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(await on(laptop, () => openAsks(chatId))).toEqual([]);
+    });
+
+    it("refuses a later answer once one is given, and shows it waiting for the owner", async () => {
+      const { card, chatId } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+      const laptop = await computer("MacBook Air");
+      await on(phone, () => answer(chatId, card.id, "allowed"));
+      // The owner is off: nothing takes the answer yet.
+
+      await expect(
+        on(laptop, () => answer(chatId, card.id, "declined")),
+      ).rejects.toThrow("That request was already answered.");
+      expect(await on(laptop, () => openAsks(chatId))).toEqual([
+        expect.objectContaining({
+          answerable: false,
+          answered: {
+            by: "Jeremy's iPhone",
+            decision: "allowed",
+            taken: false,
+          },
+          computer: "Studio Mac",
+        }),
+      ]);
+    });
+
+    it("refuses a card only the owner's screen can answer, naming the owner", async () => {
+      const { chatId, own } = await chatWithTask();
+      chatIdNow = chatId;
+      await computer("Studio Mac", owner().device);
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Work", {
+        allowed: "allowed",
+        programs: ["C:\\Program Files\\Instrument\\Instrument.exe"],
+        status: "windows-blocked",
+      });
+      const [card] = await openAsks(chatId);
+      const phone = await computer("Jeremy's iPhone");
+
+      expect(await on(phone, () => openAsks(chatId))).toEqual([
+        expect.objectContaining({ answerable: false, here: false }),
+      ]);
+      await expect(
+        on(phone, () => answer(chatId, card?.id ?? "", "allowed")),
+      ).rejects.toThrow("That request needs answering on Studio Mac.");
+    });
+
+    it.runIf(process.platform === "darwin")(
+      "keeps a remote yes that macOS then refuses, as needing the owner",
+      async () => {
+        const { card, chatId } = await raised();
+        const phone = await computer("Jeremy's iPhone");
+        macos.look = () => Promise.resolve("system");
+        await on(phone, () => answer(chatId, card.id, "allowed"));
+
+        await owner().catchUp(chatId);
+        await takeCardAnswers(chatId, context().workspaceRef);
+        macos.look = undefined;
+
+        expect(await on(phone, () => openAsks(chatId))).toEqual([
+          expect.objectContaining({
+            answerable: false,
+            answered: {
+              by: "Jeremy's iPhone",
+              decision: "allowed",
+              taken: true,
+            },
+            computer: "Studio Mac",
+            status: "macos-private",
+          }),
+        ]);
+      },
+    );
+
+    it("closes the card in the records when the owner stops the session", async () => {
+      const { chatId, task } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+
+      await closeAsksOf(chatId, task);
+
+      expect(await on(phone, () => openAsks(chatId))).toEqual([]);
+    });
+
+    it("takes a session another computer stopped off the card, waking nobody", async () => {
+      const { card, chatId, task } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+      await on(phone, () => closeAsksOf(chatId, task));
+      expect(await on(phone, () => openAsks(chatId))).toEqual([]);
+      const sentBefore = sent.length;
+
+      await owner().catchUp(chatId);
+      await takeCardAnswers(chatId, context().workspaceRef);
+
+      const session = (await owner().read(chatId)).chat.sessions.find(
+        ({ id }) => id === sessionOfChat(chatId),
+      );
+      expect(session?.cards).toEqual([
+        expect.objectContaining({ closedAt: expect.any(Date), id: card.id }),
+      ]);
+      expect(wokenSince(sentBefore)).toEqual([]);
     });
   });
 });

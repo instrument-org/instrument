@@ -9,6 +9,10 @@ import {
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
 } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
+import {
+  type CardAnswer,
+  type PermissionCard,
+} from "../../schemas/permission-card";
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -21,6 +25,9 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isArriving } from "./arriving";
 import { blobPath, writeBlob } from "./blobs";
 import { type DeviceId } from "./device-id";
+import { writingChatRecords } from "./installed-records";
+
+export { installChatRecords, writingChatRecords } from "./installed-records";
 import { settingsFileName, parseRecordFileName } from "./file-names";
 import {
   ChatFold,
@@ -173,6 +180,9 @@ interface PendingSession {
   rollover?: Queued<NonNullable<FoldedSession["rollover"]>>;
   sites?: Queued<string[]>;
   stopped?: Queued<NonNullable<FoldedSession["stopped"]>>;
+  cards: Map<string, Queued<PermissionCard>>;
+  /** By ticket, in the order they were queued. */
+  answers: Map<number, CardAnswer>;
 }
 
 /** One file this process appends to, and how far its writes reach. */
@@ -713,6 +723,59 @@ export class ChatRecords {
           };
         },
         record: () => ({ t: "sites", at, visited }),
+      });
+    });
+  }
+
+  /** A permission card whole, as this device, the one it belongs to, has it now. */
+  card(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    card: PermissionCard,
+  ): Promise<void> {
+    return this.#with(chatId, (chat) => {
+      const at = this.#now();
+      return this.#log(chat, sessionId, {
+        at,
+        changed: () => recordChanged(chat.id, "session"),
+        hold: (session, ticket) => {
+          session.cards.set(card.id, { ticket, value: card });
+          return (held) => {
+            if (held.cards.get(card.id)?.ticket === ticket) {
+              held.cards.delete(card.id);
+            }
+          };
+        },
+        record: () => ({ t: "card", at, card }),
+      });
+    });
+  }
+
+  /** This device's answer to a permission card, whichever device it belongs to. */
+  answer(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    answer: Pick<CardAnswer, "card" | "decision" | "session">,
+  ): Promise<void> {
+    return this.#with(chatId, (chat) => {
+      const at = this.#now();
+      const value: CardAnswer = { ...answer, at, device: this.device };
+      return this.#log(chat, sessionId, {
+        at,
+        changed: () => recordChanged(chat.id, "session"),
+        hold: (session, ticket) => {
+          session.answers.set(ticket, value);
+          return (held) => {
+            held.answers.delete(ticket);
+          };
+        },
+        record: () => ({
+          t: "answer",
+          at,
+          card: answer.card,
+          decision: answer.decision,
+          ...(answer.session !== undefined && { session: answer.session }),
+        }),
       });
     });
   }
@@ -1399,8 +1462,6 @@ interface LiveState {
   parts: Map<string, SessionMessagePart.Type>;
 }
 
-/** The process's chat records, set in place of the one made from the workspace's config. */
-let installed: ChatRecords | undefined;
 let made: ChatRecords | undefined;
 
 /**
@@ -1412,6 +1473,7 @@ export function chatRecords(): ChatRecords {
   if (!isMainThread) {
     throw new Error("Chat records are written and read on the main thread");
   }
+  const installed = writingChatRecords();
   if (installed) {
     return installed;
   }
@@ -1429,20 +1491,6 @@ export function chatRecords(): ChatRecords {
     });
   }
   return made;
-}
-
-/** Puts `records` in place of the process's own, or takes it out again. */
-export function installChatRecords(records: ChatRecords | undefined): void {
-  installed = records;
-}
-
-/**
- * The chat records this process writes, or nothing where none are in place.
- * A workspace puts them there as it opens; a process that only reads chats
- * writes no record, and neither does a test that has not asked for one.
- */
-export function writingChatRecords(): ChatRecords | undefined {
-  return installed;
 }
 
 /** Whether a message is one whose line is synced once written. */
@@ -1469,7 +1517,9 @@ function pendingOf(chat: OpenChat, sessionId: StoreId.Session): PendingSession {
     return existing;
   }
   const session: PendingSession = {
+    answers: new Map(),
     at: 0,
+    cards: new Map(),
     settings: new Map(),
     messages: new Map(),
     parts: new Map(),
@@ -1910,8 +1960,27 @@ function overlaid(
     ...(queued.rollover && { rollover: queued.rollover.value }),
     ...(queued.sites && { sites: queued.sites.value }),
     ...(queued.stopped && { stopped: queued.stopped.value }),
+    ...cardsOverlaid(session, queued),
     updatedAt: new Date(Math.max(session.updatedAt.getTime(), queued.at)),
     writtenBy,
+  };
+}
+
+/** A session's cards and answers with this device's queued ones over them. */
+function cardsOverlaid(
+  session: FoldedSession,
+  queued: PendingSession,
+): Pick<FoldedSession, "answers" | "cards"> {
+  if (queued.cards.size === 0 && queued.answers.size === 0) {
+    return {};
+  }
+  const cards = new Map((session.cards ?? []).map((card) => [card.id, card]));
+  for (const { value } of queued.cards.values()) {
+    cards.set(value.id, value);
+  }
+  return {
+    answers: [...(session.answers ?? []), ...queued.answers.values()],
+    cards: [...cards.values()],
   };
 }
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
-import { updateJsonRecord } from "../json-record-file";
+import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type DeviceId } from "./device-id";
 
 /**
@@ -55,6 +55,27 @@ export async function writeDeviceFile({
         ? undefined
         : file,
   );
+}
+
+/**
+ * The name a device's own file gives the computer, or none when the file is
+ * not there yet (still syncing) or cannot be read.
+ */
+export async function readDeviceName({
+  device,
+  devicesDir,
+}: {
+  device: DeviceId;
+  devicesDir: string;
+}): Promise<string | undefined> {
+  const read = await readJsonRecord(
+    path.join(devicesDir, device, DEVICE_FILE_NAME),
+  );
+  if (read.kind !== "read") {
+    return undefined;
+  }
+  const file = DeviceFileSchema.safeParse(read.record);
+  return file.success ? file.data.name : undefined;
 }
 
 const run = promisify(execFile);

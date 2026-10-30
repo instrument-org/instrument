@@ -1,11 +1,14 @@
 import os from "node:os";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { cardLine, closeAsk, recordAsk } from "./asks";
+import { DeviceIdSchema } from "../../schemas/device-id";
+import { type PermissionCard } from "../../schemas/permission-card";
+import { cardLine, closeAsk, openCardsIn, recordAsk } from "./asks";
 import { openAsks } from "./open-asks";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { rulesFor } from "../permissions/rules";
@@ -40,7 +43,7 @@ it("names the folder to ask for, and raises no card itself", async () => {
 });
 
 it("asks once per folder, and a second session joins the card", async () => {
-  const chatId = createMockChatConfig(ChatIdSchema.parse("asks-join-test"));
+  const chatId = await chatFor();
   const first = StoreId.newSessionId();
   const second = StoreId.newSessionId();
   const target = path.join(os.homedir(), "Desktop");
@@ -63,8 +66,8 @@ it("asks once per folder, and a second session joins the card", async () => {
   expect(asks).toEqual([
     expect.objectContaining({
       askers: [
-        { reason: "To copy it.", sessionId: first },
-        { reason: "To read it.", sessionId: second },
+        { at: expect.any(Date), reason: "To copy it.", sessionId: first },
+        { at: expect.any(Date), reason: "To read it.", sessionId: second },
       ],
       kind: "folder",
       status: "open",
@@ -76,7 +79,7 @@ it("asks once per folder, and a second session joins the card", async () => {
 });
 
 it("stops counting a session as waiting once it asks with a call that ends its turn", async () => {
-  const chatId = createMockChatConfig(ChatIdSchema.parse("asks-waits-test"));
+  const chatId = await chatFor();
   const own = StoreId.newSessionId();
   const target = path.join(os.homedir(), "Downloads");
   const macos = { allowed: "allowed", status: "macos-asking" } as const;
@@ -87,7 +90,7 @@ it("stops counting a session as waiting once it asks with a call that ends its t
     macos,
   );
   expect((await openAsks(chatId))[0]?.askers).toEqual([
-    { sessionId: own, waits: true },
+    { at: expect.any(Date), sessionId: own, waits: true },
   ]);
   // Its command's watch again: still waiting.
   await recordAsk(
@@ -97,7 +100,7 @@ it("stops counting a session as waiting once it asks with a call that ends its t
     macos,
   );
   expect((await openAsks(chatId))[0]?.askers).toEqual([
-    { sessionId: own, waits: true },
+    { at: expect.any(Date), sessionId: own, waits: true },
   ]);
   await recordAsk(
     { chatId, reason: "To list it.", sessionId: own },
@@ -106,7 +109,7 @@ it("stops counting a session as waiting once it asks with a call that ends its t
     macos,
   );
   expect((await openAsks(chatId))[0]?.askers).toEqual([
-    { reason: "To list it.", sessionId: own },
+    { at: expect.any(Date), reason: "To list it.", sessionId: own },
   ]);
 });
 
@@ -145,4 +148,92 @@ it.each([
       target,
     }),
   ).toBe(line);
+});
+
+describe("openCardsIn", () => {
+  const mac = DeviceIdSchema.parse("dev_MAC00000");
+  const phone = DeviceIdSchema.parse("dev_PH0NE000");
+  const laptop = DeviceIdSchema.parse("dev_1APT0P00");
+  const chat = StoreId.newSessionId();
+  const task = StoreId.newSessionId();
+  const at = (minute: number) => new Date(2026, 9, 30, 9, minute);
+  const card: PermissionCard = {
+    askedAt: at(0),
+    askers: [
+      { at: at(0), sessionId: task },
+      { at: at(1), sessionId: chat },
+    ],
+    device: mac,
+    id: "card",
+    kind: "folder",
+    status: "open",
+    target: "/Users/me/Pantry",
+  };
+
+  it("answers with the first decision in log order, whoever gave it", () => {
+    const [open] = openCardsIn({
+      answers: [
+        { at: at(5), card: "card", decision: "always", device: phone },
+        { at: at(4), card: "card", decision: "declined", device: laptop },
+      ],
+      cards: [card],
+    });
+    expect(open?.answer).toEqual({
+      at: at(5),
+      decision: "always",
+      device: phone,
+      taken: false,
+    });
+  });
+
+  it("answers with the one the card's computer took over any first in the log", () => {
+    const taken = { at: at(6), decision: "declined" as const, device: laptop };
+    const [open] = openCardsIn({
+      answers: [{ at: at(5), card: "card", decision: "always", device: phone }],
+      cards: [{ ...card, answer: taken }],
+    });
+    expect(open?.answer).toEqual({ ...taken, taken: true });
+  });
+
+  it("takes off the card a session stopped after it asked, and closes it with none left", () => {
+    const stopTask = {
+      at: at(2),
+      card: "card",
+      decision: "stopped" as const,
+      device: phone,
+      session: task,
+    };
+    expect(
+      openCardsIn({ answers: [stopTask], cards: [card] })[0]?.card.askers,
+    ).toEqual([{ at: at(1), sessionId: chat }]);
+    expect(
+      openCardsIn({
+        answers: [{ ...stopTask, session: undefined }],
+        cards: [card],
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps a session that asked again after its stop", () => {
+    expect(
+      openCardsIn({
+        answers: [
+          {
+            at: at(0),
+            card: "card",
+            decision: "stopped",
+            device: phone,
+            session: chat,
+          },
+        ],
+        cards: [card],
+      })[0]?.card.askers,
+    ).toHaveLength(2);
+  });
+
+  it("leaves out a closed card", () => {
+    expect(
+      openCardsIn({ answers: [], cards: [{ ...card, closedAt: at(3) }] }),
+    ).toEqual([]);
+  });
 });

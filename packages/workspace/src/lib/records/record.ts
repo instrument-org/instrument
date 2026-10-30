@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import {
+  CardAnswerDecisionSchema,
+  PermissionCardSchema,
+} from "../../schemas/permission-card";
 import { Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -163,6 +167,24 @@ const LogRecordSchema = z.discriminatedUnion("t", [
      * work used. The whole list each time, the newest record standing.
      */
     visited: z.array(z.string()),
+  }),
+  z.object({
+    t: z.literal("card"),
+    ...envelope,
+    /**
+     * A permission card whole, as the computer it belongs to last wrote it,
+     * in the chat's own session's log; the newest record of a card stands.
+     */
+    card: PermissionCardSchema,
+  }),
+  z.object({
+    t: z.literal("answer"),
+    ...envelope,
+    /** The card it answers, by id; the log's device is the one that answered. */
+    card: z.string(),
+    decision: CardAnswerDecisionSchema,
+    /** On a Stop, the session it took off the card; none is every session. */
+    session: StoreId.SessionSchema.optional(),
   }),
 ]);
 

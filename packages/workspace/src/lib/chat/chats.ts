@@ -4,7 +4,8 @@ import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
-import { type Ask, type QuestionAsk } from "../../schemas/chat-state";
+import { type QuestionAsk } from "../../schemas/chat-state";
+import { type PermissionCard } from "../../schemas/permission-card";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -17,7 +18,7 @@ import { ChatWrites } from "../chat-writes";
 import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { cardLine, openPermissionAsks, sortAsks } from "./asks";
+import { cardLine, type OpenCard, openCardsIn, sortAsks } from "./asks";
 import { openQuestionsIn } from "./open-asks";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -203,6 +204,19 @@ export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
   // Whether anything moves does not turn on what waits on the user, so the
   // chat's cards are not read.
   return stateOf(chatId, digest, running, []).working;
+}
+
+/**
+ * The chat's open permission cards, every computer's (`openCardsIn`), from
+ * its digest, so a look across every chat reads no chat's records whose
+ * files have not changed.
+ */
+export async function chatOpenCards(chatId: ChatId): Promise<OpenCard[]> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return [];
+  }
+  return (await chatDigest(chatId, sessionId))?.cards ?? [];
 }
 
 /**
@@ -546,6 +560,8 @@ interface ChatDigest {
   lastStep?: { at: number; text: string };
   /** The questions the chat's agent asked that are still open (`openQuestionsIn`). */
   questions: QuestionAsk[];
+  /** The permission cards still up, every computer's (`openCardsIn`). */
+  cards: OpenCard[];
   /** The sign-in cards its agent put up since the user last wrote (`signInCardsSinceTyped`). */
   signIns: ReturnType<typeof signInCardsSinceTyped>;
   /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
@@ -589,7 +605,9 @@ function asFolder(path: string): string {
  * Everything the chat waits on the user for, each with when it was asked,
  * oldest first: its open cards and questions.
  */
-function asksOf(cards: Ask[]): { at: number; text: string }[] {
+function asksOf(
+  cards: (PermissionCard | QuestionAsk)[],
+): { at: number; text: string }[] {
   return cards.map((card) => ({
     at: card.askedAt.getTime(),
     text: cardLine(card),
@@ -665,7 +683,7 @@ async function chatFor(
     working,
   } = stateOf(chatId, digest, filed, [
     ...asksOf(
-      sortAsks([...(await openPermissionAsks(chatId)), ...digest.questions]),
+      sortAsks([...digest.cards.map(({ card }) => card), ...digest.questions]),
     ),
     ...signInWaitOf(await signInsWaiting(digest.signIns)),
   ]);
@@ -759,8 +777,12 @@ function chatDigest(
     }
     const messages = await ChatReads.transcript({ chatId, sessionId });
     const stop = await ChatReads.stopped({ chatId, sessionId });
-    return messages.isOk() && stop.isOk()
-      ? kept(digestOf(session.value, messages.value, stop.value))
+    const cards = await ChatReads.cards({ chatId, sessionId });
+    return messages.isOk() && stop.isOk() && cards.isOk()
+      ? kept({
+          ...digestOf(session.value, messages.value, stop.value),
+          cards: openCardsIn(cards.value),
+        })
       : unkept(undefined);
   });
 }
@@ -770,7 +792,7 @@ function digestOf(
   messages: SessionMessage.WithParts[],
   /** The session's newest stop, whatever came after it. */
   stop: { at: Date; by: Stopper } | undefined,
-): ChatDigest {
+): Omit<ChatDigest, "cards"> {
   // Every chat is listed: the first thing the user sent opens it, whether
   // words, files, or an ask marked on a file.
   const root = messages.find(

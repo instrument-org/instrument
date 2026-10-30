@@ -38,7 +38,7 @@ Open first, earliest check first; closed ones after.
 | [Whether the step and output caps ever trip](step-and-output-caps.md) | 2026-11-21 | open |
 | [Whether ChatGPT citation markers are common enough to strip](chatgpt-citation-marker-rate.md) | 2026-11-21 | open |
 | [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md) | 2026-12-01 | open, passive |
-| [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md) | when using one workspace from more than one computer is taken on | open |
+| [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md) | when using one workspace from more than one computer is taken on | open (cards resolved) |
 | [How often the app restarts itself to install an update](automatic-update-restarts.md) | two releases on a beta that restarts on its own | open |
 | [Why the stopped-reply test fails on Linux CI](stopped-reply-words-on-disk.md) | | closed 2026-10-26: the test sent Stop before the reply had words |
 | [Why some Windows differential updates fail](windows-differential-update-failures.md) | | closed 2026-10-24: a stale base, recovered by a full download |

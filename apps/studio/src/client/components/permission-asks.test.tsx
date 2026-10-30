@@ -1,5 +1,9 @@
 import { rpcClient } from "@/client/rpc/client";
-import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import {
+  ChatIdSchema,
+  DeviceIdSchema,
+  StoreId,
+} from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -9,9 +13,16 @@ import { PermissionAsksFoot } from "./permission-asks";
 
 const chatId = ChatIdSchema.parse("test-chat");
 
+const device = DeviceIdSchema.parse("dev_MAC00000");
+
 function showAsks(
   asks: {
-    kind?: "app" | "folder";
+    /** Set for a card another computer raised, which this one shows. */
+    elsewhere?: {
+      answerable: boolean;
+      answered?: { by: string; decision: "allowed"; taken: boolean };
+    };
+    kind?: "app" | "folder" | "tab";
     reason?: string;
     status?: "macos-asking" | "macos-private" | "macos-refused" | "open";
     target: string;
@@ -24,16 +35,30 @@ function showAsks(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }).queryKey,
-    asks.map(({ kind = "folder", reason, status = "open", target }, index) => ({
-      askedAt: new Date(index),
-      askers: [
-        { sessionId: StoreId.newSessionId(), ...(reason && { reason }) },
-      ],
-      id: `ask-${index}`,
-      kind,
-      status,
-      target,
-    })),
+    asks.map(
+      (
+        { elsewhere, kind = "folder", reason, status = "open", target },
+        index,
+      ) => ({
+        answerable: elsewhere?.answerable ?? true,
+        ...(elsewhere?.answered && { answered: elsewhere.answered }),
+        askedAt: new Date(index),
+        askers: [
+          {
+            at: new Date(index),
+            sessionId: StoreId.newSessionId(),
+            ...(reason && { reason }),
+          },
+        ],
+        computer: "Studio Mac",
+        device,
+        here: elsewhere === undefined,
+        id: `ask-${index}`,
+        kind,
+        status,
+        target,
+      }),
+    ),
   );
 }
 
@@ -191,5 +216,73 @@ describe("PermissionAsksFoot", () => {
       await screen.findByText("Your Mac keeps “Mail” private"),
     ).toBeDefined();
     expect(buttons()).toEqual(["Show in Finder: Mail", "OK"]);
+  });
+
+  describe("raised on another computer", () => {
+    it("answers it from here, saying where the answer goes", async () => {
+      showAsks([
+        { elsewhere: { answerable: true }, target: "/Users/sam/Pantry" },
+      ]);
+
+      expect(
+        await screen.findByText(
+          "Your answer goes to Studio Mac, which asked for this.",
+        ),
+      ).toBeDefined();
+      expect(buttons()).toEqual([
+        "Show in Finder: Pantry",
+        "Allow in this chat",
+        "Always allow",
+        "Don’t allow",
+      ]);
+    });
+
+    it.each([
+      [
+        "a tab, which moves on the screen it is on",
+        { answerable: false },
+        "tab",
+        "open",
+        "You can answer this on Studio Mac.",
+      ],
+      [
+        "an answer that computer has not picked up yet",
+        {
+          answerable: false,
+          answered: {
+            by: "Jeremy's iPhone",
+            decision: "allowed",
+            taken: false,
+          },
+        },
+        "folder",
+        "open",
+        "You answered from Jeremy's iPhone. It takes effect once Studio Mac picks it up.",
+      ],
+      [
+        "a yes that macOS there is still asking about",
+        {
+          answerable: false,
+          answered: {
+            by: "Jeremy's iPhone",
+            decision: "allowed",
+            taken: true,
+          },
+        },
+        "folder",
+        "macos-asking",
+        "You answered from Jeremy's iPhone, and Studio Mac needs you to finish it there.",
+      ],
+    ] as const)(
+      "points at that computer for %s, with nothing to answer here",
+      async (_name, elsewhere, kind, status, line) => {
+        showAsks([{ elsewhere, kind, status, target: "/Users/sam/Pantry" }]);
+
+        expect(await screen.findByText(line)).toBeDefined();
+        expect(
+          screen.queryByRole("button", { name: /allow|Skip|Move tab/i }),
+        ).toBeNull();
+      },
+    );
   });
 });

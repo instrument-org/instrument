@@ -96,6 +96,7 @@ export { StoreId } from "./schemas/store-id";
 export type { ChatInfo } from "./schemas/chat-info";
 export type { SessionTag } from "./schemas/chat-agent-status";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
+export { DeviceIdSchema } from "./schemas/device-id";
 export { WINDOW_ID } from "./schemas/window-id";
 export type { WindowTabAnswer, WindowTabRequest } from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";

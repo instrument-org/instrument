@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
+import {
+  AskerSchema,
+  CardDecisionSchema,
+  PermissionCardSchema,
+} from "./permission-card";
 import { StoreId } from "./store-id";
 
 /** A tab's id as an earlier build saved it, read as the tab's id now: the same ULID under `tab_`. */
@@ -59,73 +64,36 @@ const ClosedTabSchema = z.object({
 
 export type ClosedTab = z.output<typeof ClosedTabSchema>;
 
-/** A session that asked what a card asks, the chat's own or one of its tasks'. */
-const AskerSchema = z.object({
-  /** The call that asked, by its part's id. */
-  partId: StoreId.PartSchema.optional(),
-  /** What the session said it needs the folder or app for, for the card. */
-  reason: z.string().optional(),
-  sessionId: StoreId.SessionSchema,
-  /**
-   * A command of the session's waits on what the card is about and carries
-   * on by itself once it settles, waking the session as any command that
-   * outlived its turn does, so the card's answer wakes it no more.
-   */
-  waits: z.literal(true).optional(),
-});
-
 /**
- * A folder or app the agent asked for with `ask_permission` that the person
- * has not answered for yet. Shown as a card until the person answers, which
- * wakes every session that asked.
+ * An open permission card as a reader on this device draws it: the card,
+ * less the sessions a Stop took off it, and where it can be answered.
  */
-const PermissionAskSchema = z.object({
+const PermissionAskSchema = PermissionCardSchema.omit({
+  closedAt: true,
+}).extend({
   /**
-   * The yes the person gave a folder macOS then refused, kept while the
-   * card offers the system's own ways in, so the retry that gets in wakes
-   * the askers with it.
+   * The answer the card has, once one is given: the one its computer took,
+   * or else the first in log order, which its computer takes next. `by`
+   * names the computer that gave it, and `taken` says whether the card's
+   * computer has acted on it.
    */
-  allowed: z.enum(["allowed", "always"]).optional(),
-  askedAt: z.coerce.date(),
+  answered: z
+    .object({
+      by: z.string(),
+      decision: CardDecisionSchema,
+      taken: z.boolean(),
+    })
+    .optional(),
   /**
-   * Every session waiting on the answer, the first to ask first. A session
-   * that asks for the same thing while the card is up joins it, and one the
-   * person stops leaves it; the card goes when none is left.
+   * Whether this device can answer it: the card's computer always, and
+   * another device while it is open, unanswered and not a tab
+   * (`answerableElsewhere`).
    */
-  askers: z.array(AskerSchema),
-  id: z.string(),
-  /** A folder, a Mac app, or a tab of the person's outside the chat, which `Move tab here` moves into it. */
-  kind: z.enum(["app", "folder", "tab"]),
-  /** A tab's page as it was when the agent asked, for the card and the note that answers it. */
-  page: z.object({ title: z.string(), url: z.string() }).optional(),
-  /**
-   * The programs Windows' ransomware protection kept out of the folder, by
-   * their paths, which the card's Allow lets through: on a
-   * `windows-blocked` card only.
-   */
-  programs: z.array(z.string()).optional(),
-  /**
-   * What the card waits on once the person's yes is given: `open`, their
-   * answer; `macos-asking`, their answer to macOS's own prompt, which the
-   * look inside waits on; `macos-refused`, macOS keeping the app out, where
-   * the card offers the Mac's folder panel (a folder) and System Settings
-   * until a retry gets in or the person declines; `macos-private`, a folder
-   * only its own app may open, which the card says and offers no way into;
-   * `windows-blocked`, Windows' ransomware protection keeping the app's
-   * programs from changing the folder, where the card lets them through
-   * with an administrator's yes or opens Windows Security.
-   */
-  status: z
-    .enum([
-      "macos-asking",
-      "macos-private",
-      "macos-refused",
-      "open",
-      "windows-blocked",
-    ])
-    .default("open"),
-  /** The folder's absolute path, the app's name, or the tab's id. */
-  target: z.string(),
+  answerable: z.boolean(),
+  /** The name of the computer the card belongs to. */
+  computer: z.string(),
+  /** Whether the card belongs to this computer, which alone acts on it. */
+  here: z.boolean(),
 });
 
 export type PermissionAsk = z.output<typeof PermissionAskSchema>;
@@ -161,15 +129,10 @@ export const AskSchema = z.discriminatedUnion("kind", [
 export type Ask = z.output<typeof AskSchema>;
 
 // Where this device left off in a chat, in its own `state.<device>.json`.
-// Read on open, and across chats only by the chat list for its open cards,
-// through `openPermissionAsks`.
 // Each field that will not parse costs the chat that field alone.
 export const StoredChatStateSchema = z.object({
   browserTabs: z.array(HeldTabSchema).catch([]).default([]),
   closedTabs: z.array(ClosedTabSchema).catch([]).default([]),
-  // The folders and apps the agent is waiting on the person to allow,
-  // oldest first: this computer's to grant.
-  waitingOn: z.array(PermissionAskSchema).catch([]).default([]),
 });
 
 export type ChatState = z.output<typeof StoredChatStateSchema>;

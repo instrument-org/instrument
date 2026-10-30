@@ -1,6 +1,6 @@
 # What a second computer shows of a chat whose task waits on a card
 
-**Status:** open · **Check after:** when using one workspace from more than one computer is taken on · **Last checked:** never
+**Status:** open (cards resolved, see Result) · **Check after:** when using one workspace from more than one computer is taken on · **Last checked:** 2026-10-30
 
 ## What we're waiting to learn
 
@@ -32,4 +32,6 @@ Two computers signed in to one workspace through a synced folder. Start a task t
 
 ## Result
 
-Open.
+The card part is resolved: permission cards moved into synced state. A card is a `card` record in the chat's own session's log, written by the computer it belongs to, and any device answers it with an `answer` record, which that computer takes and grants ([`asks.ts`](../../packages/workspace/src/lib/chat/asks.ts), [`card-answers.ts`](../../packages/workspace/src/lib/chat/card-answers.ts)). So on a second computer the composer shows the card, answerable or naming the computer to answer it on (read from its `device.json`), the chat row's `stateOf` counts it from the chat's digest, the task's line reads it through `openAsksOf`, and the "on the computer it runs on" fallback in `standing.ts` is gone. The state file holds no cards. What a phone shows from `chat-list.json` was not checked.
+
+Still open: the rest of the audit, the tabs a chat's sessions hold and a running task's liveness, which stay per device.

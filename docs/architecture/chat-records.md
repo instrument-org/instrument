@@ -10,7 +10,7 @@ In the chat's record folder (`chats/<id>/`, resolved by `record-folders.ts`):
 
 | Name | What it holds |
 |---|---|
-| `<session>.<device>.jsonl` | One session's log, as that device wrote it: its header, its messages and parts, where its context window was reset, who stopped its turn, the sites its browser went to |
+| `<session>.<device>.jsonl` | One session's log, as that device wrote it: its header, its messages and parts, where its context window was reset, who stopped its turn, the sites its browser went to. The chat's own session's logs also hold its permission cards: a `card` record, the whole card as the computer it belongs to last wrote it, the newest standing, and an `answer` record from any device (`allowed`, `always`, `declined`, or `stopped` with the session a Stop took off it). The first decision in log order wins; the card's computer notes the one it took on the card, grants it there, and writes the card closed. |
 | `settings.<device>.jsonl` | Every per-chat value that device set, one `set` line per change: each session's title, star, archive, unread and topic, and the chat's model on its own session. A Stop is not a setting: it is a `stop` record in the session's log, at the moment it was pressed, saying who stopped the turn (`person`, `agent` or `app`). |
 | `state.<device>.json` | Where that device left off in the chat (its tabs, the folders and apps its agent waits on it to allow), written and read by that device alone (`chat-record.ts`) |
 | `blobs/sha256-<hex>.<ext>` | The bytes a part points at, named by their hash, so the same bytes get the same name on every device |

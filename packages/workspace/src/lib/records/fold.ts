@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { type Stopper } from "../../schemas/stop-notice";
 
 import { type ChatId } from "../../schemas/chat-id";
+import {
+  type CardAnswer,
+  type PermissionCard,
+} from "../../schemas/permission-card";
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -26,8 +30,9 @@ import {
  * conflict copies included, into its sessions, their messages and parts.
  *
  * - The newest snapshot of a message, a part, a rollover, a stop, or each
- *   thing a session was told wins. Messages are ordered by id, parts by id
- *   under their message.
+ *   thing a session was told wins, and so does a permission card's.
+ *   Messages are ordered by id, parts by id under their message. Every
+ *   answer to a card is kept, in place order, since the first one wins.
  * - A retract drops its messages and their parts, wherever it is read.
  * - A record is placed after everything its writer had read: within a log
  *   by `seq`, and across logs from the log's header, which lists every log
@@ -86,6 +91,10 @@ export interface FoldedSession {
   stopped?: { at: Date; by: Stopper };
   /** The hosts the session's browser has been on, from its newest `sites` record. */
   sites?: string[];
+  /** The permission cards raised in the session's log, each as its newest `card` record has it. */
+  cards?: PermissionCard[];
+  /** Every `answer` record to a card, from every device, in log order. */
+  answers?: CardAnswer[];
   /** The title the session was started with: a task's name, a chat's opening words. */
   startedAs?: string;
   /** When the session's newest record was written. */
@@ -126,6 +135,8 @@ interface SessionState {
   seqs: Map<string, { data: number; last: number }>;
   sites?: Newest<string[]>;
   stopped?: Newest<NonNullable<FoldedSession["stopped"]>>;
+  cards: Map<string, Newest<PermissionCard>>;
+  answers: Newest<CardAnswer>[];
   updatedAt: number;
 }
 
@@ -366,6 +377,21 @@ export class ChatFold {
       case "sites":
         session.sites = newer(session.sites, record.visited, place);
         break;
+      case "card":
+        keepNewest(session.cards, record.card.id, record.card, place);
+        break;
+      case "answer":
+        session.answers.push({
+          place,
+          value: {
+            at: record.at,
+            card: record.card,
+            decision: record.decision,
+            device: header.device,
+            ...(record.session !== undefined && { session: record.session }),
+          },
+        });
+        break;
     }
   }
 
@@ -420,6 +446,8 @@ export class ChatFold {
       return existing;
     }
     const session: SessionState = {
+      answers: [],
+      cards: new Map(),
       headers: new Map(),
       messages: new Map(),
       parts: new Map(),
@@ -532,6 +560,14 @@ function folded(
     ...(header.parent === undefined ? {} : { parent: header.parent }),
     ...(session.rollover && { rollover: session.rollover.value }),
     ...(session.sites && { sites: session.sites.value }),
+    ...(session.cards.size > 0 && {
+      cards: [...session.cards.values()].map(({ value }) => value),
+    }),
+    ...(session.answers.length > 0 && {
+      answers: session.answers
+        .toSorted((a, b) => compare(a.place, b.place))
+        .map(({ value }) => value),
+    }),
     ...(session.stopped && { stopped: session.stopped.value }),
     ...(header.startedAs === undefined ? {} : { startedAs: header.startedAs }),
     updatedAt: new Date(session.updatedAt),

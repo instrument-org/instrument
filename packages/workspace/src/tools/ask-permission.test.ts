@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { openAsks } from "../lib/chat/open-asks";
 import { grantFolder } from "../lib/chat/grants";
+import { ChatWrites } from "../lib/chat-writes";
+import { sessionOfChat } from "../lib/record-folders";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -35,6 +37,20 @@ function inHome(value: unknown): unknown {
   );
 }
 
+/** A chat with its own session started, whose log its cards are written to. */
+async function chatNamed(name: string) {
+  const chatId = createMockChatConfig(ChatIdSchema.parse(name), { model });
+  const sessionId = sessionOfChat(chatId);
+  if (sessionId === undefined) {
+    throw new Error("expected the chat's session");
+  }
+  await ChatWrites.saveSession(
+    { createdAt: new Date(), id: sessionId, title: name },
+    chatId,
+  );
+  return chatId;
+}
+
 async function ask(
   chatId: ReturnType<typeof createMockChatConfig>,
   kind: "app" | "folder",
@@ -55,10 +71,7 @@ async function ask(
 
 describe("ask_permission", () => {
   it("decides what to ask for", async () => {
-    const chatId = createMockChatConfig(
-      ChatIdSchema.parse("ask-permission-decides"),
-      { model },
-    );
+    const chatId = await chatNamed("ask-permission-decides");
     const decided: Record<string, unknown> = {};
     for (const target of [
       "~/Desktop/copy.md",
@@ -107,12 +120,7 @@ describe("ask_permission", () => {
   });
 
   it("puts the card up once, with the reason and the call that asked", async () => {
-    const chatId = createMockChatConfig(
-      ChatIdSchema.parse("ask-permission-card"),
-      {
-        model,
-      },
-    );
+    const chatId = await chatNamed("ask-permission-card");
     const partId = StoreId.newPartId();
     const sessionId = StoreId.newSessionId();
     await ask(chatId, "folder", "~/Desktop/a.md", partId, sessionId);
@@ -164,10 +172,7 @@ describe("ask_permission", () => {
   it.runIf(process.platform === "darwin")(
     "asks for a Mac app by its name",
     async () => {
-      const chatId = createMockChatConfig(
-        ChatIdSchema.parse("ask-permission-shortcuts"),
-        { model },
-      );
+      const chatId = await chatNamed("ask-permission-shortcuts");
       expect(await ask(chatId, "app", "Shortcuts")).toEqual({
         kind: "app",
         state: "asked",

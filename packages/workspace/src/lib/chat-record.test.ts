@@ -64,7 +64,6 @@ describe("this device's state", () => {
     await expect(getChatState(chatDir(chatId))).resolves.toEqual({
       browserTabs: [],
       closedTabs: [],
-      waitingOn: [],
     });
   });
 
@@ -77,18 +76,16 @@ describe("this device's state", () => {
   });
 
   // The reason the file is per device: a turn on another computer writes its
-  // own state, and this one's tabs and cards stay as they were.
+  // own state, and this one's tabs stay as they were.
   it("never clobbers another device's state, nor reads it", async () => {
     const other = newDeviceId();
     const theirs = {
       browserTabs: [],
-      waitingOn: [
+      closedTabs: [
         {
-          askedAt: "2026-10-18T12:00:00.000Z",
-          askers: [{ sessionId: "ses_01M57YZVESD48Z1K45RY4CKY04" }],
-          id: "theirs",
-          kind: "folder",
-          target: "/Users/someone/Desktop",
+          id: "tab_01M57YZVESD48Z1K45RY4CKY04",
+          reason: "tabCap",
+          url: "https://example.com/",
         },
       ],
     };
@@ -101,7 +98,6 @@ describe("this device's state", () => {
     expect(await getChatState(chatDir(chatId))).toEqual({
       browserTabs: [tabB, tabD],
       closedTabs: [],
-      waitingOn: [],
     });
     expect(await readJson(statePath(other))).toEqual({
       ...theirs,
@@ -115,7 +111,6 @@ describe("this device's state", () => {
     expect(await getChatState(chatDir(chatId))).toEqual({
       browserTabs: [],
       closedTabs: [],
-      waitingOn: [],
     });
   });
 

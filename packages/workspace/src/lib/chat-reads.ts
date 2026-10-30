@@ -238,6 +238,26 @@ export namespace ChatReads {
     });
   }
 
+  /**
+   * The permission cards in the session's log, each as it was last written,
+   * and every answer to them from every device, in log order: what
+   * `openCardsIn` reads the open cards from.
+   */
+  export function cards({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<Required<Pick<FoldedSession, "answers" | "cards">>, Failure> {
+    return read(chatId).andThen((chat) => {
+      const found = chat.chat.sessions.find(({ id }) => id === sessionId);
+      return found
+        ? okAsync({ answers: found.answers ?? [], cards: found.cards ?? [] })
+        : errAsync(missingSession(chatId, sessionId));
+    });
+  }
+
   /** The app version that began the session, from the header of its first log. */
   export function startedWithApp({
     chatId,

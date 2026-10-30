@@ -21,9 +21,10 @@ import {
 } from "../../test/helpers/mac-apps-launch";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { openPermissionAsks } from "../chat/asks";
+import { ChatWrites } from "../chat-writes";
 import { createLocalBashEnv } from "../create-bash-env";
 import { noteMacAppAnswer } from "../permissions/macos";
-import { chatDir } from "../record-folders";
+import { chatDir, sessionOfChat } from "../record-folders";
 import { workDir } from "../work-dir";
 import { withRaisedAsks } from "../shell-commands/raised-asks";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -83,13 +84,19 @@ async function chatWith(
   await mkdir(chatDir(chatId), { recursive: true });
   await mkdir(workDir(chatId), { recursive: true });
   await connectMacApp(getWorkspaceConfig().appsDir, server);
+  // The chat's own session, whose log a card is written to.
+  const sessionId = sessionOfChat(chatId) ?? StoreId.newSessionId();
+  await ChatWrites.saveSession(
+    { createdAt: new Date(), id: sessionId, title: name },
+    chatId,
+  );
   return {
     chatId,
     exec: async (command: string) => {
       const bash = await createLocalBashEnv({
         chatId,
         role: "chat",
-        sessionId: StoreId.newSessionId(),
+        sessionId,
       });
       const asks: string[] = [];
       const result = await withRaisedAsks(asks, () => bash.exec(command));

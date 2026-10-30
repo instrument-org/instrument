@@ -338,12 +338,11 @@ const liveAsksRoute = base
         changes: [
           recordChanges(
             signal,
-            // A card is this device's state; a question is in the records.
+            // A card and its answers are session records; a question is in
+            // the transcript.
             (change) =>
               change.id === input.id &&
-              (change.kind === "state" ||
-                change.kind === "messages" ||
-                change.kind === "session"),
+              (change.kind === "messages" || change.kind === "session"),
           ),
         ],
         read: () => openAsks(input.id),

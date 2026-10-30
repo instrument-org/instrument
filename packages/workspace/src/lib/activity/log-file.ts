@@ -173,34 +173,6 @@ export function rowOf(line: string, device: string): ActivityRow | undefined {
   };
 }
 
-/**
- * The whole lines of `file` from byte `from`, and where they end. A last line
- * with no newline yet (a sync engine part way through bringing the file
- * over, or a write cut short) is left for the next read.
- */
-export function readLinesFrom(
-  file: string,
-  from: number,
-): { end: number; lines: string[] } {
-  const handle = fs.openSync(file, "r");
-  try {
-    const { size } = fs.fstatSync(handle);
-    const bytes = Buffer.alloc(Math.max(0, size - from));
-    fs.readSync(handle, bytes, 0, bytes.length, from);
-    const whole = bytes.lastIndexOf(0x0a) + 1;
-    return {
-      end: from + whole,
-      lines: bytes
-        .subarray(0, whole)
-        .toString("utf8")
-        .split("\n")
-        .filter((line) => line.trim() !== ""),
-    };
-  } finally {
-    fs.closeSync(handle);
-  }
-}
-
 function namesIn(dir: string): string[] {
   try {
     return fs.readdirSync(dir);

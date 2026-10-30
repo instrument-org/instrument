@@ -45,7 +45,7 @@ const list = base
   )
   .output(ActivityListedSchema.array())
   .handler(async ({ input }) => {
-    const rows = listActivity(input);
+    const rows = await listActivity(input);
     const titles = await chatTitles(rows.map((row) => row.chatId));
     return rows.map((row) => ({
       ...row,
@@ -58,7 +58,7 @@ const byId = base
   .input(z.object({ id: z.string() }))
   .output(ActivityListedSchema.optional())
   .handler(async ({ input }) => {
-    const row = getActivity(input.id);
+    const row = await getActivity(input.id);
     if (!row) {
       return undefined;
     }
@@ -89,7 +89,7 @@ const summary = base
     }),
   )
   .handler(async ({ input }) => {
-    const { facets, requests, tokens } = summarizeActivity(input.filter);
+    const { facets, requests, tokens } = await summarizeActivity(input.filter);
     const titles = await chatTitles(
       facets.origin.map(({ value }) =>
         value.startsWith("chat:") ? value.slice("chat:".length) : null,

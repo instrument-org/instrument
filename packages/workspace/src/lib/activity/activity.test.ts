@@ -5,10 +5,11 @@ import {
   streamText,
 } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { DeviceIdSchema } from "../records/device-id";
@@ -42,6 +43,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   closeWorkspaceDb();
   setWorkspaceConfig(original);
   await fs.rm(dir, { force: true, recursive: true });
@@ -244,21 +246,24 @@ describe("the store", () => {
     );
   });
 
-  it("stacks filters and totals what they leave", () => {
-    expect(summarizeActivity({ kind: ["decision"] })).toMatchObject({
+  it("stacks filters and totals what they leave", async () => {
+    expect(await summarizeActivity({ kind: ["decision"] })).toMatchObject({
       requests: 2,
       tokens: 5400,
     });
     expect(
-      summarizeActivity({ kind: ["decision"], origin: ["chat:c-lisbon"] }),
+      await summarizeActivity({
+        kind: ["decision"],
+        origin: ["chat:c-lisbon"],
+      }),
     ).toMatchObject({ requests: 1, tokens: 400 });
-    expect(summarizeActivity({ since: Date.UTC(2026, 9, 10) }).requests).toBe(
-      2,
-    );
+    expect(
+      (await summarizeActivity({ since: Date.UTC(2026, 9, 10) })).requests,
+    ).toBe(2);
   });
 
-  it("counts each filter's values under every filter but its own", () => {
-    const { facets } = summarizeActivity({ kind: ["decision"] });
+  it("counts each filter's values under every filter but its own", async () => {
+    const { facets } = await summarizeActivity({ kind: ["decision"] });
     expect(facets.kind).toEqual([
       { count: 2, value: "decision" },
       { count: 1, value: "language" },
@@ -269,15 +274,15 @@ describe("the store", () => {
     ]);
   });
 
-  it("sorts by any column, keeping rows with nothing to sort by last", () => {
-    const byTokens = listActivity({
+  it("sorts by any column, keeping rows with nothing to sort by last", async () => {
+    const byTokens = await listActivity({
       filter: {},
       limit: 10,
       offset: 0,
       sort: { column: "totalTokens", direction: "desc" },
     });
     expect(byTokens.map((row) => row.totalTokens)).toEqual([5000, 1000, 400]);
-    const byModel = listActivity({
+    const byModel = await listActivity({
       filter: {},
       limit: 10,
       offset: 0,
@@ -288,10 +293,10 @@ describe("the store", () => {
     );
   });
 
-  it("exports what the filters show as CSV", () => {
-    const [header, row, ...rest] = activityCsv({
-      purpose: ["settings-search"],
-    }).split("\n");
+  it("exports what the filters show as CSV", async () => {
+    const [header, row, ...rest] = (
+      await activityCsv({ purpose: ["settings-search"] })
+    ).split("\n");
     expect(rest).toEqual([""]);
     expect(header?.split(",").length).toBe(row?.split(",").length);
     // The request id is generated, so the line is compared without it.
@@ -367,13 +372,15 @@ describe("the log in the workspace", () => {
     await fs.appendFile(fileOf(OTHER, month), contents);
   }
 
-  const ids = () =>
-    listActivity({
-      filter: {},
-      limit: 100,
-      offset: 0,
-      sort: NEWEST_FIRST,
-    }).map((row) => `${row.device ?? "none"}:${row.id}`);
+  const ids = async () =>
+    (
+      await listActivity({
+        filter: {},
+        limit: 100,
+        offset: 0,
+        sort: NEWEST_FIRST,
+      })
+    ).map((row) => `${row.device ?? "none"}:${row.id}`);
 
   it("appends each request to this device's file for its month, without the connection's id", async () => {
     insertActivity(
@@ -423,8 +430,8 @@ describe("the log in the workspace", () => {
       theirs("01THEIRS0000000000000000B", Date.UTC(2026, 8, 1)),
     );
 
-    expect(ids()).toHaveLength(3);
-    expect(ids().filter((id) => id.startsWith(OTHER))).toEqual([
+    expect(await ids()).toHaveLength(3);
+    expect((await ids()).filter((id) => id.startsWith(OTHER))).toEqual([
       `${OTHER}:01THEIRS0000000000000000A`,
       `${OTHER}:01THEIRS0000000000000000B`,
     ]);
@@ -432,22 +439,43 @@ describe("the log in the workspace", () => {
     closeWorkspaceDb();
     await fs.rm(path.join(dir, "workspace.db"));
 
-    expect(ids()).toHaveLength(3);
+    expect(await ids()).toHaveLength(3);
   });
 
   it("reads only what a file gained, once per line", async () => {
     await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
-    expect(ids()).toHaveLength(1);
+    expect(await ids()).toHaveLength(1);
 
     await writeTheirs("2026-10", theirs("01THEIRS0000000000000000B"));
     // A sync engine's second copy of a line already read changes nothing.
     await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
 
-    expect(ids().toSorted()).toEqual([
+    expect((await ids()).toSorted()).toEqual([
       `${OTHER}:01THEIRS0000000000000000A`,
       `${OTHER}:01THEIRS0000000000000000B`,
     ]);
   });
+
+  it.runIf(process.platform === "darwin")(
+    "passes over another device's file kept in the cloud only until it is downloaded",
+    async () => {
+      await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
+      const stat = fsSync.promises.stat;
+      // Contents and no blocks on disk: a file only in the cloud.
+      const evicted = vi
+        .spyOn(fsSync.promises, "stat")
+        .mockImplementation(async (file) =>
+          Object.assign(await stat(file), { blocks: 0 }),
+        );
+      const opened = vi.spyOn(fsSync.promises, "open");
+
+      expect(await ids()).toEqual([]);
+      expect(opened).not.toHaveBeenCalled();
+
+      evicted.mockRestore();
+      expect(await ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
+    },
+  );
 
   it("leaves a last line with no newline yet until it is whole", async () => {
     const line = theirs("01THEIRS0000000000000000B");
@@ -455,10 +483,10 @@ describe("the log in the workspace", () => {
       "2026-10",
       theirs("01THEIRS0000000000000000A") + line.slice(0, 40),
     );
-    expect(ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
+    expect(await ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
 
     await writeTheirs("2026-10", line.slice(40));
 
-    expect(ids()).toHaveLength(2);
+    expect(await ids()).toHaveLength(2);
   });
 });

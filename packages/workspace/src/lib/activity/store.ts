@@ -6,12 +6,12 @@ import { ulid } from "ulid";
 import { getWorkspaceConfig } from "../workspace-config";
 import { versionMatches, workspaceTables } from "../workspace-db";
 import {
-  activityFileOf,
-  activityFiles,
-  lineOf,
+  type LinesRead,
+  NOT_HERE_YET,
+  type NotHereYet,
   readLinesFrom,
-  rowOf,
-} from "./log-file";
+} from "../workspace-files";
+import { activityFileOf, activityFiles, lineOf, rowOf } from "./log-file";
 import {
   ACTIVITY_FACETS,
   type ActivityEntry,
@@ -180,11 +180,12 @@ const openStore = workspaceTables((database) => {
  * Brings the table up to every device's files: reads what each file gained
  * since it was last read, whole lines only, and adds the rows it has not
  * seen. A file that shrank, which one writer appending never does but a
- * sync engine replacing it might, is read again from its start. A file that
- * cannot be read now (not downloaded yet) is left for the next look. Cheap
- * when nothing changed: a stat per file.
+ * sync engine replacing it might, is read again from its start. A file a
+ * cloud service keeps by name only is passed over rather than downloaded,
+ * and so is one that cannot be read now; the next look tries it again.
+ * Cheap when nothing changed: a stat per file.
  */
-function catchUpActivity(database: DatabaseSync): void {
+async function catchUpActivity(database: DatabaseSync): Promise<void> {
   const { rootDir } = getWorkspaceConfig();
   const known = new Map(
     database
@@ -215,10 +216,13 @@ function catchUpActivity(database: DatabaseSync): void {
       continue;
     }
     const from = seen && stat.size >= seen.readTo ? seen.readTo : 0;
-    let read: ReturnType<typeof readLinesFrom>;
+    let read: LinesRead | NotHereYet;
     try {
-      read = readLinesFrom(file, from);
+      read = await readLinesFrom(file, from, { evicted: "pass" });
     } catch {
+      continue;
+    }
+    if (read === NOT_HERE_YET) {
       continue;
     }
     database.exec("BEGIN");
@@ -240,11 +244,16 @@ function catchUpActivity(database: DatabaseSync): void {
   }
 }
 
+/** The catch-up running, which the next one waits for so no two read a file at once. */
+let caughtUp: Promise<void> = Promise.resolve();
+
 /** The index brought up to the files, ready to read. */
-function readable(): DatabaseSync | undefined {
+async function readable(): Promise<DatabaseSync | undefined> {
   const db = openStore();
   if (db) {
-    catchUpActivity(db);
+    const catchingUp = caughtUp.then(() => catchUpActivity(db));
+    caughtUp = catchingUp.catch(() => undefined);
+    await catchingUp;
   }
   return db;
 }
@@ -345,7 +354,7 @@ function where(filter: ActivityFilter, except?: ActivityFacet) {
 }
 
 /** One page of rows under the filters, in the order asked for. */
-export function listActivity({
+export async function listActivity({
   filter,
   limit,
   offset,
@@ -355,8 +364,8 @@ export function listActivity({
   limit: number;
   offset: number;
   sort: ActivitySort;
-}): ActivityRow[] {
-  const db = readable();
+}): Promise<ActivityRow[]> {
+  const db = await readable();
   if (!db) {
     return [];
   }
@@ -373,8 +382,10 @@ export function listActivity({
 }
 
 /** One request by its id. */
-export function getActivity(id: string): ActivityRow | undefined {
-  const row = readable()
+export async function getActivity(
+  id: string,
+): Promise<ActivityRow | undefined> {
+  const row = (await readable())
     ?.prepare(`SELECT ${SELECT_ROW} FROM activity WHERE id = ?`)
     .get(id);
   return row ? ActivityRowSchema.parse(row) : undefined;
@@ -392,8 +403,8 @@ type FacetEntry = {
  * with how many rows have each, counted under every filter but that field's
  * own, so picking one value leaves its alternatives countable.
  */
-export function summarizeActivity(filter: ActivityFilter) {
-  const db = readable();
+export async function summarizeActivity(filter: ActivityFilter) {
+  const db = await readable();
   const facets = Object.fromEntries(
     ACTIVITY_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
   ) as Record<ActivityFacet, FacetEntry[]>; // filled per facet below
@@ -459,9 +470,9 @@ function csvCell(value: null | number | string): string {
 }
 
 /** Every row under the filters as CSV, newest first, with a header line. */
-export function activityCsv(filter: ActivityFilter): string {
+export async function activityCsv(filter: ActivityFilter): Promise<string> {
   const lines = [CSV_COLUMNS.map(([header]) => csvCell(header)).join(",")];
-  const db = readable();
+  const db = await readable();
   if (db) {
     const { params, sql } = where(filter);
     for (const row of db

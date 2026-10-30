@@ -35,7 +35,7 @@ const saveCsv = base
       return { status: "canceled" as const };
     }
     try {
-      await fs.writeFile(result.filePath, activityCsv(input.filter));
+      await fs.writeFile(result.filePath, await activityCsv(input.filter));
       return { status: "saved" as const };
     } catch {
       return { status: "failed" as const };

@@ -82,6 +82,37 @@ export function jsonWithTabIds(json: string): string {
   return `${JSON.stringify({ ...parsed, data: { ...parsed.data, tabs } })}\n`;
 }
 
+/**
+ * Where a `tab` invocation names a tab by the window's id: the argument of
+ * `tab <id>` (switch) or `tab close <id>`. agent-browser reads a target id
+ * there only when it is hex, as Chrome's are, and takes `tab_01…` for a label
+ * it has never seen, so the wrapper puts the tab's own label in its place.
+ */
+export function windowTabIdArgIndex(
+  args: readonly string[],
+): number | undefined {
+  const { subArgs, subcommand } = parseAgentBrowserArgs([...args]);
+  if (subcommand !== "tab") {
+    return undefined;
+  }
+  const ref = subArgs[1]?.value === "close" ? subArgs[2] : subArgs[1];
+  return ref?.value.startsWith("tab_") ? ref.index : undefined;
+}
+
+/** The args with the window's id at `index` replaced by agent-browser's label for that tab, or as they were when the list does not name it. */
+export function withTabLabel(
+  args: readonly string[],
+  index: number,
+  json: string,
+): string[] {
+  const label = parseTabList(json)?.data.tabs.find(
+    (tab) => tab.targetId === args[index],
+  )?.tabId;
+  return label === undefined
+    ? [...args]
+    : args.map((arg, i) => (i === index ? label : arg));
+}
+
 /** The line `tab new` ends with: the id of the tab it opened, which is the active one. */
 export function newTabLine(json: string): string {
   const id = parseTabList(json)?.data.tabs.find((tab) => tab.active)?.targetId;

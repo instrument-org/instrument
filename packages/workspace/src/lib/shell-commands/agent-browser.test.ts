@@ -763,6 +763,42 @@ describe("agent-browser routing", () => {
     expect(result.stdout).toMatchSnapshot();
   });
 
+  it.each([
+    [
+      ["tab", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"],
+      ["tab", "t2"],
+    ],
+    [
+      ["tab", "close", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"],
+      ["tab", "close", "t2"],
+    ],
+  ])("hands agent-browser its own label for %j", async (args, ran) => {
+    const json = JSON.stringify({
+      data: {
+        tabs: [
+          { tabId: "t1", targetId: "tab_01M5Q29YA0CTZ3NQY76Z3JQWBF" },
+          { tabId: "t2", targetId: "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B" },
+        ],
+      },
+      success: true,
+    });
+    await answerAgentBrowser((given) => ({
+      exitCode: 0,
+      stderr: "",
+      stdout: given.includes("--json") ? json : "",
+    }));
+
+    await command.execute(args, commandCtx);
+
+    const runs = await agentBrowserRuns();
+    expect(runs.some((run) => run.args.join(" ").endsWith(ran.join(" ")))).toBe(
+      true,
+    );
+    expect(
+      runs.some((run) => run.args.includes("tab_01M5Q2CY3JB5G7KJVE1QA1HK0B")),
+    ).toBe(false);
+  });
+
   it("routes a bare command to the in-app browser via the instrument provider", async () => {
     const { args, env } = await spawnedWith(["open", "https://example.com"]);
 
@@ -1050,7 +1086,11 @@ describe("agent-browser routing", () => {
     let evals = 0;
     await answerAgentBrowser((given) => {
       if (!given.includes("eval")) {
-        return { exitCode: 0, stderr: "", stdout: '- button "Continue" [ref=e1]\n' };
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: '- button "Continue" [ref=e1]\n',
+        };
       }
       evals += 1;
       // The reading before the click is of the page it was on; the one after

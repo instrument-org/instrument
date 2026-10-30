@@ -67,7 +67,9 @@ import {
   jsonWithTabIds,
   newTabLine,
   tabOutputOf,
+  windowTabIdArgIndex,
   withTabIds,
+  withTabLabel,
 } from "./agent-browser-tab-ids";
 import { recordProgramStart } from "./command-runs";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
@@ -957,6 +959,27 @@ export function createAgentBrowserCommand({
       0,
       commandArgs.length - resolvedArgs.length,
     );
+    // A tab named by the window's id, which `tab <id>` and `tab close <id>`
+    // take only as agent-browser's own label for it.
+    const tabIdIndex =
+      isInfoOnly || browserFreeRead
+        ? undefined
+        : windowTabIdArgIndex(resolvedArgs);
+    if (tabIdIndex !== undefined) {
+      const listed = await runAgentBrowser({
+        ...spawnOptions,
+        args: [...connectionArgs, "tab", "list", "--json"],
+        cancelSignal: ctx.signal,
+        input: undefined,
+      });
+      if (listed.exitCode === 0) {
+        commandArgs.splice(
+          connectionArgs.length,
+          resolvedArgs.length,
+          ...withTabLabel(resolvedArgs, tabIdIndex, listed.stdout),
+        );
+      }
+    }
     const followUp =
       isInfoOnly || browserFreeRead ? undefined : currentBrowserFollowUp();
     // What the page's live regions say before an action, for the follow-up

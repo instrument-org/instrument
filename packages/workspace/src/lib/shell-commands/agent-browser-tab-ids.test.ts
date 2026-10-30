@@ -4,7 +4,9 @@ import {
   jsonWithTabIds,
   newTabLine,
   tabOutputOf,
+  windowTabIdArgIndex,
   withTabIds,
+  withTabLabel,
 } from "./agent-browser-tab-ids";
 
 const JSON_LIST = JSON.stringify({
@@ -82,5 +84,35 @@ describe("agent-browser's tab list", () => {
       "Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B.\n",
     );
     expect(newTabLine("not json")).toBe("");
+  });
+});
+
+describe("a tab named by the window's id", () => {
+  it.each([
+    [["tab", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"], 1],
+    [["tab", "close", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"], 2],
+    [["--json", "tab", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"], 2],
+    [["tab", "t2"], undefined],
+    [["tab", "close"], undefined],
+    [["tab", "new", "https://example.com/"], undefined],
+    [["open", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"], undefined],
+  ])("%j has it at %s", (args, index) => {
+    expect(windowTabIdArgIndex(args)).toBe(index);
+  });
+
+  it("is switched to by agent-browser's label for it", () => {
+    expect(
+      withTabLabel(
+        ["tab", "close", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"],
+        2,
+        JSON_LIST,
+      ),
+    ).toEqual(["tab", "close", "t2"]);
+  });
+
+  it("is left as it was when the list does not name it", () => {
+    expect(
+      withTabLabel(["tab", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"], 1, JSON_LIST),
+    ).toEqual(["tab", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"]);
   });
 });

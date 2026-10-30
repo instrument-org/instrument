@@ -5,7 +5,7 @@ export type Release = RPCOutput["releases"]["list"]["releases"][number];
 /**
  * Which releases the page shows in full and which folded, from the newest
  * first list. Opened after an update (`since`), every version between the one
- * left and the one running is in full and marked new; otherwise only the
+ * left and the one running is in full, set apart from the rest; otherwise only the
  * running one is. Newer releases than that sit above it folded, except one
  * already downloaded, which the page leads with on its own.
  */

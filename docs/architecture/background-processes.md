@@ -2,7 +2,7 @@
 
 A `bash` command that outlives its wait is **no longer killed**. It keeps running, the tool call returns a process id, and the agent follows it with three new shell commands. This doc maps what that changes, who owns a running process, and what ends one.
 
-The design argument and the rejected alternatives are in the [plan](../plans/active/background-shell-processes.md). This is the map of the code as it stands.
+The design argument and the rejected alternatives are in the [plan](../plans/background-shell-processes.md). This is the map of the code as it stands.
 
 ## The one rule
 

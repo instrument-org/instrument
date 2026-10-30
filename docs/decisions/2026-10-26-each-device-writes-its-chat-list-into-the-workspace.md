@@ -4,7 +4,7 @@ Date: 2026-10-26
 
 ## Context
 
-The workspace index ([plan](../plans/completed/chat-list-index.md)) was kept out of the workspace on purpose: a SQLite file in a synced folder invites conflict copies, and "a derived file has no reason to travel with the workspace." A phone reading the workspace through iCloud Drive is that reason. It has no agent and no index of its own, and listing a chat means listing its folder, which waits on the sync engine folder by folder.
+The workspace index ([plan](../plans/chat-list-index.md)) was kept out of the workspace on purpose: a SQLite file in a synced folder invites conflict copies, and "a derived file has no reason to travel with the workspace." A phone reading the workspace through iCloud Drive is that reason. It has no agent and no index of its own, and listing a chat means listing its folder, which waits on the sync engine folder by folder.
 
 Timed on an iPhone opening a workspace it had never seen, from a folder picked in iCloud Drive (the iOS prototype's `scripts/icloud-trial.sh`):
 

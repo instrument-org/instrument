@@ -1,6 +1,6 @@
 # Scenarios
 
-A scenario is one app state, named and committed, that Studio boots straight into: `studio-drive.mjs boot --scenario <name>` builds application data of its own from `<name>.yaml` and boots on it. Everything the app reads to decide its state comes from files the scenario writes, or from an environment variable where the answer comes from outside the app, so the same boot lands in the same state every time. The plan is [app-state-scenarios.md](../../docs/plans/active/app-state-scenarios.md).
+A scenario is one app state, named and committed, that Studio boots straight into: `studio-drive.mjs boot --scenario <name>` builds application data of its own from `<name>.yaml` and boots on it. Everything the app reads to decide its state comes from files the scenario writes, or from an environment variable where the answer comes from outside the app, so the same boot lands in the same state every time. The plan is [app-state-scenarios.md](../../docs/plans/app-state-scenarios.md).
 
 ```bash
 node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --purpose "setup" --scenario beta-tester

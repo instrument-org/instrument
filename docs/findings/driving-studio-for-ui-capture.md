@@ -93,7 +93,7 @@ What is still open: renderer HMR during scripted runs; `boot` freezes main and p
 
 **7. An HMR freeze for scripted runs.** An env var or dev-panel toggle that suppresses renderer reloads while a capture is in flight, so an unrelated commit does not silently reset the run.
 
-**8. More seeded fixtures.** The corpus and the seeder exist (`fixtures/workspaces/`, `docs/plans/active/seeded-test-workspaces.md`); what it holds is one documents fixture. A browser session and a long transcript are the next two worth recording.
+**8. More seeded fixtures.** The corpus and the seeder exist (`fixtures/workspaces/`, `docs/plans/seeded-test-workspaces.md`); what it holds is one documents fixture. A browser session and a long transcript are the next two worth recording.
 
 **9. Teach `connect-cli.sh` to distinguish a dead app from a stale daemon** and restart the daemon on its own, rather than surfacing a Chrome error for a Studio problem.
 

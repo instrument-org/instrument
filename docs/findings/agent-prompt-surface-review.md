@@ -4,7 +4,7 @@
 
 A review of the text our agent actually reads -- the main system prompt (`packages/workspace/src/agents/main.ts`) and the tool descriptions (`packages/workspace/src/tools/`, plus `lib/create-bash-env.ts`) -- against [Anthropic's "new rules of context engineering for Claude 5 generation models"](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models), our own recorded sessions, and the equivalent surfaces in other agent harnesses.
 
-This is the prompt-language counterpart to [`agent-tool-surface-review.md`](./agent-tool-surface-review.md), which covered tool *capabilities*.
+This is the prompt-language counterpart to [`agent-tool-surface-review.md`](agent-tool-surface-review.md), which covered tool *capabilities*.
 
 A first pass removed the lines that were contradictory or untrue regardless of model. This document keeps the parts that outlive that pass: the measurements, and the changes that were deliberately **not** made along with why.
 

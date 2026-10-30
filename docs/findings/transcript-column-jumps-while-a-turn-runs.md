@@ -6,7 +6,7 @@
 
 ## Context
 
-While a turn runs, the transcript follows its own end. Watching a real session, the column visibly jumps up and down as steps arrive — reported as worst on **runs of tool calls the agent never named**, not on declared activities ([grouped-activities.md](../plans/active/grouped-activities.md) is the design those two shapes come from).
+While a turn runs, the transcript follows its own end. Watching a real session, the column visibly jumps up and down as steps arrive — reported as worst on **runs of tool calls the agent never named**, not on declared activities ([grouped-activities.md](../plans/grouped-activities.md) is the design those two shapes come from).
 
 The important thing to be clear about: **the end of the transcript is pinned, so the end is not what moves.** Everything above it moves to keep it pinned. A frame that draws *less* than the frame before it pulls the whole column down, and a frame that draws more pushes it back. So the symptom is a scroll position oscillating, and the cause is a height oscillating.
 
@@ -74,5 +74,5 @@ Getting that boundary right is most of the work in any automated check, and it s
 
 ## Related
 
-- [grouped-activities.md](../plans/active/grouped-activities.md) — the folding rules the heights come from, and the transcript page itself
-- [full-height-transcript-scrollbar.md](../plans/active/full-height-transcript-scrollbar.md) — separate goal, same scroller, and it carries the constraint that follow-bottom behavior must not regress
+- [grouped-activities.md](../plans/grouped-activities.md) — the folding rules the heights come from, and the transcript page itself
+- [full-height-transcript-scrollbar.md](../plans/full-height-transcript-scrollbar.md) — separate goal, same scroller, and it carries the constraint that follow-bottom behavior must not regress

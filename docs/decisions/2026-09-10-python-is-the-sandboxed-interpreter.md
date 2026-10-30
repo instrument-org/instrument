@@ -4,7 +4,7 @@ Superseded by [2026-10-12-python-and-node-run-native.md](2026-10-12-python-and-n
 
 Date: 2026-09-10
 
-Carries out [plans/completed/sandboxed-script-runtimes.md](../plans/completed/sandboxed-script-runtimes.md).
+Carries out [plans/sandboxed-script-runtimes.md](../plans/sandboxed-script-runtimes.md).
 
 ## Context
 

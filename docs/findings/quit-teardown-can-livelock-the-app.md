@@ -98,7 +98,7 @@ Nothing records that this happened. The boot after the second sighting logged no
 
 The ordering is why, and it is deliberate. `quitTeardown` unlinks the session lock as its first statement so the marker does not depend on the network flush that follows, and the spin happens after that unlink. The marker is therefore always already gone by the time a livelocked process is killed.
 
-So "seen twice" counts the times a person noticed a pinwheel, not the times this occurred. A fleet metric built on this marker would read zero forever, and would keep reading zero as the problem got worse. Whatever replaces it in [privacy-first diagnostics and feedback](../plans/active/privacy-first-diagnostics-and-feedback.md) should clear the marker after teardown completes rather than before, and solve the flush dependency some other way.
+So "seen twice" counts the times a person noticed a pinwheel, not the times this occurred. A fleet metric built on this marker would read zero forever, and would keep reading zero as the problem got worse. Whatever replaces it in [privacy-first diagnostics and feedback](../plans/privacy-first-diagnostics-and-feedback.md) should clear the marker after teardown completes rather than before, and solve the flush dependency some other way.
 
 ## Still open
 
@@ -110,4 +110,4 @@ Both sightings were installs triggered from the update prompt on a session that 
 
 ## Related
 
-- [The agent's filesystem work stalls the window](agent-filesystem-work-stalls-the-window.md) is the other direction of the same single-thread exposure, and [moving the agent turn off the main thread](../plans/active/agent-turn-off-the-main-thread.md) is the plan that would shrink both.
+- [The agent's filesystem work stalls the window](agent-filesystem-work-stalls-the-window.md) is the other direction of the same single-thread exposure, and [moving the agent turn off the main thread](../plans/agent-turn-off-the-main-thread.md) is the plan that would shrink both.

@@ -24,7 +24,7 @@ Three observations would have cut it short, and are worth reaching for first nex
 
 A dependency that auto-detects an optional tool by shelling out is a main-thread hazard on Windows, where process creation is expensive and console subsystem programs get a window. The cost is invisible on the maintainer's machine if the tool is installed, and invisible on macOS regardless. When a library offers an explicit choice instead of detection, take it, and make the option required at the type level rather than documented, because the failure only appears on one platform and only for users who lack the tool.
 
-Boot-step timing (`boot-timing.ts`) covers the linear main-process launch sequence, but it would not have caught this one: the skill watcher subscribes from an RPC route the renderer calls after the window opens, not from `bootstrapPrimaryInstance`. The instrument that finds this class unprompted is a main-thread stall watchdog, scoped in [privacy-first-diagnostics-and-feedback.md](../plans/active/privacy-first-diagnostics-and-feedback.md).
+Boot-step timing (`boot-timing.ts`) covers the linear main-process launch sequence, but it would not have caught this one: the skill watcher subscribes from an RPC route the renderer calls after the window opens, not from `bootstrapPrimaryInstance`. The instrument that finds this class unprompted is a main-thread stall watchdog, scoped in [privacy-first-diagnostics-and-feedback.md](../plans/privacy-first-diagnostics-and-feedback.md).
 
 ## Upstream
 

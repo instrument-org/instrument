@@ -135,4 +135,4 @@ That asymmetry is the argument for keeping every provider that has an MCP server
 | Local MCP servers                     | Medium              | Mostly policy decisions, not transport work                        |
 | OAuth for `api` connectors            | Medium, plus Google | Only for Gmail via direct integration                              |
 
-The shape this work now sits inside is recorded in [Plugins over connectors](../decisions/2026-08-15-plugins-over-connectors.md), with the build order in [the plugins plan](../plans/active/plugins.md).
+The shape this work now sits inside is recorded in [Plugins over connectors](../decisions/2026-08-15-plugins-over-connectors.md), with the build order in [the plugins plan](../plans/plugins.md).

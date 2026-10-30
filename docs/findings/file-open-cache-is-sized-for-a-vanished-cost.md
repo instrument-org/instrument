@@ -48,5 +48,5 @@ The larger question: **whether the persisted tier should exist.** Deleting it wo
 
 ## Related
 
-- [preview-app-declares-no-text-types.md](./preview-app-declares-no-text-types.md): why Preview is offered for some types and not others
+- [preview-app-declares-no-text-types.md](preview-app-declares-no-text-types.md): why Preview is offered for some types and not others
 - `fa9fb857e`, `574ee9a0e`, `ea95e5750`: the decomposition that made these questions answerable

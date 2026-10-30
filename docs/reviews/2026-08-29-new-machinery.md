@@ -31,7 +31,7 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 - Status: fixed `4a4af7b36`
 - Where: [read-file.ts:176](/packages/workspace/src/tools/read-file.ts#L176)
 - What: `read_file` stored rendered image, PDF, audio and video bytes as base64 in every tool part with no dedup; one task was a 42.6MB database, 40.2MB of it 40 `read_file` parts over eight files.
-- Note: tool bytes now go to hash-named blobs beside the chat's records, so identical renders are stored once per chat. `docs/plans/completed/tool-result-media-dedup.md` still reads "not started".
+- Note: tool bytes now go to hash-named blobs beside the chat's records, so identical renders are stored once per chat. `docs/plans/tool-result-media-dedup.md` still reads "not started".
 
 ### E. Streamed code fences re-highlight every prefix through main-process RPC
 

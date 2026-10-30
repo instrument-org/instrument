@@ -1,6 +1,6 @@
 # The agent's filesystem work stalls the window, and not by blocking it
 
-**Status:** contained: every agent shell runs in a worker thread since 57faeef2c (`packages/workspace/src/lib/bash-worker/`), which takes this stall off main; the rest of [moving the agent turn off the main thread](../plans/active/agent-turn-off-the-main-thread.md) is open. The body describes the process as it was before that, measured 2026-09-08 against 2.0.0-beta.1. Checked 2026-10-02.
+**Status:** contained: every agent shell runs in a worker thread since 57faeef2c (`packages/workspace/src/lib/bash-worker/`), which takes this stall off main; the rest of [moving the agent turn off the main thread](../plans/agent-turn-off-the-main-thread.md) is open. The body describes the process as it was before that, measured 2026-09-08 against 2.0.0-beta.1. Checked 2026-10-02.
 
 The window becomes unresponsive while the agent does broad filesystem work, most visibly when a task has a large user folder attached and the agent searches it. The obvious reading is a long synchronous block on the thread that owns the window. That reading is wrong, and acting on it leads to fixes that do not work.
 
@@ -156,12 +156,12 @@ Two traps in the harness itself. `find` over a folder containing any unreadable 
 
 ## What resolves it
 
-Nothing in process. The work has to leave the thread, which is [the plan](../plans/active/agent-turn-off-the-main-thread.md). Its first move runs the interpreter alone in a worker thread, which takes this finding's stall off main without moving the rest of the agent turn.
+Nothing in process. The work has to leave the thread, which is [the plan](../plans/agent-turn-off-the-main-thread.md). Its first move runs the interpreter alone in a worker thread, which takes this finding's stall off main without moving the rest of the agent turn.
 
 Two cheaper mitigations are real but partial, and both are worth doing regardless because they shrink the exposure before the boundary lands. Lowering the two traversal budgets and the output ceiling bounds what a single call can cost, and is a few lines in `create-bash-env.ts`. Giving the file walk the native treatment `rg` already has removes the syscall storm, using the `resolveReadOnlyHostPath` seam and the obligations that come with it, but leaves the buffered result above, so it is the larger piece of work for the smaller share of the stall.
 
 ## Related
 
-- [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) is the same class with a different cause, and its lesson applies here: a freeze that shows "Not Responding" is the main process. It also names the instrument this finding needed and did not have, a main-thread stall watchdog, scoped in [privacy-first-diagnostics-and-feedback](../plans/active/privacy-first-diagnostics-and-feedback.md).
+- [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) is the same class with a different cause, and its lesson applies here: a freeze that shows "Not Responding" is the main process. It also names the instrument this finding needed and did not have, a main-thread stall watchdog, scoped in [privacy-first-diagnostics-and-feedback](../plans/privacy-first-diagnostics-and-feedback.md).
 - [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) records the other direction of the same single-thread exposure, where every `setTimeout` guard on the teardown path is decorative against a spin.
 - [just-bash upstream](../architecture/just-bash-upstream.md) carries the interpreter-side issues, including the `find` abort noted above.

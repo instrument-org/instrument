@@ -126,7 +126,7 @@ export function catalogEffort(
  * dropped upstream instead of rejected. A direct Anthropic, OpenAI, Google, or
  * xAI key reports no reasoning metadata and rejects a parameter its model does
  * not take, so those keep the provider default until the fallback table in
- * `docs/plans/active/model-request-controls.md` gives us the missing evidence.
+ * `docs/plans/model-request-controls.md` gives us the missing evidence.
  */
 export function reasoningProviderOptions({
   effort,

@@ -6,7 +6,7 @@
 
 `<userData>/logs/main.log` is written by electron-log in packaged builds only ([electron-logger.ts](../../apps/studio/src/electron-main/lib/electron-logger.ts)). Today it carries boot timings, updater activity, and errors, and it is the only durable record of what a shipped build did on a user's machine.
 
-[privacy-first-diagnostics-and-feedback.md](../plans/active/privacy-first-diagnostics-and-feedback.md) Phase 1 adds span records, a main-thread stall watchdog, and the event and exception catalog to that same process. Both of electron-log's file-transport defaults are wrong for that, in ways that are invisible at current volume.
+[privacy-first-diagnostics-and-feedback.md](../plans/privacy-first-diagnostics-and-feedback.md) Phase 1 adds span records, a main-thread stall watchdog, and the event and exception catalog to that same process. Both of electron-log's file-transport defaults are wrong for that, in ways that are invisible at current volume.
 
 ## What we found
 
@@ -57,5 +57,5 @@ Crashpad minidumps are the compensating record for a native crash, and the next 
 
 ## Related
 
-- [privacy-first-diagnostics-and-feedback.md](../plans/active/privacy-first-diagnostics-and-feedback.md): the journal, spans, and stall watchdog this is sized for
-- [update-check-un-stages-the-macos-build.md](./update-check-un-stages-the-macos-build.md): the other updater finding drawn from these logs
+- [privacy-first-diagnostics-and-feedback.md](../plans/privacy-first-diagnostics-and-feedback.md): the journal, spans, and stall watchdog this is sized for
+- [update-check-un-stages-the-macos-build.md](update-check-un-stages-the-macos-build.md): the other updater finding drawn from these logs

@@ -6,7 +6,7 @@ Date: 2026-08-11
 
 When a persisted data part's producer is deleted, the part's schema stays behind as a read-only member and the renderer filters what it draws. Nothing rewrites the stored payload.
 
-Applied to `data-fileChanges`, the change card the task-directory watcher fed before the ` ```files ` fence replaced it ([file-references-without-a-watcher.md](../plans/completed/file-references-without-a-watcher.md)). The part is still parsed, narrowed to `filePath` and `status`, and drawn as the same grid a fence draws, restricted to `output/`.
+Applied to `data-fileChanges`, the change card the task-directory watcher fed before the ` ```files ` fence replaced it ([file-references-without-a-watcher.md](../plans/file-references-without-a-watcher.md)). The part is still parsed, narrowed to `filePath` and `status`, and drawn as the same grid a fence draws, restricted to `output/`.
 
 ## Why
 

@@ -2,7 +2,7 @@
 
 Date: 2026-10-15
 
-Builds on [plans/active/immutable-session-context.md](../plans/completed/immutable-session-context.md), which made the baseline survive a clock and left compaction open.
+Builds on [plans/immutable-session-context.md](../plans/immutable-session-context.md), which made the baseline survive a clock and left compaction open.
 
 ## Context
 

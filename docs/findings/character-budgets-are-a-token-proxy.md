@@ -53,7 +53,7 @@ These counts come from OpenAI tokenizers, so they are an upper bound on characte
 
 ## Where token counting does belong
 
-The context-fit path, where the comparison is against the model's real window rather than against a constant we chose. [Context compaction](../plans/active/context-compaction.md) already answers it and answers it without an estimator: read the last assistant message's reported `metadata.usage` and compare against a `contextLength` carried through the model schema. Reported usage is exact, free, per-model, and already persisted. The accurate-token problem is solved by measuring after the fact, not by estimating before it.
+The context-fit path, where the comparison is against the model's real window rather than against a constant we chose. [Context compaction](../plans/context-compaction.md) already answers it and answers it without an estimator: read the last assistant message's reported `metadata.usage` and compare against a `contextLength` carried through the model schema. Reported usage is exact, free, per-model, and already persisted. The accurate-token problem is solved by measuring after the fact, not by estimating before it.
 
 ## Assessment
 
@@ -64,5 +64,5 @@ Not worth changing for the per-call caps. The caps sit well above ordinary usage
 
 ## Related
 
-- [Context compaction](../plans/active/context-compaction.md) owns the window-relative budget and the reported-usage path.
-- [Tool result context budgets](../plans/completed/tool-result-context-budgets.md) is where the question was raised and deferred.
+- [Context compaction](../plans/context-compaction.md) owns the window-relative budget and the reported-usage path.
+- [Tool result context budgets](../plans/tool-result-context-budgets.md) is where the question was raised and deferred.

@@ -4,7 +4,7 @@
 
 Tailwind's `transition-colors` and `transition-all` carry a 150ms ramp by default. On the web that reads as polish. In a desktop app it reads as lag: the OS chrome around the window repaints a hover state on the next frame, and a control that fades into its hover state over 150ms feels a beat behind everything beside it.
 
-Once controls activate on pointer press (see [controls activate on press](./2026-07-27-controls-activate-on-press.md)), an easing ramp is worse than cosmetic. The action has already run by the time the ramp starts, so the animation sits in front of the confirmation of something that already happened. Making activation instant and leaving the feedback eased spends the win and keeps the symptom.
+Once controls activate on pointer press (see [controls activate on press](2026-07-27-controls-activate-on-press.md)), an easing ramp is worse than cosmetic. The action has already run by the time the ramp starts, so the animation sits in front of the confirmation of something that already happened. Making activation instant and leaving the feedback eased spends the win and keeps the symptom.
 
 ## Decision
 

@@ -42,7 +42,7 @@ routed it through the shared `AGENT_BROWSER_IDLE_TIMEOUT_MS` constant. The bug i
 latent since April: it only bites when a snapshot->action tool-call gap exceeds
 30s, which a slow model reliably does. It is a consequence of the leak-prevention
 direction, not of the fingerprint fix itself. See
-[agent-browser-orphaned-daemons.md](./agent-browser-orphaned-daemons.md).
+[agent-browser-orphaned-daemons.md](agent-browser-orphaned-daemons.md).
 
 ## Fix
 

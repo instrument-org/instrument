@@ -21,4 +21,4 @@ A chat is the only record: `chats/<id>/` with `.instrument/settings.json` and `.
 - One record removes the lookups and the agreement problems: a task cannot run on a different model, reach different folders, or name a folder by a different path than its chat, because it has nothing of its own to disagree with.
 - "Task" stays a word in the agent's command and the UI, not in storage, so a later shape (a task with its own model, a fork of a fork, an edited message as a branch) is a new kind of session row rather than a schema change.
 
-Carried out in `b834385c7` through `de7293135`; the plan, with what was built differently, is [one chat, one database](../plans/completed/one-chat-one-database.md).
+Carried out in `b834385c7` through `de7293135`; the plan, with what was built differently, is [one chat, one database](../plans/one-chat-one-database.md).

@@ -18,7 +18,7 @@ There are two ways to put a page on screen and only one of them is a product aff
 - `agent-browser open <url>` navigates the managed target. It is documented at length in a skill the model loads, it is what every browsing recipe in that skill uses, and it does not touch the pane.
 - `show <url>` navigates the same target *and* opens the pane onto its browser tab. It is one line in a shell-command description.
 
-A model reaching for the browser has already loaded the skill that tells it how to browse. Nothing in that path mentions the pane, so the more discoverable route is also the one that leaves the user staring at an unchanged screen. The auto-open hooks that used to paper over this were deliberately removed with the pane landing ([pane-tabs-and-the-show-command.md](../plans/completed/pane-tabs-and-the-show-command.md)); `show` is what replaced them, and for URLs it was not winning.
+A model reaching for the browser has already loaded the skill that tells it how to browse. Nothing in that path mentions the pane, so the more discoverable route is also the one that leaves the user staring at an unchanged screen. The auto-open hooks that used to paper over this were deliberately removed with the pane landing ([pane-tabs-and-the-show-command.md](../plans/pane-tabs-and-the-show-command.md)); `show` is what replaced them, and for URLs it was not winning.
 
 Worth separating from the file case, which was not broken in the same way: both models did open files into the pane, and their disagreement there was about whether to *also* name the file in the fence. Only the URL path failed outright.
 

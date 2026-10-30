@@ -36,4 +36,4 @@ Caveat: macOS-only, with no Windows or Linux equivalent, so it would be another 
 
 ## Related
 
-- [file-open-cache-is-sized-for-a-vanished-cost.md](./file-open-cache-is-sized-for-a-vanished-cost.md): the other open question in this subsystem
+- [file-open-cache-is-sized-for-a-vanished-cost.md](file-open-cache-is-sized-for-a-vanished-cost.md): the other open question in this subsystem

@@ -15,7 +15,7 @@ So merely viewing a task made it the most recently updated task in the workspace
 
 The sidebar reads `task.live.list`, which re-runs `getTasks` only when something publishes `task.updated`. A task climbing to the top was therefore invisible until the next publish from any cause, at which point it jumped without anyone having done anything to it. Nothing published often enough for the pattern to be obvious, and the jump never coincided with the act that caused it.
 
-Adding a second per-task writer made it visible: the pane in [pane-tabs-and-the-show-command.md](../plans/completed/pane-tabs-and-the-show-command.md) writes `state.json` on every tab change, and its publish was the refetch that surfaced every pending mtime bump. That read as "opening the panel reorders my sidebar", which is why the pane looked like the culprit. It was the messenger.
+Adding a second per-task writer made it visible: the pane in [pane-tabs-and-the-show-command.md](../plans/pane-tabs-and-the-show-command.md) writes `state.json` on every tab change, and its publish was the refetch that surfaced every pending mtime bump. That read as "opening the panel reorders my sidebar", which is why the pane looked like the culprit. It was the messenger.
 
 Worth being explicit that the obvious diagnosis was wrong: writing `state.json` does **not** move the task. A rewrite of an existing file leaves the parent directory's mtime alone, and `task.db` is a different file. Verified before changing anything:
 
@@ -61,7 +61,7 @@ Size was never the argument. Across a 596-task workspace `settings.json` ran a m
 
 What is real is a difference in *lifetime*, and it is preserved as a nested key rather than a second file:
 
-- The top level is what the app asks **about** a task: title, pin, unread, project, timestamps. The list reads it for every task in the workspace, and the cross-task index in [conversation-storage.md](../plans/completed/conversation-storage.md) projects exactly these and is specified as rebuildable from them. They need a durable per-task home on disk permanently.
+- The top level is what the app asks **about** a task: title, pin, unread, project, timestamps. The list reads it for every task in the workspace, and the cross-task index in [conversation-storage.md](../plans/conversation-storage.md) projects exactly these and is specified as rebuildable from them. They need a durable per-task home on disk permanently.
 - `state` is where the user left off **inside** one task: draft, open tabs, chosen model, attached folders. Read when a task is open, never queried across tasks, and nothing will ever index it.
 
 Two conditions came with the merge, because without them it would have been a downgrade:

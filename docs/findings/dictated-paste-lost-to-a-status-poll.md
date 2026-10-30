@@ -74,11 +74,11 @@ It is not the shape to ship. Holding every transcript it has read is unbounded, 
 - Task databases idle for 30 seconds close once more than 64 are open.
 - The chat list mounts only the rows near the view.
 
-On the same 353-chat copy afterwards: `chats.tasks` took 55 to 66 ms, the window idled at main event-loop p99 8 ms with no stall over 30 ms, twenty quick changes to one chat caused two list rebuilds, and open task databases settled at 64. A Handy paste into the composer landed. What the list still pays on boot and on each rebuild is the subject of [the chat list index plan](../plans/completed/chat-list-index.md).
+On the same 353-chat copy afterwards: `chats.tasks` took 55 to 66 ms, the window idled at main event-loop p99 8 ms with no stall over 30 ms, twenty quick changes to one chat caused two list rebuilds, and open task databases settled at 64. A Handy paste into the composer landed. What the list still pays on boot and on each rebuild is the subject of [the chat list index plan](../plans/chat-list-index.md).
 
 A regression test is `main-stalls.mjs` from the `studio-chrome-devtools` skill, or the simulator above, against a workspace with a hundred filed tasks: pastes should land 60 of 60 with a 60 ms restore, and main's event-loop p99 should stay under 20 ms at idle.
 
 ## Related
 
 - [The agent's filesystem work stalls the window](agent-filesystem-work-stalls-the-window.md): the other main-thread stall, which the bash worker took.
-- [Move the agent turn off the main thread](../plans/active/agent-turn-off-the-main-thread.md): the process plan this finding re-scopes.
+- [Move the agent turn off the main thread](../plans/agent-turn-off-the-main-thread.md): the process plan this finding re-scopes.

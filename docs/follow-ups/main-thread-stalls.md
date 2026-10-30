@@ -4,7 +4,7 @@
 
 ## What we're waiting to learn
 
-How often the main process stalls during real agent work, for how long, and under which RPC procedures. 7d42233f6 turned the stall log on in every build "so the numbers come from real use before deciding whether the workspace should leave the main process". That decision is step 2 of [`agent-turn-off-the-main-thread.md`](../plans/active/agent-turn-off-the-main-thread.md). Its own open question: whether an open native menu or dialog reads as a stall.
+How often the main process stalls during real agent work, for how long, and under which RPC procedures. 7d42233f6 turned the stall log on in every build "so the numbers come from real use before deciding whether the workspace should leave the main process". That decision is step 2 of [`agent-turn-off-the-main-thread.md`](../plans/agent-turn-off-the-main-thread.md). Its own open question: whether an open native menu or dialog reads as a stall.
 
 ## The signal
 

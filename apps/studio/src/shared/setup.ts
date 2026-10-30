@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Setup's steps, in the order they come. The current step is the first one
- * that is needed and not done; see `docs/plans/active/onboarding-setup-assistant.md`.
+ * that is needed and not done; see `docs/plans/onboarding-setup-assistant.md`.
  * A step added here is unanswered for everyone, so people who finished setup
  * see only that one.
  */

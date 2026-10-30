@@ -1,0 +1,149 @@
+# Plan: privacy-first diagnostics and feedback
+
+Status: open. In progress. Tier A's removal half has landed: PostHog is gone from both processes (SDKs, init, CSP hosts, env validation, the release source-map upload), along with the persisted `telemetryId`, the `enableUsageMetrics` preference and its Settings toggle, and the whole event catalog with every call site. Decision 2 went the other way from its recommendation: the catalog was deleted rather than retargeted, so nothing records events locally either. Exceptions are captured as complete events modeled on Sentry's ([shared exceptions](../../packages/shared/src/exceptions/)): every error in the chain with parsed frames, the error's own properties, the caller's context, the app's contexts, the last breadcrumbs, and a fingerprint; they are kept on this computer collapsed by fingerprint, and a report the person sends carries the recent ones. Phase 3's local half is built: Crashpad runs with uploads off, and each start logs the minidumps it has not reported yet and whether the last session exited at all ([register-crash-diagnostics.ts](../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts)). Release builds attach their source maps to the GitHub release and copy them to the reports bucket, where the viewer resolves a report's frames against the build it came from. Sending is built too: a crash or hang from the last session waits in a bell in the window corner, every report goes through one dialog whose Show details is exactly what is sent (the details text, and the exception events as JSON), the two error screens open it, and reports post to the API, which hands them to the `apps/reports` Worker in the internal repo, which attributes signed-in reports by their token. Feedback is built: Feedback in the rail above Settings (`a646179fa`), Send feedback… in a chat's menu, `/feedback`, `/bug` or `/report` as the first thing typed, and Help > Send Feedback… open a dialog that sends the person's note with the chat's records, the app's diagnostics as files laid out as on disk and any screenshots they add, each of which they can leave out. The main-thread stall watchdog is built as a log rather than a journal record: `lib/main-thread-stalls.ts` (`7d42233f6`) logs each tick late by 250 ms or more with the RPC procedures that ran during it ([main-thread-stalls.md](../follow-ups/main-thread-stalls.md)). Not started: the local journal, spans, and the diagnostics screen. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](user-chosen-working-folder.md).
+
+## Scope
+
+Remove ambient telemetry from Studio. Replace it with a local diagnostics journal that never leaves the device, plus two user-invoked upload paths: a feedback report that can carry a conversation, and a crash report the person reads in full before sending. Hosted API telemetry is out of scope but must not contradict the claim.
+
+## The claim
+
+| Tier | Sentence                                                                                          | Requires                                                                 | Cost                                              |
+| ---- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
+| A    | "Instrument does not observe how you use the app. Nothing leaves your device unless you send it." | No analytics SDK, no install identifier, no automatic upload of any kind | No passive crash signal                           |
+| B    | Tier A plus "you can turn on automatic crash reports"                                             | Tier A plus one default-off switch with a published schema               | Small                                             |
+| C    | "Anonymous telemetry, opt out any time"                                                           | Today's code                                                             | Free, and indistinguishable from every competitor |
+
+Recommendation: **B**.
+
+Two carve-outs to state before someone else finds them:
+
+**Local app, not the model path.** BYOK and local-model users have a path that never touches us. Hosted-gateway users send prompts through our infrastructure by definition. A privacy page that does not separate these is false for the second group.
+
+**"Anonymous" is the wrong word and we already use it.** FP-373 deliberately put it in the preferences UI. A stable persisted identifier is pseudonymous; a transcript is often re-identifying regardless. Use "not linked to your account". Ship this wording fix regardless of the rest.
+
+## Current state
+
+No analytics SDK ships and nothing leaves the device on its own account. What remains is local:
+
+- `captureServerException` ([capture-server-exception.ts](../../apps/studio/src/electron-main/lib/capture-server-exception.ts)) is the one sink. The workspace and the ai-gateway reach it through `CaptureExceptionFunction` ([types.ts](../../packages/workspace/src/types.ts), [types.ts](../../packages/ai-gateway/src/types.ts)), each binding naming its area; the renderer ([capture-exception.ts](../../apps/studio/src/client/lib/capture-exception.ts)) and the bash worker send a serialized error, and the main process builds every event with its own contexts and breadcrumbs. A capture takes a typed context (area, mechanism, handled, RPC path, chat, session, message, tool, model and provider ids, component stack, data).
+- Events are kept in `exceptions.json` in userData ([exception-store.ts](../../apps/studio/src/electron-main/lib/exception-store.ts)): one per fingerprint with a count and first and last times, the 50 most recently seen. The developer-mode indicator reads the ones seen this session. An uncaught main-process throw also writes its event synchronously to `last-crash.json`, which the next start reads back into the bell.
+- The event catalog is gone. Phase 1's journal, if it wants events, starts from an empty catalog rather than a retargeted one.
+
+**Timing seed.** [boot-timing.ts](../../apps/studio/src/electron-main/lib/boot-timing.ts) wraps each step of main-process boot and logs its duration through electron-log, so a packaged build's `main.log` says which step a slow launch spent its time in. A formatted string, not a record, and the only timing anywhere in the app. [main-log-retention-and-transport.md](../findings/main-log-retention-and-transport.md) measures what that file retains and why its transport defaults do not survive the volume Phase 1 adds.
+
+**No feedback UI.** Support is an external link (`SUPPORT_URL`, from the Help menu in [menus/utils.ts](../../apps/studio/src/electron-main/menus/utils.ts) and the error cards). FP-653 "Conversation quality rating" was cancelled.
+
+## What the storage change does to this
+
+[user-chosen-working-folder.md](user-chosen-working-folder.md) and [conversation-storage.md](conversation-storage.md) change the payload this plan uploads. Four consequences:
+
+1. **There is no task folder to submit.** Tasks stop owning a directory, and the folder a task points at is the user's own, full of files we did not create. Zipping it is off the table.
+2. **A conversation becomes one append-only file.** Under option D that file plus a byte range from the index _is_ the report payload. No archive walk, no multi-artifact manifest, and the zip-bomb and traversal surface drops out of the common case.
+3. **The superset risk sharpens.** The transcript already contains every file the agent read, every screenshot, every browser page, every command's output. With a writable user-chosen folder those are the user's real documents rather than sandbox copies. "Thumbs up sends the thread" reads to a user like sending a chat and behaves like sending a working folder.
+4. **The journal should match the conversation format.** Append-only plain text in application data, same delete story, same inspect story, rebuildable index. Do not introduce a second storage idiom for diagnostics.
+
+Two things this makes newly claimable, and both are stronger than anything telemetry removal buys on its own: conversations are readable files the user can grep and delete, and we write no hidden state into the user's folder ([user-chosen-working-folder.md](user-chosen-working-folder.md) keeps our state in application data).
+
+One decision moves here from [conversation-storage.md](conversation-storage.md): whether the agent gets raw read access to the user's whole conversation history. That plan correctly flags it as a privacy posture decision rather than a storage one. It belongs to this plan.
+
+## Design
+
+### Local diagnostics journal
+
+Keep the event catalog, retarget the sink. Bind a `DiagnosticsSink` to the two capture types in Studio's four binding files; workspace and ai-gateway do not change.
+
+- Append-only, in application data, bounded by size and age, same format as conversation storage.
+- Repeated records collapse rather than accumulate: one record per fingerprint with a count and first and last timestamps. Size and age bounds alone do not survive an emitter that fires once per frame, and the noisiest sources are the content-free ones, so an uncaught browser notice raised during a splitter drag can evict every diagnostic record ahead of it. The analytics SDK absorbed this with a client-side rate limiter; an append-only file has none. Collapsing belongs in the sink before the write, since the format rules out editing a record in place.
+- Exception events are complete rather than sanitized: the home folder reads `~` and nothing else is taken out, because nothing is sent without the person seeing it first. Show details is the whole report, the events' exact JSON included.
+- The two catalog entries carrying user content are already gone, ahead of this plan: `model_picker.searched` took the text someone typed and `external_link.clicked` took the full URL of anything they opened, path and query included. Reshaping them into a had-results boolean and an origin category was the earlier intent; removing them outright was cheaper than either, and neither answered a question worth a schema. Nothing in the catalog now carries content, which means the sanitizer below has no field it is the last line of defense for.
+- Diagnostics screen: inspect, copy, export, delete. Absorbs the dev-mode exception store.
+
+### Timing and stalls
+
+The journal as scoped records what happened and what threw. Neither answers "it froze on launch", which is both the most common report and the one ambient telemetry was always worst at: no exception is raised, no event in the catalog measures it, and the signal that would settle it is a duration nobody recorded. Spans are the third record type, alongside events and exceptions: a name, a duration, and a small typed payload.
+
+Instrument the thread that owns the window first. A slow renderer costs a frame; a slow main process makes the OS paint "Not Responding" over an app that is still starting, and the two are indistinguishable to the user reporting it. Boot steps, the workspace layout migration, session load, task open, and agent turn latency split by model call versus tool execution all belong here.
+
+A main-thread stall watchdog is the general form and worth more than any individual span: a timer that expects to fire every N ms and records its overshoot catches blocking work nobody thought to wrap, which is most of it. It is content-free and costs a timer.
+
+Spans are the cheapest records to defend. Durations, step names, and counts carry no user content, which puts them in the small set of things a report can attach by default, and they are often diagnostic on their own, so a report carrying nothing else is still worth receiving. Bound them like the rest of the journal: one stall record per boot is free, a span per frame is a second product.
+
+FP-1223 is the precedent, and it argues for the watchdog over hand-placed spans. A Windows-only twelve-second main-process freeze at launch, present across several releases, with PostHog running the whole time and reporting nothing: no exception, no event, no duration. The cause was a dependency probing for an optional tool by shelling out, on the thread that owns the window. Boot-step timing did not find it and would not have, because the subscribe that blocked runs from an RPC route the renderer calls once the window is open rather than from the launch sequence someone thought to wrap. That is the argument: spans only measure what a person already suspected, and a stall watchdog needs nobody to have guessed the location. Removing telemetry costs nothing here because telemetry never answered this class of question; what does is timing the user already has on disk and a report path that can carry it.
+
+### Feedback report
+
+Opening any feedback surface sends nothing. Entry points: sidebar button replacing the external link, per-message thumbs, task outcome rating, "Report this problem" on error banners and failed tool calls, command palette.
+
+**Thumbs sends the whole thread**, gated on a first-run disclosure that shows the actual payload and is remembered per user. After that, one click plus a receipt with view and delete. Message-scoped reports are usually unactionable because the cause is upstream in the thread; the guard is the preview, not a narrower default. Message-level and task-level ratings stay separate.
+
+Attachment defaults: rating and app version on; thread on for a thumbs report with range selection available; sanitized diagnostics preselected for an error report, off otherwise; tool payloads, files, screenshots, minidumps off with per-item selection.
+
+Identity: unlinked, random report ID, optional contact field stored apart from content, receipt carrying a deletion token.
+
+The preview is the authority: what it shows is what is sent.
+
+### Crash reports
+
+Electron Crashpad with `uploadToServer: false`. Minidumps stay local. On next launch, show the crash with a readable summary and an optional manual attachment.
+
+A default-off setting, "Send error reports automatically", offered from a report's own dialog after the person has read one. It sends crashes and app errors as that dialog would have shown them: the details and the exception events, which carry the chat, session and tool ids the capture knew, never conversation content. There is no stable install identifier. Minidumps stay manual until real dumps are audited for path, memory, URL, and content exposure.
+
+### Ingestion
+
+Bundle built in main, redacted locally, previewed, then `POST /feedback/intents` returns a report ID and a short-lived single-object upload URL. Upload to a private R2 quarantine bucket. An event notification feeds a queue; the processor verifies checksum and schema, enforces size limits, rejects traversal and unsupported types, scans, and writes a sanitized derivative to a separate bucket with its own access policy. Worker logs carry report ID, status, byte count, coarse error code.
+
+Retention: raw 30 days, sanitized 90, rejected deleted promptly, derived fixtures only when deliberately promoted. R2 lifecycle rules, not procedure.
+
+Triage automation reads only the sanitized derivative, holds no production credentials, cannot message users or publish, treats content as evidence rather than instructions, and requires human approval before any issue, PR, or merge. A submitted transcript is an adversarial prompt-injection payload.
+
+### Hosted API
+
+Today it attaches account identity, email, URL, user agent, country, and Cloudflare request identifiers to events. Defensible for billing, abuse, and support; indefensible if the privacy page implies otherwise. Needs its own published policy and a property allowlist. Prompts, outputs, tool payloads, and uploaded reports stay out of it.
+
+## Sequencing
+
+**Phase 0.** Done by removal rather than by defaults: there is no SDK left to opt out of, no autocapture, no remote script, and no usage-metrics toggle whose wording could say "anonymous". Still open: a cold-start network test that fails on any request a fresh install makes before the user acts.
+
+**Phase 1.** `DiagnosticsSink` and journal, bound in place of the local exception sinks. Span records, with the boot steps retargeted off electron-log and the main-thread stall watchdog added. Diagnostics UI. Published egress registry. Offline local-model integration test.
+
+**Phase 2.** Report composer, thumbs with first-run disclosure, task rating, "Report this problem". Bundle, redaction, preview, upload, receipt, deletion token, lifecycle.
+
+**Phase 3.** Crashpad with upload disabled and the unclean-exit marker (built). Pending-crash UI, manual submission, and the default-off automatic error report setting (built).
+
+**Phase 4.** Quarantine queue, sanitized derivatives, dedup fingerprints, isolated triage, human approval gate, promotion into evals.
+
+Phase 0 and 1 are independent of the storage work. **Phase 2 is not**: built against per-task SQLite it gets built twice, and the bundle shape differs (archive walk versus one file plus a byte range). Either schedule Phase 2 after [conversation-storage.md](conversation-storage.md) phase 4, or build it against the storage seam introduced in that plan's phase 2. Phase 1 alone earns the claim, so the marketing push does not have to wait for Phase 2.
+
+## Decisions
+
+1. Tier A or B. Recommendation: B.
+2. Keep the event catalog locally, or delete it. Decided: deleted, with every call site, so the privacy claim did not wait on the journal. The exception seam stays.
+3. Thumbs scope. Recommendation: whole thread behind a first-run payload disclosure.
+4. Whether submitted threads can become eval fixtures. Blocks Phase 2 consent copy. Unresolved.
+5. Whether the agent gets raw read access to the user's conversation history. Moved here from [conversation-storage.md](conversation-storage.md). Unresolved.
+6. Retention. Recommendation: 30 raw / 90 sanitized.
+7. Whether spans attach to every report by default rather than only to error reports. Recommendation: yes, they carry no content and are frequently the whole answer.
+8. Encryption. TLS plus private R2 for MVP, client-side envelope encryption after.
+9. Whether the marketing push waits for Phase 1. It has to: the claim is already being made informally in beta conversations while the code ships default-on PostHog.
+
+## Acceptance criteria
+
+- [x] A fresh install makes no analytics request and creates no stable analytics identifier.
+- [x] PostHog domains and scripts are absent from the bundle and the CSP. (PostHog still appears as an app in the integrations catalog, with its brand icon; that is content, not a destination the app reports to.)
+- [ ] A local-model-only workflow completes with the network unavailable.
+- [ ] Opening or dismissing any feedback surface sends nothing.
+- [ ] The previewed manifest, byte counts, and hashes match the uploaded bundle exactly.
+- [ ] Unselected transcript ranges, files, tool payloads, screenshots, and diagnostics are absent server-side.
+- [x] A report carries exactly what its Show details shows: the details text and the exception events, nothing else.
+- [x] Automatic error reports are off on a fresh install, and when on send the same report the dialog would show.
+- [ ] A launch slower than its budget leaves a named step and duration in the journal, and a main-thread stall leaves an overshoot record.
+- [ ] A report carrying only spans contains no path, identifier, or user content.
+- [ ] Revoking consent stops future uploads; deleting removes pending local reports.
+- [ ] A sent report can be deleted with its receipt token and no account.
+- [ ] Raw R2 objects are private, access-controlled, and lifecycle-deleted.
+- [ ] Worker logs contain no payload, token, header, or identifying object key.
+- [ ] Malformed archives, oversized expansions, path traversal, and unsafe media are rejected.
+- [ ] Prompt-injection fixtures in a submitted transcript cannot trigger messaging, issue creation, PR creation, credential use, or merge.
+- [ ] Hosted API events contain no prompt, output, or raw report content.
+- [ ] Published privacy documentation matches an automated egress inventory and states the hosted-model carve-out.

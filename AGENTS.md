@@ -136,6 +136,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
 - `docs/plans/` — execution plans for non-trivial work, one file per plan in one folder, each opening with `Status: open|done|superseded|dropped.` (`rg -m1 '^Status: open' docs/plans` lists the open ones). `pnpm fix` regenerates the section indexes; `pnpm check:docs` fails on a broken link, a cited path that no longer exists, or a stale index.
 - `docs/follow-ups/`: checks we owe later, each with the signal to look for and a date to look. A change that ships logging, a counter or a cap to learn from later adds one in the same commit. When working in an area, check its index for a follow-up past its date.
+- `docs/principles/`: the standing rules behind many decisions. Before raising a product or design question, check here; if one answers it, cite it and go.
 - `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
 - `docs/changes/`: dated, screenshot-backed summaries of user-facing changes for design follow-up and possible changelog input.
 - `docs/reviews/`: code reviews, the range each read and what came of each finding. Read before reviewing; a fix for a finding carries a `Review:` trailer.

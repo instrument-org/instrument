@@ -11,6 +11,7 @@ Each has its own README carrying the section's conventions and a full index of i
 | Section | What belongs there | Shape |
 | --- | --- | --- |
 | [`architecture/`](architecture/README.md) | How the system works today | Evergreen, edited in place, no dates |
+| [`principles/`](principles/README.md) | The standing rules behind many decisions | Evergreen, edited in place, each citing its sources |
 | [`decisions/`](decisions/README.md) | Why we chose one approach over another | Dated, never rewritten, superseded instead |
 | [`findings/`](findings/README.md) | Non-obvious issues, what we tried, what might resolve them | Carries a `**Status:**` line |
 | [`plans/`](plans/README.md) | Execution plans for non-trivial work | One folder; opens with `Status: open\|done\|superseded\|dropped.` |

@@ -8,7 +8,11 @@ import { PageFavicon } from "@/client/components/favicon";
 import { BrowserPanel } from "@/client/components/window/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { getGuest, takeGuestTraversal } from "@/client/lib/browser-pool";
+import {
+  getGuest,
+  type GuestHandle,
+  takeGuestTraversal,
+} from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -864,7 +868,7 @@ function FilePageReload({
       // date.
       const guest = getGuest(target);
       if (guest) {
-        guest.reload();
+        void reloadKeepingScroll(guest);
         markUpdated(modifiedAt);
       }
     }
@@ -881,6 +885,48 @@ function FilePageReload({
         fieldInto,
       )
     : null;
+}
+
+/**
+ * Reloads the page and puts it back where the person had scrolled. Chromium
+ * restores a reload's place only if the page is already that tall when it
+ * tries, and a page that builds itself in script is not, so the place is set
+ * again each frame until the page reaches it, for two seconds at most, and
+ * left alone as soon as the person scrolls or types.
+ */
+async function reloadKeepingScroll(guest: GuestHandle) {
+  const at = await guest.run("[scrollX, scrollY]").catch(() => null);
+  const url = guest.url();
+  guest.reload();
+  const parsed = z.tuple([z.number(), z.number()]).safeParse(at);
+  if (!parsed.success || (parsed.data[0] === 0 && parsed.data[1] === 0)) {
+    return;
+  }
+  const [x, y] = parsed.data;
+  const off = guest.on("did-stop-loading", () => {
+    off();
+    if (guest.url() !== url) {
+      return;
+    }
+    void guest
+      .run(
+        `(() => {
+          const until = Date.now() + 2000;
+          let left = false;
+          for (const type of ["wheel", "touchstart", "keydown", "mousedown"]) {
+            addEventListener(type, () => { left = true; }, { capture: true, once: true, passive: true });
+          }
+          const step = () => {
+            if (left) return;
+            scrollTo(${x}, ${y});
+            const there = Math.abs(scrollX - ${x}) < 1 && Math.abs(scrollY - ${y}) < 1;
+            if (!there && Date.now() < until) requestAnimationFrame(step);
+          };
+          step();
+        })()`,
+      )
+      .catch(noop);
+  });
 }
 
 /** A page tab of the window's own on an HTML file, which Edit can change in place. */

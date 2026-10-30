@@ -16,6 +16,7 @@ import {
   chatFolderNames,
   chatLinkedInFolder,
   folderLinkedTo,
+  recordChatFolderName,
 } from "./chat-folders/own-folder";
 import { parseRecordFileName } from "./records/file-names";
 import { TypedError } from "./errors";
@@ -191,6 +192,14 @@ export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
     return AbsolutePathSchema.parse(path.join(chats, name));
   }
   const found = id.success ? folderLinkedTo(chats, id.data, names) : undefined;
+  // Recorded, so the next ask finds it by name rather than by another scan.
+  if (id.success && found !== undefined) {
+    recordChatFolderName(workspaceMachineDir, id.data, found).catch(
+      (error: unknown) => {
+        getWorkspaceConfig().captureException(error);
+      },
+    );
+  }
   const own = found ?? name;
   return own === undefined
     ? undefined

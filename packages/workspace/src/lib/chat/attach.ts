@@ -1,6 +1,7 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { startAppEvents } from "../apps/events";
 import { startChatFolderWrites } from "../chat-folders/on-turn-end";
+import { startChatFolderNames } from "../chat-folders/record-found-folders";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
 import { startCardAnswers } from "./card-answers";
 import { startChatListFile } from "./chat-list-file";
@@ -21,6 +22,7 @@ import { startWorkDirReap } from "./work-dir-reap";
  * that names a chat again once its first exchange settles, the one that
  * marks a chat unread each time it settles, the one that writes the
  * chat's transcript into its folder as each turn ends, the one that
+ * records the folder of each chat this computer has no name for, the one that
  * removes a work folder a chat at rest left empty, and the one that writes
  * this device's chat list into the workspace for a phone to open it from.
  * Called once per actor by whoever creates one, rather than by the machine
@@ -38,6 +40,7 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startChatRetitle();
   startChatUnreadOnSettle();
   startChatFolderWrites();
+  startChatFolderNames();
   startWorkDirReap(workspaceRef);
   startChatListFile();
 }

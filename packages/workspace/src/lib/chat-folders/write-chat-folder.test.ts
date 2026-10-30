@@ -35,7 +35,7 @@ import {
 } from "../records/test-records";
 import { ensureChatFolder, renameChatFolder } from "./chat-folder";
 import { giveChatsTheirFolders } from "./first-folders";
-import { chatFolderNames } from "./own-folder";
+import { chatFolderNames, findChatFolderNames } from "./own-folder";
 import { attachmentsWaitingToMove, writeChatFolder } from "./write-chat-folder";
 
 /**
@@ -163,9 +163,10 @@ function copyFolder(from: string, to: string) {
  * folder no chat claims and nothing else.
  */
 function transcriptsOpened() {
-  const open = vi.spyOn(fsSync, "openSync");
+  const openSync = vi.spyOn(fsSync, "openSync");
+  const open = vi.spyOn(fsSync.promises, "open");
   return () =>
-    open.mock.calls
+    [...openSync.mock.calls, ...open.mock.calls]
       .map(([file]) => String(file))
       .filter((file) => file.endsWith(CHAT_FILE_NAME))
       .map((file) => path.basename(path.dirname(file)));
@@ -395,6 +396,75 @@ describe("a gesture in a file manager", () => {
 
     expect(await folderNames()).toEqual(["Named elsewhere"]);
     expect(folderOf(dir)).toBe("Named elsewhere");
+  });
+
+  it("records the folder the shell finds, so the next ask goes by its name", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await writeFolder("2026-10-14-dishwashers");
+    await fs.rm(machineDir(), { force: true, recursive: true });
+    await renameFolder("Dishwashers", "Named elsewhere");
+
+    expect(chatOwnFolder(dir)).toBe(
+      path.join(chatsFolder(), "Named elsewhere"),
+    );
+    await vi.waitFor(() => {
+      expect(folderOf(dir)).toBe("Named elsewhere");
+    });
+    const opened = transcriptsOpened();
+    expect(chatOwnFolder(dir)).toBe(
+      path.join(chatsFolder(), "Named elsewhere"),
+    );
+    expect(opened()).toEqual([]);
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "passes over a transcript kept in the cloud only when the shell asks",
+    async () => {
+      const { dir } = await writeChat("2026-10-14-dishwashers", {
+        title: "Dishwashers",
+      });
+      await writeFolder("2026-10-14-dishwashers");
+      await fs.rm(machineDir(), { force: true, recursive: true });
+      await renameFolder("Dishwashers", "Named elsewhere");
+      const fstat = fsSync.fstatSync;
+      // Contents and no blocks on disk: a file only in the cloud.
+      vi.spyOn(fsSync, "fstatSync").mockImplementation((handle) =>
+        Object.assign(fstat(handle), { blocks: 0 }),
+      );
+      const read = vi.spyOn(fsSync, "readSync");
+
+      expect(chatOwnFolder(dir)).toBeUndefined();
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
+
+  it("records at launch each chat's one folder this computer has no name for", async () => {
+    const one = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    const two = await writeChat("2026-10-15-taxes", { title: "Taxes" });
+    const three = await writeChat("2026-10-16-garden", { title: "Garden" });
+    await writeFolder("2026-10-14-dishwashers");
+    await writeFolder("2026-10-15-taxes");
+    await writeFolder("2026-10-16-garden");
+    await fs.rm(machineDir(), { force: true, recursive: true });
+    await renameFolder("Dishwashers", "Named elsewhere");
+    // Two folders naming one chat: which is its own is the person's to say.
+    await copyFolder("Taxes", "Taxes, my copy");
+
+    expect(
+      await findChatFolderNames({
+        chats: chatsFolder(),
+        // The garden chat is gone; its folder stays the person's.
+        isChat: (id) => id !== three.chatId,
+        machineDir: machineDir(),
+      }),
+    ).toBe(1);
+    expect(folderOf(one.dir)).toBe("Named elsewhere");
+    expect(folderOf(two.dir)).toBeUndefined();
+    expect(folderOf(three.dir)).toBeUndefined();
   });
 
   it("follows a folder whose transcript names its chat in the link alone", async () => {

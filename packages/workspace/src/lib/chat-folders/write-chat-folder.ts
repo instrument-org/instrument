@@ -18,7 +18,7 @@ import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
 import { deleteChatFileConflictCopies } from "./conflict-copies";
 import {
   chatFolderNames,
-  folderLinkedTo,
+  folderLinkedToReading,
   recordChatFolderName,
 } from "./own-folder";
 
@@ -34,7 +34,7 @@ import {
  *
  * Where a person renamed a chat's folder in a file manager, the chat takes
  * the name they gave it before anything is written, so its transcript goes
- * back where they put it (`folderLinkedTo`).
+ * back where they put it (`folderLinkedToReading`).
  *
  * Files the chat already made stay where they are. Nothing is deleted but a
  * sync engine's copy of the transcript (conflict-copies.ts).
@@ -209,7 +209,7 @@ export async function writeChatFolder({
   const chats = path.join(rootDir, CHATS_FOLDER_NAME);
   const there = named !== undefined && (await isDir(path.join(chats, named)));
   return writeFolder({
-    adopt: there ? undefined : folderLinkedTo(chats, id, names),
+    adopt: there ? undefined : await folderLinkedToReading(chats, id, names),
     chatsDir,
     id,
     machineDir,

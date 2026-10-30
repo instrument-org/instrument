@@ -254,7 +254,10 @@ describe("notices", () => {
     // Neither was read, so the one notice covers both.
     expect(notices.listNotices()).toMatchObject([
       {
-        action: { href: "/release-notes", label: "What's new" },
+        action: {
+          href: "/release-notes?since=2.0.0-beta.58",
+          label: "What's new",
+        },
         body: "See what's changed since version 2.0.0-beta.58.",
         kind: "update",
         seen: false,
@@ -301,7 +304,10 @@ describe("notices", () => {
     });
     const [updated] = notices.listNotices();
     expect(updated).toMatchObject({
-      action: { href: "/release-notes", label: "What's new" },
+      action: {
+        href: "/release-notes?since=2.0.0-beta.60",
+        label: "What's new",
+      },
       body: "You're on version 2.0.0-beta.61 now.",
       severity: "important",
       title: "Instrument restarted to finish updating",

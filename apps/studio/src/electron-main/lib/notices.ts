@@ -191,7 +191,11 @@ export function updatedNotice({
   to,
 }: NonNullable<NoticesStore["updated"]>): Omit<BellNotice, "seen"> {
   return {
-    action: { href: "/release-notes", label: "What's new" },
+    // The page opens on the versions between the one left and this one.
+    action: {
+      href: `/release-notes?since=${encodeURIComponent(from)}`,
+      label: "What's new",
+    },
     // A restart the person may have watched happen says why, so it does not
     // read as a crash.
     ...(restarted

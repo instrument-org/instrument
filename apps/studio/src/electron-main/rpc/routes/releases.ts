@@ -2,7 +2,6 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { base } from "@/electron-main/rpc/base";
-import { APP_NAME, APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
 import { app } from "electron";
 import ms from "ms";
 import semver from "semver";
@@ -10,23 +9,27 @@ import { z } from "zod";
 
 import { cacheMiddleware } from "../middleware/cache";
 
-const ReleaseSchema = z.object({
-  body: z.string().nullable(),
-  created_at: z.string(),
-  draft: z.boolean(),
-  html_url: z.string(),
-  id: z.number(),
-  name: z.string().nullable(),
-  prerelease: z.boolean(),
-  published_at: z.string().nullable(),
-  tag_name: z.string(),
+const ReleasesSchema = z.object({
+  releases: z.array(
+    z.object({
+      /** The notes as Markdown, without the compare link GitHub ends them with. */
+      body: z.string(),
+      prerelease: z.boolean(),
+      publishedAt: z.string(),
+      /** The notes' opening paragraph, or null for a tag cut with only its commit list. */
+      summary: z.string().nullable(),
+      url: z.string(),
+      version: z.string(),
+    }),
+  ),
 });
 
-const ReleasesResponseSchema = z.object({
-  hasMore: z.boolean(),
-  releases: z.array(ReleaseSchema),
-});
-
+/**
+ * The newest published releases, newest first, for the Release notes page.
+ * Our API reads them from GitHub, so the app makes no request there, which
+ * would count against the address's unauthenticated limit and tell GitHub
+ * who is reading. Sent without the account token, as `notesFor` is.
+ */
 const list = base
   .use(async ({ next }) => {
     return next({
@@ -38,52 +41,27 @@ const list = base
   .use(cacheMiddleware)
   .errors({
     FETCH_ERROR: {
-      message: "Failed to fetch releases from GitHub",
+      message: "Failed to fetch release notes",
     },
     PARSE_ERROR: {
-      message: "Failed to parse GitHub API response",
+      message: "Failed to parse the release notes",
     },
   })
-  .output(ReleasesResponseSchema)
+  .output(ReleasesSchema)
   .handler(async ({ errors }) => {
+    const apiBase = platformApiBaseUrl();
+    if (!apiBase) {
+      throw errors.FETCH_ERROR({ message: "No API to ask for release notes" });
+    }
+    const url = new URL("/release-notes/list", apiBase);
+    url.searchParams.set("prereleases", String(showsPrereleases()));
+    let response: Response;
     try {
-      const apiUrl = `https://api.github.com/repos/${GITHUB_ORG}/${APP_REPO_NAME}/releases?per_page=30`;
-
-      const response = await fetch(apiUrl, {
-        headers: {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": APP_NAME,
-        },
+      response = await fetch(url, {
+        headers: getAnonymousPlatformApiHeaders(),
+        signal: AbortSignal.timeout(ms("10 seconds")),
       });
-
-      if (!response.ok) {
-        throw new Error(
-          `GitHub API error: ${response.status} ${response.statusText}`,
-        );
-      }
-
-      const data = (await response.json()) as unknown;
-      const linkHeader = response.headers.get("Link");
-
-      const releases = z.array(ReleaseSchema).parse(data);
-      const filteredReleases = releases.filter(
-        (release) =>
-          !release.draft && (showsPrereleases() || !release.prerelease),
-      );
-
-      const hasMore = linkHeader?.includes('rel="next"') ?? false;
-
-      return {
-        hasMore,
-        releases: filteredReleases,
-      };
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw errors.PARSE_ERROR({
-          message: `Invalid GitHub API response format: ${error.message}`,
-        });
-      }
-
       // The cause carries the reason undici collapsed into `fetch failed`, and
       // is what tells the exception log an unreachable host is the user's
       // network rather than a bug. Dropping it makes every offline visit a
@@ -93,10 +71,19 @@ const list = base
         message: error instanceof Error ? error.message : "Unknown error",
       });
     }
+    if (!response.ok) {
+      throw errors.FETCH_ERROR({
+        message: `Release notes answered ${String(response.status)}`,
+      });
+    }
+    const parsed = ReleasesSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw errors.PARSE_ERROR({ message: parsed.error.message });
+    }
+    return parsed.data;
   });
 
-// Prerelease notes are the raw commit log for a build, which is the only
-// changelog a beta gets and is meaningless to someone on a stable version. Show
+// A beta's notes describe builds someone on a stable version never gets. Show
 // them to the people running those builds: prerelease installs, and unpackaged
 // dev runs, where the package.json version tracks whichever release was tagged
 // last and so says nothing about which builds the developer cares about.

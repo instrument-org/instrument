@@ -112,7 +112,7 @@ export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
-  const { install, restarting } = useInstallUpdate(updateState?.type);
+  const { restart, restarting } = useRestartToUpdate(updateState?.type);
   // A manual "up to date" result auto-hides after a beat so it's transient
   // feedback, not persistent chrome.
   const [dismissedNotAvailable, setDismissedNotAvailable] = useState(false);
@@ -159,34 +159,11 @@ export function UpdateStatusIndicator() {
     : null;
 
   const handleClick = () => {
-    void (async () => {
-      if (updateState?.type === "downloaded") {
-        const [error, result] = await install();
-        if (error) {
-          toastInstallFailure(error);
-          return;
-        }
-        // A failed install, a declined password prompt among them, leaves the
-        // app running on the version it had.
-        if (result.type === "failed") {
-          toastInstallFailure(new Error(result.message));
-          return;
-        }
-        // The badge has no copy beside it, so a pre-install check that found a
-        // newer release has to say so or the click looks like it did nothing.
-        // The second line is the important one: nothing restarts until they ask
-        // again, however long the download takes.
-        if (result.type === "deferred") {
-          toast.info(`Getting version ${result.version} instead`, {
-            description:
-              "A newer version was just released. You can install it once the download finishes.",
-          });
-        }
-        return;
-      }
-
-      openSettings({ tab: "General" });
-    })();
+    if (updateState?.type === "downloaded") {
+      void restart();
+      return;
+    }
+    openSettings({ tab: "General" });
   };
 
   // Hidden when: no badge for this status; a silent background poll of a
@@ -418,6 +395,37 @@ function notesQuery(version: string | undefined) {
     input: { version: version ?? "" },
     staleTime: NOTES_STALE_MS,
   });
+}
+
+/**
+ * Installs the staged build, and says in a toast what a press can't show by
+ * itself: an install that failed, or a newer release found first.
+ */
+export function useRestartToUpdate(status: string | undefined) {
+  const { install, restarting } = useInstallUpdate(status);
+  const restart = async () => {
+    const [error, result] = await install();
+    if (error) {
+      toastInstallFailure(error);
+      return;
+    }
+    // A failed install, a declined password prompt among them, leaves the
+    // app running on the version it had.
+    if (result.type === "failed") {
+      toastInstallFailure(new Error(result.message));
+      return;
+    }
+    // A pre-install check that found a newer release has to say so or the
+    // press looks like it did nothing. The second line is the important one:
+    // nothing restarts until they ask again, however long the download takes.
+    if (result.type === "deferred") {
+      toast.info(`Getting version ${result.version} instead`, {
+        description:
+          "A newer version was just released. You can install it once the download finishes.",
+      });
+    }
+  };
+  return { restart, restarting };
 }
 
 function toastInstallFailure(cause: unknown) {

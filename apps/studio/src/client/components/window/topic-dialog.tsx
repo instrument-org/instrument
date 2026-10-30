@@ -401,6 +401,25 @@ function FitsLine({
   );
 }
 
+/** The form's fields and how it stands, as one value, so an opening starts all of it over. */
+type TopicFormState = TopicChoice & {
+  /**
+   * A new topic's mark follows the best fit for its name until one is chosen
+   * by hand; an existing topic's mark stays what its owner picked.
+   */
+  follows: boolean;
+  /**
+   * Off until asked for: filing chats is the person's call, made once, for
+   * the whole set the line names.
+   */
+  isFilingFits: boolean;
+  isPicking: boolean;
+};
+
+function startForm(initial: TopicChoice, isNew: boolean): TopicFormState {
+  return { ...initial, follows: isNew, isFilingFits: false, isPicking: false };
+}
+
 /**
  * The fields, which start over from `initial` each time the dialog opens: the
  * form stays mounted through the dialog's close, so what was typed into it
@@ -434,37 +453,34 @@ function TopicForm({
   otherNames: readonly string[];
   title: string;
 }) {
-  const [name, setName] = useState(initial.name);
-  const [emoji, setEmoji] = useState(initial.emoji);
-  const [color, setColor] = useState(initial.color);
-  const [instructions, setInstructions] = useState(initial.instructions);
+  const [form, setForm] = useState(() => startForm(initial, isNew));
+  const {
+    color,
+    emoji,
+    folders,
+    follows,
+    instructions,
+    isFilingFits,
+    isPicking,
+    name,
+  } = form;
+  const edit = (change: Partial<TopicFormState>) => {
+    setForm((current) => ({ ...current, ...change }));
+  };
   const instructionsDictation = useDictatedText({
-    onChange: setInstructions,
+    onChange: (text) => {
+      edit({ instructions: text });
+    },
     surface: "topic-instructions",
-    value: instructions ?? "",
+    value: instructions,
   });
   // Saving waits for dictated words, so the instructions keep them.
   const isHolding = isDictating(instructionsDictation.phase);
-  const [folders, setFolders] = useState(initial.folders);
-  const [isPicking, setPicking] = useState(false);
-  // A new topic's mark follows the best fit for its name until one is chosen
-  // by hand; an existing topic's mark stays what its owner picked.
-  const [follows, setFollows] = useState(isNew);
-  // Off until asked for: filing chats is the person's call, made once, for
-  // the whole set the line names.
-  const [isFilingFits, setFilingFits] = useState(false);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setName(initial.name);
-      setEmoji(initial.emoji);
-      setColor(initial.color);
-      setInstructions(initial.instructions);
-      setFolders(initial.folders);
-      setPicking(false);
-      setFollows(isNew);
-      setFilingFits(false);
+      setForm(startForm(initial, isNew));
     } else {
       // The form outlives the dialog, so a take still recording into the
       // instructions is thrown away rather than left on with no controls.
@@ -490,11 +506,10 @@ function TopicForm({
     best.probability >= CONFIDENT &&
     best.emoji.unicode !== emoji
   ) {
-    setEmoji(best.emoji.unicode);
+    edit({ emoji: best.emoji.unicode });
   }
   const choose = (picked: string) => {
-    setFollows(false);
-    setEmoji(picked);
+    edit({ emoji: picked, follows: false });
   };
   const nameField = useRef<HTMLInputElement>(null);
 
@@ -533,7 +548,9 @@ function TopicForm({
         <TopicMarkPicker
           context={name}
           onEmoji={choose}
-          onOpenChange={setPicking}
+          onOpenChange={(next) => {
+            edit({ isPicking: next });
+          }}
           open={isPicking}
         >
           <button
@@ -554,7 +571,7 @@ function TopicForm({
         <Input
           maxLength={TOPIC_NAME_MAX}
           onChange={(event) => {
-            setName(event.target.value);
+            edit({ name: event.target.value });
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -572,14 +589,21 @@ function TopicForm({
           checked={isFilingFits}
           fits={fits}
           name={name.trim()}
-          onCheckedChange={setFilingFits}
+          onCheckedChange={(next) => {
+            edit({ isFilingFits: next });
+          }}
         />
       )}
       <div>
         <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Color
         </p>
-        <ColorRow onPick={setColor} value={color} />
+        <ColorRow
+          onPick={(next) => {
+            edit({ color: next });
+          }}
+          value={color}
+        />
       </div>
       <div>
         <label
@@ -593,13 +617,18 @@ function TopicForm({
           dictation={instructionsDictation}
           id="topic-instructions"
           onChange={(event) => {
-            setInstructions(event.target.value);
+            edit({ instructions: event.target.value });
           }}
           placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
           value={instructions}
         />
       </div>
-      <TopicFolders folders={folders} onChange={setFolders} />
+      <TopicFolders
+        folders={folders}
+        onChange={(next) => {
+          edit({ folders: next });
+        }}
+      />
       <DialogFooter className="sm:justify-between">
         {deleting ? (
           <DeleteTopicButton

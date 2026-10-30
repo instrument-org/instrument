@@ -16,18 +16,11 @@ import { ClaudeCodeSession } from "./session";
 const ALIASES = new Set(["haiku", "opus", "sonnet"]);
 
 /**
- * The window each model runs in, as Claude Code reports it in a turn's
- * per-model totals (`modelUsage[model].contextWindow`). The CLI lists no
- * window, so this stands in until the model has finished a turn, after which
- * Claude Code's own report replaces it. A model missing here has no window
- * until then.
+ * How long listing the models waits on Claude Code to say their windows, all
+ * of them together. A model it has not answered for by then has no window
+ * until it finishes a turn.
  */
-const CONTEXT_WINDOWS: Record<string, number> = {
-  "claude-fable-5.1": 1_000_000,
-  "claude-haiku-5.5": 1_000_000,
-  "claude-opus-5.5": 1_000_000,
-  "claude-sonnet-5.5": 1_000_000,
-};
+const CONTEXT_WINDOWS_DEADLINE_MS = 15_000;
 
 /**
  * The models the user's plan offers, as the signed-in CLI lists them. Read
@@ -53,7 +46,8 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
         () => {},
       );
       try {
-        return await session.supportedModels();
+        const models = await session.supportedModels();
+        return { models, windows: await contextWindowsOf(session, models) };
       } finally {
         session.close();
       }
@@ -62,7 +56,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
       new TypedError.Unknown("Failed to list the Claude account's models", {
         cause: error,
       }),
-  ).map((listed) => {
+  ).map(({ models: listed, windows }) => {
     const metadata = getProviderMetadata(config.type);
     const author = "anthropic";
     const params = { provider: config.type, providerConfigId: config.id };
@@ -96,7 +90,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
             canonicalId,
             contextLength:
               reportedContextLength({ params, providerId }) ??
-              CONTEXT_WINDOWS[canonicalId],
+              windows.get(model.value),
             features: getModelFeatures(canonicalId),
             name: generateModelName(canonicalId),
             params,
@@ -117,6 +111,49 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
       ];
     });
   });
+}
+
+/**
+ * The window each model runs in, by the name Claude Code lists it under, as
+ * the process says when switched to it: the capacity, not the smaller window
+ * Claude Code would compact at. Asked without a prompt, so no model is
+ * called. Once a model finishes a turn, the window that turn reports is
+ * read instead.
+ */
+async function contextWindowsOf(
+  session: ClaudeCodeSession,
+  models: { value: string }[],
+) {
+  const windows = new Map<string, number>();
+  const read = async () => {
+    for (const { value } of models) {
+      if (value === "default") {
+        continue;
+      }
+      try {
+        await session.useModel(value);
+        const { rawMaxTokens } = await session.contextUsage();
+        if (Number.isSafeInteger(rawMaxTokens) && rawMaxTokens > 0) {
+          windows.set(value, rawMaxTokens);
+        }
+      } catch (error) {
+        console.warn(
+          `[claude-account] could not read ${value}'s context window: ${String(error)}`,
+        );
+      }
+    }
+  };
+  // A call still waiting at the deadline ends when the caller closes the
+  // process, and the models answered by then keep their windows.
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([
+    read(),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, CONTEXT_WINDOWS_DEADLINE_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+  return windows;
 }
 
 /**

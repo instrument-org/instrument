@@ -414,6 +414,11 @@ export class ClaudeCodeSession implements MessageSource {
     return this.query.supportedModels();
   }
 
+  /** What the context holds on the current model, and how much it can. */
+  contextUsage() {
+    return this.query.getContextUsage({ detail: "summary" });
+  }
+
   touch() {
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(

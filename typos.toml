@@ -53,6 +53,10 @@ C07R4FUL073 = "C07R4FUL073"
 als = "als"
 # axe-core, the accessibility audit library.
 axe = "axe"
+# A regex stem matching both "canceled" and "cancelled" (`cancell?ed`);
+# "corrected" to `cancel?ed`, it stops matching the British spelling vendors
+# write.
+cancell = "cancell"
 # Canva, the design service, listed in the app directory.
 canva = "canva"
 # Critical advisories, counted as a plural noun.
@@ -65,6 +69,9 @@ erro = "erro"
 # A regex stem matching both AppleScript's `app` and `application`
 # (`app(?:lication)?`); "corrected" to `location`, it stops matching the latter.
 lication = "lication"
+# A progress-bar line cut mid-word in a truncation test's inline snapshot;
+# "corrected", the snapshot no longer matches the bytes the cut keeps.
+progres = "progres"
 # A misspelled `--name` flag that shell-command tests pass on purpose to check
 # the unknown-flag error; "corrected", the flag is valid and the tests fail.
 nam = "nam"

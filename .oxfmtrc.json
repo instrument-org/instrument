@@ -21,6 +21,7 @@
     "docs/**",
     "fixtures/workspaces/**/session.json",
     "fixtures/workspaces/**/files/",
+    "**/__snapshots__/",
     ".agents/",
     ".claude/skills/"
   ]

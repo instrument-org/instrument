@@ -2965,6 +2965,15 @@ function FolderMenuItems({
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
   const { openLabel, opensUnnamed, showOpen } = useFileOpenTarget(file);
+  // Paste is offered only while the clipboard has files, read as the menu
+  // opens on the folder's empty space.
+  const clipboard = useQuery({
+    ...rpcClient.files.clipboardHasFiles.queryOptions(),
+    enabled: !item && paste !== undefined,
+    gcTime: 0,
+    staleTime: 0,
+  });
+  const canPaste = clipboard.data?.hasFiles === true;
   const itemHostPath = hostPathOfItem(item);
   // A file the system opens with a helper not worth naming has one way to
   // open, and the Open above already takes it.
@@ -2986,7 +2995,9 @@ function FolderMenuItems({
             <span>New Folder</span>
             <Shortcut>{keys.newFolder}</Shortcut>
           </Item>
-          <Separator />
+          {item || onNewDraft || (canPaste && paste) || emptyTail ? (
+            <Separator />
+          ) : null}
         </>
       ) : null}
       {onNewDraft ? (
@@ -3136,50 +3147,33 @@ function FolderMenuItems({
       ) : (
         <>
           {onNewFolder && !newFolderFirst ? (
+            <Item onClick={onNewFolder}>
+              <FolderPlusIcon className="size-4" />
+              <span>New Folder</span>
+              <Shortcut>{keys.newFolder}</Shortcut>
+            </Item>
+          ) : null}
+          {canPaste && paste ? (
             <>
-              <Item onClick={onNewFolder}>
-                <FolderPlusIcon className="size-4" />
-                <span>New Folder</span>
-                <Shortcut>{keys.newFolder}</Shortcut>
+              {onNewFolder && !newFolderFirst ? <Separator /> : null}
+              <Item onClick={paste.onPaste}>
+                <ClipboardIcon className="size-4" />
+                <span>Paste into “{paste.into}”</span>
+                <Shortcut>{keys.paste}</Shortcut>
               </Item>
-              <Separator />
             </>
           ) : null}
-          {paste ? (
+          {emptyTail ? (
             <>
-              <PasteItem menuComponents={menuComponents} paste={paste} />
-              <Separator />
+              {(onNewFolder && !newFolderFirst) || (canPaste && paste) ? (
+                <Separator />
+              ) : null}
+              {emptyTail}
             </>
           ) : null}
-          {emptyTail}
         </>
       )}
     </>
-  );
-}
-
-/**
- * The folder menu's Paste, which says where the files go and is offered only
- * while the clipboard holds some, read as the menu opens.
- */
-function PasteItem({
-  menuComponents: { Item, Shortcut },
-  paste,
-}: {
-  menuComponents: MenuComponents;
-  paste: NonNullable<FolderMenuActions["paste"]>;
-}) {
-  const clipboard = useQuery({
-    ...rpcClient.files.clipboardHasFiles.queryOptions(),
-    gcTime: 0,
-    staleTime: 0,
-  });
-  return (
-    <Item disabled={clipboard.data?.hasFiles !== true} onClick={paste.onPaste}>
-      <ClipboardIcon className="size-4" />
-      <span>Paste into “{paste.into}”</span>
-      <Shortcut>{listingKeys(currentOs()).paste}</Shortcut>
-    </Item>
   );
 }
 

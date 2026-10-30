@@ -23,13 +23,11 @@ import { parseRecordFileName } from "./records/file-names";
 import { TypedError } from "./errors";
 import { recordChanged } from "./record-changes";
 import { getWorkspaceConfig } from "./workspace-config";
-import {
-  keptByNameOnly,
-  NOT_HERE_YET,
-  type NotHereYet,
-  readHead,
-  readText,
-} from "./workspace-files";
+import { keptByNameOnly, readHead, readText } from "./workspace-files";
+
+/** What a read that passes over a file kept by name only answers for one. */
+const NOT_HERE_YET: unique symbol = Symbol("not here yet");
+type NotHereYet = typeof NOT_HERE_YET;
 
 /**
  * Where every chat is, for the chats folder it was read from. A chat's folder
@@ -418,10 +416,8 @@ async function readOrNone(
   bytes?: number,
 ): Promise<NotHereYet | string | undefined> {
   try {
-    if (evicted === "pass") {
-      return bytes === undefined
-        ? await readText(file, { evicted })
-        : await readHead(file, bytes, { evicted });
+    if (evicted === "pass" && keptByNameOnly(await fs.promises.stat(file))) {
+      return NOT_HERE_YET;
     }
     return bytes === undefined
       ? await readText(file)

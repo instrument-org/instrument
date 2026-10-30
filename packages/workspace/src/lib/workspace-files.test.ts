@@ -7,7 +7,6 @@ import { withTempDir } from "../test/helpers/temp-dir";
 import {
   CachedReads,
   keptByNameOnly,
-  NOT_HERE_YET,
   readBytes,
   readHead,
   readLinesFrom,
@@ -96,31 +95,8 @@ describe("reads", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it.runIf(process.platform === "darwin").each([
-    ["readText", (file: string) => readText(file, { evicted: "pass" })],
-    ["readBytes", (file: string) => readBytes(file, { evicted: "pass" })],
-    ["readHead", (file: string) => readHead(file, 8, { evicted: "pass" })],
-    [
-      "readLinesFrom",
-      (file: string) => readLinesFrom(file, 0, { evicted: "pass" }),
-    ],
-    [
-      "CachedReads",
-      (file: string) =>
-        new CachedReads((text) => text).read(file, { evicted: "pass" }),
-    ],
-  ])(
-    "%s passes over a file kept in the cloud only, unopened",
-    async (_name, read) => {
-      const file = await write("APP.md", "contents\n");
-      const opened = evictEverything();
-      expect(await read(file)).toBe(NOT_HERE_YET);
-      expect(opened).not.toHaveBeenCalled();
-    },
-  );
-
   it.runIf(process.platform === "darwin")(
-    "waits for a file kept in the cloud only unless asked to pass over it",
+    "waits for a file kept in the cloud only",
     async () => {
       const file = await write("APP.md", "contents\n");
       evictEverything();
@@ -160,15 +136,4 @@ describe("CachedReads", () => {
       "gone",
     ]);
   });
-
-  it.runIf(process.platform === "darwin")(
-    "answers what it kept for a file evicted since, without passing over it",
-    async () => {
-      const file = await write("APP.md", "kept");
-      const reads = new CachedReads((text) => text);
-      await reads.read(file);
-      evictEverything();
-      expect(await reads.read(file, { evicted: "pass" })).toBe("kept");
-    },
-  );
 });

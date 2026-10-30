@@ -12,24 +12,17 @@ import { openOwnFileToRead } from "./own-file";
  * download ends, and the workspace runs on the main thread. So every read
  * here goes through `fs.promises`, which waits on the thread pool instead.
  *
- * A read waits for a file kept by name only by default. With
- * `{ evicted: "pass" }` it answers {@link NOT_HERE_YET} for one instead,
- * without downloading it, for a caller whose next look picks the file up.
- * Metadata (`stat`, `readdir`) never downloads, so it is cheap either way.
+ * A read waits for a file kept by name only. A caller whose next look picks
+ * the file up, and so would rather pass over one, tells it first with
+ * {@link keptByNameOnly}: metadata (`stat`, `readdir`) never downloads, so
+ * it is cheap either way.
  */
-
-/** What a read that passes over a file kept by name only answers for one. */
-export const NOT_HERE_YET: unique symbol = Symbol("not here yet");
-export type NotHereYet = typeof NOT_HERE_YET;
 
 /**
- * Whether a read waits for a file kept by name only, or passes over it; and,
- * for a file in a folder the agent's programs can change, that folder, from
+ * For a file in a folder the agent's programs can change, that folder, from
  * which down to the file no link is followed (`openOwnFile`).
  */
-export type ReadOptions = { evicted?: "pass" | "wait"; ownFolder?: string };
-type Waits = { evicted?: "wait"; ownFolder?: string };
-type Passes = { evicted: "pass"; ownFolder?: string };
+export type ReadOptions = { ownFolder?: string };
 
 /**
  * Whether a file's contents are only in the cloud (macOS's dataless files,
@@ -49,28 +42,18 @@ export function keptByNameOnly(
 }
 
 /** The whole file as text. */
-export function readText(file: string, options?: Waits): Promise<string>;
-export function readText(
-  file: string,
-  options: Passes,
-): Promise<NotHereYet | string>;
 export function readText(
   file: string,
   options: ReadOptions = {},
-): Promise<NotHereYet | string> {
+): Promise<string> {
   return withHandle(file, options, (handle) => handle.readFile("utf8"));
 }
 
 /** The whole file as bytes. */
-export function readBytes(file: string, options?: Waits): Promise<Buffer>;
-export function readBytes(
-  file: string,
-  options: Passes,
-): Promise<Buffer | NotHereYet>;
 export function readBytes(
   file: string,
   options: ReadOptions = {},
-): Promise<Buffer | NotHereYet> {
+): Promise<Buffer> {
   return withHandle(file, options, (handle) => handle.readFile());
 }
 
@@ -78,18 +61,8 @@ export function readBytes(
 export function readHead(
   file: string,
   bytes: number,
-  options?: Waits,
-): Promise<string>;
-export function readHead(
-  file: string,
-  bytes: number,
-  options: Passes,
-): Promise<NotHereYet | string>;
-export function readHead(
-  file: string,
-  bytes: number,
   options: ReadOptions = {},
-): Promise<NotHereYet | string> {
+): Promise<string> {
   return withHandle(file, options, async (handle) => {
     const buffer = Buffer.alloc(bytes);
     const { bytesRead } = await handle.read(buffer, 0, bytes, 0);
@@ -108,18 +81,8 @@ export type LinesRead = { end: number; lines: string[] };
 export function readLinesFrom(
   file: string,
   from: number,
-  options?: Waits,
-): Promise<LinesRead>;
-export function readLinesFrom(
-  file: string,
-  from: number,
-  options: Passes,
-): Promise<LinesRead | NotHereYet>;
-export function readLinesFrom(
-  file: string,
-  from: number,
   options: ReadOptions = {},
-): Promise<LinesRead | NotHereYet> {
+): Promise<LinesRead> {
   return withHandle(file, options, async (handle) => {
     const { size } = await handle.stat();
     const bytes = Buffer.alloc(Math.max(0, size - from));
@@ -172,24 +135,15 @@ export class CachedReads<T> {
     }
   }
 
-  read(file: string, options?: Waits): Promise<T>;
-  read(file: string, options: Passes): Promise<NotHereYet | T>;
-  async read(file: string, options: ReadOptions = {}): Promise<NotHereYet | T> {
+  async read(file: string, options: ReadOptions = {}): Promise<T> {
     const stats = await fs.promises.stat(file);
     const kept = this.#cache.get(file);
     if (kept?.size === stats.size && kept.mtimeMs === stats.mtimeMs) {
       return kept.value;
     }
-    if (options.evicted === "pass" && keptByNameOnly(stats)) {
-      return NOT_HERE_YET;
-    }
     // Stat-ed before the read, so a change that lands during it is read
     // again next time.
-    const value = this.#parse(
-      await readText(file, { ...options, evicted: "wait" }),
-      file,
-      stats,
-    );
+    const value = this.#parse(await readText(file, options), file, stats);
     this.#cache.set(file, { mtimeMs: stats.mtimeMs, size: stats.size, value });
     return value;
   }
@@ -197,12 +151,9 @@ export class CachedReads<T> {
 
 async function withHandle<T>(
   file: string,
-  { evicted = "wait", ownFolder }: ReadOptions,
+  { ownFolder }: ReadOptions,
   read: (handle: fs.promises.FileHandle) => Promise<T>,
-): Promise<NotHereYet | T> {
-  if (evicted === "pass" && keptByNameOnly(await fs.promises.stat(file))) {
-    return NOT_HERE_YET;
-  }
+): Promise<T> {
   const handle =
     ownFolder === undefined
       ? await fs.promises.open(file, "r")

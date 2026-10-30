@@ -25,6 +25,7 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app, shell } from "electron";
 
 import { appConnectionStore } from "../stores/workspace/app-connections";
+import { timeBootStep } from "./boot-timing";
 import { captureServerException } from "./capture-server-exception";
 import { convertChatRecords } from "./convert-chat-records";
 import { logger } from "./electron-logger";
@@ -81,14 +82,18 @@ export async function sweepWorkspaceFolder({
       "Workspace layout migration: none for a folder the person picked",
     );
   }
-  settleDatabase(rootDir);
+  await timeBootStep("sweep.settleDatabase", () => settleDatabase(rootDir));
   // Before the workspace starts, which puts in place the writer every write
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
-  const converted = await convertChatDatabases(deviceId, rootDir);
+  const converted = await timeBootStep("sweep.convertChatDatabases", () =>
+    convertChatDatabases(deviceId, rootDir),
+  );
   // Then what each chat's `settings.json` held goes where this build keeps
   // it, from the records just converted, before anything reads a chat.
-  await convertChatSettings(deviceId, rootDir);
+  await timeBootStep("sweep.convertChatSettings", () =>
+    convertChatSettings(deviceId, rootDir),
+  );
   // A folder of the six under another case (`skills/`, which a build before
   // kept there) is the one each step below finds under the app's name on a
   // file system that reads both as one, so it takes that name first.
@@ -104,21 +109,27 @@ export async function sweepWorkspaceFolder({
   // And once the topics and the apps are out, each one's files become the one
   // file a person reads, which is its own step: the folder moves whatever is
   // inside it, and one already converted is left alone.
-  await convertTopicFiles(rootDir);
+  await timeBootStep("sweep.convertTopicFiles", () =>
+    convertTopicFiles(rootDir),
+  );
   // Once every topic is its `TOPIC.md`, the folders an earlier build granted
   // in one come onto this computer's permission settings, before the moves
   // below rewrite the paths those settings hold.
   carryTopicFolders(rootDir);
-  await convertAppFiles(rootDir);
+  await timeBootStep("sweep.convertAppFiles", () => convertAppFiles(rootDir));
   // Then each chat the converter just brought onto its records gets the
   // folder a person opens, written once. After the topics, because a
   // transcript names the topic its chat is filed under. No other chat is
   // read here: a chat's folder is written when its turn ends or the person
   // sends it a message.
-  await writeConvertedChatFolders(rootDir, converted);
+  await timeBootStep("sweep.writeConvertedChatFolders", () =>
+    writeConvertedChatFolders(rootDir, converted),
+  );
   // And the drafts move out to `Drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
-  await settleWorkspaceDrafts(rootDir);
+  await timeBootStep("sweep.settleWorkspaceDrafts", () =>
+    settleWorkspaceDrafts(rootDir),
+  );
 }
 
 function settleDatabase(rootDir: string) {
@@ -337,7 +348,7 @@ async function settleWorkspaceDrafts(rootDir: string) {
  */
 async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
   try {
-    const moved = await move();
+    const moved = await timeBootStep(`sweep.move${what}`, move);
     switch (moved.kind) {
       case "already-there":
         logger.info(

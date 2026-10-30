@@ -20,6 +20,9 @@ import { chatLinkedInText, LINK_HEAD_BYTES } from "./chat-transcript";
  * that names this chat.
  */
 
+/** How long a scan for a chat's folder may take before the log says so. */
+const SLOW_SCAN_MS = 100;
+
 /** Each chat's folder name as this computer last recorded it, by chat id. */
 export function chatFolderNames(machineDir: string): Map<string, string> {
   const read = readJsonRecordSync(namesFile(machineDir));
@@ -63,11 +66,21 @@ export function folderLinkedTo(
       owner === id ? [] : [comparable(name)],
     ),
   );
-  const linked = foldersIn(chats).filter(
+  const startedAt = performance.now();
+  const folders = foldersIn(chats);
+  const linked = folders.filter(
     (name) =>
       !claimed.has(comparable(name)) &&
       chatLinkedInFileSync(path.join(chats, name, CHAT_FILE_NAME)) === id,
   );
+  // Every read here blocks the thread it runs on, and a `CHAT.md` a cloud
+  // service keeps by name only blocks until it downloads.
+  const took = Math.round(performance.now() - startedAt);
+  if (took >= SLOW_SCAN_MS) {
+    console.warn(
+      `Chat folders: looked for ${id}'s folder through ${folders.length} CHAT.md files in ${took}ms (${names.size} names recorded on this computer)`,
+    );
+  }
   return linked.length === 1 ? linked[0] : undefined;
 }
 

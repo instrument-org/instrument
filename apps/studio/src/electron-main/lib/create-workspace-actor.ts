@@ -58,6 +58,7 @@ import { getBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
+import { timeBootStep } from "./boot-timing";
 import { captureFor, captureServerException } from "./capture-server-exception";
 import { isDictationInProgress } from "./dictation-in-progress";
 import { logger } from "./electron-logger";
@@ -104,7 +105,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // (`sweepWorkspaceFolder`), which is also the only one that ever held 1.x
   // tasks.
   const inAppData = workspaceInAppData();
-  await sweepWorkspaceFolder({ deviceId, inAppData, rootDir });
+  await timeBootStep("sweepWorkspaceFolder", () =>
+    sweepWorkspaceFolder({ deviceId, inAppData, rootDir }),
+  );
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -214,7 +217,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     },
   });
   attachChats(actor);
-  actor.start();
+  await timeBootStep("actor.start", () => actor.start());
 
   const snapshot = actor.getSnapshot();
   if (snapshot.status === "error") {

@@ -123,6 +123,9 @@ run_checks() {
     # shellcheck disable=SC2086
     pnpm exec oxlint --type-aware --quiet --no-error-on-unmatched-pattern $lintable
   fi
+  # Links and cited paths in docs/ and the docs indexes: a rename in code is
+  # what breaks a doc, so a branch that renames fixes the docs it broke.
+  node scripts/docs.ts || fail "docs/ has broken links or a stale index; fix what is printed (\`pnpm fix\` rewrites the indexes)"
   # Unused code anywhere, as CI checks it: deleting a caller leaves an export
   # unused in a file the branch never opened. Each finding is a line to fix.
   pnpm exec knip || fail "knip finds unused code; fix it before landing, wherever it is"

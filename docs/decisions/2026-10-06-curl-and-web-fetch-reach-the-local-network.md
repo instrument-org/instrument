@@ -1,5 +1,7 @@
 # `curl` and `web_fetch` reach the local network, except Instrument's own workspace server
 
+> Partly superseded by [The workspace server guards itself](2026-10-10-the-workspace-server-guards-itself.md) (2026-10-10): the exception for Instrument's own workspace server moved into the server.
+
 Date: 2026-10-06
 
 Supersedes [2026-07-24-web-fetch-private-address-guard.md](2026-07-24-web-fetch-private-address-guard.md).

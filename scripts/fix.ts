@@ -38,6 +38,8 @@ const PASSES = [
       "pnpm --silent --filter @instrument-org/workspace exec vitest run src/lib/shell-commands/native-text-doc.test.ts -u",
     label: "generated command table",
   },
+  // The indexes in docs/ sections, from each file's title and status.
+  { command: "node scripts/docs.ts --write", label: "docs indexes and links" },
   // Spelling before format, so every pass below sees corrected text.
   { command: "pnpm fix:spelling", label: "spelling" },
   FORMAT,

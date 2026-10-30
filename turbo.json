@@ -119,6 +119,7 @@
         "scripts/check-electron-node-version.ts"
       ]
     },
+    "//#check:docs": { "cache": false },
     "//#check:actions": {
       "inputs": [
         ".github/workflows/*.yml",

@@ -13,7 +13,7 @@ Each has its own README carrying the section's conventions and a full index of i
 | [`architecture/`](architecture/README.md) | How the system works today | Evergreen, edited in place, no dates |
 | [`decisions/`](decisions/README.md) | Why we chose one approach over another | Dated, never rewritten, superseded instead |
 | [`findings/`](findings/README.md) | Non-obvious issues, what we tried, what might resolve them | Carries a `**Status:**` line |
-| [`plans/`](plans/README.md) | Execution plans for non-trivial work | Carries a `Status:` line; `active/` then `completed/` |
+| [`plans/`](plans/README.md) | Execution plans for non-trivial work | One folder; opens with `Status: open\|done\|superseded\|dropped.` |
 | [`changes/`](changes/README.md) | Screenshot-backed summaries of user-facing changes | Dated snapshots, preserved as written |
 | [`follow-ups/`](follow-ups/README.md) | Checks we owe later: what we are waiting to learn and the evidence that will answer it | Carries a `**Status:**` and a `**Check after:**`; closed with a result |
 | [`reviews/`](reviews/README.md) | Code reviews: what range each read and what came of each finding | Dated; each finding's `Status:` updated as it is fixed or declined |
@@ -24,7 +24,8 @@ The distinction that matters most: **architecture is corrected, decisions and ch
 
 - A `Status:` line is the first thing a reader checks and the first thing to go stale. When work lands, update the plan or finding that describes it in the same change.
 - Prefer specifics over labels: "phases 1-3 landed, phase 4 not started" beats "in progress".
-- Link code paths so a doc stays tied to the source, and fix the links when files move. Nothing in `docs/` should point at a path that no longer exists.
+- Link code paths so a doc stays tied to the source. `pnpm check:docs` (in `check-and-test`, CI and `scripts/land.sh`) fails on a link that goes nowhere, a path an architecture doc or index names that no longer exists, and code citing a doc that is gone, so a rename fixes the docs it breaks in the same change.
+- The indexes of `plans/`, `findings/`, `decisions/` and `follow-ups/` are generated from each file's title and status line by `pnpm fix`; never edit them by hand. `architecture/`'s index is written by hand for its descriptions, and the check fails when a file is missing from it.
 - Leave out anything tied to one machine, person, or moment: local paths, sibling checkout names, branch names, in-flight PR state.
 
 ## Naming third parties, and describing our own browser

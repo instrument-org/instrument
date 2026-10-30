@@ -6,77 +6,79 @@ Record the context, the options weighed, the choice, and why. Link the PR or com
 
 ## Index
 
-Newest first. A struck-through entry has been superseded.
+Newest first. A decision whose head says it was superseded, retired or narrowed carries that line here.
 
-| Date | Decision |
-| --- | --- |
-| 2026-10-28 | [Apps are set up, connected and changed from the chat, and a task names what it needs](2026-10-28-app-setup-is-the-chats.md) |
-| 2026-10-27 | [Scripts reach `instrument`, and the `tools` global is gone](2026-10-27-scripts-reach-instrument.md) |
-| 2026-10-27 | [`instrument window` is what is in front of the person, a tab has one id, and the prompt holds for a task too](2026-10-27-the-window-command-and-one-tab-id.md) |
-| 2026-10-27 | [Carry just-bash's `bash`/`sh` option parsing as a local patch](2026-10-27-carry-the-shell-options-patch.md) |
-| 2026-10-26 | [Each device writes its chat list into the workspace, for a phone to open it from](2026-10-26-each-device-writes-its-chat-list-into-the-workspace.md) |
-| 2026-10-20 | [A chat's grant outlasts a later change in Settings](2026-10-20-a-chat-grant-outlasts-a-settings-change.md) |
-| 2026-10-19 | [Accept that a computer on the previous build stops seeing chat settings from an upgraded one](2026-10-19-accept-the-staggered-upgrade-gap-for-chat-settings.md) |
-| 2026-10-18 | [The agent asks for folders and apps](2026-10-18-the-agent-asks-for-folders-and-apps.md) |
-| 2026-10-17 | [Accept that a program under MXC can rename `.git` to write its hooks](2026-10-17-accept-the-git-rename-gap.md) |
-| 2026-10-17 | [A hidden folder in the home folder is read without a card](2026-10-17-a-hidden-folder-in-the-home-folder-is-read.md) |
-| 2026-10-15 | [A chat's start is written once, and what changes is told after it](2026-10-15-a-chats-start-is-written-once.md) |
-| 2026-10-15 | [Stay in the Dock when the last window closes, on macOS](2026-10-15-stay-in-the-dock-when-the-last-window-closes.md) |
-| 2026-10-15 | [Carry just-bash's process.env write fix as a local patch](2026-10-15-carry-the-env-write-patch.md) |
-| 2026-10-15 | [Carry a pipe handoff in just-bash as a local patch](2026-10-15-carry-the-pipe-handoff-patch.md) |
-| 2026-10-15 | [Carry an xargs option parser as a local just-bash patch](2026-10-15-carry-the-xargs-options-patch.md) |
-| 2026-10-14 | [Carry just-bash's option to fail a redirect into a missing folder as a local patch](2026-10-14-carry-the-redirect-directories-patch.md) |
-| 2026-10-14 | [Carry just-bash's fix for a glob after a quoted folder as a local patch](2026-10-14-carry-the-glob-after-quotes-patch.md) |
-| 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |
-| 2026-10-12 | [Carry the just-bash command-limit and stdin-bytes fixes as a local patch until they are released](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md) |
-| 2026-10-12 | [Programs on the PATH run natively, by name, under the same rules](2026-10-12-programs-on-path-run-natively.md) |
-| 2026-10-12 | [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md), its `tools` global superseded by 2026-10-27 |
-| 2026-10-11 | [Carry just-bash's error-code fix as a local patch rather than rewrite the builtins' output](2026-10-11-carry-the-error-code-patch.md) |
-| 2026-10-11 | [The agent works at real paths, held to the Permissions rules](2026-10-11-the-agent-works-at-real-paths.md) |
-| 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |
-| 2026-10-10 | [The workspace server guards itself, so the agent's HTTP tools refuse no address](2026-10-10-the-workspace-server-guards-itself.md) |
-| 2026-10-09 | [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) |
-| 2026-10-08 | [Carry just-bash's `find` time predicates as a local patch](2026-10-08-carry-the-find-time-predicates-patch.md) |
-| 2026-10-07 | [The chat and its tasks are one agent that does quick work itself and forks the rest](2026-10-07-one-agent-that-forks.md) |
-| 2026-10-07 | [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md) |
-| 2026-10-06 | [The packaged log keeps cheap lines on by default and gates only what is expensive to gather](2026-10-06-logs-keep-cheap-lines-on-by-default.md) |
-| 2026-10-06 | [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md), its exception superseded by 2026-10-10 |
-| 2026-10-06 | ~~[Carry a fix for dynamic `import()` in `js-exec` scripts as a local patch](2026-10-06-carry-the-script-dynamic-import-patch.md)~~ retired with just-bash 3.6.0 |
-| 2026-10-05 | [Carry just-bash's `pathlib` glob fix as a local patch](2026-10-05-carry-the-pathlib-glob-patch.md) |
-| 2026-10-03 | [Carry just-bash's `rmdir` fix as a local patch rather than subclass `ReadWriteFs`](2026-10-03-carry-the-rmdir-patch.md) |
-| 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) partly overtaken by 2026-10-07 |
-| 2026-09-22 | [Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves](2026-09-22-carry-the-ls-and-awk-output-patch.md) |
-| 2026-09-21 | [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md) |
-| 2026-09-19 | [Drop the orchestrator's Activity screen](2026-09-19-drop-the-activity-screen.md) |
-| 2026-09-11 | [`git` reaches attached folders, and a read-only grant means read-only git](2026-09-11-git-reaches-attached-folders.md) |
-| 2026-09-10 | ~~[`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md)~~ superseded by 2026-10-12 |
-| 2026-09-10 | [Carry the just-bash cross-mount copy fix as a local patch until it is released](2026-09-10-carry-the-cross-mount-copy-patch.md) |
-| 2026-09-10 | [Carry the just-bash python worker fixes as a local patch until they are released](2026-09-10-carry-the-python-worker-patch.md) |
-| 2026-09-09 | [Carry the just-bash `stat -c` fix as a local patch until it is released](2026-09-09-carry-the-stat-patch.md) |
-| 2026-09-08 | [Carry the just-bash `find` fix as a local patch until it is released](2026-09-08-carry-the-find-patch.md) |
-| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) narrowed by 2026-09-08, 2026-09-09, 2026-09-10 (twice), 2026-09-21 and 2026-09-22 |
-| 2026-08-26 | [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md) |
-| 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) partly overtaken by 2.0 apps |
-| 2026-08-15 | [anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md) |
-| 2026-08-12 | [Try again runs the turn again rather than speaking for the user](2026-08-12-try-again-runs-the-turn-rather-than-speaking-for-the-user.md) |
-| 2026-08-12 | [No always-on budget across one step's tool results](2026-08-12-no-always-on-per-step-tool-result-budget.md) |
-| 2026-08-11 | [A retired data part is read and filtered, not migrated](2026-08-11-retired-parts-are-read-not-migrated.md) |
-| 2026-08-07 | [Node runs the agent's TypeScript, so the tsx and tsc shims are gone](2026-08-07-node-runs-typescript-natively.md) |
-| 2026-08-06 | [ffmpeg and ffprobe come from a fork, pinned to a release candidate](2026-08-06-ffmpeg-from-a-fork-at-a-release-candidate.md) |
-| 2026-07-31 | [pdfium is the PDF engine](2026-07-31-pdfium-is-the-pdf-engine.md) |
-| 2026-07-29 | [Controls activate on release](2026-07-29-controls-activate-on-release.md) |
-| 2026-07-28 | [Search moves into the shell, on the real ripgrep binary](2026-07-28-real-ripgrep-in-the-sandbox.md) |
-| 2026-07-27 | ~~[Untrusted content is bounded by a nonce, not escaped](2026-07-27-nonce-bounded-untrusted-content.md)~~ superseded by 2026-10-09 |
-| 2026-07-27 | [Turn context through AsyncLocalStorage](2026-07-27-turn-context-through-async-local-storage.md) |
-| 2026-07-27 | [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md) |
-| 2026-07-27 | ~~[Controls activate on press, not release](2026-07-27-controls-activate-on-press.md)~~ superseded by 2026-07-29 |
-| 2026-07-25 | ~~[Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md)~~ superseded by 2026-10-15 |
-| 2026-07-24 | ~~[web_fetch blocks private addresses to match the sandbox](2026-07-24-web-fetch-private-address-guard.md)~~ superseded by 2026-10-06 |
-| 2026-07-21 | [A bundled skill lives in the registry only if another agent could use it](2026-07-21-where-a-bundled-skill-lives.md) |
-| 2026-07-21 | [Git without the user's credentials](2026-07-21-git-without-user-credentials.md) |
-| 2026-07-20 | [Skills reach the agent through a mount and a budgeted catalog](2026-07-20-skills-as-a-mount-not-a-tool.md) |
-| 2026-07-15 | [Userland agent sandbox over OS-level isolation](2026-07-15-userland-agent-sandbox.md) |
-| 2026-07-15 | [Drop the agent tool in favor of attached-folder mounts](2026-07-15-drop-agent-tool-for-attached-folder-mounts.md) |
-| 2026-07-13 | [Workspace browser profile](2026-07-13-workspace-browser-profile.md) |
-| 2026-07-10 | [Managed agent-browser wrapper](2026-07-10-managed-agent-browser-wrapper.md) |
-| 2026-07-09 | ~~[Branch tasks from chat turns](2026-07-09-branch-tasks-from-chat-turns.md)~~ removed with the 1.x window in `a73917f45` |
+<!-- index:start (generated by `pnpm fix`) -->
+
+- 2026-10-28 [Apps are set up, connected and changed from the chat, and a task names what it needs](2026-10-28-app-setup-is-the-chats.md)
+- 2026-10-27 [`instrument window` is what is in front of the person, a tab has one id, and the prompt holds for a task too](2026-10-27-the-window-command-and-one-tab-id.md)
+- 2026-10-27 [Scripts reach `instrument`, and the `tools` global is gone](2026-10-27-scripts-reach-instrument.md)
+- 2026-10-27 [Carry just-bash's `bash`/`sh` option parsing as a local patch](2026-10-27-carry-the-shell-options-patch.md)
+- 2026-10-26 [Each device writes its chat list into the workspace, for a phone to open it from](2026-10-26-each-device-writes-its-chat-list-into-the-workspace.md)
+- 2026-10-20 [A chat's grant outlasts a later change in Settings](2026-10-20-a-chat-grant-outlasts-a-settings-change.md)
+- 2026-10-19 [Accept that a computer on the previous build stops seeing chat settings from an upgraded one](2026-10-19-accept-the-staggered-upgrade-gap-for-chat-settings.md)
+- 2026-10-18 [The agent asks for folders and apps](2026-10-18-the-agent-asks-for-folders-and-apps.md)
+- 2026-10-17 [Accept that a program under MXC can rename `.git` to write its hooks](2026-10-17-accept-the-git-rename-gap.md)
+- 2026-10-17 [A hidden folder in the home folder is read without a card](2026-10-17-a-hidden-folder-in-the-home-folder-is-read.md)
+- 2026-10-15 [Stay in the Dock when the last window closes, on macOS](2026-10-15-stay-in-the-dock-when-the-last-window-closes.md)
+- 2026-10-15 [Carry an xargs option parser as a local just-bash patch](2026-10-15-carry-the-xargs-options-patch.md)
+- 2026-10-15 [Carry a pipe handoff in just-bash as a local patch](2026-10-15-carry-the-pipe-handoff-patch.md)
+- 2026-10-15 [Carry just-bash's process.env write fix as a local patch](2026-10-15-carry-the-env-write-patch.md)
+- 2026-10-15 [A chat's start is written once, and what changes is told after it](2026-10-15-a-chats-start-is-written-once.md)
+- 2026-10-14 [Carry just-bash's option to fail a redirect into a missing folder as a local patch](2026-10-14-carry-the-redirect-directories-patch.md)
+- 2026-10-14 [Carry just-bash's fix for a glob after a quoted folder as a local patch](2026-10-14-carry-the-glob-after-quotes-patch.md)
+- 2026-10-12 [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md)
+- 2026-10-12 [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md): Partly superseded by Scripts reach `instrument`, and the `tools` global is gone (2026-10-27): the `tools` global described here is gone.
+- 2026-10-12 [Programs on the PATH run natively](2026-10-12-programs-on-path-run-natively.md)
+- 2026-10-12 [Carry just-bash's command-limit and stdin-bytes fixes as a local patch](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md)
+- 2026-10-11 [The agent works at real paths, held to the Permissions rules](2026-10-11-the-agent-works-at-real-paths.md)
+- 2026-10-11 [Carry just-bash's error-code fix as a local patch rather than rewrite the builtins' output](2026-10-11-carry-the-error-code-patch.md)
+- 2026-10-10 [The workspace server guards itself, so the agent's HTTP tools refuse no address](2026-10-10-the-workspace-server-guards-itself.md)
+- 2026-10-10 [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md)
+- 2026-10-09 [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md)
+- 2026-10-08 [Carry just-bash's `find` time predicates as a local patch](2026-10-08-carry-the-find-time-predicates-patch.md)
+- 2026-10-07 [The chat and its tasks are one agent that does quick work itself and forks the rest](2026-10-07-one-agent-that-forks.md)
+- 2026-10-07 [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md)
+- 2026-10-06 [The packaged log keeps cheap lines on by default and gates only what is expensive to gather](2026-10-06-logs-keep-cheap-lines-on-by-default.md)
+- 2026-10-06 [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md): Partly superseded by The workspace server guards itself (2026-10-10): the exception for Instrument's own workspace server moved into the server.
+- 2026-10-06 [Carry a fix for dynamic `import()` in `js-exec` scripts as a local patch](2026-10-06-carry-the-script-dynamic-import-patch.md): Retired with the move to just-bash 3.6.0, whose `js-exec` runs on `run` and loads modules in script mode;
+- 2026-10-05 [Carry just-bash's `pathlib` glob fix as a local patch](2026-10-05-carry-the-pathlib-glob-patch.md)
+- 2026-10-03 [Carry just-bash's `rmdir` fix as a local patch rather than subclass `ReadWriteFs`](2026-10-03-carry-the-rmdir-patch.md)
+- 2026-09-29 [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md): Partly superseded by The chat and its tasks are one agent that does quick work itself and forks the rest (2026-10-07).
+- 2026-09-22 [Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves](2026-09-22-carry-the-ls-and-awk-output-patch.md)
+- 2026-09-21 [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md)
+- 2026-09-19 [Drop the orchestrator's Activity screen](2026-09-19-drop-the-activity-screen.md)
+- 2026-09-11 [`git` reaches attached folders, and a read-only grant means read-only git](2026-09-11-git-reaches-attached-folders.md)
+- 2026-09-10 [`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md): Superseded by 2026-10-12-python-and-node-run-native.md.
+- 2026-09-10 [Carry the just-bash python worker fixes as a local patch until they are released](2026-09-10-carry-the-python-worker-patch.md)
+- 2026-09-10 [Carry the just-bash cross-mount copy fix as a local patch until it is released](2026-09-10-carry-the-cross-mount-copy-patch.md)
+- 2026-09-09 [Carry the just-bash `stat -c` fix as a local patch until it is released](2026-09-09-carry-the-stat-patch.md)
+- 2026-09-08 [Carry the just-bash `find` fix as a local patch until it is released](2026-09-08-carry-the-find-patch.md)
+- 2026-08-27 [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md): Narrowed by 2026-09-08-carry-the-find-patch.md, 2026-09-09-carry-the-stat-patch.md, 2026-09-10-carry-the-cross-mount-copy-patch.md, 2026-09-10-carry-the-pyth...
+- 2026-08-26 [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md)
+- 2026-08-15 [Plugins over connectors](2026-08-15-plugins-over-connectors.md): Partly superseded by the 2.0 apps, which took the place of plugins and connectors (see Apps are set up, connected and changed from the chat).
+- 2026-08-15 [Anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md)
+- 2026-08-12 [Try again runs the turn again rather than speaking for the user](2026-08-12-try-again-runs-the-turn-rather-than-speaking-for-the-user.md)
+- 2026-08-12 [No always-on budget across one step's tool results](2026-08-12-no-always-on-per-step-tool-result-budget.md)
+- 2026-08-11 [A retired data part is read and filtered, not migrated](2026-08-11-retired-parts-are-read-not-migrated.md)
+- 2026-08-07 [Node runs the agent's TypeScript, so the tsx and tsc shims are gone](2026-08-07-node-runs-typescript-natively.md)
+- 2026-08-06 [Ffmpeg and ffprobe come from a fork, pinned to a release candidate](2026-08-06-ffmpeg-from-a-fork-at-a-release-candidate.md)
+- 2026-07-31 [Pdfium is the PDF engine](2026-07-31-pdfium-is-the-pdf-engine.md)
+- 2026-07-29 [Controls activate on release](2026-07-29-controls-activate-on-release.md)
+- 2026-07-28 [Search moves into the shell, on the real ripgrep binary](2026-07-28-real-ripgrep-in-the-sandbox.md)
+- 2026-07-27 [Turn context through AsyncLocalStorage](2026-07-27-turn-context-through-async-local-storage.md)
+- 2026-07-27 [Untrusted content is bounded by a nonce, not escaped](2026-07-27-nonce-bounded-untrusted-content.md): Superseded by Outside content arrives last and unmarked (2026-10-09).
+- 2026-07-27 [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md)
+- 2026-07-27 [Controls activate on press, not release](2026-07-27-controls-activate-on-press.md): Superseded by 2026-07-29-controls-activate-on-release.md.
+- 2026-07-25 [Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md): Superseded by Stay in the Dock when the last window closes, on macOS.
+- 2026-07-24 [Web_fetch blocks private addresses to match the sandbox](2026-07-24-web-fetch-private-address-guard.md): Superseded by 2026-10-06-curl-and-web-fetch-reach-the-local-network.md: `curl` and `web_fetch` reach the local network, and refuse only Instrument's own work...
+- 2026-07-21 [A bundled skill lives in the registry only if another agent could use it](2026-07-21-where-a-bundled-skill-lives.md)
+- 2026-07-21 [Git without the user's credentials](2026-07-21-git-without-user-credentials.md)
+- 2026-07-20 [Skills reach the agent through a mount and a budgeted catalog](2026-07-20-skills-as-a-mount-not-a-tool.md)
+- 2026-07-15 [Userland agent sandbox over OS-level isolation](2026-07-15-userland-agent-sandbox.md)
+- 2026-07-15 [Drop the agent tool in favor of attached-folder mounts](2026-07-15-drop-agent-tool-for-attached-folder-mounts.md)
+- 2026-07-13 [Workspace browser profile](2026-07-13-workspace-browser-profile.md)
+- 2026-07-10 [Managed agent-browser wrapper](2026-07-10-managed-agent-browser-wrapper.md)
+- 2026-07-09 [Branch tasks from chat turns](2026-07-09-branch-tasks-from-chat-turns.md): Superseded by the 2.0 merge: branching went with the classic 1.x window in `a73917f45` (merged to main in `2d90d6270`), and 2.0 has no branch action.
+
+<!-- index:end -->

@@ -1,12 +1,14 @@
 # Plugins over connectors
 
-> Partly overtaken: 2.0 apps (merged in `2d90d6270`) connect a service as a folder holding `app.json`, mounted at `/apps/<slug>/`, and leave the plugin layout below for later; see [instrument-2-0-apps.md](../plans/completed/instrument-2-0-apps.md).
+> Partly superseded by the 2.0 apps, which took the place of plugins and connectors (see [Apps are set up, connected and changed from the chat](2026-10-28-app-setup-is-the-chats.md)).
+
+> Partly overtaken: 2.0 apps (merged in `2d90d6270`) connect a service as a folder holding `app.json`, mounted at `/apps/<slug>/`, and leave the plugin layout below for later; see [instrument-2-0-apps.md](../plans/instrument-2-0-apps.md).
 
 Date: 2026-08-15
 
 ## Status
 
-Current beliefs, not settled architecture. Every decision below is a starting position chosen to be cheap to reverse, and the ones that matter are behavioral claims about whether an agent can reliably connect a user to a service. Connecting to data is a core path for this product, so these have to survive evaluation against real agents across the model set before any of them should be treated as fixed. [The plan](../plans/active/plugins.md) carries the evaluation approach and the phase order.
+Current beliefs, not settled architecture. Every decision below is a starting position chosen to be cheap to reverse, and the ones that matter are behavioral claims about whether an agent can reliably connect a user to a service. Connecting to data is a core path for this product, so these have to survive evaluation against real agents across the model set before any of them should be treated as fixed. [The plan](../plans/plugins.md) carries the evaluation approach and the phase order.
 
 ## Context
 
@@ -102,7 +104,7 @@ If guidance files are ignored often enough to cause harm, then the approval flow
 
 ## Related
 
-- [Plugins plan](../plans/active/plugins.md)
+- [Plugins plan](../plans/plugins.md)
 - [Connector authentication technical notes](../findings/connector-authentication-technical-notes.md)
 - [Agent sandbox](../architecture/agent-sandbox.md)
 - [In-app browser](../architecture/in-app-browser.md)

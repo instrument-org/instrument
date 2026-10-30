@@ -1,10 +1,12 @@
 # `python` and `node` run native, and the WebAssembly runtimes are gone
 
+> Partly superseded by [Scripts reach `instrument`, and the `tools` global is gone](2026-10-27-scripts-reach-instrument.md) (2026-10-27): the `tools` global described here is gone.
+
 Date: 2026-10-12
 
 > The `tools` global is superseded by [2026-10-27-scripts-reach-instrument.md](2026-10-27-scripts-reach-instrument.md): scripts in `node` and `python` reach `instrument`, and `tools` is gone.
 
-Supersedes [2026-09-10-python-is-the-sandboxed-interpreter.md](2026-09-10-python-is-the-sandboxed-interpreter.md). Carries out [plans/completed/native-script-runtimes.md](../plans/completed/native-script-runtimes.md).
+Supersedes [2026-09-10-python-is-the-sandboxed-interpreter.md](2026-09-10-python-is-the-sandboxed-interpreter.md). Carries out [plans/native-script-runtimes.md](../plans/native-script-runtimes.md).
 
 ## Context
 

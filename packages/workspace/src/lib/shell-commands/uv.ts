@@ -139,7 +139,10 @@ async function skillProjectEnvironment({
     project === undefined
       ? undefined
       : trustedSkillFolder(path.resolve(hostCwd, project));
-  if (folder === undefined || pythonEnvironmentOf(folder) === undefined) {
+  if (
+    folder === undefined ||
+    (await pythonEnvironmentOf(folder)) === undefined
+  ) {
     return undefined;
   }
   const built = await ensurePythonEnvironment({

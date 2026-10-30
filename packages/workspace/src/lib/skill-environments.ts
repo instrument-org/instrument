@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -118,16 +118,15 @@ function environmentDir(shipped: boolean, ...parts: string[]): AbsolutePath {
  * the skills the app ships apart from the workspace's own.
  * Undefined for a skill with no `pyproject.toml` and `uv.lock`.
  */
-export function pythonEnvironmentOf(
+export async function pythonEnvironmentOf(
   skillDir: string,
-): AbsolutePath | undefined {
+): Promise<AbsolutePath | undefined> {
   if (!existsSync(path.join(skillDir, PYTHON_PROJECT_FILE))) {
     return undefined;
   }
   let lockfile: string;
   try {
-    // oxlint-disable-next-line studio/no-sync-content-read -- TODO(async-workspace-files): load_skill reaches this on the main thread, and a workspace skill's uv.lock is in the synced Skills/ folder.
-    lockfile = readFileSync(path.join(skillDir, PYTHON_LOCKFILE), "utf8");
+    lockfile = await fs.readFile(path.join(skillDir, PYTHON_LOCKFILE), "utf8");
   } catch {
     return undefined;
   }
@@ -259,7 +258,7 @@ export async function ensurePythonEnvironmentHere({
   chatId: ChatId;
   skillDir: AbsolutePath;
 }): Promise<PythonEnvironmentResult> {
-  const target = pythonEnvironmentOf(skillDir);
+  const target = await pythonEnvironmentOf(skillDir);
   if (target === undefined) {
     return {
       error: {
@@ -389,13 +388,13 @@ export async function skillPythonToRun({
       venv?: AbsolutePath;
     }
 > {
-  const withEnvironment = (hostPath: string | undefined) => {
+  const withEnvironment = async (hostPath: string | undefined) => {
     const folder =
       hostPath === undefined ? undefined : trustedSkillFolder(hostPath);
-    return folder && pythonEnvironmentOf(folder) ? folder : undefined;
+    return folder && (await pythonEnvironmentOf(folder)) ? folder : undefined;
   };
   const near = nearestVenv(chatId, cwd);
-  const scriptSkill = withEnvironment(script);
+  const scriptSkill = await withEnvironment(script);
   if (scriptSkill !== undefined) {
     const built = await ensurePythonEnvironment({
       chatId,
@@ -406,7 +405,7 @@ export async function skillPythonToRun({
       ? built
       : { layer: near, venv: built.venv };
   }
-  const loaded = withEnvironment(loadedSkillDir);
+  const loaded = await withEnvironment(loadedSkillDir);
   if (loaded === undefined) {
     return {};
   }

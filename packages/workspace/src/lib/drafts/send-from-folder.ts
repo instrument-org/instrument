@@ -105,9 +105,13 @@ export async function withDraftFolder({
       // Gone since the listing: nothing to send.
       continue;
     }
-    const sameBytes = pasted.findIndex(
-      (bytes) => bytes.byteLength === size && sameAs(item.path, bytes),
-    );
+    let sameBytes = -1;
+    for (const [index, bytes] of pasted.entries()) {
+      if (bytes.byteLength === size && (await sameAs(item.path, bytes))) {
+        sameBytes = index;
+        break;
+      }
+    }
     if (sameBytes !== -1) {
       // The window sends this paste as its bytes; each counts once.
       pasted.splice(sameBytes, 1);
@@ -154,10 +158,9 @@ export function removeSentFromDraft(sent: SentFromDraft): string[] {
 }
 
 /** Whether the file at `target` holds exactly `bytes`. */
-function sameAs(target: string, bytes: Buffer): boolean {
+async function sameAs(target: string, bytes: Buffer): Promise<boolean> {
   try {
-    // oxlint-disable-next-line studio/no-sync-content-read -- TODO(async-workspace-files): reads a file in the draft's synced folder on the main thread at send, though only one the size of a pasted item.
-    return fs.readFileSync(target).equals(bytes);
+    return (await fs.promises.readFile(target)).equals(bytes);
   } catch {
     return false;
   }

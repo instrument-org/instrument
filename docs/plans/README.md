@@ -32,7 +32,6 @@ Each entry is the plan's title and the opening of its status.
 - [Move the agent turn off the Electron main thread](agent-turn-off-the-main-thread.md): Active.
 - [The app directory, made connectable and drawn well](app-directory-uplift.md): In progress.
 - [App-state scenarios](app-state-scenarios.md): Started.
-- [Async access to the synced workspace folder](async-workspace-file-access.md): Steps 1 to 4 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activi...
 - [Auto mode](auto-mode.md): Design only, nothing scheduled.
 - [Background shell processes](background-shell-processes.md): Active.
 - [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): On hold, not started.
@@ -92,6 +91,7 @@ Each entry is the plan's title and the opening of its status.
 - [An AI usage panel in Settings](ai-usage-panel.md): Landed in full (`427559098` and the commits after it).
 - [Anchor the turn you just sent at the top of the transcript](anchor-the-submitted-turn.md): Landed.
 - [App-level tabs in the 2.0 window](app-level-tabs.md): Landed in `7e84c5a88` (v2.0.0-beta.33);
+- [Async access to the synced workspace folder](async-workspace-file-access.md): Steps 1 to 4: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files...
 - [Parse markdown a block at a time](block-split-markdown.md): Landed in `8d1cb0312` (`client/lib/split-markdown-blocks.ts`);
 - [Interactive task-file links in chat](chat-file-links.md): Landed, and the rest was overtaken.
 - [Chats as folders that own their tasks](chat-folders.md): Landed.

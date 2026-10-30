@@ -1,7 +1,15 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { type DraftFile } from "./draft-file";
@@ -88,6 +96,32 @@ describe("a message sent from a draft", () => {
     });
     expect(sending.files).toEqual([{ content: "cG5n", filename: "image.png" }]);
     expect(named(dir, sending.sent).files).toEqual(["image 2.png"]);
+  });
+
+  it("matches a paste against a file in the folder off the main thread, reading only one of its size", async () => {
+    const { dir } = made();
+    const same = path.join(dir, "image 2.png");
+    fs.writeFileSync(same, "png");
+    fs.writeFileSync(path.join(dir, "other.png"), "longer");
+    const readSync = vi.spyOn(fs, "readFileSync");
+    const read = vi.spyOn(fs.promises, "readFile");
+    onTestFinished(() => {
+      readSync.mockRestore();
+      read.mockRestore();
+    });
+
+    const sending = await withDraftFolder({
+      files: [{ content: "cG5n", filename: "image.png" }],
+      fromDraft: "d1",
+      rootDir,
+    });
+
+    expect(sending.files).toEqual([
+      { content: "cG5n", filename: "image.png" },
+      expect.objectContaining({ filename: "other.png" }),
+    ]);
+    expect(read.mock.calls.map(([file]) => file)).toEqual([same]);
+    expect(readSync).not.toHaveBeenCalled();
   });
 
   it("still sends a dropped file that only shares a paste's name", async () => {

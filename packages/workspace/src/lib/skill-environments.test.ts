@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { SKILLS_FOLDER_NAME } from "../constants";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -91,7 +91,7 @@ beforeEach(async () => {
 });
 
 describe("pythonEnvironmentOf", () => {
-  it("names one environment per lockfile, whichever skill holds it", () => {
+  it("names one environment per lockfile, whichever skill holds it", async () => {
     const pdf = shippedSkill("pdf", PYTHON_SKILL);
     const twin = shippedSkill("twin", PYTHON_SKILL);
     const other = shippedSkill("other", {
@@ -99,28 +99,32 @@ describe("pythonEnvironmentOf", () => {
       "uv.lock": "version = 2\n",
     });
 
-    expect(path.dirname(pythonEnvironmentOf(pdf) ?? "")).toBe(
+    expect(path.dirname((await pythonEnvironmentOf(pdf)) ?? "")).toBe(
       runtime().environments,
     );
-    expect(pythonEnvironmentOf(twin)).toBe(pythonEnvironmentOf(pdf));
-    expect(pythonEnvironmentOf(other)).not.toBe(pythonEnvironmentOf(pdf));
+    expect(await pythonEnvironmentOf(twin)).toBe(
+      await pythonEnvironmentOf(pdf),
+    );
+    expect(await pythonEnvironmentOf(other)).not.toBe(
+      await pythonEnvironmentOf(pdf),
+    );
   });
 
   // A chat can write the workspace's skills, so one of them locking what a
   // shipped skill locks still never names the shipped skill's environment.
-  it("names the workspace's own skills' environments apart from the shipped ones'", () => {
+  it("names the workspace's own skills' environments apart from the shipped ones'", async () => {
     const pdf = shippedSkill("pdf", PYTHON_SKILL);
     const mine = workspaceSkill("mine", PYTHON_SKILL);
 
-    expect(path.basename(pythonEnvironmentOf(mine) ?? "")).toMatch(
+    expect(path.basename((await pythonEnvironmentOf(mine)) ?? "")).toMatch(
       /^[0-9a-f]{16}$/,
     );
-    expect(path.basename(pythonEnvironmentOf(pdf) ?? "")).toMatch(
+    expect(path.basename((await pythonEnvironmentOf(pdf)) ?? "")).toMatch(
       /^shipped-[0-9a-f]{16}$/,
     );
   });
 
-  it("takes a Node skill's built copy for a shipped skill's only by the name the app gives one", () => {
+  it("takes a Node skill's built copy for a shipped skill's only by the name the app gives one", async () => {
     const pdf = shippedSkill("pdf", PYTHON_SKILL);
     const mine = workspaceSkill("mine", PYTHON_SKILL);
     const copy = (name: string) => {
@@ -131,20 +135,34 @@ describe("pythonEnvironmentOf", () => {
       return dir;
     };
 
-    expect(pythonEnvironmentOf(copy("shipped-0123456789abcdef"))).toBe(
-      pythonEnvironmentOf(pdf),
+    expect(await pythonEnvironmentOf(copy("shipped-0123456789abcdef"))).toBe(
+      await pythonEnvironmentOf(pdf),
     );
-    expect(pythonEnvironmentOf(copy("0123456789abcdef"))).toBe(
-      pythonEnvironmentOf(mine),
+    expect(await pythonEnvironmentOf(copy("0123456789abcdef"))).toBe(
+      await pythonEnvironmentOf(mine),
     );
   });
 
-  it("names none for a skill without a locked Python project", () => {
+  it("reads the lockfile off the main thread", async () => {
+    const pdf = shippedSkill("pdf", PYTHON_SKILL);
+    const readSync = vi.spyOn(fs, "readFileSync");
+    const read = vi.spyOn(fs.promises, "readFile");
+    onTestFinished(() => {
+      readSync.mockRestore();
+      read.mockRestore();
+    });
+
+    expect(await pythonEnvironmentOf(pdf)).toBeDefined();
+    expect(read).toHaveBeenCalledWith(path.join(pdf, "uv.lock"), "utf8");
+    expect(readSync).not.toHaveBeenCalled();
+  });
+
+  it("names none for a skill without a locked Python project", async () => {
     expect(
-      pythonEnvironmentOf(shippedSkill("page", { "scripts/a.ts": "" })),
+      await pythonEnvironmentOf(shippedSkill("page", { "scripts/a.ts": "" })),
     ).toBeUndefined();
     expect(
-      pythonEnvironmentOf(
+      await pythonEnvironmentOf(
         shippedSkill("unlocked", { "pyproject.toml": "[project]\n" }),
       ),
     ).toBeUndefined();
@@ -155,7 +173,7 @@ describe("ensurePythonEnvironment", () => {
   it("builds the environment once, hash-checked from the build folders, held to the chat with only its folder opened", async () => {
     const { runUvCommand } = await import("./run-uv");
     const skillDir = shippedSkill("pdf", PYTHON_SKILL);
-    const target = pythonEnvironmentOf(skillDir);
+    const target = await pythonEnvironmentOf(skillDir);
 
     const [first, second] = await Promise.all([
       ensurePythonEnvironment({ chatId, skillDir }),
@@ -256,7 +274,7 @@ describe("ensurePythonEnvironment", () => {
 
     await expect(
       ensurePythonEnvironment({ chatId, skillDir }),
-    ).resolves.toEqual({ venv: pythonEnvironmentOf(skillDir) });
+    ).resolves.toEqual({ venv: await pythonEnvironmentOf(skillDir) });
     expect(
       vi.mocked(runUvCommand).mock.calls.map(([call]) => call.buildFolders),
     ).toEqual([false, false, false]);
@@ -284,7 +302,9 @@ describe("ensurePythonEnvironment", () => {
   it("builds again an environment whose Python is gone", async () => {
     const { runUvCommand } = await import("./run-uv");
     const skillDir = shippedSkill("pdf", PYTHON_SKILL);
-    const target = AbsolutePathSchema.parse(pythonEnvironmentOf(skillDir));
+    const target = AbsolutePathSchema.parse(
+      await pythonEnvironmentOf(skillDir),
+    );
     write(venvPython(target), "");
     write(
       path.join(target, "pyvenv.cfg"),
@@ -428,31 +448,31 @@ describe("skillPythonToRun", () => {
   it.each<{
     expected: (
       folders: ReturnType<typeof skills>,
-    ) => Awaited<ReturnType<typeof skillPythonToRun>>;
+    ) => ReturnType<typeof skillPythonToRun>;
     loaded?: keyof ReturnType<typeof skills>;
     name: string;
     script?: keyof ReturnType<typeof skills> | "own";
     venvNear: boolean;
   }>([
     {
-      expected: ({ pdf }) => ({ venv: environment(pdf) }),
+      expected: async ({ pdf }) => ({ venv: await environment(pdf) }),
       name: "a skill's script, alone where no .venv is near",
       script: "pdf",
       venvNear: false,
     },
     {
-      expected: ({ pdf }) => ({
+      expected: async ({ pdf }) => ({
         layer: AbsolutePathSchema.parse(venv()),
-        venv: environment(pdf),
+        venv: await environment(pdf),
       }),
       name: "a skill's script, with the .venv behind it",
       script: "pdf",
       venvNear: true,
     },
     {
-      expected: ({ pdf }) => ({
+      expected: async ({ pdf }) => ({
         layer: AbsolutePathSchema.parse(venv()),
-        venv: environment(pdf),
+        venv: await environment(pdf),
       }),
       loaded: "other",
       name: "a skill's script, in its own skill's environment whichever was loaded",
@@ -460,33 +480,33 @@ describe("skillPythonToRun", () => {
       venvNear: true,
     },
     {
-      expected: ({ pdf }) => ({ venv: environment(pdf) }),
+      expected: async ({ pdf }) => ({ venv: await environment(pdf) }),
       loaded: "pdf",
       name: "the agent's own script in the loaded skill's environment where no .venv is near",
       script: "own",
       venvNear: false,
     },
     {
-      expected: ({ pdf }) => ({ layer: environment(pdf) }),
+      expected: async ({ pdf }) => ({ layer: await environment(pdf) }),
       loaded: "pdf",
       name: "the agent's own script in the .venv, with the loaded skill's environment behind it",
       script: "own",
       venvNear: true,
     },
     {
-      expected: ({ pdf }) => ({ layer: environment(pdf) }),
+      expected: async ({ pdf }) => ({ layer: await environment(pdf) }),
       loaded: "pdf",
       name: "code from -c or stdin like the agent's own script",
       venvNear: true,
     },
     {
-      expected: () => ({}),
+      expected: async () => ({}),
       name: "the agent's own script with no skill loaded",
       script: "own",
       venvNear: true,
     },
     {
-      expected: () => ({}),
+      expected: async () => ({}),
       loaded: "page",
       name: "the agent's own script after a skill with no Python environment",
       script: "own",
@@ -512,7 +532,7 @@ describe("skillPythonToRun", () => {
                 "run.py",
               ),
       }),
-    ).resolves.toEqual(expected(folders));
+    ).resolves.toEqual(await expected(folders));
   });
 
   it("runs the agent's own code in its .venv when the loaded skill's environment cannot be built, and reports it with none", async () => {

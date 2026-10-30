@@ -1,6 +1,6 @@
 # Async access to the synced workspace folder
 
-Status: open. Steps 1 to 4 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, "workspace: read app files off the main thread and only once they change" `listApps`, "studio,workspace: read drafts off the main thread and only once they change" the drafts, and "workspace: read the chat index off the main thread before the workspace starts" the chat index. Step 5 converted the rows a plain `await` covers ("workspace: read an app's guide and icon off the main thread", "workspace: read a skill's package.json off the main thread") and left the rest synchronous for the allowlist, each row saying why. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Step 6, "studio,workspace: report sync reads of file contents outside an allowlist", added the lint rule; its trace found two reads the audit missed, left under `TODO(async-workspace-files)` and named under Remaining.
+Status: done. Steps 1 to 4: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, "workspace: read app files off the main thread and only once they change" `listApps`, "studio,workspace: read drafts off the main thread and only once they change" the drafts, and "workspace: read the chat index off the main thread before the workspace starts" the chat index. Step 5 converted the rows a plain `await` covers ("workspace: read an app's guide and icon off the main thread", "workspace: read a skill's package.json off the main thread") and left the rest synchronous for the allowlist, each row saying why. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Step 6, "studio,workspace: report sync reads of file contents outside an allowlist", added the lint rule; its trace found two reads the audit missed, a skill's `uv.lock` in `skill-environments.ts` and a pasted file's match in `drafts/send-from-folder.ts`, which "studio,workspace: read skill lockfiles and draft pastes off the main thread" made async along with the one-time `bookmarks.json` import.
 
 ## Problem
 
@@ -93,13 +93,6 @@ About twenty one-time sweeps and migrations read synchronously at launch (`migra
 6. **The lint rule and its allowlist**, last, once the code it would report is gone, so it lands green and stays that way.
 
 Each step ships on its own.
-
-## Remaining
-
-Two main-thread reads of synced-folder contents the audit did not list, each allowlisted by line under `TODO(async-workspace-files)`:
-
-- `skill-environments.ts` `pythonEnvironmentOf` reads a skill's `uv.lock`. `load_skill` reaches it on the main thread through `ensurePythonEnvironmentHere`, and a workspace skill's file is under `Skills/`. The bash worker's requests read the same file in the worker first.
-- `drafts/send-from-folder.ts` `sameAs` reads a file in the draft's folder at send, to match it against a pasted item of the same size.
 
 ## How to check it
 

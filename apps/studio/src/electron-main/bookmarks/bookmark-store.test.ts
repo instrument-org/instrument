@@ -8,7 +8,15 @@ import {
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 import { z } from "zod";
 
 import { createBookmarkStore, importBookmarksFile } from "./bookmark-store";
@@ -185,6 +193,14 @@ describe("importBookmarksFile", () => {
     const here = await synced(HERE);
     await importBookmarksFile(file(), here);
     expect(here.entries()).toEqual(new Map());
+  });
+
+  it("reads the file off the main thread", async () => {
+    write({ "bookmarks.v1": [{ id: "a", title: "A", url: "https://a/" }] });
+    const readSync = vi.spyOn(fs, "readFileSync");
+    onTestFinished(() => readSync.mockRestore());
+    expect(await importBookmarksFile(file(), await synced(HERE))).toBe(1);
+    expect(readSync).not.toHaveBeenCalled();
   });
 
   it("leaves a file it cannot read where it is", async () => {

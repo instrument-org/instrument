@@ -130,8 +130,7 @@ export async function importBookmarksFile(
   let raw: string;
   let at: number;
   try {
-    // oxlint-disable-next-line studio/no-sync-content-read -- launch only: a one-time import of the bookmarks.json earlier builds kept, removed once it is read.
-    raw = fs.readFileSync(file, "utf8");
+    raw = await fs.promises.readFile(file, "utf8");
     at = fs.statSync(file).mtimeMs;
   } catch {
     return undefined;

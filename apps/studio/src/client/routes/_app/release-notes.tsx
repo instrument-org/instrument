@@ -21,7 +21,7 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { WifiSlashIcon } from "@phosphor-icons/react/WifiSlash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { z } from "zod";
 
 export const Route = createFileRoute("/_app/release-notes")({
@@ -87,24 +87,14 @@ function RouteComponent() {
               />
             )}
             {plan.newer.map((release) => (
-              <FoldedEntry
-                key={release.version}
-                release={release}
-                tag={<Tag>Newer</Tag>}
-              />
+              <FoldedEntry key={release.version} release={release} />
             ))}
             {plan.full.map((release) => (
               <Entry
                 key={release.version}
                 release={release}
-                tags={
-                  <>
-                    {release.version === plan.current && (
-                      <Tag outline>Your version</Tag>
-                    )}
-                    {plan.fresh && <Tag tone="brand">New</Tag>}
-                  </>
-                }
+                fresh={plan.fresh}
+                yours={release.version === plan.current}
               />
             ))}
             {plan.folded.map((release) => (
@@ -146,7 +136,7 @@ function Notes({ release }: { release: Release }) {
       {detail && (
         <div
           className={cn(
-            "prose prose-custom prose-session prose-sm wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
+            "prose-session prose prose-custom prose-sm wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
             release.summary && "mt-2",
           )}
         >
@@ -157,18 +147,35 @@ function Notes({ release }: { release: Release }) {
   );
 }
 
-function Entry({ release, tags }: { release: Release; tags?: ReactNode }) {
+/**
+ * One version in full. A version the person skipped wears a dot by its name,
+ * and the one running says so under its date, in words rather than a badge.
+ */
+function Entry({
+  fresh = false,
+  release,
+  yours = false,
+}: {
+  fresh?: boolean;
+  release: Release;
+  yours?: boolean;
+}) {
   return (
     <section className="grid gap-x-6 gap-y-2 pb-10 @xl/app-content:grid-cols-[8.5rem_1fr]">
       <div className="flex flex-wrap items-baseline gap-x-2 @xl/app-content:flex-col @xl/app-content:items-start">
-        <h2 className="text-sm font-semibold">
+        <h2 className="relative text-sm font-semibold">
+          {fresh && (
+            <span
+              aria-label="New"
+              className="absolute top-1/2 -left-3 size-1.5 -translate-y-1/2 rounded-full bg-brand-500"
+              role="img"
+            />
+          )}
           {versionLabel(release.version)}
         </h2>
         <div className="text-[13px] text-muted-foreground">
           {releaseDate(release.publishedAt)}
-        </div>
-        <div className="flex flex-wrap gap-1.5 @xl/app-content:mt-1.5">
-          {tags}
+          {yours && " · Your version"}
         </div>
       </div>
       <Notes release={release} />
@@ -177,12 +184,12 @@ function Entry({ release, tags }: { release: Release; tags?: ReactNode }) {
 }
 
 /** An older version as its opening line, opening to its notes on a press. */
-function FoldedEntry({ release, tag }: { release: Release; tag?: ReactNode }) {
+function FoldedEntry({ release }: { release: Release }) {
   const [open, setOpen] = useState(false);
   if (open) {
     return (
       <div className="pt-2">
-        <Entry release={release} tags={tag} />
+        <Entry release={release} />
       </div>
     );
   }
@@ -201,36 +208,12 @@ function FoldedEntry({ release, tag }: { release: Release; tag?: ReactNode }) {
         <span className="text-[13px] whitespace-nowrap text-muted-foreground">
           {releaseDate(release.publishedAt)}
         </span>
-        {tag}
       </span>
       <span className="hidden truncate text-[13px] text-foreground/75 @xl/app-content:block">
         {release.summary ?? ""}
       </span>
       <CaretDownIcon className="size-3.5 text-muted-foreground" />
     </button>
-  );
-}
-
-function Tag({
-  children,
-  outline = false,
-  tone,
-}: {
-  children: ReactNode;
-  outline?: boolean;
-  tone?: "brand";
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex rounded-md px-1.5 py-px text-[11px] font-medium whitespace-nowrap text-muted-foreground",
-        outline && "border border-border",
-        tone === "brand" && "bg-brand-500/12 text-brand-text",
-        !outline && !tone && "bg-muted",
-      )}
-    >
-      {children}
-    </span>
   );
 }
 

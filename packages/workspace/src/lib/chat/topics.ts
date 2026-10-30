@@ -416,6 +416,7 @@ function readTopicFolder(folderPath: string): Topic | undefined {
   try {
     // When the file was last written stands in for a `created` it does not
     // hold, which is what a topic the person made by hand has.
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: each topic write reads, checks the name and writes in one run, so two cannot interleave, and listTopics reads every TOPIC.md async first.
     topic = parseTopicFile(fs.readFileSync(file, "utf8"), {
       at: fs.statSync(file).mtime,
     });

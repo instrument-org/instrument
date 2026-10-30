@@ -1,5 +1,60 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "extends": ["../../.oxlintrc.json"],
-  "ignorePatterns": ["coverage", "fixtures"]
+  "ignorePatterns": ["coverage", "fixtures"],
+  "jsPlugins": ["../../apps/studio/oxlint-rules.ts"],
+  "overrides": [
+    {
+      "files": ["src/**"],
+      "rules": {
+        "studio/no-sync-content-read": "error"
+      }
+    },
+    {
+      // Where a file's contents may be read synchronously. The rule cannot
+      // tell a file in the synced workspace folder from one on local disk, so
+      // this list carries that judgment, a file at a time. A file that reads
+      // the synced folder elsewhere keeps the rule, and turns it off by line
+      // with the reason instead.
+      "files": [
+        // Tests and their helpers, which never run in the app.
+        "**/*.test.*",
+        "src/test/**",
+        // The bash worker runs off the main thread.
+        "src/lib/bash-worker/**",
+        // The bash worker runs the shell's commands, off the main thread.
+        "src/lib/dlx-outside.ts",
+        "src/lib/pnpm-outside.ts",
+        // Launch only: one-time sweeps and migrations that run before the
+        // window is useful, most of them never for a folder the person picked.
+        "src/lib/fold-task-state-file.ts",
+        "src/lib/fold-task-work-dir.ts",
+        "src/lib/migrate-legacy-tasks.ts",
+        "src/lib/migrate-workspace-layout.ts",
+        "src/lib/permissions/move-topic-folders.ts",
+        "src/lib/rewrite-stored-paths.ts",
+        // Local disk: the machine folder, the runtime folder, userData, the
+        // app's own files and the system's.
+        "src/lib/login-shell-path.ts",
+        "src/lib/native-sandbox/bwrap.ts",
+        "src/lib/native-sandbox/mxc-canary.ts",
+        "src/lib/permissions/topic-folders.ts",
+        "src/lib/python-base.ts",
+        "src/lib/shell-commands/unsandboxed-uutils-integrity.ts",
+        "src/lib/subprocess-tree.ts",
+        "src/lib/work-folders.ts",
+        // Read only by scripts/refresh-agent-browser-guide.ts, never the app.
+        "src/lib/agent-browser-guide-source.ts",
+        // Where the sync wrappers are defined; the rule reports their callers.
+        "src/lib/json-record-file.ts",
+        // Synchronous on purpose: a read, render and rename that relies on
+        // running in one go (its temp name is per process), for topics and
+        // memory.
+        "src/lib/rewrite-file.ts"
+      ],
+      "rules": {
+        "studio/no-sync-content-read": "off"
+      }
+    }
+  ]
 }

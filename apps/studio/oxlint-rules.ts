@@ -449,6 +449,93 @@ const noEitherCommandKey = defineRule({
   },
 });
 
+/**
+ * Sync calls that read a file's contents, by the name `node:fs` gives them,
+ * and the repo's wrappers over them. On a file a sync service keeps by name
+ * only, each one blocks the calling thread until the file downloads.
+ */
+const SYNC_CONTENT_READS = new Set([
+  "appendFileSync",
+  "openSync",
+  "readFileSync",
+  "readJsonRecordSync",
+  "readSync",
+  "updateJsonRecordSync",
+]);
+const FS_MODULES = new Set(["fs", "node:fs"]);
+
+/**
+ * Whether `openSync` is called with a flag that truncates (`"w"`, `"wx"`,
+ * `"w+"`), which starts the file empty and so never waits on its contents.
+ * Any other flag, or one not written as a string, is read as a read.
+ */
+const opensForWriting = (args: ESTree.CallExpression["arguments"]) => {
+  const flags = args[1];
+  return (
+    flags?.type === "Literal" &&
+    typeof flags.value === "string" &&
+    flags.value.startsWith("w")
+  );
+};
+
+/**
+ * The workspace's files can live in a synced folder, and code on the main
+ * thread reads them through `lib/workspace-files.ts`. A file that is only
+ * ever on local disk, or a read that has to stay synchronous, is turned off
+ * by file in the package's `.oxlintrc.json`, or by line, with its reason.
+ */
+const noSyncContentRead = defineRule({
+  create(context) {
+    // Local names `node:fs` imports go by, to the name it exports them as.
+    const fsImports = new Map<string, string>();
+    const report = (node: ESTree.CallExpression, name: string) => {
+      if (name === "openSync" && opensForWriting(node.arguments)) {
+        return;
+      }
+      context.report({ data: { name }, messageId: "syncContentRead", node });
+    };
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (callee.type === "Identifier") {
+          const name = fsImports.get(callee.name) ?? callee.name;
+          if (SYNC_CONTENT_READS.has(name)) {
+            report(node, name);
+          }
+        } else if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          callee.property.type === "Identifier" &&
+          SYNC_CONTENT_READS.has(callee.property.name)
+        ) {
+          report(node, callee.property.name);
+        }
+      },
+      ImportDeclaration(node) {
+        if (!FS_MODULES.has(node.source.value)) {
+          return;
+        }
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportSpecifier" &&
+            specifier.imported.type === "Identifier"
+          ) {
+            fsImports.set(specifier.local.name, specifier.imported.name);
+          }
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      syncContentRead:
+        "{{name}} reads a file's contents on the calling thread, and a file in a synced workspace folder may not be downloaded yet, which freezes the app until it is. Read workspace files with lib/workspace-files.ts (packages/workspace). A file only ever on local disk, or a read that has to stay synchronous, goes on the allowlist in the package's .oxlintrc.json, or takes `// oxlint-disable-next-line studio/no-sync-content-read -- <why>`.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
@@ -459,6 +546,7 @@ export default definePlugin({
     "no-router-link": noRouterLink,
     "no-shared-shadow-on-float": noSharedShadowOnFloat,
     "no-shell-open-path": noShellOpenPath,
+    "no-sync-content-read": noSyncContentRead,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,
   },

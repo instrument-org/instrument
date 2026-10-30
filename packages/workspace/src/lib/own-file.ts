@@ -44,6 +44,7 @@ export function openOwnFile({
   make?: boolean;
 }): number {
   ownFolder({ dir: path.dirname(file), folder, make });
+  // oxlint-disable-next-line studio/no-sync-content-read -- every caller opens to write, in the agent's folders on local disk.
   return openSync(
     file,
     flags | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0),

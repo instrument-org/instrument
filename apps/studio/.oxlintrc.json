@@ -49,6 +49,55 @@
       }
     },
     {
+      "files": ["src/electron-main/**"],
+      "rules": {
+        "studio/no-sync-content-read": "error"
+      }
+    },
+    {
+      // Where a file's contents may be read synchronously. The rule cannot
+      // tell a file in the synced workspace folder from one on local disk, so
+      // this list carries that judgment, a file at a time. A file that reads
+      // the synced folder elsewhere keeps the rule, and turns it off by line
+      // with the reason instead.
+      "files": [
+        // Tests, which never run in the app.
+        "**/*.test.*",
+        // Launch only: migrations and checks that run before any store opens.
+        "src/electron-main/lib/machine-data-migration.ts",
+        "src/electron-main/lib/settings-migration.ts",
+        "src/electron-main/lib/workspace-move.ts",
+        // Reads workspace.json only after isDataless says it is downloaded.
+        "src/electron-main/lib/workspace-refusal.ts",
+        // Local disk: userData, the machine folder, the app's own files and
+        // the system's.
+        "src/electron-main/lib/app-catalog.ts",
+        "src/electron-main/lib/app-session.ts",
+        "src/electron-main/lib/diagnostic-log.ts",
+        "src/electron-main/lib/launch-overrides.ts",
+        "src/electron-main/lib/problem-reports.ts",
+        "src/electron-main/lib/register-crash-diagnostics.ts",
+        "src/electron-main/lib/setup-dbus-env.ts",
+        "src/electron-main/lib/setup-state.ts",
+        "src/electron-main/lib/tested-before.ts",
+        "src/electron-main/lib/update-bridge.ts",
+        "src/electron-main/lib/update-velopack.ts",
+        "src/electron-main/lib/update.ts",
+        "src/electron-main/lib/updater-cache.ts",
+        "src/electron-main/page-editor/sessions.ts",
+        "src/electron-main/stores/workspace/kept-state.ts",
+        "src/electron-main/stores/workspace/session.ts",
+        // Synchronous on purpose: readWorkspaceIdentity has about fifteen
+        // synchronous callers, mostly launch and move code, and the launch
+        // reads the open workspace's workspace.json first. The rest of its
+        // reads are pid files in the machine folder.
+        "src/electron-main/lib/workspaces.ts"
+      ],
+      "rules": {
+        "studio/no-sync-content-read": "off"
+      }
+    },
+    {
       "files": ["src/client/**", "src/shared/**"],
       "rules": {
         "no-restricted-imports": [

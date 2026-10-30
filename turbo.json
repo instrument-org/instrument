@@ -147,7 +147,11 @@
     "//#check:format": {},
     "check:lint": {
       "dependsOn": ["transit"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.oxlintrc.json",
+        "$TURBO_ROOT$/apps/studio/oxlint-rules.ts"
+      ]
     },
     "//#check:lint": {},
     "fix:lint": {

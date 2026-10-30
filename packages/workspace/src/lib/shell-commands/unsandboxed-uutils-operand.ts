@@ -120,6 +120,7 @@ export function openOperandForStdin({
   }
   let fd: number;
   try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- opened to hand to a program as its input, which reads it in its own process.
     fd = openSync(real, OPEN_FLAGS);
   } catch {
     return undefined;

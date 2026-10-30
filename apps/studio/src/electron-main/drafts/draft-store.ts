@@ -537,6 +537,7 @@ function folderKeyOf({ inFolder }: Pick<Draft, "inFolder">): string {
 /** A draft's file read on its own, or nothing where it is gone or names no draft. */
 function readFile(file: string): DraftFile | undefined {
   try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: refresh runs in apply, which a quit runs no promise to the end of, and has to read what the file says now.
     return parseDraftFile(fs.readFileSync(file, "utf8"), {
       at: fs.statSync(file).mtime,
     });

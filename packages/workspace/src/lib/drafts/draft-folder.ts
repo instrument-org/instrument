@@ -164,6 +164,7 @@ async function readDraftFile(file: string): Promise<DraftFile | undefined> {
 function readDraftFileSync(file: string): DraftFile | undefined {
   try {
     const newId = ulid();
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: only readDraftsSync reads here, for rewrite-stored-paths.ts, before the workspace opens.
     const draft = parseDraftFile(fs.readFileSync(file, "utf8"), {
       at: fs.statSync(file).mtime,
       newId,
@@ -262,6 +263,7 @@ export function writeDraftFile(file: string, draft: DraftFile): void {
 function withOthersKept(file: string, draft: DraftFile): DraftFile {
   let text: string;
   try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: the draft store's apply writes through here, and a quit runs no promise to its end. The file is the one the store last read or wrote.
     text = fs.readFileSync(file, "utf8");
   } catch {
     return draft;
@@ -301,6 +303,7 @@ export function ownsDraftFolder(dir: string, id: string): boolean {
     const file = path.join(dir, name);
     try {
       return (
+        // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: read only in a folder with more than one DRAFT*.md (ownsDraftFolder, pastedIntoOthers).
         parseDraftFile(fs.readFileSync(file, "utf8"), {
           at: fs.statSync(file).mtime,
         })?.id === id

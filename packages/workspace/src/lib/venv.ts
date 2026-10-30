@@ -179,6 +179,7 @@ export function hasUsableVenv(venv: AbsolutePath) {
   // The Python the venv was made from, gone once the managed Python is
   // removed or kept somewhere else. Without it the venv runs nothing, even
   // where its own `python.exe` is still there (Windows).
+  // oxlint-disable-next-line studio/no-sync-content-read -- the main thread reads a venv in the runtime folder, or one the bash worker read just before asking it to make the venv.
   const home = /^home\s*=\s*(.+)$/m.exec(readFileSync(config, "utf8"))?.[1];
   return home === undefined || existsSync(home.trim());
 }

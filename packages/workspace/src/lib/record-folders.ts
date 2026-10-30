@@ -427,6 +427,7 @@ async function readOrNone(
   }
 }
 
+/* oxlint-disable studio/no-sync-content-read -- synchronous on purpose: discover runs under resolveChat, which is synchronous, and passes over a log kept by name only. */
 /** `readOrNone` passing over a file kept by name only, synchronously. */
 function readNow(
   file: string,
@@ -452,6 +453,7 @@ function readNow(
     }
   }
 }
+/* oxlint-enable studio/no-sync-content-read */
 
 /** The session a chat's `settings.json` names, from builds before its records did. */
 function sessionNamedIn(text: string | undefined): StoreId.Session | undefined {

@@ -309,6 +309,7 @@ export function insertActivity(entry: ActivityEntry): void {
   try {
     const file = activityFileOf(rootDir, deviceId, row.startedAt);
     fs.mkdirSync(path.dirname(file), { recursive: true });
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: an async append needs a queue and a flush the quit waits for, and this device's own file, appended on every request, is rarely evicted.
     fs.appendFileSync(file, lineOf(row));
     db.prepare(INSERT_ROW).run(...KEYS.map((key) => row[key]));
   } catch (error) {

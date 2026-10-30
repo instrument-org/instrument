@@ -126,6 +126,7 @@ export function pythonEnvironmentOf(
   }
   let lockfile: string;
   try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- TODO(async-workspace-files): load_skill reaches this on the main thread, and a workspace skill's uv.lock is in the synced Skills/ folder.
     lockfile = readFileSync(path.join(skillDir, PYTHON_LOCKFILE), "utf8");
   } catch {
     return undefined;

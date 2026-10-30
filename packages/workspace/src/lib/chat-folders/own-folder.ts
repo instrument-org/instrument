@@ -30,6 +30,7 @@ const READS_AT_ONCE = 8;
 
 /** Each chat's folder name as this computer last recorded it, by chat id. */
 export function chatFolderNames(machineDir: string): Map<string, string> {
+  // oxlint-disable-next-line studio/no-sync-content-read -- the names file is in the machine folder, on local disk.
   const read = readJsonRecordSync(namesFile(machineDir));
   if (read.kind !== "read") {
     return new Map();
@@ -189,6 +190,7 @@ export function chatLinkedInFolder(folder: string): ChatId | undefined {
   return chatLinkedInFileSync(path.join(folder, CHAT_FILE_NAME));
 }
 
+/* oxlint-disable studio/no-sync-content-read -- synchronous on purpose: the shell's layout is synchronous, and this passes over a CHAT.md kept by name only. */
 /**
  * Nothing for a file a cloud service keeps by name only, which is left
  * unread. A file this passes over by mistake is read by
@@ -212,6 +214,7 @@ function chatLinkedInFileSync(file: string): ChatId | undefined {
     }
   }
 }
+/* oxlint-enable studio/no-sync-content-read */
 
 async function chatLinkedInFile(file: string): Promise<ChatId | undefined> {
   let handle: fs.promises.FileHandle | undefined;

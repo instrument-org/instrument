@@ -156,6 +156,7 @@ export function removeSentFromDraft(sent: SentFromDraft): string[] {
 /** Whether the file at `target` holds exactly `bytes`. */
 function sameAs(target: string, bytes: Buffer): boolean {
   try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- TODO(async-workspace-files): reads a file in the draft's synced folder on the main thread at send, though only one the size of a pasted item.
     return fs.readFileSync(target).equals(bytes);
   } catch {
     return false;

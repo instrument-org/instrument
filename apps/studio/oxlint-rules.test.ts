@@ -87,3 +87,48 @@ new RuleTester({
     `if (event.metaKey && event.ctrlKey) {}`,
   ],
 });
+
+const syncReadRule = plugin.rules["no-sync-content-read"];
+if (!syncReadRule) {
+  throw new Error("The plugin has no studio/no-sync-content-read rule");
+}
+
+/** A line that reads a file's contents synchronously through `name`. */
+const readsSync = (code: string, name: string) => ({
+  code,
+  errors: [{ data: { name }, messageId: "syncContentRead" }],
+});
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "ts" } },
+}).run("no-sync-content-read", syncReadRule, {
+  invalid: [
+    readsSync(`fs.readFileSync(file, "utf8");`, "readFileSync"),
+    readsSync(
+      `import { readFileSync } from "node:fs"; readFileSync(file);`,
+      "readFileSync",
+    ),
+    readsSync(
+      `import { readFileSync as read } from "fs"; read(file);`,
+      "readFileSync",
+    ),
+    readsSync(`fs.appendFileSync(file, line);`, "appendFileSync"),
+    readsSync(`fs.readSync(fd, buffer, 0, 8, 0);`, "readSync"),
+    readsSync(`fs.openSync(file, "r");`, "openSync"),
+    readsSync(`fs.openSync(file);`, "openSync"),
+    readsSync(`fs.openSync(file, flags);`, "openSync"),
+    readsSync(`readJsonRecordSync(file);`, "readJsonRecordSync"),
+    readsSync(`updateJsonRecordSync(file, change);`, "updateJsonRecordSync"),
+  ],
+  valid: [
+    `fs.statSync(file);`,
+    `fs.readdirSync(dir);`,
+    `fs.existsSync(file);`,
+    `fs.realpathSync(file);`,
+    `fs.lstatSync(file);`,
+    `fs.writeFileSync(file, text);`,
+    `fs.openSync(file, "w");`,
+    `await fs.promises.readFile(file, "utf8");`,
+    `import { readFile } from "node:fs/promises"; await readFile(file);`,
+  ],
+});

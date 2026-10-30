@@ -42,9 +42,12 @@ export function planPage(
   };
 }
 
-/** A beta by its line and number, as the notes speak of it; any other build by its version. */
+/**
+ * A beta by its full version and number, so a beta of 2.0.1 never reads as
+ * one of 2.0.0; any other build by its version.
+ */
 export function versionLabel(version: string) {
-  const beta = /^(?<line>\d+\.\d+)\.\d+-beta\.(?<n>\d+)$/.exec(version)?.groups;
+  const beta = /^(?<line>\d+\.\d+\.\d+)-beta\.(?<n>\d+)$/.exec(version)?.groups;
   return beta?.line && beta.n
     ? `${beta.line} beta ${beta.n}`
     : `Version ${version}`;

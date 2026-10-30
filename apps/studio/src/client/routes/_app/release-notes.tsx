@@ -161,7 +161,7 @@ function Entry({
   yours?: boolean;
 }) {
   return (
-    <section className="grid gap-x-6 gap-y-2 pb-10 @xl/app-content:grid-cols-[8.5rem_1fr]">
+    <section className="grid gap-x-6 gap-y-2 pb-10 @xl/app-content:grid-cols-[9.5rem_1fr]">
       <div className="flex flex-wrap items-baseline gap-x-2 @xl/app-content:flex-col @xl/app-content:items-start">
         <h2 className="text-sm font-semibold">
           {versionLabel(release.version)}
@@ -188,7 +188,7 @@ function FoldedEntry({ release }: { release: Release }) {
   }
   return (
     <button
-      className="-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[1fr_auto] items-baseline gap-6 rounded-lg px-3 py-2.5 text-left hover:bg-foreground/4 @xl/app-content:grid-cols-[8.5rem_1fr_auto]"
+      className="-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[1fr_auto] items-baseline gap-6 rounded-lg px-3 py-2.5 text-left hover:bg-foreground/4 @xl/app-content:grid-cols-[9.5rem_1fr_auto]"
       onClick={() => {
         setOpen(true);
       }}
@@ -298,7 +298,7 @@ function CheckForUpdates() {
 function LoadingEntries() {
   return Array.from({ length: 2 }).map((_, i) => (
     <div
-      className="grid gap-6 pb-10 @xl/app-content:grid-cols-[8.5rem_1fr]"
+      className="grid gap-6 pb-10 @xl/app-content:grid-cols-[9.5rem_1fr]"
       key={i}
     >
       <div className="space-y-2">

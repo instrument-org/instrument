@@ -113,7 +113,8 @@ describe("planPage", () => {
 
 describe("versionLabel", () => {
   it.each([
-    ["2.0.0-beta.115", "2.0 beta 115"],
+    ["2.0.0-beta.115", "2.0.0 beta 115"],
+    ["2.0.1-beta.0", "2.0.1 beta 0"],
     ["1.6.15", "Version 1.6.15"],
   ])("%s reads as %s", (version, label) => {
     expect(versionLabel(version)).toBe(label);

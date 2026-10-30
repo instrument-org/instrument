@@ -70,7 +70,10 @@ function checkLinks(): void {
   // Evergreen docs and indexes name repo paths in code spans too; history may
   // name a file since deleted, so only these are held to it.
   for (const file of markdown.filter(
-    (f) => f.startsWith("docs/architecture/") || f.endsWith("README.md"),
+    (f) =>
+      f.startsWith("docs/architecture/") ||
+      f.startsWith("docs/principles/") ||
+      f.endsWith("README.md"),
   )) {
     const text = readFileSync(file, "utf8");
     for (const match of text.matchAll(
@@ -85,7 +88,7 @@ function checkLinks(): void {
   for (const file of code) {
     const text = readFileSync(file, "utf8");
     for (const match of text.matchAll(
-      /\bdocs\/(?:architecture|decisions|findings|follow-ups|plans|reviews|changes)\/[\w./-]+\.md\b/g,
+      /\bdocs\/(?:architecture|principles|decisions|findings|follow-ups|plans|reviews|changes)\/[\w./-]+\.md\b/g,
     )) {
       if (!existsSync(match[0]))
         problems.push(`${file}: cites ${match[0]}, which does not exist`);
@@ -205,11 +208,14 @@ function checkIndexes(write: boolean): void {
     if (write) writeFileSync(readme, next);
     else problems.push(`${readme}: index is out of date; run \`pnpm fix\``);
   }
-  // Architecture's index is written by hand, for its descriptions.
-  const architecture = readFileSync("docs/architecture/README.md", "utf8");
-  for (const doc of docsIn("docs/architecture")) {
-    if (!architecture.includes(`(${doc.name})`))
-      problems.push(`docs/architecture/README.md: does not list ${doc.name}`);
+  // Architecture's and principles' indexes are written by hand, for their
+  // descriptions.
+  for (const dir of ["docs/architecture", "docs/principles"]) {
+    const index = readFileSync(`${dir}/README.md`, "utf8");
+    for (const doc of docsIn(dir)) {
+      if (!index.includes(`(${doc.name})`))
+        problems.push(`${dir}/README.md: does not list ${doc.name}`);
+    }
   }
 }
 

@@ -26,7 +26,7 @@ The distinction that matters most: **architecture is corrected, decisions and ch
 - A `Status:` line is the first thing a reader checks and the first thing to go stale. When work lands, update the plan or finding that describes it in the same change.
 - Prefer specifics over labels: "phases 1-3 landed, phase 4 not started" beats "in progress".
 - Link code paths so a doc stays tied to the source. `pnpm check:docs` (in `check-and-test`, CI and `scripts/land.sh`) fails on a link that goes nowhere, a path an architecture doc or index names that no longer exists, and code citing a doc that is gone, so a rename fixes the docs it breaks in the same change.
-- The indexes of `plans/`, `findings/`, `decisions/` and `follow-ups/` are generated from each file's title and status line by `pnpm fix`; never edit them by hand. `architecture/`'s index is written by hand for its descriptions, and the check fails when a file is missing from it.
+- The indexes of `plans/`, `findings/`, `decisions/` and `follow-ups/` are generated from each file's title and status line by `pnpm fix`; never edit them by hand. The indexes of `architecture/` and `principles/` are written by hand for their descriptions, and the check fails when a file is missing from one.
 - Leave out anything tied to one machine, person, or moment: local paths, sibling checkout names, branch names, in-flight PR state.
 
 ## Naming third parties, and describing our own browser

@@ -23,3 +23,4 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | [Give the agent the truth, not clever affordances](give-the-agent-the-truth.md) | Real paths, real records, raw formats over helpers |
 | [Built for regular people](built-for-regular-people.md) | The person works above the technical details |
 | [Permissions are folders and apps](permissions-are-folders-and-apps.md) | Two kinds of grant, nothing finer, and never Full Disk Access |
+| [Describe the world, don't ban the behavior](describe-the-world-not-ban-the-behavior.md) | Steer the agent with what is true, not with prohibitions |

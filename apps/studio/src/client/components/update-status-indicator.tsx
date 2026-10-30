@@ -420,12 +420,6 @@ function notesQuery(version: string | undefined) {
   });
 }
 
-/**
- * What the staged build changes, over the Update pill. Clicking the pill still
- * installs straight away; the card only lets someone see what they are about
- * to get first. The notes are fetched as soon as the pill shows, so the card
- * opens with them.
- */
 function toastInstallFailure(cause: unknown) {
   // Settings' update section holds the retry and manual-download recourse.
   toast.error("Couldn't install the update", {
@@ -440,6 +434,12 @@ function toastInstallFailure(cause: unknown) {
   });
 }
 
+/**
+ * What the staged build changes, over the Update pill. Clicking the pill still
+ * installs straight away; the card only lets someone see what they are about
+ * to get first. The notes are fetched as soon as the pill shows, so the card
+ * opens with them.
+ */
 function UpdateReadyCard({
   children,
   onRestart,
@@ -450,9 +450,31 @@ function UpdateReadyCard({
   version: string | undefined;
 }) {
   useQuery(notesQuery(version));
+  const [open, setOpen] = useState(false);
+  // A press on the pill is the restart, so the card stays shut from then on
+  // until the pointer leaves: opening as the hover delay ran out, or staying
+  // open, it would flash up and vanish as the pill turns to Restarting.
+  const [pressed, setPressed] = useState(false);
   return (
-    <HoverCard closeDelay={150} openDelay={300}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
+    <HoverCard
+      closeDelay={150}
+      onOpenChange={(next) => {
+        setOpen(next && !pressed);
+      }}
+      open={open && !pressed}
+      openDelay={300}
+    >
+      <HoverCardTrigger
+        asChild
+        onPointerDown={() => {
+          setPressed(true);
+        }}
+        onPointerLeave={() => {
+          setPressed(false);
+        }}
+      >
+        {children}
+      </HoverCardTrigger>
       <HoverCardContent align="end" className="w-85 p-4">
         <UpdateReadyCardBody onRestart={onRestart} version={version} />
       </HoverCardContent>

@@ -3,7 +3,6 @@ import {
   useFolderPick,
 } from "@/client/components/instrument-folder";
 import {
-  type Destination,
   destinationStep,
   type MoveRefusal,
   suggestedDestination,
@@ -17,11 +16,12 @@ import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useReducer, useState } from "react";
 
 import { FolderLocation, FolderNote } from "../kit/folder-row";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { SetupPageSwitch } from "../kit/setup-page-switch";
+import { folderFlowStep, initialFolderFlow } from "../folder-flow";
 import { PackedFolder } from "../folder-illustration";
 import { type SetupStepProps } from "../step-props";
 import { useSetupState } from "../use-setup-state";
@@ -30,9 +30,6 @@ import { LostFolderPage } from "./lost-folder";
 
 /** How long the page saying the app restarts shows before the restart. */
 const RESTART_NOTICE_MS = 3000;
-
-/** A note under the folder, for what Continue ran into. */
-type Note = { kind: "denied" } | { kind: "unfinished" };
 
 /**
  * Where the Instrument folder lives (frames 05 to 09). A new folder in
@@ -66,24 +63,15 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   const { data: offered } = useQuery(
     rpcClient.workspaces.offered.queryOptions(),
   );
-  const [picked, setPicked] = useState<Destination | null>(null);
-  const [note, setNote] = useState<Note | null>(null);
+  const [flow, dispatch] = useReducer(
+    folderFlowStep,
+    isFirst,
+    initialFolderFlow,
+  );
+  const { lostPast, note, page, picked, triedOpen } = flow;
   const [busy, setBusy] = useState(false);
-  // What Continue is doing to the folder while it is made, or while the app
-  // restarts for it.
-  const [moving, setMoving] = useState<"move" | "open" | null>(null);
-  // A first launch opens on Welcome, and Get started brings the folder.
-  const [started, setStarted] = useState(!isFirst);
-  // Past the page saying why a lost folder couldn't be opened: picking where
-  // it is now or another folder, or starting over in a new one.
-  const [lostPast, setLostPast] = useState<"found" | "new" | null>(null);
-  // A lost folder's page opened it once already, so showing the page again
-  // after that failed waits for Continue.
-  const [triedOpen, setTriedOpen] = useState(false);
   const pick = useFolderPick((destination) => {
-    setPicked(destination);
-    setNote(null);
-    setLostPast((past) => past ?? "found");
+    dispatch({ destination, lost: lostFolder !== null, type: "picked" });
   });
 
   // On a first launch on a Mac, the folder suggested in Documents is looked
@@ -111,9 +99,9 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     path: string,
     reason: MoveRefusal,
   ) => {
-    setMoving(null);
+    dispatch({ type: "moveEnded" });
     if (reason === "unfinished") {
-      setNote({ kind: "unfinished" });
+      dispatch({ note: "unfinished", type: "noted" });
     } else if (
       (reason === "unwritable" || reason === "missing") &&
       path === current.inDocuments
@@ -123,8 +111,11 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       const home = await rpcClient.workspaces.checkPick.call({
         path: folderOf(current.inHome),
       });
-      setPicked(home.folder);
-      setNote(reason === "unwritable" ? { kind: "denied" } : null);
+      dispatch({
+        note: reason === "unwritable" ? "denied" : null,
+        picked: home.folder,
+        type: "fellBack",
+      });
     } else {
       showRefusal(reason, { current: undefined, path });
     }
@@ -140,7 +131,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     how: { create: boolean; type: "move" } | { type: "open" },
   ) => {
     hold();
-    setMoving(how.type);
+    dispatch({ how: how.type, type: "moving" });
     try {
       const placed = await rpcClient.workspaces.place.call({
         create: how.type === "move" && how.create,
@@ -164,7 +155,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t set up your folder`, { cause: error });
     }
-    setMoving(null);
+    dispatch({ type: "moveEnded" });
   };
 
   /** Moves into `path` (or opens it), restarting the app. */
@@ -178,7 +169,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       return;
     }
     hold();
-    setMoving(how.type);
+    dispatch({ how: how.type, type: "moving" });
     // The restart is said long enough to read before it happens.
     await new Promise((resolve) => {
       window.setTimeout(resolve, RESTART_NOTICE_MS);
@@ -211,7 +202,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t move your folder`, { cause: error });
     }
-    setMoving(null);
+    dispatch({ type: "moveEnded" });
   };
 
   /**
@@ -242,7 +233,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         return;
       }
       if (seen === undefined && step.type === "open") {
-        setPicked(destination);
+        dispatch({ destination, type: "suggestionSeen" });
         return;
       }
       if (seen === undefined && destination.contents === "files") {
@@ -264,18 +255,18 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     destinationStep(shown, { opens: true }).type === "open";
   return (
     <SetupPageSwitch
-      depth={!started ? 0 : moving === null ? 1 : 2}
-      page={!started ? "welcome" : moving === null ? "folder" : "moving"}
+      depth={page.kind === "welcome" ? 0 : page.kind === "choose" ? 1 : 2}
+      page={page.kind === "choose" ? "folder" : page.kind}
       sharedHero={["welcome", "folder"]}
     >
-      {!started ? (
+      {page.kind === "welcome" ? (
         <WelcomePage
           onStart={() => {
-            setStarted(true);
+            dispatch({ type: "start" });
           }}
         />
-      ) : moving !== null ? (
-        <MovingPage how={moving} hasChats={hasChats} restarts={!isUnplaced} />
+      ) : page.kind === "moving" ? (
+        <MovingPage how={page.how} hasChats={hasChats} restarts={!isUnplaced} />
       ) : lostFolder !== null && lostPast === null && offered ? (
         <>
           <LostFolderPage
@@ -285,11 +276,11 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
               void pick.choose(folderOf(lostFolder.path));
             }}
             onOpen={() => {
-              setTriedOpen(true);
+              dispatch({ type: "openedLost" });
               return place(offered, lostFolder.path, { type: "open" });
             }}
             onStartOver={() => {
-              setLostPast("new");
+              dispatch({ type: "startOver" });
             }}
           />
           {pick.dialog}
@@ -303,13 +294,11 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
               onBack={
                 isFirst
                   ? () => {
-                      setStarted(false);
+                      dispatch({ type: "backToWelcome" });
                     }
                   : lostPast !== null
                     ? () => {
-                        setLostPast(null);
-                        setPicked(null);
-                        setNote(null);
+                        dispatch({ type: "backToLost" });
                       }
                     : onBack
               }
@@ -343,7 +332,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
               }
               path={target}
             >
-              {note?.kind === "denied" && (
+              {note === "denied" && (
                 <FolderNote
                   action={{
                     label: "Fix",
@@ -357,7 +346,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
                   title={`${APP_NAME} was denied access to your Documents folder.`}
                 />
               )}
-              {note?.kind === "unfinished" && (
+              {note === "unfinished" && (
                 <FolderNote
                   action={{
                     label: "Keep it where it is for now",

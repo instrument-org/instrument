@@ -60,7 +60,7 @@ const RECENT_EVENT_COUNT = 8;
 const DISTINCT_EVENT_CAP = 32;
 
 /** What one attempt's stream carried, by event type only. */
-export interface StreamEvents {
+interface StreamEvents {
   /** Every distinct event type, in the order each first arrived. */
   eventTypes: string[];
   /** The last few event types, oldest first. */

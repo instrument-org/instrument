@@ -175,6 +175,29 @@ const EVENTS: [string, SettledStep, FilesIntent][] = [
     },
   ],
   ["close the file", BESIDE, { type: "closeFile" }],
+  [
+    "the file open beside the folder renamed",
+    { ...BESIDE, select: "Documents/report.pdf" },
+    {
+      from: "Documents/report.pdf",
+      host: {
+        from: "/Users/sam/Documents/report.pdf",
+        to: "/Users/sam/Documents/final.pdf",
+      },
+      to: "Documents/final.pdf",
+      type: "rename",
+    },
+  ],
+  [
+    "the folder of the file open beside it renamed",
+    BESIDE,
+    {
+      from: "Documents/",
+      host: { from: "/Users/sam/Documents", to: "/Users/sam/Papers" },
+      to: "Papers/",
+      type: "rename",
+    },
+  ],
 ];
 
 describe("the step a change leads to", () => {
@@ -215,6 +238,8 @@ describe("the step a change leads to", () => {
         "a link to a file: push file=/Users/sam/Documents/notes.md path=Documents/ root=~ tree=/Users/sam/Documents view=table",
         "another file picked beside the folder: replace file=/Users/sam/Documents/notes.md path=Documents/ root=~ select=Documents/notes.md tree=/Users/sam/Documents view=table",
         "close the file: push path=Documents/ root=~ view=table",
+        "the file open beside the folder renamed: replace file=/Users/sam/Documents/final.pdf path=Documents/ root=~ select=Documents/final.pdf tree=/Users/sam/Documents view=table",
+        "the folder of the file open beside it renamed: replace file=/Users/sam/Papers/report.pdf path=Documents/ root=~ tree=/Users/sam/Papers view=table",
       ]
     `);
   });

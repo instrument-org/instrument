@@ -723,8 +723,12 @@ export function ComputerPage({
     if (!hostPath) {
       throw new Error("Nothing on this computer to rename");
     }
+    let renamed: string;
     try {
-      await rpcClient.files.rename.call({ name, path: hostPath });
+      ({ path: renamed } = await rpcClient.files.rename.call({
+        name,
+        path: hostPath,
+      }));
     } catch (error) {
       fileActionFailed(`Couldn't rename “${item.name ?? item.path}”`, error);
       throw error;
@@ -733,7 +737,12 @@ export function ComputerPage({
     // sits in stays open rather than closing under a selection that has gone;
     // a press elsewhere that put the name field away chose something else,
     // which the step has by the time the rename is written.
-    go({ from: item.path, to: siblingPath(item.path, name), type: "rename" });
+    go({
+      from: item.path,
+      host: { from: hostPath, to: renamed },
+      to: siblingPath(item.path, name),
+      type: "rename",
+    });
     reread();
   };
   const duplicate = async (picked: FileSystemItem[]) => {

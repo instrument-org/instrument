@@ -1,6 +1,6 @@
 import type { FileSystemView } from "@/client/components/extend/file-system";
 
-import { relativeHostPath } from "./host-path";
+import { isInside, relativeHostPath } from "./host-path";
 
 /**
  * One step of a Files tab's history, as its `/files` address holds it: where
@@ -100,8 +100,16 @@ export type FilesIntent =
   /**
    * Something renamed where it sits: the selection follows it to its new
    * name if it is still on it, and stays wherever a press moved it if not.
+   * `host` is where it is on the computer, before and after, so a file open
+   * beside the folder, or inside a folder renamed, stays open under its new
+   * path.
    */
-  | { from: string; to: string; type: "rename" }
+  | {
+      from: string;
+      host?: { from: string; to: string };
+      to: string;
+      type: "rename";
+    }
   | { query: string; type: "search" }
   | { type: "setLayout"; view: FileSystemView }
   /**
@@ -232,11 +240,22 @@ function applied(
         next.path !== step.path && intent.path !== null ? "push" : "replace",
       ];
     }
-    case "rename":
+    case "rename": {
+      const next =
+        step.select === intent.from ? selecting(step, intent.to) : step;
+      const { host } = intent;
+      if (!host) {
+        return [next, "replace"];
+      }
+      const moved = (hostPath: string | undefined) =>
+        hostPath !== undefined && isInside(hostPath, host.from)
+          ? host.to + hostPath.slice(host.from.replace(/[/\\]$/, "").length)
+          : hostPath;
       return [
-        step.select === intent.from ? selecting(step, intent.to) : step,
+        { ...next, file: moved(step.file), tree: moved(step.tree) },
         "replace",
       ];
+    }
     case "search":
       return [{ ...step, query: intent.query || undefined }, "replace"];
     case "setLayout": {

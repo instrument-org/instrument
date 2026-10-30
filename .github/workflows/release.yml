@@ -335,13 +335,22 @@ jobs:
       # installer is there fails the download.
       - name: Upload release artifacts to S3
         run: |
-          aws s3 sync artifacts/ s3://instrument-releases/ \
-            --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
-            --no-progress \
-            --exclude "*.png" \
-            --exclude "sourcemaps-*" \
-            --exclude "*.yml" \
-            --exclude "velopack/*.json"
+          # R2 now and then refuses one multipart upload with InvalidPart.
+          # A sync uploads only what is missing, so running it again retries
+          # just that file. The feeds below go up only once every file has.
+          for attempt in 1 2 3; do
+            aws s3 sync artifacts/ s3://instrument-releases/ \
+              --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
+              --no-progress \
+              --exclude "*.png" \
+              --exclude "sourcemaps-*" \
+              --exclude "*.yml" \
+              --exclude "velopack/*.json" && break
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+            echo "Upload attempt $attempt failed; syncing again."
+          done
           aws s3 sync artifacts/ s3://instrument-releases/ \
             --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
             --no-progress \

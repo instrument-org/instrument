@@ -27,3 +27,4 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | [Give the agent a knob, not a proxy](give-the-agent-a-knob.md) | One plain default plus an agent-facing control |
 | [Load-bearing behavior lives in the harness](load-bearing-behavior-lives-in-the-harness.md) | Fix what the product depends on in code, not in the prompt |
 | [The agent's context only grows forward](context-only-grows-forward.md) | Append what changed, never rewrite what the agent was told |
+| [Trust the person and their agent; defend real threats](trust-the-person-and-their-agent.md) | Protect what matters, not vectors that only exist in theory |

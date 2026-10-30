@@ -20,27 +20,22 @@ import {
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
-import {
-  MenubarItem,
-  MenubarSeparator,
-  MenubarSub,
-  MenubarSubContent,
-  MenubarSubTrigger,
-} from "@/client/components/ui/menubar";
 import { Spinner } from "@/client/components/ui/spinner";
+import { SettingsSection } from "@/client/components/settings/general-section";
+import { settingAnchor } from "@/client/components/settings/settings-index";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { WORKSPACE_COLOR_HEX } from "@/client/components/window/app-identity-chip";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
-import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 /**
- * The dev panel's workspaces: switch between them, make a new one, and clear
- * out old ones. A tool for testing sign-in scenarios side by side, so it is
- * plain rows rather than anything designed.
+ * Storage's workspaces, in developer mode: switch between them, make a new
+ * one, and clear out old ones. A tool for testing sign-in scenarios side by
+ * side, so it is plain rows rather than anything designed.
  */
 
 type WorkspaceColor = RPCOutput["workspaces"]["current"]["color"];
@@ -48,21 +43,18 @@ type WorkspaceRow = RPCOutput["workspaces"]["list"]["workspaces"][number];
 
 const COLORS = Object.keys(WORKSPACE_COLOR_HEX) as WorkspaceColor[];
 
-export function ManageWorkspacesDialog({
-  onOpenChange,
-  open,
-}: {
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-}) {
+export function StorageWorkspaces() {
+  const isDeveloperMode = useDeveloperMode();
   const queryClient = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [switchTarget, setSwitchTarget] = useState<null | SwitchTarget>(null);
   const { data } = useQuery({
     ...rpcClient.workspaces.list.queryOptions(),
-    enabled: open,
+    enabled: isDeveloperMode,
   });
   const { data: sizes } = useQuery({
     ...rpcClient.workspaces.sizes.queryOptions(),
-    enabled: open,
+    enabled: isDeveloperMode,
   });
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: rpcClient.workspaces.key() });
@@ -94,89 +86,126 @@ export function ManageWorkspacesDialog({
     }),
   );
 
+  if (!isDeveloperMode) {
+    return null;
+  }
+
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Workspaces</DialogTitle>
-          <DialogDescription>
-            Delete moves a workspace&apos;s .instrument folder to the{" "}
-            {osConventions().trash} and leaves the rest of its folder.
-          </DialogDescription>
-        </DialogHeader>
-        {/* `min-w-0` because the dialog is a grid: without it a long path sets
-            the column's width and pushes the buttons past the edge. */}
-        <ul className="min-w-0 divide-y divide-border">
-          {data?.workspaces.map((row) => (
-            <li className="flex min-w-0 items-center gap-3 py-2" key={row.path}>
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-baseline gap-2 text-sm">
-                  <span className="truncate font-medium">
-                    {row.identity.name}
-                  </span>
-                  {row.isResolved && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      open
+    <section {...settingAnchor("workspaces")}>
+      <SettingsSection developerOnly title="Workspaces">
+        <p className="text-sm text-muted-foreground">
+          Delete moves a workspace&apos;s .instrument folder to the{" "}
+          {osConventions().trash} and leaves the rest of its folder.
+          {data?.pinned === true &&
+            " INSTRUMENT_WORKSPACE pins this one, so switching is off."}
+        </p>
+        <div className="overflow-hidden rounded-lg border border-dashed border-dev-700/40 bg-dev-500/5 dark:border-dev-300/30">
+          <ul className="min-w-0 divide-y divide-dev-700/20 dark:divide-dev-300/15">
+            {data?.workspaces.map((row) => (
+              <li
+                className="flex min-w-0 items-center gap-3 px-3 py-2"
+                key={row.path}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-baseline gap-2 text-sm">
+                    <span className="truncate font-medium">
+                      {row.identity.name}
                     </span>
-                  )}
-                  {!row.isReachable && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      folder not found
-                    </span>
-                  )}
-                  {row.identity.createdBy.kind === "agent" && (
-                    <span className="truncate text-xs text-muted-foreground">
-                      agent: {row.identity.createdBy.purpose}
-                    </span>
-                  )}
+                    {row.isResolved && (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        open
+                      </span>
+                    )}
+                    {!row.isReachable && (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        folder not found
+                      </span>
+                    )}
+                    {row.identity.createdBy.kind === "agent" && (
+                      <span className="truncate text-xs text-muted-foreground">
+                        agent: {row.identity.createdBy.purpose}
+                      </span>
+                    )}
+                  </div>
+                  <div className="truncate font-mono text-[10px] text-muted-foreground">
+                    {[row.id, formatSize(sizes?.[row.path]), lastOpened(row)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                  <div
+                    className="truncate font-mono text-[10px] text-muted-foreground/70"
+                    title={row.path}
+                  >
+                    {row.path}
+                  </div>
                 </div>
-                <div className="truncate font-mono text-[10px] text-muted-foreground">
-                  {[formatSize(sizes?.[row.path]), lastOpened(row)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-                <div
-                  className="truncate font-mono text-[10px] text-muted-foreground/70"
-                  title={row.path}
-                >
-                  {row.path}
-                </div>
-              </div>
-              {!row.isRegistered && (
-                <Button
-                  className="shrink-0"
-                  onClick={() => {
-                    register({ path: row.path });
-                  }}
-                  size="xs"
-                  variant="outline"
-                >
-                  Add back
-                </Button>
-              )}
-              {!row.isDefault && (
-                <Button
-                  className="shrink-0"
-                  disabled={row.deleteBlockedBy !== null}
-                  onClick={() => {
-                    remove({ path: row.path });
-                  }}
-                  size="xs"
-                  title={row.deleteBlockedBy ?? undefined}
-                  variant="destructive"
-                >
-                  Delete
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      </DialogContent>
-    </Dialog>
+                {row.isRegistered && !row.isResolved && (
+                  <Button
+                    className="shrink-0"
+                    disabled={data.pinned || !row.isReachable}
+                    onClick={() => {
+                      setSwitchTarget({ id: row.id, name: row.identity.name });
+                    }}
+                    size="xs"
+                    variant="outline"
+                  >
+                    Switch
+                  </Button>
+                )}
+                {!row.isRegistered && (
+                  <Button
+                    className="shrink-0"
+                    onClick={() => {
+                      register({ path: row.path });
+                    }}
+                    size="xs"
+                    variant="outline"
+                  >
+                    Add back
+                  </Button>
+                )}
+                {!row.isDefault && (
+                  <Button
+                    className="shrink-0"
+                    disabled={row.deleteBlockedBy !== null}
+                    onClick={() => {
+                      remove({ path: row.path });
+                    }}
+                    size="xs"
+                    title={row.deleteBlockedBy ?? undefined}
+                    variant="destructive"
+                  >
+                    Delete
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <Button
+          onClick={() => {
+            setCreating(true);
+          }}
+          size="sm"
+          variant="outline"
+        >
+          New workspace
+        </Button>
+      </SettingsSection>
+      <NewWorkspaceDialog onOpenChange={setCreating} open={creating} />
+      <SwitchWorkspaceDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setSwitchTarget(null);
+          }
+        }}
+        target={switchTarget}
+      />
+    </section>
   );
 }
 
-export function NewWorkspaceDialog({
+function NewWorkspaceDialog({
   onOpenChange,
   open,
 }: {
@@ -331,67 +360,7 @@ export function NewWorkspaceDialog({
   );
 }
 
-/**
- * The dev panel's Workspace submenu. Picking another workspace asks first
- * (`SwitchWorkspaceDialog`), since switching restarts the app.
- */
-export function WorkspaceMenu({
-  onCreate,
-  onManage,
-  onSwitch,
-}: {
-  onCreate: () => void;
-  onManage: () => void;
-  onSwitch: (target: SwitchTarget) => void;
-}) {
-  const { data } = useQuery(rpcClient.workspaces.list.queryOptions());
-  const registered = data?.workspaces.filter((row) => row.isRegistered) ?? [];
-
-  return (
-    <MenubarSub>
-      <MenubarSubTrigger className="font-mono text-xs">
-        Workspace
-      </MenubarSubTrigger>
-      <MenubarSubContent>
-        {registered.map((row) => (
-          <MenubarItem
-            className="font-mono text-xs"
-            disabled={data?.pinned === true && !row.isResolved}
-            key={row.id}
-            onSelect={() => {
-              if (!row.isResolved) {
-                onSwitch({ id: row.id, name: row.identity.name });
-              }
-            }}
-          >
-            {row.identity.name}
-            <CheckIcon
-              className={cn(
-                "ml-auto size-3 shrink-0",
-                row.isResolved ? "opacity-100" : "opacity-0",
-              )}
-              weight="bold"
-            />
-          </MenubarItem>
-        ))}
-        {data?.pinned === true && (
-          <MenubarItem className="font-mono text-[10px]" disabled>
-            Pinned by INSTRUMENT_WORKSPACE
-          </MenubarItem>
-        )}
-        <MenubarSeparator />
-        <MenubarItem className="font-mono text-xs" onSelect={onCreate}>
-          New workspace...
-        </MenubarItem>
-        <MenubarItem className="font-mono text-xs" onSelect={onManage}>
-          Manage workspaces...
-        </MenubarItem>
-      </MenubarSubContent>
-    </MenubarSub>
-  );
-}
-
-export interface SwitchTarget {
+interface SwitchTarget {
   id: string;
   name: string;
 }
@@ -401,7 +370,7 @@ export interface SwitchTarget {
  * with a spinner: the running-agent prompt and the quit teardown come first,
  * seconds in which a closed dialog would read as nothing happening.
  */
-export function SwitchWorkspaceDialog({
+function SwitchWorkspaceDialog({
   onOpenChange,
   target,
 }: {

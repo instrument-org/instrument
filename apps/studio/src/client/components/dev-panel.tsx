@@ -1,13 +1,6 @@
 import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
-import {
-  ManageWorkspacesDialog,
-  NewWorkspaceDialog,
-  SwitchWorkspaceDialog,
-  type SwitchTarget,
-  WorkspaceMenu,
-} from "@/client/components/dev-panel-workspaces";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   Menubar,
@@ -149,11 +142,6 @@ export function DevPanel() {
   const { mutate: runSetupAgain } = useMutation(
     rpcClient.setup.dev.reset.mutationOptions(),
   );
-
-  const [switchTarget, setSwitchTarget] = useState<null | SwitchTarget>(null);
-  const [workspaceDialog, setWorkspaceDialog] = useState<
-    "manage" | "new" | null
-  >(null);
 
   const { mutate: skipSetup } = useMutation(
     rpcClient.setup.finish.mutationOptions(),
@@ -319,15 +307,6 @@ export function DevPanel() {
                 <BugIcon className="size-3" />
                 Debug pages
               </MenubarItem>
-              <WorkspaceMenu
-                onCreate={() => {
-                  setWorkspaceDialog("new");
-                }}
-                onManage={() => {
-                  setWorkspaceDialog("manage");
-                }}
-                onSwitch={setSwitchTarget}
-              />
               <MenubarSub>
                 <MenubarSubTrigger className={itemClassName}>
                   Open
@@ -527,27 +506,6 @@ export function DevPanel() {
           </MenubarMenu>
         </Menubar>
       </div>
-
-      <NewWorkspaceDialog
-        onOpenChange={(open) => {
-          setWorkspaceDialog(open ? "new" : null);
-        }}
-        open={workspaceDialog === "new"}
-      />
-      <SwitchWorkspaceDialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setSwitchTarget(null);
-          }
-        }}
-        target={switchTarget}
-      />
-      <ManageWorkspacesDialog
-        onOpenChange={(open) => {
-          setWorkspaceDialog(open ? "manage" : null);
-        }}
-        open={workspaceDialog === "manage"}
-      />
     </>
   );
 }

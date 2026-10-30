@@ -215,6 +215,13 @@ export const SETTINGS_INDEX = [
     title: "Instrument folder",
   },
   {
+    detail: "Switch between, make, and delete workspaces.",
+    developerOnly: true,
+    id: "workspaces",
+    tab: "Storage",
+    title: "Workspaces",
+  },
+  {
     detail: "Chats in your Instrument folder that can’t be opened",
     id: "broken-folders",
     tab: "Storage",

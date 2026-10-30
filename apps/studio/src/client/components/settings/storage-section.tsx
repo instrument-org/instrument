@@ -1,6 +1,7 @@
 import { copyFolderPath, FolderRow } from "@/client/components/folder-row";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { settingAnchor } from "@/client/components/settings/settings-index";
+import { StorageWorkspaces } from "@/client/components/settings/storage-workspaces";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +54,7 @@ export function StorageSection() {
     <div className="space-y-8">
       <h3 className="text-base font-semibold">Storage</h3>
       <InstrumentFolder />
+      <StorageWorkspaces />
       <UnrecognizedFolders />
     </div>
   );

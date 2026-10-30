@@ -30,6 +30,7 @@ vi.mock("@/client/rpc/client", () => {
             return () => [key];
           case "mutationOptions":
             return () => ({ mutationFn: async () => null });
+          case "experimental_liveOptions":
           case "queryOptions":
             return ({ input }: { input?: unknown } = {}) => ({
               enabled: typeof input !== "symbol",

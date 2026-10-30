@@ -44,6 +44,8 @@ import { createActor } from "xstate";
 
 import { CHATS_FOLDER_NAME } from "../src/constants";
 import { attachChats, workspaceMachine } from "../src/electron";
+import { loadChatIndex } from "../src/lib/record-folders";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { ensureChat } from "../src/lib/chat/chat-records";
 import { renameChat } from "../src/lib/chat/chats";
@@ -356,6 +358,7 @@ async function modelFor(uri: string, workspaceConfig: WorkspaceConfig) {
 async function bootWorkspace(rootDir: string): Promise<WorkspaceConfig> {
   const providerConfigs = buildProviderConfigs();
   const machineDir = path.join(rootDir, EVAL_MACHINE_DIR_NAME);
+  await loadChatIndex(workspaceLayout(rootDir).chatsDir);
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,

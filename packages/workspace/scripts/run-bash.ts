@@ -36,7 +36,11 @@ import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
-import { placeChat, resolveChat } from "../src/lib/record-folders";
+import {
+  loadChatIndex,
+  placeChat,
+  resolveChat,
+} from "../src/lib/record-folders";
 import { prepareBundledSkills } from "../src/lib/prepare-bundled-skills";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import {
@@ -221,6 +225,7 @@ setWorkspaceConfig({
   userDataDir: AbsolutePathSchema.parse(machineDir),
   workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
 });
+await loadChatIndex();
 
 // On this thread unless INSTRUMENT_BASH_WORKER=1 asks for the bash worker.
 if (process.env.INSTRUMENT_BASH_WORKER === "1") {

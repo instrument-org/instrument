@@ -103,6 +103,7 @@ import {
 import {
   chatDir,
   chatOwnFolder,
+  loadChatIndex,
   resolveChat,
   sessionOfChat,
 } from "../src/lib/record-folders";
@@ -831,6 +832,7 @@ export async function runEvals(
   macAppsStandInFor?.refuse(
     _.unique(evals.flatMap((evalCase) => evalCase.macApps?.refused ?? [])),
   );
+  await loadChatIndex(workspaceLayout(workspaceRootDir).chatsDir);
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,

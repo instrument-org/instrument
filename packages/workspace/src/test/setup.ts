@@ -9,6 +9,7 @@ import path from "node:path";
 import { afterAll, beforeAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
+import { readChatIndexOnFirstUse } from "../lib/chat-index-first-use";
 import {
   mxcTestConfig,
   mxcTestDataDir,
@@ -46,6 +47,9 @@ const rejectBrowserTarget = () => {
 // specific paths override it (createMockChatConfig). Keep this setup free of
 // runtime imports from `../types`, which would preload `store-id` before
 // `vi.mock(import("ulid"))` runs in snapshot tests.
+// Each test points the config at chats folders of its own, which no launch
+// has read the chat index of.
+readChatIndexOnFirstUse();
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
   appsDir: AbsolutePathSchema.parse(layout.appsDir),

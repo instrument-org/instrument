@@ -54,7 +54,7 @@ import {
   ensurePythonEnvironment,
 } from "../src/lib/skill-environments";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
-import { placeChat } from "../src/lib/record-folders";
+import { loadChatIndex, placeChat } from "../src/lib/record-folders";
 import { venvPython } from "../src/lib/uv";
 import { workDir } from "../src/lib/work-dir";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
@@ -493,6 +493,7 @@ for (const mode of args.modes) {
     uvBinPath,
   });
   await fs.mkdir(path.join(root, "tasks"), { recursive: true });
+  await loadChatIndex();
 
   process.stdout.write(`\n=== pass: ${mode} ===\n`);
   process.stdout.write(`scratch: ${root}\n`);

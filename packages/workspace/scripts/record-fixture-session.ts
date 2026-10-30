@@ -36,6 +36,7 @@ import { TASKS_DIR_NAME } from "../src/constants";
 import { listChildTasks } from "../src/lib/chat/children";
 import { readPermissionSettings } from "../src/lib/permissions/rules";
 import {
+  loadChatIndex,
   placeChat,
   resolveChat,
   sessionOfChat,
@@ -108,6 +109,7 @@ async function recordTask({
     ...createStubWorkspaceConfig({ tasksDir: path.dirname(chatDir) }),
     chatsDir: AbsolutePathSchema.parse(path.dirname(chatDir)),
   });
+  await loadChatIndex();
   const id = ChatIdSchema.parse(path.basename(chatDir));
   if (resolveChat(id) === undefined) {
     placeChat(id, StoreId.newSessionId());
@@ -248,6 +250,7 @@ async function recordChat({
       tasksDir: AbsolutePathSchema.parse(path.join(rootDir, TASKS_DIR_NAME)),
     }),
   );
+  await loadChatIndex();
   const chatId = ChatIdSchema.parse(path.basename(chatDir));
   const folderPaths = (
     (await readPermissionSettings()).chats[chatId]?.grants ?? []

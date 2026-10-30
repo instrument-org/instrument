@@ -18,6 +18,8 @@ import { createActor } from "xstate";
 
 import { type ChatId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
+import { loadChatIndex } from "../src/lib/record-folders";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { defaultTaskName } from "../src/lib/default-task-name";
 import { claimWorkFolders } from "../src/lib/work-folders";
@@ -111,6 +113,8 @@ assertModelURIConfigured(MODEL_URI);
 const registryDir = env.APP_REGISTRY_DIR_PATH
   ? path.resolve(env.APP_REGISTRY_DIR_PATH)
   : path.resolve("../../registry");
+const rootDir = path.resolve("../../../workspace.local");
+await loadChatIndex(workspaceLayout(rootDir).chatsDir);
 const actor = createActor(workspaceMachine, {
   input: {
     aiGatewayApp,
@@ -130,7 +134,7 @@ const actor = createActor(workspaceMachine, {
     ),
     registryDir,
     // Sibling directory to monorepo to avoid using same pnpm and git
-    rootDir: path.resolve("../../../workspace.local"),
+    rootDir,
     runtimeDir: path.resolve("../../../workspace.local/runtime"),
     userDataDir: path.resolve("../../../workspace.local/machine"),
     workspaceMachineDir: path.resolve("../../../workspace.local/machine"),

@@ -9,7 +9,7 @@ import { sessionsFor } from "../evals/harness";
 import { buildReportWorkspaceConfig } from "../evals/utils";
 import { getChatInfos } from "../src/lib/chat-info";
 import { listChildTasks } from "../src/lib/chat/children";
-import { sessionOfChat } from "../src/lib/record-folders";
+import { loadChatIndex, sessionOfChat } from "../src/lib/record-folders";
 import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/chat/wake-summary";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
@@ -32,6 +32,7 @@ if (!workspaceRootDir) {
 
 const absolute = path.resolve(workspaceRootDir);
 setWorkspaceConfig(buildReportWorkspaceConfig(absolute));
+await loadChatIndex();
 
 const chats = await getChatInfos({
   direction: "asc",

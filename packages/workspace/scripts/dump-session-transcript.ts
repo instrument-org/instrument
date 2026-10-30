@@ -9,7 +9,7 @@ import { TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { ChatReads } from "../src/lib/chat-reads";
 import { chatStartedWithApp } from "../src/lib/chat-info";
-import { chatDir } from "../src/lib/record-folders";
+import { chatDir, loadChatIndex } from "../src/lib/record-folders";
 import {
   ChatRecords,
   installChatRecords,
@@ -56,6 +56,7 @@ const workspaceConfig = createStubWorkspaceConfig({
   tasksDir: path.join(rootDir, TASKS_DIR_NAME),
 });
 setWorkspaceConfig(workspaceConfig);
+await loadChatIndex();
 // Every read of a chat goes through the records a workspace puts in place as
 // it opens; this script opens none, so it puts its own there. It only reads.
 installChatRecords(

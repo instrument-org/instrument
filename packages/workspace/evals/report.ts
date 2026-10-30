@@ -12,6 +12,7 @@ import { chatFolderTheyOpen } from "../src/lib/chat/output-folder";
 import {
   chatDir,
   chatOwnFolder,
+  loadChatIndex,
   resolveChat,
   sessionOfChat,
 } from "../src/lib/record-folders";
@@ -203,6 +204,7 @@ export async function generateReport({
   // so a report generated at the end of a run keeps the machine's own config.
   if (!hasWorkspaceConfig()) {
     setWorkspaceConfig(workspaceConfig);
+    await loadChatIndex();
   }
   // Every read of a chat goes through the records a workspace puts in place
   // as it opens, so a re-report puts its own there the same way. It only

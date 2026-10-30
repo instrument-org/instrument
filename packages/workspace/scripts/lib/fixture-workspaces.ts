@@ -15,7 +15,7 @@ import {
   ChatRecords,
   installChatRecords,
 } from "../../src/lib/records/chat-records";
-import { chatDir, forgetChatFolders } from "../../src/lib/record-folders";
+import { chatDir, loadChatIndex } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { setWorkspaceActorRef } from "../../src/lib/workspace-actor-ref";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
@@ -86,8 +86,8 @@ export async function readWorkspace({
   });
   setWorkspaceConfig(config);
   setWorkspaceActorRef(idleWorkspace);
-  // Chats found in another workspace this process read are not this one's.
-  forgetChatFolders();
+  // In place of the chats of another workspace this process read.
+  await loadChatIndex();
   const records = new ChatRecords({
     app: config.appVersion,
     device: newDeviceId(),

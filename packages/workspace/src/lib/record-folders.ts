@@ -18,18 +18,31 @@ import {
   folderLinkedTo,
   recordChatFolderName,
 } from "./chat-folders/own-folder";
+import { chatIndexReadOnFirstUse } from "./chat-index-first-use";
 import { parseRecordFileName } from "./records/file-names";
 import { TypedError } from "./errors";
+import { recordChanged } from "./record-changes";
 import { getWorkspaceConfig } from "./workspace-config";
+import {
+  keptByNameOnly,
+  NOT_HERE_YET,
+  type NotHereYet,
+  readHead,
+  readText,
+} from "./workspace-files";
 
 /**
  * Where every chat is, for the chats folder it was read from. A chat's folder
  * has a readable name of its own, so which session is its own is read from
- * its records (`chatSessionIn`). The index is read from disk the first time a workspace asks, and
- * kept current by whatever makes or trashes a chat. An id it does not know
- * is looked for on disk where a chat would be before it is called not found,
- * so a folder made behind its back is found; one moved behind its back (the
- * layout migration) calls `forgetChatFolders`. A chat's tasks are sessions
+ * its records (`chatSessionIn`). The index is read from disk once, by
+ * `loadChatIndex`, before anything asks it, so every answer here is from
+ * memory; it is kept current by whatever makes or trashes a chat. An id it
+ * does not know is looked for on disk where a chat would be before it is
+ * called not found, so a folder made behind its back is found; one moved
+ * behind its back (the layout migration) calls `forgetChatFolders`. A folder
+ * whose logs a sync service keeps by name only is read in the background,
+ * waiting for them to download, and its chat added and said changed once
+ * they have (`readWhenHere`). A chat's tasks are sessions
  * in its store, and its work is in its work folder (`workDir`), apart from
  * the record folder named here.
  */
@@ -122,9 +135,51 @@ export function forgetChat(id: ChatId): void {
   }
 }
 
-/** Reads the index from disk again on its next use. */
+/** Drops the index, for `loadChatIndex` to read from disk again. */
 export function forgetChatFolders(): void {
   index = undefined;
+}
+
+/**
+ * Reads the index of the chats in `root`, the config's chats folder unless
+ * one is named, without waiting on a log a sync service keeps by name only:
+ * a folder whose answer needs one is read in the background instead
+ * (`readWhenHere`). Awaited before anything asks the index, which then
+ * answers from memory.
+ */
+export async function loadChatIndex(root: string = chatsDir()): Promise<void> {
+  const known: Index = { chats: new Map(), root, sessions: new Map() };
+  const skipped: string[] = [];
+  const later: string[] = [];
+  const names = await dirsIn(root);
+  const sessions = await Promise.all(
+    names.map((name) =>
+      ChatIdSchema.safeParse(name).success
+        ? sessionIn(path.join(root, name), "pass")
+        : Promise.resolve(undefined),
+    ),
+  );
+  for (const [at, name] of names.entries()) {
+    const folder = path.join(root, name);
+    const id = ChatIdSchema.safeParse(name);
+    const session = sessions[at];
+    if (session === NOT_HERE_YET) {
+      later.push(folder);
+    } else if (!id.success || session === undefined) {
+      skipped.push(name);
+    } else {
+      add(known, id.data, session);
+    }
+  }
+  if (skipped.length > 0) {
+    console.warn(
+      `Skipping chat folders with no session: ${skipped.join(", ")}`,
+    );
+  }
+  index = known;
+  for (const folder of later) {
+    readWhenHere(known, folder);
+  }
 }
 
 /**
@@ -238,24 +293,91 @@ export function chatOfOwnFolder(at: string): ChatId | undefined {
  * named the session before records did, is read for it, and nothing else
  * reads that file.
  */
-export function chatSessionIn(chatFolder: string): StoreId.Session | undefined {
+export async function chatSessionIn(
+  chatFolder: string,
+): Promise<StoreId.Session | undefined> {
+  const session = await sessionIn(chatFolder, "wait");
+  return session === NOT_HERE_YET ? undefined : session;
+}
+
+/**
+ * `chatSessionIn`, passing over a file a sync service keeps by name only
+ * where `evicted` is `"pass"`: not here yet when the answer needs one.
+ */
+async function sessionIn(
+  chatFolder: string,
+  evicted: "pass" | "wait",
+): Promise<NotHereYet | StoreId.Session | undefined> {
+  const logs = logsBySession(await filesIn(chatFolder));
+  if (logs.length === 0) {
+    const text = await readOrNone(
+      path.join(chatFolder, SETTINGS_FILE_NAME),
+      evicted,
+    );
+    return text === NOT_HERE_YET ? text : sessionNamedIn(text);
+  }
+  for (const [session, names] of logs) {
+    let missing = false;
+    for (const name of names) {
+      const head = await readOrNone(
+        path.join(chatFolder, name),
+        evicted,
+        HEADER_BYTES,
+      );
+      if (head === NOT_HERE_YET) {
+        missing = true;
+      } else if (isRootHeader(firstLine(head))) {
+        return session;
+      }
+    }
+    // An older session than any read after it may be the chat's own.
+    if (missing) {
+      return NOT_HERE_YET;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * `sessionIn` passing over a file a sync service keeps by name only, for
+ * the synchronous `discover`: such a file is told by its metadata, and one
+ * on disk is read from local disk.
+ */
+function sessionInNow(
+  chatFolder: string,
+): NotHereYet | StoreId.Session | undefined {
+  const logs = logsBySession(listFiles(chatFolder));
+  if (logs.length === 0) {
+    const text = readNow(path.join(chatFolder, SETTINGS_FILE_NAME));
+    return text === NOT_HERE_YET ? text : sessionNamedIn(text);
+  }
+  for (const [session, names] of logs) {
+    let missing = false;
+    for (const name of names) {
+      const head = readNow(path.join(chatFolder, name), HEADER_BYTES);
+      if (head === NOT_HERE_YET) {
+        missing = true;
+      } else if (isRootHeader(firstLine(head))) {
+        return session;
+      }
+    }
+    if (missing) {
+      return NOT_HERE_YET;
+    }
+  }
+  return undefined;
+}
+
+/** Each session's logs in a chat's folder, oldest session first. */
+function logsBySession(files: string[]): [StoreId.Session, string[]][] {
   const logs = new Map<StoreId.Session, string[]>();
-  for (const name of listFiles(chatFolder).toSorted()) {
+  for (const name of files.toSorted()) {
     const parsed = parseRecordFileName(name);
     if (parsed?.kind === "log" && parsed.copy === undefined) {
       logs.set(parsed.session, [...(logs.get(parsed.session) ?? []), name]);
     }
   }
-  if (logs.size === 0) {
-    return sessionInSettingsFile(chatFolder);
-  }
-  return [...logs.keys()]
-    .toSorted()
-    .find((session) =>
-      (logs.get(session) ?? []).some((name) =>
-        isRootHeader(firstLineOf(path.join(chatFolder, name))),
-      ),
-    );
+  return [...logs].toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
@@ -280,16 +402,52 @@ function isRootHeader(line: string | undefined): boolean {
   }
 }
 
-/** The first whole line of a file. */
-function firstLineOf(file: string): string | undefined {
+/** The first whole line of a file's text. */
+function firstLine(text: string | undefined): string | undefined {
+  const end = text?.indexOf("\n") ?? -1;
+  return end === -1 ? undefined : text?.slice(0, end);
+}
+
+/**
+ * Up to `bytes` of a file, or the whole of it, as text; none for one that
+ * cannot be read.
+ */
+async function readOrNone(
+  file: string,
+  evicted: "pass" | "wait",
+  bytes?: number,
+): Promise<NotHereYet | string | undefined> {
+  try {
+    if (evicted === "pass") {
+      return bytes === undefined
+        ? await readText(file, { evicted })
+        : await readHead(file, bytes, { evicted });
+    }
+    return bytes === undefined
+      ? await readText(file)
+      : await readHead(file, bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+/** `readOrNone` passing over a file kept by name only, synchronously. */
+function readNow(
+  file: string,
+  bytes?: number,
+): NotHereYet | string | undefined {
   let handle: number | undefined;
   try {
+    if (keptByNameOnly(fs.statSync(file))) {
+      return NOT_HERE_YET;
+    }
+    if (bytes === undefined) {
+      return fs.readFileSync(file, "utf8");
+    }
     handle = fs.openSync(file, "r");
-    const buffer = Buffer.alloc(HEADER_BYTES);
-    const bytesRead = fs.readSync(handle, buffer, 0, HEADER_BYTES, 0);
-    const text = buffer.toString("utf8", 0, bytesRead);
-    const end = text.indexOf("\n");
-    return end === -1 ? undefined : text.slice(0, end);
+    const buffer = Buffer.alloc(bytes);
+    const bytesRead = fs.readSync(handle, buffer, 0, bytes, 0);
+    return buffer.toString("utf8", 0, bytesRead);
   } catch {
     return undefined;
   } finally {
@@ -300,14 +458,13 @@ function firstLineOf(file: string): string | undefined {
 }
 
 /** The session a chat's `settings.json` names, from builds before its records did. */
-function sessionInSettingsFile(
-  chatFolder: string,
-): StoreId.Session | undefined {
+function sessionNamedIn(text: string | undefined): StoreId.Session | undefined {
+  if (text === undefined) {
+    return undefined;
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(
-      fs.readFileSync(path.join(chatFolder, SETTINGS_FILE_NAME), "utf8"),
-    );
+    parsed = JSON.parse(text);
   } catch {
     return undefined;
   }
@@ -319,29 +476,73 @@ function sessionInSettingsFile(
   return session.success ? session.data : undefined;
 }
 
+function add(known: Index, id: ChatId, sessionId: StoreId.Session): void {
+  known.chats.set(id, sessionId);
+  known.sessions.set(sessionId, id);
+}
+
+/** The chat folders `readWhenHere` has yet to read. */
+const waitingOn = new Set<string>();
+let reading: Promise<void> = Promise.resolve();
+
 /**
- * Adds a chat found in its folder to the index, or nothing when its records
- * name no session: such a folder is unreachable as a chat until they do, and
- * listed in Settings > Storage meanwhile.
+ * Reads a chat's folder whose logs a sync service keeps by name only,
+ * waiting for them to download, then adds its chat to the index and says it
+ * changed, so a list that left it out reads it again. One folder at a time,
+ * so the downloads hold one of the thread pool's threads rather than all of
+ * them.
  */
-function addChatFrom(known: Index, folder: string): ChatId | undefined {
-  const id = ChatIdSchema.safeParse(path.basename(folder));
-  const sessionId = id.success ? chatSessionIn(folder) : undefined;
-  if (!id.success || sessionId === undefined) {
-    return undefined;
+function readWhenHere(known: Index, folder: string): void {
+  if (waitingOn.has(folder)) {
+    return;
   }
-  known.chats.set(id.data, sessionId);
-  known.sessions.set(sessionId, id.data);
-  return id.data;
+  waitingOn.add(folder);
+  reading = reading
+    .then(async () => {
+      const id = ChatIdSchema.safeParse(path.basename(folder));
+      const sessionId = id.success ? await chatSessionIn(folder) : undefined;
+      if (
+        !id.success ||
+        sessionId === undefined ||
+        index !== known ||
+        known.chats.has(id.data)
+      ) {
+        return;
+      }
+      add(known, id.data, sessionId);
+      recordChanged(id.data, "session");
+    })
+    .catch((error: unknown) => {
+      console.warn(`Could not read the chat folder ${folder}`, error);
+    })
+    .finally(() => {
+      waitingOn.delete(folder);
+    });
 }
 
 /**
  * A chat the index has not heard of, looked for under `chats/`, where one
- * made behind its back would be.
+ * made behind its back would be. A folder whose records name no session is
+ * unreachable as a chat until they do, and listed in Settings > Storage
+ * meanwhile. One whose answer needs a log a sync service keeps by name only
+ * is read in the background (`readWhenHere`), and its chat found once the
+ * log downloads.
  */
 function discover(known: Index, id: ChatId): ChatId | undefined {
   const folder = path.join(known.root, id);
-  return isDir(folder) ? addChatFrom(known, folder) : undefined;
+  if (!isDir(folder)) {
+    return undefined;
+  }
+  const sessionId = sessionInNow(folder);
+  if (sessionId === NOT_HERE_YET) {
+    readWhenHere(known, folder);
+    return undefined;
+  }
+  if (sessionId === undefined) {
+    return undefined;
+  }
+  add(known, id, sessionId);
+  return id;
 }
 
 function folderOf(id: ChatId): ChatDir {
@@ -370,10 +571,19 @@ function listFiles(dir: string): string[] {
   }
 }
 
-function listDirs(dir: string): string[] {
+async function filesIn(dir: string): Promise<string[]> {
   try {
-    return fs
-      .readdirSync(dir, { withFileTypes: true })
+    return (await fs.promises.readdir(dir, { withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+async function dirsIn(dir: string): Promise<string[]> {
+  try {
+    return (await fs.promises.readdir(dir, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
   } catch {
@@ -381,6 +591,10 @@ function listDirs(dir: string): string[] {
   }
 }
 
+/**
+ * The index of the config's chats folder, which `loadChatIndex` has read,
+ * or which tests read here on its first use (`readChatIndexOnFirstUse`).
+ */
 function read(): Index {
   const root = chatsDir();
   if (handed) {
@@ -390,18 +604,29 @@ function read(): Index {
   if (index?.root === root) {
     return index;
   }
-  const known: Index = { chats: new Map(), root, sessions: new Map() };
-  const skipped: string[] = [];
-  for (const name of listDirs(root)) {
-    if (addChatFrom(known, path.join(root, name)) === undefined) {
-      skipped.push(name);
-    }
-  }
-  if (skipped.length > 0) {
-    console.warn(
-      `Skipping chat folders with no session: ${skipped.join(", ")}`,
+  if (!chatIndexReadOnFirstUse()) {
+    throw new Error(
+      `The chat index of ${root} was asked for before loadChatIndex read it`,
     );
   }
+  const known: Index = { chats: new Map(), root, sessions: new Map() };
   index = known;
+  for (const name of listDirs(root)) {
+    const id = ChatIdSchema.safeParse(name);
+    if (id.success) {
+      discover(known, id.data);
+    }
+  }
   return known;
+}
+
+function listDirs(dir: string): string[] {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
 }

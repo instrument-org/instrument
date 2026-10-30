@@ -5,6 +5,7 @@ import readline from "node:readline/promises";
 import { TASKS_DIR_NAME } from "../src/constants";
 import { getChatInfos } from "../src/lib/chat-info";
 import { ChatReads } from "../src/lib/chat-reads";
+import { loadChatIndex } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
@@ -22,6 +23,7 @@ setWorkspaceConfig(
     tasksDir: path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
   }),
 );
+await loadChatIndex();
 
 const tasks = await getChatInfos({
   direction: "desc",

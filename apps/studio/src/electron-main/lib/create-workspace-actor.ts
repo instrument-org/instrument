@@ -38,6 +38,7 @@ import {
   ensurePythonBase,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
+  loadChatIndex,
   prepareBundledSkills,
   setBashWorkerFactory,
   startRecordArrivals,
@@ -47,6 +48,7 @@ import {
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { call } from "@orpc/server";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import ms from "ms";
@@ -113,6 +115,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
   setBashWorkerFactory(createBashWorker);
   warmBashWorker();
+
+  // Read before the actor publishes the workspace config, which every use of
+  // the chat index needs, so each one after it answers from memory.
+  await timeBootStep("loadChatIndex", () =>
+    loadChatIndex(workspaceLayout(rootDir).chatsDir),
+  );
 
   const browserViewManager = getBrowserViewManager();
 

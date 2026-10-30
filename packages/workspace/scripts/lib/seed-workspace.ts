@@ -31,7 +31,12 @@ import {
   writingChatRecords,
 } from "../../src/lib/records/chat-records";
 import { writeDeviceFile } from "../../src/lib/records/device-file";
-import { chatDir, chatIdTaken, placeChat } from "../../src/lib/record-folders";
+import {
+  chatDir,
+  chatIdTaken,
+  loadChatIndex,
+  placeChat,
+} from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { updateJsonRecord } from "../../src/lib/json-record-file";
 import { addChildTask } from "../../src/lib/chat/children";
@@ -145,6 +150,7 @@ export async function seedWorkspace({
   // `chatDir()` and everything that writes a chat read the config from this
   // singleton rather than taking it as an argument.
   setWorkspaceConfig(workspaceConfig);
+  await loadChatIndex();
 
   const seeded: SeededTask[] = [];
   for (const { files, session, task } of fixture.tasks) {

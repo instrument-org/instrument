@@ -1,8 +1,10 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { publisher } from "../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
@@ -18,11 +20,13 @@ import { recordLine } from "./records/record";
 import { DEVICE_A, DEVICE_B, header } from "./records/test-records";
 import {
   chatDir,
+  chatIds,
   chatSessionIn,
   chatIdTaken,
   chatOfSession,
   forgetChat,
   forgetChatFolders,
+  loadChatIndex,
   resolveChat,
   sessionOfChat,
 } from "./record-folders";
@@ -137,6 +141,7 @@ describe("record folders", () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
     const left = await leaveTaskFolder(chat, "2026-09-24-a-fork");
     forgetChatFolders();
+    await loadChatIndex();
 
     expect(chatOfSession(SESSION)).toBe(chat);
     expect(resolveChat(left)).toBeUndefined();
@@ -249,7 +254,7 @@ describe("a chat's own session", () => {
     await writeHeader(dir, TASK, DEVICE_A, OWN);
     await writeHeader(dir, OWN, DEVICE_B);
 
-    expect(chatSessionIn(dir)).toBe(OWN);
+    expect(await chatSessionIn(dir)).toBe(OWN);
   });
 
   it.each([
@@ -280,14 +285,14 @@ describe("a chat's own session", () => {
       JSON.stringify({ chatSessionId: OWN }),
     );
 
-    expect(chatSessionIn(dir)).toBe(OWN);
+    expect(await chatSessionIn(dir)).toBe(OWN);
   });
 
   it("is none for a folder holding only a task's log, until the chat's own arrives", async () => {
     const dir = path.join(rootDir, "chats", "2026-09-25-task-first");
     await writeHeader(dir, TASK, DEVICE_A, OWN);
 
-    expect(chatSessionIn(dir)).toBeUndefined();
+    expect(await chatSessionIn(dir)).toBeUndefined();
     expect(resolveChat("2026-09-25-task-first")).toBeUndefined();
 
     await writeHeader(dir, OWN, DEVICE_B);
@@ -306,15 +311,124 @@ describe("a chat's own session", () => {
     // The chat's own log, started and not yet given its header.
     await fs.writeFile(path.join(dir, logFileName(OWN, DEVICE_B)), "");
 
-    expect(chatSessionIn(dir)).toBeUndefined();
+    expect(await chatSessionIn(dir)).toBeUndefined();
   });
 
   it("is none for a folder with neither", async () => {
     const dir = path.join(rootDir, "chats", "2026-09-25-empty");
     await fs.mkdir(dir, { recursive: true });
 
-    expect(chatSessionIn(dir)).toBeUndefined();
+    expect(await chatSessionIn(dir)).toBeUndefined();
   });
+});
+
+describe("the index read before its first use", () => {
+  const OWN = StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B");
+  const NAME = ChatIdSchema.parse("2026-10-30-from-another-device");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function writeChat(name: ChatId) {
+    const dir = path.join(rootDir, "chats", name);
+    await fs.mkdir(dir, { recursive: true });
+    const log = path.join(dir, logFileName(OWN, DEVICE_A));
+    await fs.writeFile(
+      log,
+      recordLine(header(0, { device: DEVICE_A, id: OWN })),
+    );
+    return log;
+  }
+
+  /** What reads a file's contents, synchronously or not. */
+  function spyOnReads() {
+    return [
+      vi.spyOn(fsSync, "openSync"),
+      vi.spyOn(fsSync, "readFileSync"),
+      vi.spyOn(fsSync, "readSync"),
+      vi.spyOn(fsSync.promises, "open"),
+      vi.spyOn(fsSync.promises, "readFile"),
+    ];
+  }
+
+  /** Every file stats as one with contents and no blocks on disk: kept in the cloud only. */
+  function evictEverything() {
+    const stat = fsSync.promises.stat;
+    vi.spyOn(fsSync.promises, "stat").mockImplementation(async (file) =>
+      Object.assign(await stat(file), { blocks: 0 }),
+    );
+    const statSync = fsSync.statSync;
+    vi.spyOn(fsSync, "statSync").mockImplementation((file) =>
+      Object.assign(statSync(file), { blocks: 0 }),
+    );
+  }
+
+  it("answers from memory once loadChatIndex has read it", async () => {
+    await writeChat(NAME);
+    await loadChatIndex();
+    const reads = spyOnReads();
+
+    expect(chatIds()).toEqual([NAME]);
+    expect(resolveChat(NAME)).toBe(NAME);
+    expect(sessionOfChat(NAME)).toBe(OWN);
+    expect(chatOfSession(OWN)).toBe(NAME);
+    expect(reads.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "adds a chat whose log is kept by name only once it downloads",
+    async () => {
+      const log = await writeChat(NAME);
+      evictEverything();
+      const publish = vi.spyOn(publisher, "publish");
+      // Held until the test lets the download finish.
+      let download = () => undefined as void;
+      const downloaded = new Promise<void>((resolve) => {
+        download = resolve;
+      });
+      const realOpen = fsSync.promises.open;
+      const open = vi
+        .spyOn(fsSync.promises, "open")
+        .mockImplementation(async (...args) => {
+          await downloaded;
+          return realOpen(...args);
+        });
+
+      await loadChatIndex();
+
+      expect(chatIds()).toEqual([]);
+      download();
+      await vi.waitFor(() => {
+        expect(chatIds()).toEqual([NAME]);
+      });
+      expect(open.mock.calls.map(([file]) => file)).toEqual([log]);
+      expect(publish).toHaveBeenCalledWith("record.changed", {
+        id: NAME,
+        kind: "session",
+      });
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "passes over a log kept by name only when looking for a chat it has not seen, and adds the chat once it downloads",
+    async () => {
+      await loadChatIndex();
+      const log = await writeChat(NAME);
+      evictEverything();
+      const readSync = vi.spyOn(fsSync, "readSync");
+      const readFileSync = vi.spyOn(fsSync, "readFileSync");
+
+      expect(resolveChat(NAME)).toBeUndefined();
+      expect(readSync).not.toHaveBeenCalled();
+      expect(readFileSync).not.toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(chatIds()).toEqual([NAME]);
+      });
+      expect(resolveChat(NAME)).toBe(NAME);
+      expect(log).toContain(NAME);
+    },
+  );
 });
 
 describe("chat titles", () => {

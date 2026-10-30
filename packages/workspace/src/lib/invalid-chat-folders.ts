@@ -44,7 +44,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
       invalid.push({ name, reason: REASONS["bad-name"] });
       continue;
     }
-    const sessionId = chatSessionIn(path.join(root, name));
+    const sessionId = await chatSessionIn(path.join(root, name));
     if (sessionId === undefined) {
       invalid.push({ name, reason: REASONS["no-session"] });
       continue;

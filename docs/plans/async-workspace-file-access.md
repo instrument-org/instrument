@@ -1,6 +1,6 @@
 # Async access to the synced workspace folder
 
-Status: open. Steps 1 to 3 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, and "workspace: read app files off the main thread and only once they change" `listApps`. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Steps 4 to 6 are open.
+Status: open. Steps 1 to 4 are done: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files instead of blocking on them" the activity tail, which "workspace: wait for evicted activity files instead of passing over them" turned to waiting, "workspace: read other devices' synced store files off the main thread" the synced store, "workspace: read app files off the main thread and only once they change" `listApps`, "studio,workspace: read drafts off the main thread and only once they change" the drafts, and "workspace: read the chat index off the main thread before the workspace starts" the chat index. Before them, `0e2063521` took the chat folder lookup (`chatLinkedInFileSync` in `chat-folders/own-folder.ts`) off sync reads of evicted files, and `d8fa5361e` added the slow-scan log and per-step launch timings. Steps 5 and 6 are open.
 
 ## Problem
 
@@ -36,7 +36,8 @@ Add `packages/workspace/src/lib/workspace-files.ts`, the one way code reads the 
 - tests and test helpers;
 - the bash worker (`lib/bash-worker/`), which runs off the main thread;
 - launch-only sweeps and migrations, listed by file, each with a comment saying it runs before the window is useful;
-- modules that only touch local disk (machine folder, runtime folder, work folders), listed by file.
+- modules that only touch local disk (machine folder, runtime folder, work folders), listed by file;
+- sync reads kept on purpose, each with its reason: `discover` in `record-folders.ts`, which `resolveChat` runs synchronously and which reads only a log head already downloaded, passing over an evicted one; `chatLinkedInFileSync` in `chat-folders/own-folder.ts`, for the shell's synchronous layout, which passes over an evicted `CHAT.md` the same way; `readDraftsSync` for `rewrite-stored-paths.ts`, which runs before the workspace opens; and `ownsDraftFolder` and `pastedIntoOthers` in `drafts/draft-folder.ts`, which read only in a folder that has more than one `DRAFT*.md`.
 
 The rule cannot tell a synced path from a local one, so the allowlist carries that judgment, file by file. That keeps it reviewable: adding a file to the list is a visible decision in a diff. Metadata calls are not reported.
 
@@ -49,7 +50,7 @@ The audit behind this plan traced every sync call in `packages/workspace/src` an
 | where | reads | runs | fix |
 |---|---|---|---|
 | `apps/store.ts` `readAppFolders` / `readAppFileText` (through `own-file.ts` `readOwnFile`) | every `Apps/*/APP.md` | `listApps`, which `chat/chats.ts` `loadShared` calls for every `chatById` and `listedChats`, so on each live refresh of the chat list or a chat's info; also each user message (`chat-app-changes.ts`), the `apps.list` RPC and the `app` command | async; stat-gated cache, since the list is read far more often than it changes |
-| `record-folders.ts` `firstLineOf`, `sessionInSettingsFile`, through `read()` and `discover()` | the head of each chat's session logs | the chat index's first use per process (O(chats × logs)); `discover()` for each id the index has not seen, as when a chat arrives from another device | build the index async before first use; in `discover`, pass over evicted logs and let the async arrivals path add the chat |
+| `record-folders.ts` `firstLineOf`, `sessionInSettingsFile`, through `read()` and `discover()` | the head of each chat's session logs | the chat index's first use per process (O(chats × logs)); `discover()` for each id the index has not seen, as when a chat arrives from another device | done: `loadChatIndex` builds the index async, and `create-workspace-actor.ts` awaits it before the workspace starts, which is what keeps every use after the build. The build passes over a folder whose answer needs an evicted log and hands it to `readWhenHere`, which reads it in the background, waiting for the download, then adds the chat and says it changed. `discover` does the same for an id the index has not seen |
 | `drafts/draft-folder.ts` `readDrafts` / `readDraftFile` | every `Drafts/*/DRAFT*.md` | the draft store's load, and its reconcile on every watcher event under `Drafts/`, the store's own writes included; each send (`send.ts`, `send-from-folder.ts`) | stat-gated, async |
 | `synced-store/synced-store.ts` `look` / `readIfThere` | another device's whole `devices/<device>/<domain>.jsonl` | opening the store (bookmarks) and after every settled watch event on `devices/` | read async and wait for an evicted file, since nothing else downloads another device's file. The size and mtime check skips only a file already read and unchanged, so an evicted file that changed still has to be read |
 | `activity/store.ts` `catchUpActivity` → `activity/log-file.ts` `readLinesFrom` | each device's `devices/<device>/activity/<YYYY-MM>.jsonl` that grew | every activity read (`listActivity`, `getActivity`, `summarizeActivity`, `activityCsv`), so opening Settings > Activity | read async and wait for an evicted file. Passing over it would leave its rows out for good, since nothing else downloads another device's activity file. Its comment said a file not downloaded yet "is left for the next look", which assumed the read fails; on macOS it blocks |
@@ -58,10 +59,12 @@ The audit behind this plan traced every sync call in `packages/workspace/src` an
 
 | where | reads | runs | fix |
 |---|---|---|---|
-| `invalid-chat-folders.ts` → `record-folders.ts` `chatSessionIn` | log heads of every chat | Settings > Storage | async |
+| `invalid-chat-folders.ts` → `record-folders.ts` `chatSessionIn` | log heads of every chat | Settings > Storage | done: async |
 | `apps/icon.ts` `findAppIcon` | each app's `icon.png` or `icon.svg` | `apps.list`, per app | async, stat-gated |
 | `apps/store.ts` `readAppGuide` | one `APP.md`, or each in `otherGuidesToRead` | the `app` command and app setup | async |
 | `activity/store.ts` `insertActivity` (`appendFileSync`) | this device's own activity file | every model request | async append; if the sync service evicted the file, the append waits for a download |
+| `drafts/draft-folder.ts` `writeDraftFile` → `withOthersKept` | the draft's own `DRAFT.md`, for the keys this build does not write | every write of a draft | async, or the store hands over what its last look read |
+| Studio `drafts/draft-store.ts` `refresh` | the file of each draft an op changes | each change the composer makes to a draft | async, or the store's last look |
 
 ### Low: reads contents rarely
 

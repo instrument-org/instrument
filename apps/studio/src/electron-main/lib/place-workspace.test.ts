@@ -223,7 +223,7 @@ describe("placeWorkspace", () => {
     const identity = readWorkspaceIdentity(dir);
     expect(identity).toMatchObject({
       formatVersion: WORKSPACE_FORMAT_VERSION,
-      name: "Default",
+      name: "Instrument",
       settingsVersion: CURRENT_SETTINGS_VERSION,
     });
     expect(readRegistry(userDataDir)).toMatchObject({

@@ -123,7 +123,7 @@ describe("workspaces.place", () => {
       id: "default",
       path: dir,
     });
-    expect(lib.readWorkspaceIdentity(dir).name).toBe("Default");
+    expect(lib.readWorkspaceIdentity(dir).name).toBe("Instrument");
     expect(lib.readRegistry(mocks.userDataDir)).toMatchObject({
       active: "default",
       workspaces: [{ id: "default", path: dir }],

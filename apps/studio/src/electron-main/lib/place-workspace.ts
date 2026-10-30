@@ -127,7 +127,13 @@ export function placeWorkspace({
   const folder = path.resolve(dir);
   const opening = hasWorkspaceIdentity(folder);
   if (!opening) {
-    populateWorkspace({ color: "gray", dir: folder, name: "Default" });
+    // Named after its folder, so two workspaces read apart wherever their
+    // names show.
+    populateWorkspace({
+      color: "gray",
+      dir: folder,
+      name: path.basename(folder),
+    });
   }
   updateRegistry(userDataDir, (current) => {
     const entry = {

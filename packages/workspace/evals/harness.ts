@@ -86,7 +86,11 @@ import {
   endSignIn,
   type SignInOutcome,
 } from "./lib/sign-in-ends";
-import { launchSharedChrome, setSharedChrome } from "./lib/shared-chrome";
+import {
+  launchSharedChrome,
+  type SharedChrome,
+  setSharedChrome,
+} from "./lib/shared-chrome";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { grantCaseFolders, startRun } from "./lib/start-run";
@@ -836,1029 +840,1073 @@ export async function runEvals(
     ? await launchSharedChrome()
     : undefined;
   setSharedChrome(sharedChrome);
-  const standInWindow = createStandInWindow(sharedChrome);
-  const stopStandInWindow = standInWindow.listen();
-  const macAppsStandInFor = evals.some((evalCase) => evalCase.macApps)
-    ? macAppsStandIn(path.join(workspaceRootDir, "mac-apps"))
-    : undefined;
-  macAppsStandInFor?.refuse(
-    _.unique(evals.flatMap((evalCase) => evalCase.macApps?.refused ?? [])),
-  );
-  await loadChatIndex(workspaceLayout(workspaceRootDir).chatsDir);
-  const actor = createActor(workspaceMachine, {
-    input: {
-      aiGatewayApp,
-      apps: appsConfig,
-      appVersion: "0.0.0-test",
-      // No window, so a task starts a browser of its own; the stand-in
-      // answers for the window's tabs the conversation names.
-      browser: sharedChrome
-        ? sharedChrome.browser(createStubBrowserConfig())
-        : standInWindow.browser({
-            ...createStubBrowserConfig(),
-            hasNoWindow: true,
-          }),
-      captureException: (...args: unknown[]) => {
-        console.error("captureException", ...args);
+  // Closed however the run ends, so a throw leaves no Chrome running.
+  try {
+    const standInWindow = createStandInWindow(sharedChrome);
+    const stopStandInWindow = standInWindow.listen();
+    const macAppsStandInFor = evals.some((evalCase) => evalCase.macApps)
+      ? macAppsStandIn(path.join(workspaceRootDir, "mac-apps"))
+      : undefined;
+    macAppsStandInFor?.refuse(
+      _.unique(evals.flatMap((evalCase) => evalCase.macApps?.refused ?? [])),
+    );
+    await loadChatIndex(workspaceLayout(workspaceRootDir).chatsDir);
+    const actor = createActor(workspaceMachine, {
+      input: {
+        aiGatewayApp,
+        apps: appsConfig,
+        appVersion: "0.0.0-test",
+        // No window, so a task starts a browser of its own; the stand-in
+        // answers for the window's tabs the conversation names.
+        browser: sharedChrome
+          ? sharedChrome.browser(createStubBrowserConfig())
+          : standInWindow.browser({
+              ...createStubBrowserConfig(),
+              hasNoWindow: true,
+            }),
+        captureException: (...args: unknown[]) => {
+          console.error("captureException", ...args);
+        },
+        deviceId: newDeviceId(),
+        getAIProviderConfigs: () => providerConfigs,
+        // The Mac helper as a checkout builds it (`pnpm --filter
+        // @instrument-org/studio build:mac-helper`), so a run reaches
+        // Calendar, Reminders, and Contacts the way the app does; without
+        // it the agent has no way into them, as a build without it has none.
+        ...(process.platform === "darwin" && fs.existsSync(SEATBELT_LAUNCHER)
+          ? { seatbeltHelperPath: SEATBELT_LAUNCHER }
+          : {}),
+        ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
+          ? { macHelperBinPath: MAC_HELPER_BIN }
+          : {}),
+        ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
+        modelCache: noopModelCache,
+        ...(evals.some((evalCase) => evalCase.nativeSandbox)
+          ? { nativeSandbox: true }
+          : {}),
+        nodeExecEnv: {},
+        ...(reasoningEffort ? { reasoningEffort } : {}),
+        // A workspace the person picked, which is what makes its top level
+        // theirs: each chat's own folder under `Chats/` is then where its
+        // finished work goes, as it is for anyone who picked where their
+        // Instrument folder is kept. Without this a run measures the
+        // fallback, and nothing measures what the prompt tells the agent.
+        outputDir: workspaceRootDir,
+        pnpmBinPath: PNPM_BIN,
+        registryDir,
+        rootDir: workspaceRootDir,
+        runtimeDir,
+        // Inside the run's own folder, so a saved run keeps the chats' work
+        // folders beside their records (`buildReportWorkspaceConfig`).
+        userDataDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
+        workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
+        workFoldersDir: path.join(
+          workspaceRootDir,
+          EVAL_MACHINE_DIR_NAME,
+          "work",
+        ),
+        systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
+        trashItem: () => Promise.reject(new Error("Not implemented")),
+        uvBinPath: await execa({ reject: false })`which uv`.then(
+          (result) => result.stdout.trim() || "uv",
+        ),
+        // The uutils Studio vendors, so the shell's GNU text commands are the
+        // app's; EVAL_BUILTINS_ONLY=1 leaves them the shell's own, to compare.
+        ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
+          ? {}
+          : { uutilsDir: UUTILS_DIR, uutilsOutsideSandbox: true }),
+        webSearch: platformSearchClient(),
       },
-      deviceId: newDeviceId(),
-      getAIProviderConfigs: () => providerConfigs,
-      // The Mac helper as a checkout builds it (`pnpm --filter
-      // @instrument-org/studio build:mac-helper`), so a run reaches
-      // Calendar, Reminders, and Contacts the way the app does; without
-      // it the agent has no way into them, as a build without it has none.
-      ...(process.platform === "darwin" && fs.existsSync(SEATBELT_LAUNCHER)
-        ? { seatbeltHelperPath: SEATBELT_LAUNCHER }
-        : {}),
-      ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
-        ? { macHelperBinPath: MAC_HELPER_BIN }
-        : {}),
-      ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
-      modelCache: noopModelCache,
-      ...(evals.some((evalCase) => evalCase.nativeSandbox)
-        ? { nativeSandbox: true }
-        : {}),
-      nodeExecEnv: {},
-      ...(reasoningEffort ? { reasoningEffort } : {}),
-      // A workspace the person picked, which is what makes its top level
-      // theirs: each chat's own folder under `Chats/` is then where its
-      // finished work goes, as it is for anyone who picked where their
-      // Instrument folder is kept. Without this a run measures the
-      // fallback, and nothing measures what the prompt tells the agent.
-      outputDir: workspaceRootDir,
-      pnpmBinPath: PNPM_BIN,
-      registryDir,
-      rootDir: workspaceRootDir,
-      runtimeDir,
-      // Inside the run's own folder, so a saved run keeps the chats' work
-      // folders beside their records (`buildReportWorkspaceConfig`).
-      userDataDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
-      workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
-      workFoldersDir: path.join(
-        workspaceRootDir,
-        EVAL_MACHINE_DIR_NAME,
-        "work",
-      ),
-      systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
-      trashItem: () => Promise.reject(new Error("Not implemented")),
-      uvBinPath: await execa({ reject: false })`which uv`.then(
-        (result) => result.stdout.trim() || "uv",
-      ),
-      // The uutils Studio vendors, so the shell's GNU text commands are the
-      // app's; EVAL_BUILTINS_ONLY=1 leaves them the shell's own, to compare.
-      ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
-        ? {}
-        : { uutilsDir: UUTILS_DIR, uutilsOutsideSandbox: true }),
-      webSearch: platformSearchClient(),
-    },
-  });
+    });
 
-  attachChats(actor);
-  actor.start();
-  // Awaited, unlike the app's: a case's first command may read them. A run
-  // launching beside another can lose the swap into the shared runtime's
-  // `skills/` to it, which leaves the other's copy of the same skills, so a
-  // failure is reported and the run goes on, as the app's does.
-  await prepareBundledSkills(actor.getSnapshot().context.config).catch(
-    (error: unknown) => {
-      write(
-        `${c.dim}Skills    :${c.reset} could not prepare the bundled skills: ${error instanceof Error ? error.message : String(error)}\n`,
-      );
-    },
-  );
-  // Awaited too, so every case starts as a launch that has finished it, and
-  // its context says what `python` already has.
-  const pythonBase = await settledPythonBase();
-  if (pythonBase) {
-    write(
-      `${c.dim}Python    :${c.reset} base packages not installed: ${pythonBase.output.trim()}\n`,
-    );
-  }
-
-  const runs = models
-    .flatMap((uri) => {
-      const modelLabel = modelLabelFor(uri);
-      return evals.flatMap((evalCase) =>
-        _.list(firstTrial, firstTrial + repeat - 1).map((trial) => ({
-          evalCase,
-          modelLabel,
-          trial,
-          uri,
-        })),
-      );
-    })
-    .map((run, index) => ({ ...run, index }));
-
-  const totalRuns = runs.length;
-  let finishedRuns = 0;
-
-  // Seeded once, before any case starts, because the apps a task may reach are
-  // read into the session context the first time a session needs model input.
-  // One apps directory serves the whole run, so an app a case declares is
-  // listed for every case in that run: score an app case on its own.
-  const declaredApps = _.unique(
-    runs.flatMap((run) => run.evalCase.apps ?? []),
-    (app) => app.slug,
-  );
-  const appFixtures = await seedConnectedApps(declaredApps, {
-    apps: appsConfig,
-    appsDir: workspaceLayout(workspaceRootDir).appsDir,
-  });
-  for (const app of declaredApps) {
-    write(
-      `${c.dim}App       :${c.reset} ${app.slug} ${c.dim}connected${c.reset}\n`,
-    );
-  }
-  for (const server of _.unique(
-    runs.flatMap((run) => run.evalCase.macApps?.connected ?? []),
-  )) {
-    await connectMacApp(getWorkspaceConfig().appsDir, server);
-    write(
-      `${c.dim}App       :${c.reset} ${server} ${c.dim}connected, on the stand-in server${c.reset}\n`,
-    );
-  }
-
-  // A task id is slugified from the prompt, and the name is claimed by creating
-  // the directory. Running one case against several models means several runs
-  // want the same slug at the same moment, and they all read it as free before
-  // any of them takes it. Creation is serialized so the numeric suffix that
-  // already exists for collisions actually gets a chance to apply; only the
-  // agent turn is worth running concurrently anyway.
-  let creating = Promise.resolve();
-
-  const completed = await _.parallel(
-    concurrency,
-    runs,
-    async ({ evalCase, index, modelLabel, trial, uri }) => {
-      const { label } = runKey({ modelLabel, name: evalCase.name, trial });
-
-      write(`${evalPrefix(label)}${c.dim}Starting...${c.reset}\n`);
-
-      const context = {
-        workspaceConfig: actor.getSnapshot().context.config,
-        workspaceRef: actor,
-      };
-
-      standInWindow.seed(evalCase.viewing);
-      const created = creating.then(async () => {
-        if (evalCase.kind === "chat") {
-          ensureWorkspaceFolder();
-        }
-        await evalCase.setup?.();
-        const folders = privateFoldersFor(evalCase, index) ?? [];
-        if (evalCase.topic && evalCase.kind === "chat") {
-          return openChatUnderTopic(evalCase, evalCase.topic, {
-            context,
-            folders,
-            uri,
-          });
-        }
-        return startRun(
-          {
-            files: evalCase.files,
-            folders: folders.length > 0 ? folders : undefined,
-            kind: evalCase.kind ?? "task",
-            modelURI: uri,
-            name: evalCase.name,
-            prompt: evalCase.prompt,
-            viewing: evalCase.viewing,
-          },
-          context,
+    attachChats(actor);
+    actor.start();
+    // Awaited, unlike the app's: a case's first command may read them. A run
+    // launching beside another can lose the swap into the shared runtime's
+    // `skills/` to it, which leaves the other's copy of the same skills, so a
+    // failure is reported and the run goes on, as the app's does.
+    await prepareBundledSkills(actor.getSnapshot().context.config).catch(
+      (error: unknown) => {
+        write(
+          `${c.dim}Skills    :${c.reset} could not prepare the bundled skills: ${error instanceof Error ? error.message : String(error)}\n`,
         );
-      });
-      // Chained off the settled result so one failed creation does not strand
-      // every run behind it.
-      creating = created.then(_.noop, _.noop);
-      const { id, sessionId } = await created;
-      await recordRun(workspaceRootDir, {
-        chatId: id,
-        home: os.homedir(),
-        modelLabel,
-        name: evalCase.name,
-        sessionId,
-        trial,
-      });
-
+      },
+    );
+    // Awaited too, so every case starts as a launch that has finished it, and
+    // its context says what `python` already has.
+    const pythonBase = await settledPythonBase();
+    if (pythonBase) {
       write(
-        `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
+        `${c.dim}Python    :${c.reset} base packages not installed: ${pythonBase.output.trim()}\n`,
       );
+    }
 
-      const abortController = new AbortController();
-      const price = catalog.priceFor(uri.split("?")[0] ?? uri);
-      const startedAt = Date.now();
-      let firstTextAt: number | undefined;
-      let stoppedBy: RunStop | undefined;
-      let stoppingForCase = false;
-      let overBudget: CompletedRun["overBudget"];
-      // What each question was asked with, by its call's part, for an answer
-      // that picks one of the choices the model wrote.
-      const chooseInputs = new Map<StoreId.Part, ChooseQuestion[]>();
-      let questionsAnswered = 0;
-      const handledAskIds = new Set<string>();
-      let foldersAllowed = 0;
-      // See `FollowUp.duringWork`: the run's own finished tool calls, and
-      // who is waiting for one to be in flight after enough of them.
-      const ownToolsDone = new Set<string>();
-      // The apps whose sign-in card the conversation put up, for
-      // `signInsEndAs` to end once its turn settles.
-      const signInCards = new Set<string>();
-      const ownToolsStarted = new Set<string>();
-      // The commands of the run's own `bash` calls in flight, by call.
-      const ownCommandsInFlight = new Map<string, string>();
-      let workWaiter:
-        | {
-            afterCalls: number;
-            baseline: number;
-            command?: RegExp;
-            resolve: () => void;
-          }
-        | undefined;
-      const workWaiterMet = () =>
-        workWaiter !== undefined &&
-        ownToolsDone.size - workWaiter.baseline >= workWaiter.afterCalls &&
-        (workWaiter.command === undefined ||
-          [...ownCommandsInFlight.values()].some((command) =>
-            workWaiter?.command?.test(command),
-          ));
-      let duringWorkMissed = 0;
-      // See `EvalCase.marks`. Each is timed from when its message is sent.
-      const marks: {
-        after?: string;
-        at?: number;
-        match: RegExp;
-        name: string;
-        sentAt?: number;
-      }[] = (evalCase.marks ?? []).map((mark) => ({
-        ...mark,
-        sentAt:
-          mark.after === undefined || evalCase.prompt.includes(mark.after)
-            ? startedAt
-            : undefined,
-      }));
-      const roles = new Map<string, string | undefined>();
-      const roleOf = async (part: SessionMessagePart.Type) => {
-        const { messageId, sessionId: partSessionId } = part.metadata;
-        const known = roles.get(messageId);
-        if (known) {
-          return known;
-        }
-        const stored = await ChatReads.transcript({
-          chatId: id,
-          only: new Set([messageId]),
-          sessionId: partSessionId,
-        });
-        const role = stored.isOk() ? stored.value[0]?.role : undefined;
-        if (role) {
-          roles.set(messageId, role);
-        }
-        return role;
-      };
-      // Every part of a message the run's records say moved, read back with
-      // what the turn still holds in memory, so a call shows as in flight
-      // while it runs. Parts are read again on each change to their message,
-      // which the handling below takes, since it keys what it records by call
-      // and by mark.
-      const partUpdates = (async function* () {
-        for await (const change of publisher.subscribe("record.changed", {
-          signal: abortController.signal,
-        })) {
-          if (
-            change.id !== id ||
-            change.kind !== "messages" ||
-            change.message === undefined ||
-            change.message.removed ||
-            change.message.sessionId !== sessionId
-          ) {
-            continue;
-          }
-          const read = await ChatReads.transcript({
-            chatId: id,
-            only: new Set([change.message.id]),
-            sessionId,
-          });
-          if (read.isErr()) {
-            continue;
-          }
-          for (const message of read.value) {
-            for (const part of message.parts) {
-              yield { id, part };
-            }
-          }
-        }
-      })();
+    const runs = models
+      .flatMap((uri) => {
+        const modelLabel = modelLabelFor(uri);
+        return evals.flatMap((evalCase) =>
+          _.list(firstTrial, firstTrial + repeat - 1).map((trial) => ({
+            evalCase,
+            modelLabel,
+            trial,
+            uri,
+          })),
+        );
+      })
+      .map((run, index) => ({ ...run, index }));
 
-      // A model handed an unrecoverable input can keep trying to recover from
-      // it, and nothing in the loop is wrong enough to stop it: each attempt is
-      // a legitimate tool call. Measured, one run has reached millions of tokens
-      // on a single question before a human noticed. The eval harness is the one
-      // place that can see the running total and act on it, so it does.
-      const enforceCaps = ({ costUSD, modelPriced, tokens }: Spend) => {
-        if (stoppedBy) {
-          return;
-        }
-        const elapsedSeconds = (Date.now() - startedAt) / 1000;
-        const tokenCap =
-          evalCase.maxRunTokens ??
-          maxRunTokens ??
-          (modelPriced ? 0 : DEFAULT_MAX_RUN_TOKENS);
-        if (
-          maxRunCostUSD > 0 &&
-          costUSD !== undefined &&
-          costUSD > maxRunCostUSD
-        ) {
-          stoppedBy = "budget";
-          overBudget = { costUSD, tokens };
-          process.stderr.write(
-            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatCost(costUSD)} > ${formatCost(maxRunCostUSD)}, stopping. Raise with --max-run-cost, or 0 to disable.${c.reset}\n`,
-          );
-        } else if (tokenCap > 0 && tokens > tokenCap) {
-          stoppedBy = "budget";
-          overBudget = { costUSD, tokens };
-          process.stderr.write(
-            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(tokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
-          );
-        } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
-          stoppedBy = "timeout";
-          process.stderr.write(
-            `${evalPrefix(label)}${c.red}Out of time${c.reset}${c.dim}: ${Math.round(elapsedSeconds)}s > ${maxRunSeconds}s, stopping. Raise with --max-run-seconds, or 0 to disable.${c.reset}\n`,
-          );
-        } else {
-          return;
-        }
-        void call(sessionRoute.stop, { id }, { context });
-      };
+    const totalRuns = runs.length;
+    let finishedRuns = 0;
 
-      // The whole chat's spend, its tasks' included: a runaway task is as much
-      // the run's as a runaway conversation.
-      const spendOf = async (): Promise<Spend> => {
-        const { billed, messages } = await readChatSpend(id);
-        const usage = getUsageSummaryFromMessages(messages);
-        const cost = runCostOf(messages, {
-          billed,
-          price,
-          priceFor: catalog.searchPriceFor,
-        });
-        return {
-          ...capSpendOf(cost),
-          tokens: usage.totalTokens,
-          usage,
+    // Seeded once, before any case starts, because the apps a task may reach are
+    // read into the session context the first time a session needs model input.
+    // One apps directory serves the whole run, so an app a case declares is
+    // listed for every case in that run: score an app case on its own.
+    const declaredApps = _.unique(
+      runs.flatMap((run) => run.evalCase.apps ?? []),
+      (app) => app.slug,
+    );
+    const appFixtures = await seedConnectedApps(declaredApps, {
+      apps: appsConfig,
+      appsDir: workspaceLayout(workspaceRootDir).appsDir,
+    });
+    for (const app of declaredApps) {
+      write(
+        `${c.dim}App       :${c.reset} ${app.slug} ${c.dim}connected${c.reset}\n`,
+      );
+    }
+    for (const server of _.unique(
+      runs.flatMap((run) => run.evalCase.macApps?.connected ?? []),
+    )) {
+      await connectMacApp(getWorkspaceConfig().appsDir, server);
+      write(
+        `${c.dim}App       :${c.reset} ${server} ${c.dim}connected, on the stand-in server${c.reset}\n`,
+      );
+    }
+
+    // A task id is slugified from the prompt, and the name is claimed by creating
+    // the directory. Running one case against several models means several runs
+    // want the same slug at the same moment, and they all read it as free before
+    // any of them takes it. Creation is serialized so the numeric suffix that
+    // already exists for collisions actually gets a chance to apply; only the
+    // agent turn is worth running concurrently anyway.
+    let creating = Promise.resolve();
+
+    const completed = await _.parallel(
+      concurrency,
+      runs,
+      async ({ evalCase, index, modelLabel, trial, uri }) => {
+        const { label } = runKey({ modelLabel, name: evalCase.name, trial });
+
+        write(`${evalPrefix(label)}${c.dim}Starting...${c.reset}\n`);
+
+        const context = {
+          workspaceConfig: actor.getSnapshot().context.config,
+          workspaceRef: actor,
         };
-      };
-      const enforcementTimer = setInterval(() => {
-        void spendOf().then(enforceCaps, _.noop);
-      }, ENFORCEMENT_INTERVAL_MS);
 
-      // A program the agent ran that grows past what one machine can spare
-      // takes every other run down with it, so it is killed and the run is
-      // stopped as out of memory rather than left to finish.
-      const memoryTimer = setInterval(() => {
-        void oversizedProcessesIn(caseFolders(id)).then((oversized) => {
-          if (oversized.length === 0) {
-            return;
+        standInWindow.seed(evalCase.viewing);
+        const created = creating.then(async () => {
+          if (evalCase.kind === "chat") {
+            ensureWorkspaceFolder();
           }
-          signal(
-            oversized.map(({ pid }) => pid),
-            "SIGKILL",
-          );
-          process.stderr.write(
-            `${evalPrefix(label)}${c.red}Out of memory${c.reset}${c.dim}: a program it ran held ${formatBytes(Math.max(...oversized.map(({ rssBytes }) => rssBytes)))} > ${formatBytes(MAX_PROCESS_BYTES)}; killed it and stopping.${c.reset}\n`,
-          );
-          if (!stoppedBy) {
-            stoppedBy = "memory";
-            void call(sessionRoute.stop, { id }, { context });
+          await evalCase.setup?.();
+          const folders = privateFoldersFor(evalCase, index) ?? [];
+          if (evalCase.topic && evalCase.kind === "chat") {
+            return openChatUnderTopic(evalCase, evalCase.topic, {
+              context,
+              folders,
+              uri,
+            });
           }
-        }, _.noop);
-      }, MEMORY_CHECK_INTERVAL_MS);
+          return startRun(
+            {
+              files: evalCase.files,
+              folders: folders.length > 0 ? folders : undefined,
+              kind: evalCase.kind ?? "task",
+              modelURI: uri,
+              name: evalCase.name,
+              prompt: evalCase.prompt,
+              viewing: evalCase.viewing,
+            },
+            context,
+          );
+        });
+        // Chained off the settled result so one failed creation does not strand
+        // every run behind it.
+        creating = created.then(_.noop, _.noop);
+        const { id, sessionId } = await created;
+        await recordRun(workspaceRootDir, {
+          chatId: id,
+          home: os.homedir(),
+          modelLabel,
+          name: evalCase.name,
+          sessionId,
+          trial,
+        });
 
-      // A question the agent asked, or a folder or app it asked for, shows
-      // the person a card, which the case answers the way they would: a
-      // scripted pick, a yes, a no, or nothing, leaving the agent to carry on
-      // without it. Read on every part and on a timer, since a turn ends on
-      // the call that asked and may publish nothing after it.
-      let answeringAsks = Promise.resolve();
-      const answerAsks = () => {
-        answeringAsks = answeringAsks
-          .then(async () => {
-            for (const ask of await openAsks(id)) {
-              if (handledAskIds.has(ask.id)) {
-                continue;
-              }
-              handledAskIds.add(ask.id);
-              let answer: () => Promise<unknown>;
-              if (ask.kind === "question") {
-                const partId = ask.askers[0]?.partId;
-                const input = partId ? chooseInputs.get(partId) : undefined;
-                const scripted = evalCase.answers?.[questionsAnswered++];
-                const picked =
-                  typeof scripted === "function"
-                    ? input && scripted(input)
-                    : scripted;
-                write(
-                  `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${ask.question}${picked ? `; answering ${JSON.stringify(picked)}` : "; leaving it open"}${c.reset}\n`,
-                );
-                if (!picked) {
-                  continue;
-                }
-                answer = () =>
-                  call(
-                    chatsRoute.answerQuestion,
-                    { answer: picked, askId: ask.id, id },
-                    { context },
-                  );
-              } else {
-                const declines =
-                  ask.kind === "folder"
-                    ? evalCase.declinesFolders
-                    : evalCase.declinesApps;
-                // A folder outside the run's home is the developer's own, which
-                // a model that guesses at the real home asks for, so it is never
-                // allowed and never counts against the case's allowance.
-                // Both resolved, since a temp home is reached through a
-                // symlink as well (`/var` and `/private/var` on macOS).
-                const real = (at: string) => {
-                  try {
-                    return fs.realpathSync(at);
-                  } catch {
-                    return at;
-                  }
-                };
-                const fromHome = path.relative(
-                  real(os.homedir()),
-                  real(ask.target),
-                );
-                const inRunHome =
-                  !fromHome.startsWith("..") && !path.isAbsolute(fromHome);
-                const allows =
-                  ask.kind === "folder"
-                    ? !declines &&
-                      inRunHome &&
-                      foldersAllowed++ < (evalCase.allowsFolders ?? 0)
-                    : evalCase.allowsApps;
-                write(
-                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : allows ? "; allowing" : ""}${c.reset}\n`,
-                );
-                if (!(declines || allows)) {
-                  continue;
-                }
-                answer = () =>
-                  call(
-                    permissionsRoute.answer,
-                    {
-                      askId: ask.id,
-                      decision: declines ? "declined" : "allowed",
-                      id,
-                    },
-                    { context },
-                  );
-              }
-              // Answered once the asking sessions' turns are over, as a
-              // person reading the card would, so the answer arrives as a
-              // wake rather than mid-turn.
-              void (async () => {
-                const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
-                while (
-                  ask.askers.some((asker) => isWorking(id, asker.sessionId)) &&
-                  Date.now() < until
-                ) {
-                  await new Promise((resolve) =>
-                    setTimeout(resolve, TREE_POLL_MS),
-                  );
-                }
-                await answer();
-              })().catch((error: unknown) => {
-                process.stderr.write(
-                  `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
-                );
-              });
+        write(
+          `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
+        );
+
+        const abortController = new AbortController();
+        const price = catalog.priceFor(uri.split("?")[0] ?? uri);
+        const startedAt = Date.now();
+        let firstTextAt: number | undefined;
+        let stoppedBy: RunStop | undefined;
+        let stoppingForCase = false;
+        let overBudget: CompletedRun["overBudget"];
+        // What each question was asked with, by its call's part, for an answer
+        // that picks one of the choices the model wrote.
+        const chooseInputs = new Map<StoreId.Part, ChooseQuestion[]>();
+        let questionsAnswered = 0;
+        const handledAskIds = new Set<string>();
+        let foldersAllowed = 0;
+        // See `FollowUp.duringWork`: the run's own finished tool calls, and
+        // who is waiting for one to be in flight after enough of them.
+        const ownToolsDone = new Set<string>();
+        // The apps whose sign-in card the conversation put up, for
+        // `signInsEndAs` to end once its turn settles.
+        const signInCards = new Set<string>();
+        const ownToolsStarted = new Set<string>();
+        // The commands of the run's own `bash` calls in flight, by call.
+        const ownCommandsInFlight = new Map<string, string>();
+        let workWaiter:
+          | {
+              afterCalls: number;
+              baseline: number;
+              command?: RegExp;
+              resolve: () => void;
             }
-          })
-          .catch((error: unknown) => {
-            process.stderr.write(
-              `${evalPrefix(label)}${c.red}reading the chat's cards failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
-            );
+          | undefined;
+        const workWaiterMet = () =>
+          workWaiter !== undefined &&
+          ownToolsDone.size - workWaiter.baseline >= workWaiter.afterCalls &&
+          (workWaiter.command === undefined ||
+            [...ownCommandsInFlight.values()].some((command) =>
+              workWaiter?.command?.test(command),
+            ));
+        let duringWorkMissed = 0;
+        // See `EvalCase.marks`. Each is timed from when its message is sent.
+        const marks: {
+          after?: string;
+          at?: number;
+          match: RegExp;
+          name: string;
+          sentAt?: number;
+        }[] = (evalCase.marks ?? []).map((mark) => ({
+          ...mark,
+          sentAt:
+            mark.after === undefined || evalCase.prompt.includes(mark.after)
+              ? startedAt
+              : undefined,
+        }));
+        const roles = new Map<string, string | undefined>();
+        const roleOf = async (part: SessionMessagePart.Type) => {
+          const { messageId, sessionId: partSessionId } = part.metadata;
+          const known = roles.get(messageId);
+          if (known) {
+            return known;
+          }
+          const stored = await ChatReads.transcript({
+            chatId: id,
+            only: new Set([messageId]),
+            sessionId: partSessionId,
           });
-        return answeringAsks;
-      };
-      const askTimer = setInterval(() => {
-        void answerAsks();
-      }, TREE_POLL_MS);
-
-      void (async () => {
-        try {
-          for await (const event of partUpdates) {
-            // The run's own session: a task's parts are in the chat's store
-            // too, and are the task's.
+          const role = stored.isOk() ? stored.value[0]?.role : undefined;
+          if (role) {
+            roles.set(messageId, role);
+          }
+          return role;
+        };
+        // Every part of a message the run's records say moved, read back with
+        // what the turn still holds in memory, so a call shows as in flight
+        // while it runs. Parts are read again on each change to their message,
+        // which the handling below takes, since it keys what it records by call
+        // and by mark.
+        const partUpdates = (async function* () {
+          for await (const change of publisher.subscribe("record.changed", {
+            signal: abortController.signal,
+          })) {
             if (
-              event.id !== id ||
-              event.part.metadata.sessionId !== sessionId
+              change.id !== id ||
+              change.kind !== "messages" ||
+              change.message === undefined ||
+              change.message.removed ||
+              change.message.sessionId !== sessionId
             ) {
               continue;
             }
-
-            const part = event.part;
-
-            // Every message's parts are published, the user's and the
-            // context's included, and a part does not say whose it is. Those
-            // are stored before their parts are published, so a text part
-            // whose message is not yet stored, or is stored as the
-            // assistant's, is a reply being streamed.
-            if (
-              firstTextAt === undefined &&
-              part.type === "text" &&
-              part.text.trim() !== ""
-            ) {
-              const seenAt = Date.now();
-              const stored = await ChatReads.transcript({
-                chatId: id,
-                only: new Set([part.metadata.messageId]),
-                sessionId: part.metadata.sessionId,
-              });
-              const role = stored.isOk() ? stored.value[0]?.role : undefined;
-              if (role === undefined || role === "assistant") {
-                firstTextAt ??= seenAt;
+            const read = await ChatReads.transcript({
+              chatId: id,
+              only: new Set([change.message.id]),
+              sessionId,
+            });
+            if (read.isErr()) {
+              continue;
+            }
+            for (const message of read.value) {
+              for (const part of message.parts) {
+                yield { id, part };
               }
             }
+          }
+        })();
 
-            if (part.type === "text") {
-              const open = marks.filter(
-                (mark) =>
-                  mark.sentAt !== undefined &&
-                  mark.at === undefined &&
-                  mark.match.test(part.text),
+        // A model handed an unrecoverable input can keep trying to recover from
+        // it, and nothing in the loop is wrong enough to stop it: each attempt is
+        // a legitimate tool call. Measured, one run has reached millions of tokens
+        // on a single question before a human noticed. The eval harness is the one
+        // place that can see the running total and act on it, so it does.
+        const enforceCaps = ({ costUSD, modelPriced, tokens }: Spend) => {
+          if (stoppedBy) {
+            return;
+          }
+          const elapsedSeconds = (Date.now() - startedAt) / 1000;
+          const tokenCap =
+            evalCase.maxRunTokens ??
+            maxRunTokens ??
+            (modelPriced ? 0 : DEFAULT_MAX_RUN_TOKENS);
+          if (
+            maxRunCostUSD > 0 &&
+            costUSD !== undefined &&
+            costUSD > maxRunCostUSD
+          ) {
+            stoppedBy = "budget";
+            overBudget = { costUSD, tokens };
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatCost(costUSD)} > ${formatCost(maxRunCostUSD)}, stopping. Raise with --max-run-cost, or 0 to disable.${c.reset}\n`,
+            );
+          } else if (tokenCap > 0 && tokens > tokenCap) {
+            stoppedBy = "budget";
+            overBudget = { costUSD, tokens };
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(tokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+            );
+          } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
+            stoppedBy = "timeout";
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}Out of time${c.reset}${c.dim}: ${Math.round(elapsedSeconds)}s > ${maxRunSeconds}s, stopping. Raise with --max-run-seconds, or 0 to disable.${c.reset}\n`,
+            );
+          } else {
+            return;
+          }
+          void call(sessionRoute.stop, { id }, { context });
+        };
+
+        // The whole chat's spend, its tasks' included: a runaway task is as much
+        // the run's as a runaway conversation.
+        const spendOf = async (): Promise<Spend> => {
+          const { billed, messages } = await readChatSpend(id);
+          const usage = getUsageSummaryFromMessages(messages);
+          const cost = runCostOf(messages, {
+            billed,
+            price,
+            priceFor: catalog.searchPriceFor,
+          });
+          return {
+            ...capSpendOf(cost),
+            tokens: usage.totalTokens,
+            usage,
+          };
+        };
+        const enforcementTimer = setInterval(() => {
+          void spendOf().then(enforceCaps, _.noop);
+        }, ENFORCEMENT_INTERVAL_MS);
+
+        // A program the agent ran that grows past what one machine can spare
+        // takes every other run down with it, so it is killed and the run is
+        // stopped as out of memory rather than left to finish.
+        const memoryTimer = setInterval(() => {
+          void oversizedProcessesIn(caseFolders(id)).then((oversized) => {
+            if (oversized.length === 0) {
+              return;
+            }
+            signal(
+              oversized.map(({ pid }) => pid),
+              "SIGKILL",
+            );
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}Out of memory${c.reset}${c.dim}: a program it ran held ${formatBytes(Math.max(...oversized.map(({ rssBytes }) => rssBytes)))} > ${formatBytes(MAX_PROCESS_BYTES)}; killed it and stopping.${c.reset}\n`,
+            );
+            if (!stoppedBy) {
+              stoppedBy = "memory";
+              void call(sessionRoute.stop, { id }, { context });
+            }
+          }, _.noop);
+        }, MEMORY_CHECK_INTERVAL_MS);
+
+        // A question the agent asked, or a folder or app it asked for, shows
+        // the person a card, which the case answers the way they would: a
+        // scripted pick, a yes, a no, or nothing, leaving the agent to carry on
+        // without it. Read on every part and on a timer, since a turn ends on
+        // the call that asked and may publish nothing after it.
+        let answeringAsks = Promise.resolve();
+        const answerAsks = () => {
+          answeringAsks = answeringAsks
+            .then(async () => {
+              for (const ask of await openAsks(id)) {
+                if (handledAskIds.has(ask.id)) {
+                  continue;
+                }
+                handledAskIds.add(ask.id);
+                let answer: () => Promise<unknown>;
+                if (ask.kind === "question") {
+                  const partId = ask.askers[0]?.partId;
+                  const input = partId ? chooseInputs.get(partId) : undefined;
+                  const scripted = evalCase.answers?.[questionsAnswered++];
+                  const picked =
+                    typeof scripted === "function"
+                      ? input && scripted(input)
+                      : scripted;
+                  write(
+                    `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${ask.question}${picked ? `; answering ${JSON.stringify(picked)}` : "; leaving it open"}${c.reset}\n`,
+                  );
+                  if (!picked) {
+                    continue;
+                  }
+                  answer = () =>
+                    call(
+                      chatsRoute.answerQuestion,
+                      { answer: picked, askId: ask.id, id },
+                      { context },
+                    );
+                } else {
+                  const declines =
+                    ask.kind === "folder"
+                      ? evalCase.declinesFolders
+                      : evalCase.declinesApps;
+                  // A folder outside the run's home is the developer's own, which
+                  // a model that guesses at the real home asks for, so it is never
+                  // allowed and never counts against the case's allowance.
+                  // Both resolved, since a temp home is reached through a
+                  // symlink as well (`/var` and `/private/var` on macOS).
+                  const real = (at: string) => {
+                    try {
+                      return fs.realpathSync(at);
+                    } catch {
+                      return at;
+                    }
+                  };
+                  const fromHome = path.relative(
+                    real(os.homedir()),
+                    real(ask.target),
+                  );
+                  const inRunHome =
+                    !fromHome.startsWith("..") && !path.isAbsolute(fromHome);
+                  const allows =
+                    ask.kind === "folder"
+                      ? !declines &&
+                        inRunHome &&
+                        foldersAllowed++ < (evalCase.allowsFolders ?? 0)
+                      : evalCase.allowsApps;
+                  write(
+                    `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : allows ? "; allowing" : ""}${c.reset}\n`,
+                  );
+                  if (!(declines || allows)) {
+                    continue;
+                  }
+                  answer = () =>
+                    call(
+                      permissionsRoute.answer,
+                      {
+                        askId: ask.id,
+                        decision: declines ? "declined" : "allowed",
+                        id,
+                      },
+                      { context },
+                    );
+                }
+                // Answered once the asking sessions' turns are over, as a
+                // person reading the card would, so the answer arrives as a
+                // wake rather than mid-turn.
+                void (async () => {
+                  const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                  while (
+                    ask.askers.some((asker) =>
+                      isWorking(id, asker.sessionId),
+                    ) &&
+                    Date.now() < until
+                  ) {
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, TREE_POLL_MS),
+                    );
+                  }
+                  await answer();
+                })().catch((error: unknown) => {
+                  process.stderr.write(
+                    `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+                  );
+                });
+              }
+            })
+            .catch((error: unknown) => {
+              process.stderr.write(
+                `${evalPrefix(label)}${c.red}reading the chat's cards failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
               );
-              if (open.length > 0) {
+            });
+          return answeringAsks;
+        };
+        const askTimer = setInterval(() => {
+          void answerAsks();
+        }, TREE_POLL_MS);
+
+        void (async () => {
+          try {
+            for await (const event of partUpdates) {
+              // The run's own session: a task's parts are in the chat's store
+              // too, and are the task's.
+              if (
+                event.id !== id ||
+                event.part.metadata.sessionId !== sessionId
+              ) {
+                continue;
+              }
+
+              const part = event.part;
+
+              // Every message's parts are published, the user's and the
+              // context's included, and a part does not say whose it is. Those
+              // are stored before their parts are published, so a text part
+              // whose message is not yet stored, or is stored as the
+              // assistant's, is a reply being streamed.
+              if (
+                firstTextAt === undefined &&
+                part.type === "text" &&
+                part.text.trim() !== ""
+              ) {
                 const seenAt = Date.now();
-                if ((await roleOf(part)) !== "user") {
-                  for (const mark of open) {
-                    mark.at ??= seenAt;
+                const stored = await ChatReads.transcript({
+                  chatId: id,
+                  only: new Set([part.metadata.messageId]),
+                  sessionId: part.metadata.sessionId,
+                });
+                const role = stored.isOk() ? stored.value[0]?.role : undefined;
+                if (role === undefined || role === "assistant") {
+                  firstTextAt ??= seenAt;
+                }
+              }
+
+              if (part.type === "text") {
+                const open = marks.filter(
+                  (mark) =>
+                    mark.sentAt !== undefined &&
+                    mark.at === undefined &&
+                    mark.match.test(part.text),
+                );
+                if (open.length > 0) {
+                  const seenAt = Date.now();
+                  if ((await roleOf(part)) !== "user") {
+                    for (const mark of open) {
+                      mark.at ??= seenAt;
+                    }
                   }
                 }
               }
-            }
 
-            if (isToolPart(part)) {
+              if (isToolPart(part)) {
+                if (
+                  part.state === "output-available" ||
+                  part.state === "output-error"
+                ) {
+                  ownToolsDone.add(part.toolCallId);
+                  ownCommandsInFlight.delete(part.toolCallId);
+                } else if (
+                  part.state === "input-available" &&
+                  !ownToolsStarted.has(part.toolCallId)
+                ) {
+                  ownToolsStarted.add(part.toolCallId);
+                  if (part.type === "tool-bash" && part.input?.command) {
+                    ownCommandsInFlight.set(
+                      part.toolCallId,
+                      part.input.command,
+                    );
+                  }
+                  if (workWaiter && workWaiterMet()) {
+                    workWaiter.resolve();
+                    workWaiter = undefined;
+                  }
+                }
+              }
+
               if (
-                part.state === "output-available" ||
-                part.state === "output-error"
+                part.type === "tool-connect_app" &&
+                part.state === "output-available"
               ) {
-                ownToolsDone.add(part.toolCallId);
-                ownCommandsInFlight.delete(part.toolCallId);
-              } else if (
-                part.state === "input-available" &&
-                !ownToolsStarted.has(part.toolCallId)
+                for (const row of askedOnCard(part.output)) {
+                  if (row.kind === "sign-in") {
+                    signInCards.add(row.slug);
+                  }
+                }
+              }
+
+              if (
+                part.type === "tool-choose" &&
+                part.state === "input-available"
               ) {
-                ownToolsStarted.add(part.toolCallId);
-                if (part.type === "tool-bash" && part.input?.command) {
-                  ownCommandsInFlight.set(part.toolCallId, part.input.command);
-                }
-                if (workWaiter && workWaiterMet()) {
-                  workWaiter.resolve();
-                  workWaiter = undefined;
-                }
-              }
-            }
-
-            if (
-              part.type === "tool-connect_app" &&
-              part.state === "output-available"
-            ) {
-              for (const row of askedOnCard(part.output)) {
-                if (row.kind === "sign-in") {
-                  signInCards.add(row.slug);
-                }
-              }
-            }
-
-            if (
-              part.type === "tool-choose" &&
-              part.state === "input-available"
-            ) {
-              chooseInputs.set(part.metadata.id, chooseQuestions(part.input));
-            }
-
-            await answerAsks();
-
-            if (
-              isToolPart(part) &&
-              part.state !== "input-streaming" &&
-              part.state !== "input-available"
-            ) {
-              const isError = part.state === "output-error";
-              const stream = isError ? process.stderr : process.stdout;
-              const spend = await spendOf();
-              const { usage } = spend;
-              const toolName = part.type.replace("tool-", "");
-              const toolLabel = isError
-                ? `${c.red}${toolName} ERROR${c.reset}`
-                : `${c.cyan}${toolName}${c.reset}`;
-              const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}${spend.costUSD === undefined ? "" : `${c.dim} cost=${c.reset}${formatCost(spend.costUSD)}`}`;
-              const line = `${evalPrefix(label)}${toolLabel}${statsSuffix}\n`;
-              if (isError) {
-                stream.write(line);
-              } else {
-                write(line);
+                chooseInputs.set(part.metadata.id, chooseQuestions(part.input));
               }
 
-              enforceCaps(spend);
-            }
+              await answerAsks();
 
-            if (!stoppingForCase && (await evalCase.shouldStop?.(part, id))) {
-              stoppingForCase = true;
-              stoppedBy ??= "case";
-              write(
-                `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
-              );
-              // Once the step that made the part has ended, since the step's
-              // usage arrives in the provider's last chunk and a stop before
-              // that leaves a step the provider billed with no usage at all.
-              // The call it asked for may start meanwhile; the stop ends it.
-              void stepEnded(id, part.metadata).then(() =>
-                call(sessionRoute.stop, { id }, { context }),
-              );
+              if (
+                isToolPart(part) &&
+                part.state !== "input-streaming" &&
+                part.state !== "input-available"
+              ) {
+                const isError = part.state === "output-error";
+                const stream = isError ? process.stderr : process.stdout;
+                const spend = await spendOf();
+                const { usage } = spend;
+                const toolName = part.type.replace("tool-", "");
+                const toolLabel = isError
+                  ? `${c.red}${toolName} ERROR${c.reset}`
+                  : `${c.cyan}${toolName}${c.reset}`;
+                const statsSuffix = `  ${c.dim}tokens=${c.reset}${formatNumber(usage.totalTokens)}${c.dim} (in=${formatNumber(usage.inputTokens)} out=${formatNumber(usage.outputTokens)}) msgs=${c.reset}${c.yellow}${usage.messageCount}${c.reset}${spend.costUSD === undefined ? "" : `${c.dim} cost=${c.reset}${formatCost(spend.costUSD)}`}`;
+                const line = `${evalPrefix(label)}${toolLabel}${statsSuffix}\n`;
+                if (isError) {
+                  stream.write(line);
+                } else {
+                  write(line);
+                }
+
+                enforceCaps(spend);
+              }
+
+              if (!stoppingForCase && (await evalCase.shouldStop?.(part, id))) {
+                stoppingForCase = true;
+                stoppedBy ??= "case";
+                write(
+                  `${evalPrefix(label)}${c.yellow}shouldStop returned true, stopping session...${c.reset}\n`,
+                );
+                // Once the step that made the part has ended, since the step's
+                // usage arrives in the provider's last chunk and a stop before
+                // that leaves a step the provider billed with no usage at all.
+                // The call it asked for may start meanwhile; the stop ends it.
+                void stepEnded(id, part.metadata).then(() =>
+                  call(sessionRoute.stop, { id }, { context }),
+                );
+              }
+            }
+          } catch (error) {
+            if (
+              !(error instanceof DOMException && error.name === "AbortError")
+            ) {
+              throw error;
             }
           }
-        } catch (error) {
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
-            throw error;
-          }
-        }
-      })();
+        })();
 
-      // A stop that never takes effect would otherwise hold the whole suite
-      // behind this one run for as long as the process lives.
-      //
-      // One deadline for the whole run rather than one per wait. A case with a
-      // follow-up waits three times -- first turn, follow-up turn, then the
-      // tree going quiet -- and a per-wait cap let a run take three times the
-      // number the operator set, which is how `--max-run-seconds 900` produced
-      // a run still going three quarters of an hour later.
-      const runDeadline =
-        maxRunSeconds > 0
-          ? startedAt + maxRunSeconds * 1000 + STOP_GRACE_MS
-          : undefined;
-      const remainingMs = () =>
-        runDeadline === undefined
-          ? undefined
-          : Math.max(0, runDeadline - Date.now());
-      const followUps = (evalCase.followUps ?? []).map((followUp) =>
-        typeof followUp === "string" ? { prompt: followUp } : followUp,
-      );
-      const isTimed = (followUp?: FollowUp) =>
-        followUp?.afterMs !== undefined || followUp?.duringWork !== undefined;
-      // Counted from each message sent, so a `duringWork` follow-up waits on
-      // tool calls of the turn it is meant to land in.
-      let toolsAtLastSend = 0;
-      let turn = waitForSessionDone(sessionId, id, {
-        timeoutMs: remainingMs(),
-      });
-      let outcome: "done" | "timeout" = "done";
-      let doneAt = startedAt;
-      let lastSentAt = startedAt;
-      if (!isTimed(followUps[0])) {
-        outcome = await turn;
-        doneAt = Date.now();
-      }
-
-      if (evalCase.finishesAs && !stoppedBy && outcome !== "timeout") {
-        await standInForTasks(id, evalCase.finishesAs, {
-          standInWindow,
-          workspaceRef: actor,
+        // A stop that never takes effect would otherwise hold the whole suite
+        // behind this one run for as long as the process lives.
+        //
+        // One deadline for the whole run rather than one per wait. A case with a
+        // follow-up waits three times -- first turn, follow-up turn, then the
+        // tree going quiet -- and a per-wait cap let a run take three times the
+        // number the operator set, which is how `--max-run-seconds 900` produced
+        // a run still going three quarters of an hour later.
+        const runDeadline =
+          maxRunSeconds > 0
+            ? startedAt + maxRunSeconds * 1000 + STOP_GRACE_MS
+            : undefined;
+        const remainingMs = () =>
+          runDeadline === undefined
+            ? undefined
+            : Math.max(0, runDeadline - Date.now());
+        const followUps = (evalCase.followUps ?? []).map((followUp) =>
+          typeof followUp === "string" ? { prompt: followUp } : followUp,
+        );
+        const isTimed = (followUp?: FollowUp) =>
+          followUp?.afterMs !== undefined || followUp?.duringWork !== undefined;
+        // Counted from each message sent, so a `duringWork` follow-up waits on
+        // tool calls of the turn it is meant to land in.
+        let toolsAtLastSend = 0;
+        let turn = waitForSessionDone(sessionId, id, {
+          timeoutMs: remainingMs(),
         });
-        // The wake asks for what the task needs; its card is answered below
-        // only once that turn has put it up.
-        if (evalCase.signInsAnswerAs) {
-          await waitForTreeQuiet(id, {
-            timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
-          });
-        }
-      }
-
-      if (evalCase.signInsEndAs && !stoppedBy && outcome !== "timeout") {
-        for (const slug of signInCards) {
-          write(
-            `${evalPrefix(label)}${c.dim}Sign-in to ${slug} ends: ${evalCase.signInsEndAs.ended ?? "failed"}${c.reset}\n`,
-          );
-          await endSignIn(slug, evalCase.signInsEndAs);
-        }
-        signInCards.clear();
-      }
-
-      if (evalCase.signInsAnswerAs && !stoppedBy && outcome !== "timeout") {
-        for (const slug of signInCards) {
-          await new Promise((resolve) => setTimeout(resolve, SIGN_IN_GAP_MS));
-          const answer = evalCase.signInsAnswerAs[slug] ?? "connected";
-          write(
-            `${evalPrefix(label)}${c.dim}Sign-in to ${slug}: ${answer}${c.reset}\n`,
-          );
-          await answerSignIn(slug, answer, {
-            account: "you@example.com",
-            appsDir: workspaceLayout(workspaceRootDir).appsDir,
-          });
-        }
-        signInCards.clear();
-      }
-
-      // Follow-ups run before the teardown below, so the caps timer and the
-      // part subscription cover the whole conversation rather than its first
-      // turn: a run that loops on turn four is the same runaway as one that
-      // loops on turn one. A turn that stopped or timed out ends the run
-      // rather than asking the next question into a session that is not
-      // listening.
-      for (const [position, followUp] of followUps.entries()) {
-        if (stoppedBy || outcome === "timeout") {
-          break;
-        }
-        // A slow model can still be writing `instrument task new` when `afterMs` has
-        // passed since the message that asked for it.
-        const taskToStop =
-          "stopTask" in followUp
-            ? await taskOnceStarted(id, followUp.stopTask, turn)
-            : "timeOutTask" in followUp
-              ? await taskOnceStarted(id, followUp.timeOutTask, turn)
-              : undefined;
-        const timedFrom = Math.max(
-          lastSentAt,
-          taskToStop?.createdAt.getTime() ?? 0,
-        );
-        if (followUp.duringWork !== undefined) {
-          const { afterToolCalls, command } = followUp.duringWork;
-          const inFlight = new Promise<"in flight">((resolve) => {
-            workWaiter = {
-              afterCalls: afterToolCalls,
-              baseline: toolsAtLastSend,
-              ...(command ? { command } : {}),
-              resolve: () => {
-                resolve("in flight");
-              },
-            };
-            // A call already in flight as the wait begins counts.
-            if (workWaiterMet()) {
-              resolve("in flight");
-            }
-          });
-          const first = await Promise.race([inFlight, turn]);
-          workWaiter = undefined;
-          if (first !== "in flight") {
-            duringWorkMissed += 1;
-          }
-        } else if (followUp.afterMs !== undefined) {
-          await new Promise((resolve) =>
-            setTimeout(
-              resolve,
-              Math.max(0, timedFrom + (followUp.afterMs ?? 0) - Date.now()),
-            ),
-          );
-        } else if (followUp.settled && evalCase.kind === "chat") {
-          await waitForTreeQuiet(id, {
-            timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
-          });
-        }
-        // A message sent into a turn in progress is heard between its steps,
-        // and that turn's end is the one still awaited; sent to a session at
-        // rest, it starts a turn of its own.
-        await evalCase.beforeFollowUp?.(position);
-        if ("stopTask" in followUp) {
-          write(
-            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
-          );
-          if (taskToStop) {
-            await call(
-              sessionRoute.stop,
-              { id, sessionId: taskToStop.id },
-              { context },
-            );
-          }
-          lastSentAt = Date.now();
-          continue;
-        }
-        if ("timeOutTask" in followUp) {
-          write(
-            `${evalPrefix(label)}${c.dim}Time out: ${followUp.timeOutTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
-          );
-          if (taskToStop) {
-            const { timeouts } = await timeOutTaskTurn(
-              actor,
-              { chatId: id, sessionId: taskToStop.id },
-              Date.now() + (remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000),
-            );
-            write(
-              `${evalPrefix(label)}${c.dim}Timed out ${String(timeouts)} requests of ${followUp.timeOutTask}${c.reset}\n`,
-            );
-          }
-          lastSentAt = Date.now();
-          continue;
-        }
-        if ("stopChat" in followUp) {
-          // A person presses Stop on a command they have watched start, not
-          // on one still being written.
-          await new Promise((resolve) =>
-            setTimeout(resolve, STOP_CHAT_AFTER_MS),
-          );
-          write(
-            `${evalPrefix(label)}${c.dim}Stop: the chat's turn${c.reset}\n`,
-          );
-          await call(sessionRoute.stop, { id, sessionId }, { context });
-          lastSentAt = Date.now();
-          continue;
-        }
-        const steering = isTimed(followUp) && isWorking(id, sessionId);
-        write(
-          `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
-        );
-        const sendingAt = Date.now();
-        for (const mark of marks) {
-          if (
-            mark.sentAt === undefined &&
-            mark.after !== undefined &&
-            followUp.prompt.includes(mark.after)
-          ) {
-            mark.sentAt = sendingAt;
-          }
-        }
-        await call(
-          messageRoute.create,
-          {
-            id,
-            modelURI: uri,
-            prompt: followUp.prompt,
-            sessionId,
-            ...(evalCase.sharedBrowser && evalCase.viewing
-              ? { viewing: evalCase.viewing }
-              : {}),
-          },
-          { context },
-        );
-        lastSentAt = Date.now();
-        toolsAtLastSend = ownToolsDone.size;
-        if (!steering) {
-          turn = waitForSessionDone(sessionId, id, {
-            timeoutMs: remainingMs(),
-          });
-        }
-        if (!isTimed(followUps[position + 1])) {
+        let outcome: "done" | "timeout" = "done";
+        let doneAt = startedAt;
+        let lastSentAt = startedAt;
+        if (!isTimed(followUps[0])) {
           outcome = await turn;
           doneAt = Date.now();
         }
-      }
 
-      // The children and the wake they trigger are the rest of a chat
-      // run. Everything above this line has only watched the conversation.
-      // A message sent mid-turn that the turn ended before hearing runs as a
-      // turn of its own, so a timed follow-up waits the same way.
-      if (
-        (evalCase.kind === "chat" ||
-          followUps.some(isTimed) ||
-          evalCase.outlivesTurn) &&
-        !stoppedBy
-      ) {
-        const settled = await waitForTreeQuiet(id, {
-          timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
-          untilBackgroundEnds: evalCase.outlivesTurn,
-        });
-        if (settled.status === "timeout") {
+        if (evalCase.finishesAs && !stoppedBy && outcome !== "timeout") {
+          await standInForTasks(id, evalCase.finishesAs, {
+            standInWindow,
+            workspaceRef: actor,
+          });
+          // The wake asks for what the task needs; its card is answered below
+          // only once that turn has put it up.
+          if (evalCase.signInsAnswerAs) {
+            await waitForTreeQuiet(id, {
+              timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+            });
+          }
+        }
+
+        if (evalCase.signInsEndAs && !stoppedBy && outcome !== "timeout") {
+          for (const slug of signInCards) {
+            write(
+              `${evalPrefix(label)}${c.dim}Sign-in to ${slug} ends: ${evalCase.signInsEndAs.ended ?? "failed"}${c.reset}\n`,
+            );
+            await endSignIn(slug, evalCase.signInsEndAs);
+          }
+          signInCards.clear();
+        }
+
+        if (evalCase.signInsAnswerAs && !stoppedBy && outcome !== "timeout") {
+          for (const slug of signInCards) {
+            await new Promise((resolve) => setTimeout(resolve, SIGN_IN_GAP_MS));
+            const answer = evalCase.signInsAnswerAs[slug] ?? "connected";
+            write(
+              `${evalPrefix(label)}${c.dim}Sign-in to ${slug}: ${answer}${c.reset}\n`,
+            );
+            await answerSignIn(slug, answer, {
+              account: "you@example.com",
+              appsDir: workspaceLayout(workspaceRootDir).appsDir,
+            });
+          }
+          signInCards.clear();
+        }
+
+        // Follow-ups run before the teardown below, so the caps timer and the
+        // part subscription cover the whole conversation rather than its first
+        // turn: a run that loops on turn four is the same runaway as one that
+        // loops on turn one. A turn that stopped or timed out ends the run
+        // rather than asking the next question into a session that is not
+        // listening.
+        for (const [position, followUp] of followUps.entries()) {
+          if (stoppedBy || outcome === "timeout") {
+            break;
+          }
+          // A slow model can still be writing `instrument task new` when `afterMs` has
+          // passed since the message that asked for it.
+          const taskToStop =
+            "stopTask" in followUp
+              ? await taskOnceStarted(id, followUp.stopTask, turn)
+              : "timeOutTask" in followUp
+                ? await taskOnceStarted(id, followUp.timeOutTask, turn)
+                : undefined;
+          const timedFrom = Math.max(
+            lastSentAt,
+            taskToStop?.createdAt.getTime() ?? 0,
+          );
+          if (followUp.duringWork !== undefined) {
+            const { afterToolCalls, command } = followUp.duringWork;
+            const inFlight = new Promise<"in flight">((resolve) => {
+              workWaiter = {
+                afterCalls: afterToolCalls,
+                baseline: toolsAtLastSend,
+                ...(command ? { command } : {}),
+                resolve: () => {
+                  resolve("in flight");
+                },
+              };
+              // A call already in flight as the wait begins counts.
+              if (workWaiterMet()) {
+                resolve("in flight");
+              }
+            });
+            const first = await Promise.race([inFlight, turn]);
+            workWaiter = undefined;
+            if (first !== "in flight") {
+              duringWorkMissed += 1;
+            }
+          } else if (followUp.afterMs !== undefined) {
+            await new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                Math.max(0, timedFrom + (followUp.afterMs ?? 0) - Date.now()),
+              ),
+            );
+          } else if (followUp.settled && evalCase.kind === "chat") {
+            await waitForTreeQuiet(id, {
+              timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+            });
+          }
+          // A message sent into a turn in progress is heard between its steps,
+          // and that turn's end is the one still awaited; sent to a session at
+          // rest, it starts a turn of its own.
+          await evalCase.beforeFollowUp?.(position);
+          if ("stopTask" in followUp) {
+            write(
+              `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
+            );
+            if (taskToStop) {
+              await call(
+                sessionRoute.stop,
+                { id, sessionId: taskToStop.id },
+                { context },
+              );
+            }
+            lastSentAt = Date.now();
+            continue;
+          }
+          if ("timeOutTask" in followUp) {
+            write(
+              `${evalPrefix(label)}${c.dim}Time out: ${followUp.timeOutTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
+            );
+            if (taskToStop) {
+              const { timeouts } = await timeOutTaskTurn(
+                actor,
+                { chatId: id, sessionId: taskToStop.id },
+                Date.now() + (remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000),
+              );
+              write(
+                `${evalPrefix(label)}${c.dim}Timed out ${String(timeouts)} requests of ${followUp.timeOutTask}${c.reset}\n`,
+              );
+            }
+            lastSentAt = Date.now();
+            continue;
+          }
+          if ("stopChat" in followUp) {
+            // A person presses Stop on a command they have watched start, not
+            // on one still being written.
+            await new Promise((resolve) =>
+              setTimeout(resolve, STOP_CHAT_AFTER_MS),
+            );
+            write(
+              `${evalPrefix(label)}${c.dim}Stop: the chat's turn${c.reset}\n`,
+            );
+            await call(sessionRoute.stop, { id, sessionId }, { context });
+            lastSentAt = Date.now();
+            continue;
+          }
+          const steering = isTimed(followUp) && isWorking(id, sessionId);
+          write(
+            `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
+          );
+          const sendingAt = Date.now();
+          for (const mark of marks) {
+            if (
+              mark.sentAt === undefined &&
+              mark.after !== undefined &&
+              followUp.prompt.includes(mark.after)
+            ) {
+              mark.sentAt = sendingAt;
+            }
+          }
+          await call(
+            messageRoute.create,
+            {
+              id,
+              modelURI: uri,
+              prompt: followUp.prompt,
+              sessionId,
+              ...(evalCase.sharedBrowser && evalCase.viewing
+                ? { viewing: viewingNow(evalCase.viewing, sharedChrome) }
+                : {}),
+            },
+            { context },
+          );
+          lastSentAt = Date.now();
+          toolsAtLastSend = ownToolsDone.size;
+          if (!steering) {
+            turn = waitForSessionDone(sessionId, id, {
+              timeoutMs: remainingMs(),
+            });
+          }
+          if (!isTimed(followUps[position + 1])) {
+            outcome = await turn;
+            doneAt = Date.now();
+          }
+        }
+
+        // The children and the wake they trigger are the rest of a chat
+        // run. Everything above this line has only watched the conversation.
+        // A message sent mid-turn that the turn ended before hearing runs as a
+        // turn of its own, so a timed follow-up waits the same way.
+        if (
+          (evalCase.kind === "chat" ||
+            followUps.some(isTimed) ||
+            evalCase.outlivesTurn) &&
+          !stoppedBy
+        ) {
+          const settled = await waitForTreeQuiet(id, {
+            timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+            untilBackgroundEnds: evalCase.outlivesTurn,
+          });
+          if (settled.status === "timeout") {
+            stoppedBy = "timeout";
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}Tree never settled${c.reset}${c.dim}: a task in this run was still working when time ran out.${c.reset}\n`,
+            );
+          } else {
+            doneAt = Math.max(doneAt, settled.quietSince);
+          }
+        }
+
+        clearInterval(enforcementTimer);
+        clearInterval(memoryTimer);
+        clearInterval(askTimer);
+        abortController.abort();
+        await evalCase.teardown?.({ chatId: id });
+        // Every session's agent-browser daemon, as trashing a chat closes them.
+        // Nothing else does for a chat's own session, and each one holds a
+        // headless Chrome for the daemon's idle timeout after this process has
+        // exited, which across a run of many cases exhausts the machine.
+        await closeAgentBrowserSessionsForSessions(
+          [
+            sessionOfChat(id),
+            ...(await listChildTasks(id)).map((task) => task.id),
+          ].filter((session) => session !== undefined),
+        );
+        // And whatever else the chat left running, which outlives this process
+        // otherwise: what it started in the background, then anything still
+        // working in its folders.
+        await killChatBackgroundProcesses(id);
+        const leftRunning = await stopProcessesIn(caseFolders(id));
+        if (leftRunning > 0) {
+          write(
+            `${evalPrefix(label)}${c.dim}Stopped ${leftRunning} program(s) still running in its folders.${c.reset}\n`,
+          );
+        }
+
+        if (outcome === "timeout") {
           stoppedBy = "timeout";
           process.stderr.write(
-            `${evalPrefix(label)}${c.red}Tree never settled${c.reset}${c.dim}: a task in this run was still working when time ran out.${c.reset}\n`,
+            `${evalPrefix(label)}${c.red}Abandoned${c.reset}${c.dim}: the session never reported itself done.${c.reset}\n`,
           );
-        } else {
-          doneAt = Math.max(doneAt, settled.quietSince);
         }
-      }
 
-      clearInterval(enforcementTimer);
-      clearInterval(memoryTimer);
-      clearInterval(askTimer);
-      abortController.abort();
-      await evalCase.teardown?.({ chatId: id });
-      // Every session's agent-browser daemon, as trashing a chat closes them.
-      // Nothing else does for a chat's own session, and each one holds a
-      // headless Chrome for the daemon's idle timeout after this process has
-      // exited, which across a run of many cases exhausts the machine.
-      await closeAgentBrowserSessionsForSessions(
-        [
-          sessionOfChat(id),
-          ...(await listChildTasks(id)).map((task) => task.id),
-        ].filter((session) => session !== undefined),
-      );
-      // And whatever else the chat left running, which outlives this process
-      // otherwise: what it started in the background, then anything still
-      // working in its folders.
-      await killChatBackgroundProcesses(id);
-      const leftRunning = await stopProcessesIn(caseFolders(id));
-      if (leftRunning > 0) {
+        const usage = await getUsageSummary(id, { sessionId });
+        // What a forking run actually spent is the conversation plus every
+        // task it started; the conversation's own total is a fraction of it, and
+        // reporting only that would make forking look free.
+        const childSessionIds = await childTasksOf(id, sessionId);
+        const childUsages = await Promise.all(
+          childSessionIds.map((childId) =>
+            getUsageSummary(id, { sessionId: childId }),
+          ),
+        );
+        const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+        for (const one of [usage, ...childUsages]) {
+          treeUsage.inputTokens += one.inputTokens;
+          treeUsage.outputTokens += one.outputTokens;
+          treeUsage.totalTokens += one.totalTokens;
+        }
+        const markTimes =
+          marks.length > 0
+            ? Object.fromEntries(
+                marks.map((mark) => [
+                  mark.name,
+                  mark.at === undefined || mark.sentAt === undefined
+                    ? null
+                    : mark.at - mark.sentAt,
+                ]),
+              )
+            : undefined;
+        if (markTimes) {
+          const marksDir = path.join(os.homedir(), ".eval-marks");
+          fs.mkdirSync(marksDir, { recursive: true });
+          fs.writeFileSync(
+            path.join(marksDir, `${id}.json`),
+            JSON.stringify(markTimes),
+          );
+        }
+        const metrics = {
+          ...(await metricsFor(id, sessionId, childSessionIds, {
+            doneAt,
+            firstTextAt,
+            startedAt,
+          })),
+          ...(markTimes ? { marks: markTimes } : {}),
+          ...(evalCase.followUps?.some(
+            (followUp) =>
+              typeof followUp !== "string" && followUp.duringWork !== undefined,
+          )
+            ? { duringWorkMissed }
+            : {}),
+          cacheReadTokens: [usage, ...childUsages].reduce(
+            (sum, one) => sum + one.inputTokenDetails.cacheReadTokens,
+            0,
+          ),
+        };
+        const spent = await readChatSpend(id, [sessionId, ...childSessionIds]);
+        const cost = runCostOf(spent.messages, {
+          billed: spent.billed,
+          price,
+          priceFor: catalog.searchPriceFor,
+        });
+        const costUSD = modelCostUSD(cost);
+        const costLine = describeCost(cost);
+
+        finishedRuns += 1;
         write(
-          `${evalPrefix(label)}${c.dim}Stopped ${leftRunning} program(s) still running in its folders.${c.reset}\n`,
+          `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costLine === undefined ? "" : `, ${costLine}`})${c.reset}\n`,
         );
-      }
 
-      if (outcome === "timeout") {
-        stoppedBy = "timeout";
-        process.stderr.write(
-          `${evalPrefix(label)}${c.red}Abandoned${c.reset}${c.dim}: the session never reported itself done.${c.reset}\n`,
-        );
-      }
+        return {
+          childSessionIds,
+          cost,
+          costSource: costSourceOf(cost),
+          costUSD,
+          label,
+          metrics,
+          modelLabel,
+          modelURI: uri,
+          name: evalCase.name,
+          overBudget,
+          resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
+          searchCostUSD:
+            cost.search.searches > 0 ? cost.search.estimatedUSD : undefined,
+          sessionId,
+          stoppedBy,
+          chatId: id,
+          treeUsage,
+          trial,
+          usage: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
+          },
+        };
+      },
+    );
 
-      const usage = await getUsageSummary(id, { sessionId });
-      // What a forking run actually spent is the conversation plus every
-      // task it started; the conversation's own total is a fraction of it, and
-      // reporting only that would make forking look free.
-      const childSessionIds = await childTasksOf(id, sessionId);
-      const childUsages = await Promise.all(
-        childSessionIds.map((childId) =>
-          getUsageSummary(id, { sessionId: childId }),
-        ),
-      );
-      const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-      for (const one of [usage, ...childUsages]) {
-        treeUsage.inputTokens += one.inputTokens;
-        treeUsage.outputTokens += one.outputTokens;
-        treeUsage.totalTokens += one.totalTokens;
-      }
-      const markTimes =
-        marks.length > 0
-          ? Object.fromEntries(
-              marks.map((mark) => [
-                mark.name,
-                mark.at === undefined || mark.sentAt === undefined
-                  ? null
-                  : mark.at - mark.sentAt,
-              ]),
-            )
-          : undefined;
-      if (markTimes) {
-        const marksDir = path.join(os.homedir(), ".eval-marks");
-        fs.mkdirSync(marksDir, { recursive: true });
-        fs.writeFileSync(
-          path.join(marksDir, `${id}.json`),
-          JSON.stringify(markTimes),
-        );
-      }
-      const metrics = {
-        ...(await metricsFor(id, sessionId, childSessionIds, {
-          doneAt,
-          firstTextAt,
-          startedAt,
-        })),
-        ...(markTimes ? { marks: markTimes } : {}),
-        ...(evalCase.followUps?.some(
-          (followUp) =>
-            typeof followUp !== "string" && followUp.duringWork !== undefined,
-        )
-          ? { duringWorkMissed }
-          : {}),
-        cacheReadTokens: [usage, ...childUsages].reduce(
-          (sum, one) => sum + one.inputTokenDetails.cacheReadTokens,
-          0,
-        ),
-      };
-      const spent = await readChatSpend(id, [sessionId, ...childSessionIds]);
-      const cost = runCostOf(spent.messages, {
-        billed: spent.billed,
-        price,
-        priceFor: catalog.searchPriceFor,
-      });
-      const costUSD = modelCostUSD(cost);
-      const costLine = describeCost(cost);
+    await appFixtures.close();
+    stopStandInWindow();
+    actor.stop();
 
-      finishedRuns += 1;
-      write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costLine === undefined ? "" : `, ${costLine}`})${c.reset}\n`,
-      );
+    return { runs: completed, workspaceRootDir };
+  } finally {
+    sharedChrome?.close();
+    setSharedChrome(undefined);
+  }
+}
 
-      return {
-        childSessionIds,
-        cost,
-        costSource: costSourceOf(cost),
-        costUSD,
-        label,
-        metrics,
-        modelLabel,
-        modelURI: uri,
-        name: evalCase.name,
-        overBudget,
-        resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
-        searchCostUSD:
-          cost.search.searches > 0 ? cost.search.estimatedUSD : undefined,
-        sessionId,
-        stoppedBy,
-        chatId: id,
-        treeUsage,
-        trial,
-        usage: {
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          totalTokens: usage.totalTokens,
-        },
-      };
-    },
-  );
-
-  await appFixtures.close();
-  stopStandInWindow();
-  actor.stop();
-  sharedChrome?.close();
-
-  return { runs: completed, workspaceRootDir };
+/**
+ * The note a follow-up of a shared-browser case carries: the case's own,
+ * with each tab's address and title as the shared Chrome has them now, since
+ * a task may have taken the page somewhere else since the first message.
+ */
+function viewingNow(
+  viewing: SessionMessageDataPart.ViewContextDataPart,
+  chrome: SharedChrome | undefined,
+): SessionMessageDataPart.ViewContextDataPart {
+  const live = new Map(chrome?.pages().map((page) => [page.id, page]));
+  const { page } = viewing;
+  const shown = page?.tab === undefined ? undefined : live.get(page.tab);
+  return {
+    ...viewing,
+    ...(shown && { url: shown.url }),
+    ...(page && {
+      page: {
+        ...page,
+        ...(shown && { title: shown.title || page.title, url: shown.url }),
+        ...(page.tabs && {
+          tabs: page.tabs.map((tab) => {
+            const now = tab.id === undefined ? undefined : live.get(tab.id);
+            return now
+              ? { ...tab, title: now.title || tab.title, url: now.url }
+              : tab;
+          }),
+        }),
+      },
+    }),
+  };
 }
 
 /** The label and the results path a run is filed under. */

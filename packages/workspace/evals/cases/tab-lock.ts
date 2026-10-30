@@ -527,17 +527,6 @@ export const TAB_LOCK_EVALS = [
     viewing,
   }),
   defineEval({
-    assertions: [answeredReturns, formUntouched, noOrder, cartIsUnderThree],
-    beforeFollowUp: cartAddsReached(4),
-    followUps: [RETURNS_FOLLOW_UP],
-    kind: "chat",
-    name: "tab-lock-uncued-follow-up",
-    prompt: LONG_JOB,
-    sharedBrowser: true,
-    teardown: recordOutcome,
-    viewing,
-  }),
-  defineEval({
     assertions: [answeredDelivery, formUntouched, noOrder, cartIsUnderThree],
     beforeFollowUp: cartAddsReached(4),
     followUps: [

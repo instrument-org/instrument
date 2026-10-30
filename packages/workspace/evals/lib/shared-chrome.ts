@@ -37,10 +37,11 @@ function chromePath(): string {
             "ms-playwright",
           )
         : path.join(home, ".cache/ms-playwright");
-  const binary =
+  // Playwright's Linux arm64 build is Chromium's own `headless_shell`.
+  const binaries =
     process.platform === "win32"
-      ? "chrome-headless-shell.exe"
-      : "chrome-headless-shell";
+      ? ["chrome-headless-shell.exe"]
+      : ["chrome-headless-shell", "headless_shell"];
   const builds = fs.existsSync(cache)
     ? fs
         .readdirSync(cache)
@@ -50,9 +51,11 @@ function chromePath(): string {
   for (const build of builds) {
     const root = path.join(cache, build);
     for (const platformDir of fs.readdirSync(root)) {
-      const candidate = path.join(root, platformDir, binary);
-      if (fs.existsSync(candidate)) {
-        return candidate;
+      for (const binary of binaries) {
+        const candidate = path.join(root, platformDir, binary);
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
       }
     }
   }
@@ -110,30 +113,46 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
     ],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
-  const endpoint = await new Promise<string>((resolve, reject) => {
-    let buffered = "";
-    const timer = setTimeout(() => {
-      reject(new Error("headless Chrome did not print its endpoint"));
-    }, 15_000);
-    child.stderr.on("data", (chunk: Buffer) => {
-      buffered += chunk.toString();
-      const match = /DevTools listening on (ws:\/\/\S+)/.exec(buffered);
-      if (match?.[1]) {
-        clearTimeout(timer);
-        resolve(match[1]);
-      }
+  /** Ends the browser and removes its profile, whether it came up or not. */
+  const stop = () => {
+    child.kill();
+    try {
+      fs.rmSync(profile, { force: true, maxRetries: 3, recursive: true });
+    } catch {
+      // Chrome may still be writing its profile as it exits.
+    }
+  };
+  let ws: WebSocket;
+  try {
+    const endpoint = await new Promise<string>((resolve, reject) => {
+      let buffered = "";
+      const timer = setTimeout(() => {
+        reject(new Error("headless Chrome did not print its endpoint"));
+      }, 15_000);
+      child.stderr.on("data", (chunk: Buffer) => {
+        buffered += chunk.toString();
+        const match = /DevTools listening on (ws:\/\/\S+)/.exec(buffered);
+        if (match?.[1]) {
+          clearTimeout(timer);
+          resolve(match[1]);
+        }
+      });
+      child.on("error", reject);
+      child.on("exit", () => {
+        reject(new Error("headless Chrome exited"));
+      });
     });
-    child.on("exit", () => {
-      reject(new Error("headless Chrome exited"));
+    ws = new WebSocket(endpoint, { perMessageDeflate: false });
+    await new Promise<void>((resolve, reject) => {
+      ws.once("open", () => {
+        resolve();
+      });
+      ws.once("error", reject);
     });
-  });
-  const ws = new WebSocket(endpoint, { perMessageDeflate: false });
-  await new Promise<void>((resolve, reject) => {
-    ws.once("open", () => {
-      resolve();
-    });
-    ws.once("error", reject);
-  });
+  } catch (error) {
+    stop();
+    throw error;
+  }
 
   let nextId = 1;
   const pending = new Map<
@@ -192,7 +211,7 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
         url: string;
       };
       for (const page of pages.values()) {
-        if (page.chromeId === info.targetId) {
+        if (page.chromeId === info.targetId && page.url !== info.url) {
           page.url = info.url;
           page.title = info.title;
         }
@@ -220,6 +239,23 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
     if (pageId !== undefined) {
       if (method === "Target.attachedToTarget") {
         frameOf.set(String(params.sessionId), pageId);
+      }
+      if (method === "Page.loadEventFired") {
+        // The target's own title can lag the page's; the window shows the page's.
+        void send(
+          "Runtime.evaluate",
+          { expression: "document.title", returnByValue: true },
+          sessionId,
+        )
+          .then((result) => {
+            const title = (result as { result?: { value?: unknown } }).result
+              ?.value;
+            const page = pages.get(pageId);
+            if (page && typeof title === "string" && title) {
+              page.title = title;
+            }
+          })
+          .catch(() => undefined);
       }
       for (const listener of pages.get(pageId)?.listeners ?? []) {
         listener.onEvent(method, params);
@@ -373,12 +409,7 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
     }),
     close: () => {
       ws.close();
-      child.kill();
-      try {
-        fs.rmSync(profile, { force: true, maxRetries: 3, recursive: true });
-      } catch {
-        // Chrome may still be writing its profile as it exits.
-      }
+      stop();
     },
     ensure,
     evaluate,

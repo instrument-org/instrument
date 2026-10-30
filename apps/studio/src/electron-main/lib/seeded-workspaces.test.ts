@@ -38,9 +38,10 @@ vi.mock("electron", () => ({
     isPackaged: false,
   },
 }));
-vi.mock("./electron-logger", () => ({
-  logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
-}));
+vi.mock("./electron-logger", () => {
+  const log = { error: vi.fn(), info: vi.fn(), warn: vi.fn() };
+  return { logger: { ...log, scope: () => log } };
+});
 vi.mock("./capture-server-exception", () => ({
   captureServerException: (error: unknown) => {
     failures.push(error);

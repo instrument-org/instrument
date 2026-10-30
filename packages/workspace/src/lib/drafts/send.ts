@@ -66,7 +66,7 @@ export async function finishSentDrafts({
   /** The workspace's own folder, which `Drafts/` is at the top of. */
   rootDir: string;
 }): Promise<DraftsFinished> {
-  const drafts = readDrafts(rootDir);
+  const drafts = await readDrafts(rootDir);
   // A draft on its way names the chat it is being sent into; a reply names
   // its own chat from the start.
   const chatOf = (entry: DraftOnDisk) =>

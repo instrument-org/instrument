@@ -4,7 +4,7 @@ import path from "node:path";
 
 import {
   type DraftOnDisk,
-  readDrafts,
+  readDraftsSync,
   writeDraftFile,
 } from "./drafts/draft-folder";
 import { hostPathWithin } from "./host-path";
@@ -103,7 +103,7 @@ export function rewriteStoredPaths({
   }
   const where = (hostPath: string) => movedTo(hostPath, moves);
   rewritePermissions({ done, machineDir, where });
-  for (const entry of readDrafts(rootDir)) {
+  for (const entry of readDraftsSync(rootDir)) {
     rewriteDraftContext({ done, entry, where });
   }
   for (const [name, rewrite] of registered) {

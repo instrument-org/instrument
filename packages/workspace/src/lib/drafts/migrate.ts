@@ -54,7 +54,9 @@ export async function migrateDraftsToFolder({
   } catch {
     return migration;
   }
-  const already = new Set(readDrafts(rootDir).map((entry) => entry.draft.id));
+  const already = new Set(
+    (await readDrafts(rootDir)).map((entry) => entry.draft.id),
+  );
   for (const id of folders.toSorted()) {
     const from = path.join(was, id);
     if (already.has(id)) {
@@ -98,7 +100,7 @@ async function moveDraftFolder({
     () => "",
   );
   const draft = draftOf({ id, settings, words });
-  const { dir, file } = ensureDraftFolder({ draft, rootDir, timeZone });
+  const { dir, file } = await ensureDraftFolder({ draft, rootDir, timeZone });
   const pasted = await movePasted(from, dir);
   const { attached, missing } = relocate(
     (attachedOf(settings.attached) ?? []).map((item) =>

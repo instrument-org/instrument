@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { workspaceLayout } from "../workspace-layout";
-import { ensureDraftFolder, readDrafts } from "./draft-folder";
+import { makeDraftFolder, readDrafts } from "./draft-folder";
 import { migrateDraftsToFolder } from "./migrate";
 
 /**
@@ -124,7 +124,7 @@ describe("bringing the hidden drafts out", () => {
         "Drafts/2026-10-14/pasted-image.png",
       ]
     `);
-    expect(readDrafts(rootDir)[0]?.draft.context).toBeUndefined();
+    expect((await readDrafts(rootDir))[0]?.draft.context).toBeUndefined();
   });
 
   it("leaves a file the draft attached where it is on disk", async () => {
@@ -136,7 +136,7 @@ describe("bringing the hidden drafts out", () => {
 
     await migrate();
 
-    expect(readDrafts(rootDir)[0]?.draft.context).toEqual([
+    expect((await readDrafts(rootDir))[0]?.draft.context).toEqual([
       "workspace:/quote.pdf",
     ]);
     expect(fs.existsSync(elsewhere)).toBe(true);
@@ -150,11 +150,11 @@ describe("bringing the hidden drafts out", () => {
     const migration = await migrate();
 
     expect(migration.done[0]).toContain("without pasted-image.png");
-    expect(readDrafts(rootDir)[0]?.draft.context).toBeUndefined();
+    expect((await readDrafts(rootDir))[0]?.draft.context).toBeUndefined();
   });
 
   it("numbers a pasted file whose name the day's folder already holds", async () => {
-    ensureDraftFolder({
+    makeDraftFolder({
       draft: {
         created: new Date("2026-10-14T09:00:00.000Z"),
         id: "already",
@@ -231,7 +231,7 @@ describe("bringing the hidden drafts out", () => {
 
     expect(again.done).toEqual([]);
     expect(tree()).toEqual(once);
-    expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual([
+    expect((await readDrafts(rootDir)).map((entry) => entry.draft.id)).toEqual([
       "01KFD1",
       "01KFD2",
     ]);
@@ -252,9 +252,9 @@ describe("bringing the hidden drafts out", () => {
         },
       ]
     `);
-    expect(readDrafts(rootDir).map((entry) => entry.draft.words)).toEqual([
-      "the old words",
-    ]);
+    expect(
+      (await readDrafts(rootDir)).map((entry) => entry.draft.words),
+    ).toEqual(["the old words"]);
   });
 
   it("does nothing for a workspace that never hid any", async () => {
@@ -268,6 +268,6 @@ describe("bringing the hidden drafts out", () => {
 
     await migrate();
 
-    expect(readDrafts(rootDir)[0]?.draft.words).toBe("");
+    expect((await readDrafts(rootDir))[0]?.draft.words).toBe("");
   });
 });

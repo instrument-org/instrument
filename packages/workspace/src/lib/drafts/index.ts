@@ -31,6 +31,7 @@ export {
   draftsFolderDir,
   ensureDraftFolder,
   findDraft,
+  makeDraftFolder,
   draftFolderItemAt,
   namedByOtherDrafts,
   ownsDraftFolder,

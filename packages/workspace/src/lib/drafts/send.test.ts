@@ -17,7 +17,7 @@ import {
 import { workspaceLayout } from "../workspace-layout";
 import { type DraftFile } from "./draft-file";
 import {
-  ensureDraftFolder,
+  makeDraftFolder,
   findDraft,
   readDrafts,
   writeDraftFile,
@@ -74,7 +74,7 @@ function draft(more: Partial<DraftFile> = {}): DraftFile {
  * pressed Send.
  */
 function waitingDraft(more: Partial<DraftFile> = {}) {
-  const made = ensureDraftFolder({
+  const made = makeDraftFolder({
     draft: draft(more),
     rootDir,
     timeZone: ZONE,
@@ -87,8 +87,8 @@ function waitingDraft(more: Partial<DraftFile> = {}) {
  * Step 2 of a send: the draft names the chat it is going into, as the app's
  * draft store writes it when it claims the draft.
  */
-function pointAtChat(draftId: string) {
-  const found = findDraft(rootDir, draftId);
+async function pointAtChat(draftId: string) {
+  const found = await findDraft(rootDir, draftId);
   if (found) {
     writeDraftFile(found.file, {
       ...found.draft,
@@ -123,8 +123,8 @@ function messageNaming(fromDraft: string | undefined, chatId: ChatId = CHAT) {
 }
 
 /** What is left in `Drafts/`, by draft id and words. */
-function drafts(): { id: string; words: string }[] {
-  return readDrafts(rootDir).map((entry) => ({
+async function drafts(): Promise<{ id: string; words: string }[]> {
+  return (await readDrafts(rootDir)).map((entry) => ({
     id: entry.draft.id,
     words: entry.draft.words,
   }));
@@ -144,13 +144,13 @@ describe("a send stopped between its steps", () => {
       left: [],
       untrashed: [],
     });
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
     expect(pastedStillThere(made.dir)).toBe(true);
   });
 
   it("leaves the draft to be sent again when it stops before the message", async () => {
     const made = waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
 
     const finished = await finish();
 
@@ -163,15 +163,15 @@ describe("a send stopped between its steps", () => {
         },
       ]
     `);
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
     expect(pastedStillThere(made.dir)).toBe(true);
     // And it is no longer on its way: the person sends it again, or not.
-    expect(findDraft(rootDir, "d1")?.draft.sending).toBeUndefined();
+    expect((await findDraft(rootDir, "d1"))?.draft.sending).toBeUndefined();
   });
 
   it("finishes the send when it stops after the message, before the folder goes", async () => {
     const made = waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
     messageNaming("d1");
 
     expect(await finish()).toEqual({
@@ -181,13 +181,13 @@ describe("a send stopped between its steps", () => {
     });
     // Never moved out by the send that stopped, so it goes to the Trash.
     expect(fs.readdirSync(trashDir)).toEqual(["sink.png"]);
-    expect(drafts()).toEqual([]);
+    expect(await drafts()).toEqual([]);
     expect(fs.existsSync(made.dir)).toBe(false);
   });
 
   it("has nothing left to do when the send finished", async () => {
     waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
     messageNaming("d1");
     await finish();
 
@@ -202,16 +202,16 @@ describe("a send stopped between its steps", () => {
   it("comes to the same place however often a launch runs it", async () => {
     waitingDraft();
     waitingDraft({ id: "d2", words: "And a quiet fridge." });
-    pointAtChat("d1");
+    await pointAtChat("d1");
     messageNaming("d1");
 
     const once = await finish();
-    const left = drafts();
+    const left = await drafts();
     const again = await finish();
 
     expect(once.finished).toEqual(["d1"]);
     expect(again.finished).toEqual([]);
-    expect(drafts()).toEqual(left);
+    expect(await drafts()).toEqual(left);
     expect(left).toEqual([{ id: "d2", words: "And a quiet fridge." }]);
   });
 });
@@ -222,40 +222,40 @@ describe("finishing the sends a launch finds", () => {
     waitingDraft({ id: "d2", words: "Queued for after." });
     waitingDraft({ id: "d3", words: "And this one too." });
     for (const id of ["d1", "d2", "d3"]) {
-      pointAtChat(id);
+      await pointAtChat(id);
     }
     messageNaming("d2");
 
     expect((await finish()).finished).toEqual(["d2"]);
-    expect(drafts().map((entry) => entry.id)).toEqual(["d1", "d3"]);
+    expect((await drafts()).map((entry) => entry.id)).toEqual(["d1", "d3"]);
   });
 
   it("leaves a draft whose chat holds another draft's message", async () => {
     waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
     messageNaming("some-other-draft");
 
     expect((await finish()).finished).toEqual([]);
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
   it("leaves a draft whose chat has messages from no draft at all", async () => {
     waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
     messageNaming(undefined);
 
     expect((await finish()).finished).toEqual([]);
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
   it("leaves a draft whose chat was deleted, so it can be salvaged", async () => {
     waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
 
     const finished = await finish();
 
     expect(finished.finished).toEqual([]);
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
   it("never reads a draft that names no chat as sent", async () => {
@@ -267,12 +267,12 @@ describe("finishing the sends a launch finds", () => {
       left: [],
       untrashed: [],
     });
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
   it("says so and leaves the draft where its chat's records cannot be read", async () => {
     waitingDraft();
-    pointAtChat("d1");
+    await pointAtChat("d1");
     const dir = path.join(chatsDir(), CHAT);
     fs.mkdirSync(path.dirname(dir), { recursive: true });
     // A folder's place taken by a file is the shape of a record folder this
@@ -285,7 +285,7 @@ describe("finishing the sends a launch finds", () => {
     expect(finished.left[0]?.reason).toContain(
       "its chat's records could not be read",
     );
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
   it("leaves a draft pointed at something that is no chat's id", async () => {
@@ -302,7 +302,7 @@ describe("finishing the sends a launch finds", () => {
         },
       ]
     `);
-    expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 });
 

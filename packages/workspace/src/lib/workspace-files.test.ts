@@ -142,6 +142,25 @@ describe("CachedReads", () => {
     expect(parse).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps only the files a prune names", async () => {
+    const kept = await write("kept.md", "kept");
+    const gone = await write("gone.md", "gone");
+    const parse = vi.fn((text: string) => text);
+    const reads = new CachedReads(parse);
+    await reads.read(kept);
+    await reads.read(gone);
+
+    reads.prune([kept]);
+    await reads.read(kept);
+    await reads.read(gone);
+
+    expect(parse.mock.calls.map(([text]) => text)).toEqual([
+      "kept",
+      "gone",
+      "gone",
+    ]);
+  });
+
   it.runIf(process.platform === "darwin")(
     "answers what it kept for a file evicted since, without passing over it",
     async () => {

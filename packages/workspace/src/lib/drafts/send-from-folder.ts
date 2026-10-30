@@ -42,7 +42,7 @@ export interface SentFromDraft {
  * {@link removeSentFromDraft} to take out once the message is written,
  * leaving what another draft in a folder they share still names.
  */
-export function withDraftFolder({
+export async function withDraftFolder({
   files,
   folders,
   fromDraft,
@@ -50,10 +50,10 @@ export function withDraftFolder({
 }: Partial<Sending> & {
   fromDraft: string | undefined;
   rootDir: string;
-}): Sending & { sent: SentFromDraft } {
+}): Promise<Sending & { sent: SentFromDraft }> {
   const sent: SentFromDraft = { files: [], folders: [] };
   const entry =
-    fromDraft === undefined ? undefined : findDraft(rootDir, fromDraft);
+    fromDraft === undefined ? undefined : await findDraft(rootDir, fromDraft);
   if (entry === undefined) {
     return { files: files ?? [], folders: folders ?? [], sent };
   }

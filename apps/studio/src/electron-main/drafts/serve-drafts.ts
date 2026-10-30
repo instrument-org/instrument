@@ -7,6 +7,7 @@ import {
 } from "@/shared/drafts";
 import { BrowserWindow, ipcMain, shell } from "electron";
 
+import { logger } from "../lib/electron-logger";
 import { createDraftStore } from "./draft-store";
 
 /** What a window loading before the workspace opens reads. */
@@ -42,12 +43,16 @@ export function openDrafts() {
     rootDir: getWorkspaceFolder(),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
-  STORE.load();
-  STORE.watch(() => {
-    getStore().reconcile();
+  const store = STORE;
+  // A window that loaded before the drafts were read has none.
+  store.load().then(() => tell(store.snapshot()), couldNotRead);
+  store.watch(() => {
+    store.reconcile().catch(couldNotRead);
   });
-  // A window that loaded before the workspace opened read none.
-  tell(STORE.snapshot());
+}
+
+function couldNotRead(error: unknown) {
+  logger.error("Could not read the drafts folder", error);
 }
 
 /**

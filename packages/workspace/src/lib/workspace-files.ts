@@ -139,17 +139,37 @@ export function readLinesFrom(
 /**
  * Files read as text and parsed, each kept until its size or modification
  * time changes, so a file read far more often than it changes is read once
- * per change and stat-ed the rest of the time.
+ * per change and stat-ed the rest of the time. `parse` is handed the stats
+ * the file was read under.
  */
 export class CachedReads<T> {
   readonly #cache = new Map<
     string,
     { mtimeMs: number; size: number; value: T }
   >();
-  readonly #parse: (text: string, file: string) => T;
+  readonly #parse: (text: string, file: string, stats: fs.Stats) => T;
 
-  constructor(parse: (text: string, file: string) => T) {
+  constructor(parse: (text: string, file: string, stats: fs.Stats) => T) {
     this.#parse = parse;
+  }
+
+  /**
+   * Drops what was kept for a file, so the next read reads it whatever its
+   * stats say: for a writer of the file, whose write can leave its size and
+   * modification time as they were.
+   */
+  forget(file: string): void {
+    this.#cache.delete(file);
+  }
+
+  /** Drops what was kept for every file but these: the ones a look found still there. */
+  prune(files: Iterable<string>): void {
+    const kept = new Set(files);
+    for (const file of this.#cache.keys()) {
+      if (!kept.has(file)) {
+        this.#cache.delete(file);
+      }
+    }
   }
 
   read(file: string, options?: Waits): Promise<T>;
@@ -168,6 +188,7 @@ export class CachedReads<T> {
     const value = this.#parse(
       await readText(file, { ...options, evicted: "wait" }),
       file,
+      stats,
     );
     this.#cache.set(file, { mtimeMs: stats.mtimeMs, size: stats.size, value });
     return value;

@@ -6,6 +6,7 @@ import { ulid } from "ulid";
 import { DRAFT_FILE_NAME, DRAFTS_FOLDER_NAME } from "../../constants";
 import { claimFolderNamedSync, safeName } from "../chat-folders/folder-name";
 import { isSystemClutter, removeFolderLeftEmpty } from "../system-clutter";
+import { CachedReads } from "../workspace-files";
 import { pastedPathOf } from "./context-line";
 import {
   type DraftFile,
@@ -34,9 +35,11 @@ import {
  * it held, and a folder holding two drafts (two devices, each offline on the
  * same day, or a sync engine's conflict copy) is read as two.
  *
- * Synchronous, because the app writes the drafts the windows keep on a timer
- * and again as it quits, and a quit runs no promise to its end. Each call is
- * a listing of one shallow folder and a file or two.
+ * Writes are synchronous, because the app writes the drafts the windows keep
+ * on a timer and again as it quits, and a quit runs no promise to its end.
+ * Reading every draft ({@link readDrafts}) is not, since a sync service can
+ * keep any draft's file by name only, and a synchronous read of one blocks
+ * the main thread until it downloads.
  */
 
 /** A draft and where it is. */
@@ -59,8 +62,39 @@ export function draftsFolderDir(rootDir: string): string {
  * another one already has is kept beside it rather than dropped, since one of
  * the two is a copy of the other and choosing between them is nobody's to do
  * here. A draft written with no `id` is given one, written into its file.
+ *
+ * Read off the main thread, waiting for a file a sync service keeps by name
+ * only: nothing else downloads a draft's file. A file is read again only once
+ * its size or modification time changes, or a write here forgets it.
  */
-export function readDrafts(rootDir: string): DraftOnDisk[] {
+export async function readDrafts(rootDir: string): Promise<DraftOnDisk[]> {
+  const files = draftFilesIn(rootDir);
+  draftFiles.prune(files.map(({ file }) => file));
+  const found = await Promise.all(
+    files.map(async ({ dir, file }) => {
+      const draft = await readDraftFile(file);
+      return draft === undefined ? [] : [{ dir, draft, file }];
+    }),
+  );
+  return oldestFirst(found.flat());
+}
+
+/**
+ * {@link readDrafts}, read synchronously, for the path rewrite a workspace
+ * move or a found-again folder runs before the workspace opens
+ * (`rewrite-stored-paths.ts`), which is synchronous all through.
+ */
+export function readDraftsSync(rootDir: string): DraftOnDisk[] {
+  return oldestFirst(
+    draftFilesIn(rootDir).flatMap(({ dir, file }) => {
+      const draft = readDraftFileSync(file);
+      return draft === undefined ? [] : [{ dir, draft, file }];
+    }),
+  );
+}
+
+/** Every `DRAFT*.md` in a folder under `Drafts/`, by listing alone. */
+function draftFilesIn(rootDir: string): { dir: string; file: string }[] {
   const drafts = draftsFolderDir(rootDir);
   let folders: string[];
   try {
@@ -71,26 +105,24 @@ export function readDrafts(rootDir: string): DraftOnDisk[] {
   } catch {
     return [];
   }
-  const found: DraftOnDisk[] = [];
-  for (const folder of folders.toSorted()) {
+  return folders.toSorted().flatMap((folder) => {
     const dir = path.join(drafts, folder);
     let names: string[];
     try {
       names = fs.readdirSync(dir).filter((name) => isDraftFileName(name));
     } catch {
-      continue;
+      return [];
     }
-    for (const name of names.toSorted()) {
-      const file = path.join(dir, name);
-      const draft = readDraftFile(file);
-      if (draft) {
-        found.push({ dir, draft, file });
-      }
-    }
-  }
-  // Oldest first, and for two started in the same moment by id, which is a
-  // ULID and so carries the order they were made in; two files holding one
-  // draft (a conflict copy beside its original) sort by name.
+    return names
+      .toSorted()
+      .map((name) => ({ dir, file: path.join(dir, name) }));
+  });
+}
+
+// Oldest first, and for two started in the same moment by id, which is a
+// ULID and so carries the order they were made in; two files holding one
+// draft (a conflict copy beside its original) sort by name.
+function oldestFirst(found: DraftOnDisk[]): DraftOnDisk[] {
   return found.toSorted(
     (a, b) =>
       a.draft.created.getTime() - b.draft.created.getTime() ||
@@ -100,12 +132,36 @@ export function readDrafts(rootDir: string): DraftOnDisk[] {
 }
 
 /**
+ * What each draft's file says, kept until its size or modification time
+ * changes, and whether the read gave it its `id`: the draft store reads the
+ * whole folder on every change in it, its own writes included.
+ */
+const draftFiles = new CachedReads((text, _file, stats) => {
+  const newId = ulid();
+  const draft = parseDraftFile(text, { at: stats.mtime, newId });
+  return { draft, minted: draft?.id === newId };
+});
+
+/**
  * One draft by its file, or nothing where the file is gone or cannot be read
  * as one. A draft the file names no `id` for is given one, and the file is
  * written with it, so the next read, here or on another device, finds the
  * same draft.
  */
-function readDraftFile(file: string): DraftFile | undefined {
+async function readDraftFile(file: string): Promise<DraftFile | undefined> {
+  try {
+    const { draft, minted } = await draftFiles.read(file);
+    if (draft !== undefined && minted) {
+      writeDraftFile(file, draft);
+    }
+    return draft;
+  } catch {
+    return undefined;
+  }
+}
+
+/** {@link readDraftFile}, read synchronously. */
+function readDraftFileSync(file: string): DraftFile | undefined {
   try {
     const newId = ulid();
     const draft = parseDraftFile(fs.readFileSync(file, "utf8"), {
@@ -122,11 +178,13 @@ function readDraftFile(file: string): DraftFile | undefined {
 }
 
 /** The draft with this id and where it is, or nothing where there is none. */
-export function findDraft(
+export async function findDraft(
   rootDir: string,
   draftId: string,
-): DraftOnDisk | undefined {
-  return readDrafts(rootDir).find((entry) => entry.draft.id === draftId);
+): Promise<DraftOnDisk | undefined> {
+  return (await readDrafts(rootDir)).find(
+    (entry) => entry.draft.id === draftId,
+  );
 }
 
 /**
@@ -139,23 +197,35 @@ export function findDraft(
  * it land in one folder. The draft's file is written with it, because that
  * file is the only thing on disk that says which draft the folder is for.
  */
-export function ensureDraftFolder({
-  draft,
-  named,
-  rootDir,
-  timeZone,
-}: {
+export async function ensureDraftFolder(
+  asked: DraftFolderAsk,
+): Promise<DraftOnDisk> {
+  return (
+    (await findDraft(asked.rootDir, asked.draft.id)) ?? makeDraftFolder(asked)
+  );
+}
+
+interface DraftFolderAsk {
   draft: DraftFile;
   /** What to name the folder, for a draft nobody is typing into. */
   named?: string;
   rootDir: string;
   /** The zone the day in the folder's name is read in: the writing device's own. */
   timeZone: string;
-}): DraftOnDisk {
-  const already = findDraft(rootDir, draft.id);
-  if (already) {
-    return already;
-  }
+}
+
+/**
+ * A new folder for a draft, under a free name, with the draft's file written
+ * in it: {@link ensureDraftFolder} for a caller that knows no folder holds
+ * the draft yet, such as the draft store, which knows every draft it has
+ * written or read.
+ */
+export function makeDraftFolder({
+  draft,
+  named,
+  rootDir,
+  timeZone,
+}: DraftFolderAsk): DraftOnDisk {
   const claimed = claimFolderNamedSync(
     draftsFolderDir(rootDir),
     named === undefined ? dayName(draft.created, timeZone) : safeName(named),
@@ -178,6 +248,7 @@ export function writeDraftFile(file: string, draft: DraftFile): void {
   );
   fs.writeFileSync(temp, renderDraftFile(withOthersKept(file, draft)), "utf8");
   fs.renameSync(temp, file);
+  draftFiles.forget(file);
 }
 
 /**
@@ -435,7 +506,7 @@ function pastedIntoOthers(dir: string, id: string): Set<string> {
     return shared;
   }
   for (const name of names) {
-    const other = readDraftFile(path.join(dir, name));
+    const other = readDraftFileSync(path.join(dir, name));
     if (other === undefined || other.id === id) {
       continue;
     }

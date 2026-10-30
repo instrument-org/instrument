@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type DraftFile, renderDraftFile } from "./draft-file";
 import {
   type DraftOnDisk,
   draftsFolderDir,
   ensureDraftFolder,
+  makeDraftFolder,
   findDraft,
   draftFolderItems,
   draftFolderItemAt,
@@ -29,6 +30,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   fs.rmSync(rootDir, { force: true, recursive: true });
 });
 
@@ -91,7 +93,7 @@ describe("the drafts folder", () => {
 
   it("names a draft's folder for the day it was started", () => {
     expect(
-      at(ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE })),
+      at(makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE })),
     ).toMatchInlineSnapshot(`"Drafts/2026-10-14/DRAFT.md"`);
   });
 
@@ -99,7 +101,7 @@ describe("the drafts folder", () => {
     // Late evening in New York is the next day in London.
     expect(
       at(
-        ensureDraftFolder({
+        makeDraftFolder({
           draft: draft(),
           rootDir,
           timeZone: "Europe/London",
@@ -108,7 +110,7 @@ describe("the drafts folder", () => {
     ).toMatchInlineSnapshot(`"Drafts/2026-10-14/DRAFT.md"`);
     expect(
       at(
-        ensureDraftFolder({
+        makeDraftFolder({
           draft: draft({
             created: new Date("2026-10-15T01:30:00.000Z"),
             id: "d2",
@@ -121,9 +123,9 @@ describe("the drafts folder", () => {
   });
 
   it("numbers a second draft started the same day", () => {
-    ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
-    ensureDraftFolder({ draft: draft({ id: "d2" }), rootDir, timeZone: ZONE });
-    ensureDraftFolder({ draft: draft({ id: "d3" }), rootDir, timeZone: ZONE });
+    makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    makeDraftFolder({ draft: draft({ id: "d2" }), rootDir, timeZone: ZONE });
+    makeDraftFolder({ draft: draft({ id: "d3" }), rootDir, timeZone: ZONE });
     expect(fs.readdirSync(draftsFolderDir(rootDir)).toSorted())
       .toMatchInlineSnapshot(`
       [
@@ -134,13 +136,13 @@ describe("the drafts folder", () => {
     `);
   });
 
-  it("answers with the folder it made when the same draft is asked for again", () => {
-    const first = ensureDraftFolder({
+  it("answers with the folder it made when the same draft is asked for again", async () => {
+    const first = await ensureDraftFolder({
       draft: draft(),
       rootDir,
       timeZone: ZONE,
     });
-    const again = ensureDraftFolder({
+    const again = await ensureDraftFolder({
       draft: draft({ words: "more" }),
       rootDir,
       timeZone: ZONE,
@@ -152,7 +154,7 @@ describe("the drafts folder", () => {
   it("may be named for its words, where nobody is typing into it", () => {
     expect(
       at(
-        ensureDraftFolder({
+        makeDraftFolder({
           draft: draft(),
           named: 'Tidy up: the "big" one/two',
           rootDir,
@@ -162,16 +164,18 @@ describe("the drafts folder", () => {
     ).toMatchInlineSnapshot(`"Drafts/Tidy up the big one two/DRAFT.md"`);
   });
 
-  it("holds the draft whatever its folder is called", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+  it("holds the draft whatever its folder is called", async () => {
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const moved = path.join(draftsFolderDir(rootDir), "my dishwasher notes");
     fs.renameSync(made.dir, moved);
-    expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual(["d1"]);
-    expect(findDraft(rootDir, "d1")?.dir).toBe(moved);
+    expect((await readDrafts(rootDir)).map((entry) => entry.draft.id)).toEqual([
+      "d1",
+    ]);
+    expect((await findDraft(rootDir, "d1"))?.dir).toBe(moved);
   });
 
-  it("reads two drafts in one folder as two", () => {
-    const { dir } = ensureDraftFolder({
+  it("reads two drafts in one folder as two", async () => {
+    const { dir } = makeDraftFolder({
       draft: draft(),
       rootDir,
       timeZone: ZONE,
@@ -184,7 +188,7 @@ describe("the drafts folder", () => {
       renderDraftFile(draft({ words: "the other copy" })),
     );
     expect(
-      readDrafts(rootDir).map((entry) => [
+      (await readDrafts(rootDir)).map((entry) => [
         path.basename(entry.file),
         entry.draft.id,
       ]),
@@ -206,20 +210,20 @@ describe("the drafts folder", () => {
     `);
   });
 
-  it("passes over a folder holding no draft, and a file that is not one", () => {
+  it("passes over a folder holding no draft, and a file that is not one", async () => {
     const stray = path.join(draftsFolderDir(rootDir), "Notes");
     fs.mkdirSync(stray, { recursive: true });
     fs.writeFileSync(path.join(stray, "DRAFT.md"), "---\nid: [1, 2\n---\n");
     fs.writeFileSync(path.join(stray, "thoughts.md"), "Mine.\n");
-    expect(readDrafts(rootDir)).toEqual([]);
+    expect(await readDrafts(rootDir)).toEqual([]);
   });
 
-  it("gives a draft written by hand an id, and writes it into the file", () => {
+  it("gives a draft written by hand an id, and writes it into the file", async () => {
     const file = path.join(draftsFolderDir(rootDir), "Mine", "DRAFT.md");
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, "---\ntopic: tpc_01KF\n---\nCall the plumber.\n");
 
-    const [read] = readDrafts(rootDir);
+    const [read] = await readDrafts(rootDir);
 
     expect(read?.draft).toMatchObject({
       topic: "tpc_01KF",
@@ -228,13 +232,13 @@ describe("the drafts folder", () => {
     expect(fs.readFileSync(file, "utf8")).toContain(
       `id: ${JSON.stringify(read?.draft.id)}`,
     );
-    expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual([
+    expect((await readDrafts(rootDir)).map((entry) => entry.draft.id)).toEqual([
       read?.draft.id,
     ]);
   });
 
   it("hands back what the folder still has, for the Trash, and deletes none of it", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "the only copy");
     fs.mkdirSync(path.join(made.dir, "Photos"));
     fs.writeFileSync(path.join(made.dir, ".DS_Store"), "");
@@ -252,7 +256,7 @@ describe("the drafts folder", () => {
   it.each([[[".DS_Store"]], [["._DRAFT.md", "desktop.ini", "Thumbs.db"]]])(
     "takes the folder away when only a file manager's records %j are left",
     (records) => {
-      const made = ensureDraftFolder({
+      const made = makeDraftFolder({
         draft: draft(),
         rootDir,
         timeZone: ZONE,
@@ -266,7 +270,7 @@ describe("the drafts folder", () => {
   );
 
   it("keeps the folder while a download is still arriving in it", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, ".DS_Store"), "");
     fs.writeFileSync(path.join(made.dir, "report.pdf.crdownload"), "half");
     removeDraft(made);
@@ -277,7 +281,7 @@ describe("the drafts folder", () => {
   });
 
   it("moves what was left to the Trash and takes the folder after it, keeping what will not move", async () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "the only copy");
     fs.writeFileSync(path.join(made.dir, "stuck.pdf"), "locked");
     const trashDir = fs.mkdtempSync(path.join(rootDir, "trash-"));
@@ -302,7 +306,7 @@ describe("the drafts folder", () => {
     const victim = path.join(rootDir, "valuable-work");
     fs.mkdirSync(victim, { recursive: true });
     fs.writeFileSync(path.join(victim, "report.txt"), "the person's");
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const with_ = {
       ...made.draft,
       context: [path.join("..", "..", "valuable-work")],
@@ -320,7 +324,7 @@ describe("the drafts folder", () => {
   it.each([".", ".."])(
     "leaves another draft alone where one names %s",
     (named) => {
-      const made = ensureDraftFolder({
+      const made = makeDraftFolder({
         draft: draft(),
         rootDir,
         timeZone: ZONE,
@@ -340,7 +344,7 @@ describe("the drafts folder", () => {
     const victim = path.join(rootDir, "valuable-work");
     fs.mkdirSync(victim, { recursive: true });
     fs.writeFileSync(path.join(victim, "report.txt"), "the person's");
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.symlinkSync(victim, path.join(made.dir, "out"));
     const with_ = {
       ...made.draft,
@@ -354,7 +358,7 @@ describe("the drafts folder", () => {
   });
 
   it("keeps a file another draft in a shared folder still names", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const pasted = path.join(made.dir, "pasted-image.png");
     fs.writeFileSync(pasted, "bytes");
     const context = ["pasted-image.png"];
@@ -370,25 +374,101 @@ describe("the drafts folder", () => {
     expect(fs.existsSync(pasted)).toBe(true);
   });
 
-  it("leaves the folder where another draft is still in it", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+  it("leaves the folder where another draft is still in it", async () => {
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), draft({ id: "d2" }));
     removeDraft(made);
     expect(fs.readdirSync(made.dir)).toEqual(["DRAFT 2.md"]);
-    expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual(["d2"]);
+    expect((await readDrafts(rootDir)).map((entry) => entry.draft.id)).toEqual([
+      "d2",
+    ]);
   });
 
-  it("reads nothing from a workspace with no drafts folder", () => {
-    expect(readDrafts(rootDir)).toEqual([]);
-    expect(findDraft(rootDir, "d1")).toBeUndefined();
+  it("reads nothing from a workspace with no drafts folder", async () => {
+    expect(await readDrafts(rootDir)).toEqual([]);
+    expect(await findDraft(rootDir, "d1")).toBeUndefined();
   });
 
-  it("writes a draft whole, leaving no temp file behind", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+  it("writes a draft whole, leaving no temp file behind", async () => {
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(made.file, draft({ words: "second thoughts" }));
     expect(fs.readdirSync(made.dir)).toEqual(["DRAFT.md"]);
-    expect(findDraft(rootDir, "d1")?.draft.words).toBe("second thoughts");
+    expect((await findDraft(rootDir, "d1"))?.draft.words).toBe(
+      "second thoughts",
+    );
   });
+});
+
+describe("reading every draft", () => {
+  /** The draft files opened, by name under `Drafts/`. */
+  const openedIn = (opened: { mock: { calls: unknown[][] } }) =>
+    opened.mock.calls
+      .map(([file]) =>
+        path
+          .relative(draftsFolderDir(rootDir), String(file))
+          .split(path.sep)
+          .join("/"),
+      )
+      .toSorted();
+
+  it("reads a file again only once it changes", async () => {
+    makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const second = makeDraftFolder({
+      draft: draft({ id: "d2" }),
+      rootDir,
+      timeZone: ZONE,
+    });
+    await readDrafts(rootDir);
+    const opened = vi.spyOn(fs.promises, "open");
+
+    await readDrafts(rootDir);
+    expect(opened).not.toHaveBeenCalled();
+
+    fs.writeFileSync(
+      second.file,
+      renderDraftFile(draft({ id: "d2", words: "Edited elsewhere." })),
+    );
+    expect(
+      (await readDrafts(rootDir)).map((entry) => entry.draft.words),
+    ).toEqual(["Find a quiet dishwasher.", "Edited elsewhere."]);
+    expect(openedIn(opened)).toEqual(["2026-10-14 2/DRAFT.md"]);
+  });
+
+  it("reads a file written here again, whatever its stats say", async () => {
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    // A whole second, which setting it again matches exactly.
+    const mtime = new Date("2026-10-14T18:30:00.000Z");
+    fs.utimesSync(made.file, mtime, mtime);
+    await readDrafts(rootDir);
+
+    // The same size, and the same modification time.
+    writeDraftFile(made.file, draft({ words: "Find a quiet dishwasher!" }));
+    fs.utimesSync(made.file, mtime, mtime);
+
+    expect((await readDrafts(rootDir))[0]?.draft.words).toBe(
+      "Find a quiet dishwasher!",
+    );
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "waits for a file kept in the cloud only, off the main thread",
+    async () => {
+      const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+      const stat = fs.promises.stat;
+      // Contents and no blocks on disk: a file only in the cloud.
+      vi.spyOn(fs.promises, "stat").mockImplementation(async (file) =>
+        Object.assign(await stat(file), { blocks: 0 }),
+      );
+      const readSync = vi.spyOn(fs, "readFileSync");
+      const opened = vi.spyOn(fs.promises, "open");
+
+      expect((await readDrafts(rootDir)).map((entry) => entry.file)).toEqual([
+        made.file,
+      ]);
+      expect(openedIn(opened)).toEqual(["2026-10-14/DRAFT.md"]);
+      expect(readSync).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("what a draft's folder has that goes with it", () => {
@@ -398,7 +478,7 @@ describe("what a draft's folder has that goes with it", () => {
     );
 
   it("is every file and folder dropped in beside the draft, whatever the draft names", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "receipt.png"), "bytes");
     fs.mkdirSync(path.join(made.dir, "Plans"));
     expect(names(made)).toEqual(["folder:Plans", "file:receipt.png"]);
@@ -419,20 +499,20 @@ describe("what a draft's folder has that goes with it", () => {
     "movie.mp4.download",
     "save.tmp",
   ])("passes over %j", (clutter) => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, clutter), "");
     expect(names(made)).toEqual([]);
   });
 
   it("counts a file a line names inside the folder once", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "receipt.png"), "bytes");
     const with_ = { ...made.draft, context: ["receipt.png"] };
     expect(names({ ...made, draft: with_ })).toEqual(["file:receipt.png"]);
   });
 
   it("is the draft's own in a folder with its conflict copy", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), draft());
     fs.writeFileSync(path.join(made.dir, "receipt.png"), "bytes");
     expect(ownsDraftFolder(made.dir, "d1")).toBe(true);
@@ -440,7 +520,7 @@ describe("what a draft's folder has that goes with it", () => {
   });
 
   it("is only what each draft names where two drafts share the folder", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const other = { ...draft({ id: "d2" }), context: ["theirs.png"] };
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), other);
     for (const name of ["mine.png", "theirs.png", "loose.png"]) {
@@ -453,7 +533,7 @@ describe("what a draft's folder has that goes with it", () => {
   });
 
   it("tells a file in the folder from the draft's own file and from one outside", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const inside = path.join(made.dir, "receipt.png");
     fs.writeFileSync(inside, "bytes");
     const outside = path.join(rootDir, "notes.txt");
@@ -475,7 +555,7 @@ describe("what a draft's folder has that goes with it", () => {
   });
 
   it("reads a folder a draft names in a shared folder by its line ending in a slash", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const made = makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), {
       ...draft({ id: "d2" }),
       context: ["Shared/"],

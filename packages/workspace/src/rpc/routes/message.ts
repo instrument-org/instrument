@@ -153,7 +153,7 @@ const create = base
 
         // A draft's folder is read now, so what landed in it a beat before
         // the press goes too, whatever the window had seen of it.
-        const sending = withDraftFolder({
+        const sending = await withDraftFolder({
           files,
           folders,
           fromDraft,

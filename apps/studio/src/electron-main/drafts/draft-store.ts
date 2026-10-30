@@ -11,9 +11,9 @@ import {
   type DraftFile,
   type DraftOnDisk,
   draftsFolderDir,
-  ensureDraftFolder,
   draftFolderItemAt,
   isEmptyDraft,
+  makeDraftFolder,
   namedByOtherDrafts,
   parseDraftFile,
   readDrafts,
@@ -114,6 +114,16 @@ export function createDraftStore({
   const acks: Record<string, number> = {};
   /** By draft and pasted item: where its bytes were written, so a second stage of one item writes over the first. */
   const staged = new Map<string, string>();
+  /** Every file holding each draft, as the latest look at the folder found them. */
+  let seen = new Map<string, DraftOnDisk[]>();
+  /**
+   * How many times this store has changed the folder: a look one landed
+   * during may have read a file as it was before, so it looks again.
+   */
+  let changes = 0;
+  /** The look at the folder under way, and whether another was asked for while it ran. */
+  let looking: Promise<void> | undefined;
+  let lookAgain = false;
 
   const snapshot = (): DraftsSnapshot => ({ acks: { ...acks }, drafts });
 
@@ -188,7 +198,7 @@ export function createDraftStore({
     const now = new Map(drafts.map((draft) => [draft.id, draft]));
     for (const draft of before) {
       if (!now.has(draft.id)) {
-        forget(draft.id);
+        forget(draft);
       }
     }
     const was = new Map(before.map((draft) => [draft.id, draft]));
@@ -207,7 +217,10 @@ export function createDraftStore({
         if (!force && isEmptyDraft(file)) {
           return undefined;
         }
-        const made = ensureDraftFolder({ draft: file, rootDir, timeZone });
+        // A draft no look or write of this store has put on disk is in no
+        // folder yet.
+        const made = makeDraftFolder({ draft: file, rootDir, timeZone });
+        changes += 1;
         onDisk.set(draft.id, {
           dir: made.dir,
           file: made.file,
@@ -234,6 +247,7 @@ export function createDraftStore({
     const text = textOf(file);
     if (known.text !== text) {
       writeDraftFile(known.file, file);
+      changes += 1;
     }
     const kept = { ...known, text };
     onDisk.set(draft.id, kept);
@@ -246,8 +260,14 @@ export function createDraftStore({
    * out of the folder already; whatever is left there, of a sent draft or a
    * thrown-away one, goes to the Trash, since it may be the only copy of
    * something the person put there.
+   *
+   * The files are the one this store wrote, as it wrote it, and the others
+   * the latest look found holding the draft: synchronous, since a quit runs
+   * no promise to its end.
    */
-  const forget = (id: string) => {
+  const forget = (draft: Draft) => {
+    const id = draft.id;
+    const known = onDisk.get(id);
     onDisk.delete(id);
     sending.delete(id);
     for (const key of staged.keys()) {
@@ -256,10 +276,18 @@ export function createDraftStore({
       }
     }
     try {
-      for (const entry of readDrafts(rootDir)) {
-        if (entry.draft.id === id) {
-          throwAway(entry);
-        }
+      const entries = (seen.get(id) ?? []).filter(
+        (entry) => entry.file !== known?.file,
+      );
+      if (known !== undefined) {
+        entries.push({
+          dir: known.dir,
+          draft: draftFileOf(draft, { dir: known.dir, rootDir }),
+          file: known.file,
+        });
+      }
+      for (const entry of entries) {
+        throwAway(entry);
       }
     } catch (error) {
       logger.error(`Could not take away draft ${id}`, error);
@@ -268,15 +296,106 @@ export function createDraftStore({
 
   /** A draft's file taken away, and what its folder still had to the Trash. */
   const throwAway = (entry: DraftOnDisk) => {
+    const left = removeDraft(entry);
+    changes += 1;
     void trashLeftInDraft({
       dir: entry.dir,
-      left: removeDraft(entry),
+      left,
       moveToTrash,
     }).then((kept) => {
       for (const { error, path: where } of kept) {
         logger.error(`Could not move ${where} to the Trash`, error);
       }
     });
+  };
+
+  /**
+   * Every draft on disk by id. A look this store changed the folder during
+   * is taken again, so what it reads is never older than the store's own
+   * last write.
+   */
+  const look = async (): Promise<Map<string, DraftOnDisk[]>> => {
+    for (;;) {
+      const at = changes;
+      const found = byDraft(await readDrafts(rootDir));
+      if (at === changes) {
+        seen = found;
+        return found;
+      }
+    }
+  };
+
+  /** One look at the folder, taken in. */
+  const takeInFolder = async () => {
+    const found = await look();
+    const before = drafts;
+    for (const [id, entries] of found) {
+      if (sent.has(id)) {
+        for (const entry of entries) {
+          try {
+            throwAway(entry);
+          } catch (error) {
+            logger.error(`Could not take away sent draft ${id}`, error);
+          }
+        }
+        continue;
+      }
+      const known = onDisk.get(id);
+      if (
+        known !== undefined &&
+        !entries.some((entry) => entry.file === known.file) &&
+        fs.existsSync(known.file)
+      ) {
+        continue;
+      }
+      const entry = pick(id, entries);
+      const read = draftOf(entry, rootDir);
+      if (
+        known?.file === entry.file &&
+        known.text === textOf(entry.draft) &&
+        known.folder === folderKeyOf(read)
+      ) {
+        continue;
+      }
+      takeIn(entry, read);
+    }
+    for (const [id, known] of onDisk) {
+      if (!found.has(id) && !fs.existsSync(known.file)) {
+        onDisk.delete(id);
+        sending.delete(id);
+        drafts = drafts.filter((draft) => draft.id !== id);
+      }
+    }
+    if (drafts !== before) {
+      onChange(snapshot());
+    }
+  };
+
+  /**
+   * Takes in what changed in the folder since this store last wrote or read
+   * it: a draft whose file reads differently is taken from the file, one
+   * whose file went is gone, and a file for a draft this store has not seen
+   * is a draft of its own. A file still there that cannot be read for the
+   * moment (an editor partway through a save, a placeholder a sync engine
+   * has yet to fill) leaves its draft as it was.
+   *
+   * One look at a time, and one more for every change heard while it ran, so
+   * an older read is never taken in over a newer one.
+   */
+  const reconcile = (): Promise<void> => {
+    if (looking !== undefined) {
+      lookAgain = true;
+      return looking;
+    }
+    looking = (async () => {
+      do {
+        lookAgain = false;
+        await takeInFolder();
+      } while (lookAgain);
+    })().finally(() => {
+      looking = undefined;
+    });
+    return looking;
   };
 
   return {
@@ -320,66 +439,13 @@ export function createDraftStore({
     },
 
     /** Every draft in the folder, read once as the store opens. */
-    load() {
+    load(): Promise<void> {
       drafts = [];
       onDisk.clear();
-      for (const [id, entries] of byDraft(readDrafts(rootDir))) {
-        takeIn(pick(id, entries));
-      }
+      return reconcile();
     },
 
-    /**
-     * Takes in what changed in the folder since this store last wrote or read
-     * it: a draft whose file reads differently is taken from the file, one
-     * whose file went is gone, and a file for a draft this store has not seen
-     * is a draft of its own. A file still there that cannot be read for the
-     * moment (an editor partway through a save, a placeholder a sync engine
-     * has yet to fill) leaves its draft as it was.
-     */
-    reconcile() {
-      const before = drafts;
-      const found = byDraft(readDrafts(rootDir));
-      for (const [id, entries] of found) {
-        if (sent.has(id)) {
-          for (const entry of entries) {
-            try {
-              throwAway(entry);
-            } catch (error) {
-              logger.error(`Could not take away sent draft ${id}`, error);
-            }
-          }
-          continue;
-        }
-        const known = onDisk.get(id);
-        if (
-          known !== undefined &&
-          !entries.some((entry) => entry.file === known.file) &&
-          fs.existsSync(known.file)
-        ) {
-          continue;
-        }
-        const entry = pick(id, entries);
-        const read = draftOf(entry, rootDir);
-        if (
-          known?.file === entry.file &&
-          known.text === textOf(entry.draft) &&
-          known.folder === folderKeyOf(read)
-        ) {
-          continue;
-        }
-        takeIn(entry, read);
-      }
-      for (const [id, known] of onDisk) {
-        if (!found.has(id) && !fs.existsSync(known.file)) {
-          onDisk.delete(id);
-          sending.delete(id);
-          drafts = drafts.filter((draft) => draft.id !== id);
-        }
-      }
-      if (drafts !== before) {
-        onChange(snapshot());
-      }
-    },
+    reconcile,
 
     snapshot,
 

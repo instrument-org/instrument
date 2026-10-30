@@ -1,14 +1,9 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
-import {
-  getAppCatalog,
-  resetServedAppCatalog,
-  searchAppCatalog,
-} from "../apps/catalog";
+import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -141,10 +136,6 @@ describe("app catalog", () => {
   // Every way in to these waits on a sign-in client the vendor has to
   // approve, so the line sets the service up on its own site instead.
   it.each([
-    [
-      "google-drive",
-      "instrument app new google-drive --name 'Google Drive' --web https://drive.google.com",
-    ],
     ["zoom", "instrument app new zoom --name 'Zoom' --web https://zoom.us"],
   ])(
     "sets %s up as a web app when every way in needs a client the card cannot make",
@@ -155,11 +146,9 @@ describe("app catalog", () => {
     },
   );
 
-  // Google's sign-in client is served only to admins, and for them each
-  // Google product is set up on its REST API with a sign-in.
+  // Each Google product is set up on its REST API with Instrument's
+  // Google sign-in client.
   describe("with Google's sign-in client", () => {
-    afterEach(resetServedAppCatalog);
-
     it.each([
       [
         "gmail",
@@ -170,7 +159,6 @@ describe("app catalog", () => {
         "instrument app new google-drive --name 'Google Drive' --api https://www.googleapis.com/drive/v3 --auth oauth --test /about?fields=user",
       ],
     ])("sets %s up on its API", async (slug, line) => {
-      serveRegisteredClient(slug, "google-client");
       expect(await catalog(slug)).toContain(`set up: ${line}\n`);
     });
   });
@@ -235,7 +223,7 @@ describe("app catalog", () => {
     ).toEqual([]);
   });
 
-  it("reaches Gmail through Mail until its sign-in client clears", async () => {
+  it("reaches Gmail through its API ahead of Mail on this Mac", async () => {
     const config = getWorkspaceConfig();
     setWorkspaceConfig({
       ...config,
@@ -243,7 +231,7 @@ describe("app catalog", () => {
     });
     try {
       expect(await catalogOnMac("gmail")).toContain(
-        "set up: through Mail on this Mac when its account is added there, which is `instrument app catalog apple-mail`",
+        "set up: instrument app new gmail --name 'Gmail' --api https://gmail.googleapis.com/gmail/v1 --auth oauth --test /users/me/profile",
       );
     } finally {
       setWorkspaceConfig(config);

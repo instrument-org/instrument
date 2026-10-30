@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-27T20:17:45.854Z",
-  "entriesHash": "6e6dd76f1128953c",
+  "revision": "2026-10-30T16:12:04.815Z",
+  "entriesHash": "d7c588eec696a916",
   "entries": [
     {
       "slug": "ahrefs",
@@ -1786,7 +1786,7 @@
         "Summarize my unread email",
         "What did I miss in my inbox this week?"
       ],
-      "description": "Google's email. Reached through the Gmail API after you sign in with Google once Instrument's Google client clears review; until then through Mail on this Mac when the account is added there, or the web app.",
+      "description": "Google's email. Reached through the Gmail API after you sign in with Google, or through Mail on this Mac when the account is added there, or the web app.",
       "apiGuide": {
         "endpoints": "- `GET /users/me/profile`: the signed-in address (`emailAddress`), with message and thread totals.\n- `GET /users/me/messages` with `--param 'q=...'`: a search in Gmail's own syntax (`is:unread in:inbox`, `from:ana@example.com`, `subject:invoice`, `newer_than:2d`, `after:2026/10/01 before:2026/10/08`, `has:attachment`, `label:work`, `category:primary`, `-in:chats`). It answers IDs only (`messages: [{id, threadId}]`, `resultSizeEstimate`); `maxResults` is 100 by default, 500 at most.\n- `GET '/users/me/messages/{id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date'`: headers, `snippet` and `labelIds` (`UNREAD`, `INBOX`, `IMPORTANT`, `STARRED`) without the body: the cheap way through a list.\n- `GET /users/me/messages/{id}` (`format=full`, the default): `payload` is the MIME tree. The text is in `payload.body.data` for a one-part message, otherwise in `payload.parts[]`, nested under `multipart/alternative` or `multipart/mixed`; take the `text/plain` part, `text/html` when there is none. `body.data` is base64url: decode it with `Buffer.from(data, 'base64url')` in node.\n- `GET /users/me/messages/{messageId}/attachments/{id}`: an attachment a part names by `body.attachmentId`, as base64url `data`.\n- `GET /users/me/threads` with `q`, and `GET /users/me/threads/{id}` (`format=metadata` or `full`): a conversation's messages, oldest first. Who still owes a reply is read from the last message's `From`.\n- `GET /users/me/labels`: label names and IDs (`INBOX`, `SENT`, `DRAFT`, `SPAM`, `TRASH`, `CATEGORY_PERSONAL`, and the user's own as `Label_...`).\n- `POST /users/me/drafts`: a draft, body `{\"message\": {\"raw\": \"<base64url>\"}}`. `raw` is an RFC 2822 message: `To:`, `Subject:`, `Content-Type: text/plain; charset=UTF-8`, a blank line, the text, with CRLF line ends; make it with `Buffer.from(mime).toString('base64url')` in node. A reply adds `\"threadId\"` beside `raw`, and `In-Reply-To:` and `References:` headers carrying the original's `Message-ID` header, with `Subject: Re: ...`.\n- `GET /users/me/drafts`, `GET /users/me/drafts/{id}`, and `PUT /users/me/drafts/{id}` with the same body as a new draft to replace it.\n- `POST /users/me/drafts/send` with `{\"id\": \"<draft id>\"}` sends a draft; `POST /users/me/messages/send` with `{\"raw\": ...}` sends at once.",
         "conventions": "- Query options go in `--param`: `--param 'q=...'`, `--param 'maxResults=25'`. A parameter repeated in one request (`metadataHeaders`, `ranges`) goes in the path's own query string instead, the whole path quoted, since `--param` keeps one value per name.\n- Ask for only the fields you need with `--param 'fields=...'` (`fields=nextPageToken,files(id,name)`, slashes for nesting: `fields=sheets/properties/title`); full objects are large.\n- A list answers `nextPageToken` when there is more: repeat the request with `--param 'pageToken=<token>'` and the same other parameters; stop when it is absent.\n- IDs are opaque strings; pass them back exactly as returned.\n- Errors answer `{\"error\": {\"code\", \"message\", \"status\"}}`. 403 `PERMISSION_DENIED` with `insufficientPermissions` or `ACCESS_TOKEN_SCOPE_INSUFFICIENT` means the sign-in did not ask for that, and signing in again does not change it; any other 403 means the account cannot reach that item. 429 `RESOURCE_EXHAUSTED`, or 403 `rateLimitExceeded` or `userRateLimitExceeded`, means slow down: wait a few seconds and retry once. 404 is also what an item the account cannot see answers.\n- Times are RFC 3339 (`2026-10-28T09:00:00-05:00`, or `Z` for UTC).\n- `me` in a path is the signed-in account.\n- The sign-in reads mail and writes drafts. Marking read, archiving, labeling, and deleting answer 403: say so and point the user to the web app.\n- Sending is the user's word, not yours: write a draft, show it, and send only when they asked to send.",
@@ -1798,7 +1798,7 @@
         {
           "type": "oauth2",
           "label": "Google sign-in",
-          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then Mail on this Mac reads a Gmail account added there, or the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Google client, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -1807,6 +1807,7 @@
           "name": "Gmail API",
           "endpoint": "https://gmail.googleapis.com/gmail/v1",
           "auth": "oauth-client",
+          "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
           "tokenExchange": "api",
           "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
           "authorizationParams": {
@@ -1839,7 +1840,7 @@
         "When am I free this week?",
         "How much of my week is meetings?"
       ],
-      "description": "Google's calendar. Reached through the Google Calendar API after you sign in with Google once Instrument's Google client clears review; until then through Calendar on this Mac when the account is added there, or the web app.",
+      "description": "Google's calendar. Reached through the Google Calendar API after you sign in with Google, or through Calendar on this Mac when the account is added there, or the web app.",
       "apiGuide": {
         "endpoints": "- `GET /users/me/calendarList`: the user's calendars (`id`, `summary`, `primary`, `accessRole`, `timeZone`, `selected`). `primary` stands for the user's main calendar in any path, and its `timeZone` is the user's.\n- `GET /calendars/primary/events` with `timeMin` and `timeMax` (RFC 3339 with an offset), `singleEvents=true` (recurring events expanded into their occurrences) and `orderBy=startTime` (only with `singleEvents=true`): the events in a window. `q` searches text; `maxResults` is 250 by default, 2500 at most. Another calendar: its `id` from the list, URL-encoded (`@` is `%40`).\n- An event has `summary`, `start` and `end` (`{\"dateTime\", \"timeZone\"}`, or `{\"date\"}` for all day, the end date exclusive), `attendees` (`email`, `responseStatus`, `self`, `organizer`), `organizer`, `location`, `description`, `hangoutLink`, `htmlLink`, `status` (`cancelled` when gone) and `eventType` (`default`, `focusTime`, `outOfOffice`, `workingLocation`, `birthday`, `fromGmail`). Time in meetings: count `default` events with other attendees, leaving out declined ones (`self` with `responseStatus: declined`) and all-day ones.\n- `GET /calendars/{calendarId}/events/{eventId}`: one event.\n- `POST /calendars/primary/events`: a new event, body `{\"summary\": \"...\", \"start\": {\"dateTime\": \"2026-10-28T15:00:00\", \"timeZone\": \"America/Chicago\"}, \"end\": {...}, \"attendees\": [{\"email\": \"a@b.com\"}], \"location\": \"...\", \"description\": \"...\"}`; give the user's own zone. A repeating one adds `\"recurrence\": [\"RRULE:FREQ=WEEKLY;COUNT=4\"]`. `--param 'sendUpdates=all'` emails the attendees; without it they get no invitation email.\n- `PATCH /calendars/primary/events/{eventId}`: change only the fields sent. Answering an invitation: PATCH `attendees` with the whole list as read, the user's own entry (`self: true`) set to `responseStatus` `accepted`, `declined` or `tentative`, and `--param 'sendUpdates=all'`.\n- `DELETE /calendars/primary/events/{eventId}`: cancels it, for every attendee when the user organizes it.\n- `POST /freeBusy`: busy times, body `{\"timeMin\": \"...\", \"timeMax\": \"...\", \"timeZone\": \"America/Chicago\", \"items\": [{\"id\": \"primary\"}, {\"id\": \"colleague@example.com\"}]}`; answers `calendars.<id>.busy: [{start, end}]`, and `errors` for a calendar the user cannot see. Free time is the window less the busy spans.",
         "conventions": "- Query options go in `--param`: `--param 'q=...'`, `--param 'maxResults=25'`. A parameter repeated in one request (`metadataHeaders`, `ranges`) goes in the path's own query string instead, the whole path quoted, since `--param` keeps one value per name.\n- Ask for only the fields you need with `--param 'fields=...'` (`fields=nextPageToken,files(id,name)`, slashes for nesting: `fields=sheets/properties/title`); full objects are large.\n- A list answers `nextPageToken` when there is more: repeat the request with `--param 'pageToken=<token>'` and the same other parameters; stop when it is absent.\n- IDs are opaque strings; pass them back exactly as returned.\n- Errors answer `{\"error\": {\"code\", \"message\", \"status\"}}`. 403 `PERMISSION_DENIED` with `insufficientPermissions` or `ACCESS_TOKEN_SCOPE_INSUFFICIENT` means the sign-in did not ask for that, and signing in again does not change it; any other 403 means the account cannot reach that item. 429 `RESOURCE_EXHAUSTED`, or 403 `rateLimitExceeded` or `userRateLimitExceeded`, means slow down: wait a few seconds and retry once. 404 is also what an item the account cannot see answers.\n- Times are RFC 3339 (`2026-10-28T09:00:00-05:00`, or `Z` for UTC).\n- Results come in the calendar's own zone unless `--param 'timeZone=...'` says otherwise; say times to the user in theirs.\n- Creating, moving, or cancelling an event with other attendees emails them: that is the user's word, not yours. Ask before any change to an event they do not organize.",
@@ -1851,7 +1852,7 @@
         {
           "type": "oauth2",
           "label": "Google sign-in",
-          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then Calendar on this Mac reads a Google account added there, or the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Google client, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -1860,8 +1861,9 @@
           "name": "Google Calendar API",
           "endpoint": "https://www.googleapis.com/calendar/v3",
           "auth": "oauth-client",
+          "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
           "tokenExchange": "api",
-          "scope": "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy",
+          "scope": "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy",
           "authorizationParams": {
             "access_type": "offline",
             "prompt": "consent"
@@ -1892,7 +1894,7 @@
         "Draft a project brief as a new doc",
         "What changed in our team doc this week?"
       ],
-      "description": "Google's documents. Reached through the Google Docs API after you sign in with Google once Instrument's Google client clears review; until then the web app.",
+      "description": "Google's documents. Reached through the Google Docs API after you sign in with Google, or on the web.",
       "apiGuide": {
         "endpoints": "- Finding a doc by name or date is Drive's, not this API's: through the Google Drive app (`GET /files` with `q=mimeType = 'application/vnd.google-apps.document'`) when it is set up, or from the link the user gives (`docs.google.com/document/d/<id>/edit`: the part after `/d/` is the ID). Drive's `export` is also the cheapest way to read one whole, as text.\n- `GET /documents/{id}`: `title` and `body.content`, a list of structural elements. A paragraph's text is its `paragraph.elements[].textRun.content`, its style `paragraph.paragraphStyle.namedStyleType` (`TITLE`, `HEADING_1` to `HEADING_6`, `NORMAL_TEXT`), and every element has `startIndex` and `endIndex`. Trim it with `--param 'fields=title,body/content(startIndex,endIndex,paragraph(elements/textRun/content,paragraphStyle/namedStyleType))'`.\n- A doc with tabs: `--param 'includeTabsContent=true'` answers `tabs[].documentTab.body` instead of `body`, which otherwise is the first tab alone.\n- Who changed what, and when, is not here: Drive's `modifiedTime` and `lastModifyingUser` say when and by whom.\n- `POST /documents` with `{\"title\": \"...\"}`: a new empty doc in the top of My Drive. It answers the whole document; `--param 'fields=documentId'` answers its `documentId` alone. It opens at `https://docs.google.com/document/d/<documentId>/edit`.\n- `POST /documents/{id}:batchUpdate` with `{\"requests\": [...]}`: edits, applied in order, all or none.\n- Add at the end: `{\"insertText\": {\"endOfSegmentLocation\": {}, \"text\": \"Next steps\\nShip the beta.\\n\"}}`. At a place: `{\"insertText\": {\"location\": {\"index\": 1}, \"text\": \"...\"}}`; index 1 is the start of the body, and the last place text can go is the body's last `endIndex` less 1.\n- A heading: `{\"updateParagraphStyle\": {\"range\": {\"startIndex\": 1, \"endIndex\": 12}, \"paragraphStyle\": {\"namedStyleType\": \"HEADING_1\"}, \"fields\": \"namedStyleType\"}}`. Bullets: `{\"createParagraphBullets\": {\"range\": {...}, \"bulletPreset\": \"BULLET_DISC_CIRCLE_SQUARE\"}}` (`NUMBERED_DECIMAL_ALPHA_ROMAN` for numbers).\n- `{\"replaceAllText\": {\"containsText\": {\"text\": \"old\", \"matchCase\": true}, \"replaceText\": \"new\"}}`; `{\"deleteContentRange\": {\"range\": {\"startIndex\": ..., \"endIndex\": ...}}}`.\n- Writing a new doc: one batch that inserts all the text at index 1, then styles each heading's range, worked out from where it falls in the text (index = 1 + its offset).",
         "conventions": "- Query options go in `--param`: `--param 'fields=...'`. Ask for only the fields you need; a whole document is large.\n- Indexes count UTF-16 code units, as JavaScript's `length` does, so an emoji is 2. Every insert or delete moves the indexes after it: in one batch, insert at the end first or work from the back of the doc forward.\n- Errors answer `{\"error\": {\"code\", \"message\", \"status\"}}`. 400 `INVALID_ARGUMENT` names the request in the batch that failed, usually an index outside a paragraph. 403 means the account can view but not edit the doc; 429 `RESOURCE_EXHAUSTED` means wait a few seconds and retry once.\n- Changing a doc the user did not ask you to change is their word, not yours: ask first.",
@@ -1904,7 +1906,7 @@
         {
           "type": "oauth2",
           "label": "Google sign-in",
-          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Google client, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -1913,6 +1915,7 @@
           "name": "Google Docs API",
           "endpoint": "https://docs.googleapis.com/v1",
           "auth": "oauth-client",
+          "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
           "tokenExchange": "api",
           "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents",
           "authorizationParams": {
@@ -1939,7 +1942,7 @@
         "Summarize the newest doc shared with me",
         "Find files shared with me this month"
       ],
-      "description": "Google's file storage and the Docs, Sheets, and Slides editors. Reached through the Google Drive API after you sign in with Google once Instrument's Google client clears review; until then the web app.",
+      "description": "Google's file storage and the Docs, Sheets, and Slides editors. Reached through the Google Drive API after you sign in with Google, or on the web.",
       "apiGuide": {
         "endpoints": "- `GET /about` with `--param 'fields=user,storageQuota'`: the signed-in account and its storage.\n- `GET /files`: search, with `q`, `fields`, `orderBy`, `pageSize` (1000 at most). Always name the fields: `--param 'fields=nextPageToken,files(id,name,mimeType,modifiedTime,owners(displayName),webViewLink)'`; without it a file is only `id`, `name`, `mimeType`.\n- `q` joins terms with `and`, `or`, `not`, strings in single quotes (`\\'` inside one): `name contains 'budget'`, `fullText contains 'quarterly plan'`, `mimeType = 'application/vnd.google-apps.document'` (`.spreadsheet`, `.presentation`, `.folder`), `'<folderId>' in parents`, `sharedWithMe`, `'me' in owners`, `modifiedTime > '2026-10-01T00:00:00'`, and `trashed = false` on every search unless the user wants the trash.\n- Recent files: `orderBy=modifiedByMeTime desc` (what the user edited), `viewedByMeTime desc` (opened) or `modifiedTime desc` (changed by anyone), with `q=trashed = false`. Shared with the user: `q=sharedWithMe`, `orderBy=sharedWithMeTime desc`.\n- Shared drives are left out unless the search adds `includeItemsFromAllDrives=true`, `supportsAllDrives=true` and `corpora=allDrives`; the default, `corpora=user`, is My Drive and what is shared with the user.\n- `GET /files/{id}` with `fields`: one file's details (`lastModifyingUser`, `size`, `parents`, `webViewLink`).\n- `GET /files/{id}/export` with `mimeType`: a Google file's content, 10 MB at most. Docs as `text/markdown` (headings kept) or `text/plain`, Sheets as `text/csv` (the first tab only; the Google Sheets app reads the others), Slides as `text/plain`.\n- `GET /files/{id}` with `--param 'alt=media'`: any other file's bytes. Text, CSV, Markdown and JSON read well; PDFs and Office files are binary and do not. An Office file reads after `POST /files/{id}/copy` with `{\"mimeType\": \"application/vnd.google-apps.document\"}` (`.spreadsheet` for Excel, `.presentation` for PowerPoint) converts it, then `export`; the copy lands in the user's Drive, so say so and offer to trash it.\n- `POST /files`: a new empty Google file from metadata alone, body `{\"name\": \"Project brief\", \"mimeType\": \"application/vnd.google-apps.document\", \"parents\": [\"<folderId>\"]}` (`.spreadsheet`, `.presentation`, `.folder`; no `parents` is the top of My Drive), with `--param 'fields=id,webViewLink'`. Its content is written through the Google Docs, Sheets, or Slides app.\n- Uploading a file's bytes is out of reach: Drive takes them at `/upload/drive/v3`, outside this app's base, and a request here carries only JSON. Text the user wants in Drive goes in a new Google Doc, a table in a new Google Sheet; any other file the user drops in on the web.\n- `PATCH /files/{id}`: rename with `{\"name\": \"...\"}`, move with `--param 'addParents=<folderId>'` and `--param 'removeParents=<old folderId>'`, trash with `{\"trashed\": true}`.",
         "conventions": "- Query options go in `--param`: `--param 'q=...'`, `--param 'maxResults=25'`. A parameter repeated in one request (`metadataHeaders`, `ranges`) goes in the path's own query string instead, the whole path quoted, since `--param` keeps one value per name.\n- Ask for only the fields you need with `--param 'fields=...'` (`fields=nextPageToken,files(id,name)`, slashes for nesting: `fields=sheets/properties/title`); full objects are large.\n- A list answers `nextPageToken` when there is more: repeat the request with `--param 'pageToken=<token>'` and the same other parameters; stop when it is absent.\n- IDs are opaque strings; pass them back exactly as returned.\n- Errors answer `{\"error\": {\"code\", \"message\", \"status\"}}`. 403 `PERMISSION_DENIED` with `insufficientPermissions` or `ACCESS_TOKEN_SCOPE_INSUFFICIENT` means the sign-in did not ask for that, and signing in again does not change it; any other 403 means the account cannot reach that item. 429 `RESOURCE_EXHAUSTED`, or 403 `rateLimitExceeded` or `userRateLimitExceeded`, means slow down: wait a few seconds and retry once. 404 is also what an item the account cannot see answers.\n- Times are RFC 3339 (`2026-10-28T09:00:00-05:00`, or `Z` for UTC).\n- The sign-in reads every file but changes only files this app created or the user opened with it; renaming, moving, or trashing any other answers 403 or 404. Say so rather than retrying.\n- Hand the user a file as its `webViewLink`.\n- Trashing or overwriting a file is the user's word, not yours: ask first.",
@@ -1951,7 +1954,7 @@
         {
           "type": "oauth2",
           "label": "Google sign-in",
-          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Google client, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -1960,6 +1963,7 @@
           "name": "Google Drive API",
           "endpoint": "https://www.googleapis.com/drive/v3",
           "auth": "oauth-client",
+          "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
           "tokenExchange": "api",
           "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
           "authorizationParams": {
@@ -1986,7 +1990,7 @@
         "Add this week’s numbers to my tracker",
         "Make a sheet from this list"
       ],
-      "description": "Google's spreadsheets. Reached through the Google Sheets API after you sign in with Google once Instrument's Google client clears review; until then the web app.",
+      "description": "Google's spreadsheets. Reached through the Google Sheets API after you sign in with Google, or on the web.",
       "apiGuide": {
         "endpoints": "- Finding a sheet by name or date is Drive's, not this API's: through the Google Drive app (`GET /files` with `q=mimeType = 'application/vnd.google-apps.spreadsheet'`) when it is set up, or from the link the user gives (`docs.google.com/spreadsheets/d/<id>/edit`: the part after `/d/` is the ID). Drive's `export` is also the cheapest way to read one whole, as text.\n- `GET /spreadsheets/{id}` with `--param 'fields=properties/title,sheets/properties(sheetId,title,gridProperties)'`: the title and each tab's name, ID and size. Without `fields` it is large, and with `includeGridData=true` it is every cell.\n- `GET /spreadsheets/{id}/values/{range}`: `{range, values: [[...]]}`, rows of cells. A range is A1 notation: `Budget!A1:D20`, `Budget!A:C`, `Budget` for the whole tab; a tab name with spaces is quoted and encoded (`%27Q3%20Budget%27!A1:D20`). Empty cells at the end of a row, and empty rows at the end, are left out. `valueRenderOption` is `FORMATTED_VALUE` (the default, as shown), `UNFORMATTED_VALUE` (numbers as numbers) or `FORMULA`.\n- `GET '/spreadsheets/{id}/values:batchGet?ranges=A!A1:B5&ranges=B!A1:B5'`: several ranges at once.\n- `PUT /spreadsheets/{id}/values/{range}` with `--param 'valueInputOption=USER_ENTERED'`, body `{\"values\": [[\"Item\", \"Cost\"], [\"Rent\", 1200], [\"Total\", \"=SUM(B2:B2)\"]]}`: writes over the range. `USER_ENTERED` reads each cell as if typed, so formulas, dates and numbers work; `RAW` keeps strings as they are. `valueInputOption` is required.\n- `POST /spreadsheets/{id}/values/{range}:append` with `valueInputOption=USER_ENTERED` and `insertDataOption=INSERT_ROWS`, body `{\"values\": [[...]]}`: adds rows under the table the range finds (`Tracker!A:D`), never over it.\n- `POST /spreadsheets/{id}/values/{range}:clear`: empties a range, leaving its formatting.\n- `POST /spreadsheets` with `{\"properties\": {\"title\": \"...\"}, \"sheets\": [{\"properties\": {\"title\": \"Data\"}}]}`: a new spreadsheet in the top of My Drive; answers `spreadsheetId` and `spreadsheetUrl`. Fill it with a values PUT.\n- `POST /spreadsheets/{id}:batchUpdate` with `{\"requests\": [...]}`: changes to the sheet itself, such as `{\"addSheet\": {\"properties\": {\"title\": \"...\"}}}`, `{\"deleteSheet\": {\"sheetId\": 0}}`, or freezing a header row with `{\"updateSheetProperties\": {\"properties\": {\"sheetId\": 0, \"gridProperties\": {\"frozenRowCount\": 1}}, \"fields\": \"gridProperties.frozenRowCount\"}}`.",
         "conventions": "- Query options go in `--param`: `--param 'valueInputOption=USER_ENTERED'`. A parameter repeated in one request (`ranges`) goes in the path's own query string, the whole path quoted.\n- A range's `!` and `:` stay as they are in the path; a space is `%20` and a quote `%27`.\n- Formulas are the sheet's own, in English with commas (`=SUMIF(A:A,\"Rent\",B:B)`).\n- Errors answer `{\"error\": {\"code\", \"message\", \"status\"}}`. 400 `INVALID_ARGUMENT` with `Unable to parse range` is a tab name that does not match. 403 means the account can view but not edit; 429 `RESOURCE_EXHAUSTED` means wait a few seconds and retry once.\n- Writing over or clearing cells that hold data is the user's word, not yours: read the range first, and ask when it is not empty.",
@@ -1998,7 +2002,7 @@
         {
           "type": "oauth2",
           "label": "Google sign-in",
-          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Google client, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -2007,6 +2011,7 @@
           "name": "Google Sheets API",
           "endpoint": "https://sheets.googleapis.com/v4",
           "auth": "oauth-client",
+          "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
           "tokenExchange": "api",
           "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets",
           "authorizationParams": {
@@ -2033,7 +2038,7 @@
         "Make a five-slide deck from these notes",
         "What’s on the last slide of the quarterly review?"
       ],
-      "description": "Google's presentations. Reached through the Google Slides API after you sign in with Google once Instrument's Google client clears review; until then the web app.",
+      "description": "Google's presentations. Reached through the Google Slides API after you sign in with Google, or on the web.",
       "apiGuide": {
         "endpoints": "- Finding a deck by name or date is Drive's, not this API's: through the Google Drive app (`GET /files` with `q=mimeType = 'application/vnd.google-apps.presentation'`) when it is set up, or from the link the user gives (`docs.google.com/presentation/d/<id>/edit`: the part after `/d/` is the ID). Drive's `export` is also the cheapest way to read one whole, as text.\n- `GET /presentations/{id}`: `title` and `slides[]`, each with its `objectId` and `pageElements[]`. A shape's text is its `shape.text.textElements[].textRun.content`, and `shape.placeholder.type` says which it is (`TITLE`, `CENTERED_TITLE`, `SUBTITLE`, `BODY`). Speaker notes are the shape whose ID is the slide's `slideProperties.notesPage.notesProperties.speakerNotesObjectId`, inside `slideProperties.notesPage.pageElements`. Trim it with `--param 'fields=title,slides(objectId,pageElements(objectId,shape(placeholder/type,text/textElements/textRun/content)))'`.\n- `GET /presentations/{id}/pages/{pageObjectId}`: one slide.\n- `POST /presentations` with `{\"title\": \"...\"}`: a new deck in the top of My Drive with one title slide. It answers the whole deck, thousands of lines with its layouts and masters; `--param 'fields=presentationId'` answers the ID alone, and `--param 'fields=presentationId,slides(objectId,pageElements(objectId,shape/placeholder/type))'` adds the title slide's placeholders, whose `objectId`s take its text. It opens at `https://docs.google.com/presentation/d/<presentationId>/edit`.\n- `POST /presentations/{id}:batchUpdate` with `{\"requests\": [...]}`: edits, applied in order, all or none.\n- A slide: `{\"createSlide\": {\"objectId\": \"slide_2\", \"insertionIndex\": 1, \"slideLayoutReference\": {\"predefinedLayout\": \"TITLE_AND_BODY\"}, \"placeholderIdMappings\": [{\"layoutPlaceholder\": {\"type\": \"TITLE\", \"index\": 0}, \"objectId\": \"slide_2_title\"}, {\"layoutPlaceholder\": {\"type\": \"BODY\", \"index\": 0}, \"objectId\": \"slide_2_body\"}]}}`. Layouts: `TITLE`, `TITLE_AND_BODY`, `TITLE_AND_TWO_COLUMNS`, `TITLE_ONLY`, `SECTION_HEADER`, `MAIN_POINT`, `BIG_NUMBER`, `BLANK`.\n- Text into a placeholder, in the same batch: `{\"insertText\": {\"objectId\": \"slide_2_body\", \"text\": \"First point\\nSecond point\"}}`; each line of a body is a bullet.\n- `{\"replaceAllText\": {\"containsText\": {\"text\": \"{{name}}\", \"matchCase\": true}, \"replaceText\": \"...\"}}` across the deck; `{\"deleteObject\": {\"objectId\": \"...\"}}` removes a slide or shape; `{\"deleteText\": {\"objectId\": \"...\", \"textRange\": {\"type\": \"ALL\"}}}` empties a shape before new text.",
         "conventions": "- Query options go in `--param`: `--param 'fields=...'`. Ask for only the fields you need; a whole deck is large.\n- Object IDs you choose are 5 to 50 letters, digits, `_`, `-` or `:`, starting with a letter, digit or `_`, and unique in the deck; choosing them lets one batch make a slide and fill it.\n- Errors answer `{\"error\": {\"code\", \"message\", \"status\"}}`. 400 `INVALID_ARGUMENT` names the request in the batch that failed, often an object ID already taken or one that does not exist. 403 means the account can view but not edit the deck; 429 `RESOURCE_EXHAUSTED` means wait a few seconds and retry once.\n- Changing a deck the user did not ask you to change is their word, not yours: ask first.",
@@ -2045,7 +2050,7 @@
         {
           "type": "oauth2",
           "label": "Google sign-in",
-          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Google client, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -2054,6 +2059,7 @@
           "name": "Google Slides API",
           "endpoint": "https://slides.googleapis.com/v1",
           "auth": "oauth-client",
+          "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
           "tokenExchange": "api",
           "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/presentations",
           "authorizationParams": {

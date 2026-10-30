@@ -1,8 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { applyServedAppCatalog, resetServedAppCatalog } from "./catalog";
+import seed from "./catalog-seed.json";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { APP_FILE_NAME } from "./app-file";
 import { createMemoryAppsConfig } from "./memory-config";
@@ -74,6 +84,24 @@ describe("setUpFromDirectory", () => {
   });
 
   it("starts another account's sign-in on the vendor's page for adding one", async () => {
+    // Google Drive as a directory without Instrument's client serves it: a
+    // web app whose vendor has a page for adding an account.
+    applyServedAppCatalog({
+      ...seed,
+      entries: seed.entries.map((entry) =>
+        entry.slug === "google-drive"
+          ? {
+              ...entry,
+              interfaces: entry.interfaces.map((surface) =>
+                "clientId" in surface
+                  ? { ...surface, clientId: undefined }
+                  : surface,
+              ),
+            }
+          : entry,
+      ),
+    });
+    onTestFinished(resetServedAppCatalog);
     await setUpFromDirectory({ slug: "google-drive" });
     await setUpFromDirectory({ slug: "google-drive" });
 

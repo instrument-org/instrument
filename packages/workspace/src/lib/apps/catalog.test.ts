@@ -7,7 +7,6 @@ import {
   builtInAppCatalogRevision,
   catalogEntryAt,
   catalogEntryForApp,
-  catalogEndpointNeedsClient,
   catalogRegisteredClient,
   getAppCatalog,
   resetServedAppCatalog,
@@ -90,19 +89,19 @@ describe("Google's REST APIs", () => {
     resetServedAppCatalog();
   });
 
-  // The client is served only to admins; the seed says how its sign-in goes.
   it.each(apis)(
-    "leaves %s off its API without the client",
+    "signs %s in to its API with the directory's own client",
     (slug, endpoint) => {
-      expect(catalogWayIn(entry(slug)).kind).not.toBe("api");
-      expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
+      expect(catalogWayIn(entry(slug)).kind).toBe("api");
       expect(
         catalogApiSignInClient(slug, {
           service: slug,
           type: "api",
           url: endpoint,
-        }),
-      ).toBeUndefined();
+        })?.clientId,
+      ).toBe(
+        "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+      );
     },
   );
 
@@ -145,7 +144,7 @@ describe("Google's REST APIs", () => {
             "prompt": "consent",
           },
           "clientId": "google-client",
-          "scope": "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy",
+          "scope": "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy",
           "service": "google-calendar",
         },
         {

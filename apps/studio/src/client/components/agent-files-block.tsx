@@ -287,7 +287,7 @@ function FileLine({
       disabled={isMissing}
       onAuxClick={onAuxClick}
       onClick={onClick}
-      onContextMenu={onContextMenu}
+      onContextMenu={isMissing ? undefined : onContextMenu}
       ref={ref}
       type="button"
     >

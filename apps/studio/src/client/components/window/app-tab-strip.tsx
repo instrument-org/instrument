@@ -337,24 +337,26 @@ function TabMenu({
           </DropdownMenuShortcut>
         ) : null}
       </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={isOnly}
-        onClick={() => {
-          onCloseOthers(id);
-        }}
-      >
-        <XSquareIcon className="size-4" />
-        <span>Close Other Tabs</span>
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={isLast}
-        onClick={() => {
-          onCloseToRight(id);
-        }}
-      >
-        <ArrowLineRightIcon className="size-4" />
-        <span>Close Tabs to the Right</span>
-      </DropdownMenuItem>
+      {isOnly ? null : (
+        <DropdownMenuItem
+          onClick={() => {
+            onCloseOthers(id);
+          }}
+        >
+          <XSquareIcon className="size-4" />
+          <span>Close Other Tabs</span>
+        </DropdownMenuItem>
+      )}
+      {isLast ? null : (
+        <DropdownMenuItem
+          onClick={() => {
+            onCloseToRight(id);
+          }}
+        >
+          <ArrowLineRightIcon className="size-4" />
+          <span>Close Tabs to the Right</span>
+        </DropdownMenuItem>
+      )}
     </DropdownMenuContent>
   );
 }

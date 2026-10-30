@@ -2143,19 +2143,20 @@ export function ComputerPage({
       <PlaceList
         label="Pinned"
         labelMenu={
-          <ContextMenuContent className="min-w-48">
-            <ContextMenuItem
-              disabled={sidebarPlaces.unpinned.length === 0}
-              onClick={() =>
-                void rpcClient.preferences.restoreDefaultSidebarPlaces
-                  .call()
-                  .catch(sidebarChangeFailed)
-              }
-            >
-              <PushPinIcon className="size-4" />
-              <span>Restore Default Places</span>
-            </ContextMenuItem>
-          </ContextMenuContent>
+          sidebarPlaces.unpinned.length === 0 ? undefined : (
+            <ContextMenuContent className="min-w-48">
+              <ContextMenuItem
+                onClick={() =>
+                  void rpcClient.preferences.restoreDefaultSidebarPlaces
+                    .call()
+                    .catch(sidebarChangeFailed)
+                }
+              >
+                <PushPinIcon className="size-4" />
+                <span>Restore Default Places</span>
+              </ContextMenuItem>
+            </ContextMenuContent>
+          )
         }
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={openPlaceInNewTab}
@@ -2896,6 +2897,11 @@ function FolderOverflowMenu({
   item: FileSystemItem | undefined;
   onClosed: () => void;
 }) {
+  // The recents with nothing selected have nothing to make, paste or ask
+  // about, so the menu would open empty.
+  if (!props.item && !props.onNewFolder && !props.onNewDraft && !props.paste) {
+    return null;
+  }
   return (
     <DropdownMenu>
       <ToolbarTooltip label="More">

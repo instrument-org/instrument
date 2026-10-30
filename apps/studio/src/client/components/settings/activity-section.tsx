@@ -11,6 +11,8 @@ import {
   ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
@@ -710,9 +712,12 @@ function ActivityLog({
             </DropdownMenuSub>
             {FIELDS.map((field) => {
               const values = summary?.facets[field] ?? [];
+              if (values.length === 0) {
+                return null;
+              }
               return (
                 <DropdownMenuSub key={field}>
-                  <DropdownMenuSubTrigger disabled={values.length === 0}>
+                  <DropdownMenuSubTrigger>
                     {FIELD_LABELS[field]}
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="max-h-80 w-64 overflow-y-auto">
@@ -1021,22 +1026,19 @@ function LogTable({
             </ContextMenuTrigger>
             <ContextMenuContent>
               {menuTarget?.getCanSort() ? (
-                <>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      menuTarget.toggleSorting(false);
-                    }}
-                  >
+                <ContextMenuRadioGroup
+                  onValueChange={(value) => {
+                    menuTarget.toggleSorting(value === "desc");
+                  }}
+                  value={menuTarget.getIsSorted() || ""}
+                >
+                  <ContextMenuRadioItem value="asc">
                     Sort ascending
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    onSelect={() => {
-                      menuTarget.toggleSorting(true);
-                    }}
-                  >
+                  </ContextMenuRadioItem>
+                  <ContextMenuRadioItem value="desc">
                     Sort descending
-                  </ContextMenuItem>
-                </>
+                  </ContextMenuRadioItem>
+                </ContextMenuRadioGroup>
               ) : null}
               {menuTarget?.getCanHide() ? (
                 <ContextMenuItem

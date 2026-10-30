@@ -646,6 +646,7 @@ export function DataGrid({
   const filtered = visibleRows.length !== rows.length;
 
   const block = selectedBlock();
+  const isReshaped = sorting.length > 0 || globalFilter !== "";
   const askable =
     onAsk !== undefined &&
     !editing &&
@@ -761,7 +762,8 @@ export function DataGrid({
         </div>
       ) : (
         <ContextMenu>
-          <ContextMenuTrigger asChild>
+          {/* Nothing selected, read only and in its own order: no menu. */}
+          <ContextMenuTrigger asChild disabled={!block && !edit && !isReshaped}>
             <div
               // `select-none` because a drag has to mean one thing. Without it a
               // drag across cells builds the grid's range and the browser's own
@@ -906,17 +908,14 @@ export function DataGrid({
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
-            {onAsk && (
+            {block && onAsk && (
               <>
                 <ContextMenuItem
-                  disabled={!block}
                   onSelect={() => {
-                    if (block) {
-                      // The block's box as the menu closes, since the
-                      // selection it came from goes with the menu.
-                      const box = askReference.getBoundingClientRect();
-                      onAsk(block, { getBoundingClientRect: () => box });
-                    }
+                    // The block's box as the menu closes, since the
+                    // selection it came from goes with the menu.
+                    const box = askReference.getBoundingClientRect();
+                    onAsk(block, { getBoundingClientRect: () => box });
                   }}
                 >
                   Ask
@@ -924,39 +923,41 @@ export function DataGrid({
                 <ContextMenuSeparator />
               </>
             )}
-            <ContextMenuItem
-              disabled={!selectedRange}
-              onSelect={() => {
-                copyBlock(readSelection(copyHeaders));
-              }}
-            >
-              Copy selection
-              <ContextMenuShortcut>
-                {formatAcceleratorText("CmdOrCtrl+C")}
-              </ContextMenuShortcut>
-            </ContextMenuItem>
-            {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
-              <ContextMenuItem
-                disabled={!selectedRange}
-                key={format}
-                onSelect={() => {
-                  copyBlock(readSelection(copyHeaders), format);
-                }}
-              >
-                {label}
-              </ContextMenuItem>
-            ))}
-            <ContextMenuCheckboxItem
-              checked={copyHeaders}
-              onSelect={(event) => {
-                // Kept open: this is a setting for the item the reader is
-                // about to pick, not an action of its own.
-                event.preventDefault();
-                setCopyHeaders(!copyHeaders);
-              }}
-            >
-              Include headers
-            </ContextMenuCheckboxItem>
+            {block && (
+              <>
+                <ContextMenuItem
+                  onSelect={() => {
+                    copyBlock(readSelection(copyHeaders));
+                  }}
+                >
+                  Copy selection
+                  <ContextMenuShortcut>
+                    {formatAcceleratorText("CmdOrCtrl+C")}
+                  </ContextMenuShortcut>
+                </ContextMenuItem>
+                {TABLE_COPY_ALTERNATES.map(({ format, label }) => (
+                  <ContextMenuItem
+                    key={format}
+                    onSelect={() => {
+                      copyBlock(readSelection(copyHeaders), format);
+                    }}
+                  >
+                    {label}
+                  </ContextMenuItem>
+                ))}
+                <ContextMenuCheckboxItem
+                  checked={copyHeaders}
+                  onSelect={(event) => {
+                    // Kept open: this is a setting for the item the reader is
+                    // about to pick, not an action of its own.
+                    event.preventDefault();
+                    setCopyHeaders(!copyHeaders);
+                  }}
+                >
+                  Include headers
+                </ContextMenuCheckboxItem>
+              </>
+            )}
             {edit && (
               <GridEditMenuItems
                 block={block}
@@ -974,16 +975,20 @@ export function DataGrid({
                 }}
               />
             )}
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onSelect={() => {
-                setSelection(null);
-                setGlobalFilter("");
-                setSorting([]);
-              }}
-            >
-              Reset sort and filter
-            </ContextMenuItem>
+            {isReshaped && (
+              <>
+                {block || edit ? <ContextMenuSeparator /> : null}
+                <ContextMenuItem
+                  onSelect={() => {
+                    setSelection(null);
+                    setGlobalFilter("");
+                    setSorting([]);
+                  }}
+                >
+                  Reset sort and filter
+                </ContextMenuItem>
+              </>
+            )}
           </ContextMenuContent>
         </ContextMenu>
       )}
@@ -1357,50 +1362,49 @@ function GridEditMenuItems({
   const rowCount = block?.rows.length ?? 0;
   return (
     <>
-      <ContextMenuSeparator />
-      <ContextMenuItem disabled={!block} onSelect={onEdit}>
-        Edit cell
-        <ContextMenuShortcut>
-          {formatAcceleratorText("Enter")}
-        </ContextMenuShortcut>
-      </ContextMenuItem>
-      <ContextMenuItem
-        disabled={firstRow === undefined}
-        onSelect={() => {
-          if (firstRow !== undefined) {
-            edit.onInsertRow(firstRow, "above");
-          }
-        }}
-      >
-        Insert row above
-      </ContextMenuItem>
-      <ContextMenuItem
-        disabled={lastRow === undefined}
-        onSelect={() => {
-          if (lastRow !== undefined) {
-            edit.onInsertRow(lastRow, "below");
-          }
-        }}
-      >
-        Insert row below
-      </ContextMenuItem>
-      <ContextMenuItem
-        disabled={rowCount === 0}
-        onSelect={() => {
-          if (block) {
-            edit.onDeleteRows(block.rows);
-          }
-        }}
-        variant="destructive"
-      >
-        {rowCount > 1 ? `Delete ${rowCount} rows` : "Delete row"}
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem disabled={firstColumn === undefined} onSelect={onRename}>
-        {firstColumn === undefined
-          ? "Rename column"
-          : `Rename “${columnName(firstColumn) || "column"}”`}
-      </ContextMenuItem>
+      {block && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={onEdit}>
+            Edit cell
+            <ContextMenuShortcut>
+              {formatAcceleratorText("Enter")}
+            </ContextMenuShortcut>
+          </ContextMenuItem>
+        </>
+      )}
+      {firstRow !== undefined && lastRow !== undefined && (
+        <>
+          <ContextMenuItem
+            onSelect={() => {
+              edit.onInsertRow(firstRow, "above");
+            }}
+          >
+            Insert row above
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => {
+              edit.onInsertRow(lastRow, "below");
+            }}
+          >
+            Insert row below
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => {
+              edit.onDeleteRows(block?.rows ?? []);
+            }}
+            variant="destructive"
+          >
+            {rowCount > 1 ? `Delete ${rowCount} rows` : "Delete row"}
+          </ContextMenuItem>
+        </>
+      )}
+      {block && <ContextMenuSeparator />}
+      {firstColumn !== undefined && (
+        <ContextMenuItem onSelect={onRename}>
+          {`Rename “${columnName(firstColumn) || "column"}”`}
+        </ContextMenuItem>
+      )}
       <ContextMenuItem onSelect={edit.onAddColumn}>Add column</ContextMenuItem>
     </>
   );

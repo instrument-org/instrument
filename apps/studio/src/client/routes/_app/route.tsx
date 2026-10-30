@@ -532,9 +532,13 @@ function RouteScreen({ href }: { href: string }) {
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
   // there would only offer to leave for the web. A new tab's own menu takes
-  // addresses, so a row over it would be a second field.
+  // addresses, so a row over it would be a second field. The release notes
+  // are a page to read, with no place above them either.
+  const screenKind = matchScreen(href).kind;
   const hasLocationRow =
-    location.kind !== "apps" && matchScreen(href).kind !== "newTab";
+    location.kind !== "apps" &&
+    screenKind !== "newTab" &&
+    screenKind !== "releaseNotes";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (

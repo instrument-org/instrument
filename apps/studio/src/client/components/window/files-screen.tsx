@@ -897,7 +897,6 @@ export function FilesScreen({
                                     // folder's own to come back.
                                     actionsInto={isPresent ? rowTail : null}
                                     actionsLead={actionsLead}
-                                    noteInto={isPresent ? rowField : null}
                                     actionsTrail={closeButton}
                                     className={FULL_BLEED}
                                     editable
@@ -978,7 +977,6 @@ export function FilesScreen({
                 <FileViewer
                   actionsInto={rowTail}
                   actionsLead={actionsLead}
-                  noteInto={rowField}
                   className={FULL_BLEED}
                   editable
                   file={viewerFile}
@@ -1007,7 +1005,6 @@ export function FilesScreen({
             {refusedView ?? (
               <FileViewer
                 actionsInto={rowTail}
-                noteInto={rowField}
                 actionsLead={actionsLead}
                 className={FULL_BLEED}
                 editable

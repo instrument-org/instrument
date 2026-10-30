@@ -825,7 +825,6 @@ export function FileViewer({
   className,
   editable = false,
   file,
-  noteInto,
   onClose,
   onExpand,
   onLeaveSource,
@@ -854,8 +853,6 @@ export function FileViewer({
    */
   editable?: boolean;
   file: ViewerFile;
-  /** Where the viewer says its file was just updated, for a viewer whose row has a field to say it in; its own head otherwise. */
-  noteInto?: HTMLElement | null;
   onClose?: () => void;
   onExpand?: () => void;
   /**
@@ -1024,15 +1021,12 @@ export function FileViewer({
     wrapLines,
   };
 
+  const note = (
+    <UpdatedNote ago={updated.ago} shown={updated.shown} turn={updated.turn} />
+  );
+
   const actions = (
     <>
-      {noteInto === undefined && (
-        <UpdatedNote
-          ago={updated.ago}
-          shown={updated.shown}
-          turn={updated.turn}
-        />
-      )}
       {actionsLead}
       {showsSource && (
         // Where the source was left from: the menu took the person here, and
@@ -1177,15 +1171,6 @@ export function FileViewer({
           actionsInto,
         )
       )}
-      {noteInto &&
-        createPortal(
-          <UpdatedNote
-            ago={updated.ago}
-            shown={updated.shown}
-            turn={updated.turn}
-          />,
-          noteInto,
-        )}
 
       {mediaLoadError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -1200,19 +1185,25 @@ export function FileViewer({
         // Viewers that scroll internally own the whole content area, so they
         // are not nested inside the shared scroll container. The content is
         // the file, so it is text; a viewer's own toolbar and rail say not.
-        <div className="flex min-h-0 flex-1 flex-col select-text">
+        <div className="relative flex min-h-0 flex-1 flex-col select-text">
           <UpdatedNoteContext value={markUpdated}>
             {viewer.render(viewerContext)}
           </UpdatedNoteContext>
+          {note}
         </div>
       ) : (
-        <div
-          className="relative min-h-0 flex-1 overflow-auto select-text"
-          ref={contentRef}
-        >
-          <UpdatedNoteContext value={markUpdated}>
-            {viewer.render(viewerContext)}
-          </UpdatedNoteContext>
+        // The note sits beside the scroller rather than in it, so it stays
+        // at the top of the view however far down the file is read.
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div
+            className="relative min-h-0 flex-1 overflow-auto select-text"
+            ref={contentRef}
+          >
+            <UpdatedNoteContext value={markUpdated}>
+              {viewer.render(viewerContext)}
+            </UpdatedNoteContext>
+          </div>
+          {note}
         </div>
       )}
     </div>

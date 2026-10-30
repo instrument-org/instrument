@@ -693,7 +693,6 @@ export function BrowserTabs({
                 />
               ) : (
                 <FilePageReload
-                  fieldInto={fieldInto ?? null}
                   isShown={tab.id === active?.id}
                   key={tab.id}
                   path={filePath}
@@ -832,17 +831,15 @@ function ComposePagePanel({
  * Keeps a page tab showing a file on this computer at the file as it is: the
  * file is watched for as long as the tab is open, and the guest reloads when
  * it is written, so an edit landing in the file shows the way it would in a
- * viewer of it rather than waiting for the person to reload. The address
- * field says "Updated" for a moment after each one, since the part that
- * changed is often off screen and the page can look the same.
+ * viewer of it rather than waiting for the person to reload. "Updated" floats
+ * over the page for a moment after each one, since the part that changed is
+ * often off screen and the page can look the same.
  */
 function FilePageReload({
-  fieldInto,
   isShown,
   path,
   target,
 }: {
-  fieldInto: HTMLElement | null;
   isShown: boolean;
   path: string;
   target: BrowserTargetId;
@@ -875,16 +872,9 @@ function FilePageReload({
     shown.current = modifiedAt;
   }, [markUpdated, modifiedAt, target]);
 
-  return fieldInto && isShown
-    ? createPortal(
-        <UpdatedNote
-          ago={updated.ago}
-          shown={updated.shown}
-          turn={updated.turn}
-        />,
-        fieldInto,
-      )
-    : null;
+  return isShown ? (
+    <UpdatedNote ago={updated.ago} shown={updated.shown} turn={updated.turn} />
+  ) : null;
 }
 
 /**

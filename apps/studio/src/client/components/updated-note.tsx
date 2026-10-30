@@ -115,7 +115,9 @@ export function useMarkUpdated() {
 /**
  * "Updated", for a moment after the file a view shows was written and the
  * view took the new version in. The part that changed is often off screen, so
- * without it the view can look as though nothing happened.
+ * without it the view can look as though nothing happened. It floats down over
+ * the top of the view, where the person is looking, so the view it sits in
+ * must be positioned.
  */
 export function UpdatedNote({
   ago,
@@ -127,32 +129,38 @@ export function UpdatedNote({
   turn: number;
 }) {
   return (
-    <AnimatePresence initial={false}>
-      {shown && (
-        <motion.span
-          animate={{ opacity: 1, x: 0 }}
-          className="flex h-5 shrink-0 items-center gap-1 rounded-full bg-brand-500/15 pr-1.5 pl-1 text-xs font-medium text-brand-text"
-          exit={{ opacity: 0, x: 4 }}
-          initial={{ opacity: 0, x: 6 }}
-          // One key for the note's whole life, so a write landing while it
-          // fades out brings this one back instead of leaving it to go.
-          key="updated"
-          role="status"
-          transition={{ duration: 0.25, ease: "easeOut" }}
-        >
-          {/* One turn for each update: the view was loaded again. */}
+    <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
+      <AnimatePresence initial={false}>
+        {shown && (
           <motion.span
-            animate={{ rotate: 360 }}
-            className="flex"
-            initial={{ rotate: 0 }}
-            key={turn}
-            transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex h-8 shrink-0 items-center gap-2 rounded-full bg-brand-600 px-3.5 text-[12.5px] font-medium whitespace-nowrap text-white shadow-lg"
+            exit={{
+              opacity: 0,
+              transition: { duration: 0.3, ease: "easeIn" },
+              y: -48,
+            }}
+            initial={{ opacity: 0, y: -48 }}
+            // One key for the note's whole life, so a write landing while it
+            // leaves brings this one back instead of leaving it to go.
+            key="updated"
+            role="status"
+            transition={{ damping: 22, stiffness: 320, type: "spring" }}
           >
-            <ArrowClockwiseIcon className="size-3" weight="bold" />
+            {/* One turn for each update: the view was loaded again. */}
+            <motion.span
+              animate={{ rotate: 360 }}
+              className="flex"
+              initial={{ rotate: 0 }}
+              key={turn}
+              transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <ArrowClockwiseIcon className="size-3.5" weight="bold" />
+            </motion.span>
+            {ago === null ? "Updated" : `Updated ${ago}`}
           </motion.span>
-          {ago === null ? "Updated" : `Updated ${ago}`}
-        </motion.span>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

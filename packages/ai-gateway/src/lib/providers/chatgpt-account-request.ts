@@ -1,3 +1,8 @@
+import {
+  STREAM_ENDED_EARLY_CODE,
+  STREAM_ENDED_EARLY_MESSAGE,
+} from "@instrument-org/shared";
+
 /**
  * The Responses API behind a ChatGPT account accepts a narrower request than the
  * public one: every request streams, nothing is stored, and a set of fields
@@ -71,9 +76,8 @@ export async function collapseResponsesStream(
   return Response.json(
     {
       error: {
-        code: "stream_ended_early",
-        message:
-          "The ChatGPT account's stream ended without a completed response",
+        code: STREAM_ENDED_EARLY_CODE,
+        message: STREAM_ENDED_EARLY_MESSAGE,
       },
     },
     { status: 502 },
@@ -177,6 +181,9 @@ function statusForError(error: unknown): number {
     // a spent plan stays spent however soon it is asked again.
     case "subscription_sharing_usage_limit_exceeded": {
       return 403;
+    }
+    case STREAM_ENDED_EARLY_CODE: {
+      return 502;
     }
     case "subscription_sharing_usage_unavailable":
     case "subscription_sharing_user_unavailable": {

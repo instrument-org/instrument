@@ -1,3 +1,5 @@
+import { STREAM_ENDED_EARLY_MESSAGE } from "@instrument-org/shared";
+
 import { type SessionMessage } from "../schemas/session/message";
 
 type MessageError = NonNullable<SessionMessage.Assistant["metadata"]["error"]>;
@@ -26,6 +28,16 @@ interface MessageErrorDescription {
 export function describeMessageError(
   error: MessageError,
 ): MessageErrorDescription {
+  // Ahead of the classification, which is `transient`: a reply that stopped
+  // partway is worth naming as that rather than as a provider problem. The
+  // message is what both shapes of it keep.
+  if (error.message === STREAM_ENDED_EARLY_MESSAGE) {
+    return {
+      detail: "The model stopped partway through its reply. Try again.",
+      summary: "Reply was cut off",
+    };
+  }
+
   const classification =
     "classification" in error ? error.classification : undefined;
 

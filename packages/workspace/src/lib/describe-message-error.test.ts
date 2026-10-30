@@ -1,3 +1,4 @@
+import { STREAM_ENDED_EARLY_MESSAGE } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -113,5 +114,29 @@ describe("describeMessageError", () => {
     });
 
     expect(streamed).toEqual(failed);
+  });
+
+  it("says a reply that stopped partway was cut off, before or after its output began", () => {
+    const beforeOutput = describeMessageError({
+      classification: "transient",
+      kind: "api-call",
+      message: STREAM_ENDED_EARLY_MESSAGE,
+      name: "AI_APICallError",
+      statusCode: 500,
+      url: "https://example.com/gateway/chatgpt-account/responses",
+    });
+    const afterOutput = describeMessageError({
+      classification: "transient",
+      kind: "unknown",
+      message: STREAM_ENDED_EARLY_MESSAGE,
+    });
+
+    expect(afterOutput).toEqual(beforeOutput);
+    expect(beforeOutput).toMatchInlineSnapshot(`
+      {
+        "detail": "The model stopped partway through its reply. Try again.",
+        "summary": "Reply was cut off",
+      }
+    `);
   });
 });

@@ -1,10 +1,24 @@
-import { APICallError } from "ai";
+import {
+  STREAM_ENDED_EARLY_CODE,
+  STREAM_ENDED_EARLY_MESSAGE,
+} from "@instrument-org/shared";
+import { APICallError, StreamProviderError } from "ai";
 import { describe, expect, it } from "vitest";
 
 import {
   classifyProviderError,
   type ProviderErrorClassification,
 } from "./classify-provider-error";
+
+const endedEarlyEvent = {
+  error: {
+    code: STREAM_ENDED_EARLY_CODE,
+    message: STREAM_ENDED_EARLY_MESSAGE,
+    type: "server_error",
+  },
+  sequence_number: 1,
+  type: "error",
+};
 
 function apiCallError({
   message = "",
@@ -377,6 +391,28 @@ const cases: {
     error: new Error("prompt is too long"),
     expected: { evidence: "none", kind: "unknown" },
     name: "an Error that merely reads like a provider rejection",
+  },
+  {
+    // Our gateway's event for a Responses stream that closed before any
+    // output, as `@ai-sdk/openai` raises it ahead of the stream.
+    error: apiCallError({
+      message: STREAM_ENDED_EARLY_MESSAGE,
+      responseBody: JSON.stringify(endedEarlyEvent),
+      statusCode: 500,
+    }),
+    expected: { evidence: "structured", kind: "transient" },
+    name: "a Responses stream that closed before any output",
+  },
+  {
+    // The same event after output began, as the SDK hands it on mid-stream.
+    error: new StreamProviderError({
+      code: STREAM_ENDED_EARLY_CODE,
+      data: endedEarlyEvent,
+      message: STREAM_ENDED_EARLY_MESSAGE,
+      type: "server_error",
+    }),
+    expected: { evidence: "structured", kind: "transient" },
+    name: "a Responses stream that closed partway through its output",
   },
 ];
 

@@ -2,6 +2,7 @@ import {
   isExpectedNetworkError,
   type ProviderErrorEvidence,
   type ProviderErrorKind,
+  STREAM_ENDED_EARLY_CODE,
 } from "@instrument-org/shared";
 import { APICallError } from "ai";
 
@@ -46,6 +47,8 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["rate_limit_error", "rate-limit"], // Anthropic `error.type`
   ["rate_limit_exceeded", "rate-limit"], // OpenAI
   ["request_too_large", "context-overflow"], // Anthropic `error.type`, on a 413
+  // Our gateway's, for a Responses stream that closed before it finished.
+  [STREAM_ENDED_EARLY_CODE, "transient"],
   // The ChatGPT account's usage codes. The limit arrives inside a stream that
   // opened with a 200, so the SDK reports it under a 400 and the code is the
   // only evidence of what it was. Switching the app off in ChatGPT's usage

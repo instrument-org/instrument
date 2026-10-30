@@ -10,6 +10,10 @@ import { isWorkersAiProviderConfig } from "../lib/fetch-models/parse-workers-ai-
 import { isOpenCodeProviderConfig } from "../lib/opencode";
 import { apiURL } from "../lib/providers/api-url";
 import {
+  guardResponsesStream,
+  type StreamEndedEarly,
+} from "../lib/providers/responses-stream-guard";
+import {
   readPlatformRefusal,
   REFUSAL_STATUSES,
 } from "../lib/read-platform-refusal";
@@ -77,6 +81,20 @@ providerApp.all("/:providerConfigId/*", async (context) => {
     headers.set("x-opencode-session", sessionId);
   }
 
+  const isResponsesRequest =
+    context.req.raw.method === "POST" && pathResult.data.endsWith("/responses");
+  const reportEndedEarly = (report: StreamEndedEarly) => {
+    const data = { path: pathResult.data, provider: config.type, ...report };
+    console.warn(
+      "[ai-gateway] Responses stream ended without a terminal event",
+      JSON.stringify(data),
+    );
+    context.var.captureException(
+      new Error("Responses stream ended without a terminal event"),
+      { data, providerId: config.type },
+    );
+  };
+
   if (
     config.type === "chatgpt-account" &&
     context.req.raw.method === "POST" &&
@@ -92,20 +110,35 @@ providerApp.all("/:providerConfigId/*", async (context) => {
     if (sessionId) {
       headers.set("session-id", sessionId);
     }
-    const upstream = await proxy(targetUrl.toString(), {
-      body: JSON.stringify(body),
-      headers,
-      method: "POST",
+    const upstream = await guardResponsesStream({
+      onEndedEarly: reportEndedEarly,
+      send: () =>
+        proxy(targetUrl.toString(), {
+          body: JSON.stringify(body),
+          headers,
+          method: "POST",
+        }),
     });
     const answered = await withoutRetryOnSpentLimit(upstream);
     return streamed ? answered : collapseResponsesStream(answered);
   }
 
-  const response = await proxy(targetUrl.toString(), {
-    body: context.req.raw.body,
-    headers,
-    method: context.req.raw.method,
-  });
+  // Read whole so it can be sent again; a Responses request is JSON.
+  const response = isResponsesRequest
+    ? await guardResponsesStream({
+        onEndedEarly: reportEndedEarly,
+        send: async () =>
+          proxy(targetUrl.toString(), {
+            body: await context.req.arrayBuffer(),
+            headers,
+            method: "POST",
+          }),
+      })
+    : await proxy(targetUrl.toString(), {
+        body: context.req.raw.body,
+        headers,
+        method: context.req.raw.method,
+      });
   const report = context.var.reportPlatformRefusal;
   if (
     report &&

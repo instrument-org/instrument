@@ -1,3 +1,4 @@
+import { STREAM_ENDED_EARLY_MESSAGE } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../../schemas/session/message";
@@ -421,6 +422,30 @@ describe("taskStanding", () => {
     });
 
     expect(standing).toEqual({ kind: "failed", line: "Model is busy" });
+  });
+
+  it("says a reply that stopped partway was cut off rather than stopped", async () => {
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
+    await ChatWrites.saveMessageWithParts(
+      assistant(sessionId, [activity("Reading the brief")], {
+        error: {
+          classification: "transient",
+          kind: "unknown",
+          message: STREAM_ENDED_EARLY_MESSAGE,
+        },
+        finishReason: "error",
+      }),
+      chatId,
+    );
+
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      chatId,
+    });
+
+    expect(standing).toEqual({ kind: "failed", line: "Reply was cut off" });
   });
 
   it("names the step limit a task ran into", async () => {

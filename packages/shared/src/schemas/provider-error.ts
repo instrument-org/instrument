@@ -44,3 +44,15 @@ export const ProviderErrorKindSchema = z.enum([
   "usage-limit",
 ]);
 export type ProviderErrorKind = z.output<typeof ProviderErrorKindSchema>;
+
+/**
+ * A Responses API stream that closed without a terminal event
+ * (`response.completed`, `response.incomplete`, `response.failed` or `error`).
+ * The gateway's proxy turns that into an `error` event carrying this code and
+ * message, so the SDK reports a failure rather than a finish with no reason.
+ * The message is how a stored error is recognized again, since a stream error
+ * keeps only its message on the session.
+ */
+export const STREAM_ENDED_EARLY_CODE = "stream_ended_early";
+export const STREAM_ENDED_EARLY_MESSAGE =
+  "The model's reply stopped before it finished.";

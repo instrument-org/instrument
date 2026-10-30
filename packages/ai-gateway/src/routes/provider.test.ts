@@ -188,3 +188,64 @@ describe("OpenCode", () => {
     },
   );
 });
+
+describe("Responses streams that close early", () => {
+  const createdEvent = `data: ${JSON.stringify({ response: { id: "resp_1" }, sequence_number: 0, type: "response.created" })}\n\n`;
+  const completedEvent = `data: ${JSON.stringify({ response: { id: "resp_1", output: [] }, sequence_number: 1, type: "response.completed" })}\n\n`;
+  const eventStream = (text: string) =>
+    new Response(text, { headers: { "content-type": "text/event-stream" } });
+
+  it.each(["openai", "chatgpt-account"] as const)(
+    "sends a %s request again, body and all, when it closed after only response.created",
+    async (type) => {
+      const upstream = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(eventStream(createdEvent))
+        .mockResolvedValueOnce(eventStream(createdEvent + completedEvent));
+      vi.stubGlobal("fetch", upstream);
+      const response = await gatewayWith({
+        apiKey: "key",
+        cacheIdentifier: type,
+        id: AIProviderConfigId(type),
+        type,
+      }).request(`${AI_GATEWAY_API_PATH}${PROVIDERS_PATH}/${type}/responses`, {
+        body: JSON.stringify({ input: [], model: "gpt-5.6-sol", stream: true }),
+        headers: { authorization: "Bearer internal-gateway-key" },
+        method: "POST",
+      });
+      expect(await response.text()).toBe(createdEvent + completedEvent);
+      expect(upstream).toHaveBeenCalledTimes(2);
+      const bodies = await Promise.all(
+        upstream.mock.calls.map(([input, init]) =>
+          new Request(input, init).text(),
+        ),
+      );
+      expect(bodies[1]).toBe(bodies[0]);
+      expect(bodies[0]).toContain("gpt-5.6-sol");
+    },
+  );
+
+  it("answers a ChatGPT account request that asked not to stream with a 502", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => Promise.resolve(eventStream(createdEvent))),
+    );
+    const response = await gatewayWith({
+      apiKey: "plan-token",
+      cacheIdentifier: "chatgpt-account",
+      id: AIProviderConfigId("chatgpt-account"),
+      type: "chatgpt-account",
+    }).request(
+      `${AI_GATEWAY_API_PATH}${PROVIDERS_PATH}/chatgpt-account/responses`,
+      {
+        body: JSON.stringify({ input: [], model: "gpt-5.6-sol" }),
+        headers: { authorization: "Bearer internal-gateway-key" },
+        method: "POST",
+      },
+    );
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({
+      error: { code: "stream_ended_early" },
+    });
+  });
+});

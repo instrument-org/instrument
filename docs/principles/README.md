@@ -26,3 +26,4 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | [Describe the world, don't ban the behavior](describe-the-world-not-ban-the-behavior.md) | Steer the agent with what is true, not with prohibitions |
 | [Give the agent a knob, not a proxy](give-the-agent-a-knob.md) | One plain default plus an agent-facing control |
 | [Load-bearing behavior lives in the harness](load-bearing-behavior-lives-in-the-harness.md) | Fix what the product depends on in code, not in the prompt |
+| [The agent's context only grows forward](context-only-grows-forward.md) | Append what changed, never rewrite what the agent was told |

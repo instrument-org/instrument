@@ -388,7 +388,7 @@ export class ChatFold {
             card: record.card,
             decision: record.decision,
             device: header.device,
-            ...(record.session !== undefined && { session: record.session }),
+            ...(record.askers !== undefined && { askers: record.askers }),
           },
         });
         break;

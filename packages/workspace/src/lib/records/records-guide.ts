@@ -23,9 +23,9 @@ const LOG_RECORDS = {
   sites:
     "the hosts the session's browser has been on, oldest first, in `visited`; the newest record stands",
   stop: "the turn was stopped, `by` saying who: `person`, `agent` (the chat's agent stopping its task) or `app` (it quit)",
-  card: "a permission card for a folder, app or tab the agent asked for, whole in `card`, written by the computer it belongs to (`card.device`) and only there; the newest record of a card's `id` stands, one with `answer` took that answer, and one with `closedAt` is no longer up",
+  card: "a permission card for a folder, app or tab the agent asked for, whole in `card`, written by the computer it belongs to (`card.device`) and only there; the newest record of a card's `id` stands, one with `answer` took that answer, one with `failed` could not carry an answer out and waits for another, and one with `closedAt` is no longer up",
   answer:
-    "a device's answer to the card `card` names, the device being the log's: `allowed`, `always` or `declined`, the first in the logs winning, or `stopped`, a Stop that took `session` (every session, when none) off it",
+    "a device's answer to the card `card` names, the device being the log's: `allowed`, `always` or `declined`, the first in the logs winning, or `stopped`, a Stop that took the `askers` entries it names (each a `sessionId` and the `at` the card gave it) off it",
 } satisfies Record<LogRecord["t"], string>;
 
 /** Every role a message record has. */

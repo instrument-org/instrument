@@ -755,7 +755,7 @@ export class ChatRecords {
   answer(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    answer: Pick<CardAnswer, "card" | "decision" | "session">,
+    answer: Pick<CardAnswer, "card" | "decision" | "askers">,
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
       const at = this.#now();
@@ -774,7 +774,7 @@ export class ChatRecords {
           at,
           card: answer.card,
           decision: answer.decision,
-          ...(answer.session !== undefined && { session: answer.session }),
+          ...(answer.askers !== undefined && { askers: answer.askers }),
         }),
       });
     });

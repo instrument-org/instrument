@@ -75,7 +75,8 @@ export function openCardsIn({
     }
     const first = toCard.find(
       (answer): answer is CardAnswer & { decision: CardDecision } =>
-        answer.decision !== "stopped",
+        answer.decision !== "stopped" &&
+        !(card.spent ?? []).some((ref) => isAnswer(answer, ref)),
     );
     const answer = card.answer
       ? { ...card.answer, taken: true }
@@ -109,9 +110,22 @@ function askersLeft(
         (answer) =>
           answer.card === card.id &&
           answer.decision === "stopped" &&
-          answer.at > asker.at &&
-          (answer.session === undefined || answer.session === asker.sessionId),
+          answer.askers?.some(
+            (entry) =>
+              entry.sessionId === asker.sessionId &&
+              entry.at.getTime() === asker.at.getTime(),
+          ),
       ),
+  );
+}
+
+/** Whether `answer` is the answer `ref` names: the same device, at the same moment by its clock. */
+function isAnswer(
+  answer: Pick<CardAnswer, "at" | "device">,
+  ref: { at: Date; device: CardAnswer["device"] },
+): boolean {
+  return (
+    answer.device === ref.device && answer.at.getTime() === ref.at.getTime()
   );
 }
 
@@ -455,8 +469,33 @@ export function takeAnswer(
       return undefined;
     }
     took = true;
-    return { ...card, answer };
+    const { failed: _failed, ...rest } = card;
+    return { ...rest, answer };
   }).then((card) => (took ? card : undefined));
+}
+
+/**
+ * Gives up on the answer one of this device's cards took, which could not
+ * be carried out: the card is up and unanswered again, says why on
+ * `failed`, and the answer is spent, so the next one given is taken rather
+ * than this one again.
+ */
+export async function failAnswer(
+  chatId: ChatId,
+  askId: string,
+  message: string,
+): Promise<void> {
+  await changeCard(chatId, askId, (card) => {
+    if (card.answer === undefined) {
+      return undefined;
+    }
+    const { answer, ...rest } = card;
+    return {
+      ...rest,
+      failed: { ...answer, message },
+      spent: [...(card.spent ?? []), { at: answer.at, device: answer.device }],
+    };
+  });
 }
 
 /**
@@ -509,7 +548,7 @@ export async function closeAsksOf(
   chatId: ChatId,
   sessionId: StoreId.Session | undefined,
 ): Promise<void> {
-  const stays = (asker: PermissionCard["askers"][number]) =>
+  const stays = (asker: Pick<PermissionCard["askers"][number], "sessionId">) =>
     sessionId !== undefined && asker.sessionId !== sessionId;
   const leaving = (await openCards(chatId)).filter(({ card }) =>
     card.askers.some((asker) => !stays(asker)),
@@ -531,10 +570,14 @@ export async function closeAsksOf(
       if (chatSession === undefined) {
         return;
       }
+      // The entries it takes off, as this device saw the card, so no clock
+      // but the card's own is read.
       await cardWriter(chatId).answer(chatId, chatSession, {
+        askers: card.askers
+          .filter((asker) => !stays(asker))
+          .map(({ at, sessionId: asking }) => ({ at, sessionId: asking })),
         card: card.id,
         decision: "stopped",
-        ...(sessionId !== undefined && { session: sessionId }),
       });
     }),
   );

@@ -195,38 +195,79 @@ describe("openCardsIn", () => {
     expect(open?.answer).toEqual({ ...taken, taken: true });
   });
 
-  it("takes off the card a session stopped after it asked, and closes it with none left", () => {
-    const stopTask = {
-      at: at(2),
+  it("passes over an answer the card gave up on, and takes the next", () => {
+    const failedAnswer = {
+      at: at(5),
       card: "card",
-      decision: "stopped" as const,
+      decision: "always" as const,
       device: phone,
-      session: task,
     };
-    expect(
-      openCardsIn({ answers: [stopTask], cards: [card] })[0]?.card.askers,
-    ).toEqual([{ at: at(1), sessionId: chat }]);
+    const [open] = openCardsIn({
+      answers: [
+        failedAnswer,
+        { at: at(6), card: "card", decision: "declined", device: laptop },
+      ],
+      cards: [{ ...card, spent: [{ at: at(5), device: phone }] }],
+    });
+    expect(open?.answer).toEqual({
+      at: at(6),
+      decision: "declined",
+      device: laptop,
+      taken: false,
+    });
+  });
+
+  /** A Stop by the phone, dated by the phone's clock, naming the entries it saw. */
+  const stop = (
+    phoneClock: Date,
+    entries: { at: Date; sessionId: StoreId.Session }[],
+  ) => ({
+    askers: entries,
+    at: phoneClock,
+    card: "card",
+    decision: "stopped" as const,
+    device: phone,
+  });
+
+  it("takes off the card the asker entries a Stop names, and closes it with none left", () => {
     expect(
       openCardsIn({
-        answers: [{ ...stopTask, session: undefined }],
+        answers: [stop(at(2), [{ at: at(0), sessionId: task }])],
         cards: [card],
-      }),
+      })[0]?.card.askers,
+    ).toEqual([{ at: at(1), sessionId: chat }]);
+    expect(
+      openCardsIn({ answers: [stop(at(2), card.askers)], cards: [card] }),
     ).toEqual([]);
   });
 
-  it("keeps a session that asked again after its stop", () => {
+  // The phone's clock an hour behind the Mac's: its Stop, made after the
+  // ask, is dated before it, and still takes the session off.
+  it("honors a Stop from a device whose clock is behind", () => {
     expect(
       openCardsIn({
         answers: [
-          {
-            at: at(0),
-            card: "card",
-            decision: "stopped",
-            device: phone,
-            session: chat,
-          },
+          stop(new Date(at(0).getTime() - 3_600_000), [
+            { at: at(0), sessionId: task },
+          ]),
         ],
         cards: [card],
+      })[0]?.card.askers,
+    ).toEqual([{ at: at(1), sessionId: chat }]);
+  });
+
+  // The phone's clock an hour ahead: its Stop is dated after the session
+  // asked again, and still leaves the new ask on the card.
+  it("keeps a session that asked again after a Stop from a device whose clock is ahead", () => {
+    const again = { at: at(9), sessionId: task };
+    expect(
+      openCardsIn({
+        answers: [
+          stop(new Date(at(9).getTime() + 3_600_000), [
+            { at: at(0), sessionId: task },
+          ]),
+        ],
+        cards: [{ ...card, askers: [again, card.askers[1] ?? again] }],
       })[0]?.card.askers,
     ).toHaveLength(2);
   });

@@ -218,6 +218,44 @@ describe("PermissionAsksFoot", () => {
     expect(buttons()).toEqual(["Show in Finder: Mail", "OK"]);
   });
 
+  it("says an answer that didn't go through can be given again", async () => {
+    const { queryClient } = renderWithProviders(
+      <PermissionAsksFoot chatId={chatId} />,
+    );
+    queryClient.setQueryData(
+      rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+        input: { id: chatId },
+      }).queryKey,
+      [
+        {
+          answerable: true,
+          askedAt: new Date(0),
+          askers: [{ at: new Date(0), sessionId: StoreId.newSessionId() }],
+          computer: "Studio Mac",
+          device,
+          failed: {
+            at: new Date(1),
+            decision: "always",
+            device,
+            message: "Couldn't write the folder rule",
+          },
+          here: true,
+          id: "ask-0",
+          kind: "folder",
+          status: "open",
+          target: "/Users/sam/Pantry",
+        },
+      ],
+    );
+
+    expect(
+      await screen.findByText(
+        "Your last answer didn’t go through on Studio Mac, so you can answer again.",
+      ),
+    ).toBeDefined();
+    expect(buttons()).toContain("Allow in this chat");
+  });
+
   describe("raised on another computer", () => {
     it("answers it from here, saying where the answer goes", async () => {
       showAsks([

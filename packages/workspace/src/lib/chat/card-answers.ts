@@ -32,8 +32,10 @@ import {
   answerCard,
   closeAsk,
   computerName,
+  failAnswer,
   type MacosAskStatus,
   openCard,
+  type OpenCard,
   openCards,
   setMacosStatus,
   takeAnswer,
@@ -86,9 +88,9 @@ export async function answerAsk(
     await answerCard(chatId, askId, decision);
     return;
   }
-  // A card that took its answer waits on the system now, where the person's
-  // no still closes it.
-  if (answer?.taken) {
+  // A card that took its answer is being acted on, or waits on the system
+  // now; the person's no still closes it.
+  if (answer?.taken && (decision === "declined" || card.status !== "open")) {
     if (decision !== "declined") {
       throw new ORPCError("BAD_REQUEST", {
         message: "That request is waiting on the system.",
@@ -101,46 +103,117 @@ export async function answerAsk(
     await answerCard(chatId, askId, decision);
   }
   await takeCardAnswers(chatId, workspaceRef);
+  // Whichever pass took the card's answer, this one or the watcher's that
+  // heard the write, the call settles with it, and fails with it.
+  await acting.get(actingKey(chatId, askId));
 }
 
 /** The answers each chat is taking, one look at a time. */
 const taking = createWriteQueue();
 
 /**
+ * What acting on each card's taken answer came to, by chat and card: under
+ * way, or settled a moment ago, so a caller that did not start it can
+ * still wait for it and hear how it went.
+ */
+const acting = new Map<string, Promise<void>>();
+
+/** The cards being acted on in this process, which no other pass starts again. */
+const inFlight = new Set<string>();
+
+/** How long a settled outcome stays for a caller that comes to it late. */
+const OUTCOME_KEPT_MS = 60_000;
+
+function actingKey(chatId: ChatId, askId: string): string {
+  return `${chatId}/${askId}`;
+}
+
+/**
+ * Whether a card of this computer's has an answer to act on: one given and
+ * not taken yet, or one taken whose acting never finished (the app quit,
+ * or crashed, between noting it and settling), while the card still waits
+ * on that answer rather than on the system. Acting again is safe: a grant
+ * is kept as it is, and a closed card wakes nobody twice.
+ */
+function isDue({ answer, card }: OpenCard, chatId: ChatId): boolean {
+  if (card.device !== thisDevice() || answer === undefined) {
+    return false;
+  }
+  return (
+    !answer.taken ||
+    (card.status === "open" && !inFlight.has(actingKey(chatId, card.id)))
+  );
+}
+
+/**
  * Takes the answers given to this computer's cards in the chat, from any
  * device, that it has not acted on yet: the first in log order for each,
- * noted on the card, then granted or declined and its askers woken. The
- * Stops other devices made are written into the cards first, so a stopped
- * session is not woken. Resolves once every answer taken has settled.
+ * noted on the card, then granted or declined and its askers woken. A
+ * taken answer whose acting never finished is acted on again. The Stops
+ * other devices made are written into the cards first, so a stopped
+ * session is not woken. An answer that cannot be carried out is given up
+ * on (`failAnswer`), which leaves the card up to be answered again.
+ * Resolves once every answer taken has settled, and fails with the first
+ * that could not be carried out.
  */
 export async function takeCardAnswers(
   chatId: ChatId,
   workspaceRef: WorkspaceActorRef,
 ): Promise<void> {
-  const device = thisDevice();
-  const acting = await taking(chatId, async () => {
+  const started = await taking(chatId, async () => {
     await takeStops(chatId);
-    const due = (await openCards(chatId)).filter(
-      ({ answer, card }) =>
-        card.device === device && answer !== undefined && !answer.taken,
-    );
+    const due = (await openCards(chatId)).filter((open) => isDue(open, chatId));
     const acts: Promise<void>[] = [];
     for (const { answer, card } of due) {
       if (!answer) {
         continue;
       }
-      const took = await takeAnswer(chatId, card.id, {
-        at: answer.at,
-        decision: answer.decision,
-        device: answer.device,
-      });
+      const took = answer.taken
+        ? card
+        : await takeAnswer(chatId, card.id, {
+            at: answer.at,
+            decision: answer.decision,
+            device: answer.device,
+          });
       if (took) {
-        acts.push(act(chatId, took, answer.decision, workspaceRef));
+        acts.push(startActing(chatId, took, answer.decision, workspaceRef));
       }
     }
     return acts;
   });
-  await Promise.all(acting);
+  await Promise.all(started);
+}
+
+/** Acts on a card's taken answer, kept where any caller can wait for it. */
+function startActing(
+  chatId: ChatId,
+  card: PermissionCard,
+  decision: CardDecision,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const key = actingKey(chatId, card.id);
+  inFlight.add(key);
+  const outcome = act(chatId, card, decision, workspaceRef)
+    .catch(async (error: unknown) => {
+      await failAnswer(
+        chatId,
+        card.id,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    })
+    .finally(() => {
+      inFlight.delete(key);
+      setTimeout(() => {
+        if (acting.get(key) === outcome) {
+          acting.delete(key);
+        }
+      }, OUTCOME_KEPT_MS).unref();
+    });
+  // Kept for a caller that comes late; its failure is that caller's to hear.
+  outcome.catch(() => undefined);
+  acting.set(key, outcome);
+  return outcome;
 }
 
 /** Does what the answer a card took says. */
@@ -182,14 +255,7 @@ export function startCardAnswers(workspaceRef: WorkspaceActorRef): void {
   void (async () => {
     for (const chatId of listChatIds()) {
       try {
-        if (
-          (await chatOpenCards(chatId)).some(
-            ({ answer, card }) =>
-              card.device === thisDevice() &&
-              answer !== undefined &&
-              !answer.taken,
-          )
-        ) {
+        if ((await chatOpenCards(chatId)).some((open) => isDue(open, chatId))) {
           take(chatId);
         }
       } catch (error) {

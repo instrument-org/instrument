@@ -24,13 +24,27 @@ export const AskerSchema = z.object({
   waits: z.literal(true).optional(),
 });
 
+/**
+ * Which of a card's askers a Stop took off it: the session, and when it
+ * asked as the card's computer wrote it. The pair names one asker entry, so
+ * a session that asks again later is a new entry no earlier Stop names, and
+ * no clock of another device's is ever compared with the card's.
+ */
+export const AskerEntrySchema = z.object({
+  at: z.coerce.date(),
+  sessionId: StoreId.SessionSchema,
+});
+
 /** A session on a permission card, with when it asked. */
 const CardAskerSchema = AskerSchema.extend({
-  /**
-   * When the session asked. A Stop of the session made after it takes the
-   * session off the card (`openCardsIn`); one made before it does not.
-   */
+  /** When the session asked, by the card's computer's clock: with the session, the entry a Stop names. */
   at: z.coerce.date(),
+});
+
+/** Who gave an answer, and when by their own clock: the answer's identity, never compared across devices. */
+const AnswerRefSchema = z.object({
+  at: z.coerce.date(),
+  device: DeviceIdSchema,
 });
 
 /** A card's answer: allowed in this chat, allowed always, or not now. */
@@ -60,13 +74,17 @@ export const PermissionCardSchema = z.object({
    * (macOS asking or refusing, Windows blocking) waits on that computer's
    * screen alone.
    */
-  answer: z
-    .object({
-      at: z.coerce.date(),
-      decision: CardDecisionSchema,
-      device: DeviceIdSchema,
-    })
-    .optional(),
+  answer: AnswerRefSchema.extend({ decision: CardDecisionSchema }).optional(),
+  /**
+   * The last answer the card's computer took and could not carry out, with
+   * why, so the card says so and can be answered again.
+   */
+  failed: AnswerRefSchema.extend({
+    decision: CardDecisionSchema,
+    message: z.string(),
+  }).optional(),
+  /** Answers already taken and given up on (a failed one), which no later pass takes again. */
+  spent: z.array(AnswerRefSchema).optional(),
   askedAt: z.coerce.date(),
   /**
    * Every session waiting on the answer, the first to ask first. A session
@@ -117,8 +135,8 @@ export type PermissionCard = z.output<typeof PermissionCardSchema>;
 
 /**
  * What an `answer` record says: a decision, or `stopped`, which is none: a
- * Stop on that device that takes a session (every session, when none) off
- * the card, which the card's computer then writes into the card.
+ * Stop on that device that takes the asker entries it names off the card,
+ * which the card's computer then writes into the card.
  */
 export const CardAnswerDecisionSchema = z.enum([
   ...CardDecisionSchema.options,
@@ -136,5 +154,6 @@ export interface CardAnswer {
   card: string;
   decision: z.output<typeof CardAnswerDecisionSchema>;
   device: z.output<typeof DeviceIdSchema>;
-  session?: StoreId.Session;
+  /** On a Stop, the asker entries it took off the card, as the card it saw had them. */
+  askers?: z.output<typeof AskerEntrySchema>[];
 }

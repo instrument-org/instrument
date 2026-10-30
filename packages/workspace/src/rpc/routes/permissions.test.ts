@@ -9,7 +9,7 @@ import { setChatModel } from "../../lib/chat-settings";
 import { heldTabs } from "../../lib/held-tabs";
 import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
-import { closeAsksOf, recordAsk } from "../../lib/chat/asks";
+import { closeAsksOf, recordAsk, takeAnswer } from "../../lib/chat/asks";
 import { takeCardAnswers } from "../../lib/chat/card-answers";
 import { chatGrants } from "../../lib/chat/grants";
 import { openAsks } from "../../lib/chat/open-asks";
@@ -866,6 +866,118 @@ describe("permissions.answer", () => {
       await closeAsksOf(chatId, task);
 
       expect(await on(phone, () => openAsks(chatId))).toEqual([]);
+    });
+
+    // The app quit, or crashed, after noting the answer on the card and
+    // before granting it: the next pass, as a launch makes, finishes it.
+    it("finishes an answer it took but never carried out", async () => {
+      const { card, chatId, pantry, task } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+      await on(phone, () => answer(chatId, card.id, "allowed"));
+      await owner().catchUp(chatId);
+      const [given] = await openAsks(chatId);
+      const taken =
+        given?.kind === "question" ? undefined : given?.answered?.taken;
+      expect(taken).toBe(false);
+      // What the quit left: the answer on the card, nothing granted.
+      await takeAnswer(chatId, card.id, {
+        at: new Date(),
+        decision: "allowed",
+        device: phone.device,
+      });
+      expect(await chatGrants(chatId)).toEqual([]);
+      const sentBefore = sent.length;
+
+      await takeCardAnswers(chatId, context().workspaceRef);
+
+      expect(await chatGrants(chatId)).toEqual([
+        expect.objectContaining({ path: pantry }),
+      ]);
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["allowed"], sessionId: task },
+      ]);
+      expect(await openAsks(chatId)).toEqual([]);
+    });
+
+    it("leaves a card it could not carry out up and answerable, saying why", async () => {
+      const { chatId, own } = await chatWithTask();
+      chatIdNow = chatId;
+      await computer("Studio Mac", owner().device);
+      // A target no folder rule can be written for.
+      await recordAsk({ chatId, sessionId: own }, "folder", "not/a/full/path");
+      const [card] = await openAsks(chatId);
+      const phone = await computer("Jeremy's iPhone");
+      await on(phone, () => answer(chatId, card?.id ?? "", "always"));
+      await owner().catchUp(chatId);
+
+      await expect(
+        takeCardAnswers(chatId, context().workspaceRef),
+      ).rejects.toThrow();
+
+      const [after] = await on(phone, () => openAsks(chatId));
+      expect(after).toMatchObject({
+        answerable: true,
+        failed: { decision: "always", message: expect.any(String) },
+      });
+      expect(after).not.toHaveProperty("answered");
+      // Answered again, the next answer is taken.
+      await on(phone, () => answer(chatId, card?.id ?? "", "declined"));
+      await owner().catchUp(chatId);
+      await takeCardAnswers(chatId, context().workspaceRef);
+      expect(await openAsks(chatId)).toEqual([]);
+    });
+
+    // The write of the owner's own answer wakes the watcher, which may take
+    // it first; the call still waits for the tab to move.
+    it("settles the owner's own answer with the watcher running", async () => {
+      const { chatId, own } = await chatWithTask();
+      chatIdNow = chatId;
+      const tab = StoreId.newTabId();
+      await recordAsk({ chatId, sessionId: own }, "tab", tab, {
+        page: { title: "Cart", url: "https://example.com/cart" },
+      });
+      const [card] = await openAsks(chatId);
+      let moveTab: (() => void) | undefined;
+      const stopWindow = publisher.subscribe("window.tab", (ask) => {
+        moveTab = () => {
+          publisher.publish("window.tabDone", {
+            id: ask.id,
+            requestId: ask.requestId,
+            tabId: tab,
+          });
+        };
+      });
+      const stopWatcher = publisher.subscribe(
+        "record.changed",
+        ({ id, kind }) => {
+          if (id === chatId && kind === "session") {
+            takeCardAnswers(chatId, context().workspaceRef).catch(
+              () => undefined,
+            );
+          }
+        },
+      );
+      try {
+        let settled = false;
+        const answering = answer(chatId, card?.id ?? "", "allowed").then(() => {
+          settled = true;
+        });
+        // The window was asked to move the tab, and has not yet.
+        await vi.waitFor(() => {
+          expect(moveTab).toBeDefined();
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(settled).toBe(false);
+        moveTab?.();
+        await answering;
+        expect(settled).toBe(true);
+        expect(await heldTabs(chatId, own)).toEqual([
+          { id: tab, inWindow: true, openedBy: "handed" },
+        ]);
+      } finally {
+        stopWindow();
+        stopWatcher();
+      }
     });
 
     it("takes a session another computer stopped off the card, waking nobody", async () => {

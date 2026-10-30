@@ -246,6 +246,15 @@ function PermissionAskCard({
           <span>{holds}</span>
         </p>
       ) : null}
+      {ask.failed && !ask.answered ? (
+        <p
+          className="mt-2 flex items-start gap-1.5 text-[13px] text-warning-700 dark:text-warning-300"
+          title={ask.failed.message}
+        >
+          <ShieldWarningIcon className="mt-0.5 size-3.5 shrink-0" />
+          <span>{`Your last answer didn’t go through on ${ask.computer}, so you can answer again.`}</span>
+        </p>
+      ) : null}
       {!ask.here && ask.answerable ? (
         <p className="mt-2 text-[13px] text-muted-foreground">
           {`Your answer goes to ${ask.computer}, which asked for this.`}

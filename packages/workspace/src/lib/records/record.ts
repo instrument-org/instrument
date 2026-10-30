@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import {
+  AskerEntrySchema,
   CardAnswerDecisionSchema,
   PermissionCardSchema,
 } from "../../schemas/permission-card";
@@ -183,8 +184,8 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     /** The card it answers, by id; the log's device is the one that answered. */
     card: z.string(),
     decision: CardAnswerDecisionSchema,
-    /** On a Stop, the session it took off the card; none is every session. */
-    session: StoreId.SessionSchema.optional(),
+    /** On a Stop, the asker entries it took off the card, as the card it saw had them. */
+    askers: z.array(AskerEntrySchema).optional(),
   }),
 ]);
 

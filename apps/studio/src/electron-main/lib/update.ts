@@ -26,8 +26,10 @@ import {
   createBridgePort,
   nsisInstall,
   reportMoveToVelopack,
+  updaterCacheDirs,
 } from "./update-bridge";
 import { createVelopackPort } from "./update-velopack";
+import { removeInstalledDownload, updaterCacheRoot } from "./updater-cache";
 import { settleOpenWith, velopackRoot } from "./velopack";
 import {
   forgetRelaunchMarker,
@@ -118,6 +120,7 @@ export function createStudioAppUpdater({
     `Running ${app.getVersion()} on the ${getChannel() ?? "latest"} channel`,
   );
   reportPreviousInstall();
+  removeInstalledDownloads();
   // Registered before electron-updater adds its own, which it does once a
   // download finishes, so this runs first on the same quit.
   app.on("quit", checkBeforeInstallOnQuit);
@@ -376,6 +379,42 @@ function createAutoUpdaterLogger() {
       autoUpdaterLogger.warn(message);
     },
   };
+}
+
+// The download a launch on its version (or a newer one) has already
+// installed, a few hundred megabytes nothing reads again.
+function removeInstalledDownloads() {
+  const root = updaterCacheRoot();
+  if (!app.isPackaged || !root) {
+    return;
+  }
+  let yml: string | undefined;
+  try {
+    yml = fs.readFileSync(
+      path.join(process.resourcesPath, "app-update.yml"),
+      "utf8",
+    );
+  } catch {
+    yml = undefined;
+  }
+  for (const name of updaterCacheDirs(yml)) {
+    try {
+      if (
+        removeInstalledDownload({
+          cacheDir: path.join(root, name),
+          running: app.getVersion(),
+        })
+      ) {
+        scopedLogger.info(`Removed the installed download from ${name}`);
+      }
+    } catch (error) {
+      scopedLogger.warn(
+        new Error(`Could not remove the installed download from ${name}`, {
+          cause: error,
+        }),
+      );
+    }
+  }
 }
 
 function getChannel() {

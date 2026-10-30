@@ -284,6 +284,7 @@ function createWindowsPort() {
     };
   }
   if (nsisInstall()) {
+    reportMoveToVelopack(scopedLogger);
     return {
       kind: "bridge" as const,
       port: createBridgePort({

@@ -42,6 +42,39 @@ type Logger = {
 // Where the move writes what it did, for the Velopack install's first launch
 // to log: the move finishes after this process is gone.
 const BRIDGE_LOG_NAME = "windows-velopack-move.log";
+// Written by a move that failed, so the NSIS install stops offering it for a
+// while instead of downloading and running Setup again every session.
+const MOVE_FAILED_NAME = "windows-velopack-move.failed";
+// Long enough that a move failing every time (antivirus, a Setup that cannot
+// run here) costs a download every few days rather than every session, short
+// enough that one failing once (a full disk) is tried again soon.
+export const MOVE_FAILURE_BACKOFF_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * When the last move failed, if that was within the backoff. An older
+ * marker is removed, and the move is offered again.
+ */
+export function recentMoveFailure(
+  userData: string,
+  now = Date.now(),
+): Date | undefined {
+  const marker = path.join(userData, MOVE_FAILED_NAME);
+  try {
+    const failedAt = fs.statSync(marker, { throwIfNoEntry: false })?.mtimeMs;
+    if (failedAt === undefined) {
+      return;
+    }
+    // Either way, so a clock set back after the failure delays nothing
+    // longer.
+    if (Math.abs(now - failedAt) < MOVE_FAILURE_BACKOFF_MS) {
+      return new Date(failedAt);
+    }
+    fs.rmSync(marker, { force: true });
+  } catch {
+    // Unreadable or locked: offer the move as if nothing had failed.
+  }
+  return;
+}
 
 /**
  * The NSIS install this process runs from, or undefined for any other: its
@@ -156,6 +189,7 @@ export function createBridgePort({
   let ready: undefined | { info: UpdateInfo; setup: string; size: number };
   let relaunch = false;
   let moving = false;
+  let backoffLogged = false;
 
   const setupName = () => `${APP_VELOPACK_ID}-${getChannel()}-Setup.exe`;
 
@@ -246,9 +280,16 @@ export function createBridgePort({
   return {
     checkForUpdates: async ({ download: shouldDownload }) => {
       let version: string | undefined;
+      const failedAt = recentMoveFailure(app.getPath("userData"));
+      if (failedAt && !backoffLogged) {
+        backoffLogged = true;
+        log.warn(
+          `The move to Velopack failed at ${failedAt.toISOString()}; not offering it again until ${new Date(failedAt.getTime() + MOVE_FAILURE_BACKOFF_MS).toISOString()}`,
+        );
+      }
       try {
         const name = `releases.${getChannel()}.json`;
-        if (await hasFeedFile(feed, name)) {
+        if (!failedAt && (await hasFeedFile(feed, name))) {
           const text = await readFeedText(feed, name);
           version = newestFullRelease(JSON.parse(text), app.getVersion());
         }
@@ -370,15 +411,17 @@ function startMove({
     readTextIfAny(path.join(install.folder, "resources", "app-update.yml")),
   ).map((name) => path.join(app.getPath("appData"), "..", "Local", name));
   const logFile = path.join(userData, BRIDGE_LOG_NAME);
+  const failedFile = path.join(userData, MOVE_FAILED_NAME);
   const script = `$ErrorActionPreference = 'Continue'
 $log = ${quote(logFile)}
 function Log($m) { Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) $m" }
+function Fail($m) { Log $m; Set-Content -LiteralPath ${quote(failedFile)} -Value "$(Get-Date -Format o) $m" }
 Log 'move to Velopack starting'
 Wait-Process -Id ${process.pid} -Timeout 120 -ErrorAction SilentlyContinue
 $setup = Start-Process -FilePath ${quote(setup)} -ArgumentList '--silent' -Wait -PassThru
 Log "Setup exited $($setup.ExitCode)"
 if (-not (Test-Path -LiteralPath ${quote(path.join(velopackRoot, "current", exeName))})) {
-  Log 'Setup left no app; keeping the NSIS install'
+  Fail 'Setup left no app; keeping the NSIS install'
   if ($${relaunch ? "true" : "false"}) { Start-Process -FilePath ${quote(install.exe)} }
   exit 1
 }
@@ -393,7 +436,11 @@ foreach ($link in @(${shortcuts.map(quote).join(", ")})) {
 Start-Process -FilePath ${quote(install.uninstaller)} -ArgumentList '/S' -Wait
 $deadline = (Get-Date).AddSeconds(120)
 while ((Test-Path -LiteralPath ${quote(install.exe)}) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
-Log "NSIS install removed: $(-not (Test-Path -LiteralPath ${quote(install.exe)}))"
+if (Test-Path -LiteralPath ${quote(install.exe)}) {
+  Fail 'NSIS install not removed; both installs remain'
+} else {
+  Log 'NSIS install removed'
+}
 # The uninstaller leaves its folder behind, empty.
 if ((Test-Path -LiteralPath ${quote(install.folder)}) -and -not (Get-ChildItem -LiteralPath ${quote(install.folder)} -Force | Select-Object -First 1)) {
   Remove-Item -LiteralPath ${quote(install.folder)} -Force -ErrorAction SilentlyContinue
@@ -445,7 +492,9 @@ function readTextIfAny(file: string) {
 }
 
 /**
- * Logs what the move to Velopack did, once, on the first launch after it.
+ * Logs what the move to Velopack did, once, on the first launch after it:
+ * the Velopack copy's after a move that worked, the NSIS copy's after one
+ * that failed.
  */
 export function reportMoveToVelopack(log: Logger) {
   const file = path.join(app.getPath("userData"), BRIDGE_LOG_NAME);

@@ -137,6 +137,40 @@ export async function hasFeedFile(feed: string, name: string) {
   return true;
 }
 
+/**
+ * Puts the checked updater back over `Update.exe` when they differ: a process
+ * that ended during a download, between Velopack putting the package's
+ * unchecked updater in place and the download returning, left that one there
+ * for the launcher stub to run at every start. The kept copy is always one
+ * that checked out, the one there before the download or, once adopted, the
+ * package's own, so putting it back is always safe. Compared first, since on
+ * an ordinary start they match and the stub's `Update.exe` may still be
+ * running, which Windows will not let anything overwrite.
+ */
+export function restoreCheckedUpdater({
+  keptUpdater,
+  log,
+  updateExe,
+}: {
+  keptUpdater: string;
+  log: Logger;
+  updateExe: string;
+}) {
+  try {
+    if (!fs.existsSync(keptUpdater)) {
+      return;
+    }
+    const kept = fs.readFileSync(keptUpdater);
+    if (fs.existsSync(updateExe) && kept.equals(fs.readFileSync(updateExe))) {
+      return;
+    }
+    fs.copyFileSync(keptUpdater, updateExe);
+    log.warn("Put the checked Update.exe back over one left unchecked");
+  } catch (error) {
+    log.error("Could not put the checked Update.exe back:", error);
+  }
+}
+
 export function createVelopackPort({
   feed,
   getChannel,
@@ -161,6 +195,9 @@ export function createVelopackPort({
   const velopack = loadVelopack();
   const exeName = path.basename(process.execPath);
   const packagesDir = path.join(root, "packages");
+  const updateExe = path.join(root, "Update.exe");
+  const keptUpdater = path.join(packagesDir, "Update.exe.checked");
+  restoreCheckedUpdater({ keptUpdater, log, updateExe });
   let manager: undefined | Velopack.UpdateManager;
   let handlers: undefined | UpdaterEvents;
   // What the last check found, for a download started after it.
@@ -194,8 +231,6 @@ export function createVelopackPort({
       // checked it, and the launcher stub runs Update.exe at every start. So
       // the one there now is kept aside and put back the moment the download
       // returns; the new one goes in only once the package checks out.
-      const updateExe = path.join(root, "Update.exe");
-      const keptUpdater = path.join(packagesDir, "Update.exe.checked");
       fs.mkdirSync(packagesDir, { recursive: true });
       fs.copyFileSync(updateExe, keptUpdater);
       try {

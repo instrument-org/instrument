@@ -119,3 +119,56 @@ export async function* everyOne(source: AsyncIterable<unknown>) {
     yield null;
   }
 }
+
+/**
+ * A change that comes at a known moment rather than from a write: fires
+ * once at the moment last `set`, each `set` replacing the one before (none
+ * for undefined). For a reading that turns at a time it can name, such as
+ * an answer going stale.
+ */
+export function atMoment(signal: AbortSignal | undefined): {
+  fires: AsyncGenerator<void>;
+  set: (at: number | undefined) => void;
+} {
+  let wake: (() => void) | undefined;
+  let timer: NodeJS.Timeout | undefined;
+  let due = false;
+  const set = (at: number | undefined) => {
+    clearTimeout(timer);
+    timer = undefined;
+    if (at === undefined) {
+      return;
+    }
+    timer = setTimeout(
+      () => {
+        due = true;
+        wake?.();
+      },
+      Math.max(0, at - Date.now()),
+    );
+    timer.unref();
+  };
+  async function* fires() {
+    const stop = () => wake?.();
+    const stopped = () => signal?.aborted === true;
+    signal?.addEventListener("abort", stop, { once: true });
+    try {
+      while (!stopped()) {
+        if (!due) {
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
+        }
+        if (stopped()) {
+          return;
+        }
+        due = false;
+        yield;
+      }
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
+    }
+  }
+  return { fires: fires(), set };
+}

@@ -57,6 +57,7 @@ What another device does is acted on live only. An answer, from any device this 
 - Studio decides a `connect_app` card by the computer whose call it is (`chats.live.signIn`, the call's ask still up or not), never by whether it still waits: another computer's card draws its rows as that computer wrote them and never offers this one's sign-in controls ("You can sign in on <computer>." and Not now while it waits); while that is not known yet it draws nothing. A call with no ask (one from before this model) draws as before.
 - A card answered while its computer was away says so and asks again: "You answered from <device> while <computer> was away, so it’s asking again." A question answered on another device draws the answer as given with "You answered from <device>. It takes effect once <computer> picks it up.", the line permission cards already used.
 - An open question or sign-in the person wrote past, or stopped, is closed by the driver with no wake, so no later launch counts it as owed.
+- A pending answer turning stale changes nothing in the records, so the live asks view (`chats.live.asks`) also reads again at the moment the first pending answer goes stale (`openAsksUntil`, `atMoment`), and the card then asks again. The chat list's digest still reads freshness as of its last read.
 - A question's ask id is its `choose` call's part id, the id the card already answered by, and the call raises it as it runs. Whether the person moved past an open question (or sign-in) is read from the session itself (`movedPastOf`): a typed message after the call's message, by message order rather than by clocks, or a Stop of theirs since it was asked. The fold takes that beside the ask and answer records.
 
 ### Sign-in
@@ -81,5 +82,4 @@ Each step lands with its tests, and the end is checked with two dev Studio insta
 ## Open points
 
 - A question answered while the asking computer is off waits for it, and if it stays off past `ASK_FRESH_MS` the answer is not taken when it comes back: the card asks again. Before this, the device answered on started the turn itself; nothing short of an owner can make that exactly once, and acting on a stale answer would start work nobody is watching.
-- A pending answer turning stale changes nothing in the records, so a card shows it as waiting for the asking computer until the chat's records next change.
 - The end check with two dev Studio instances on one workspace (a folder card, a question and a sign-in's Not now answered from the instance that did not ask) has not been run; the two-device unit tests in `permissions.test.ts`, `chats-answer-question.test.ts` and `events.test.ts` cover the same paths over two `ChatRecords` on one chats folder.

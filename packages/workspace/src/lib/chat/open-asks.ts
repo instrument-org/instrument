@@ -1,6 +1,8 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type Ask, type QuestionAsk } from "../../schemas/chat-state";
 import { type StoreId } from "../../schemas/store-id";
+import { ASK_FRESH_MS } from "@instrument-org/shared";
+
 import { asksOf, chatAskStates } from "./asks";
 
 /**
@@ -11,7 +13,25 @@ import { asksOf, chatAskStates } from "./asks";
 
 /** The chat's open asks, its cards and its questions, oldest first. */
 export async function openAsks(chatId: ChatId): Promise<Ask[]> {
-  return asksOf(await chatAskStates(chatId));
+  return (await openAsksUntil(chatId)).asks;
+}
+
+/**
+ * The chat's open asks, and the moment the first answer still pending on
+ * one goes stale, when they read differently with no record changing
+ * (`isFreshAsk`); none when no answer is pending.
+ */
+export async function openAsksUntil(
+  chatId: ChatId,
+): Promise<{ asks: Ask[]; staleAt?: number }> {
+  const states = await chatAskStates(chatId);
+  const stale = states.flatMap(({ pending }) =>
+    pending ? [pending.at.getTime() + ASK_FRESH_MS + 1] : [],
+  );
+  return {
+    asks: await asksOf(states),
+    ...(stale.length > 0 && { staleAt: Math.min(...stale) }),
+  };
 }
 
 /** The chat's open questions, oldest first. */

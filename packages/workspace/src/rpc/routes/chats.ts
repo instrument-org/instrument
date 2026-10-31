@@ -27,7 +27,7 @@ import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
 import { answerQuestionAsk, declineSignInAsk } from "../../lib/chat/drive-asks";
-import { openAsks, openAsksOf } from "../../lib/chat/open-asks";
+import { openAsksOf, openAsksUntil } from "../../lib/chat/open-asks";
 import { AskSchema, SignInAskSchema } from "../../schemas/chat-state";
 import { signInOfCall } from "../../lib/chat/asks";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
@@ -42,7 +42,7 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
-import { distinct, liveRead } from "../live-read";
+import { atMoment, distinct, liveRead } from "../live-read";
 
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
@@ -333,6 +333,9 @@ const liveAsksRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(AskSchema.array()))
   .handler(async function* ({ input, signal }) {
+    // An answer still waiting for the computer that asked reads as given
+    // while away once it goes stale, with no record changing then.
+    const stale = atMoment(signal);
     yield* distinct(
       liveRead({
         changes: [
@@ -344,8 +347,13 @@ const liveAsksRoute = base
               change.id === input.id &&
               (change.kind === "messages" || change.kind === "session"),
           ),
+          stale.fires,
         ],
-        read: () => openAsks(input.id),
+        read: async () => {
+          const { asks, staleAt } = await openAsksUntil(input.id);
+          stale.set(staleAt);
+          return asks;
+        },
       }),
     );
   });

@@ -1,4 +1,5 @@
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { ASK_FRESH_MS } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import fs from "node:fs";
 import os from "node:os";
@@ -333,6 +334,49 @@ describe("from another computer", () => {
       on(laptop, chatId, () => answer(chatId, askId, "Coffee")),
     ).rejects.toThrow("That question was already answered.");
     expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+  });
+
+  // Nothing is written when an answer goes stale, so the view reads again
+  // at that moment by itself.
+  it("reads an answer still waiting for the computer that asked as given while away once it goes stale", async () => {
+    vi.useFakeTimers({
+      shouldAdvanceTime: true,
+      toFake: ["Date", "setTimeout", "clearTimeout"],
+    });
+    const controller = new AbortController();
+    const home = owner();
+    try {
+      const { askId, chatId } = await chatAsking();
+      const phone = await computer("Jeremy's iPhone");
+      const laptop = await computer("MacBook Air");
+      await on(phone, chatId, () => answer(chatId, askId, "Tea"));
+      await laptop.catchUp(chatId);
+      installChatRecords(laptop);
+      const views = await call(
+        chats.live.asks,
+        { id: chatId },
+        { context: context(), signal: controller.signal },
+      );
+
+      expect((await views.next()).value).toEqual([
+        expect.objectContaining({
+          answerable: false,
+          answered: expect.objectContaining({ taken: false }),
+        }),
+      ]);
+      await vi.advanceTimersByTimeAsync(ASK_FRESH_MS + 1000);
+      expect((await views.next()).value).toEqual([
+        expect.objectContaining({
+          answerable: true,
+          away: { by: "Jeremy's iPhone" },
+        }),
+      ]);
+      await views.return(undefined);
+    } finally {
+      controller.abort();
+      installChatRecords(home);
+      vi.useRealTimers();
+    }
   });
 
   it("starts one turn for two answers given on two devices at once, with the first", async () => {

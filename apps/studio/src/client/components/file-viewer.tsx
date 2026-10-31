@@ -102,6 +102,7 @@ import {
 } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { ConvertMenuItem } from "./window/convert-files";
 
 // The editor and everything under it (Milkdown, CodeMirror's languages) load
 // the first time a Markdown file is opened for editing, not with the viewer.
@@ -1162,6 +1163,10 @@ export function FileViewer({
                 <span>Save as…</span>
               </DropdownMenuItem>
             )}
+            <ConvertMenuItem
+              hostPaths={[hostPath]}
+              menuComponents={dropdownMenuComponents}
+            />
             {canCopy && (
               <DropdownMenuItem onClick={() => void handleCopy()}>
                 <CopyIcon className="size-4" />

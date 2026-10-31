@@ -788,8 +788,8 @@ function WindowShell({
         ask: (prompt) => {
           newDraft(prompt);
         },
-        askAbout: (items) => {
-          newDraft(undefined, items);
+        askAbout: (items, words) => {
+          newDraft(words, items);
         },
         browser,
         focusComposer: () => {

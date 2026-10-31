@@ -18,6 +18,7 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
+import { ConvertButton } from "./window/convert-files";
 
 export function FilePreviewFallback({
   fallbackExtension,
@@ -50,21 +51,24 @@ export function FilePreviewFallback({
         <p className="max-w-72 text-sm font-medium break-all">{filename}</p>
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       </div>
-      {canOpen ? (
-        <OpenFileButton
-          control={openControl}
-          file={file}
-          iconClassName="size-5"
-          size="sm"
-        />
-      ) : (
-        onDownload && (
-          <Button onClick={onDownload} size="sm">
-            <ArrowLineDownIcon className="size-4" />
-            Save as…
-          </Button>
-        )
-      )}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {canOpen ? (
+          <OpenFileButton
+            control={openControl}
+            file={file}
+            iconClassName="size-5"
+            size="sm"
+          />
+        ) : (
+          onDownload && (
+            <Button onClick={onDownload} size="sm">
+              <ArrowLineDownIcon className="size-4" />
+              Save as…
+            </Button>
+          )
+        )}
+        {file ? <ConvertButton hostPath={file.hostPath} /> : null}
+      </div>
     </div>
   );
 

@@ -34,9 +34,10 @@ export interface WindowContextValue {
   ask: (prompt: string) => void;
   /**
    * Opens a draft of a new chat with these files or folders picked to go
-   * with it; absent where there is no new draft to open, as inside one.
+   * with it, and `words` already written when given; absent where there is
+   * no new draft to open, as inside one.
    */
-  askAbout?: (items: ChosenItem[]) => void;
+  askAbout?: (items: ChosenItem[], words?: string) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
   /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */

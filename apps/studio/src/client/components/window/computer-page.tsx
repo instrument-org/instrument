@@ -165,6 +165,7 @@ import {
 } from "./host-path";
 import { useChatFolderTrash } from "./chat-folder-trash";
 import { useClashQuestions } from "./clash-dialog";
+import { ConvertMenuItem } from "./convert-files";
 import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
@@ -2987,6 +2988,11 @@ function FolderMenuItems({
     isMacOS() && itemHostPath && !opensUnnamed
       ? { hostPath: itemHostPath }
       : undefined;
+  // The files among what the menu is about; a folder has no format to change.
+  const convertPaths = (group ?? (item ? [item] : [])).flatMap((each) => {
+    const hostPath = each.kind === "file" ? hostPathOfItem(each) : undefined;
+    return hostPath ? [hostPath] : [];
+  });
   // The rest of the selection, opened along with the row in the app picked.
   const openInOthers = (group ?? []).flatMap((each) => {
     const hostPath = hostPathOfItem(each);
@@ -3101,6 +3107,10 @@ function FolderMenuItems({
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
+          <ConvertMenuItem
+            hostPaths={convertPaths}
+            menuComponents={menuComponents}
+          />
           {!several && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />

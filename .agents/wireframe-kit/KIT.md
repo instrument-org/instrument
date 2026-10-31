@@ -4,9 +4,9 @@ The pieces of Studio, for drawing a proposed flow with the `wireframe` skill. Th
 
 `wireframe` comes from the `instrument-org/skills` registry. It looks for this folder and reads this file when it finds one.
 
-## The window
+## Drawing a page
 
-`kit/` is the window as built (the rail, the window bar and its tabs, Chat with its inbox and pane, the places, the floating chat, and setup), one file per surface, measured off the running app and redrawn at 1280x800 in the light theme; `kit/brands.js` holds the brand marks it draws, as data URIs. `build.mjs` pastes the files in the order `KIT_FILES` in `kit.mjs` gives, so a file's top-level values may use only the files before it. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined`, lacks a caption, or redefines a name the kit has fails the build rather than the page:
+A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` pastes the kit, the template's marks and the part into a copy of the skill's starter, and runs every frame in Node first, so a frame that renders `undefined`, lacks a caption, or redefines a name the kit has fails the build rather than the page:
 
 ```bash
 node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html
@@ -18,7 +18,7 @@ It reads the skill from `~/.claude/skills/wireframe`, or from `WIREFRAME_SKILL_D
 
 ```js
 const META = {
-  title: "Thread pages: live tile column", // the surface, a colon, then what this version tries
+  title: "Files: titles over names", // the surface, a colon, then what this version tries
   line: "What we're proposing, and what these frames should help decide.",
   source: "What we drew from, and what we made up.",
   slotH: 320, // optional: the tile height in the grid
@@ -26,84 +26,196 @@ const META = {
 
 const states = [
   {
-    title: "Pane open",
-    note: "We open a tile in the pane when you press it, so you can watch the agent work without leaving the chat.",
+    title: "Files list",
+    note: "We show each page's title over its file name, so a folder of pages reads by what they're about.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0 }) +
-        thread({
-          working: "Reading plans on zendesk.com",
-          tiles: chatTiles(
-            [{ site: "zendesk", agent: true }, { file: "comparison" }],
-            0,
-          ),
-        }) +
-        paneCard({ tab: { site: "zendesk", agent: true } }),
+      on: "files",
+      bar: winBar({ tabs: [{ folder: "Instrument" }] }),
+      body: finder({ view: "list", pick: 6 }),
     }),
   },
 ];
 ```
 
-| Function                                                                                                                           | Draws                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `appWindow({ bar, on, body, over, railMark, user, dark })`                                                                         | The whole window: bar and rail on the gray ground, `body` in the rounded card, `over` on a layer over everything                                                                                                                                                                                                                                                                                 |
-| `winBar({ tabs, active, right })`                                                                                                  | The 40px bar: back and forward, the window's tabs, the right corner where status pills go, and the notifications bell                                                                                                                                                                                                                                                                            |
-| `barTab(t, { on })`                                                                                                                | One window tab; `{ chats: true, title }` is a Chats tab                                                                                                                                                                                                                                                                                                                                          |
-| `rail(on, { mark, user })`                                                                                                         | The 76px rail: New (feather), Chat, Files (a plain folder), Browser, Apps, and Settings or the signed-in avatar                                                                                                                                                                                                                                                                                  |
-| `noChatOpen()`                                                                                                                     | What Chat shows beside the inbox with nothing open. There is no Home page                                                                                                                                                                                                                                                                                                                        |
-| `inboxCol({ on, hover, w, rows, place, search, empty, picking })`, `row(r, { on, hover, last })`, `holdMarks(holds)` | The 320px inbox on the card's grey: the bare view picker beside the grey search well, then rows of three lines between faint hairlines: title (semibold when unread) and star, the latest line (`step` shimmering while it works, `ask` behind a question mark while it waits, else `preview`), and what it holds (`holds`: files as named chips, `{ site }` and `{ app }` as marks) with the time in the corner. `on` is the open row in the card's white (`-1` for none), `hover` a row halfway there with its controls in line; `search` types into the search, which turns white; `rows: []` draws the empty list with its `empty` line |
-| `inboxCol({ drafts })`, `draftRow(d)`, `inboxHead({ place, search, open })`, `viewMenu({ on, counts, topics, left, top })` | The inbox standing in another view: `place` (unread, starred, drafts, archived) names it in the picker led by its mark, and the search reads inside it; `drafts` (`{ title, time, holds }`) lists draft rows. `viewMenu` is the picker's menu (the views with their counts, `topics` as `{ emoji, name, count }`, New topic), drawn over the window with `open` on the picker |
-| `thread({ title, body, working, tiles, head, foot, reply })`                                                                       | A chat: header (the step on the line under the title while `working` names one), centered transcript, then its tiles and the reply box                                                                                                                                                                                                                                                           |
-| `threadHead`, `statusLine`, `you`, `agent`, `turnMeta`, `replyBox`                                                                 | Its pieces: the head (inbox toggle; the title and caret centered over its `line`; pop-out at the right), the line under the title (`tone` run, done, wait or failed), the sage user bubble, the white agent bubble, the time-and-model line the transcript opens with, the "Talk to Instrument" pill                                                                                             |
-| `fileRow(key)`, `pageRow(site)`                                                                                                    | A file the agent linked, as the transcript's card (picture, name, kind), or a page it opened, as a thin row                                                                                                                                                                                                                                                                                      |
-| `chatTiles(tabs, active, { more })`, `chatTile(t, { on, icon })`                                                                   | A chat's tiles in a row over its reply box: 96px, the picture at the tile's width from the top with its mark on a small corner badge, the name under it, the one shown large ringed, New at the end; `more` draws the paging arrows over fades, `icon` a tile with no picture                                                                                                                    |
-| `paneCard({ tab, body, w })`                                                                                                       | The pane flush beside a chat: location row ending in Expand and the × that puts it away, and the page                                                                                                                                                                                                                                                                                            |
-| `locRow(tab, { close, expand, place })`, `openIn(kind)`, `askButton(label)`, `page(tab)`                                           | The location row: three columns with the omnibar centered at up to 640px and the open-in pill at its end (the Mac app it opens in), Ask and the menu at the right; back and forward in a pane or peek (`close` adds Expand and ×), reload when it fills Browser (`place`). `page` is a plausible body for a tab (`PAGES`: the competitors' pricing pages, the files, a fresh tab)                |
-| `placeCard({ tab, body, loc })`, `browserHome({ recent })`                                                                         | Browser, an app or a skill filling the card under its location row (`loc: false` for Apps); Files has `filesPlace`. `browserHome` is Browser with no page: the omnibar over Bookmarks and Recent pages                                                                                                                                                                                           |
-| `newTabPage({ greeting, recent })`, `cmdRow(icon, label, keys, { on })`                                                            | What a new window tab opens on: the greeting over the command menu's list, open (Go to, Commands, Recent chats), and the ⌘K hint; `cmdRow` is one of its rows                                                                                                                                                                                                                                    |
-| `appsPlace({ connected })`, `APP_ROWS`                                                                                             | Apps with nothing open: the serif title and line, the search, then Popular as two columns of rows with Connect, or Open for a `connected` name                                                                                                                                                                                                                                                   |
-| `finder({ pick })`                                                                                                                 | Files on the Instrument folder in list view, as built: `filesPlace` with `filesRow`, the places and its listing                                                                                                                                                                                                                                                                                  |
-| `filesRow({ crumbs, mark, open, view, side, narrow })`                                                                             | Files' one 40px row as main draws it: the sidebar toggle over the places, the views, then sort, more and search as ringed 32px buttons, the omnibar across the rest, then Ask, ringed like them; no header under it. `narrow` for a pane                                                                                                                                                         |
-| `fileBeside({ folder, rows, pick, view, file, crumbs, w, folded, close, body })`                                                   | A file open beside its folder, as main draws it: the folder narrowed to a 300px column in its own list or grid, the row split at its edge (folder-name menu, view, sort, search over the folder; then the fold toggle, the file’s omnibar, Ask, more, × over the file)                                                                                                                           |
-| `filesPlace({ top, side, head, body, foot })`, `filesFoot(n)`                                                                      | Files filling the card: the top row, then `side` (`finderSidebar`, `fileTree`, or `""` when folded), then `head` over `body` over `foot`; `filesFoot` is the item count under a listing                                                                                                                                                                                                          |
-| `filesTop({ crumbs, mark, open, right, left })`                                                                                    | Files' 40px top row: the sidebar toggle, the omnibar centered across the card (`mark` leads it: a folder, or the open file's type) ending in the open-in pill for `open`'s app, and `right` for an open file's controls                                                                                                                                                                          |
-| `fileActions({ editing, ask, expand })`                                                                                            | An open file's controls in the top row: Viewing (or Editing), Ask, its menu; `expand` adds Expand, which a file filling a window tab does not have                                                                                                                                                                                                                                               |
-| `finderSidebar({ on, starred, places })`, `finderHeader({ title, views, ask })`, `finderViews(view, extra)`                        | The 175px places (Recents, Instrument, the `places` pinned under Pinned, Locations), the 48px header (name, Ask, the views, sort, filter, more, search), and the view picker; `extra` adds views as `[key, icon]`                                                                                                                                                                                |
-| `finderListView(rows, { pick })`, `fileTree(rows, { on })`                                                                         | The list view's columns over 24px striped rows, and the 240px tree a file opens beside, in place of the places                                                                                                                                                                                                                                                                                   |
-| `smallChat({ title, tabs, peek, body, working })`, `chatPeek(t)`                                                                   | The popped-out chat, 420x560 and docked flush to the window's foot 20px from the right like the draft, its head the main chat's (title and caret centered over the step, then minimize, expand, ×), its tiles over its reply box; `peek` opens a tile in a card over the conversation, with Expand and ×                                                                                         |
-| `agentTray({ tabs, active, body })`                                                                                                | The browser a draft sets up for the agent: a stone tray with white tab pills and +, then a white card with back, forward and a full-width omnibar over the page                                                                                                                                                                                                                                  |
-| `statusPop(groups, { left, top, w })`, `stepRow(text, { icon, done })`                                                             | The popover the line under a chat's title opens, its tasks under small labels; and a step row in the transcript, the pale band with a dashed blue rule and the eye                                                                                                                                                                                                                               |
-| `miniBar`, `menu(items, pos)`, `sheet(inner, size)`                                                                                | A minimized chat, a popover menu, a modal sheet over a dimmed window                                                                                                                                                                                                                                                                                                                             |
-| `composeWin({ title, model, words, h, over })`, `modelTrigger(name, { mark, warn })`                                               | The draft: a 600-wide compose window docked at the bottom right, its head the title, + Topic, the model control and the arrow, then minimize, expand, ×; the words; the band with the ways in; pass it as `over`                                                                                                                                                                                 |
-| `replyBoxOpen({ extras, text })`, `modelProblem(text, { action })`, `plusMenu({ left, top, w, model })`                            | The reply box opened up with a row over the words (the amber model bar, with its fix at the end, leads it), and its plus menu as wide as the reply box: Browser, This Mac, Attach files, Add a folder, Apps, Skills, and the model                                                                                                                                                               |
-| `modelPicker({ open, held, list, q, mark })`, `pickerPop(inner, { left, top })`, `pickerCrop(inner)`                               | The model picker at its built 680x520 (`PICKER_W`, `PICKER_H`): search over the rail of `PICKER_CONNS` and the open connection's `list`; `held` checks the connection with the chosen model, `q` searches across all of them; place it over a window with `pickerPop`, or fill a frame with `pickerCrop`                                                                                         |
-| `pickerRow(name, { mark, sub, on })`, `pickerHead(t, mark)`, `pickerAutoRow({ on })`, `pickerAutoOnly({ on })`                     | Its list: a model row (the maker's mark, an optional line under the name, tint and check when chosen), a group label, Auto leading a longer list with its rule, and Auto alone and centered with its button                                                                                                                                                                                      |
-| `setupWin({ body, foot, over })`, `setupPage({ hero, title, sub, body, align })`, `setupFoot({ back, next, skip, off })`, `SETUP`  | Setup filling the app window at its own 1080x720 (pass `...SETUP` as the frame size): the sage-to-paper ground and the lights, a page (serif title, gray line, its content; `align: "center"` sits mid-window), and the footer with Back and Continue                                                                                                                                            |
-| `setupChooseAI({ waiting, google, subs })`, `setupSubscriptions({ sub, pick })`, `setupButton(label, { tone, marks, waiting })`    | The step a new person signs in on ("How would you like to use AI?": Google, an existing subscription, an API provider; `waiting` is Google's button in its browser wait), "Which subscription do you have?" with ChatGPT, Claude and Grok, and setup's 380px button. `google`, `subs` and `pick[key]` wrap a button, for a mark                                                                  |
-| `setupRows(rows)`, `setupRowButton(label)`                                                                                         | The white card of hairline-divided rows setup lists ways in with: `[mark, title, line, end]` each                                                                                                                                                                                                                                                                                                |
-| `planCard({ name, amount, usage, filled, features, cta, heaviest, free, badge })`, `planButton(label, { leading })`, `OFFER_PLANS` | A plan card as `PlanCards` draws it in setup and the plan sheet (name, price, the usage box with its meter and makers, features, button), its button, and the offer's Basic and Pro; `free` prices the beta offer's free months                                                                                                                                                                  |
-| `brandMark(cls)`                                                                                                                   | The app mark                                                                                                                                                                                                                                                                                                                                                                                     |
+Start from the [baseline](#the-baseline) frame nearest the proposal and change only what it argues about. Anything new goes in `fresh(...)` so it reads as the proposal.
 
-A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`), `{ folder }`, `{ browser: true }`, `{ apps: true, title }` or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the thread "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans. Keep to it so a round's files compare, and keep new scenario data to work people do for a business, not errands from home. It and the other `ROWS` are invented, as are the prices on the competitors' pages, rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so.
+## The kit
 
-## Outside the window
+The kit is `kit/`, one file per surface, pasted in the order `KIT_FILES` in [`kit.mjs`](kit.mjs) gives. Every function is a global that returns HTML, and every one takes finished HTML wherever a proposal needs to put its own thing in (`tabs`, `rows`, `over`, `body`, `head`, `foot`, `lead`, `right`), so a part passes its own pieces in rather than patching the kit's output with `.replace()`.
 
-`kit/mac.js` draws what surrounds the app: the Mac it runs on and the web people meet it on first. These frames are the desktop's size, so a state that uses them spreads `DESKTOP` into itself (`{ title, note, ...DESKTOP, body }`), and the window goes onto the desktop through `placed`, scaled.
+| File | Draws |
+| --- | --- |
+| `brands.js` | `BRAND_URI`: brand marks as data URIs (`openai`, `claude`, `anthropic`, `googlegemini`, `grok`, `gmail`, `notion`, `figma`, `instrumentglyph`, …) |
+| `marks.js` | The small pieces: `brand`, `letterMark`, `fileMark`, `tabMark`, `tabTitle`, `planningDot`, `pulse`, `bars2`, `openIn`, `askButton`, `kbd`, `topicTint` |
+| `controls.js` | Buttons and form controls as `components/ui` draws them |
+| `scenario.js` | The shared, invented data: `SITES`, `FILES`, `ROWS`, `TOPICS`, `FOLDER_ROWS`, `PAGES`, `APP_ROWS`, `RELEASES`, `PRICING_TITLE` and `pricing()` |
+| `window.js` | The frame: ground, bar, window tabs, status pills, bell, rail, `appWindow`, `tooltip` |
+| `inbox.js` | The chat list: its head, view menu, topics, rows, drafts, a chat's menu, and Chat with nothing open |
+| `chat.js` | A chat: head, status line, transcript pieces, reply box, tiles, pane, and the permission and question cards |
+| `omnibar.js` | The omnibar field, its suggestions, and the location row it stands in |
+| `files.js` | Files: its row, places, the four views, sort and kind menus, a file beside its folder |
+| `browser.js` | Browser with and without a page, and the page's menu |
+| `places.js` | The New tab page, Apps and the release notes |
+| `floating.js` | The popped-out chat, a tile peeked at in it, and a draft's browser tray |
+| `compose.js` | The draft window, the model trigger and its problem bar, the opened reply box and its plus menu |
+| `picker.js` | The model picker |
+| `overlays.js` | Menus, popovers, dialogs, sheets, toasts, the command menu, the bell's list, a status card, Send feedback |
+| `settings.js` | The Settings sheet and its pages |
+| `setup.js` | Setup at its own 1080x720, and the plan cards |
+| `mac.js` | Outside the window: the Mac and the web |
 
-| Function                                              | Draws                                                                                                       |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `macDesktop({ bar, windows, dock, over, wallpaper })` | The 1512x982 desktop: wallpaper, menu bar, Dock, `windows` and `over` placed absolutely                     |
-| `placed(html, { left, top, w, h, scale })`            | A true-size frame (`appWindow`, `setupWin`, `browserWindow`, `finderWindow`) scaled into place, 0.8 default |
-| `menuBar({ app, menus, extra, lit })`                 | The menu bar; `extra` puts Instrument's glyph among the status items, `lit` draws it pressed                |
-| `menuBarPanel(inner, { right, w, h })`                | A panel hanging from that glyph                                                                             |
-| `dock({ apps, running, mark })`                       | The Dock; `"instrument"` is the app mark, `mark` hangs annotations on an icon                               |
-| `macNotification({ title, sub, body, time })`         | A notification banner at the top right                                                                      |
-| `finderWindow({ title, items, pick })`                | The user's own Finder window, not Studio's Files place                                                      |
-| `contextMenu(items, { left, top })`                   | The Mac's right-click menu, as opposed to Studio's `menu`                                                   |
-| `browserWindow({ url, tabs, body })`                  | Someone else's browser, for the website and anything seen before installing                                 |
+Tabs, rows and holds are small objects. A tab is `{ chats: true, title }`, `{ site }` (a `SITES` key), `{ file }` (a `FILES` key), `{ folder: name }`, `{ browser: true }`, `{ apps: true }`, `{ newtab: true }`, `{ notes: true }` or `{ title, icon }`, with `agent: true` on one a task is driving. A row is `{ title, preview, step, ask, working, unread, starred, draft, topic, time, holds }`, a hold `{ file }`, `{ site }` or `{ app }`.
 
-Unlike the window, these are drawn from macOS and a generic browser rather than measured off anything of ours; a page using them says so in its `source` line.
+### The window (`window.js`)
+
+| Function | Draws |
+| --- | --- |
+| `appWindow({ bar, on, body, over, railMark, railExtra, user, dark })` | The whole window at 1280x800: bar and rail on the gray ground, `body` in the rounded card, `over` on a layer over everything |
+| `winBar({ tabs, active, hover, density, lead, right, bell, back })` | The 40px bar: the lights, back and forward, `lead`, the tabs and New tab, then `right` (status pills) and the bell. `tabs` mix tab objects and finished HTML; `density` defaults to what the strip has room for |
+| `barTab(t, { on, hover, density, sep })`, `stripDensity(count, room)` | One tab as `tab-strip.tsx` draws it: growing to 240px, the title fading at its end, × on the tab up or under the pointer; density `full`, `compact` (mark centered) or `icon` |
+| `statusPill(kind, { label, icon })` | A pill before the bell: `update`, `updating`, `offline`, `unreachable`, or a quiet one a proposal adds |
+| `bell({ dot, count, open })` | The bell, with a dot, a count or pressed |
+| `rail(on, { mark, user, extra })`, `railItem(word, icon, { on, mark })` | The 76px rail: New, Chat, Files, Browser, Apps, and Feedback over Settings at its foot; `extra` adds places as `[key, word, icon]` |
+| `tooltip(title, { left, top, detail, w })` | A tooltip, or a tab's hover card with `detail` under its title |
+
+### The chat list (`inbox.js`)
+
+| Function | Draws |
+| --- | --- |
+| `inboxCol({ on, hover, w, rows, place, topic, drafts, search, empty, picking, before })` | The 320px list: its head, then rows. `place` (unread, starred, drafts, archived) or `topic` stands it in another view; `search` types into it and bolds what matched; `rows: []` with `empty` draws the empty list; `before` puts a proposal's own rows first |
+| `inboxHead({ place, topic, search, open })` | The picker and the search. Typing folds the picker to its mark; a topic tints the head and puts its instructions and Edit topic under it |
+| `row(r, { on, hover, last, search })`, `draftRow(d)` | A row's three lines: title (semibold while unseen, red Draft after it while a reply waits), topic pill and star in the corner, the latest line, the holds and time. `hover` swaps the corner for the row's controls |
+| `viewMenu({ on, counts, topics, left, top })` | The picker's menu: the views with their counts (Drafts only with `counts.drafts`), the topics, New topic |
+| `chatMenu({ left, top, starred, unread })` | A chat's menu as built (right click on a row) |
+| `topicMark(topic, size)`, `topicPill(topic, { quiet })`, `holdMarks(holds)` | A topic's emoji on its tint, its pill, a row's holds |
+| `noChatOpen()` | What Chat shows beside the list with nothing open. There is no Home page |
+
+### A chat (`chat.js`)
+
+The transcript's look is under active redesign, so these stay deliberately plain: draw a proposal's own transcript with `thread({ body })` rather than growing them.
+
+| Function | Draws |
+| --- | --- |
+| `thread({ title, body, working, topic, tiles, head, foot, reply, replyEl, stick })` | A chat column: head, transcript (`stick: "bottom"` sits a long one on the box), tiles, `foot` (a card over the box) and the reply box |
+| `threadHead(title, { line, right, left, side, align, topic, popOut })` | The 56px head. `side` widens its equal outer columns when `right` needs room; `align: "left"` puts the title at the left |
+| `statusLine(text, { tone })` | The line under the title: run, done, wait or failed |
+| `turnMeta`, `you`, `agent`, `fileRow`, `pageRow`, `stepRow` | The transcript's pieces |
+| `replyBox({ ph, text })` | The reply box: plus, words, mic, send |
+| `chatTiles(tabs, active, { more })`, `chatTile(t)`, `paneCard({ tab, body, w })` | The tiles over the box and the pane beside the chat |
+| `permissionCard({ kind, name, path, more })` | "Can Instrument use this folder?" over the box, with the cards waiting behind it |
+| `questionCard({ question, choices, pick, steps, step })` | The choose card: radio rows, Something else, Add a note, Skip and Send; `steps` for several questions |
+| `statusPop(groups, { left, top })` | The tasks the status line opens |
+
+### The omnibar (`omnibar.js`)
+
+| Function | Draws |
+| --- | --- |
+| `omnibar(t, { crumbs, fold, mark, focus, typed, ph, size, end, url })` | The field: a page's host quiet and the rest loud; a folder's or file's path as crumbs (`fold` folds the middle into ···); the open-in icon at its end. `focus` selects the whole address, `typed` types into it, `size` 7 (28px) or 8 (Files' 32px) |
+| `omniMenu(rows, { left, top, w, on })`, `searchMark` | Its suggestions under it, as `[mark, words, hint]` |
+| `locRow(t, { close, expand, place, lead, trail, omni })` | The 40px row over a page or file: back and forward in a pane, reload in a window tab, the omnibar, Ask, the menu, Expand and × |
+
+### Files (`files.js`)
+
+| Function | Draws |
+| --- | --- |
+| `finder({ view, pick, side, search, omni, rows, crumbs })` | Files on the Instrument folder as built, in `icons`, `table`, `columns` or `list` |
+| `filesRow({ crumbs, fold, view, side, narrow, search, omni })` | Its one 40px row: sidebar toggle, the four views, sort, more, search (or the search open), the omnibar, Ask |
+| `finderSidebar({ on, starred, places, disks })` | The 175px places: Recents, Instrument, Pinned, Locations |
+| `finderTable(rows, { pick, cols, fill })`, `finderList`, `finderGrid`, `finderColumns(cols, { preview })` | The four views. Table's stripes run to the pane's foot; List puts titles over names; Columns shows a picked file's picture and details |
+| `fileBeside({ folder, rows, pick, view, file, crumbs, fold, w, folded, editing, body })` | A file open beside its folder, with the row split at the column's edge |
+| `filesPlace({ top, side, head, body, foot })`, `filesFoot(n, { picked })`, `filesViews(view, extra)`, `fileThumb(name, { w })` | The pieces, for a proposal that rearranges them |
+| `sortMenu({ sort, group })`, `kindMenu({ kinds })` | Sort and group, and the search's Show only |
+
+### Browser and the other places (`browser.js`, `places.js`)
+
+| Function | Draws |
+| --- | --- |
+| `placeCard({ tab, body, loc, omni })` | A page filling the card under its location row |
+| `browserHome({ recent, bookmarks, omni })` | Browser with no page: the omnibar over Bookmarks and Recent pages |
+| `pageMenu({ left, top, bookmarked })` | The page's ⋮ menu as built |
+| `newTabPage({ greeting, recent })`, `cmdRow(icon, label, keys, { on, h })` | The New tab page: the command menu's list in place |
+| `appsPlace({ connected })` | Apps with nothing open |
+| `releaseNotes({ versions, yours, ready, fresh })` | What's new: versions in full, then folded; a downloaded update's card first |
+
+### Overlays, Settings, controls (`overlays.js`, `settings.js`, `controls.js`)
+
+Pass these as `appWindow`'s `over`, placed in the window's pixels.
+
+| Function | Draws |
+| --- | --- |
+| `menu(items, { left, top, w })` | Any menu: `"rule"`, `[icon, label, keys]`, or `{ label, icon, keys, head, dot, check, sub, danger, on, muted }` |
+| `popover(inner, { left, top, w, p })`, `statusCard(title, line)` | A popover card; the card a warning pill opens |
+| `dialog({ title, line, body, buttons, close, w })`, `sheet(inner, { w, h })`, `scrim(inner)` | A dialog over the dimmed window, a bare sheet, the dimmed ground |
+| `toast(title, { line, action, icon, stack })` | A toast at the bottom left |
+| `commandMenu({ q, rows })` | ⌘K over the window |
+| `notificationsPop({ items })` | The bell's list |
+| `feedbackDialog({ comment, items, picked, preview })` | Send feedback as built |
+| `settingsSheet({ on, body, dev, search, extra })` | Settings over the window; `body` from `settingsGeneral()`, `settingsProviders()`, `settingsPermissions()`, `settingsMemory()`, or a proposal's own `settingsSection(label, settingsCard([settingsRow(...)]))` |
+| `settingsHead`, `settingsSection`, `settingsCard(rows, { divided })`, `settingsRow({ title, line, sub, icon, tile, end })`, `zoomStepper` | Settings' pieces |
+| `button(label, { tone, size, icon, round })`, `iconButton(icon, { ring, on })` | Buttons: `default`, `brand`, `secondary`, `outline`, `ghost`, `destructive`, `link` |
+| `toggle(on)`, `checkbox(on)`, `radio(on)`, `segmented(options, on)`, `selectBox(value)`, `textField({ value, ph, focus })`, `textArea`, `badge`, `meter(filled)`, `spinner` | Form controls |
+
+### Composing, the picker, floating, setup
+
+| Function | Draws |
+| --- | --- |
+| `composeWin({ title, model, words, h, over })` | The draft: a 600px compose window docked at the bottom right |
+| `modelTrigger(name, { mark, warn })`, `modelProblem(text, { action })`, `replyBoxOpen({ extras, text })`, `plusMenu({ left, top, w, model })` | The model control, its problem bar, the reply box opened up, its plus menu |
+| `modelPicker({ open, held, list, q, mark })`, `pickerPop`, `pickerCrop`, `pickerRow`, `pickerHead`, `pickerAutoRow`, `pickerAutoOnly`, `PICKER_W`, `PICKER_H` | The model picker at its built 680x520 |
+| `smallChat({ title, tabs, peek, body, working })`, `chatPeek(t)` | The popped-out chat, 420x560 at the bottom right, and a tile peeked at in it |
+| `agentTray({ tabs, active, body })` | The browser a draft sets up for the agent |
+| `setupWin`, `setupPage`, `setupFoot`, `setupButton`, `setupChooseAI`, `setupSubscriptions`, `setupRows`, `setupRowButton`, `SETUP` | Setup at its own 1080x720 (spread `...SETUP` into the frame) |
+| `planCard`, `planButton`, `OFFER_PLANS`, `brandMark` | The plan cards setup and the plan sheet draw, and the app mark |
+
+### Outside the window (`mac.js`)
+
+These frames are the desktop's size, so a state that uses them spreads `DESKTOP` into itself (`{ title, note, ...DESKTOP, body }`), and the window goes onto the desktop through `placed`, scaled. They are drawn from macOS and a generic browser rather than measured off anything of ours; a page using them says so in its `source` line.
+
+| Function | Draws |
+| --- | --- |
+| `macDesktop({ bar, windows, dock, over, wallpaper })` | The 1512x982 desktop: wallpaper, menu bar, Dock, `windows` and `over` placed absolutely |
+| `placed(html, { left, top, w, h, scale })` | A true-size frame (`appWindow`, `setupWin`, `browserWindow`, `finderWindow`) scaled into place, 0.8 default |
+| `menuBar({ app, menus, extra, lit })`, `menuBarPanel(inner, { right, w, h })` | The menu bar, with Instrument's glyph among the status items, and a panel hanging from it |
+| `dock({ apps, running, mark })`, `macNotification({ title, sub, body, time })` | The Dock and a notification banner |
+| `finderWindow({ title, items, pick })`, `contextMenu(items, { left, top })` | The person's own Finder window and the Mac's right-click menu, as opposed to Studio's Files and `menu` |
+| `browserWindow({ url, tabs, body })` | Someone else's browser, for the website and anything seen before installing |
+
+## The scenario
+
+The shared scenario is the chat "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans, filed under the Pricing topic. The other `ROWS`, the `TOPICS`, the Instrument folder's `FOLDER_ROWS`, the competitors' `PAGES` and the `RELEASES` all come from it. Keep to it so a round's files compare, keep new scenario data to work people do for a business, and add to it rather than renaming what is there. It is invented, prices included, rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so. The home folder is `mac-user`, never a real one.
+
+## The baseline
+
+[`baseline.js`](baseline.js) is a part with one frame per surface as it stands: the chat list in each of its states, the window tabs, the bell and a status pill, Files in each view with its menus and search, Browser, New tab, ⌘K, Apps, the release notes, Settings, Send feedback, a dialog and a toast, the chat with its cards, the floating chat, the draft, the model picker, setup, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round:
+
+```bash
+node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
+```
+
+`appWindow({ dark: true })` draws the dark theme for everything built on tokens; hard-coded light colors (page bodies, tiles) stay light. Not in the kit yet, so drawn by hand when a round needs it: an app's own page, a task opened on its own, and the transcript's newer pieces.
+
+## Changing the kit
+
+The kit is meant to be edited by whoever draws with it.
+
+- **When a round draws a surface the kit lacks**, or corrects one it draws wrong, move that piece into the kit file for its surface as a function, add a frame for it to `baseline.js`, rebuild the baseline, and list it in the tables above.
+- **When the app changes, measure it again** rather than patching from memory: boot a disposable instance (`studio-drive.mjs boot --purpose "kit measure" --workspace documents`), take pictures of it at 1280x800 in the light theme, and correct the kit to match. Each file's header says when it was last measured.
+- **A new file** goes in `kit/` and in `KIT_FILES`, after the files whose top-level values it uses.
+- **Names are global.** A part that defines a name the kit has fails the build with that name; a new kit name that a part's helper already uses is fine, since the build says what to do. Avoid the template's own top-level names (`layout`, `stage`, `step`, `views`, `more`, `rack`, `shortcut`), which the build's compile check catches.
+
+## What rounds here keep correcting
+
+- **Draw the real window.** The template says to draw no chrome a proposal is not about; in this product the opposite holds, because a proposal is judged by how it sits in the window as it is. Start from `appWindow` and the baseline frame nearest the proposal, and crop to a part only when the frame is about one control.
+- **Draw only what the app has, unless the proposal adds it.** No Home page, no inline task cards, no invented panels, menu items or widths. Anything new is wrapped in `fresh` so it reads as the proposal, and everything else matches the baseline.
+- **Pass pieces in, don't patch them.** Every function takes HTML where a proposal puts its own thing; a `.replace()` on kit output breaks the next time the kit changes.
+- **Mark sparingly.** One `clickable` per frame at most, on the frame before the click, never over the content it reveals. Leave marks off a page meant for screenshots.
+- **Copy is short and real.** No taglines, tags, or explanatory blurbs inside the frame; a zero state is a line, not a paragraph. Use the pricing scenario's words where they fit, and the app's own words for its controls.
+- **Fewer takes when the question is narrow.** Several sibling files suit an open question; a narrow one gets one file.
+- **Stay in the kit's look.** Kit functions, classes and tokens only; a frame that drifts into a generic component library's styling is the wrong product.
+
+Marks come from the template (`clickable`, `fresh`, `noted`, `ann`, `cursor`) and are in scope for a part. Icons are Phosphor regular only (`ph ph-name`): the starter loads no other weight, so `ph-fill` draws nothing, and a lit rail place keeps its outline icon in the brand color where the app swaps to the fill weight.
+
+The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `setupWin` is what the skin's `light-dark()` tokens resolve against inside the frame. Anything drawn outside them sets its own `text-foreground` and ground, or it inherits the reader's theme. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles. A color class copied from the app that the skin lacks fails the build. A third party's logo is inlined in `brands.js`, never a runtime URL into an icon CDN.
 
 ## A prototype, and replaying a chat
 
@@ -125,40 +237,11 @@ node .agents/wireframe-kit/replay/build-replay.mjs <chat-records-dir> ~/wirefram
 
 In the page, drag the timeline or use ← and → to jump from one event to the next, Space plays at the real pace (1×, 4× or 8×, picked beside the timeline), and a folded line of steps opens on a click. When the chat browses, its tabs show at the top right; clicking them opens the pane and closes the chat list, and the page Instrument is using glows.
 
-## The baseline
-
-[`baseline.js`](baseline.js) is a part with one frame per surface as it stands: Chat empty, in Drafts, at work and with its pane, Files with and without its places and with a file open, the New tab page, Apps, Browser with and without a page, the floating chat and the tab it expands into, a menu and a sheet, setup's sign-in, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round, and start each proposal from the nearest frame, changing only what the proposal argues about:
-
-```bash
-node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
-```
-
-Not in the kit yet, so drawn by hand when a round needs it: Settings, an app's own page, and a task opened on its own. `appWindow({ dark: true })` draws the dark theme for everything built on tokens; hard-coded light colors (page bodies, tiles) stay light.
-
-## Changing the kit
-
-The kit is meant to be edited by whoever draws with it. When a round draws a surface the kit lacks, or corrects one it draws wrong, move that piece into the `kit/` file for its surface (`kit/mac.js` outside the window) as a function, add a frame for it to `baseline.js`, rebuild the baseline, and list it in the tables above. When the app itself changes, re-measure (below) rather than patching from memory. Fixed scenario data (`ROWS`, `SITES`, `FILES`, `PAGES`) is shared across rounds so files compare; add to it rather than renaming what is there.
-
-## What rounds here keep correcting
-
-- **Draw the real window.** The template says to draw no chrome a proposal is not about; in this product the opposite holds, because a proposal is judged by how it sits in the window as it is. Start from `appWindow` and the baseline frame nearest the proposal, and crop to a part only when the frame is about one control.
-- **Draw only what the app has, unless the proposal adds it.** No Home page, no inline task cards, no invented panels or widths. Anything new is wrapped in `fresh` so it reads as the proposal, and everything else matches the baseline.
-- **Mark sparingly.** One `clickable` per frame at most, on the frame before the click, never over the content it reveals. Leave marks off a page meant for screenshots.
-- **Copy is short and real.** No taglines, tags, or explanatory blurbs inside the frame; a zero state is a line, not a paragraph. Use the pricing scenario's words where they fit.
-- **Fewer takes when the question is narrow.** Several sibling files suit an open question; a narrow one gets one file.
-- **Stay in the kit's look.** Kit classes and tokens only; a frame that drifts into a generic component library's styling is the wrong product.
-
-Marks come from the template (`clickable`, `fresh`, `noted`, `ann`, `cursor`) and are in scope for a part. Icons are Phosphor regular only (`ph ph-name`): the starter loads no other weight, so `ph-fill` draws nothing, and a lit rail place keeps its outline icon in the brand color where the app swaps to the fill weight.
-
-The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `setupWin` is what the skin's `light-dark()` tokens resolve against inside the frame. Anything drawn outside them sets its own `text-foreground` and ground, or it inherits the reader's theme. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles. Placeholder prose is `h-[7px] rounded-full bg-gray-300` at varying widths (`bars2`). A third party's logo is inlined in `kit/brands.js`, never a runtime URL into an icon CDN.
-
-When the product moves, measure it again rather than trusting this file: boot a disposable instance (`studio-drive.mjs boot --purpose "kit measure" --workspace documents`), screenshot it in the light theme, then correct the kit to match.
-
 ## Naming a page
 
 The `wireframe` skill sets the rules. A page is named for the surface, a colon, then what this version tries. Each frame is named like an artboard, with the screen's name in a word or two, and its note says in one first-person sentence what we're doing there and why. When a frame shows Studio as it ships today, add _(Current design)_ to its title, as in _Welcome (Current design)_. Use these names for the surfaces:
 
-Rail, Window bar, Window tabs, Inbox, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Files, Browser, Apps, Setup, Settings; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
+Rail, Window bar, Window tabs, Chat list, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Omnibar, Files, Browser, New tab, Command menu, Apps, Release notes, Settings, Send feedback, Bell, Setup; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
 
 A page about how two surfaces share the screen names both of them (_Page and chat: chat as corner picture_). Versions that answer the same question start with the same surface, so they sort together: _Chat tiles: dock over reply box_, _Chat tiles: dock under reply box_.
 

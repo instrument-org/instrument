@@ -1,4 +1,9 @@
-// ---- the scenario: the pricing chat's sites, files, rows, transcript, pages and apps
+// ---- the scenario ---------------------------------------------------------------
+// The shared, invented scenario every round draws: someone at a help desk company lining
+// up competitors' list prices against their own plans ("Help desk pricing against
+// competitors"), with the chats, files, pages and topics around it. Keep to it so rounds
+// compare, add to it rather than renaming what is here, and keep new data to work people
+// do for a business. The home folder is `mac-user`.
 
 // Sites the pricing thread's task opens. Invented pages and prices, real hosts.
 const SITES = {
@@ -53,6 +58,7 @@ const ROWS = [
     working: true,
     time: "9:41 AM",
     holds: [{ site: "zendesk" }, { site: "intercom" }, { site: "freshdesk" }],
+    topic: "Pricing",
   },
   {
     title: "SOC 2 audit quotes from four firms",
@@ -61,6 +67,7 @@ const ROWS = [
     starred: true,
     time: "Yesterday",
     holds: [{ file: "quotes" }],
+    topic: "Security reviews",
   },
   {
     title: "Q3 board update in the Instrument folder",
@@ -227,17 +234,6 @@ const PAGES = {
 const page = (t) =>
   t.site ? PAGES[t.site]() : t.file ? PAGES[t.file]() : PAGES.newtab();
 
-const FINDER_FILES = [
-  ["folder", "ai-spend"],
-  ["html", "comparison-index.html"],
-  ["md", "claude-usage-report.md"],
-  ["folder", "cat-word-doc"],
-  ["html", "pricing-comparison.html"],
-  ["csv", "competitor-prices.csv"],
-  ["md", "pricing-page-faq.md"],
-  ["md", "q3-board-update.md"],
-  ["html", "demo-page.html"],
-];
 
 // The Apps directory's first rows, as the API seeds it. [mark, name, line]; a mark is a brands.js key or a letter mark.
 const APP_ROWS = [
@@ -283,4 +279,31 @@ const APP_ROWS = [
     "Asana",
     "Tasks, projects, and goals across the work.",
   ],
+];
+
+/** The topics the scenario files chats under, as the picker lists them (topics.list). */
+const TOPICS = [
+  { emoji: "💼", name: "Pricing", color: "#ebaf86", count: 3, instructions: "Compare list prices per agent per month, billed annually, for a 10-agent team. Name the plan and the tier, and link the page each price came from." },
+  { emoji: "🛡️", name: "Security reviews", color: "#82c7f0", count: 1, instructions: "" },
+];
+
+/** The Instrument folder's files with what Files says about each: [kind, name, modified, size, title]. `title` is what List shows over the name (a page's title, a note's heading). */
+const FOLDER_ROWS = [
+  ["folder", "ai-spend", "Oct 8, 2026 at 9:10 AM", "--", ""],
+  ["folder", "cat-word-doc", "Oct 5, 2026 at 12:25 PM", "--", ""],
+  ["md", "claude-usage-report.md", "Oct 6, 2026 at 11:20 AM", "26 KB", "Claude usage report"],
+  ["html", "comparison-index.html", "Oct 7, 2026 at 10:15 AM", "19 KB", "Comparison index"],
+  ["csv", "competitor-prices.csv", "Today at 9:52 AM", "4 KB", ""],
+  ["html", "demo-page.html", "Oct 5, 2026 at 9:50 AM", "68 KB", "Demo"],
+  ["html", "pricing-comparison.html", "Today at 9:58 AM", "40 KB", "Our plans against three competitors"],
+  ["md", "pricing-page-faq.md", "Today at 10:06 AM", "54 KB", "Pricing page FAQ"],
+  ["md", "q3-board-update.md", "Oct 6, 2026 at 12:45 PM", "61 KB", "Q3 board update"],
+];
+
+/** The release notes the kit's What's new shows, newest first: { version, date, summary, points, folded }. */
+const RELEASES = [
+  { version: "2.0 beta 119", date: "Oct 31", summary: "Files can show a folder as a list of titles, and search can narrow it to one kind of file.", points: ["Pick List in Files to see each page's title over its file name.", "Search a folder and choose Show only to see just its spreadsheets, notes or pages."] },
+  { version: "2.0 beta 118", date: "Oct 29", summary: "Send feedback from the rail, and read everything that goes with it before you send.", points: ["Feedback sits in the rail, above Settings.", "Pick anything in the list to read it first, and uncheck what you'd rather keep to yourself."] },
+  { version: "2.0 beta 117", date: "Oct 28", summary: "Release notes open on what changed since your last version.", folded: true },
+  { version: "2.0 beta 116", date: "Oct 27", summary: "A chat's tasks show where its work stands, under its title.", folded: true },
 ];

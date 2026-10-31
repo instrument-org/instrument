@@ -1,191 +1,287 @@
 // The baseline: every surface the kit draws, as the app has it today, one frame each.
-// Build it after changing window.js or mac.js and look at it before drawing a round:
+// Build it after changing the kit and look at it before drawing a round:
 //   node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
 // A proposal starts from one of these frames and changes only what it argues about.
 
 const META = {
   title: "Kit baseline: every surface as built",
-  line: "Everything the wireframe kit draws as the app ships today, from the window's places, the chat and the floating chat to setup and the Mac and web around the app.",
+  line: "Everything the wireframe kit draws as the app ships today: the chat list, window tabs, Files and its omnibar, Browser, Settings and the overlays, then the chat, setup, and the Mac and web around the app.",
   source:
-    "We drew the window frames with window.js, which we measured from the running app on the documents fixture. The desktop, menu bar, notification, Finder and website frames come from mac.js, which we drew from macOS and a generic browser without measuring.",
+    "We drew the window frames with the kit in kit/, measured from the running app on the documents fixture at 1280x800 (2026-10-31). The chats, files, pages, prices, topics and release notes are the kit's invented pricing scenario. The desktop, menu bar, notification, Finder and website frames come from mac.js, drawn from macOS and a generic browser without measuring.",
   slotH: 300,
 };
 
 const D = { w: DESKTOP.w, h: DESKTOP.h };
+const chatBar = winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] });
+const waitingHead = threadHead(PRICING_TITLE, { line: statusLine("Waiting on you", { tone: "wait" }), topic: "Pricing" });
+const running = () => inboxCol({ on: 0 }) + thread({ working: "Reading plans on zendesk.com", topic: "Pricing" });
 
 const states = [
+  // ---- the chat list -------------------------------------------------------------
   {
-    title: "Empty chat",
-    note: "The window opens here, with the rail, the inbox and an empty chat, and there's no Home page.",
+    title: "Chats",
+    note: "The window opens on Chat with nothing open: the rail, the list of chats, and a quiet empty state beside it, since there's no Home page.",
     body: appWindow(),
   },
   {
+    title: "Chat running",
+    note: "While the pricing chat runs, its newest step shimmers under its title and on its row, and a row shows its topic and star in the corner.",
+    body: appWindow({ bar: chatBar, body: running() }),
+  },
+  {
+    title: "Chats picker",
+    note: "The picker sits bare on the card until it's pressed, then lists the views with their counts, the topics with their marks, and New topic.",
+    body: appWindow({
+      bar: chatBar,
+      body: inboxCol({ on: 0, picking: true }) + thread({ working: "Reading plans on zendesk.com" }),
+      over: viewMenu({ counts: { unread: 1, starred: 1 } }),
+    }),
+  },
+  {
+    title: "Chat list search",
+    note: "Typing folds the picker down to its mark and raises the search into a white field, and we bold the words that matched in each row.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, search: "pricing", rows: [ROWS[0]] }) + thread({ working: "Reading plans on zendesk.com" }) }),
+  },
+  {
+    title: "Row under the pointer",
+    note: "Under the pointer a row trades its topic and star for its controls: file under a topic, pop out, archive, mark unread and star. A reply waiting unsent marks the title Draft in red.",
+    body: appWindow({
+      bar: chatBar,
+      body: inboxCol({ on: 0, hover: 2, rows: [ROWS[0], { ...ROWS[1], draft: true }, ROWS[2], ROWS[3], ROWS[4]] }) + thread({ working: "Reading plans on zendesk.com" }),
+    }),
+  },
+  {
+    title: "Topic",
+    note: "Standing in a topic tints the list's head in the topic's color, and its instructions sit under the picker with Edit topic.",
+    body: appWindow({
+      bar: chatBar,
+      body: inboxCol({ on: 0, topic: "Pricing", rows: [ROWS[0], { title: "Intercom's AI agent pricing per resolution", preview: "Fin bills $0.99 per resolution on every plan, on top of the seat price.", time: "Tue", holds: [{ site: "intercom" }] }, { title: "Freshdesk plan limits for 10 agents", preview: "Pro covers 10 agents with custom roles; Growth stops at 5 collaborators.", time: "Oct 22", holds: [{ site: "freshdesk" }] }] }) + thread({ working: "Reading plans on zendesk.com" }),
+    }),
+  },
+  {
     title: "Drafts",
-    note: "In Drafts the picker leads with Drafts' mark and the search reads inside it. Each draft is a row with a dashed circle on the left, and it says Draft where a chat would show its latest message, beside the marks of what it holds.",
+    note: "Drafts is a view only while there are drafts. Each one is a row with a dashed circle where a chat shows its state, and it says Draft where a chat shows its latest line.",
     body: appWindow({
       body:
         inboxCol({
           drafts: [
-            {
-              title: "Draft the email announcing our new plans",
-              time: "9:12 AM",
-              holds: [{ app: "gmail" }, { file: "faq" }],
-            },
+            { title: "Draft the email announcing our new plans", time: "9:12 AM", holds: [{ app: "gmail" }, { file: "faq" }] },
             { title: "Compare the four SOC 2 audit quotes", time: "Yesterday" },
           ],
         }) + noChatOpen(),
     }),
   },
+  // ---- window tabs and the bar ---------------------------------------------------------
   {
-    title: "Chats picker",
-    note: "The picker sits bare on the card until it's pressed. Its menu lists the views with their counts, then the topics and New topic, and the row under the pointer shows its controls in line with the title.",
-    body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0, hover: 4, picking: true }) +
-        thread({ working: "Reading plans on zendesk.com" }),
-      over: viewMenu({
-        on: "",
-        counts: { unread: 1, starred: 1 },
-        topics: [
-          { emoji: "💼", name: "Pricing", count: 3 },
-          { emoji: "🛡️", name: "Security reviews", count: 1 },
-        ],
-        left: 84,
-        top: 88,
-      }),
-    }),
-  },
-  {
-    title: "Search",
-    note: "Typing in the search turns its grey well into a white field with an × to clear it. When nothing matches, the list says so under a small mark in the middle of the column.",
-    body: appWindow({
-      body: inboxCol({ on: -1, search: "renewal quotes", rows: [], empty: "No chats match “renewal quotes”" }) + noChatOpen(),
-    }),
-  },
-  {
-    title: "Chat running",
-    note: "While the pricing chat runs, its newest step shimmers beside the planning dot on the line under its title and on its inbox row, and pressing the step lists the chat's tasks.",
-    body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0 }) +
-        thread({ working: "Reading plans on zendesk.com" }),
-    }),
-  },
-  {
-    title: "Chat with pane",
-    note: "The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane, which sits right beside the chat with Ask, its menu, Expand and × at the end of its location row.",
-    body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0, w: 280 }) +
-        thread({
-          body: pricing(3),
-          tiles: chatTiles(
-            [
-              { file: "comparison" },
-              { file: "prices" },
-              { site: "zendesk", agent: true },
-            ],
-            0,
-          ),
-        }) +
-        paneCard({ tab: { file: "comparison" } }),
-    }),
-  },
-  {
-    title: "Files",
-    note: "Files opens on a folder with the places down the side and the Finder's own header under the top row, whose omnibar names the folder.",
+    title: "Window tabs",
+    note: "Tabs grow to 240 pixels and share the bar evenly, cutting a long title with a fade rather than an ellipsis, with a hairline between tabs that aren't up.",
     body: appWindow({
       on: "files",
-      bar: winBar({ tabs: [{ folder: "Instrument" }], active: 0 }),
-      body: finder({ pick: 4 }),
+      bar: winBar({ tabs: [{ site: "g2" }, { chats: true, title: PRICING_TITLE }, { folder: "Instrument" }, { apps: true }, { file: "comparison" }], active: 4 }),
+      body: fileBeside(),
+    }),
+  },
+  {
+    title: "Window tabs crowded",
+    note: "When the bar runs out of room the tab up keeps its name and the rest go to their marks, and hovering one shows its whole title and where it is.",
+    body: appWindow({
+      on: "",
+      bar: winBar({ tabs: [{ site: "g2" }, { chats: true, title: PRICING_TITLE }, { folder: "Instrument" }, { apps: true }, { file: "comparison" }, { newtab: true }, { browser: true }, { site: "zendesk" }, { site: "intercom" }, { site: "freshdesk" }, { file: "prices" }, { notes: true }], active: 11, hover: 1, right: statusPill("update") }),
+      body: releaseNotes(),
+      over: tooltip(PRICING_TITLE, { left: 150, top: 42, detail: "Reading plans on zendesk.com" }),
+    }),
+  },
+  {
+    title: "Bell",
+    note: "The bell lists what the team sends and what went wrong, each with its own buttons, and a dot on the bell says something is new.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }], bell: { open: true } }),
+      body: running(),
+      over: notificationsPop({ items: [{ icon: "megaphone-simple", title: "Hello from the notices feed", when: "Oct 9", line: "This is the first notice, sent only to the beta channel, to check that the bell can hear from us. Dismiss it whenever you like.", actions: ["Dismiss"] }, { icon: "warning-circle", tone: "warn", title: "A task stopped", when: "9:44 AM", line: "Reading plans on intercom.com stopped because the page wouldn't load.", actions: ["Open chat", "Dismiss"] }] }),
+    }),
+  },
+  {
+    title: "Status pill",
+    note: "A warning pill sits before the bell while Instrument can't be reached, and pressing it says what's out and what still works.",
+    body: appWindow({
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }], right: statusPill("unreachable") }),
+      body: running(),
+      over: statusCard("Can't reach Instrument models", "Chats on Instrument models, web search, and dictation aren't available right now. Chats on your own providers keep working."),
+    }),
+  },
+  // ---- Files ----------------------------------------------------------------------
+  {
+    title: "Files",
+    note: "Files opens on a folder in Table, its places down the side and one row across the top: the four views, sort, more and search, the omnibar walking the path, and Ask.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ pick: 6 }) }),
+  },
+  {
+    title: "Files list",
+    note: "List shows each file's picture with its title over its name, so a folder of pages reads by what they're about.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ view: "list" }) }),
+  },
+  {
+    title: "Files grid",
+    note: "Grid lays the folder out as pictures with their names under them.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ view: "icons" }) }),
+  },
+  {
+    title: "Files columns",
+    note: "Columns walks the path a column at a time, and a picked file shows its picture and details after the last one.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ view: "columns", pick: 6 }) }),
+  },
+  {
+    title: "Files sort",
+    note: "The sort menu picks the order and the grouping, and shows hidden files.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder(), over: sortMenu() }),
+  },
+  {
+    title: "Files search",
+    note: "Search opens a field in place of the views and buttons, and Show only narrows the folder to one kind of file.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ search: true }), over: kindMenu() }),
+  },
+  {
+    title: "Files omnibar",
+    note: "Typing into the omnibar finds files in the folder as you go, and Return opens the first.",
+    body: appWindow({
+      on: "files",
+      bar: winBar({ tabs: [{ folder: "Instrument" }] }),
+      body: finder({ omni: { typed: "pri" } }),
+      over: omniMenu([[fileMark("html"), "pricing-comparison.html"], [fileMark("md"), "pricing-page-faq.md"], [fileMark("csv"), "competitor-prices.csv"]], { left: 536, top: 82, w: 660 }),
     }),
   },
   {
     title: "Files without the sidebar",
-    note: "The toggle at the left of the top row folds the places away, and the listing takes the width.",
+    note: "The toggle at the row's left folds the places away, and the listing and the row take the width.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ side: false, pick: 6 }) }),
+  },
+  {
+    title: "File beside its folder",
+    note: "Opening a file puts it beside its folder, which narrows to a column, and the row splits at the column's edge with the file's own controls over it.",
+    body: appWindow({ on: "files", bar: winBar({ tabs: [{ file: "comparison" }] }), body: fileBeside() }),
+  },
+  // ---- Browser, New tab, Apps, release notes -----------------------------------------------
+  {
+    title: "Browser",
+    note: "With no page open, Browser is the omnibar over Bookmarks and Recent pages.",
+    body: appWindow({ on: "browser", bar: winBar({ tabs: [{ browser: true }] }), body: browserHome() }),
+  },
+  {
+    title: "Browser page",
+    note: "A page fills the card under its location row: reload, the omnibar across the row with the host quiet and the open-in icon at its end, Ask and the page's menu.",
+    body: appWindow({ on: "browser", bar: winBar({ tabs: [{ chats: true }, { site: "g2" }], active: 1 }), body: placeCard({ tab: { site: "g2" } }) }),
+  },
+  {
+    title: "Browser omnibar",
+    note: "Typing an address or words offers a web search first, then suggestions, in a panel as wide as the field.",
     body: appWindow({
-      on: "files",
-      bar: winBar({ tabs: [{ folder: "Instrument" }], active: 0 }),
-      body: filesPlace({
-        top: filesTop({ crumbs: ["mac-user", "Instrument"] }),
-        side: "",
-        head: finderHeader({ title: "Instrument", views: finderViews("list") }),
-        body: finderListView(
-          FINDER_FILES.map(([k, n]) => [
-            k,
-            n,
-            "Oct 8, 2026 at 9:41 AM",
-            k === "folder" ? "--" : "24 KB",
-            k === "folder" ? "Folder" : "text/" + k,
-          ]),
-        ),
-      }),
+      on: "browser",
+      bar: winBar({ tabs: [{ browser: true }] }),
+      body: browserHome({ omni: { typed: "zen" } }),
+      over: omniMenu([[searchMark, "Search the web for “zen”"], [searchMark, "zendesk"], [searchMark, "zendesk pricing"], [searchMark, "zendesk suite team"], [SITES.zendesk.mark(), "Suite plans · Zendesk", "zendesk.com"]], { left: 86, top: 82, w: 1178 }),
     }),
   },
   {
-    title: "File open",
-    note: "A file opened from the Finder takes the tab, its type's mark leads the omnibar and the app it opens in ends it, its controls sit at the right of the top row, and its folder stands beside it as a tree in place of the places.",
-    body: appWindow({
-      on: "files",
-      bar: winBar({ tabs: [{ file: "comparison" }], active: 0 }),
-      body: filesPlace({
-        top: filesTop({
-          crumbs: ["mac-user", "Instrument", "pricing-comparison.html"],
-          mark: fileMark("html", "text-[14px]"),
-          open: "html",
-          right: fileActions(),
-        }),
-        side: fileTree(
-          [
-            [0, "folder", "Instrument"],
-            ...FINDER_FILES.map(([k, n]) => [1, k, n]),
-          ],
-          { on: "pricing-comparison.html" },
-        ),
-        body: page({ file: "comparison" }),
-      }),
-    }),
+    title: "Page menu",
+    note: "The page's menu holds bookmarks, printing, finding and saving, and the developer's tools.",
+    body: appWindow({ on: "browser", bar: winBar({ tabs: [{ chats: true }, { site: "zendesk" }], active: 1 }), body: placeCard({ tab: { site: "zendesk" } }), over: pageMenu() }),
   },
   {
     title: "New tab",
-    note: "A new window tab opens on a greeting over the command menu, already open, so you can go anywhere or start something from the keyboard.",
-    body: appWindow({
-      on: "",
-      bar: winBar({ tabs: [{ chats: true }, { newtab: true }], active: 1 }),
-      body: newTabPage(),
-    }),
+    note: "A new window tab opens on a greeting over the command menu's list, open in place.",
+    body: appWindow({ on: "", bar: winBar({ tabs: [{ chats: true }, { newtab: true }], active: 1 }), body: newTabPage() }),
+  },
+  {
+    title: "Command menu",
+    note: "⌘K brings the same list up over whatever is open.",
+    body: appWindow({ bar: chatBar, body: running(), over: commandMenu() }),
   },
   {
     title: "Apps",
-    note: "Apps with nothing open lists the popular services under a search that also takes any service's name.",
+    note: "Apps with nothing open lists the popular services in two columns, each with Connect.",
+    body: appWindow({ on: "apps", bar: winBar({ tabs: [{ chats: true }, { apps: true }], active: 1 }), body: appsPlace() }),
+  },
+  {
+    title: "Release notes",
+    note: "What's new opens on the newest version in full, with older versions folded to their first line.",
+    body: appWindow({ on: "", bar: winBar({ tabs: [{ notes: true }] }), body: releaseNotes() }),
+  },
+  // ---- Settings, Feedback and the overlays -------------------------------------------------
+  {
+    title: "Settings",
+    note: "Settings opens as a large sheet with the search and tabs down its left, and each tab's sections over white cards of rows.",
+    body: appWindow({ bar: chatBar, body: running(), over: settingsSheet() }),
+  },
+  {
+    title: "Settings providers",
+    note: "Providers leads with Instrument, then the AI subscriptions someone may already pay for.",
+    body: appWindow({ bar: chatBar, body: running(), over: settingsSheet({ on: "Providers", body: settingsProviders() }) }),
+  },
+  {
+    title: "Settings permissions",
+    note: "Permissions lists each folder with how Instrument answers when a chat asks for it.",
+    body: appWindow({ bar: chatBar, body: running(), over: settingsSheet({ on: "Permissions", body: settingsPermissions() }) }),
+  },
+  {
+    title: "Settings memory",
+    note: "Memory with nothing in it offers to bring in what another AI already knows.",
+    body: appWindow({ bar: chatBar, body: running(), over: settingsSheet({ on: "Memory", body: settingsMemory() }) }),
+  },
+  {
+    title: "Send feedback",
+    note: "Feedback lists everything that goes with it, and picking an item shows exactly what it holds before you send.",
+    body: appWindow({ bar: chatBar, body: running(), over: feedbackDialog() }),
+  },
+  {
+    title: "Dialog and toast",
+    note: "A dialog asks over the dimmed window with its buttons at the foot, and a toast says what just happened at the bottom left.",
     body: appWindow({
-      on: "apps",
-      bar: winBar({
-        tabs: [{ chats: true }, { title: "Apps", apps: true }],
-        active: 1,
-      }),
-      body: appsPlace({ connected: ["Gmail"] }),
+      bar: chatBar,
+      body: running(),
+      over:
+        dialog({ title: "Delete this chat?", line: "This chat and the tasks it started move to your Trash, where you can restore them. Files they saved to your own folders stay where they are.", buttons: button("Cancel", { tone: "outline" }) + button("Delete", { tone: "destructive" }) }) +
+        toast("Archived", { action: "Undo" }),
     }),
   },
   {
-    title: "Browser home",
-    note: "Browser with no page open is the omnibar over your bookmarks and the pages you visited lately.",
+    title: "Chat menu",
+    note: "Right-clicking a row opens the chat's menu, which shares one shape with every menu in the window: rows with their icons, rules between groups, and a caret for a submenu.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, hover: 1 }) + thread({ working: "Reading plans on zendesk.com" }), over: chatMenu({ left: 210, top: 210, starred: true }) }),
+  },
+  // ---- a chat -----------------------------------------------------------------------
+  {
+    title: "Chat with pane",
+    note: "The chat's tiles sit in a row over the reply box, and the one open in the pane beside the chat is ringed.",
     body: appWindow({
-      on: "browser",
-      bar: winBar({ tabs: [{ chats: true }, { browser: true }], active: 1 }),
-      body: browserHome(),
+      bar: chatBar,
+      body:
+        inboxCol({ on: 0, w: 280 }) +
+        thread({ body: pricing(3), tiles: chatTiles([{ file: "comparison" }, { file: "prices" }, { site: "zendesk", agent: true }], 0) }) +
+        paneCard({ tab: { file: "comparison" } }),
     }),
   },
   {
-    title: "Browser",
-    note: "A website opens as a window tab and fills the card, with reload at the left of its row since the bar holds the tab's back and forward.",
+    title: "Permission card",
+    note: "When the agent needs a folder, it asks on a card over the reply box, and the cards waiting behind it stack under it.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread({ head: waitingHead, foot: permissionCard({ more: 1 }) }) }),
+  },
+  {
+    title: "Question card",
+    note: "When the agent needs a choice, it asks on a card with the choices as radio rows and room to write your own.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread({ head: waitingHead, foot: questionCard({ steps: ["Team size", "Billing", "Competitors", "Review"] }) }) }),
+  },
+  {
+    title: "Status popover",
+    note: "Pressing the line under a chat's title opens a short list of its tasks, running ones first.",
     body: appWindow({
-      on: "browser",
-      bar: winBar({ tabs: [{ chats: true }, { site: "g2" }], active: 1 }),
-      body: placeCard({ tab: { site: "g2" } }),
+      bar: chatBar,
+      body:
+        inboxCol({ on: 0 }) +
+        thread({
+          working: "Reading plans on zendesk.com",
+          body: turnMeta() + you("How does our pricing compare with Zendesk, Intercom and Freshdesk?") + stepRow("Opening the pricing pages", { icon: "globe" }) + stepRow("Reading plans on zendesk.com", { icon: "globe" }) + agent("It's going well: I'm reading each pricing page and noting what every tier includes."),
+        }),
+      over: statusPop([["Running", [["Competitor pricing pages", "2m"]]], ["Finished", [["Our plan prices from the site", "6m", true]]]], { left: 860, top: 98 }),
     }),
   },
   {
@@ -193,135 +289,41 @@ const states = [
     note: "A chat popped out from its header docks 420 pixels wide at the bottom right like a draft, over whichever place is open.",
     body: appWindow({
       on: "files",
-      bar: winBar({
-        tabs: [{ chats: true }, { folder: "Instrument" }],
-        active: 1,
-      }),
+      bar: winBar({ tabs: [{ chats: true }, { folder: "Instrument" }], active: 1 }),
       body: finder(),
-      over: smallChat({
-        tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }],
-        working: "Reading plans on zendesk.com",
-      }),
+      over: smallChat({ tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }], working: "Reading plans on zendesk.com" }),
     }),
   },
   {
     title: "Floating chat with tile preview",
-    note: "Pressing a tile in the floating chat opens it in a card over the conversation and rings the tile. Expand makes the window bigger with the tile still open, and × closes the card.",
+    note: "Pressing a tile in the floating chat opens it in a card over the conversation and rings the tile.",
     body: appWindow({
       on: "files",
-      bar: winBar({
-        tabs: [{ chats: true }, { folder: "Instrument" }],
-        active: 1,
-      }),
+      bar: winBar({ tabs: [{ chats: true }, { folder: "Instrument" }], active: 1 }),
       body: finder(),
-      over: smallChat({
-        tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }],
-        peek: 0,
-      }),
+      over: smallChat({ tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }], peek: 0 }),
     }),
   },
   {
-    title: "File beside its folder",
-    note: "Double-clicking a file in List or Grid opens it beside its folder, which narrows to a column in the places' spot, and the row splits at the folder's edge.",
-    body: appWindow({
-      on: "files",
-      bar: winBar({ tabs: [{ file: "comparison" }] }),
-      body: fileBeside({
-        folder: "Help desk pricing against competitors",
-        rows: [
-          ["folder", "attachments", "9:40 AM"],
-          ["md", "CHAT.md", "10:12 AM"],
-          ["csv", "competitor-prices.csv", "9:52 AM"],
-          ["html", "pricing-comparison.html", "9:58 AM"],
-          ["md", "pricing-page-faq.md", "10:06 AM"],
-        ],
-        pick: 3,
-      }),
-    }),
-  },
-  {
-    title: "Chat in the dark theme",
-    note: "The window takes the dark theme from `dark`, which flips every token the kit draws with.",
-    body: appWindow({
-      dark: true,
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0 }) +
-        thread({ working: "Reading plans on zendesk.com" }),
-    }),
-  },
-  {
-    title: "Floating chat expanded",
-    note: "Expand on a floating chat puts the floating window away and brings the chat up in a window tab of its own, the one already showing it or a new one.",
-    body: appWindow({
-      bar: winBar({
-        tabs: [{ folder: "Instrument" }, { chats: true, title: PRICING_TITLE }],
-        active: 1,
-      }),
-      body:
-        inboxCol({ on: 0 }) +
-        thread({ working: "Reading plans on zendesk.com" }),
-    }),
-  },
-  {
-    title: "Status popover",
-    note: "Pressing the line under a chat's title opens a short list of its tasks, running ones first.",
-    body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0 }) +
-        thread({
-          working: "Reading plans on zendesk.com",
-          body:
-            turnMeta() +
-            you(
-              "How does our pricing compare with Zendesk, Intercom and Freshdesk?",
-            ) +
-            stepRow("Opening the pricing pages", { icon: "globe" }) +
-            stepRow("Reading plans on zendesk.com", { icon: "globe" }) +
-            agent(
-              "It's going well: I'm reading each pricing page and noting what every tier includes.",
-            ),
-        }),
-      over: statusPop(
-        [
-          ["Running", [["Competitor pricing pages", "2m"]]],
-          ["Finished", [["Our plan prices from the site", "6m", true]]],
-        ],
-        { left: 860, top: 98 },
-      ),
-    }),
+    title: "Draft",
+    note: "A new chat opens a compose window docked at the bottom right, with the model, the mic and send in its head, and Browser, This Mac and Apps under the words.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread(), over: composeWin() }),
   },
   {
     title: "Draft with a browser",
     note: "Pressing Browser in a draft sets up a browser for the agent in a stone tray under the words, with its own tabs and address bar.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
+      bar: chatBar,
       body: inboxCol({ on: 0 }) + thread(),
       over: `<div class="absolute bottom-0 z-40 flex w-[600px] flex-col rounded-t-2xl border border-b-0 border-border bg-card shadow-2xl" style="right:20px;height:600px"><div class="flex h-12 shrink-0 items-center px-4 text-[13px] font-medium">New chat</div><div class="px-4 pb-3"><span class="inline-flex h-7 items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-[12px] text-foreground/70"><i class="ph ph-globe"></i>Browser<i class="ph ph-x text-[11px]"></i></span></div><div class="h-20 px-4 text-[15px] text-gray-400">What do you need?</div><div class="mx-2 min-h-0 flex-1">${agentTray({ tabs: [{ site: "zendesk" }] })}</div></div>`,
-    }),
-  },
-  {
-    title: "Draft",
-    note: "A new chat opens a compose window docked at the bottom right. The model picker and send button are in its header, and below the text we offer Browser, This Mac and Apps, plus a place to drop files.",
-    body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body: inboxCol({ on: 0 }) + thread(),
-      over: composeWin(),
     }),
   },
   {
     title: "Reply box with plus menu",
     note: "When the chosen model has a problem, the open reply box leads with a notice about it, and the plus menu is where you pick another model.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body:
-        inboxCol({ on: 0 }) +
-        thread({
-          replyEl: replyBoxOpen({
-            extras: modelProblem("No models available"),
-          }),
-        }),
+      bar: chatBar,
+      body: inboxCol({ on: 0 }) + thread({ replyEl: replyBoxOpen({ extras: modelProblem("No models available") }) }),
       over: plusMenu({ left: 462, top: 452, w: 744 }),
     }),
   },
@@ -330,36 +332,14 @@ const states = [
     note: "The picker opens on the connection holding the chosen model. While Auto is all Instrument offers, we draw it centered with its one button.",
     w: PICKER_W,
     h: PICKER_H,
-    body: pickerCrop(
-      modelPicker({
-        open: "instrument",
-        held: "instrument",
-        list: pickerAutoOnly({ on: true }),
-      }),
-    ),
+    body: pickerCrop(modelPicker({ open: "instrument", held: "instrument", list: pickerAutoOnly({ on: true }) })),
   },
   {
-    title: "Menu and sheet",
-    note: "The window uses two kinds of overlay, a popover menu and a sheet over the dimmed window.",
-    body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-      body: inboxCol({ on: 0 }) + thread(),
-      over:
-        menu(
-          [
-            [`<i class="ph ph-star"></i>`, "Star"],
-            [`<i class="ph ph-pencil-simple"></i>`, "Rename"],
-            "rule",
-            [`<i class="ph ph-trash"></i>`, "Delete chat…"],
-          ],
-          { left: 560, top: 92 },
-        ) +
-        sheet(
-          `<div class="p-6 text-[15px] font-semibold">A sheet</div><div class="space-y-2 px-6">${bars2("70%", "52%", "60%")}</div>`,
-          { w: 520, h: 300 },
-        ),
-    }),
+    title: "Chat in the dark theme",
+    note: "The window takes the dark theme from `dark`, which flips every token the kit draws with.",
+    body: appWindow({ dark: true, bar: chatBar, body: running() }),
   },
+  // ---- setup, and outside the window ----------------------------------------------------
   {
     title: "Setup sign-in",
     note: "Setup fills the app window at its own 1080x720, and this is the step a new person signs in on.",
@@ -370,37 +350,16 @@ const states = [
     title: "Desktop",
     note: "We show the window at 80% on a Mac, with the menu bar and the Dock around it.",
     ...D,
-    body: macDesktop({
-      windows: placed(
-        appWindow({
-          bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
-          body: inboxCol({ on: 0 }) + thread(),
-        }),
-        { left: 120, top: 70 },
-      ),
-    }),
+    body: macDesktop({ windows: placed(appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread() }), { left: 120, top: 70 }) }),
   },
   {
     title: "Menu bar extra",
     note: "Instrument's icon sits with the other status items in the menu bar, and its panel stays open while another app is in front.",
     ...D,
     body: macDesktop({
-      bar: menuBar({
-        app: "Mail",
-        menus: ["File", "Edit", "View", "Mailbox", "Message"],
-        extra: true,
-        lit: true,
-      }),
-      windows: placed(finderWindow(), {
-        left: 140,
-        top: 110,
-        w: 900,
-        h: 560,
-        scale: 1,
-      }),
-      over: menuBarPanel(
-        `<div class="flex h-11 items-center gap-2 border-b border-black/10 px-3 text-[13px] font-medium">${brandMark("size-5")}Instrument</div><div class="flex-1 space-y-2 p-3">${row(ROWS[0], { first: true })}${row(ROWS[1])}</div><div class="p-2.5">${replyBox()}</div>`,
-      ),
+      bar: menuBar({ app: "Mail", menus: ["File", "Edit", "View", "Mailbox", "Message"], extra: true, lit: true }),
+      windows: placed(finderWindow(), { left: 140, top: 110, w: 900, h: 560, scale: 1 }),
+      over: menuBarPanel(`<div class="flex h-11 items-center gap-2 border-b border-black/10 px-3 text-[13px] font-medium">${brandMark("size-5")}Instrument</div><div class="flex-1 space-y-2 p-3">${row(ROWS[0])}${row(ROWS[1])}</div><div class="p-2.5">${replyBox()}</div>`),
     }),
   },
   {
@@ -408,21 +367,9 @@ const states = [
     note: "Instrument's notifications show up as a banner over whatever app is in front.",
     ...D,
     body: macDesktop({
-      bar: menuBar({
-        app: "Finder",
-        menus: ["File", "Edit", "View", "Go", "Window", "Help"],
-      }),
-      windows: placed(finderWindow(), {
-        left: 140,
-        top: 110,
-        w: 900,
-        h: 560,
-        scale: 1,
-      }),
-      over: macNotification({
-        sub: PRICING_TITLE,
-        body: "The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team.",
-      }),
+      bar: menuBar({ app: "Finder", menus: ["File", "Edit", "View", "Go", "Window", "Help"] }),
+      windows: placed(finderWindow(), { left: 140, top: 110, w: 900, h: 560, scale: 1 }),
+      over: macNotification({ sub: PRICING_TITLE, body: "The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team." }),
     }),
   },
   {
@@ -430,34 +377,9 @@ const states = [
     note: "Right-clicking one of the user's own files opens the Mac's menu, so we draw macOS here rather than Studio.",
     ...D,
     body: macDesktop({
-      bar: menuBar({
-        app: "Finder",
-        menus: ["File", "Edit", "View", "Go", "Window", "Help"],
-      }),
-      windows: placed(finderWindow({ pick: 2 }), {
-        left: 140,
-        top: 110,
-        w: 900,
-        h: 560,
-        scale: 1,
-      }),
-      over: contextMenu(
-        [
-          "Open",
-          ["Open With", { sub: true }],
-          "rule",
-          "Move to Trash",
-          "rule",
-          "Get Info",
-          "Rename",
-          "Quick Look",
-          "rule",
-          ["Share…", { sub: true }],
-          "rule",
-          ["Quick Actions", { sub: true }],
-        ],
-        { left: 520, top: 300 },
-      ),
+      bar: menuBar({ app: "Finder", menus: ["File", "Edit", "View", "Go", "Window", "Help"] }),
+      windows: placed(finderWindow({ pick: 2 }), { left: 140, top: 110, w: 900, h: 560, scale: 1 }),
+      over: contextMenu(["Open", ["Open With", { sub: true }], "rule", "Move to Trash", "rule", "Get Info", "Rename", "Quick Look", "rule", ["Share…", { sub: true }], "rule", ["Quick Actions", { sub: true }]], { left: 520, top: 300 }),
     }),
   },
   {
@@ -465,18 +387,7 @@ const states = [
     note: "This is the first thing people see before they install, in their own browser.",
     ...D,
     body: macDesktop({
-      bar: menuBar({
-        app: "Safari",
-        menus: [
-          "File",
-          "Edit",
-          "View",
-          "History",
-          "Bookmarks",
-          "Window",
-          "Help",
-        ],
-      }),
+      bar: menuBar({ app: "Safari", menus: ["File", "Edit", "View", "History", "Bookmarks", "Window", "Help"] }),
       windows: placed(
         browserWindow({
           body: `<div class="flex h-full flex-col items-center justify-center gap-5 bg-[#fcfbf8] text-center">${brandMark("size-16")}<div class="font-serif text-[40px] leading-tight font-medium tracking-tight">Instrument</div><div class="space-y-2">${bars2("420px", "360px")}</div><span class="mt-2 flex h-10 items-center gap-2 rounded-full bg-brand-600 px-5 text-[14px] font-medium text-white"><i class="ph ph-apple-logo"></i>Download for Mac</span></div>`,

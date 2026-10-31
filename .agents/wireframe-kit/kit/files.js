@@ -1,213 +1,189 @@
-// Files, measured off the documents fixture (2026-10-10) at 1240x840. The card opens on
-// a 40px top row: the sidebar toggle, the omnibar centered across the card (640 wide)
-// ending in the pill that opens what is shown in its Mac app, and the open file's
-// own controls at the right. Under it a folder gets the 175px sidebar of places and the
-// Finder's 48px header; a file gets the 240px tree of its folder in place of the places.
+// ---- Files ------------------------------------------------------------------------
+// The Files place (files-screen.tsx, extend/file-system.tsx), re-measured 2026-10-31 at
+// 1280x800. One 40px row and no header: the sidebar toggle over the 175px places, the
+// four views (Grid, Table, Columns, List), sort, more and search as ringed 32px buttons,
+// the omnibar across the rest, then Ask. A file opens beside its folder, the folder
+// narrowed to a 300px column of its own. Rows are 24px in Table, stripes running down
+// the whole pane; the picked row is filled in brand-500.
 
+/** The views as Files names them, in its picker's order: [key, label, icon]. */
+const FILE_VIEWS = [
+  ["icons", "Grid", "grid-four"],
+  ["table", "Table", "list-bullets"],
+  ["columns", "Columns", "columns"],
+  ["list", "List", "rows"],
+];
 
-const toolBtn = (inner, cls = "") =>
-  `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-1 rounded-lg bg-card px-2 text-muted-foreground ring-1 ring-border ${cls}">${inner}</span>`;
+/** The view picker: a grey well with the four views, the one shown raised white. `extra` adds views a proposal brings, as [key, label, icon]. */
+const filesViews = (view = "table", extra = []) =>
+  `<span class="flex h-8 shrink-0 items-center rounded-lg bg-foreground/8 p-0.5">${[...FILE_VIEWS, ...extra]
+    .map(
+      ([k, , i]) =>
+        `<span class="grid h-7 w-9 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-foreground/60"}"><i class="ph ph-${i} text-[16px]"></i></span>`,
+    )
+    .join("")}</span>`;
 
-/** Files' top row. `mark` leads the omnibar (a folder, or the open file's type), `crumbs` are its path, `open` the kind whose Mac app the open-in pill at its end wears (openIn), `right` the open file's controls (fileActions). */
-const filesTop = ({
-  crumbs = ["mac-user"],
-  mark = fileMark("folder", "text-[15px]"),
-  open = "folder",
-  right = "",
-  left = "",
+/** A ringed 32px button on the row, as Files draws sort, more and search. */
+const filesBtn = (inner) =>
+  `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-0.5 rounded-lg bg-card px-1.5 text-foreground/70 ring-1 ring-border">${inner}</span>`;
+
+/**
+ * Files' one 40px row (files-screen.tsx): over the places (`side`, or folded) the sidebar
+ * toggle; then the views, sort, more and search; the omnibar across the rest (`crumbs`
+ * the folder's path, `fold` the crumbs folded into ···, `omni` any other omnibar
+ * option: focus, typed); then Ask. `search` (the words, or true for an empty field)
+ * draws the search open: a ringed field in place of the views and buttons. `narrow`
+ * drops Ask's word and the sort caret, for a pane.
+ */
+const filesRow = ({
+  crumbs = ["mac-user", "Instrument"],
+  fold = 0,
+  view = "table",
+  side = true,
+  narrow = false,
+  search,
+  omni = {},
 } = {}) => `
-  <div class="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-border px-2">
-    <div class="flex items-center gap-1"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span>${left}</div>
-    <div class="flex h-8 w-[640px] min-w-0 items-center gap-2 rounded-full border border-border bg-card px-3 text-[13px] shadow-xs">
-      ${mark}${crumbs.map((c, i) => `<span class="truncate ${i === crumbs.length - 1 ? "text-foreground" : "text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right text-[10px] text-muted-foreground"></i>`)}
-      <span class="flex-1"></span>${openIn(open)}
-    </div>
-    <div class="flex items-center justify-end gap-1">${right}</div>
+  <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-1.5">
+    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span></div>
+    ${
+      search !== undefined && search !== false
+        ? `<span class="ml-0.5 flex h-8 w-[228px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card px-2.5 text-[13px] shadow-xs ring-2 ring-foreground/15"><i class="ph ph-magnifying-glass text-[14px] text-muted-foreground"></i><span class="min-w-0 flex-1 truncate ${search === true ? "text-muted-foreground" : ""}">${search === true ? "Search" : search}</span>${search === true ? "" : `<i class="ph ph-x-circle text-[14px] text-muted-foreground"></i>`}</span>`
+        : `<span class="ml-0.5">${filesViews(view)}</span>${filesBtn(`<i class="ph ph-arrows-down-up text-[16px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[9px] text-muted-foreground"></i>`}`)}${filesBtn(`<i class="ph ph-dots-three text-[16px]"></i>`)}${filesBtn(`<i class="ph ph-magnifying-glass text-[16px]"></i>`)}`
+    }
+    ${omnibar({ folder: crumbs[crumbs.length - 1] }, { crumbs, fold, size: 8, ...omni })}
+    ${filesBtn(`${brand("instrumentglyph", "size-4")}${narrow ? "" : `<span class="pr-1 pl-1 text-[13px] font-medium text-foreground">Ask</span>`}`)}
   </div>`;
 
-/** The open file's controls in the top row: Viewing (or Editing), Ask and its menu. A file filling a window tab has no Expand; `expand` draws it for one that does not. */
-const fileActions = ({ editing = false, ask = "Ask", expand = false } = {}) => `
-  <span class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] ${editing ? "bg-foreground text-background" : "text-muted-foreground"}"><i class="ph ph-${editing ? "pencil-simple" : "eye"} text-[15px]"></i>${editing ? "Editing" : "Viewing"}<i class="ph ph-caret-down text-[10px]"></i></span>
-  <span class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium">${brand("instrumentglyph", "size-4")}${ask}</span>
-  <span class="grid size-8 place-items-center text-muted-foreground"><i class="ph ph-dots-three-vertical text-[16px]"></i></span>
-  ${expand ? `<span class="grid size-8 place-items-center text-muted-foreground"><i class="ph ph-arrows-out-simple text-[15px]"></i></span>` : ""}`;
-
-/** The Finder's sidebar of places: Recents and the Instrument folder, then the folders the person pinned (`places`) and the Locations. `starred` adds a Starred place over Recents. */
+/**
+ * The 175px places (sidebar-places.ts): Recents and the Instrument folder in its teal,
+ * then Pinned (the home folder and the folders the person pinned, `places`), then
+ * Locations (This Mac, iCloud Drive, the disks). `on` is the place shown; `starred` adds
+ * a Starred place over Recents.
+ */
 const finderSidebar = ({
-  on = "mac-user",
+  on = "Instrument",
   starred = false,
   places = ["mac-user", "Desktop", "Documents", "Downloads"],
+  disks = ["Macintosh HD"],
 } = {}) => {
   const item = (icon, name) =>
     `<div class="flex h-7 items-center gap-2 rounded-lg px-2 ${name === on ? "bg-foreground/8" : ""}">${icon}<span class="truncate">${name}</span></div>`;
-  const placeIcon = (n) =>
-    n === "Instrument"
-      ? fileMark(
-          "folder",
-          "text-[15px] [&_path:first-child]:fill-[#5fae9c] [&_path:last-child]:stroke-[#3f9d8a]",
-        )
-      : n === "mac-user"
-        ? `<i class="ph ph-house shrink-0 text-[15px] text-muted-foreground"></i>`
-        : fileMark("folder", "text-[15px]");
+  const icon = (i) => `<i class="ph ph-${i} shrink-0 text-[15px] text-muted-foreground"></i>`;
+  const placeIcon = (n) => (n === "mac-user" ? icon("house") : fileMark("folder", "text-[15px]"));
   return `
   <div class="w-[175px] shrink-0 border-r border-border px-2 pt-2 text-[13px]">
-    ${starred ? item(`<i class="ph ph-star shrink-0 text-[15px] text-muted-foreground"></i>`, "Starred") : ""}
-    ${item(`<i class="ph ph-clock-counter-clockwise shrink-0 text-[15px] text-muted-foreground"></i>`, "Recents")}
-    ${item(placeIcon("Instrument"), "Instrument")}
+    ${starred ? item(icon("star"), "Starred") : ""}
+    ${item(icon("clock-counter-clockwise"), "Recents")}
+    ${item(fileMark("output", "text-[15px]"), "Instrument")}
     <div class="px-2 pt-3 pb-1 text-[12px] text-muted-foreground">Pinned</div>
     ${places.map((n) => item(placeIcon(n), n)).join("")}
     <div class="px-2 pt-3 pb-1 text-[12px] text-muted-foreground">Locations</div>
-    ${item(`<i class="ph ph-cloud shrink-0 text-[15px] text-muted-foreground"></i>`, "iCloud Drive")}
-    ${item(`<i class="ph ph-hard-drive shrink-0 text-[15px] text-muted-foreground"></i>`, "Macintosh HD")}
+    ${item(icon("desktop"), "This Mac")}
+    ${item(icon("cloud"), "iCloud Drive")}
+    ${disks.map((d) => item(icon("hard-drive"), d)).join("")}
   </div>`;
 };
 
-/** The view picker: Grid, List, Columns, and any `extra` views a proposal adds as [key, icon]. */
-const finderViews = (view = "columns", extra = []) =>
-  `<span class="flex h-8 items-center rounded-lg bg-foreground/8 p-0.5">${[["icons", "ph-squares-four"], ["list", "ph-rows"], ["columns", "ph-columns"], ...extra].map(([k, i]) => `<span class="grid h-7 w-8 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"}"><i class="ph ${i} text-[15px]"></i></span>`).join("")}</span>`;
+/** A row's fill: the picked one in brand-500 with white ink, else every other row a faint stripe. */
+const rowFill = (i, pick) => (i === pick ? "bg-brand-500 text-white" : i % 2 ? "bg-foreground/[0.035]" : "");
 
-/** The Finder's 48px header: the folder's name, then Ask, the views, sort, filter, more and search. */
-const finderHeader = ({
-  title = "mac-user",
-  views = finderViews(),
-  ask = "Ask",
-} = {}) => `
-  <div class="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-3">
-    <span class="min-w-0 flex-1 truncate text-[15px] font-semibold">${title}</span>
-    ${toolBtn(`${brand("instrumentglyph", "size-4")}<span class="text-[13px] font-medium text-foreground">${ask}</span>`, "px-2.5")}
-    ${views}
-    ${toolBtn(`<i class="ph ph-arrows-down-up text-[15px]"></i><i class="ph ph-caret-down text-[9px]"></i>`)}
-    ${toolBtn(`<i class="ph ph-funnel-simple text-[15px]"></i>`)}
-    ${toolBtn(`<i class="ph ph-dots-three text-[15px]"></i>`)}
-    ${toolBtn(`<i class="ph ph-magnifying-glass text-[15px]"></i>`)}
-  </div>`;
+/** Empty stripes running on down the pane under a listing, the way Table draws its rows to the foot. */
+const stripes = (from, count, h = "h-6") =>
+  Array.from({ length: count }, (_, j) => `<div class="mx-1 ${h} rounded-md ${(from + j) % 2 ? "bg-foreground/[0.035]" : ""}"></div>`).join("");
 
-/** The Finder's list view: Name, Date Modified, Size and Kind over 24px striped rows, a folder led by its disclosure caret, the picked row filled in the brand color. Rows are [kind, name, modified, size, kindText]. `cols` false keeps only Name, for a narrow pane. */
-const finderListView = (rows, { pick = -1, cols = true } = {}) => {
-  const tpl = cols ? "1fr 170px 70px 150px" : "1fr";
+/**
+ * Table: Name, Date Modified, Size and Kind over 24px striped rows, a folder led by its
+ * disclosure caret, the stripes running to the pane's foot (`fill` rows of them).
+ * Rows are [kind, name, modified, size] (FOLDER_ROWS); `pick` is the picked row, `cols`
+ * false keeps only Name, for a narrow pane.
+ */
+const finderTable = (rows = FOLDER_ROWS, { pick = -1, cols = true, fill = 18 } = {}) => {
+  const tpl = cols ? "1fr 176px 90px 140px" : "1fr";
   return `
   <div class="text-[13px]">
-    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:${tpl}"><span class="pl-6 font-medium text-foreground">Name <i class="ph ph-caret-up text-[9px]"></i></span>${cols ? `<span class="border-l border-border pl-2">Date Modified</span><span class="border-l border-border pr-2 text-right">Size</span><span class="border-l border-border pl-3">Kind</span>` : ""}</div>
-    ${rows.map(([k, n, d, sz, kt], i) => `<div class="mx-1 grid h-6 items-center rounded-md px-2 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:${tpl}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span>${cols ? `<span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="truncate pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span>` : ""}</div>`).join("")}
+    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:${tpl}"><span class="pl-6 font-medium text-foreground">Name <i class="ph ph-caret-up text-[9px]"></i></span>${cols ? `<span class="border-l border-border pl-2">Date Modified</span><span class="border-l border-border pr-2 text-right">Size</span><span class="border-l border-border pl-2">Kind</span>` : ""}</div>
+    <div class="pt-0.5">
+    ${rows
+      .map(([k, n, d, sz], i) => {
+        const dim = i === pick ? "" : "text-muted-foreground";
+        return `<div class="mx-1 grid h-6 items-center rounded-md px-2 ${rowFill(i, pick)}" style="grid-template-columns:${tpl}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${dim}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span>${cols ? `<span class="${dim}">${d}</span><span class="pr-2 text-right ${dim}">${sz}</span><span class="truncate pl-2 ${dim}">${KIND_TEXT[k]}</span>` : ""}</div>`;
+      })
+      .join("")}
+    ${stripes(rows.length, fill)}
+    </div>
   </div>`;
 };
 
-/** A file's folder as the tree beside it: 240px, 24px rows, the open file in the brand color. Rows are [depth, kind, name]. */
-const fileTree = (rows, { on = "" } = {}) => `
-  <div class="w-[240px] shrink-0 overflow-hidden border-r border-border px-1.5 py-1 text-[13px]">
-    ${rows.map(([d, k, n]) => `<div class="flex h-6 items-center gap-1.5 rounded-md pr-2 ${n === on ? "bg-brand-600 text-white" : ""}" style="padding-left:${8 + d * 16}px">${k === "folder" ? `<i class="ph ph-caret-${d === 0 ? "down" : "right"} text-[10px] ${n === on ? "" : "text-muted-foreground"}"></i>` : `<span class="w-2.5"></span>`}${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}
-  </div>`;
+/** A file's picture on a small white page: the page itself where the kit has one (PAGES), else grey bars. `w` is the page's width in px, 3:4. */
+const fileThumb = (name, { w = 30 } = {}) => {
+  const key = Object.keys(FILES).find((k) => FILES[k].title === name);
+  const h = Math.round((w * 4) / 3);
+  const inner =
+    key && PAGES[key]
+      ? `<div class="absolute top-0 left-0 origin-top-left" style="width:400px;height:533px;transform:scale(${w / 400})">${PAGES[key]()}</div>`
+      : `<div class="space-y-[2px] p-[3px]">${["70%", "45%", "60%"].map((x) => `<div class="h-px bg-gray-300" style="width:${x}"></div>`).join("")}</div>`;
+  return `<span class="relative block shrink-0 overflow-hidden rounded-[2px] bg-white shadow-xs ring-1 ring-black/10" style="width:${w}px;height:${h}px">${inner}</span>`;
+};
 
 /**
- * Files' one 40px row, as main draws it (measured 2026-10-27): over the places (`side`,
- * 175px, or folded) the sidebar toggle; then the views, and sort, more and search as
- * 32px buttons on the card's white with a hairline ring; then the
- * omnibar across the rest, a folder (or `mark`) leading the path and the open-in pill at
- * its end; then Ask, a ringed button like the others. There is no header under it. `narrow` drops Ask's word and the sort
- * caret, for a pane.
+ * List: a 52px row per item, a folder's big mark and name, a file's picture with its title
+ * over its mark and name (a file with no title says its name over its kind), and the
+ * modified time at the right, striped and rounded like Table's rows.
  */
-const filesRow = ({
-  crumbs = ["mac-user"],
-  mark = fileMark("folder", "text-[15px]"),
-  open = "folder",
-  view = "list",
-  side = true,
-  narrow = false,
-} = {}) => {
-  const btn = (inner, ring = true) =>
-    `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 text-foreground/70 ${ring ? "bg-card ring-1 ring-border" : ""}">${inner}</span>`;
-  return `
-  <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-1.5">
-    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span></div>
-    <span class="ml-0.5 flex h-8 shrink-0 items-center rounded-lg bg-foreground/8 p-0.5">${[
-      ["icons", "ph-squares-four"],
-      ["list", "ph-rows"],
-      ["columns", "ph-columns"],
-    ]
+const finderList = (rows = FOLDER_ROWS, { pick = -1 } = {}) => `
+  <div class="flex flex-col gap-0.5 p-1 text-[13px]">
+    ${rows
+      .map(([k, n, d, , title], i) => {
+        const dim = i === pick ? "text-white/80" : "text-muted-foreground";
+        const face =
+          k === "folder"
+            ? `<span class="grid w-[30px] shrink-0 place-items-center">${fileMark("folder", "text-[28px]")}</span><span class="min-w-0 flex-1 truncate text-[14px]">${n}</span>`
+            : `${fileThumb(n)}<span class="flex min-w-0 flex-1 flex-col"><span class="truncate text-[14px]">${title || n}</span><span class="flex items-center gap-1 text-[12px] ${dim}">${fileMark(k, "text-[12px]")}<span class="truncate">${title ? n : KIND_TEXT[k]}</span></span></span>`;
+        return `<div class="flex h-[50px] items-center gap-3 rounded-md px-2 ${rowFill(i, pick)}">${face}<span class="shrink-0 text-[13px] ${dim}">${d}</span></div>`;
+      })
+      .join("")}
+  </div>`;
+
+/** Grid: a tile per item, the folder's mark or the file's picture over its name in two lines. */
+const finderGrid = (rows = FOLDER_ROWS, { pick = -1 } = {}) => `
+  <div class="flex flex-wrap content-start gap-x-1 gap-y-3 p-3 text-[12px]">
+    ${rows
       .map(
-        ([k, i]) =>
-          `<span class="grid h-7 w-9 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-foreground/60"}"><i class="ph ${i} text-[16px]"></i></span>`,
+        ([k, n], i) =>
+          `<div class="flex w-[107px] flex-col items-center gap-1.5 text-center"><span class="grid h-[68px] w-[84px] place-items-center rounded-lg ${i === pick ? "bg-foreground/8 ring-2 ring-foreground/15" : ""}">${k === "folder" ? fileMark("folder", "text-[58px]") : fileThumb(n, { w: 48 })}</span><span class="line-clamp-2 max-w-full rounded px-1 leading-4 break-words ${i === pick ? "bg-brand-500 text-white" : ""}">${n}</span></div>`,
       )
-      .join("")}</span>
-    ${btn(`<i class="ph ph-arrows-down-up text-[16px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[9px] text-muted-foreground"></i>`}`)}${btn(`<i class="ph ph-dots-three text-[16px]"></i>`)}${btn(`<i class="ph ph-magnifying-glass text-[16px]"></i>`)}
-    <div class="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card pr-1.5 pl-3 text-[13px]">
-      ${mark}${crumbs.map((c, i) => `<span class="${i === crumbs.length - 1 ? "shrink-0 text-foreground" : "min-w-0 truncate text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right shrink-0 text-[9px] text-muted-foreground/60"></i>`)}
-      <span class="flex-1"></span>${openIn(open)}
-    </div>
-    ${btn(`${brand("instrumentglyph", "size-4")}${narrow ? "" : `<span class="pr-1 pl-1 text-[13px] font-medium text-foreground">Ask</span>`}`)}
+      .join("")}
   </div>`;
-};
-
-/** The count Files shows under a folder's listing, on a 24px foot. */
-const filesFoot = (n) =>
-  `<div class="flex h-6 shrink-0 items-center justify-center border-t border-border text-[11px] text-muted-foreground">${n} ${n === 1 ? "item" : "items"}</div>`;
 
 /**
- * A file open beside its folder in Files, as main draws it (measured 2026-10-16): the
- * folder narrowed to a 300px column in its own layout (`view` "list": Name and Modified
- * over striped rows; "icons": two columns of pictures with names under them), the
- * picked file filled in the brand color; the row split at the column's edge, the
- * folder's name as a menu, the view and sort menus and search over the folder, then
- * the toggle that folds the folder away just past the edge, the file's omnibar (its
- * mark and path, the open-in pill), Ask, more and × over the file. `rows` are [kind, name, modified]; `pick` the open file's index;
- * `file` a FILES key or a tab for the body; `crumbs` the path the omnibar names. `w` is
- * the folder column's width, `folded` hides it.
+ * Columns: a 240px column per folder along the path, 28px rows, a folder's chevron at its
+ * end; `cols` are [{ rows, pick }] (rows as FOLDER_ROWS'), and `preview` puts a file's
+ * picture and Information after the last column.
  */
-const fileBeside = ({
-  folder = "work",
-  rows = [],
-  pick = 0,
-  view = "list",
-  file = "comparison",
-  crumbs,
-  w = 300,
-  folded = false,
-  close = true,
-  body,
-} = {}) => {
-  const f = FILES[file] ? { file } : file;
-  const kind = f.file ? FILES[f.file].kind : "html";
-  const path = crumbs ?? [folder, tabTitle(f)];
-  const ico = (i) =>
-    `<span class="flex h-7 shrink-0 items-center gap-0.5 rounded-lg px-1.5 text-muted-foreground ring-1 ring-border"><i class="ph ${i} text-[15px]"></i><i class="ph ph-caret-down text-[9px]"></i></span>`;
-  const list = rows
-    .map(
-      ([k, n, d], i) =>
-        `<div class="mx-1 grid h-6 grid-cols-[1fr_70px] items-center rounded-md px-2 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span><span class="${i === pick ? "" : "text-muted-foreground"}">${d || ""}</span></div>`,
-    )
-    .join("");
-  const grid = `<div class="grid grid-cols-2 gap-x-2 gap-y-3 p-3">${rows
-    .map(
-      ([k, n], i) =>
-        `<div class="flex flex-col items-center gap-1.5 text-center"><span class="grid h-16 w-14 place-items-center ${k === "folder" ? "" : "rounded-sm bg-white shadow-xs ring-1 ring-border"} ${i === pick ? "outline-4 outline-foreground/10" : ""}">${k === "folder" ? `<i class="ph ph-folder text-[52px] text-[#4a9ff5]"></i>` : fileMark(k, "text-[20px]")}</span><span class="line-clamp-2 max-w-full rounded px-1 text-[12px] leading-4 break-all ${i === pick ? "bg-brand-600 text-white" : ""}">${n}</span></div>`,
-    )
-    .join("")}</div>`;
-  return `
-  <div class="flex min-w-0 flex-1 flex-col">
-    <div class="flex h-10 shrink-0 items-center border-b border-border">
-      ${
-        folded
-          ? ""
-          : `<div class="flex h-full shrink-0 items-center gap-1 border-r border-border px-1.5" style="width:${w}px"><span class="flex h-7 min-w-0 items-center gap-1 rounded-md px-1 text-[13px] font-medium">${fileMark("folder", "text-[15px]")}<span class="truncate">${folder}</span><i class="ph ph-caret-down text-[9px] text-muted-foreground"></i></span><span class="flex-1"></span>${ico(view === "icons" ? "ph-squares-four" : "ph-rows")}${ico("ph-arrows-down-up")}<span class="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground ring-1 ring-border"><i class="ph ph-magnifying-glass text-[14px]"></i></span></div>`
-      }
-      <div class="flex min-w-0 flex-1 items-center gap-1 px-1.5">
-        <span class="grid size-7 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-sidebar-simple text-[16px]"></i></span>
-        <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card pr-1 pl-2.5 text-[12px]">${fileMark(kind)}${path.map((c, i) => `<span class="${i === path.length - 1 ? "shrink-0 text-foreground" : "min-w-0 truncate text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right shrink-0 text-[9px] text-muted-foreground/60"></i>`)}<span class="flex-1"></span>${openIn(kind)}</div>
-        <span class="flex h-7 shrink-0 items-center gap-1.5 px-1.5 text-[12px] font-medium text-foreground/80">${brand("instrumentglyph", "size-4")}Ask</span>
-        <span class="grid size-7 place-items-center text-muted-foreground"><i class="ph ph-dots-three-vertical text-[16px]"></i></span>
-        ${close ? `<span class="grid size-7 place-items-center text-muted-foreground"><i class="ph ph-x text-[16px]"></i></span>` : ""}
-      </div>
-    </div>
-    <div class="flex min-h-0 flex-1">
-      ${folded ? "" : `<div class="shrink-0 overflow-hidden border-r border-border bg-foreground/[0.015] text-[13px]" style="width:${w}px">${view === "icons" ? grid : `<div class="grid h-7 grid-cols-[1fr_70px] items-center border-b border-border px-3 text-[12px] text-muted-foreground"><span class="pl-4">Name <i class="ph ph-caret-up text-[9px]"></i></span><span>Modified</span></div>${list}`}</div>`}
-      <div class="relative min-w-0 flex-1 overflow-hidden">${body ?? page(f)}</div>
-    </div>
+const finderColumns = (cols = [{ rows: FOLDER_ROWS }], { preview = "" } = {}) => `
+  <div class="flex h-full text-[13px]">
+    ${cols
+      .map(
+        ({ rows, pick = -1 }) => `
+      <div class="w-[240px] shrink-0 border-r border-border p-1">${rows
+        .map(
+          ([k, n], i) =>
+            `<div class="flex h-7 items-center gap-2 rounded-md px-2 ${i === pick ? "bg-brand-500 text-white" : ""}">${fileMark(k, "text-[14px]")}<span class="min-w-0 flex-1 truncate">${n}</span>${k === "folder" ? `<i class="ph ph-caret-right text-[11px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : ""}</div>`,
+        )
+        .join("")}</div>`,
+      )
+      .join("")}
+    ${preview ? `<div class="flex min-w-0 flex-1 flex-col items-center px-8 pt-4 text-center">${fileThumb(preview, { w: 300 })}<div class="mt-4 text-[14px] font-medium">${preview}</div><div class="text-[12px] text-muted-foreground">${KIND_TEXT[(FOLDER_ROWS.find((r) => r[1] === preview) || ["html"])[0]]} - 40 KB</div><div class="mt-5 w-full max-w-[580px] border-t border-border pt-3 text-left text-[12px]"><div class="mb-1 font-medium">Information</div><div class="flex justify-between text-muted-foreground"><span>Created</span><span>Oct 31, 2026 at 9:52 AM</span></div><div class="flex justify-between text-muted-foreground"><span>Modified</span><span>Today at 9:58 AM</span></div></div></div>` : ""}
   </div>`;
-};
 
-/** Files filling the card: its top row, then `side` (finderSidebar, fileTree, or nothing), then `head` over `body`. */
+/** The count Files shows under a listing, on a 24px foot: how many, or how many of them are picked. */
+const filesFoot = (n, { picked = 0 } = {}) =>
+  `<div class="flex h-6 shrink-0 items-center justify-center border-t border-border text-[11px] text-muted-foreground">${picked ? `${picked} of ${n} selected` : `${n} ${n === 1 ? "item" : "items"}`}</div>`;
+
+/** Files filling the card: its row, then `side` (finderSidebar, or nothing when folded), then `head` over `body` over `foot`. */
 const filesPlace = ({
-  top = filesTop(),
+  top = filesRow(),
   side = finderSidebar(),
   head = "",
   body = "",
@@ -221,25 +197,104 @@ const filesPlace = ({
     </div>
   </div>`;
 
-/** The Finder as Files opens it on the Instrument folder, in list view. */
-const finder = ({ pick = -1 } = {}) =>
+/**
+ * Files open on the Instrument folder, as built: `view` (icons | table | columns |
+ * list), `pick` a row picked, `side` false folds the places, `search` opens the search
+ * (see filesRow), `omni` the omnibar's options, `rows` another folder's rows.
+ */
+const finder = ({ view = "table", pick = -1, side = true, search, omni = {}, rows = FOLDER_ROWS, crumbs = ["mac-user", "Instrument"] } = {}) =>
   filesPlace({
-    top: filesRow({ crumbs: ["mac-user", "Instrument"] }),
-    side: finderSidebar({ on: "Instrument" }),
-    body: finderListView(
-      FINDER_FILES.map(([k, n], i) => [
-        k,
-        n,
-        `Oct ${8 - (i % 5)}, 2026 at ${9 + (i % 4)}:${10 + i * 5} AM`,
-        k === "folder" ? "--" : `${12 + i * 7} KB`,
-        {
-          folder: "Folder",
-          html: "HTML Document",
-          md: "Markdown Document",
-          csv: "CSV Document",
-        }[k],
-      ]),
-      { pick },
-    ),
-    foot: filesFoot(FINDER_FILES.length),
+    top: filesRow({ crumbs, view, side, search, omni }),
+    side: side ? finderSidebar({ on: crumbs[crumbs.length - 1] }) : "",
+    body:
+      view === "list"
+        ? finderList(rows, { pick })
+        : view === "icons"
+          ? finderGrid(rows, { pick })
+          : view === "columns"
+            ? finderColumns([{ rows, pick }], { preview: pick >= 0 && rows[pick][0] !== "folder" ? rows[pick][1] : "" })
+            : finderTable(rows, { pick }),
+    foot: filesFoot(rows.length, { picked: pick >= 0 ? 1 : 0 }),
   });
+
+/** The sort menu (Sort by, Group by, Show hidden files), hung from the sort button. */
+const sortMenu = ({ sort = "Name", group = "None", left = 282, top = 84 } = {}) =>
+  menu(
+    [
+      { head: "Sort by" },
+      ...["Name", "Kind", "Date created", "Date modified", "Size"].map((l) => ({ label: l, dot: l === sort })),
+      "rule",
+      { head: "Group by" },
+      ...["None", "Kind", "Date modified", "Date created", "Size"].map((l) => ({ label: l, dot: l === group })),
+      "rule",
+      { label: "Show hidden files" },
+    ],
+    { left, top, w: 176 },
+  );
+
+/** The search's Show only menu: the kinds the folder has, each with its mark. */
+const kindMenu = ({ kinds = ["folder", "html", "md", "csv"], left = 256, top = 84 } = {}) =>
+  menu([{ head: "Show only" }, ...kinds.map((k) => ({ icon: fileMark(k, "text-[14px]"), label: k === "folder" ? "Folder" : KIND_TEXT[k] }))], { left, top, w: 226 });
+
+/**
+ * A file open beside its folder (files-screen.tsx), as built: the folder narrowed to a
+ * 300px column (`view` table: Name and Modified over striped rows; icons: two columns of
+ * pictures), the picked file in brand-500, and its count at the column's foot; the row
+ * split at the column's edge, the folder's name as a menu, the view and sort menus and
+ * search over the folder, then the fold toggle and reload, the file's omnibar, Viewing
+ * (or Editing), Ask, more and × over the file. `rows` are FOLDER_ROWS-shaped; `pick` the
+ * open file's index; `file` a FILES key or a tab for the body; `crumbs` the omnibar's
+ * path; `fold` folds its crumbs; `folded` hides the column; `editing` lights Editing.
+ */
+const fileBeside = ({
+  folder = "Instrument",
+  rows = FOLDER_ROWS,
+  pick = 6,
+  view = "table",
+  file = "comparison",
+  crumbs,
+  fold = 0,
+  w = 300,
+  folded = false,
+  close = true,
+  editing = false,
+  body,
+} = {}) => {
+  const f = FILES[file] ? { file } : file;
+  const path = crumbs ?? ["mac-user", folder, tabTitle(f)];
+  const ico = (i) =>
+    `<span class="flex h-7 shrink-0 items-center gap-0.5 rounded-lg bg-card px-1.5 text-foreground/70 ring-1 ring-border"><i class="ph ${i} text-[15px]"></i><i class="ph ph-caret-down text-[9px] text-muted-foreground"></i></span>`;
+  const btn = (i) => `<span class="grid size-7 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-${i} text-[16px]"></i></span>`;
+  const list = `<div class="grid h-7 grid-cols-[1fr_80px] items-center border-b border-border px-3 text-[12px] text-muted-foreground"><span class="pl-4 font-medium text-foreground">Name <i class="ph ph-caret-up text-[9px]"></i></span><span class="border-l border-border pl-2">Modified</span></div><div class="pt-0.5">${rows
+    .map(
+      ([k, n, d], i) =>
+        `<div class="mx-1 grid h-6 grid-cols-[1fr_72px] items-center rounded-md px-2 ${rowFill(i, pick)}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span><span class="${i === pick ? "" : "text-muted-foreground"}">${(d || "").replace(/^.* at /, "")}</span></div>`,
+    )
+    .join("")}${stripes(rows.length, 18)}</div>`;
+  const grid = `<div class="grid grid-cols-2 gap-x-2 gap-y-3 p-3">${rows
+    .map(
+      ([k, n], i) =>
+        `<div class="flex flex-col items-center gap-1.5 text-center"><span class="grid h-16 w-14 place-items-center">${k === "folder" ? fileMark("folder", "text-[52px]") : fileThumb(n, { w: 44 })}</span><span class="line-clamp-2 max-w-full rounded px-1 text-[12px] leading-4 break-words ${i === pick ? "bg-brand-500 text-white" : ""}">${n}</span></div>`,
+    )
+    .join("")}</div>`;
+  return `
+  <div class="flex min-w-0 flex-1 flex-col">
+    <div class="flex h-10 shrink-0 items-center border-b border-border">
+      ${
+        folded
+          ? ""
+          : `<div class="flex h-full shrink-0 items-center gap-1 border-r border-border px-1.5" style="width:${w}px"><span class="flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium">${fileMark("folder", "text-[15px]")}<span class="truncate">${folder}</span><i class="ph ph-caret-down text-[10px] text-muted-foreground"></i></span><span class="flex-1"></span>${ico(view === "icons" ? "ph-grid-four" : "ph-list-bullets")}${ico("ph-arrows-down-up")}<span class="grid size-7 shrink-0 place-items-center rounded-lg bg-card text-foreground/70 ring-1 ring-border"><i class="ph ph-magnifying-glass text-[14px]"></i></span></div>`
+      }
+      <div class="flex min-w-0 flex-1 items-center gap-1 px-1.5">
+        ${btn("sidebar-simple")}${btn("arrow-clockwise")}
+        ${omnibar(f, { crumbs: path, fold })}
+        <span class="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] ${editing ? "bg-foreground text-background" : "text-muted-foreground"}"><i class="ph ph-${editing ? "pencil-simple" : "eye"} text-[15px]"></i>${editing ? "Editing" : "Viewing"}<i class="ph ph-caret-down text-[10px]"></i></span>
+        ${askButton(true)}${btn("dots-three-vertical")}${close ? btn("x") : ""}
+      </div>
+    </div>
+    <div class="flex min-h-0 flex-1">
+      ${folded ? "" : `<div class="flex shrink-0 flex-col border-r border-border text-[13px]" style="width:${w}px"><div class="min-h-0 flex-1 overflow-hidden">${view === "icons" ? grid : list}</div>${filesFoot(rows.length, { picked: pick >= 0 ? 1 : 0 })}</div>`}
+      <div class="relative min-w-0 flex-1 overflow-hidden bg-white">${body ?? page(f)}</div>
+    </div>
+  </div>`;
+};

@@ -19,6 +19,7 @@ export const SKILL =
 export const KIT_FILES = [
   "brands.js",
   "marks.js",
+  "controls.js",
   "scenario.js",
   "window.js",
   "inbox.js",
@@ -31,6 +32,7 @@ export const KIT_FILES = [
   "compose.js",
   "picker.js",
   "overlays.js",
+  "settings.js",
   "setup.js",
   "mac.js",
 ];

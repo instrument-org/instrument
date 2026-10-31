@@ -1,24 +1,36 @@
-// ---- a chat --------------------------------------------------------------------
+// ---- a chat ---------------------------------------------------------------------
+// A chat beside the inbox (chat-screen.tsx): its head, transcript, tiles, pane and reply
+// box, and the cards that sit over the box. The transcript's look is under active
+// redesign, so these stay deliberately plain: draw a proposal's own transcript with
+// `thread({ body })` rather than growing these.
 
 /**
- * The chat header, as chat-header.tsx draws it: 56px, three columns with the outer two
- * equally wide so the title stands in the middle. At the left the inbox toggle; in the
- * middle the title with its caret (which opens the chat's menu) and, under it, the one
- * line saying where the chat's work stands (`line`, from statusLine), its only loading
- * state, which also opens the chat's tasks; at the right the pop-out glyph, then `right`.
+ * The chat header (chat-header.tsx): 56px, three columns with the outer two equally wide
+ * (`side`, 96 by default; widen it when `right` needs the room) so the title stands in
+ * the middle. At the left the inbox toggle, or `left`; in the middle the title with its
+ * caret (the chat's menu) and, under it, the one line saying where the chat's work
+ * stands (`line`, from statusLine), which also opens its tasks; at the right the pop-out,
+ * then `right`. `align: "left"` stands the title at the left after the toggle instead.
+ * `topic` (a TOPICS name) puts the chat's topic pill after its title.
  */
-const threadHead = (title, { right = "", line = "" } = {}) => `
-  <div class="grid h-14 shrink-0 grid-cols-[96px_minmax(0,1fr)_96px] items-start gap-x-2 bg-background px-3 pt-2">
-    <div class="flex h-8 items-center"><span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
-    <div class="flex min-w-0 flex-col items-center">
-      <span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
-      <div class="-mt-1 flex h-4 max-w-full min-w-0 justify-center">${line}</div>
-    </div>
-    <div class="flex h-8 items-center justify-end gap-x-1">
-      <span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-picture-in-picture text-[16px]"></i></span>
-      ${right}
-    </div>
+const threadHead = (title, { right = "", line = "", left, side = 96, align = "center", popOut = true, topic = "" } = {}) => {
+  const toggle = left ?? `<span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-sidebar-simple text-[16px]"></i></span>`;
+  const name = `<span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i>${topic ? `<span class="ml-1">${topicPill(topic, { quiet: false })}</span>` : ""}</span>`;
+  const ends = `${popOut ? `<span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-picture-in-picture text-[16px]"></i></span>` : ""}${right}`;
+  if (align === "left")
+    return `
+  <div class="flex h-14 shrink-0 items-start gap-2 bg-background px-3 pt-2">
+    <div class="flex h-8 items-center">${toggle}</div>
+    <div class="flex min-w-0 flex-1 flex-col items-start">${name}<div class="-mt-1 flex h-4 max-w-full min-w-0">${line}</div></div>
+    <div class="flex h-8 items-center justify-end gap-x-1">${ends}</div>
   </div>`;
+  return `
+  <div class="grid h-14 shrink-0 items-start gap-x-2 bg-background px-3 pt-2" style="grid-template-columns:${side}px minmax(0,1fr) ${side}px">
+    <div class="flex h-8 items-center">${toggle}</div>
+    <div class="flex min-w-0 flex-col items-center">${name}<div class="-mt-1 flex h-4 max-w-full min-w-0 justify-center">${line}</div></div>
+    <div class="flex h-8 items-center justify-end gap-x-1">${ends}</div>
+  </div>`;
+};
 
 /** The line under a chat's title (chat-status-line.tsx), 12px: while it works the planning dot and the step in the shimmer; `tone` "done" for the muted check, "wait" for the amber question, "failed" for the red warning. */
 const statusLine = (text, { tone = "run" } = {}) => {
@@ -63,15 +75,17 @@ const pageRow = (site) => `
 /** The plus that opens the reply box's menu: a 28px round on the stone ground. */
 const plusButton = `<span class="grid size-7 shrink-0 place-items-center rounded-full bg-gray-100"><i class="ph ph-plus text-[16px] text-foreground/60"></i></span>`;
 
+/** The mic and the send arrow at the reply box's end. */
+const replyEnds = `<span class="grid size-7 shrink-0 place-items-center text-foreground/55"><i class="ph ph-microphone text-[16px]"></i></span><span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>`;
+
+/** The reply box: the plus, the words (or "Talk to Instrument"), the mic and the arrow. */
 const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
   <div class="flex items-center gap-2 rounded-[22px] bg-[light-dark(#ffffff,#262624)] p-1.5 shadow-sm">
     ${plusButton}
     <span class="flex-1 truncate text-[13px] ${text ? "" : "text-gray-400"}">${text || ph}</span>
-    <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>
+    ${replyEnds}
   </div>`;
 
-
-/** A chat column: header (the step under the title while `working` names one), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
   title = PRICING_TITLE,
   body = pricing(2),
@@ -81,10 +95,12 @@ const thread = ({
   foot = "",
   reply = {},
   replyEl = "",
+  stick = "top",
+  topic = "",
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
-    ${head || threadHead(title, { line: working ? statusLine(working) : "" })}
-    <div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
+    ${head || threadHead(title, { line: working ? statusLine(working) : "", topic })}
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden ${stick === "bottom" ? "justify-end" : ""}"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
     <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${foot}${replyEl || replyBox(reply)}</div>
   </div>`;
 
@@ -142,3 +158,39 @@ const statusPop = (groups, { left, top, w = 320 } = {}) => `
 /** A step row in the transcript as built: a pale slate band with a dashed blue rule at its left, the tool's glyph in a small box, the step, and the eye that shows its detail. `icon` is a Phosphor name (terminal-window for a command, globe for a page). */
 const stepRow = (text, { icon = "terminal-window", done = false } = {}) =>
   `<div class="flex h-7 items-center gap-2 rounded-r-md border-l-2 border-dashed border-blue-300 bg-slate-100/80 pr-2 pl-2 text-[13px] text-muted-foreground"><span class="grid size-5 place-items-center rounded bg-slate-200/70"><i class="ph ph-${done ? "check-circle" : icon} text-[12px]"></i></span><span class="min-w-0 flex-1 truncate">${text}</span><i class="ph ph-eye text-[14px] text-blue-400"></i></div>`;
+
+/**
+ * A permission card over the reply box (permission-asks.tsx): "Can Instrument use this
+ * folder?" (`kind` folder | app | tab) over what it asks for in a muted well (`name`,
+ * `path`), then Allow in this chat, Always allow and Don't allow. `more` draws the
+ * cards waiting behind it and "1 of n".
+ */
+const permissionCard = ({ kind = "folder", name = "Documents", path = "mac-user › Documents", more = 0 } = {}) => `
+  <div class="relative mb-2 ${more ? "pb-2" : ""}">
+    ${more > 1 ? `<div class="absolute inset-x-6 bottom-0 h-6 rounded-b-2xl border border-border bg-card/70"></div>` : ""}${more ? `<div class="absolute inset-x-3 bottom-1 h-6 rounded-b-2xl border border-border bg-card shadow-xs"></div>` : ""}
+    <div class="relative rounded-2xl border border-border bg-card p-3 shadow-xs">
+      <div class="flex items-start justify-between gap-3"><p class="text-sm font-medium">Can Instrument use this ${kind}?</p>${more ? `<span class="text-xs text-muted-foreground">1 of ${more + 1}</span>` : ""}</div>
+      <div class="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2"><span class="grid size-8 shrink-0 place-items-center">${kind === "folder" ? fileMark("folder", "text-[22px]") : kind === "tab" ? `<i class="ph ph-globe text-[20px] text-muted-foreground"></i>` : brand("gmail", "size-5")}</span><span class="flex min-w-0 flex-1 flex-col"><span class="truncate text-sm">${name}</span>${path ? `<span class="truncate text-xs text-muted-foreground">${path}</span>` : ""}</span></div>
+      <div class="mt-3 flex items-center gap-2">${kind === "tab" ? button("Move tab here", { tone: "brand", size: "sm" }) : button("Allow in this chat", { tone: "brand", size: "sm" }) + button("Always allow", { tone: "outline", size: "sm" })}<span class="ml-auto">${button(kind === "tab" ? "Skip" : "Don’t allow", { tone: "ghost", size: "sm", cls: "text-muted-foreground" })}</span></div>
+    </div>
+  </div>`;
+
+/**
+ * The question card the agent's choose call draws (debug/components/question): the
+ * question, its choices as radio rows (a choice is a label or [label, line]), "Something
+ * else..." to write your own, then Add a note, Skip and Send. `pick` is the chosen
+ * index; `steps` (labels) draws the tabs of several questions over it, `step` the one up.
+ */
+const questionCard = ({ question = "Which team size should I compare prices at?", choices = [["10 agents", "Where most of your customers are"], ["25 agents", "Where Zendesk's tiers change"], "50 agents"], pick = -1, steps = [], step = 0 } = {}) => `
+  <div class="mb-2 rounded-2xl bg-card p-4 shadow-xs ring-1 ring-border">
+    ${steps.length ? `<div class="-mx-2 -mt-2 mb-3 flex items-center gap-1 border-b border-border pb-2 text-[13px]">${steps.map((l, i) => `<span class="rounded-md px-2 py-1 ${i === step ? "bg-foreground/6 font-medium" : "text-muted-foreground"}">${l === "Review" ? "" : `<span class="mr-1.5 text-muted-foreground">${i + 1}</span>`}${l}</span>`).join("")}</div>` : ""}
+    <p class="mb-2 text-sm font-medium">${question}</p>
+    ${choices
+      .map((c, i) => {
+        const [label, line] = Array.isArray(c) ? c : [c, ""];
+        return `<div class="flex items-start gap-3 py-1.5">${radio(i === pick)}<span class="-mt-0.5 flex flex-col"><span class="text-sm">${label}</span>${line ? `<span class="text-xs text-muted-foreground">${line}</span>` : ""}</span></div>`;
+      })
+      .join("")}
+    <div class="flex items-start gap-3 py-1.5">${radio(false)}<span class="-mt-0.5 text-sm text-muted-foreground">Something else...</span></div>
+    <div class="mt-2 flex items-center gap-2 text-[13px]"><span class="flex-1 text-muted-foreground">Add a note</span><span class="text-muted-foreground">Skip</span><span class="flex h-7 items-center gap-1 rounded-lg px-2.5 font-medium text-white ${pick >= 0 ? "bg-brand-600" : "bg-brand-600/45"}">Send<i class="ph ph-arrow-up text-[12px]"></i></span></div>
+  </div>`;

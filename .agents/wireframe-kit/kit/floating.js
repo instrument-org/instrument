@@ -1,4 +1,6 @@
-// ---- floating ------------------------------------------------------------------
+// ---- floating --------------------------------------------------------------------
+// What floats over a place: the popped-out chat (chat-window.tsx), a tile peeked at in it,
+// and the browser tray a draft sets up for the agent.
 
 /** The small view: a chat popped out over whatever place is up, docked like the draft (420x560, 20px from the right, flush to the window's foot), its tiles over its reply box. Its head is the main chat's head (chat-window.tsx renders the same ChatHeader) with nothing at its left: the title and caret centered over the step while `working` names one, then minimize, expand and ×. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
 const smallChat = ({
@@ -59,15 +61,4 @@ const agentTray = ({ tabs = [{ browser: true }], active = 0, body } = {}) => `
       </div>
       <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tabs[active] ?? { newtab: true })}</div>
     </div>
-  </div>`;
-
-
-/** A minimized chat: a 300px dark bar on the bottom edge. */
-const miniBar = ({
-  title = PRICING_TITLE,
-  working = false,
-  right = 12,
-} = {}) => `
-  <div class="absolute bottom-0 z-40 flex h-10 w-[300px] items-center gap-2 rounded-t-xl bg-gray-900 px-3 text-[12px] text-white" style="right:${right}px">
-    ${working ? pulse : `<i class="ph ph-chats-circle"></i>`}<span class="min-w-0 flex-1 truncate">${title}</span><i class="ph ph-caret-up"></i><i class="ph ph-x"></i>
   </div>`;

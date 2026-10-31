@@ -1,4 +1,6 @@
-// ---- inbox ---------------------------------------------------------------------
+// ---- the inbox ------------------------------------------------------------------
+// Chat's list of chats (chat-list.tsx, filter-head.tsx, chat-row.tsx), 320px on the
+// card's grey, and what sits beside it with no chat open. Re-measured 2026-10-31.
 
 /** Chat with none selected: what sits beside the inbox. There is no Home page. */
 const noChatOpen = () => `
@@ -9,7 +11,7 @@ const noChatOpen = () => `
     <span class="mt-5 flex h-8 items-center gap-1.5 rounded-full bg-card pr-1.5 pl-2.5 text-sm font-medium shadow-sm"><i class="ph ph-note-pencil"></i>New chat<span class="ml-0.5 flex h-5 items-center rounded-full bg-black/5 px-1.5 text-[11px] text-muted-foreground ring-1 ring-black/8">⌘N</span></span>
   </div>`;
 
-/** The views the picker names besides Chats, each led by its mark (filter-head.tsx). */
+/** The views the picker names besides Chats, each led by its mark (filter-head.tsx). Drafts is one only while there are drafts. */
 const PLACES = {
   unread: ["Unread", "ph-notification"],
   starred: ["Starred", "ph-star"],
@@ -17,40 +19,75 @@ const PLACES = {
   archived: ["Archived", "ph-archive"],
 };
 
+const topicByName = (name) => TOPICS.find((t) => t.name === name) ?? { name, emoji: "", color: "#007fc3" };
+
+/** A topic's mark (topic-mark.tsx): its emoji on its tint in a rounded square. `size` sm (14), md (16) or lg (44). */
+const topicMark = (topic, size = "md") => {
+  const t = typeof topic === "string" ? topicByName(topic) : topic;
+  const box = { lg: "size-11 rounded-xl text-[22px]", sm: "size-3.5 rounded-sm text-[9px]", md: "size-4 rounded text-[10px]" }[size];
+  return `<span class="inline-grid shrink-0 place-items-center leading-none ${box} bg-(--topic-tint-surface)" style="${topicTint(t.color)}">${t.emoji}</span>`;
+};
+
+/** A topic as a pill no taller than its line (TopicPill): `quiet` is the faint wash a row's corner wears, with the name in the topic's ink. */
+const topicPill = (topic, { quiet = true } = {}) => {
+  const t = typeof topic === "string" ? topicByName(topic) : topic;
+  return `<span class="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-md text-[11px] leading-4 ${quiet ? "bg-(--topic-tint-surface)/40 pr-2 pl-1.5 font-medium text-(--topic-tint-ink)" : "bg-(--topic-tint-surface) pr-1.5 pl-1 text-foreground/90"}" style="${topicTint(t.color)}"><span class="text-[10px]">${t.emoji}</span><span class="truncate">${t.name}</span></span>`;
+};
+
 /**
- * The line over the inbox, as filter-head.tsx draws it, 8px in from the card: the picker
- * naming the view the list stands in, bare on the card (a grey fill only under the pointer
- * or while its menu is up, `open`), Chats alone or a `place` (unread | starred | drafts |
- * archived) led by its mark, its name on the rows' 16px keyline; then the search, a faint
- * grey well that turns into a raised white field once typed into (`search`: the words).
+ * The line over the inbox (filter-head.tsx), 8px in from the card: the picker naming the
+ * view the list stands in, bare on the card (a grey fill only under the pointer or while
+ * its menu is up, `open`): Chats alone, or a `place` (unread | starred | drafts |
+ * archived) or `topic` (a name in TOPICS) led by its face; then the search, a faint grey
+ * well. Typing into it (`search`: the words) folds the picker to its face alone and
+ * raises the field white and ringed, with its clear button. Under a topic the head
+ * wears the topic's tint and its instructions follow on a banner, with Edit topic.
  */
-const inboxHead = ({ place = "", search = "", open = false } = {}) => {
-  const [label, icon] = PLACES[place] ?? ["Chats"];
+const inboxHead = ({ place = "", topic = "", search = "", open = false } = {}) => {
+  const t = topic ? topicByName(topic) : null;
+  const [label, icon] = t ? [t.name, ""] : (PLACES[place] ?? ["Chats", "ph-chat-circle"]);
+  const face = t ? topicMark(t, "md").replace("size-4", "size-5").replace("text-[10px]", "text-[13px]") : `<i class="ph ${icon} text-[20px]"></i>`;
+  const hasFace = Boolean(t || place || search);
+  const picker = search
+    ? `<span class="grid size-9 shrink-0 place-items-center rounded-lg text-foreground/80">${face}</span>`
+    : `<span class="flex h-9 max-w-48 min-w-0 shrink-0 items-center rounded-lg px-2 text-[15px] font-semibold ${open ? "bg-foreground/5 text-foreground" : "text-foreground/80"}">${hasFace ? `<span class="grid size-5 shrink-0 place-items-center">${face}</span><span class="pl-1"></span>` : ""}<span class="truncate">${label}</span><i class="ph ph-caret-down ml-1 shrink-0 text-[14px] opacity-50"></i></span>`;
+  const field = search
+    ? `<div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg bg-card pr-1.5 pl-3 text-sm text-foreground shadow-sm ring-2 ring-foreground/15"><i class="ph ph-magnifying-glass shrink-0 text-[14px] text-muted-foreground"></i><span class="min-w-0 flex-1 truncate">${search}</span><span class="grid size-5 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-x text-[10px]"></i></span></div>`
+    : `<div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg bg-foreground/4 pr-3 pl-3 text-sm text-muted-foreground"><i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i><span class="min-w-0 flex-1 truncate">${t || place ? `Search ${label}` : "Search"}</span></div>`;
+  const banner =
+    t && !search
+      ? `<div class="flex shrink-0 flex-col items-start gap-1 px-4 pb-3 text-sm leading-5">${t.instructions ? `<p class="line-clamp-2 text-foreground/75">${t.instructions}</p>` : ""}<span class="text-[13px] text-foreground/45">Edit topic</span></div>`
+      : "";
   return `
-  <div class="flex items-center gap-1.5 p-2">
-    <span class="flex h-9 shrink-0 items-center rounded-lg px-2 text-[15px] font-semibold ${open ? "bg-foreground/5 text-foreground" : "text-foreground/80"}">${icon ? `<span class="grid size-5 place-items-center"><i class="ph ${icon} text-[20px]"></i></span><span class="pl-1"></span>` : ""}${label}<i class="ph ph-caret-down ml-1 text-[14px] opacity-50"></i></span>
-    <div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg pl-3 text-sm ${search ? "bg-card pr-1.5 text-foreground shadow-sm ring-1 ring-input" : "bg-foreground/4 pr-3 text-muted-foreground"}"><i class="ph ph-magnifying-glass shrink-0 text-[14px] text-muted-foreground"></i><span class="min-w-0 flex-1 truncate">${search || (place ? `Search ${label}` : "Search")}</span>${search ? `<span class="grid size-5 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-x text-[10px]"></i></span>` : ""}</div>
+  <div class="${t ? "bg-(--topic-tint-surface)/60" : ""}" ${t ? `style="${topicTint(t.color)}"` : ""}>
+    <div class="flex items-center gap-1.5 p-2">${picker}${field}</div>
+    ${banner}
   </div>`;
 };
 
 /**
- * The picker's menu, as filter-head.tsx draws it: 256px with 12px corners, 36px rows 2px
- * apart (the view the list stands in on a soft grey, its name in medium), the views with
- * their muted counts, then the topics (`topics`: [{ emoji, name, count }]) and New topic.
- * Place it with `menu`-style absolute positioning through `left`/`top`.
+ * The picker's menu (filter-head.tsx): 256px with 12px corners, 36px rows 2px apart (the
+ * view the list stands in on a soft grey, its name in medium), the views with their
+ * muted counts (Drafts only with `counts.drafts`), then the topics (TOPICS by default,
+ * `[]` for none) and New topic. Place it with `left`/`top` in the window's pixels.
  */
-const viewMenu = ({ on = "", counts = {}, topics = [], left = 8, top = 50 } = {}) => {
+const viewMenu = ({ on = "", counts = {}, topics = TOPICS, left = 84, top = 88 } = {}) => {
   const line = `<div class="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5"></div>`;
   const item = (face, label, { isOn = false, count, muted = false } = {}) => `
     <div class="flex h-9 shrink-0 items-center gap-3 rounded-lg pr-2 pl-2.5 text-sm ${isOn ? "bg-foreground/6 font-medium" : muted ? "text-muted-foreground/70" : ""}">
       <span class="grid size-6 shrink-0 place-items-center ${isOn || muted ? "" : "text-muted-foreground"}">${face}</span>
       <span class="min-w-0 flex-1 truncate">${label}</span>${count ? `<span class="text-xs text-muted-foreground/60 tabular-nums">${count}</span>` : ""}
     </div>`;
-  const views = [["", "Chats", "ph-chat-circle"], ...Object.entries(PLACES).map(([k, [l, i]]) => [k, l, i])];
+  const views = [
+    ["", "Chats", "ph-chat-circle"],
+    ...Object.entries(PLACES)
+      .filter(([k]) => k !== "drafts" || counts.drafts || on === "drafts")
+      .map(([k, [l, i]]) => [k, l, i]),
+  ];
   return `
-  <div class="absolute z-20 flex w-64 flex-col gap-0.5 rounded-xl border border-border bg-popover p-1.5 shadow-lg" style="left:${left}px;top:${top}px">
+  <div class="absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-border bg-popover p-1.5 shadow-lg" style="left:${left}px;top:${top}px">
     ${views.map(([k, l, i]) => item(`<i class="ph ${i} text-[20px]"></i>`, l, { isOn: k === on, count: counts[k] })).join("")}
-    ${topics.length ? line + topics.map((t) => item(`<span class="text-lg leading-none">${t.emoji}</span>`, t.name, { count: t.count })).join("") : ""}
+    ${topics.length ? line + topics.map((t) => item(topicMark(t, "md").replace("size-4", "size-6").replace("text-[10px]", "text-[15px]"), t.name, { isOn: on === t.name, count: t.count })).join("") : ""}
     ${line}${item(`<i class="ph ph-plus-square text-[20px]"></i>`, "New topic", { muted: true })}
   </div>`;
 };
@@ -67,25 +104,40 @@ const holdMarks = (holds = []) =>
     )
     .join("");
 
+/** Words with the part a search matched in the foreground's semibold, the way FuzzyHighlight marks it. */
+const matched = (text, q) => {
+  if (!q) return text;
+  const at = text.toLowerCase().indexOf(q.toLowerCase());
+  return at < 0 ? text : `${text.slice(0, at)}<b class="font-semibold text-foreground">${text.slice(at, at + q.length)}</b>${text.slice(at + q.length)}`;
+};
+
+/** The controls a row shows at its title's end under the pointer (row-action-bar.tsx): file under a topic, pop out, archive, mark unread, star. */
+const ROW_ACTIONS = ["ph-tag", "ph-picture-in-picture", "ph-archive", "ph-notification", "ph-star"];
+
 /**
- * An inbox row, as chat-row.tsx lays it out, three lines every row keeps: the title
- * (semibold only while something in it is unseen) with the star at its end; the agent's
- * latest line (the `step` shimmering while it works, `ask` behind a question mark while it
- * waits on you, otherwise the `preview`); then what it holds, with the time in the corner.
- * Every row has a faint hairline above it, the last one under it too; the open row (`on`)
- * is the card's own white on the list's grey, and `hover` is halfway there, with the row's
- * controls in line at the title's end: tag, archive, unread, star.
+ * An inbox row (chat-row.tsx), three lines every row keeps: the title (semibold only
+ * while something in it is unseen), "Draft" in red after it while a reply waits unsent
+ * (`draft`), and the topic pill (`topic`) and the starred chat's star in the corner; the
+ * agent's latest line (the `step` in the brand's shimmer while it works, `ask` behind a
+ * question mark while it waits on you, otherwise the `preview`); then what it holds,
+ * with the time in the corner. A hairline above every row, under the last one too. `on`
+ * is the open row, the card's own white on the list's grey; `hover` is halfway there,
+ * with the row's controls in place of its pill and star. `search` marks the words a
+ * search matched. `r` may be finished HTML.
  */
-const row = (r, { on = false, last = false, hover = false } = {}) => `
+const row = (r, { on = false, last = false, hover = false, search = "" } = {}) =>
+  typeof r === "string"
+    ? r
+    : `
   <div class="relative flex flex-col border-t border-border/70 bg-clip-padding px-4 py-2.5 ${last ? "border-b" : ""} ${on ? "bg-card" : hover ? "bg-card/50" : ""}">
     <div class="flex h-5 items-center gap-1.5">
-      <span class="min-w-0 flex-1 truncate text-[13px] tracking-[-0.005em] ${r.unread ? "font-semibold" : "font-medium text-foreground/85"}">${r.title}</span>
+      <span class="min-w-0 truncate text-[13px] tracking-[-0.005em] ${r.unread ? "font-semibold" : "font-medium text-foreground/85"}">${matched(r.title, search)}</span>
+      ${r.draft ? `<span class="shrink-0 text-[13px] text-error-700">Draft</span>` : ""}
+      <span class="flex-1"></span>
       ${
         hover
-          ? `<span class="-my-0.5 flex shrink-0 items-center text-foreground/50">${["ph-tag", "ph-archive", "ph-notification", "ph-star"].map((i) => `<span class="grid size-6 place-items-center"><i class="ph ${i} text-[16px] ${i === "ph-star" && r.starred ? "text-warning-500" : ""}"></i></span>`).join("")}</span>`
-          : r.starred
-            ? `<span class="-my-0.5 grid size-6 shrink-0 place-items-center"><i class="ph ph-star text-[16px] text-warning-500"></i></span>`
-            : ""
+          ? `<span class="-my-0.5 flex shrink-0 items-center text-foreground/50">${ROW_ACTIONS.map((i) => `<span class="grid size-6 place-items-center"><i class="ph ${i} text-[16px] ${i === "ph-star" && r.starred ? "text-warning-500" : ""}"></i></span>`).join("")}</span>`
+          : `${r.topic ? topicPill(r.topic) : ""}${r.starred ? `<span class="-my-0.5 grid size-6 shrink-0 place-items-center"><i class="ph ph-star text-[16px] text-warning-500"></i></span>` : ""}`
       }
     </div>
     <div class="flex h-5 min-w-0 items-center gap-1.5 text-[12px]">${
@@ -93,7 +145,7 @@ const row = (r, { on = false, last = false, hover = false } = {}) => `
         ? `<span class="truncate text-brand-600">${r.step}</span>`
         : r.ask
           ? `<i class="ph ph-question shrink-0 text-[14px] text-foreground/80"></i><span class="truncate text-foreground/80">${r.ask}</span>`
-          : `<span class="truncate text-muted-foreground">${r.preview || ""}</span>`
+          : `<span class="truncate text-muted-foreground">${matched(r.preview || "", search)}</span>`
     }</div>
     <div class="mt-1 flex h-5 items-center gap-2">
       <span class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">${holdMarks(r.holds)}</span>
@@ -102,10 +154,10 @@ const row = (r, { on = false, last = false, hover = false } = {}) => `
   </div>`;
 
 /**
- * A draft in the Drafts place, as draft-row.tsx lays it out: a dashed circle in the gutter
- * where a chat wears its state, the first line of its words as the title, when it was last
- * touched at the right, and "Draft" where a chat's latest line goes, then the marks of
- * what it holds (`holds`, as a chat row's) the way a chat row shows them.
+ * A draft in the Drafts place (draft-row.tsx): a dashed circle in the gutter where a chat
+ * wears its state, the first line of its words as the title, when it was last touched at
+ * the right, and "Draft" where a chat's latest line goes, then the marks of what it holds
+ * (`holds`, as a chat row's).
  */
 const draftRow = (d, { last = false } = {}) => `
   <div class="flex gap-2 border-t border-border/70 px-4 py-2.5 ${last ? "border-b" : ""}">
@@ -119,10 +171,12 @@ const draftRow = (d, { last = false } = {}) => `
 /**
  * The inbox column: head, rows, on the card's grey with a faint line at its right edge.
  * `on` is the open row's index (-1 for none), `hover` the row under the pointer. `place`
- * stands it in another view (unread | starred | drafts | archived); `drafts` ([{ title,
- * time, holds }]) stands it in Drafts and lists those instead. `search` types words into
- * the search; `empty` is the line an empty list says (with `rows: []`); `picking` draws
- * the picker pressed, under its `viewMenu`.
+ * stands it in another view (unread | starred | drafts | archived) and `topic` in a
+ * topic (a TOPICS name); `drafts` ([{ title, time, holds }]) stands it in Drafts and lists
+ * those instead. `search` types words into the search and marks them in the rows;
+ * `empty` is the line an empty list says (with `rows: []`); `picking` draws the picker
+ * pressed, under its `viewMenu`. `rows` may mix row objects and finished HTML, and
+ * `before` puts HTML (a proposal's own rows) over them.
  */
 const inboxCol = ({
   on = 0,
@@ -130,20 +184,47 @@ const inboxCol = ({
   w = 320,
   rows = ROWS,
   place = "",
+  topic = "",
   drafts,
   search = "",
   empty = "Press New to start a chat",
   picking = false,
+  before = "",
 } = {}) => `
   <div class="relative flex shrink-0 flex-col bg-background pr-px after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border/70" style="width:${w}px">
-    ${inboxHead({ place: drafts ? "drafts" : place, search, open: picking })}
+    ${inboxHead({ place: drafts ? "drafts" : place, topic, search, open: picking })}
     ${
-      (drafts ?? rows).length === 0
+      (drafts ?? rows).length === 0 && !before
         ? `<div class="grid flex-1 place-items-center px-8 pb-16"><div class="flex flex-col items-center text-center text-[13px]"><span class="mb-3 grid size-11 place-items-center rounded-xl text-muted-foreground/30 inset-ring inset-ring-current/60"><i class="ph ph-chat-circle text-[24px]"></i></span><p class="max-w-56 leading-5 text-balance text-muted-foreground/60">${empty}</p></div></div>`
-        : `<div class="flex flex-col">${
+        : `<div class="flex flex-col">${before}${
             drafts
               ? drafts.map((d, i) => draftRow(d, { last: i === drafts.length - 1 })).join("")
-              : rows.map((r, i) => row(r, { on: i === on, hover: i === hover && i !== on, last: i === rows.length - 1 })).join("")
+              : rows.map((r, i) => row(r, { on: i === on, hover: i === hover && i !== on, last: i === rows.length - 1, search })).join("")
           }</div>`
     }
   </div>`;
+
+/** A chat's menu (chat-row.tsx's right click, and the caret by a chat's title), as built. `starred` and `unread` flip their rows. */
+const chatMenu = ({ left = 120, top = 140, starred = false, unread = false } = {}) =>
+  menu(
+    [
+      { label: "Open" },
+      { icon: "app-window", label: "Open in New Tab" },
+      { icon: "picture-in-picture", label: "Pop Out" },
+      "rule",
+      { icon: "notification", label: unread ? "Mark as read" : "Mark as unread" },
+      { icon: "star", label: starred ? "Unstar" : "Star" },
+      "rule",
+      { icon: "pencil-simple", label: "Rename" },
+      { icon: "tag", label: "Topic", sub: true },
+      "rule",
+      { icon: "folder-simple", label: "Show in Finder" },
+      "rule",
+      { icon: "chat-text", label: "Send feedback…" },
+      "rule",
+      { icon: "archive", label: "Archive" },
+      "rule",
+      { icon: "trash", label: "Delete chat…", danger: true },
+    ],
+    { left, top, w: 220 },
+  );

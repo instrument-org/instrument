@@ -1,8 +1,11 @@
-// ---- New tab and Apps ------------------------------------------------------------
+// ---- New tab, Apps, release notes -------------------------------------------------
+// The places a window tab can stand on besides Chat, Files and Browser: the New tab page
+// (new-tab-page.tsx, the command menu's list in place), Apps (apps-home.tsx) and the
+// release notes (routes/_app/release-notes.tsx). Re-measured 2026-10-31.
 
 /** A command row in the New tab page's list: icon, words, and the shortcut at the right. */
-const cmdRow = (icon, label, keys = "", { on = false } = {}) =>
-  `<div class="flex h-8 items-center gap-2.5 rounded-lg px-3 text-sm ${on ? "bg-foreground/8" : ""}"><i class="ph ph-${icon} text-[15px] text-muted-foreground"></i><span class="flex-1">${label}</span><span class="text-[11px] text-muted-foreground">${keys}</span></div>`;
+const cmdRow = (icon, label, keys = "", { on = false, h = 8 } = {}) =>
+  `<div class="flex ${h === 9 ? "h-9" : "h-8"} items-center gap-2.5 rounded-lg px-3 text-sm ${on ? "bg-foreground/8" : ""}"><i class="ph ph-${icon} text-[15px] text-muted-foreground"></i><span class="flex-1">${label}</span><span class="text-[11px] text-muted-foreground">${keys}</span></div>`;
 
 /** What a new window tab opens on (new-tab-page.tsx): the greeting over the command menu's list, open, with the ⌘K hint under it. `recent` names the recent chats. */
 const newTabPage = ({
@@ -41,5 +44,28 @@ const appsPlace = ({ connected = [] } = {}) => `
           <span class="flex h-8 items-center gap-1.5 rounded-lg bg-card px-2.5 text-[13px] font-medium ring-1 ring-border">${brand("instrumentglyph", "size-3.5")}${connected.includes(name) ? "Open" : "Connect"}</span>
         </div>`,
       ).join("")}
+    </div>
+  </div>`;
+
+/**
+ * The release notes (What's new), as a window tab draws them: the serif title with Check
+ * for updates at its right, a downloaded update's card first (`ready`: the version), then
+ * each version in full on a 152px column of its name and date (the running one says
+ * "Your version"), a rule saying "Before this update" when the app just updated (`fresh`),
+ * and older versions folded to their first line. `versions` are { version, date, summary,
+ * points: [...] , folded } (RELEASES, in scenario.js).
+ */
+const releaseNotes = ({ versions = RELEASES, yours = 0, ready = "", fresh = false } = {}) => `
+  <div class="min-w-0 flex-1 overflow-hidden">
+    <div class="mx-auto w-full max-w-3xl px-8 pt-14">
+      <div class="flex items-center justify-between gap-6 pb-10"><h1 class="font-serif text-3xl leading-10">What's new</h1>${button("Check for updates", { tone: "ghost", size: "sm", cls: "text-muted-foreground" })}</div>
+      ${ready ? `<div class="mb-10 flex items-start gap-3 rounded-xl bg-brand-500/7 p-5"><span class="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-500/15 text-brand-700"><i class="ph ph-arrows-clockwise text-[18px]"></i></span><div class="min-w-0 flex-1"><div class="text-sm font-semibold">${ready} is ready to install</div><div class="mt-1 text-[13px] leading-5 text-foreground/80">Restart to start using it. Your chats pick up where they left off.</div></div>${button("Restart", { tone: "brand", size: "sm" })}</div>` : ""}
+      ${versions
+        .map((v, i) =>
+          v.folded
+            ? `${fresh && !versions[i - 1]?.folded ? `<div class="flex items-center gap-3 pb-4 text-xs text-muted-foreground">Before this update<span class="h-px flex-1 bg-border"></span></div>` : ""}<div class="-mx-3 grid grid-cols-[9.5rem_1fr_auto] items-baseline gap-6 rounded-lg px-3 py-2.5"><span class="flex items-baseline gap-2"><span class="text-sm font-medium whitespace-nowrap">${v.version}</span><span class="text-[13px] whitespace-nowrap text-muted-foreground">${v.date}</span></span><span class="truncate text-[13px] text-foreground/75">${v.summary}</span><i class="ph ph-caret-down text-[13px] text-muted-foreground"></i></div>`
+            : `<section class="grid grid-cols-[9.5rem_1fr] gap-x-6 gap-y-2 ${i ? "border-t border-border/60 pt-6" : ""} pb-10"><div><h2 class="text-base font-semibold">${v.version}</h2><div class="text-[13px] text-muted-foreground">${v.date}${i === yours ? " · Your version" : ""}</div></div><div class="min-w-0"><p class="text-[15px] leading-6">${v.summary}</p>${v.points ? `<ul class="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-foreground/85">${v.points.map((p) => `<li>${p}</li>`).join("")}</ul>` : ""}</div></section>`,
+        )
+        .join("")}
     </div>
   </div>`;

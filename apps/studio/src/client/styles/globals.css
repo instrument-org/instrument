@@ -778,6 +778,18 @@ body {
   }
 }
 
+/* A release's notes, where each section heading sits a step below the
+   version it belongs to and a step above its bullets. Compounded with the
+   prose classes so it outranks the session heading scale above. */
+@utility prose-release-notes {
+  &.prose.prose-custom.prose-session h2 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
 @utility scrollbar-thin {
   scrollbar-width: thin;
 }

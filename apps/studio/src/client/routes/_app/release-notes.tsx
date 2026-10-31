@@ -141,7 +141,7 @@ function Notes({ release }: { release: Release }) {
       {detail && (
         <div
           className={cn(
-            "prose-session prose prose-custom prose-sm wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
+            "prose-session prose-release-notes prose prose-custom prose-sm wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
             release.summary && "mt-2",
           )}
         >
@@ -161,9 +161,9 @@ function Entry({
   yours?: boolean;
 }) {
   return (
-    <section className="grid gap-x-6 gap-y-2 pb-10 @xl/app-content:grid-cols-[9.5rem_1fr]">
-      <div className="flex flex-wrap items-baseline gap-x-2 @xl/app-content:flex-col @xl/app-content:items-start">
-        <h2 className="text-sm font-semibold">
+    <section className="grid gap-x-6 gap-y-2 border-t border-border/60 pt-6 pb-10 first-of-type:border-t-0 first-of-type:pt-0 @xl/app-content:grid-cols-[9.5rem_1fr]">
+      <div className="flex flex-wrap items-baseline gap-x-2 self-start @xl/app-content:sticky @xl/app-content:top-4 @xl/app-content:flex-col @xl/app-content:items-start">
+        <h2 className="text-base font-semibold">
           {versionLabel(release.version)}
         </h2>
         <div className="text-[13px] text-muted-foreground">

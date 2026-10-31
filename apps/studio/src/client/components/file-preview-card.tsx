@@ -10,6 +10,7 @@ import {
 } from "@/client/hooks/use-file-presence";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
+import { readUnknownDuration } from "@/client/lib/media-duration";
 import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { nameOfPath } from "@instrument-org/workspace/client";
@@ -118,13 +119,28 @@ export function FilePreviewCard({
         isMissing={isMissing}
         isPlaying={isPlaying}
         onClick={onClick}
+        // From every durationchange rather than once at loadedmetadata: a
+        // recording that names no length reports Infinity there, and its
+        // length arrives once `readUnknownDuration` has read to its end.
+        onDurationChange={(e) => {
+          const { duration } = e.currentTarget;
+          setVideoDuration(Number.isFinite(duration) ? duration : null);
+        }}
         onLoadedMetadata={(e) => {
-          setVideoDuration(e.currentTarget.duration);
+          readUnknownDuration(e.currentTarget);
         }}
         onTimeUpdate={(e) => {
           const { currentTime, duration } = e.currentTarget;
-          setVideoProgress(duration ? (currentTime / duration) * 100 : 0);
-          setTimeRemaining(duration ? duration - currentTime : null);
+          setVideoProgress(
+            Number.isFinite(duration) && duration > 0
+              ? (currentTime / duration) * 100
+              : 0,
+          );
+          setTimeRemaining(
+            Number.isFinite(duration) && duration > 0
+              ? duration - currentTime
+              : null,
+          );
         }}
         shape={shape}
         timeRemaining={timeRemaining}
@@ -500,6 +516,7 @@ function VideoPreviewCard({
   isMissing,
   isPlaying,
   onClick,
+  onDurationChange,
   onLoadedMetadata,
   onTimeUpdate,
   shape,
@@ -514,6 +531,7 @@ function VideoPreviewCard({
   isMissing?: boolean;
   isPlaying: boolean;
   onClick: () => void;
+  onDurationChange: React.ReactEventHandler<HTMLVideoElement>;
   onLoadedMetadata: React.ReactEventHandler<HTMLVideoElement>;
   onTimeUpdate: React.ReactEventHandler<HTMLVideoElement>;
   shape?: MediaCardShape;
@@ -600,6 +618,7 @@ function VideoPreviewCard({
         className="size-full object-contain"
         loop
         muted
+        onDurationChange={onDurationChange}
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         ref={videoRef}

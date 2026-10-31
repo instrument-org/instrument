@@ -41,6 +41,19 @@ describe("removeInstalledDownload", () => {
   });
 
   it.each([
+    ["Instrument-2.0.0-arm64-mac.zip", "2.0.0-beta.116", false],
+    ["Instrument-2.0.0-x64-mac.zip", "2.0.0-beta.116", false],
+    ["Instrument-2.0.0-arm64-mac.zip", "2.0.0", true],
+    ["Instrument-2.0.0-beta.117-arm64-mac.zip", "2.0.0-beta.117", true],
+  ])(
+    "reads the version past the arch in %s on %s",
+    (fileName, running, removed) => {
+      pendingDownload({ fileName });
+      expect(removeInstalledDownload({ cacheDir, running })).toBe(removed);
+    },
+  );
+
+  it.each([
     ["no version in its name", { fileName: "Instrument-arm64-mac.zip" }],
     ["no name", {}],
   ])("leaves a download with %s", (_, info) => {

@@ -51,9 +51,13 @@ export function removeInstalledDownload({
   } catch {
     return false;
   }
+  // The macOS zip keeps electron-builder's default name,
+  // `Instrument-2.0.0-arm64-mac.zip`, where the arch reads as a prerelease.
   const version =
     typeof fileName === "string"
-      ? /-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-/.exec(fileName)?.[1]
+      ? /-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-/
+          .exec(fileName)?.[1]
+          ?.replace(/-(?:arm64|x64|universal)$/, "")
       : undefined;
   if (!version || !semver.valid(version) || semver.gt(version, running)) {
     return false;

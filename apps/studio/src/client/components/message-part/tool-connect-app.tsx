@@ -13,6 +13,7 @@ import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
 import {
   askedOnCard,
+  type CardRow,
   type ConnectAppResult,
   connectAppResults,
   type ChatId,
@@ -67,7 +68,7 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
         <RemoteSignInCard
           ask={signIn.data}
           chatId={chatId}
-          kind={askedOnCard(part.output)[0]?.kind ?? "sign-in"}
+          rows={askedOnCard(part.output)}
           reason={part.input.reason}
         />
       );
@@ -107,15 +108,24 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
 function RemoteSignInCard({
   ask,
   chatId,
-  kind,
   reason,
+  rows,
 }: {
   ask: SignInAsk & { live: boolean };
   chatId: ChatId;
-  /** What the call asked of its one app, for the title the asking computer shows. */
-  kind: Extract<ConnectAppResult, { state: "asked" }>["kind"];
   reason: string;
+  /** The call's rows, which say what it asked of each app, for the title the asking computer shows. */
+  rows: CardRow[];
 }) {
+  const [only] = ask.apps;
+  const row = rows.find((each) => each.slug === only?.slug);
+  // An app moved to the web signs in there, as the asking computer reads it
+  // from the app's folder, which syncs.
+  const onWeb =
+    useQuery(
+      rpcClient.apps.live.list.experimental_liveOptions(),
+    ).data?.apps.find((entry) => entry.slug === only?.slug)?.type === "web";
+  const kind = onWeb ? "web" : (row?.kind ?? "sign-in");
   const decline = useMutation(
     rpcClient.workspace.chats.declineSignIn.mutationOptions({
       onError: (error: Error) => {
@@ -128,7 +138,7 @@ function RemoteSignInCard({
       <div className="px-4 py-3">
         <p className="text-sm font-medium">
           {ask.apps.length === 1
-            ? connectTitle(kind, ask.apps[0]?.name ?? "the app", ask.computer)
+            ? connectTitle(kind, only?.name ?? "the app", ask.computer)
             : `Connect ${ask.apps.length} apps`}
         </p>
         <p className="text-xs leading-5 text-muted-foreground">{reason}</p>

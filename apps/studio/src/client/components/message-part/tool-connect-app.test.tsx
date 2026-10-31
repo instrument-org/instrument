@@ -116,7 +116,13 @@ function outlook(
   };
 }
 
-function renderCard(chatId?: string) {
+function renderCard(
+  chatId?: string,
+  output?: Extract<
+    Parameters<typeof ToolConnectApp>[0]["part"],
+    { state: "output-available" }
+  >["output"],
+) {
   const window = {
     ...(chatId === undefined ? {} : { chatId: ChatIdSchema.parse(chatId) }),
     ask: vi.fn(),
@@ -140,7 +146,7 @@ function renderCard(chatId?: string) {
             sessionId: StoreId.newSessionId(),
           },
           // Stored bare, as a call before cards with several apps did.
-          output: {
+          output: output ?? {
             kind: "sign-in",
             name: "Outlook",
             slug: "outlook",
@@ -530,6 +536,35 @@ describe("a sign-in card another computer put up", () => {
 
     expect(await screen.findByText("Skipped")).toBeDefined();
     expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  // The card was trimmed to the one app the person had not answered, which
+  // needs a key, while the call asked a sign-in of its first.
+  it("titles a card trimmed to one app by what the call asked of that app", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    mocks.signIn.mockResolvedValue(
+      asked({
+        apps: [{ name: "OpenAI", slug: "openai", standing: "waiting" }],
+      }),
+    );
+    renderCard("2026-10-31-mail", {
+      apps: [
+        { kind: "sign-in", name: "Outlook", slug: "outlook", state: "asked" },
+        { kind: "key", name: "OpenAI", slug: "openai", state: "asked" },
+      ],
+    });
+
+    expect(await screen.findByText("OpenAI needs a key")).toBeDefined();
+  });
+
+  it("titles an app moved to the web as signing in there", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }, "web"));
+    mocks.signIn.mockResolvedValue(asked());
+    renderCard("2026-10-31-mail");
+
+    expect(
+      await screen.findByText("Sign in to Outlook on the web"),
+    ).toBeDefined();
   });
 
   it("draws nothing while it is not known which computer asked", async () => {

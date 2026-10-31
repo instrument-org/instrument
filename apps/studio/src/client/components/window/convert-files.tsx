@@ -22,7 +22,7 @@ export function convertWords(count: number) {
  * Opens the convert draft for these files; undefined where no draft can open
  * (inside a draft, beside a chat), so callers leave the action out there.
  */
-export function useConvertFiles():
+function useConvertFiles():
   | ((hostPaths: readonly string[]) => void)
   | undefined {
   const askAbout = useContext(WindowContext)?.askAbout;

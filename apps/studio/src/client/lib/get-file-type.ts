@@ -401,7 +401,7 @@ export const MEDIA_EXTENSIONS: Record<string, FileType> = {
  * have played. Kept out of `MEDIA_EXTENSIONS`, so the system's Open With
  * offers Instrument only for what it reliably plays.
  */
-export const TRIED_MEDIA_EXTENSIONS: Record<string, FileType> = {
+const TRIED_MEDIA_EXTENSIONS: Record<string, FileType> = {
   "3g2": "video",
   "3gp": "video",
   aif: "audio",

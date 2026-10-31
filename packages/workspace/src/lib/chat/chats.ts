@@ -17,9 +17,8 @@ import { ChatWrites } from "../chat-writes";
 import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { type AskState, askStates } from "./ask-states";
+import { type AskState, askStates, movedPastOf } from "./ask-states";
 import { cardLine, sortAsks } from "./asks";
-import { openQuestionsIn } from "./open-asks";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByRecords, kept, unkept } from "../workspace-index";
@@ -561,8 +560,6 @@ interface ChatDigest {
   spoken?: { at: number; text: string };
   /** The chat's own newest labeled step, in any turn, and when its message was sent. */
   lastStep?: { at: number; text: string };
-  /** The questions the chat's agent asked that are still open (`openQuestionsIn`). */
-  questions: QuestionAsk[];
   /** Where each of the chat's asks stood when the digest was read (`askStates`). */
   asks: AskState[];
   /** The sign-in cards its agent put up since the user last wrote (`signInCardsSinceTyped`). */
@@ -688,7 +685,6 @@ async function chatFor(
     ...asksOf(
       sortAsks([
         ...digest.asks.flatMap(({ ask, live }) => (live ? [ask] : [])),
-        ...digest.questions,
       ]),
     ),
     ...signInWaitOf(await signInsWaiting(digest.signIns)),
@@ -787,7 +783,11 @@ function chatDigest(
     return messages.isOk() && stop.isOk() && asks.isOk()
       ? kept({
           ...digestOf(session.value, messages.value, stop.value),
-          asks: askStates({ ...asks.value, now: Date.now() }),
+          asks: askStates({
+            ...asks.value,
+            movedPast: movedPastOf(messages.value, stop.value),
+            now: Date.now(),
+          }),
         })
       : unkept(undefined);
   });
@@ -902,7 +902,6 @@ function digestOf(
       },
     }),
     ...(lastStep && { lastStep }),
-    questions: openQuestionsIn(messages, stop),
     signIns: signInCardsSinceTyped(messages, stop),
     ...(stepInTurn !== undefined && { stepInTurn }),
     stopped,

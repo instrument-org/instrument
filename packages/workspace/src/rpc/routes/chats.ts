@@ -1,4 +1,4 @@
-import { eventIterator, ORPCError } from "@orpc/server";
+import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { ChatWrites } from "../../lib/chat-writes";
@@ -26,9 +26,8 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import { answerQuestion, openAsks, openAsksOf } from "../../lib/chat/open-asks";
-import { wakeAskers } from "../../lib/chat/wake";
-import { openSignInsOf } from "../../lib/apps/sign-in-group";
+import { answerQuestionAsk } from "../../lib/chat/drive-asks";
+import { openAsks, openAsksOf } from "../../lib/chat/open-asks";
 import { AskSchema } from "../../schemas/chat-state";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
@@ -352,9 +351,10 @@ const liveAsksRoute = base
 
 /**
  * The person's answers to a card the chat put up with `choose`: for each
- * question a choice, their own words, or a skip. Closes the card and wakes
- * the chat once with every answer, or joins its turn at the next step if it
- * is still going.
+ * question a choice, their own words, or a skip, from any device. The
+ * computer that asked writes them onto the call, which the card draws, and
+ * wakes the chat once with every answer, or joins its turn at the next step
+ * if it is still going (`drive-asks.ts`).
  */
 const answerQuestionRoute = base
   .input(
@@ -366,62 +366,11 @@ const answerQuestionRoute = base
   )
   .output(z.void())
   .handler(async ({ context, input }) => {
-    // The answer written onto the call is what closes the question, and what
-    // the card draws.
-    const question = await answerQuestion(
+    await answerQuestionAsk(
       input.id,
       input.askId,
-      async ({ askers, messageId, questions }) => {
-        if (input.answer.replies.length !== questions.length) {
-          throw new ORPCError("BAD_REQUEST", {
-            message: `The card asks ${questions.length} questions, and the answer has ${input.answer.replies.length} replies.`,
-          });
-        }
-        for (const { partId, sessionId } of askers) {
-          if (!partId) {
-            continue;
-          }
-          const written = await ChatWrites.updatePart(
-            { chatId: input.id, messageId, partId, sessionId },
-            (part) =>
-              part.type === "tool-choose" &&
-              part.state === "output-available" &&
-              "asked" in part.output
-                ? { ...part, output: { ...part.output, answer: input.answer } }
-                : part,
-          );
-          if (written.isErr()) {
-            throw written.error;
-          }
-        }
-      },
-    );
-    if (!question) {
-      throw new ORPCError("NOT_FOUND", {
-        message: "That question was already answered.",
-      });
-    }
-    await Promise.all(
-      question.askers.map(async ({ partId, sessionId }) => {
-        if (!partId) {
-          return;
-        }
-        const signIns = await openSignInsOf(input.id, sessionId);
-        await wakeAskers(
-          {
-            data: {
-              answer: input.answer,
-              partId,
-              questions: question.questions,
-              ...(signIns === undefined ? {} : { signIns }),
-            },
-            type: "data-questionAnswer",
-          },
-          context.workspaceRef,
-          input.id,
-          [sessionId],
-        );
-      }),
+      input.answer,
+      context.workspaceRef,
     );
   });
 

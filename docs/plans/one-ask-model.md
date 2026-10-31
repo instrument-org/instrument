@@ -53,6 +53,7 @@ What another device does is acted on live only. An answer, from any device this 
 - A later No closes a yes under way (taken, or waiting on the system) only when given on the ask's own computer, where the system's prompt is; another device's later answer never overrides the first.
 - A Stop on the ask's own computer is written as a `stopped` answer like any device's, so every reader sees it at once and the driver closes an ask nobody is left on.
 - A No whose refusal cannot be kept in `permissions.json` still closes the ask and wakes its askers, and the failure is reported rather than failing the person's call.
+- A question's ask id is its `choose` call's part id, the id the card already answered by, and the call raises it as it runs. Whether the person moved past an open question (or sign-in) is read from the session itself (`movedPastOf`): a typed message after the call's message, by message order rather than by clocks, or a Stop of theirs since it was asked. The fold takes that beside the ask and answer records.
 
 ### Sign-in
 

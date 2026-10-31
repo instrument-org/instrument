@@ -5,16 +5,20 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import {
   type AnswerRef,
+  type AskRecord,
   type Outcome,
   type PermissionAskRecord,
   type PermissionDecision,
   type SystemWait,
 } from "../../schemas/ask";
 import { type ChatId } from "../../schemas/chat-id";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { AbsolutePathSchema, type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
 import { parseBrowserTargetId } from "../../types";
+import { openSignInsOf } from "../apps/sign-in-group";
 import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
 import { updateHeldTabs } from "../held-tabs";
@@ -157,6 +161,25 @@ async function step(
       stage: { answer: pending, is: "taken" },
     }));
   }
+  if (
+    stage.is === "taken" &&
+    ask.kind === "question" &&
+    stage.answer.kind === "question"
+  ) {
+    const { answer } = stage;
+    try {
+      await writeOntoCall(chatId, ask, answer.answer);
+    } catch (error) {
+      await failTaken(chatId, ask.id, answer, error);
+      throw error;
+    }
+    return close(
+      chatId,
+      ask.id,
+      { answer: answer.answer, kind: "question" },
+      answer,
+    );
+  }
   if (stage.is === "taken" && ask.kind === "permission") {
     const { answer } = stage;
     // A yes whose look is running is the look's to finish.
@@ -250,26 +273,69 @@ async function carryOut(
   try {
     await grant(chatId, ask, answer.decision);
   } catch (error) {
-    await changeAsk(chatId, ask.id, ({ ask: now }) =>
-      now.stage.is === "taken"
-        ? {
-            ...now,
-            failed: {
-              ...now.stage.answer,
-              message: error instanceof Error ? error.message : String(error),
-            },
-            spent: [
-              ...(now.spent ?? []),
-              { at: answer.at, device: answer.device },
-            ],
-            stage: { is: "open" },
-          }
-        : undefined,
-    );
+    await failTaken(chatId, ask.id, answer, error);
     throw error;
   }
   // Wrapped, so awaiting the carrying out does not wait for the look.
   return { look: startLook(chatId, ask, answer.decision, workspaceRef) };
+}
+
+/**
+ * Gives up on an answer an ask took and could not carry out: the ask is
+ * open again, says why on `failed`, and the answer is spent, so the next
+ * one given is taken rather than this one again.
+ */
+async function failTaken(
+  chatId: ChatId,
+  askId: string,
+  answer: AnswerRef,
+  error: unknown,
+): Promise<void> {
+  await changeAsk(chatId, askId, ({ ask: now }) =>
+    now.stage.is === "taken"
+      ? {
+          ...now,
+          failed: {
+            ...now.stage.answer,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          spent: [
+            ...(now.spent ?? []),
+            { at: answer.at, device: answer.device },
+          ],
+          stage: { is: "open" },
+        }
+      : undefined,
+  );
+}
+
+/** Writes a question's answer onto the `choose` call that asked it, for the card to draw. */
+async function writeOntoCall(
+  chatId: ChatId,
+  ask: Extract<AskRecord, { kind: "question" }>,
+  answer: SessionMessageDataPart.QuestionCardAnswer,
+): Promise<void> {
+  const [asker] = ask.askers;
+  if (asker === undefined) {
+    return;
+  }
+  const written = await ChatWrites.updatePart(
+    {
+      chatId,
+      messageId: ask.messageId,
+      partId: ask.partId,
+      sessionId: asker.sessionId,
+    },
+    (part) =>
+      part.type === "tool-choose" &&
+      part.state === "output-available" &&
+      "asked" in part.output
+        ? { ...part, output: { ...part.output, answer } }
+        : part,
+  );
+  if (written.isErr()) {
+    throw written.error;
+  }
 }
 
 function permissionOutcome(
@@ -384,8 +450,7 @@ async function wake(
   if (stage.is !== "closed") {
     return;
   }
-  const part = wakePartOf(stage.outcome, ask.id);
-  if (part === undefined) {
+  if (wakePartOf(stage.outcome, ask, undefined) === undefined) {
     return;
   }
   const yes =
@@ -405,6 +470,16 @@ async function wake(
     ) {
       continue;
     }
+    const part = wakePartOf(
+      stage.outcome,
+      ask,
+      ask.kind === "question"
+        ? await openSignInsOf(chatId, asker.sessionId)
+        : undefined,
+    );
+    if (part === undefined) {
+      continue;
+    }
     if (quiet) {
       await saveNote(chatId, asker.sessionId, part);
     } else {
@@ -418,16 +493,70 @@ async function wake(
   }
 }
 
-/** The note an outcome wakes its askers with, naming the ask. */
-function wakePartOf(outcome: Outcome, askId: string): WakePart | undefined {
+/**
+ * The note an outcome wakes its askers with, naming the ask. A question's
+ * carries the chat's sign-ins still waiting, so the agent knows where they
+ * are without saying so.
+ */
+function wakePartOf(
+  outcome: Outcome,
+  ask: AskRecord,
+  signIns: SessionMessageDataPart.SignInProgress | undefined,
+): WakePart | undefined {
   switch (outcome.kind) {
     case "permission":
       return {
-        data: { ...outcome.data, ask: askId },
+        data: { ...outcome.data, ask: ask.id },
         type: "data-permissionAnswer",
       };
+    case "question":
+      return ask.kind === "question"
+        ? {
+            data: {
+              answer: outcome.answer,
+              ask: ask.id,
+              partId: ask.partId,
+              questions: ask.questions,
+              ...(signIns && { signIns }),
+            },
+            type: "data-questionAnswer",
+          }
+        : undefined;
     default:
       return undefined;
+  }
+}
+
+/**
+ * The person's answers to a question, given on this device: appended like
+ * any device's, and on the computer that asked, taken at once, written onto
+ * the call, and the chat woken with them. Elsewhere they wait for that
+ * computer, and the card shows them answered meanwhile. Refused once the
+ * question has an answer, from any device.
+ */
+export async function answerQuestionAsk(
+  chatId: ChatId,
+  askId: string,
+  answer: SessionMessageDataPart.QuestionCardAnswer,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const state = (await chatAskStates(chatId)).find(
+    ({ ask, live }) => live && ask.id === askId,
+  );
+  if (!state || state.ask.kind !== "question" || !answerableElsewhere(state)) {
+    throw new ORPCError("NOT_FOUND", {
+      message: "That question was already answered.",
+    });
+  }
+  const { questions } = state.ask;
+  if (answer.replies.length !== questions.length) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: `The card asks ${questions.length} questions, and the answer has ${answer.replies.length} replies.`,
+    });
+  }
+  await appendAnswer(chatId, askId, { answer, kind: "question" });
+  if (state.ask.device === thisDevice()) {
+    await driveAsks(chatId, workspaceRef);
   }
 }
 

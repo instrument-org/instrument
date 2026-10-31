@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BrowserTargetIdSchema } from "../types";
 import { AskerSchema, PermissionDecisionSchema, SystemWaitSchema } from "./ask";
 import { DeviceIdSchema } from "./device-id";
+import { SessionMessageDataPart } from "./session/message-data-part";
 import { StoreId } from "./store-id";
 
 /** A tab's id as an earlier build saved it, read as the tab's id now: the same ULID under `tab_`. */
@@ -122,12 +123,32 @@ export type PermissionAsk = z.output<typeof PermissionAskSchema>;
  * A question the chat's agent put to the person with `choose`, drawn as the
  * card under that call until they answer it, which wakes the chat with the
  * answer. Its one asker is the chat's own session, by the call's part, whose
- * id is the question's. Read from the chat's records (`openQuestionsIn`),
- * never kept in a state file.
+ * id is the question's. Read from where its ask stands (`askStates`).
  */
 const QuestionAskSchema = z.object({
+  /**
+   * The answer it has: the one its computer took, or the first fresh one
+   * given, which its computer takes next. A question answered on another
+   * device shows as answered, waiting for the computer that asked.
+   */
+  answered: z
+    .object({
+      answer: SessionMessageDataPart.QuestionCardAnswerSchema,
+      by: z.string(),
+      taken: z.boolean(),
+    })
+    .optional(),
+  /** Whether it can be answered: open, with no answer given yet. */
+  answerable: z.boolean(),
   askedAt: z.coerce.date(),
   askers: z.array(AskerSchema),
+  /** An answer given while the computer that asked was away, which it never takes. */
+  away: z.object({ by: z.string() }).optional(),
+  /** The name of the computer that asked. */
+  computer: z.string(),
+  device: DeviceIdSchema,
+  /** Whether this computer asked it, and alone acts on its answer. */
+  here: z.boolean(),
   id: z.string(),
   kind: z.literal("question"),
   /** The message holding the call, where its answer is written too. */

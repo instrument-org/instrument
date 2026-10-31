@@ -9,11 +9,16 @@ import {
   type SystemWait,
 } from "../../schemas/ask";
 import { type ChatId } from "../../schemas/chat-id";
-import { type Ask, type PermissionAsk } from "../../schemas/chat-state";
+import {
+  type Ask,
+  type PermissionAsk,
+  type QuestionAsk,
+} from "../../schemas/chat-state";
 import { type DeviceId } from "../../schemas/device-id";
 import { type StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
+import { askLine } from "../choose-call";
 import { askTargetName } from "../permissions/ask-target";
 import { sessionOfChat } from "../record-folders";
 import { readDeviceName } from "../records/device-file";
@@ -21,7 +26,7 @@ import { writingChatRecords } from "../records/installed-records";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { TOOL_NAMES } from "../../tools/name";
-import { type AskState, askStates } from "./ask-states";
+import { type AskState, askStates, movedPastOf } from "./ask-states";
 
 /**
  * What a chat waits on the person for: the folders, apps and tabs its
@@ -52,7 +57,9 @@ export interface Asker {
  */
 export async function askRecords(
   chatId: ChatId,
-): Promise<Pick<Parameters<typeof askStates>[0], "answers" | "asks">> {
+): Promise<
+  Pick<Parameters<typeof askStates>[0], "answers" | "asks" | "movedPast">
+> {
   const sessionId = sessionOfChat(chatId);
   const records = writingChatRecords();
   if (sessionId === undefined || records === undefined) {
@@ -61,7 +68,13 @@ export async function askRecords(
   // A chat whose records cannot be read has no ask anyone can answer.
   const read = await records.read(chatId).catch(() => undefined);
   const session = read?.chat.sessions.find(({ id }) => id === sessionId);
-  return { answers: session?.answers ?? [], asks: session?.asks ?? [] };
+  const movedPast =
+    session && movedPastOf(session.messages, session.stopped);
+  return {
+    answers: session?.answers ?? [],
+    asks: session?.asks ?? [],
+    ...(movedPast && { movedPast }),
+  };
 }
 
 /** Where each of the chat's asks stands now, every computer's, oldest first. */
@@ -216,6 +229,36 @@ export async function recordAsk(
   });
 }
 
+/**
+ * Records the questions the chat's agent put to the person with `choose`,
+ * by the call that asked them, whose part's id is the ask's: the card under
+ * that call, on every device, until it is answered or the person moves
+ * past it.
+ */
+export async function recordQuestion(
+  asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
+  questions: string[],
+): Promise<void> {
+  if (questions.length === 0) {
+    return;
+  }
+  const at = getCurrentDate();
+  // Only the chat's own session asks, so its log is the one asking.
+  await askWrites(asker.chatId, () =>
+    askWriter(asker.chatId).ask(asker.chatId, asker.sessionId, {
+      askedAt: at,
+      askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
+      device: thisDevice(),
+      id: asker.partId,
+      kind: "question",
+      messageId: asker.messageId,
+      partId: asker.partId,
+      questions,
+      stage: { is: "open" },
+    }),
+  );
+}
+
 /** Each computer's name by its device, once read. */
 const computerNames = new Map<DeviceId, string>();
 
@@ -306,16 +349,52 @@ async function permissionAskOf(
   };
 }
 
-/** The live permission asks among `states` as this device's readers draw them, oldest first. */
-export function permissionAsksOf(
-  states: readonly AskState[],
-): Promise<PermissionAsk[]> {
+/** A live question as this device's readers draw it. */
+async function questionAskOf(
+  state: AskState & { ask: Extract<AskRecord, { kind: "question" }> },
+): Promise<QuestionAsk> {
+  const { ask, askers, away, pending } = state;
+  const taken = ask.stage.is === "taken" ? ask.stage.answer : undefined;
+  const answer = taken ?? pending;
+  return {
+    ...(answer?.kind === "question" && {
+      answered: {
+        answer: answer.answer,
+        by: await computerName(answer.device),
+        taken: answer === taken,
+      },
+    }),
+    answerable: answerableElsewhere(state),
+    askedAt: ask.askedAt,
+    askers,
+    ...(away && { away: { by: await computerName(away.device) } }),
+    computer: await computerName(ask.device),
+    device: ask.device,
+    here: ask.device === thisDevice(),
+    id: ask.id,
+    kind: "question",
+    messageId: ask.messageId,
+    question: askLine(ask.questions.map((question) => ({ question }))),
+    questions: ask.questions,
+  };
+}
+
+/** The live asks among `states` as this device's readers draw them, oldest first. */
+export function asksOf(states: readonly AskState[]): Promise<Ask[]> {
   return Promise.all(
-    states.flatMap((state) =>
-      state.live && state.ask.kind === "permission"
-        ? [permissionAskOf({ ...state, ask: state.ask })]
-        : [],
-    ),
+    states.flatMap((state): Promise<Ask>[] => {
+      if (!state.live) {
+        return [];
+      }
+      switch (state.ask.kind) {
+        case "permission":
+          return [permissionAskOf({ ...state, ask: state.ask })];
+        case "question":
+          return [questionAskOf({ ...state, ask: state.ask })];
+        default:
+          return [];
+      }
+    }),
   );
 }
 
@@ -323,7 +402,9 @@ export function permissionAsksOf(
 export async function openPermissionAsks(
   chatId: ChatId,
 ): Promise<PermissionAsk[]> {
-  return permissionAsksOf(await chatAskStates(chatId));
+  return (await asksOf(await chatAskStates(chatId))).filter(
+    (ask): ask is PermissionAsk => ask.kind !== "question",
+  );
 }
 
 /** Asks oldest first. */

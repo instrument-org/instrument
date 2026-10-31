@@ -7,6 +7,10 @@ import {
   type AskRecordAsker,
   type Taken,
 } from "../../schemas/ask";
+import { type SessionMessage } from "../../schemas/session/message";
+import { type Stopper } from "../../schemas/stop-notice";
+import { type StoreId } from "../../schemas/store-id";
+import { isTypedByUser } from "../typed-by-user";
 
 /**
  * Where each of a chat's asks stands, read from its records alone: the one
@@ -42,20 +46,56 @@ export interface AskState {
 }
 
 /**
+ * How far the person moved past what the chat asked: the last message they
+ * wrote, which is their answer to whatever was asked before it, by its id
+ * (messages are ordered by id), and when they last stopped the chat.
+ */
+export interface MovedPast {
+  stoppedAt?: Date;
+  typed?: StoreId.Message;
+}
+
+/** How far the person moved past what the chat asked, from its own session (`MovedPast`). */
+export function movedPastOf(
+  messages: readonly SessionMessage.WithParts[],
+  stopped: { at: Date; by: Stopper } | undefined,
+): MovedPast {
+  const typed = messages.findLast(
+    (message) => message.role === "user" && isTypedByUser(message),
+  )?.id;
+  return {
+    ...(stopped?.by === "person" && { stoppedAt: stopped.at }),
+    ...(typed && { typed }),
+  };
+}
+
+/** Whether the person moved past an open question or sign-in: wrote after its call, or stopped since. */
+function isMovedPast(ask: AskRecord, moved: MovedPast | undefined): boolean {
+  if (ask.kind === "permission" || ask.stage.is !== "open" || !moved) {
+    return false;
+  }
+  return (
+    (moved.typed !== undefined && moved.typed > ask.messageId) ||
+    (moved.stoppedAt !== undefined &&
+      moved.stoppedAt.getTime() >= ask.askedAt.getTime())
+  );
+}
+
+/**
  * Each ask's state, oldest first, from a session's `ask` records (the
- * newest of each id) and its `answer` records in log order. `movedPastAt`
- * is the newest moment the person wrote in the chat or stopped it; `now`
+ * newest of each id) and its `answer` records in log order. `movedPast`
+ * says how far the person wrote or stopped past what the chat asked; `now`
  * is this computer's clock, which an answer's freshness is read against.
  */
 export function askStates({
   answers,
   asks,
-  movedPastAt,
+  movedPast,
   now,
 }: {
   answers: readonly AskAnswer[];
   asks: readonly AskRecord[];
-  movedPastAt?: Date;
+  movedPast?: MovedPast;
   now: number;
 }): AskState[] {
   return asks
@@ -73,12 +113,10 @@ export function askStates({
               ),
           ),
       );
-      const movedPast =
-        ask.kind !== "permission" &&
-        ask.stage.is === "open" &&
-        movedPastAt !== undefined &&
-        ask.askedAt.getTime() <= movedPastAt.getTime();
-      const live = ask.stage.is !== "closed" && askers.length > 0 && !movedPast;
+      const live =
+        ask.stage.is !== "closed" &&
+        askers.length > 0 &&
+        !isMovedPast(ask, movedPast);
       const unused = live ? unusedAnswers(ask, toAsk) : [];
       const pending = unused.find((answer) => isFreshAsk(answer.at, now));
       const away =

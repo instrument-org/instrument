@@ -3,15 +3,25 @@ import { call } from "@orpc/server";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setChatModel } from "../../lib/chat-settings";
-import { recordAsk } from "../../lib/chat/asks";
+import { recordAsk, recordQuestion } from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
-import { sessionOfChat } from "../../lib/record-folders";
+import { driveAsks } from "../../lib/chat/drive-asks";
+import { chatDir, sessionOfChat } from "../../lib/record-folders";
+import {
+  ChatRecords,
+  installChatRecords,
+  writingChatRecords,
+} from "../../lib/records/chat-records";
+import { writeDeviceFile } from "../../lib/records/device-file";
+import { newDeviceId } from "../../lib/records/device-id";
+import { workspaceLayout } from "../../lib/workspace-layout";
+import { type ChatId } from "../../schemas/chat-id";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -117,7 +127,10 @@ async function chatAsking() {
   if (saved.isErr()) {
     throw saved.error;
   }
-  // A question is named by its call.
+  // What the call's own run records: the question, named by its call.
+  await recordQuestion({ chatId, messageId, partId, sessionId }, [
+    "Which one?",
+  ]);
   return { askId: partId, chatId, messageId, partId, sessionId };
 }
 
@@ -219,4 +232,135 @@ it("closes the chat's questions when the person stops it", async () => {
   )._unsafeUnwrap();
 
   expect(await openAsks(chatId)).toEqual([]);
+});
+
+// Every device writes its own logs into one synced folder; here each is a
+// `ChatRecords` of its own over the same chats folder, and the one in place
+// is the device the call runs on.
+describe("from another computer", () => {
+  const owner = () => {
+    const records = writingChatRecords();
+    if (!records) {
+      throw new Error("expected the test's records in place");
+    }
+    return records;
+  };
+  const made: ChatRecords[] = [];
+  afterEach(async () => {
+    await Promise.all(made.splice(0).map((records) => records.dispose()));
+  });
+
+  /** Another device, its records over the same chats folder. */
+  async function computer(name: string) {
+    const device = newDeviceId();
+    await writeDeviceFile({
+      device,
+      devicesDir: workspaceLayout(getWorkspaceConfig().rootDir).devicesDir,
+      file: { name, platform: "darwin" },
+    });
+    const records = new ChatRecords({
+      app: "0.0.0-test",
+      device,
+      dirOf: chatDir,
+      fsync: false,
+    });
+    made.push(records);
+    return records;
+  }
+
+  /** Runs `act` as the device `records` writes for, once it has read what the others wrote. */
+  async function on<T>(
+    records: ChatRecords,
+    chatId: ChatId,
+    act: () => Promise<T>,
+  ) {
+    const home = owner();
+    await records.catchUp(chatId);
+    installChatRecords(records);
+    try {
+      return await act();
+    } finally {
+      installChatRecords(home);
+    }
+  }
+
+  const answer = (chatId: ChatId, askId: string, picked: string) =>
+    call(
+      chats.answerQuestion,
+      { answer: { replies: [{ picked: [picked] }] }, askId, id: chatId },
+      { context: context() },
+    );
+
+  it("shows a question answered elsewhere as answered, waiting for the computer that asked", async () => {
+    const { askId, chatId } = await chatAsking();
+    const phone = await computer("Jeremy's iPhone");
+    const laptop = await computer("MacBook Air");
+
+    await on(phone, chatId, () => answer(chatId, askId, "Tea"));
+
+    expect(await on(laptop, chatId, () => openAsks(chatId))).toEqual([
+      expect.objectContaining({
+        answerable: false,
+        answered: {
+          answer: { replies: [{ picked: ["Tea"] }] },
+          by: "Jeremy's iPhone",
+          taken: false,
+        },
+        here: false,
+        kind: "question",
+      }),
+    ]);
+    await expect(
+      on(laptop, chatId, () => answer(chatId, askId, "Coffee")),
+    ).rejects.toThrow("That question was already answered.");
+    expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+  });
+
+  it("starts one turn for two answers given on two devices at once, with the first", async () => {
+    const { askId, chatId, messageId, partId, sessionId } = await chatAsking();
+    const phone = await computer("Jeremy's iPhone");
+    const laptop = await computer("MacBook Air");
+    // Neither had seen the other's answer when it gave its own.
+    await Promise.all([phone.catchUp(chatId), laptop.catchUp(chatId)]);
+    await phone.answer(chatId, sessionId, {
+      ask: askId,
+      given: { answer: { replies: [{ picked: ["Tea"] }] }, kind: "question" },
+    });
+    await laptop.answer(chatId, sessionId, {
+      ask: askId,
+      given: {
+        answer: { replies: [{ picked: ["Coffee"] }] },
+        kind: "question",
+      },
+    });
+
+    await owner().catchUp(chatId);
+    await Promise.all([
+      driveAsks(chatId, context().workspaceRef),
+      driveAsks(chatId, context().workspaceRef),
+    ]);
+
+    const woken = sent
+      .filter((event) => event.type === "addMessage")
+      .flatMap((event) =>
+        (event.value.message?.parts ?? []).flatMap((part) =>
+          part.type === "data-questionAnswer" ? [part.data.answer.replies] : [],
+        ),
+      );
+    expect(woken).toEqual([[{ picked: ["Tea"] }]]);
+    const part = (
+      await ChatReads.transcript({
+        chatId,
+        only: new Set([messageId]),
+        sessionId,
+      })
+    )
+      ._unsafeUnwrap()
+      .flatMap((message) => message.parts)
+      .find((each) => each.metadata.id === partId);
+    expect(part).toMatchObject({
+      output: { answer: { replies: [{ picked: ["Tea"] }] } },
+    });
+    expect(await on(laptop, chatId, () => openAsks(chatId))).toEqual([]);
+  });
 });

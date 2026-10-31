@@ -26,7 +26,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
-import { recordAsk } from "./asks";
+import { recordAsk, recordQuestion } from "./asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { ChatReads } from "../chat-reads";
@@ -188,11 +188,14 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
     parts: [part],
     role: "assistant",
   };
-  const saved = await ChatWrites.saveMessageWithParts(
-    message,
-    await chatFor(sessionId),
-  );
+  const chatId = await chatFor(sessionId);
+  const saved = await ChatWrites.saveMessageWithParts(message, chatId);
   expect(saved.isOk()).toBe(true);
+  // What the call's own run records.
+  await recordQuestion(
+    { chatId, messageId, partId: part.metadata.id, sessionId },
+    ["Which one?"],
+  );
 }
 
 /** A finished reply, with words and whatever tool calls it made. */
@@ -1013,7 +1016,7 @@ describe("listChats", () => {
 
     expect(chat?.state).toBe("waiting");
     expect(chat?.latest).toEqual({
-      at: at(5).getTime(),
+      at: expect.any(Number),
       kind: "question",
       text: "Which one?",
     });

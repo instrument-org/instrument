@@ -189,13 +189,14 @@ describe("askStates", () => {
   });
 
   it("lets what the person wrote since move past an open question, never a permission", () => {
+    const asked = StoreId.newMessageId();
     const question: AskRecord = {
       askedAt: at(0),
       askers: [{ at: at(0), partId: StoreId.newPartId(), sessionId: own }],
       device: owner,
       id: "q",
       kind: "question",
-      messageId: StoreId.newMessageId(),
+      messageId: asked,
       partId: StoreId.newPartId(),
       questions: ["Which pantry?"],
       stage: { is: "open" },
@@ -204,7 +205,7 @@ describe("askStates", () => {
       askStates({
         answers: [],
         asks: [question, folder()],
-        movedPastAt: at(3),
+        movedPast: { typed: StoreId.newMessageId() },
         now: NOW,
       }).map(({ ask, live }) => `${ask.kind} ${String(live)}`),
     ).toMatchInlineSnapshot(`

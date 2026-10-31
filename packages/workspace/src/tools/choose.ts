@@ -10,6 +10,7 @@ import {
   chooseQuestions,
 } from "../lib/choose-call";
 import { defineCapability } from "../lib/capabilities/define";
+import { recordQuestion } from "../lib/chat/asks";
 import { modelTool } from "../lib/capabilities/tool";
 
 // A task runs the chat's agent, questions included, where nobody sees a card.
@@ -22,11 +23,12 @@ const NoteSchema = z.string().trim().min(1).optional();
  * Ask the user closed questions, one to four on one card.
  *
  * The call puts its questions on a card under it and returns at once, so no
- * turn waits on the user: the call itself is the open question
- * (`openQuestionsIn`) until they send their answers or skip the card, and
- * the answers wake the chat together as one `data-questionAnswer`, the way a
- * permission card's does, and are written onto the call, which closes it.
- * Writing in the chat instead closes it unanswered.
+ * turn waits on the user: the call raises a `question` ask, by its part's
+ * id, until they send their answers or skip the card from any device, and
+ * the computer that asked writes the answers onto the call and wakes the
+ * chat with them together as one `data-questionAnswer`, the way a
+ * permission card's answer does (`drive-asks.ts`). Writing in the chat
+ * instead closes it unanswered.
  *
  * The answered outputs are what a call returned when the turn waited on the
  * card, which transcripts from then still hold.
@@ -39,7 +41,13 @@ const chooseCapability = defineCapability({
     tool: {
       description:
         "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices, a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
-      execute: () => Promise.resolve(ok({ asked: true as const })),
+      execute: async ({ chatId, input, messageId, partId, sessionId }) => {
+        await recordQuestion(
+          { chatId, messageId, partId, sessionId },
+          chooseQuestions(input).map(({ question }) => question),
+        );
+        return ok({ asked: true as const });
+      },
       readOnly: true,
       timeoutMs: () => ms("10 seconds"),
       toModelOutput: ({ input, output }) => {

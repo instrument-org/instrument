@@ -13,9 +13,10 @@ export const FILE_MISSING_LABEL = "Missing";
  *
  * A transcript is a record of what a reply handed over, so the card stays
  * whatever became of the file; what changes is how it is drawn. The origin is
- * asked with a one-byte range request, and only once the card has come near
- * the viewport, so a long transcript costs nothing on open and one small
- * request per card the reader actually reaches. A 404 is the only answer that
+ * asked with a HEAD request, and only once the card has come near the
+ * viewport, so a long transcript costs nothing on open and one bodiless
+ * request per card the reader actually reaches. Not a range: no range fits an
+ * empty file, which the origin answers with a 416. A 404 is the only answer that
  * means gone: an origin that is down, or a request cut off, says nothing about
  * the file and leaves the card as it was. Asked again when the url changes,
  * which is how a file rewritten since is looked at afresh.
@@ -34,7 +35,7 @@ export function useFilePresence<T extends HTMLElement>(
     void (async () => {
       try {
         const response = await fetch(url, {
-          headers: { Range: "bytes=0-0" },
+          method: "HEAD",
           signal: controller.signal,
         });
         if (response.status === 404 && !controller.signal.aborted) {

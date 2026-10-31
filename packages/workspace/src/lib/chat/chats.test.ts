@@ -417,7 +417,7 @@ describe("listChats", () => {
     expect((await listChats())[0]?.lastUserMessageAt).toBe(at(6).getTime());
   });
 
-  it("lists the chats oldest first, with their roots, counts and latest lines", async () => {
+  it("lists the chats oldest first, with their first asks, counts and latest lines", async () => {
     const chatId = await freshChat();
     const groceries = await session(chatId, "Groceries for the week", 1);
     await userSays(chatId, groceries, "make me a grocery list", 1);
@@ -434,7 +434,7 @@ describe("listChats", () => {
       chats.map((chat) => ({
         createdAt: chat.createdAt,
         latest: chat.latest,
-        root: chat.root?.parts.find((part) => part.type === "text")?.text,
+        firstAsk: chat.firstAsk,
         state: chat.state,
         title: chat.title,
         unread: chat.unread,
@@ -447,7 +447,7 @@ describe("listChats", () => {
           kind: "reply",
           text: "Starting the list.",
         },
-        root: "make me a grocery list",
+        firstAsk: "make me a grocery list",
         state: "idle",
         title: "Groceries for the week",
         unread: false,
@@ -455,7 +455,7 @@ describe("listChats", () => {
       {
         createdAt: at(4).getTime(),
         latest: undefined,
-        root: "plan a trip to lisbon",
+        firstAsk: "plan a trip to lisbon",
         state: "idle",
         title: "Trip to Lisbon",
         unread: false,
@@ -1921,7 +1921,7 @@ describe("startChatListFile", () => {
       expect(written.device).toBe(config.deviceId);
       expect(written.chats.map((chat) => chat.title)).toEqual(["Groceries"]);
       // What only a running process knows, and the opening message, stay out.
-      expect(Object.keys(written.chats[0] ?? {})).not.toContain("root");
+      expect(Object.keys(written.chats[0] ?? {})).not.toContain("firstAsk");
       expect(Object.keys(written.chats[0] ?? {})).not.toContain("working");
 
       const [chat] = await listChats();

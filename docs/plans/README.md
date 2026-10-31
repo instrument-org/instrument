@@ -35,7 +35,6 @@ Each entry is the plan's title and the opening of its status.
 - [Auto mode](auto-mode.md): Design only, nothing scheduled.
 - [Background shell processes](background-shell-processes.md): Active.
 - [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): On hold, not started.
-- [A cheaper chat list rebuild](chat-list-payload-and-parentage.md): Half landed.
 - [Chat records as append-only logs, one per session per device](chat-records.md): Built and landed, but for the two parts named here.
 - [Chat stream turn-model refactor](chat-stream-turn-model-refactor.md): Proposed, not started.
 - [Chat transcript redesign](chat-transcript-redesign.md): Design rules being worked out against real chats;
@@ -94,6 +93,7 @@ Each entry is the plan's title and the opening of its status.
 - [Chats as folders that own their tasks](chat-folders.md): Landed.
 - [One identity for a chat](chat-identity.md): Completed.
 - [A workspace index the chat list reads from](chat-list-index.md): Stage A landed in `0f1ba5277` and `ba658eeaa` (`lib/workspace-index.ts`);
+- [A cheaper chat list rebuild](chat-list-payload-and-parentage.md): Both changes landed.
 - [The chat's status line and loading states](chat-status-line-and-loading-states.md): Done.
 - [Chat surface](chat-surface.md): Landed, then partly reshaped.
 - [Dictation](dictation.md): Landed (`b57a3a2ca`, with mic access in Settings from `bafc2b9b5`): live dictation in the composer, the problem report, topic instructions and the question c...

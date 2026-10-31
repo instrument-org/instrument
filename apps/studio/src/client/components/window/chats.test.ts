@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   activityLabel,
-  askOf,
   byActivity,
   byLastUserMessage,
   type ChatFilters,
@@ -33,7 +32,7 @@ function chat({
   return {
     archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
-    root: { parts: [] },
+    firstAsk: "",
     starred: false,
     state: "idle",
     title: "",
@@ -51,9 +50,7 @@ function wordyChat(): Filterable {
       sites: ["amazon.com"],
     },
     latest: { text: "Ready to drink, chocolate first." },
-    root: {
-      parts: [{ text: "Find the best RTD protein drink", type: "text" }],
-    },
+    firstAsk: "Find the best RTD protein drink",
     title: "Best priced protein drink",
     topic: "shopping",
   });
@@ -454,22 +451,6 @@ describe("the time at a row's end", () => {
     ["Dec 30, 2025", new Date(2025, 11, 30, 8)],
   ])("says %s", (label, date) => {
     expect(activityLabel(date, now)).toBe(label);
-  });
-});
-
-describe("the ask", () => {
-  it("is the words of the root's text parts", () => {
-    expect(
-      askOf({
-        root: {
-          parts: [
-            { type: "data-attachments" },
-            { text: "Find the receipt", type: "text" },
-            { text: "and file it", type: "text" },
-          ],
-        },
-      }),
-    ).toBe("Find the receipt\nand file it");
   });
 });
 

@@ -44,8 +44,9 @@ export interface Filterable {
   /** Whether the chat was put away: out of every place but All. */
   archived: boolean;
   holds: { apps: string[]; files: string[]; sites: string[] };
+  /** The words of the chat's first message. */
+  firstAsk: string;
   latest?: { text: string };
-  root?: undefined | { parts: { text?: string; type: string }[] };
   /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
   state: "failed" | "idle" | "limited" | "stopped" | "waiting" | "working";
@@ -239,7 +240,7 @@ function matchesSearch(
 ) {
   return hasWords(search, [
     chat.title,
-    askOf(chat),
+    chat.firstAsk,
     chat.latest?.text ?? "",
     chat.topic ? (topicNames.get(chat.topic) ?? "") : "",
     ...chat.holds.files.map(nameOf),
@@ -288,15 +289,6 @@ export function activityLabel(date: Date, now: Date): string {
     return format(date, "h:mm a");
   }
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
-}
-
-/** The words of a chat's first message: what the row shows as the ask. */
-export function askOf(chat: {
-  root?: undefined | { parts: { text?: string; type: string }[] };
-}): string {
-  return (chat.root?.parts ?? [])
-    .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
-    .join("\n");
 }
 
 /** Items by when something last happened in each, newest first. */

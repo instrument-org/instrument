@@ -146,33 +146,16 @@ const LONG_REPLY =
   "Done: the automation now checks presence first, then the hour, then the thermostat's own schedule, and only then trips eco mode, which it also undoes on the way back before five so the second floor is warm when anyone comes up.";
 
 function chat(overrides: Partial<Chat> = {}): Chat {
-  const messageId = StoreId.newMessageId();
   return {
     archived: false,
     createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
+    firstAsk: ASK,
     lastReplyAt: MOVED_AT.getTime(),
     lastUserMessageAt: STARTED_AT.getTime(),
     ownWorking: false,
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
-    root: {
-      id: messageId,
-      metadata: { createdAt: STARTED_AT, sessionId },
-      parts: [
-        {
-          metadata: {
-            createdAt: STARTED_AT,
-            id: StoreId.newPartId(),
-            messageId,
-            sessionId,
-          },
-          text: ASK,
-          type: "text",
-        },
-      ],
-      role: "user",
-    },
     runningTasks: [],
     sessionId,
     starred: false,

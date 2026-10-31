@@ -1,6 +1,6 @@
 # Plan: a cheaper chat list rebuild
 
-Status: open. Half landed. Tasks by chat landed with [chat-identity.md](chat-identity.md): the index keeps each chat's tasks and `chatTaskIds` is gone. The first ask as text is not started: `ChatSchema.root` still carries the whole first message, and the client still reads it through `askOf`. Follows [chat-list-index.md](chat-list-index.md), which deferred both changes below: stage A kept `ChatSchema` unchanged so no client code moved.
+Status: done. Both changes landed. Tasks by chat came with [chat-identity.md](chat-identity.md): the index keeps each chat's tasks and `chatTaskIds` is gone. The first ask as text came after: a row carries `firstAsk`, the digest `firstAsk` and `firstAskedAt`, and `askOf` is gone; against a 690-chat dev workspace the list's payload went from 1.31 MB to 0.50 MB. Follows [chat-list-index.md](chat-list-index.md), which deferred both changes below: stage A kept `ChatSchema` unchanged so no client code moved.
 
 ## Problem
 

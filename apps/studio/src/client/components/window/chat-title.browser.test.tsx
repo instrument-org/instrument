@@ -43,7 +43,6 @@ const CHAT_ID = ChatIdSchema.parse("2026-09-16-grocery-list");
 const TITLE = "Grocery list for the week";
 
 function chat(): Chat {
-  const messageId = StoreId.newMessageId();
   const at = new Date(2026, 8, 16, 9, 0);
   return {
     archived: false,
@@ -52,23 +51,7 @@ function chat(): Chat {
     id: CHAT_ID,
     lastUserMessageAt: at.getTime(),
     ownWorking: false,
-    root: {
-      id: messageId,
-      metadata: { createdAt: at, sessionId },
-      parts: [
-        {
-          metadata: {
-            createdAt: at,
-            id: StoreId.newPartId(),
-            messageId,
-            sessionId,
-          },
-          text: "make me a grocery list",
-          type: "text",
-        },
-      ],
-      role: "user",
-    },
+    firstAsk: "make me a grocery list",
     runningTasks: [],
     sessionId,
     starred: false,

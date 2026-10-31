@@ -2,7 +2,7 @@ import { useDecision } from "@/client/hooks/use-decision";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { useEffect, useState } from "react";
 
-import { askOf, byActivity, type Chat } from "./chats";
+import { byActivity, type Chat } from "./chats";
 
 /** A chat a new topic could be filed on at once: which, and what it is called and asks. */
 export interface BackfillCandidate {
@@ -33,7 +33,7 @@ export function backfillCandidates(chats: Chat[]): BackfillCandidate[] {
   return byActivity(chats.filter((chat) => !chat.topic && !chat.archived))
     .slice(0, MOST_READ)
     .map((chat) => ({
-      asked: askOf(chat).slice(0, ASK_MAX),
+      asked: chat.firstAsk.slice(0, ASK_MAX),
       id: chat.id,
       title: chat.title,
     }));

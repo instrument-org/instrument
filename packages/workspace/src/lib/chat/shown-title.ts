@@ -16,12 +16,19 @@ export function shownTitle(
   title: string,
   root: SessionMessage.WithParts | undefined,
 ): string {
+  return shownTitleFrom(
+    title,
+    (root?.parts ?? [])
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n"),
+  );
+}
+
+/** `shownTitle`, given the opening ask's words rather than its message. */
+export function shownTitleFrom(title: string, said: string): string {
   if (!isUntitledChatSessionTitle(title)) {
     return title;
   }
-  const said = (root?.parts ?? [])
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("\n");
   return openingTitle(said) || title;
 }
 

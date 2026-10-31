@@ -33,7 +33,7 @@ import { listChatIds } from "./chat-records";
 import { listChildTasks } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
-import { shownTitle } from "./shown-title";
+import { shownTitleFrom } from "./shown-title";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasWakeOnItsWay } from "./wake-queue";
@@ -106,8 +106,8 @@ export const ChatSchema = z.object({
   ownStep: z.string().optional(),
   /** Whether the chat's own session has a turn under way, whatever its tasks do. */
   ownWorking: z.boolean(),
-  /** The user's first message, whatever it carried; absent only before one is saved. */
-  root: SessionMessage.UserSchemaWithParts.optional(),
+  /** The words of the user's first message, its text parts joined; empty when it had none or none is saved. */
+  firstAsk: z.string(),
   /** The tasks filed from this chat that are at work right now. */
   runningTasks: z.array(
     z.object({
@@ -551,7 +551,10 @@ interface ChatDigest {
    */
   planRefusal?: "payment" | "plan";
   openedHosts: string[];
-  root?: SessionMessage.UserWithParts;
+  /** The words of the user's first message, its text parts joined. */
+  firstAsk: string;
+  /** When the user's first message was sent; absent before one is saved. */
+  firstAskedAt?: Date;
   sent: ReturnType<typeof sentHeld>;
   session: Session.Type;
   /** The last reply with words: when it finished and its first line. */
@@ -667,7 +670,7 @@ async function chatFor(
   chatId: ChatId,
   shared: Shared,
 ): Promise<Chat> {
-  const { root, session } = digest;
+  const { session } = digest;
   const filedTasks = (await listChildTasks(chatId)).map((task) => task.id);
   const { running: filed } = await chatActivity(chatId);
   const runningTasks = filed.map((task) => ({
@@ -713,7 +716,7 @@ async function chatFor(
     sites: await sitesHeld(chatId, digest.openedHosts, filedTasks),
   };
 
-  const createdAt = (root?.metadata.createdAt ?? session.createdAt).getTime();
+  const createdAt = (digest.firstAskedAt ?? session.createdAt).getTime();
   return {
     archived: session.archivedAt !== undefined,
     createdAt,
@@ -741,11 +744,11 @@ async function chatFor(
     ...(state === "limited" && {
       stoppedFor: digest.planRefusal ?? ("usage" as const),
     }),
-    ...(root ? { root } : {}),
+    firstAsk: digest.firstAsk,
     runningTasks,
     sessionId: session.id,
     state,
-    title: shownTitle(session.title, root),
+    title: shownTitleFrom(session.title, digest.firstAsk),
     titleByApp: session.titleByApp === true,
     titled: !isUntitledChatSessionTitle(session.title),
     ...(session.topic ? { topic: session.topic } : {}),
@@ -885,7 +888,8 @@ function digestOf(
     madeFiles: filesHeld(messages),
     ...(planRefusal && { planRefusal }),
     openedHosts: commands.flatMap(openedHostsIn),
-    ...(root && { root }),
+    firstAsk: root ? askedIn(root) : "",
+    ...(root && { firstAskedAt: root.metadata.createdAt }),
     sent: sentHeld(messages),
     session,
     ...(spoken?.role === "assistant" && {
@@ -1160,6 +1164,13 @@ async function sitesHeld(
     hosts.push(...(await filedHostsOf(chatId, filed)));
   }
   return unique(hosts);
+}
+
+/** A message's words, its non-empty text parts joined. */
+function askedIn(message: SessionMessage.WithParts): string {
+  return message.parts
+    .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
+    .join("\n");
 }
 
 function textOf(message: SessionMessage.WithParts): string {

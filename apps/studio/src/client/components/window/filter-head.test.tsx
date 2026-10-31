@@ -37,7 +37,7 @@ function chat({
   return {
     archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
-    root: { parts: [] },
+    firstAsk: "",
     starred: false,
     state: "idle",
     title: "",

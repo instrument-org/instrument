@@ -38,7 +38,7 @@ import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
-import { refusalCandidates } from "../lib/refused-media";
+import { refusalCandidates, suspectsRefusedMedia } from "../lib/refused-media";
 import { summarizeBeforePriceStep } from "../lib/price-step-summary";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { cacheSessionFor } from "../lib/fork-cache-session";
@@ -1092,14 +1092,18 @@ export const llmRequestLogic = fromPromise<
     }
 
     // The refused part is in the records and every later request replays it,
-    // so the media it most likely was is named here, and left out from the
-    // next request on. Nothing to name when the request carried no media,
-    // and the refusal ends the turn as before.
-    const recorded = assistantMessage.metadata.error;
+    // so the media this request newly carried is blamed here, and left out of
+    // the next request (`lib/refused-media.ts`). Nothing to blame when it
+    // newly carried no media, and the error is handled as any other.
     if (
-      recorded !== undefined &&
-      "classification" in recorded &&
-      recorded.classification === "unsendable-content"
+      suspectsRefusedMedia({
+        error,
+        history: await ChatReads.history({
+          chatId: input.chatId,
+          sessionId: input.sessionId,
+        }).unwrapOr([]),
+        model: input.model,
+      })
     ) {
       const refused = await refusalCandidates(messagesResult.value);
       if (refused.length > 0) {

@@ -87,18 +87,49 @@ const PLATFORM_KIND_BY_CODE = new Map<string, ProviderErrorKind>([
  * pattern from a guess. Add one when a real failure turns up; this module
  * exists so there is a single place to add it.
  */
-const UNSENDABLE_CONTENT_PATTERNS = [
+const ONE_FILE_PATTERNS = [
   /could not process image/i, // Anthropic: 400 invalid_request_error
   /image exceeds [^.]*maximum/i, // Anthropic: "image exceeds 5 MB maximum"
-  /image dimensions exceed max allowed size/i, // Anthropic, many-image requests
-  /maximum of \d+ pdf pages/i, // Anthropic
   // Claude account, as Claude Code rewords Anthropic's refusal of an image or
   // a PDF, under a 400 `invalid_request_error`: "API Error: an image in the
   // conversation could not be processed and was removed. Re-read the file
   // with a different approach if you still need it."
   /an? (?:image|document) in the conversation could not be processed/i,
   /the image data you provided does not represent a valid image/i, // OpenAI
+  // Google: 400 INVALID_ARGUMENT "Unable to process input image. Please retry
+  // or report in https://developers.generativeai.google/guide/troubleshooting"
+  // (google-gemini/gemini-cli#5064, googleapis/python-genai#505)
+  /unable to process input image/i,
 ];
+
+const UNSENDABLE_CONTENT_PATTERNS = [
+  ...ONE_FILE_PATTERNS,
+  // Limits on the request's media as a whole, which name no one file.
+  /image dimensions exceed max allowed size/i, // Anthropic, many-image requests
+  /maximum of \d+ pdf pages/i, // Anthropic
+];
+
+/**
+ * The `unsendable-content` codes that name one file the provider would not
+ * take, as against a limit on the account
+ * (`subscription_sharing_unsupported_capability`).
+ */
+const ONE_FILE_CODES = new Set([
+  "empty_image_file",
+  "failed_to_download_image",
+  "image_content_policy_violation",
+  "image_file_not_found",
+  "image_file_too_large",
+  "image_parse_error",
+  "image_too_large",
+  "image_too_small",
+  "invalid_base64_image",
+  "invalid_image",
+  "invalid_image_format",
+  "invalid_image_mode",
+  "invalid_image_url",
+  "unsupported_image_media_type",
+]);
 
 /**
  * A payload larger than the model will take, matched by message.
@@ -164,16 +195,7 @@ export function classifyProviderError(
   error: unknown,
 ): ProviderErrorClassification {
   if (APICallError.isInstance(error)) {
-    return weighEvidence({
-      // The SDK's own verdict, computed from the status: 408, 409, or 5xx. 429
-      // is in its set too, but the status check answers that first.
-      codes: structuredCodes(error.responseBody),
-      isRetryable: error.isRetryable,
-      statusCode: error.statusCode,
-      // Providers disagree about which of these carries the sentence, and the
-      // SDK's message is sometimes the status line alone, so both are searched.
-      text: [error.message, error.responseBody].filter(Boolean).join("\n"),
-    });
+    return weighEvidence(apiCallEvidence(error));
   }
 
   // Read before the streamed shape below, because a dropped connection can
@@ -208,6 +230,42 @@ export function providerErrorCodes(error: unknown): string[] {
     return structuredCodes(error.responseBody);
   }
   return readStreamedError(error)?.codes ?? [];
+}
+
+/**
+ * Whether an `unsendable-content` refusal names one file the provider could
+ * not take (an image it could not decode, one over its size cap), rather than
+ * a limit on the request's media as a whole or on the account. Only such a
+ * refusal is answered by leaving a file out.
+ */
+export function refusesOneFile(error: unknown) {
+  if (classifyProviderError(error).kind !== "unsendable-content") {
+    return false;
+  }
+  const evidence = APICallError.isInstance(error)
+    ? apiCallEvidence(error)
+    : readStreamedError(error);
+  if (evidence === undefined) {
+    return false;
+  }
+  // A code decides ahead of prose, as in `weighEvidence`.
+  const code = evidence.codes.find((candidate) => KIND_BY_CODE.has(candidate));
+  return code === undefined
+    ? ONE_FILE_PATTERNS.some((pattern) => pattern.test(evidence.text))
+    : ONE_FILE_CODES.has(code);
+}
+
+function apiCallEvidence(error: APICallError) {
+  return {
+    // The SDK's own verdict, computed from the status: 408, 409, or 5xx. 429
+    // is in its set too, but the status check answers that first.
+    codes: structuredCodes(error.responseBody),
+    isRetryable: error.isRetryable,
+    statusCode: error.statusCode,
+    // Providers disagree about which of these carries the sentence, and the
+    // SDK's message is sometimes the status line alone, so both are searched.
+    text: [error.message, error.responseBody].filter(Boolean).join("\n"),
+  };
 }
 
 /** Whether a `gateway-not-listed-error` is anywhere in the cause chain. */

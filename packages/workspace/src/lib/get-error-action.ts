@@ -93,14 +93,17 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "stop" };
   }
 
+  // A refusal blamed on media its request newly carried: the next request
+  // leaves that media out (`lib/refused-media.ts`), and a retry is how the
+  // blame is put to the test.
+  if (message.metadata.refusedMedia?.length) {
+    return { type: "retry" };
+  }
+
   // Content the provider refused goes out byte for byte on a retry and is
-  // refused again, unless the media it was blamed on is left out, which the
-  // next request does (`lib/refused-media.ts`). With nothing to leave out,
-  // stopping leaves the error on the message for the user.
+  // refused again. Stopping leaves the error on the message for the user.
   if (classification === "unsendable-content") {
-    return message.metadata.refusedMedia?.length
-      ? { type: "retry" }
-      : { type: "stop" };
+    return { type: "stop" };
   }
 
   if (error.kind === "unknown") {

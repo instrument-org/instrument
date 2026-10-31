@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyProviderError,
   type ProviderErrorClassification,
+  refusesOneFile,
 } from "./classify-provider-error";
 
 const endedEarlyEvent = {
@@ -266,6 +267,12 @@ const cases: {
     name: "Claude account undecodable image",
   },
   {
+    // google-gemini/gemini-cli#5064, googleapis/python-genai#505.
+    error: geminiUndecodableImage(),
+    expected: { evidence: "prose", kind: "unsendable-content" },
+    name: "Google undecodable image",
+  },
+  {
     error: apiCallError({
       message:
         "The image data you provided does not represent a valid image format",
@@ -437,6 +444,91 @@ const cases: {
 describe("classifyProviderError", () => {
   it.each(cases)("classifies $name", ({ error, expected }) => {
     expect(classifyProviderError(error)).toEqual(expected);
+  });
+});
+
+function geminiUndecodableImage() {
+  const message =
+    "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting";
+  return apiCallError({
+    message,
+    responseBody: JSON.stringify({
+      error: { code: 400, message, status: "INVALID_ARGUMENT" },
+    }),
+    statusCode: 400,
+  });
+}
+
+describe("refusesOneFile", () => {
+  it.each([
+    {
+      error: apiCallError({
+        message:
+          "messages.0.content.1.image.source.base64: Could not process image",
+        responseBody: JSON.stringify({
+          error: {
+            message:
+              "messages.0.content.1.image.source.base64: Could not process image",
+            type: "invalid_request_error",
+          },
+        }),
+        statusCode: 400,
+      }),
+      expected: true,
+      name: "an image Anthropic could not decode",
+    },
+    {
+      error: geminiUndecodableImage(),
+      expected: true,
+      name: "an image Google could not decode",
+    },
+    {
+      error: apiCallError({
+        responseBody: JSON.stringify({
+          error: { code: "invalid_image_format", message: "Bad image" },
+        }),
+        statusCode: 400,
+      }),
+      expected: true,
+      name: "an OpenAI image code",
+    },
+    {
+      error: apiCallError({
+        message:
+          "messages.12.content.0.image.source.base64.data: At least one of the image dimensions exceed max allowed size for many-image requests: 2000 pixels",
+        statusCode: 400,
+      }),
+      expected: false,
+      name: "Anthropic's many-image dimension limit",
+    },
+    {
+      error: apiCallError({
+        message: "A maximum of 100 PDF pages may be provided.",
+        statusCode: 400,
+      }),
+      expected: false,
+      name: "Anthropic's PDF page total",
+    },
+    {
+      error: apiCallError({
+        responseBody: JSON.stringify({
+          error: {
+            code: "subscription_sharing_unsupported_capability",
+            message: "Unsupported",
+          },
+        }),
+        statusCode: 400,
+      }),
+      expected: false,
+      name: "the ChatGPT account's unsupported capability",
+    },
+    {
+      error: apiCallError({ message: "Bad Request", statusCode: 400 }),
+      expected: false,
+      name: "a 400 nothing names",
+    },
+  ])("answers $expected for $name", ({ error, expected }) => {
+    expect(refusesOneFile(error)).toBe(expected);
   });
 });
 

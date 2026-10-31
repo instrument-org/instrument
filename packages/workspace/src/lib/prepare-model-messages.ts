@@ -45,7 +45,7 @@ import { modelWindow } from "./model-window";
 import { limitModelImages } from "./limit-model-images";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
-import { dropRefusedMedia } from "./refused-media";
+import { dropRefusedMedia, standingRefusals } from "./refused-media";
 import { chatDir } from "./record-folders";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
 import { sanitizeModelText } from "./sanitize-model-text";
@@ -327,11 +327,7 @@ export async function prepareModelMessages({
   const messages = messageResults.value;
   // Read before failed replies are dropped below, since a refusal is recorded
   // on the reply that failed.
-  const refusedMedia = new Set(
-    messages.flatMap((message) =>
-      message.role === "assistant" ? (message.metadata.refusedMedia ?? []) : [],
-    ),
-  );
+  const refusedMedia = standingRefusals(messages);
 
   function isSessionContextMessage(
     message: SessionMessage.WithParts,

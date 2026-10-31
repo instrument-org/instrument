@@ -37,6 +37,7 @@ import { UNTITLED_CHAT_TITLE } from "../constants";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { TypedError } from "../lib/errors";
+import { getErrorAction } from "../lib/get-error-action";
 import { isToolPart } from "../lib/is-tool-part";
 import { type ChatRead } from "../lib/records/chat-records";
 import { logFileName } from "../lib/records/file-names";
@@ -166,7 +167,7 @@ describe("llmRequestLogic", () => {
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
   }: {
-    beforeStream?: () => Promise<void>;
+    beforeStream?: (prompt: LanguageModelV4Prompt) => Promise<void>;
     catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV4StreamPart[];
     finishReason?: "length" | "stop";
@@ -180,7 +181,7 @@ describe("llmRequestLogic", () => {
     const mockLanguageModel = new MockLanguageModelV4({
       doStream: async ({ prompt }) => {
         if (beforeStream) {
-          await beforeStream();
+          await beforeStream(prompt);
         }
         prompts.push(prompt);
         return {
@@ -3451,137 +3452,337 @@ describe("llmRequestLogic", () => {
     ).toEqual(["output-error"]);
   });
 
-  it("leaves out an image the provider refused, from the next request on", async () => {
+  describe("media a provider refused", () => {
     // Header, dimensions and end marker in order, pixel data that does not
-    // inflate: every local check passes it, and Claude refuses it.
-    const chunk = (type: string, data: Buffer) => {
-      const length = Buffer.alloc(4);
-      length.writeUInt32BE(data.byteLength);
-      const body = Buffer.concat([Buffer.from(type), data]);
-      const crc = Buffer.alloc(4);
-      crc.writeUInt32BE(zlib.crc32(body));
-      return Buffer.concat([length, body, crc]);
-    };
-    const header = Buffer.alloc(13);
-    header.writeUInt32BE(64, 0);
-    header.writeUInt32BE(64, 4);
-    header[8] = 8;
-    header[9] = 2;
-    const poisoned = Buffer.concat([
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      chunk("IHDR", header),
-      chunk("IDAT", Buffer.alloc(500, 0xab)),
-      chunk("IEND", Buffer.alloc(0)),
-    ]).toString("base64");
+    // inflate: every local check passes it, and Claude refuses it. The width
+    // tells two of them apart.
+    function poisonedPng(width: number) {
+      const chunk = (type: string, data: Buffer) => {
+        const length = Buffer.alloc(4);
+        length.writeUInt32BE(data.byteLength);
+        const body = Buffer.concat([Buffer.from(type), data]);
+        const crc = Buffer.alloc(4);
+        crc.writeUInt32BE(zlib.crc32(body));
+        return Buffer.concat([length, body, crc]);
+      };
+      const header = Buffer.alloc(13);
+      header.writeUInt32BE(width, 0);
+      header.writeUInt32BE(64, 4);
+      header[8] = 8;
+      header[9] = 2;
+      return Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        chunk("IHDR", header),
+        chunk("IDAT", Buffer.alloc(500, 0xab)),
+        chunk("IEND", Buffer.alloc(0)),
+      ]).toString("base64");
+    }
 
-    const userMessageId = StoreId.newMessageId();
-    const assistantMessageId = StoreId.newMessageId();
-    let requests = 0;
-    const testMachine = await createTestMachine({
-      beforeStream: () => {
-        requests++;
-        if (requests > 1) {
-          return Promise.resolve();
-        }
-        // As Claude Code reports Anthropic's refusal.
-        const message =
-          "API Error: an image in the conversation could not be processed and was removed. Re-read the file with a different approach if you still need it.";
-        throw new APICallError({
-          isRetryable: false,
-          message,
-          requestBodyValues: {},
-          responseBody: JSON.stringify({
-            error: { message, type: "invalid_request_error" },
-          }),
-          statusCode: 400,
-          url: "claude-account://",
-        });
-      },
-      chunks: [],
-      modelFeatures: ["inputImage", "inputText", "outputText", "tools"],
-    });
-    await ChatWrites.saveMessage(
-      {
-        id: userMessageId,
-        metadata: { createdAt: mockDate, sessionId },
-        role: "user",
-      },
-      testMachine.chatId,
-    );
-    await saveParts(
-      [
-        {
-          metadata: {
-            createdAt: mockDate,
-            id: StoreId.newPartId(),
-            messageId: userMessageId,
-            sessionId,
-          },
-          state: "done",
-          text: "What does label.png say?",
-          type: "text",
-        },
-      ],
-      testMachine.chatId,
-    );
-    await ChatWrites.saveMessage(
-      {
-        id: assistantMessageId,
-        metadata: {
-          createdAt: mockDate,
-          modelId: "mock-model-id",
-          providerId: "mock-provider",
-          sessionId,
-          usage: mockTotalUsage,
-          finishReason: "tool-calls",
-        },
-        role: "assistant",
-      },
-      testMachine.chatId,
-    );
-    await saveParts(
-      [
-        SessionMessagePart.CoercedSchema.parse({
-          input: { filePath: "label.png" },
-          metadata: {
-            createdAt: mockDate,
-            endedAt: mockDate,
-            id: StoreId.newPartId(),
-            messageId: assistantMessageId,
-            sessionId,
-          },
-          output: {
-            base64Data: poisoned,
-            filePath: "label.png",
-            height: 64,
-            mimeType: "image/png",
-            modifiedAt: 0,
-            state: "image",
-            width: 64,
-          },
-          state: "output-available",
-          toolCallId: "1",
-          type: "tool-read_file",
+    const digestOf = (image: string) =>
+      mediaDigest(Buffer.from(image, "base64"));
+
+    // As Claude Code reports Anthropic's refusal.
+    function claudeRefusal() {
+      const message =
+        "API Error: an image in the conversation could not be processed and was removed. Re-read the file with a different approach if you still need it.";
+      return new APICallError({
+        isRetryable: false,
+        message,
+        requestBodyValues: {},
+        responseBody: JSON.stringify({
+          error: { message, type: "invalid_request_error" },
         }),
-      ],
-      testMachine.chatId,
-    );
+        statusCode: 400,
+        url: "claude-account://",
+      });
+    }
 
-    const refused = await runTestMachine(testMachine);
-    const refusal = refused.messages.at(-1);
-    // The refused request blamed the image, by the bytes it sent.
-    expect(
-      refusal?.role === "assistant" ? refusal.metadata.refusedMedia : [],
-    ).toEqual([mediaDigest(Buffer.from(poisoned, "base64"))]);
+    // A 400 whose wording the classifier does not know.
+    function unnamedRefusal() {
+      return new APICallError({
+        message: "Bad Request",
+        requestBodyValues: {},
+        responseBody: JSON.stringify({
+          error: {
+            message: "Request contains an invalid argument.",
+            status: "INVALID_ARGUMENT",
+          },
+        }),
+        statusCode: 400,
+        url: "https://example.com",
+      });
+    }
 
-    await runTestMachine(testMachine);
-    // The refused request threw before its prompt was kept, so this is the
-    // one after: the image left out, with a note in its place.
-    expect(prompts).toHaveLength(1);
-    const next = JSON.stringify(prompts[0]);
-    expect(next).not.toContain(poisoned.slice(0, 40));
-    expect(next).toContain(
-      "image/png omitted: the model's provider refused it",
+    /**
+     * A chat the user opened, and a reply per image that read it with
+     * `read_file`, each finished on `modelId`: the newest image is in the
+     * result no accepted request carried yet.
+     */
+    async function seedReads({
+      chatId,
+      images,
+      modelId = "mock-model-id",
+    }: {
+      chatId: ChatId;
+      images: string[];
+      modelId?: string;
+    }) {
+      const userMessageId = StoreId.newMessageId();
+      await ChatWrites.saveMessage(
+        {
+          id: userMessageId,
+          metadata: { createdAt: mockDate, sessionId },
+          role: "user",
+        },
+        chatId,
+      );
+      await saveParts(
+        [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId: userMessageId,
+              sessionId,
+            },
+            state: "done",
+            text: "What do these labels say?",
+            type: "text",
+          },
+        ],
+        chatId,
+      );
+      for (const [index, image] of images.entries()) {
+        const assistantMessageId = StoreId.newMessageId();
+        await ChatWrites.saveMessage(
+          {
+            id: assistantMessageId,
+            metadata: {
+              createdAt: mockDate,
+              finishedAt: mockDate,
+              modelId,
+              providerId: "mock-provider",
+              sessionId,
+              usage: mockTotalUsage,
+              finishReason: "tool-calls",
+            },
+            role: "assistant",
+          },
+          chatId,
+        );
+        await saveParts(
+          [
+            SessionMessagePart.CoercedSchema.parse({
+              input: { filePath: `label-${index}.png` },
+              metadata: {
+                createdAt: mockDate,
+                endedAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId: assistantMessageId,
+                sessionId,
+              },
+              output: {
+                base64Data: image,
+                filePath: `label-${index}.png`,
+                height: 64,
+                mimeType: "image/png",
+                modifiedAt: 0,
+                state: "image",
+                width: 64,
+              },
+              state: "output-available",
+              toolCallId: `${index + 1}`,
+              type: "tool-read_file",
+            }),
+          ],
+          chatId,
+        );
+      }
+    }
+
+    /** A request per answer, refused where the answer is an error. */
+    async function chatAnswering(answers: (Error | "accept")[]) {
+      const sent: string[] = [];
+      const testMachine = await createTestMachine({
+        beforeStream: (prompt) => {
+          const answer = answers[sent.length];
+          sent.push(JSON.stringify(prompt));
+          if (answer instanceof Error) {
+            throw answer;
+          }
+          return Promise.resolve();
+        },
+        chunks: [
+          { id: "1", type: "text-start" },
+          { delta: "Done.", id: "1", type: "text-delta" },
+          { id: "1", type: "text-end" },
+        ],
+        modelFeatures: ["inputImage", "inputText", "outputText", "tools"],
+      });
+      const step = async () => {
+        const { messages } = await runTestMachine(testMachine);
+        const reply = messages.at(-1);
+        if (reply?.role !== "assistant") {
+          throw new Error("Expected a reply");
+        }
+        return reply;
+      };
+      return { sent, step, testMachine };
+    }
+
+    it("leaves out an image the provider refused, from the next request on", async () => {
+      const poisoned = poisonedPng(64);
+      const chat = await chatAnswering([claudeRefusal(), "accept", "accept"]);
+      await seedReads({
+        chatId: chat.testMachine.chatId,
+        images: [poisoned],
+      });
+
+      const refusal = await chat.step();
+      // The refused request blamed the image, by the bytes it sent.
+      expect(refusal.metadata.refusedMedia).toEqual([digestOf(poisoned)]);
+      expect(getErrorAction(refusal)).toEqual({ type: "retry" });
+
+      // The retry, sent without it, is accepted, which confirms the blame, so
+      // the image stays out of the turn after too.
+      for (const _ of [1, 2]) {
+        expect((await chat.step()).metadata.error).toBeUndefined();
+      }
+      for (const prompt of chat.sent.slice(1)) {
+        expect(prompt).not.toContain(poisoned);
+        expect(prompt).toContain(
+          "image/png omitted: the model's provider refused it",
+        );
+      }
+    });
+
+    it("blames only the image the request newly carried, and stops when refused again", async () => {
+      const older = poisonedPng(64);
+      const newer = poisonedPng(65);
+      const chat = await chatAnswering([
+        claudeRefusal(),
+        claudeRefusal(),
+        "accept",
+      ]);
+      await seedReads({
+        chatId: chat.testMachine.chatId,
+        images: [older, newer],
+      });
+
+      const first = await chat.step();
+      expect(first.metadata.refusedMedia).toEqual([digestOf(newer)]);
+
+      // The retry leaves out only the newer image, and its refusal names
+      // nothing new, so the turn stops.
+      const second = await chat.step();
+      expect(chat.sent[1]).toContain(older);
+      expect(chat.sent[1]).not.toContain(newer);
+      expect(second.metadata.refusedMedia).toBeUndefined();
+      expect(getErrorAction(second)).toEqual({ type: "stop" });
+
+      // The guess was never confirmed, so the next turn sends both again.
+      await chat.step();
+      expect(chat.sent[2]).toContain(older);
+      expect(chat.sent[2]).toContain(newer);
+    });
+
+    it("blames nothing for a limit on the request's images as a whole", async () => {
+      const chat = await chatAnswering([
+        new APICallError({
+          message:
+            "messages.12.content.0.image.source.base64.data: At least one of the image dimensions exceed max allowed size for many-image requests: 2000 pixels",
+          requestBodyValues: {},
+          statusCode: 400,
+          url: "https://api.anthropic.com/v1/messages",
+        }),
+      ]);
+      await seedReads({
+        chatId: chat.testMachine.chatId,
+        images: [poisonedPng(64)],
+      });
+
+      const refusal = await chat.step();
+      expect(refusal.metadata.refusedMedia).toBeUndefined();
+      expect(getErrorAction(refusal)).toEqual({ type: "stop" });
+    });
+
+    it("retries a 400 nothing names once without the image it newly carried", async () => {
+      const poisoned = poisonedPng(64);
+      const chat = await chatAnswering([unnamedRefusal(), "accept", "accept"]);
+      await seedReads({
+        chatId: chat.testMachine.chatId,
+        images: [poisonedPng(65), poisoned],
+      });
+
+      const refusal = await chat.step();
+      expect(refusal.metadata.refusedMedia).toEqual([digestOf(poisoned)]);
+      expect(getErrorAction(refusal)).toEqual({ type: "retry" });
+
+      await chat.step();
+      await chat.step();
+      for (const prompt of chat.sent.slice(1)) {
+        expect(prompt).not.toContain(poisoned);
+      }
+    });
+
+    it.each([
+      {
+        // The newest reply finished with nothing after it to blame.
+        images: [poisonedPng(64)],
+        modelId: "mock-model-id",
+        name: "with no image new since the last reply",
+        withTextAfter: true,
+      },
+      {
+        images: [poisonedPng(64)],
+        modelId: "another-model-id",
+        name: "on the first request after a model switch",
+        withTextAfter: false,
+      },
+    ])(
+      "blames nothing for a 400 nothing names $name",
+      async ({ images, modelId, withTextAfter }) => {
+        const chat = await chatAnswering([unnamedRefusal()]);
+        await seedReads({ chatId: chat.testMachine.chatId, images, modelId });
+        if (withTextAfter) {
+          const replyId = StoreId.newMessageId();
+          await ChatWrites.saveMessage(
+            {
+              id: replyId,
+              metadata: {
+                createdAt: mockDate,
+                finishedAt: mockDate,
+                modelId,
+                providerId: "mock-provider",
+                sessionId,
+                usage: mockTotalUsage,
+                finishReason: "stop",
+              },
+              role: "assistant",
+            },
+            chat.testMachine.chatId,
+          );
+          await saveParts(
+            [
+              {
+                metadata: {
+                  createdAt: mockDate,
+                  id: StoreId.newPartId(),
+                  messageId: replyId,
+                  sessionId,
+                },
+                state: "done",
+                text: "It says hello.",
+                type: "text",
+              },
+            ],
+            chat.testMachine.chatId,
+          );
+        }
+
+        const refusal = await chat.step();
+        expect(refusal.metadata.refusedMedia).toBeUndefined();
+      },
     );
   });
 

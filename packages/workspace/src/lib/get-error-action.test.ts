@@ -122,6 +122,26 @@ describe("getErrorAction", () => {
     expect(getErrorAction(message)).toEqual({ type: "retry" });
   });
 
+  it("returns retry for a 400 nothing names once the media it blames is named", () => {
+    const message = createMessage(
+      {
+        classification: "unknown",
+        kind: "api-call",
+        message: "Bad Request",
+        name: "APIError",
+        responseBody: JSON.stringify({
+          error: { message: "Bad Request", retryable: false },
+        }),
+        statusCode: 400,
+        url: "https://example.com",
+      },
+      OUR_PROVIDER_CONFIG.type,
+    );
+    expect(getErrorAction(message)).toEqual({ type: "stop" });
+    message.metadata.refusedMedia = ["digest"];
+    expect(getErrorAction(message)).toEqual({ type: "retry" });
+  });
+
   it("returns retry for no-such-tool errors", () => {
     const message = createMessage({
       kind: "no-such-tool",

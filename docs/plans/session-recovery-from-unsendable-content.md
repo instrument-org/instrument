@@ -1,6 +1,6 @@
 # Recovering a session whose history the provider will not accept
 
-Status: done. Every phase has landed. Phases 2 and 3 took a simpler shape than planned, described under "What landed for phases 2 and 3": no separate stripped probe, but a refusal that names the media it blames, which every later request leaves out.
+Status: done. Every phase has landed. Phases 2 and 3 took a simpler shape than planned, described under "What landed for phases 2 and 3": no separate stripped probe, but a refusal that blames the media its request newly carried, which the next request leaves out and every later one does once that request is accepted.
 
 ## Problem
 
@@ -121,11 +121,12 @@ A Claude account refusal of an image a local check passed (a PNG whose header, d
 
 The recovery, in [refused-media.ts](../../packages/workspace/src/lib/refused-media.ts):
 
-- On an `unsendable-content` refusal, `llm-request.ts` records on the refused reply (`refusedMedia`) the sha256 of the media it most likely was: what the request carried past its last assistant message, which no earlier accepted request did, or every media part when nothing past it is media (a stricter model, or a first guess already left out).
-- `getErrorAction` retries such a reply, and stops as before when there was no media to name.
-- `prepareModelMessages` reads every recorded digest and, after image normalization, puts a note naming the media type in place of those bytes. The record stays, so the repair is permanent and costs no probe on later turns, and the note tells the model, which tells the user.
+- Two errors are blamed on media (`suspectsRefusedMedia`). One is an `unsendable-content` refusal that names one file the provider could not take (`refusesOneFile` in the classifier: Anthropic's "could not process image", Claude Code's rewording, Google's "Unable to process input image", OpenAI's image codes). A limit on the request's media as a whole (Anthropic's many-image dimension cap, its PDF page total) and the ChatGPT account's `subscription_sharing_unsupported_capability` name no file and stop the turn. The other is a 400 the classifier calls `unknown`, when the last accepted reply was from the same model: wording we have not matched, from Gemini, Workers AI or anyone else. After a model switch the new model may be refusing older history, so that 400 is handled as any other.
+- The blame is the sha256 of the media the request newly carried, recorded on the refused reply (`refusedMedia`): what came past its last assistant message, which is the reply to the latest accepted request. Nothing else is ever blamed, so a request that newly carried no media blames nothing.
+- `getErrorAction` retries a reply with blame. Otherwise an `unsendable-content` refusal stops, and an unknown 400 is retried as it always was.
+- `prepareModelMessages` reads the blame from the records (`standingRefusals`) and, after image normalization, puts a note naming the media type in place of those bytes. A blame applies to the request right after the refused reply; once there is a reply after it, the blame stands only if that reply finished without an error, which is a request without the media accepted. So a retry refused again names nothing new and stops the turn, the guess stops applying, and a wrong guess costs one request rather than the user's images. A confirmed blame stays on every later turn, and in tasks forked after it, with no probe, and the note tells the model, which tells the user.
 
-Departures from phases 2 and 3: the retry leaves out only the blamed media rather than all of it, the record is a digest on the refused reply rather than a flag on each part, and nothing counts recoveries beyond the records themselves. Covered by `llm-request.test.ts` ("leaves out an image the provider refused") and the `unsendable-image-passes-local-checks` eval case.
+Departures from phases 2 and 3: the retry leaves out only the newly carried media rather than all of it, the record is a digest on the refused reply rather than a flag on each part, confirmation is read from the replies after it rather than stored, and nothing counts recoveries beyond the records themselves. The structural fallback's false positives (a tool schema, a tool call left without its result, a thinking signature) cost the one retry the confirm rule allows. Covered by `llm-request.test.ts` ("media a provider refused"), `classify-provider-error.test.ts` (`refusesOneFile`) and the `unsendable-image-passes-local-checks` eval case.
 
 ## Relationship to context compaction
 

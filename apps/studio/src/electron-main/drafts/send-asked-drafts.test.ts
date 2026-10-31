@@ -2,11 +2,9 @@ import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/electron";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  ASK_FRESH_MS,
-  type AskedReply,
-  startSendingAskedDrafts,
-} from "./send-asked-drafts";
+import { ASK_FRESH_MS } from "@instrument-org/shared";
+
+import { type AskedReply, startSendingAskedDrafts } from "./send-asked-drafts";
 
 vi.mock("../lib/electron-logger", () => ({
   logger: { scope: () => ({ warn: vi.fn() }) },

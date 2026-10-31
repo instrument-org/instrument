@@ -1,16 +1,9 @@
+import { isFreshAsk } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/electron";
 
 import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
 
 import { logger } from "../lib/electron-logger";
-
-/**
- * How long after another device asks for a reply to be sent this computer
- * still sends it. A reply asked for longer ago than this, found by a launch
- * the next day say, is left in its chat's box for the person to send or not,
- * so nothing they wrote hours ago goes out unseen.
- */
-export const ASK_FRESH_MS = 10 * 60 * 1000;
 
 /**
  * A draft to send: its chat, the draft it is, its words, and for a draft
@@ -33,7 +26,9 @@ export interface AskedReply {
  * naming the draft, and the draft marked sent, so a send stopped partway is
  * finished or offered again exactly as a window's is (`lib/drafts/send.ts`).
  *
- * An ask older than `ASK_FRESH_MS`, or a send that fails, drops the ask and
+ * An ask that is not fresh (`isFreshAsk`, a reply asked for longer ago
+ * than `ASK_FRESH_MS`, which is left in its chat's box for the person to
+ * send or not), or a send that fails, drops the ask and
  * leaves the reply waiting in the box like any other, so a reply is sent
  * by this computer at most once and never long after it was written.
  */
@@ -110,7 +105,7 @@ export function startSendingAskedDrafts({
         continue;
       }
       inFlight.add(draft.id);
-      const fresh = now() - draft.updatedAt <= ASK_FRESH_MS;
+      const fresh = isFreshAsk(draft.updatedAt, now());
       const empty = draft.words.trim() === "" && !draft.inFolder?.length;
       void (fresh && !empty ? sendOne(draft) : dropAsk(draft)).finally(() => {
         inFlight.delete(draft.id);

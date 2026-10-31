@@ -1719,9 +1719,14 @@ async function dispatch(app) {
       );
     }
     case "click": {
+      // Both flags together are the element the selector matches with that
+      // name, which tells apart a name the page shows in several places.
       return app.click(
         flag(argv, "--selector")
-          ? { selector: flag(argv, "--selector") }
+          ? {
+              selector: flag(argv, "--selector"),
+              ...(flag(argv, "--text") && { text: flag(argv, "--text") }),
+            }
           : (flag(argv, "--text") ?? positional[0]),
         undefined,
         // `--right` goes last: like every flag here it takes the word after

@@ -413,19 +413,28 @@ export const waitForDebugBridge = (cdp) =>
 // --- element lookup -----------------------------------------------------
 
 /**
- * Resolve an element to its CSS-pixel rect. Text matching is restricted to
- * elements that actually render: names appear more than once in this DOM, and
- * the extra copies measure zero, so an unfiltered match silently targets one of
- * those.
+ * Resolve an element to its CSS-pixel rect, by `text`, by `selector`, or by
+ * both: a selector's matches narrowed to the one with that name. Every match is
+ * restricted to elements that actually show: names and selectors match more
+ * than once in this DOM, since every window tab stays mounted, and the copies
+ * in the tabs that are not up are laid out at full size under the one that is.
  */
-const RECT_FOR = (kind, needle) => `(() => {
-  const needle = ${JSON.stringify(needle)};
-  // Rendered at all: enough to pick between the copies of a name, but not
+const RECT_FOR = ({ selector, text }) => `(() => {
+  const selector = ${JSON.stringify(selector ?? null)};
+  const needle = ${JSON.stringify(text ?? null)};
+  // Showing at all: enough to pick between the copies of a name, but not
   // enough to click. A row scrolled out of a long list measures non-zero at
-  // coordinates outside the viewport.
+  // coordinates outside the viewport. A window tab that is not up keeps its
+  // screen mounted under an \`invisible opacity-0\` root (AppTabView), at the
+  // same size and place as the one that is, so a copy there measures like the
+  // real thing; checkVisibility is what tells them apart.
   const rendered = (n) => {
     const r = n.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
+    return (
+      r.width > 0 &&
+      r.height > 0 &&
+      n.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+    );
   };
   // The point a click lands on, the element's center, has to be inside the
   // window, not just some edge of the element: a row cut off at the bottom
@@ -448,17 +457,35 @@ const RECT_FOR = (kind, needle) => `(() => {
   // innerText puts them on two. The backslash is doubled because this is
   // template-literal source: the page has to receive \\s, not s.
   const fold = (text) => (text ?? "").replace(/\\s+/g, " ").trim();
-  const wanted = fold(needle);
+  // The same name with no spaces at all, for the last try: an accessible name
+  // joins its parts with a space ("💼 Pricing") where innerText may not
+  // ("💼Pricing"), so a name copied from a snapshot can miss the element it
+  // came from.
+  const squash = (text) => (text ?? "").replace(/\\s+/g, "");
+  const names = (n) => [n.getAttribute("aria-label"), n.innerText];
+  const named = (n) => names(n).some((name) => fold(name) === fold(needle));
+  const namedLoosely = (n) =>
+    names(n).some((name) => squash(name) !== "" && squash(name) === squash(needle));
+  // A leaf showing exactly the name, for a control whose name is not its own
+  // text (a row whose text is one part of it).
+  const leafNamed = (root) =>
+    Array.from(root.querySelectorAll("*")).find(
+      (n) => n.children.length === 0 && fold(n.textContent) === fold(needle) && rendered(n),
+    );
 
+  // A selector picks the pool, and a name the one in it; either alone is the
+  // whole lookup.
+  const pool = selector
+    ? Array.from(document.querySelectorAll(selector)).filter(rendered)
+    : Array.from(document.querySelectorAll(CLICKABLE)).filter(rendered);
   let el = null;
-  if (${JSON.stringify(kind)} === "selector") {
-    el = document.querySelector(needle);
+  if (needle === null) {
+    el = pool[0] ?? null;
+  } else if (selector) {
+    el = pool.find(named) ?? pool.find((n) => leafNamed(n)) ?? pool.find(namedLoosely) ?? null;
   } else {
-    const named = Array.from(document.querySelectorAll(CLICKABLE))
-      .filter((n) => rendered(n) && (fold(n.getAttribute("aria-label")) === wanted || fold(n.innerText) === wanted));
-    el = named[0] ?? Array.from(document.querySelectorAll("*"))
-      .filter((n) => n.children.length === 0 && fold(n.textContent) === wanted && rendered(n))
-      .map((n) => n.closest(CLICKABLE) ?? n)[0] ?? null;
+    const leaf = leafNamed(document);
+    el = pool.find(named) ?? (leaf ? leaf.closest(CLICKABLE) ?? leaf : null) ?? pool.find(namedLoosely) ?? null;
   }
   if (!el) return null;
 
@@ -555,21 +582,38 @@ const NON_SHIFT_MODIFIERS = ~MODIFIER_BITS.shift;
 /**
  * Normalize the ways a caller names an element. A bare string is text, because
  * that is what a snapshot hands you and what most calls want; an object says
- * which of the two it meant.
+ * which it meant, and `{ text, selector }` is the element the selector matches
+ * that carries that name. Anything else in the object is refused rather than
+ * dropped, since a right click written as `{ text, right: true }` would
+ * otherwise go out as a left one and report success.
  */
 function targetOf(target) {
   if (typeof target === "string") {
-    return { kind: "text", needle: target };
+    return { text: target };
   }
-  if (target?.selector) {
-    return { kind: "selector", needle: target.selector };
+  const { selector, text, ...rest } = target ?? {};
+  const extra = Object.keys(rest);
+  if (extra.length > 0) {
+    fail(
+      `An element is addressed by { text }, { selector } or both, not ${extra.join(", ")}. ` +
+        `A right or double click goes in click's third argument: click(target, label, { button: "right" }) or { count: 2 }.`,
+    );
   }
-  if (target?.text) {
-    return { kind: "text", needle: target.text };
+  if (!selector && !text) {
+    fail(
+      `Cannot address ${JSON.stringify(target)}. Pass a string, {text}, {selector}, or both.`,
+    );
   }
-  fail(
-    `Cannot address ${JSON.stringify(target)}. Pass a string, {text}, or {selector}.`,
-  );
+  return { ...(selector && { selector }), ...(text && { text }) };
+}
+
+/** A target as messages and the trace name it. */
+function describeTarget({ selector, text }) {
+  return selector && text
+    ? `${JSON.stringify(text)} in ${JSON.stringify(selector)}`
+    : selector
+      ? `selector ${JSON.stringify(selector)}`
+      : `text ${JSON.stringify(text)}`;
 }
 
 // --- the app ------------------------------------------------------------
@@ -696,9 +740,9 @@ export async function connect({
      * worked.
      */
     click: async (target, label, { button = "left", count = 1 } = {}) => {
-      const { kind, needle } = targetOf(target);
-      return step(label ?? `click ${needle}`, async () => {
-        const rect = await rectFor(cdp, kind, needle);
+      const addressed = targetOf(target);
+      return step(label ?? `click ${addressed.text ?? addressed.selector}`, async () => {
+        const rect = await rectFor(cdp, addressed);
         const x = Math.round(rect.x + rect.width / 2);
         const y = Math.round(rect.y + rect.height / 2);
         // The pointer arrives before it presses, as a real one does: a menu
@@ -1019,23 +1063,24 @@ async function pressKey(cdp, combination) {
   await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...descriptor });
 }
 
-export async function rectFor(cdp, kind, needle) {
-  const rect = await evaluate(cdp, RECT_FOR(kind, needle));
+export async function rectFor(cdp, target) {
+  const rect = await evaluate(cdp, RECT_FOR(target));
+  const named = describeTarget(target);
   if (!rect) {
-    fail(`No visible element for ${kind} ${JSON.stringify(needle)}`);
+    fail(`No visible element for ${named}`);
   }
   // Scrolling it into view did not put it inside the window: it is clipped by
   // an overflow, or behind something. Say so, rather than dispatching input at
   // a point the window does not cover and reporting that as a click.
   if (rect.offScreen) {
     fail(
-      `Found ${kind} ${JSON.stringify(needle)}, but it is outside the window even after scrolling to it ` +
+      `Found ${named}, but it is outside the window even after scrolling to it ` +
         `(${Math.round(rect.x)},${Math.round(rect.y)}). Open or scroll whatever contains it first.`,
     );
   }
   if (rect.covered) {
     fail(
-      `Found ${kind} ${JSON.stringify(needle)}, but ${rect.covered} is on top of it, so a click would land there. ` +
+      `Found ${named}, but ${rect.covered} is on top of it, so a click would land there. ` +
         `Close or move whatever covers it first.`,
     );
   }
@@ -1163,11 +1208,7 @@ export async function capture(cdp, file, { pad = 0, selector, text } = {}) {
   };
 
   if (selector || text) {
-    const rect = await rectFor(
-      cdp,
-      selector ? "selector" : "text",
-      selector ?? text,
-    );
+    const rect = await rectFor(cdp, targetOf({ selector, text }));
     parameters.clip = {
       height: rect.height + pad * 2,
       scale: 1,

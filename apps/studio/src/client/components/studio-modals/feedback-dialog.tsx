@@ -6,6 +6,11 @@ import {
   wrapLinesClassName,
 } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -40,6 +45,7 @@ import {
 } from "@/shared/feedback-images";
 import {
   FEEDBACK_TOO_LARGE,
+  type FeedbackDescription,
   type FeedbackItem,
   MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
@@ -49,24 +55,17 @@ import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
-import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { NoteIcon } from "@phosphor-icons/react/Note";
 import { InfoIcon } from "@phosphor-icons/react/Info";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
-import { ScrollIcon } from "@phosphor-icons/react/Scroll";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 
 const ITEM_ICONS: Record<FeedbackItem["kind"], Icon> = {
-  about: InfoIcon,
   chat: ChatCircleIcon,
-  errors: WarningCircleIcon,
-  log: ScrollIcon,
-  settings: GearSixIcon,
-  task: ListChecksIcon,
+  diagnostics: InfoIcon,
   writeup: NoteIcon,
 };
 
@@ -93,6 +92,8 @@ const DIALOG_HEIGHT = "40rem";
 const NOTE_MAX_LENGTH = 5000;
 
 type Part = {
+  /** A line under the part's name: the chat's title and its tasks. */
+  detail?: string;
   id: string;
   items: FeedbackItem[];
   title: string;
@@ -177,6 +178,7 @@ export function FeedbackDialogContent({
     value: note,
   });
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set());
+  const [fullDetails, setFullDetails] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
@@ -214,15 +216,16 @@ export function FeedbackDialogContent({
         ...(described.data.chat
           ? [
               {
+                detail: described.data.chat.summary,
                 id: "chat",
-                items: described.data.chat.items,
+                items: [chatItem(described.data.chat, fullDetails)],
                 title: "This chat",
               },
             ]
           : []),
         {
           id: "diagnostics",
-          items: described.data.diagnostics.items,
+          items: [described.data.diagnostics],
           title: "Diagnostics",
         },
       ]
@@ -235,7 +238,10 @@ export function FeedbackDialogContent({
     allItems.find((item) => item.id === picked) ??
     allItems[0];
   const chatTooLarge =
-    bytesGoing(described.data?.chat?.items ?? [], leftOut) > MAX_REPORT_BYTES;
+    bytesGoing(
+      described.data?.chat ? [chatItem(described.data.chat, fullDetails)] : [],
+      leftOut,
+    ) > MAX_REPORT_BYTES;
 
   const send = useMutation({
     mutationFn: () => {
@@ -480,16 +486,35 @@ export function FeedbackDialogContent({
                 {parts.length > 0 && (
                   <div className="flex flex-col gap-3">
                     {parts.map((part) => (
-                      <FeedbackPart
-                        key={part.id}
-                        leftOut={leftOut}
-                        onLeftOut={setLeftOut}
-                        onView={(item) => {
-                          setPicked(item.id);
-                        }}
-                        part={part}
-                        viewing={viewing}
-                      />
+                      <div className="flex flex-col gap-1" key={part.id}>
+                        <FeedbackPart
+                          leftOut={leftOut}
+                          onLeftOut={setLeftOut}
+                          onView={(item) => {
+                            setPicked(item.id);
+                          }}
+                          part={part}
+                          viewing={viewing}
+                        />
+                        {part.id === "chat" &&
+                          described.data?.chat?.full &&
+                          !leftOut.has(
+                            chatItem(described.data.chat, fullDetails).id,
+                          ) && (
+                            <FullDetailsBox
+                              checked={fullDetails}
+                              onCheckedChange={(checked) => {
+                                setFullDetails(checked);
+                                if (described.data?.chat) {
+                                  setPicked(
+                                    chatItem(described.data.chat, checked).id,
+                                  );
+                                }
+                              }}
+                              sources={described.data.chat.sources}
+                            />
+                          )}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -553,6 +578,7 @@ function FeedbackPart({
   if (only && part.items.length === 1) {
     return (
       <FileRow
+        detail={part.detail}
         included={!leftOut.has(only.id)}
         item={only}
         label={part.title}
@@ -601,9 +627,79 @@ function FeedbackPart({
   );
 }
 
+/** The chat as it goes: its outline, or everything with full details. */
+function chatItem(
+  chat: NonNullable<FeedbackDescription["chat"]>,
+  fullDetails: boolean,
+): FeedbackItem {
+  return fullDetails && chat.full ? chat.full : chat.item;
+}
+
+/** Up to three names as a person lists them: "a, b and c". */
+export function listedSources(sources: readonly string[]): string {
+  const shown = sources.slice(0, 3);
+  const last = shown.pop();
+  if (last === undefined) {
+    return "";
+  }
+  return shown.length > 0 ? `${shown.join(", ")} and ${last}` : last;
+}
+
+/**
+ * The box under the chat that adds what the agent read, off until the person
+ * checks it, with a button that says what it adds.
+ */
+function FullDetailsBox({
+  checked,
+  onCheckedChange,
+  sources,
+}: {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  sources: readonly string[];
+}) {
+  const id = useId();
+  const like = listedSources(sources);
+  return (
+    <div className="flex items-center gap-2 pl-8.5 text-xs">
+      <Checkbox
+        checked={checked}
+        id={id}
+        onCheckedChange={(value) => {
+          onCheckedChange(value === true);
+        }}
+      />
+      <label className={cn(!checked && "text-muted-foreground")} htmlFor={id}>
+        Include full details
+      </label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            aria-label="What full details add"
+            className="grid size-5 place-items-center rounded-full text-muted-foreground hover:text-foreground"
+            type="button"
+          >
+            <InfoIcon className="size-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-72 text-sm">
+          <p className="font-medium">Full details</p>
+          <p className="mt-1 text-muted-foreground">
+            {like
+              ? `The pages and files ${APP_NAME} read in this chat, like ${like}.`
+              : `The pages and files ${APP_NAME} read in this chat.`}{" "}
+            You only need these if the problem was about something it read.
+          </p>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 /** A file of what goes: its box, and the row that shows it beside the list. */
 function FileRow({
   className,
+  detail,
   included,
   item,
   label,
@@ -612,6 +708,7 @@ function FileRow({
   shown,
 }: {
   className?: string;
+  detail?: string;
   included: boolean;
   item: FeedbackItem;
   label: string;
@@ -647,7 +744,14 @@ function FileRow({
         type="button"
       >
         <ItemIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">{label}</span>
+          {detail && (
+            <span className="truncate text-xs text-muted-foreground">
+              {detail}
+            </span>
+          )}
+        </span>
         <span className="shrink-0 text-xs text-muted-foreground">
           {included ? formatSize(item.bytes) : "Not included"}
         </span>
@@ -683,7 +787,10 @@ function itemBlocks(item: FeedbackItem): ViewBlock[] {
         : file.content,
       copy: file.content,
       key: file.path,
-      label: item.files.length > 1 ? file.path.split("/").pop() : undefined,
+      label:
+        item.files.length > 1 || item.events?.length
+          ? (file.label ?? file.path.split("/").pop())
+          : undefined,
       language: records ? "json" : extension,
       records,
     };
@@ -698,7 +805,7 @@ function itemBlocks(item: FeedbackItem): ViewBlock[] {
       code: events,
       copy: events,
       key: "events",
-      label: files.length > 0 ? "Errors" : undefined,
+      label: files.length > 0 ? "Recent errors" : undefined,
       language: "json",
     },
   ];

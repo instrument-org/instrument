@@ -46,6 +46,7 @@ vi.mock("@instrument-org/workspace/electron", () => ({
 }));
 
 // `now` is who is known without asking, `later` who asking adds.
+vi.mock("@/electron-main/lib/apps", () => ({ getAppsDir: () => undefined }));
 vi.mock("@/electron-main/lib/get-signed-in-user", () => ({
   knownSignedInPeople: () => signedIn.now,
   signedInPeople: () =>
@@ -378,11 +379,20 @@ describe("feedback", () => {
     ).toEqual(["slow read", "chats.get failed: gone"]);
   });
 
-  it("lays a chat's records out as its folder, a session per item and its settings last", () => {
-    const items = reports.chatFeedbackItems({
+  it("offers a chat as one item, its sessions in order and its settings last", () => {
+    const step = JSON.stringify({
+      part: {
+        input: { command: "cat notes.md" },
+        output: { exitCode: 0, output: "what the file says" },
+        type: "tool-bash",
+      },
+      seq: 1,
+      t: "part",
+    });
+    const chat = reports.chatFeedback({
       files: [
         file("state.mac1.json"),
-        file(`${TASK}.mac1.jsonl`),
+        file(`${TASK}.mac1.jsonl`, `${step}\n`),
         file(`${OWN}.mac1.jsonl`),
         file(`${OWN}.win1.jsonl`),
         file("settings.mac1.jsonl"),
@@ -398,49 +408,43 @@ describe("feedback", () => {
       ],
     });
 
-    expect(
-      items.map(({ files, id, kind, label }) => ({
-        files: files.map((each) => each.path),
-        id,
-        kind,
-        label,
-      })),
-    ).toMatchInlineSnapshot(`
+    expect(chat?.summary).toBe("“Help desk pricing” and 1 task");
+    expect(chat?.item.files.map((each) => `${each.label ?? ""}: ${each.path}`))
+      .toMatchInlineSnapshot(`
       [
-        {
-          "files": [
-            "chat/ses_01JB2W0000000000000000000A.mac1.jsonl",
-            "chat/ses_01JB2W0000000000000000000A.win1.jsonl",
-          ],
-          "id": "session:ses_01JB2W0000000000000000000A",
-          "kind": "chat",
-          "label": "Help desk pricing",
-        },
-        {
-          "files": [
-            "chat/ses_01JB2W0000000000000000000B.mac1.jsonl",
-          ],
-          "id": "session:ses_01JB2W0000000000000000000B",
-          "kind": "task",
-          "label": "Task: Competitor pricing pages",
-        },
-        {
-          "files": [
-            "chat/state.mac1.json",
-            "chat/settings.mac1.jsonl",
-            "chat/handoff-notes.md",
-          ],
-          "id": "chat-settings",
-          "kind": "settings",
-          "label": "Chat settings",
-        },
+        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.mac1.jsonl",
+        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.win1.jsonl",
+        "Task: Competitor pricing pages: chat/ses_01JB2W0000000000000000000B.mac1.jsonl",
+        "Chat settings: chat/state.mac1.json",
+        "Chat settings: chat/settings.mac1.jsonl",
       ]
     `);
-    expect(items[0]?.bytes).toBe(
-      Buffer.byteLength(JSON.stringify(items[0]?.files[0])) +
-        Buffer.byteLength(JSON.stringify(items[0]?.files[1])) +
-        2,
+    // Full details add what the task read, and the notes a handoff left.
+    expect(JSON.stringify(chat?.item)).not.toContain("what the file says");
+    expect(JSON.stringify(chat?.full)).toContain("what the file says");
+    expect(chat?.full?.files.map((each) => each.path)).toContain(
+      "chat/handoff-notes.md",
     );
+    expect(chat?.item.bytes).toBe(
+      chat?.item.files.reduce(
+        (sum, each) =>
+          sum +
+          Buffer.byteLength(
+            JSON.stringify({ content: each.content, path: each.path }),
+          ) +
+          1,
+        0,
+      ),
+    );
+  });
+
+  it("offers no full details when the outline leaves nothing out", () => {
+    const chat = reports.chatFeedback({
+      files: [file(`${OWN}.mac1.jsonl`, "")],
+      sessions: [{ id: OWN, title: "Hi" }],
+    });
+    expect(chat?.full).toBeUndefined();
+    expect(chat?.summary).toBe("“Hi”");
   });
 
   const item = (

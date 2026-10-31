@@ -241,4 +241,20 @@ describe("createReportRedactor", () => {
       `"at file:///~/AppData/x.js; cwd ~/chat; ~\\notes.md"`,
     );
   });
+
+  // A view's address carries the folder it shows URL-encoded, where the
+  // login comes right after the `F` of an encoded slash.
+  it("takes the home folder and login out of a URL-encoded path", () => {
+    const redactor = createReportRedactor({
+      home: "/Users/samrivera",
+      login: "samrivera",
+    });
+    expect(
+      redactor.text(
+        "/files?root=%2FUsers%2Fsamrivera%2FDesktop and /files?root=%2FVolumes%2Fsamrivera",
+      ),
+    ).toMatchInlineSnapshot(
+      `"/files?root=~%2FDesktop and /files?root=%2FVolumes%2F[login]"`,
+    );
+  });
 });

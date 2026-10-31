@@ -6,9 +6,12 @@ import {
 } from "@/electron-main/lib/get-signed-in-user";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
+import { getAppsDir } from "@/electron-main/lib/apps";
 import {
+  type ChatFeedbackDescription,
   FEEDBACK_TOO_LARGE,
   type FeedbackDescription,
+  type FeedbackFile,
   type FeedbackItem,
   MAX_REPORT_BYTES,
   MAX_REPORT_DETAILS,
@@ -34,9 +37,15 @@ import {
   chatIds,
   chatSessions,
   chatStartedWithApp,
+  listApps,
   listMemories,
   memoryDir,
 } from "@instrument-org/workspace/electron";
+import {
+  emptySources,
+  fullSessionLog,
+  outlineSessionLog,
+} from "@instrument-org/workspace/report-outline";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -499,22 +508,22 @@ const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
 type ChatFile = { content: string; name: string };
 
 /**
- * A chat's record files as feedback offers them: one item per session, the
- * chat's own first and then its tasks, each with every log its devices
- * wrote, and one for the chat's settings. Each file goes as
- * `chat/<name on disk>`, so the folder can be laid out again from the
- * report. Blobs and attachments are never among them, nor the work folder.
+ * A chat as feedback offers it: one item, every session's log as the outline
+ * has it (the chat's own first, then its tasks) and the chat's settings, and
+ * beside it the same chat with what the agent read, for the person to add.
+ * Each file goes as `chat/<name on disk>`, so the folder can be laid out
+ * again from the report. Blobs and attachments are never among them, nor
+ * the work folder. `files` are the chat's files as full details send them,
+ * redacted and with the thinking taken out.
  */
-export function chatFeedbackItems({
+export function chatFeedback({
   files,
   sessions,
 }: {
   files: readonly ChatFile[];
   sessions: readonly { id: string; parentId?: string; title: string }[];
-}): FeedbackItem[] {
+}): ChatFeedbackDescription | undefined {
   const plain = files.filter((file) => PLAIN_NAME.test(file.name));
-  const toReport = (list: readonly ChatFile[]) =>
-    list.map((file) => ({ content: file.content, path: `chat/${file.name}` }));
   const logs = new Map<string, ChatFile[]>();
   for (const file of plain) {
     const session = SESSION_LOG.exec(file.name)?.[1];
@@ -530,32 +539,76 @@ export function chatFeedbackItems({
       .filter((id) => !known.has(id))
       .map((id) => ({ id, parentId: id, title: id })),
   ];
-  const items = ordered.flatMap((session): FeedbackItem[] => {
-    const own = logs.get(session.id);
-    if (!own) {
-      return [];
+  const sources = emptySources();
+  const full: FeedbackFile[] = [];
+  const outline: FeedbackFile[] = [];
+  for (const session of ordered) {
+    for (const file of logs.get(session.id) ?? []) {
+      const label = session.parentId
+        ? `Task: ${session.title}`
+        : `“${session.title}”`;
+      const at = `chat/${file.name}`;
+      full.push({ content: file.content, label, path: at });
+      outline.push({
+        content: outlineSessionLog(file.content, sources).content,
+        label,
+        path: at,
+      });
     }
-    return [
-      feedbackItem({
-        files: toReport(own),
-        id: `session:${session.id}`,
-        kind: session.parentId ? "task" : "chat",
-        label: session.parentId ? `Task: ${session.title}` : session.title,
+  }
+  if (full.length === 0) {
+    return undefined;
+  }
+  for (const file of plain.filter((each) => CHAT_SETTINGS.test(each.name))) {
+    const each = {
+      content: file.content,
+      label: "Chat settings",
+      path: `chat/${file.name}`,
+    };
+    full.push(each);
+    // The notes a handoff leaves are the agent's own summary of what it read.
+    if (file.name !== "handoff-notes.md") {
+      outline.push(each);
+    }
+  }
+  const own = ordered.find((session) => !session.parentId);
+  const tasks = ordered.filter((session) => session.parentId).length;
+  const title = own ? `“${own.title}”` : "This chat";
+  const differs =
+    full.length !== outline.length ||
+    full.some((file, index) => file.content !== outline[index]?.content);
+  return {
+    ...(differs && {
+      full: feedbackItem({
+        files: full,
+        id: "chat-full",
+        kind: "chat",
+        label: "This chat",
       }),
-    ];
-  });
-  const settings = plain.filter((file) => CHAT_SETTINGS.test(file.name));
-  return settings.length > 0
-    ? [
-        ...items,
-        feedbackItem({
-          files: toReport(settings),
-          id: "chat-settings",
-          kind: "settings",
-          label: "Chat settings",
-        }),
-      ]
-    : items;
+    }),
+    item: feedbackItem({
+      files: outline,
+      id: "chat",
+      kind: "chat",
+      label: "This chat",
+    }),
+    sources: [
+      ...sources.hosts,
+      ...[...sources.apps].map((slug) => appName(slug)),
+      ...(sources.files > 0
+        ? [sources.files === 1 ? "1 file" : `${sources.files} files`]
+        : []),
+    ],
+    summary:
+      tasks === 0
+        ? title
+        : `${title} and ${tasks === 1 ? "1 task" : `${tasks} tasks`}`,
+  };
+}
+
+/** An app's slug as a person reads it: `gmail` as Gmail. */
+function appName(slug: string) {
+  return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
 function feedbackItem(item: Omit<FeedbackItem, "bytes">): FeedbackItem {
@@ -568,8 +621,11 @@ function itemBytes({
   files,
 }: Pick<FeedbackItem, "events" | "files">) {
   return (
-    files.reduce((sum, file) => sum + jsonBytes(file) + 1, 0) +
-    events.reduce((sum, event) => sum + jsonBytes(event) + 1, 0)
+    files.reduce(
+      (sum, file) =>
+        sum + jsonBytes({ content: file.content, path: file.path }) + 1,
+      0,
+    ) + events.reduce((sum, event) => sum + jsonBytes(event) + 1, 0)
   );
 }
 
@@ -589,20 +645,37 @@ export async function describeFeedback(
   const redactor = reportRedactor({
     chatId,
     memories: await listMemories(memoryDir()),
-    people: (await signedInPeople()).people,
+    people: [...(await signedInPeople()).people, ...(await appAccounts())],
   });
   const chat = chatId
     ? await describeChatFeedback(chatId, redactor)
     : undefined;
   return {
-    chat: chat && { items: chat.items },
-    diagnostics: {
-      items: diagnosticsItems(
-        chatId && { id: chatId, startedWith: chat?.startedWith },
-        redactor,
-      ),
-    },
+    chat: chat?.chat,
+    diagnostics: diagnosticsItem(
+      chatId && { id: chatId, startedWith: chat?.startedWith },
+      redactor,
+    ),
   };
+}
+
+/**
+ * The accounts the workspace's apps are signed in as, which the prompt
+ * names, for the redactor to take out with the person's own.
+ */
+async function appAccounts(): Promise<{ email: string; name?: string }[]> {
+  const appsDir = getAppsDir();
+  if (!appsDir) {
+    return [];
+  }
+  try {
+    const { apps } = await listApps(appsDir);
+    return apps.flatMap(({ manifest }) =>
+      manifest.account?.includes("@") ? [{ email: manifest.account }] : [],
+    );
+  } catch {
+    return [];
+  }
 }
 
 async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
@@ -611,13 +684,21 @@ async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
   const files = await Promise.all(
     entries
       .filter((entry) => entry.isFile())
-      .map(async (entry) => ({
-        content: await fs.promises.readFile(path.join(dir, entry.name), "utf8"),
-        name: entry.name,
-      })),
+      .map(async (entry) => {
+        const content = await fs.promises.readFile(
+          path.join(dir, entry.name),
+          "utf8",
+        );
+        return {
+          content: SESSION_LOG.test(entry.name)
+            ? fullSessionLog(content)
+            : content,
+          name: entry.name,
+        };
+      }),
   );
   return {
-    items: chatFeedbackItems({
+    chat: chatFeedback({
       files: redactor.chatFiles(files),
       sessions: await chatSessions(chatId),
     }),
@@ -626,14 +707,14 @@ async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
 }
 
 /**
- * The diagnostics feedback offers: what app and computer it came from, the
- * errors recorded lately, and the end of the app's log, redacted as the chat
- * is. An item with nothing in it is left out.
+ * The diagnostics feedback offers, as one item: what app and computer it
+ * came from, the errors recorded lately, and the end of the app's log,
+ * redacted as the chat is.
  */
-function diagnosticsItems(
+function diagnosticsItem(
   chat: undefined | { id: ChatId; startedWith: string | undefined },
   redactor: ReportRedactor,
-): FeedbackItem[] {
+): FeedbackItem {
   const about = {
     app: { packaged: app.isPackaged, version: app.getVersion() },
     ...(chat && {
@@ -657,45 +738,28 @@ function diagnosticsItems(
     .slice(0, MAX_REPORT_EVENTS)
     .map((event) => redactEvent(redactor, withProblemBreadcrumbs(event)));
   const logLines = readLogLines(FEEDBACK_LOG_BYTES);
-  return [
-    feedbackItem({
-      files: [
-        {
-          content: JSON.stringify(about, null, 2),
-          path: "diagnostics/about.json",
-        },
-      ],
-      id: "about",
-      kind: "about",
-      label: `About ${osConventionsFor(process.platform).thisComputer} and app`,
-    }),
-    ...(events.length > 0
-      ? [
-          feedbackItem({
-            events,
-            files: [],
-            id: "errors",
-            kind: "errors",
-            label: "Recent errors",
-          }),
-        ]
-      : []),
-    ...(logLines.length > 0
-      ? [
-          feedbackItem({
-            files: [
-              {
-                content: redactor.text(`${logLines.join("\n")}\n`),
-                path: FEEDBACK_LOG_PATH,
-              },
-            ],
-            id: "log",
-            kind: "log",
-            label: "App log",
-          }),
-        ]
-      : []),
-  ];
+  return feedbackItem({
+    ...(events.length > 0 && { events }),
+    files: [
+      {
+        content: JSON.stringify(about, null, 2),
+        label: `About ${osConventionsFor(process.platform).thisComputer} and app`,
+        path: "diagnostics/about.json",
+      },
+      ...(logLines.length > 0
+        ? [
+            {
+              content: redactor.text(`${logLines.join("\n")}\n`),
+              label: "App log",
+              path: FEEDBACK_LOG_PATH,
+            },
+          ]
+        : []),
+    ],
+    id: "diagnostics",
+    kind: "diagnostics",
+    label: "Diagnostics",
+  });
 }
 
 /** The breadcrumb levels feedback's recent errors keep. */
@@ -740,7 +804,9 @@ export function feedbackReportInput({
   surface: string;
   title: string;
 }): ReportInput {
-  const files = items.flatMap((item) => item.files);
+  const files = items.flatMap((item) =>
+    item.files.map((file) => ({ content: file.content, path: file.path })),
+  );
   const events = items
     .flatMap((item) => item.events ?? [])
     .toSorted((a, b) => b.lastAt - a.lastAt)

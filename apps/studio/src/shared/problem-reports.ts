@@ -87,25 +87,25 @@ export const ReportInputSchema = z.object({
 export type ReportInput = z.output<typeof ReportInputSchema>;
 
 /**
- * One line of a feedback report the person can check or leave out: a session
- * of the chat, the chat's settings, or one of the diagnostics. `files` and
+ * One line of a feedback report the person can check or leave out: the
+ * chat, the diagnostics, or the agent's write-up. `files` and
  * `events` are what it sends, exactly as the main process read them, and
  * `bytes` is what they add to the report.
  */
+/** A file of a feedback item: what it sends, and what the dialog calls it. */
+const FeedbackFileSchema = ReportFileSchema.extend({
+  /** What the dialog names the file by; never sent. */
+  label: z.string().optional(),
+});
+
+export type FeedbackFile = z.output<typeof FeedbackFileSchema>;
+
 export const FeedbackItemSchema = z.object({
   bytes: z.number().int().min(0),
   events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
-  files: z.array(ReportFileSchema),
+  files: z.array(FeedbackFileSchema),
   id: z.string(),
-  kind: z.enum([
-    "chat",
-    "task",
-    "settings",
-    "about",
-    "errors",
-    "log",
-    "writeup",
-  ]),
+  kind: z.enum(["chat", "diagnostics", "writeup"]),
   label: z.string(),
 });
 
@@ -115,11 +115,27 @@ export type FeedbackItem = z.output<typeof FeedbackItemSchema>;
 export const FEEDBACK_TOO_LARGE =
   "This chat is too big to send in one go. Leave out a task or two and try again.";
 
-/** What a feedback report can carry, for the dialog to offer part by part. */
+/**
+ * The chat a feedback report is about: its steps and what was said, and the
+ * same chat with what the agent read, when that differs, for the person to
+ * add with Include full details.
+ */
+export type ChatFeedbackDescription = {
+  /** What the chat sends with full details: everything but its thinking. */
+  full?: FeedbackItem;
+  /** What the chat sends by default: the outline of its records. */
+  item: FeedbackItem;
+  /** Where what full details add came from: hosts, apps, and a count of files. */
+  sources: string[];
+  /** The chat's title in quotes, and how many tasks it started. */
+  summary: string;
+};
+
+/** What a feedback report can carry, for the dialog to offer. */
 export type FeedbackDescription = {
   /** The chat the feedback is about. */
-  chat?: { items: FeedbackItem[] };
-  diagnostics: { items: FeedbackItem[] };
+  chat?: ChatFeedbackDescription;
+  diagnostics: FeedbackItem;
 };
 
 /**

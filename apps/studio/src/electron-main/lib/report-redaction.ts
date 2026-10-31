@@ -87,10 +87,15 @@ export function createReportRedactor(known: ReportKnownValues) {
       }
       replacements.set(value, replacement);
       const literal = escapeRegExp(value);
-      sources.push(bounded ? `(?<![\\w-])${literal}(?![\\w-])` : literal);
+      // A URL-encoded slash (`%2F`) ends in a letter, so it bounds a value too.
+      sources.push(
+        bounded ? `(?:(?<=%2F)|(?<![\\w-]))${literal}(?![\\w-])` : literal,
+      );
     };
     for (const spelling of homeSpellings(known.home ?? "")) {
       add(spelling, "~", false);
+      // As a URL's query writes it: `root=%2FUsers%2F<login>%2F…`.
+      add(encodeURIComponent(spelling), "~", false);
     }
     for (const [text, replacement] of memoryTexts) {
       add(text, replacement, false);

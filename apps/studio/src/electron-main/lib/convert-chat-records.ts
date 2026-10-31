@@ -201,14 +201,14 @@ function setAsideStores({
  * writes nothing.
  */
 function markConverted(converted: ChatRecordsConverted, rootDir: string): void {
-  const identity = readWorkspaceIdentityToChange(rootDir);
-  if (
-    identity.chatRecordsConverted === true &&
-    identity.formatVersion >= WORKSPACE_FORMAT_VERSION
-  ) {
-    return;
-  }
   try {
+    const identity = readWorkspaceIdentityToChange(rootDir);
+    if (
+      identity.chatRecordsConverted === true &&
+      identity.formatVersion >= WORKSPACE_FORMAT_VERSION
+    ) {
+      return;
+    }
     writeWorkspaceIdentity(rootDir, {
       ...identity,
       chatRecordsConverted: true,

@@ -18,6 +18,7 @@ import {
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { flushFileWrites } from "@/client/lib/file-flush";
+import { readUnknownDuration } from "@/client/lib/media-duration";
 import {
   type FileType,
   getFileType,
@@ -409,6 +410,9 @@ function VideoPlayer({
       controls
       muted={muted}
       onError={onError}
+      onLoadedMetadata={(event) => {
+        readUnknownDuration(event.currentTarget);
+      }}
       playsInline
       src={src}
     />
@@ -435,6 +439,9 @@ function AudioPlayer({
       className="w-full max-w-2xl"
       controls
       onError={onError}
+      onLoadedMetadata={(event) => {
+        readUnknownDuration(event.currentTarget);
+      }}
       src={src}
     />
   );

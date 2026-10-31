@@ -72,6 +72,7 @@ export function FileThumbnail({
           hostPath,
           url: url ?? getComputerFileUrl({ hostPath }),
         }}
+        silent
       />
     </DocumentThumbnail>
   );

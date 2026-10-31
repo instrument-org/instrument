@@ -373,7 +373,39 @@ interface ViewerContext {
   onMediaError: (fallbackExtension: string) => void;
   /** A page's file drawn as its page, when the surface around the viewer can draw one. */
   page?: ReactNode;
+  /** Whether a video plays without sound whatever else is true. */
+  silent: boolean;
   wrapLines: boolean;
+}
+
+/**
+ * A video that starts playing as it opens. With sound when the window has
+ * focus as it opens, since then a person is at the window and opened it or
+ * watched it open; muted when the window is in the background (an agent
+ * showing it while the person is in another app) or the caller asks for
+ * silence. Decided once per file, so the person's own mute or unmute stands.
+ */
+function VideoPlayer({
+  onError,
+  silent,
+  src,
+}: {
+  onError: () => void;
+  silent: boolean;
+  src: string;
+}) {
+  const [muted] = useState(() => silent || !document.hasFocus());
+  return (
+    <video
+      autoPlay
+      className="size-full object-contain"
+      controls
+      muted={muted}
+      onError={onError}
+      playsInline
+      src={src}
+    />
+  );
 }
 
 /**
@@ -654,22 +686,15 @@ const VIEWERS = {
   },
   video: {
     hasToolbar: false,
-    // Muted is what makes autoplay allowed at all: Chrome blocks an unmuted
-    // `autoPlay` outright, so the viewer would open on a frozen first frame.
-    // Controls stay available to unmute and scrub.
-    render: ({ file, onMediaError }) => (
+    render: ({ file, onMediaError, silent }) => (
       <ContextMenu>
         <ContextMenuTrigger className="size-full">
-          <video
-            autoPlay
-            className="size-full object-contain"
-            controls
+          <VideoPlayer
             key={file.hostPath}
-            muted
             onError={() => {
               onMediaError("mp4");
             }}
-            playsInline
+            silent={silent}
             src={file.url}
           />
         </ContextMenuTrigger>
@@ -829,6 +854,7 @@ export function FileViewer({
   onExpand,
   onLeaveSource,
   page,
+  silent = false,
 }: {
   /**
    * Where the file's actions go when the surface around the viewer has a row
@@ -867,6 +893,8 @@ export function FileViewer({
    * HTML file alone.
    */
   page?: ReactNode;
+  /** Set where a video must never play sound, such as a thumbnail. */
+  silent?: boolean;
 }) {
   const { filename, hostPath, mimeType, url } = file;
   const [sourceChosen, setSourceChosen] = useState(false);
@@ -1018,6 +1046,7 @@ export function FileViewer({
       setMediaErrorType(fallbackExtension);
     },
     ...(page === undefined ? {} : { page }),
+    silent,
     wrapLines,
   };
 

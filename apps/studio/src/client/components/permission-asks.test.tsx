@@ -254,6 +254,39 @@ describe("PermissionAsksFoot", () => {
     expect(buttons()).toContain("Allow in this chat");
   });
 
+  it("asks again for an answer given while this computer was away", async () => {
+    const { queryClient } = renderWithProviders(
+      <PermissionAsksFoot chatId={chatId} />,
+    );
+    queryClient.setQueryData(
+      rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+        input: { id: chatId },
+      }).queryKey,
+      [
+        {
+          answerable: true,
+          askedAt: new Date(0),
+          askers: [{ at: new Date(0), sessionId: StoreId.newSessionId() }],
+          away: { by: "Sam’s iPhone", decision: "allowed" },
+          computer: "Studio Mac",
+          device,
+          here: true,
+          id: "ask-0",
+          kind: "folder",
+          status: "open",
+          target: "/Users/sam/Pantry",
+        },
+      ],
+    );
+
+    expect(
+      await screen.findByText(
+        "You answered from Sam’s iPhone while this computer was away, so it’s asking again.",
+      ),
+    ).toBeDefined();
+    expect(buttons()).toContain("Allow in this chat");
+  });
+
   describe("raised on another computer", () => {
     it("answers it from here, saying where the answer goes", async () => {
       showAsks([

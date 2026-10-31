@@ -15,7 +15,9 @@ import {
   askedOnCard,
   type ConnectAppResult,
   connectAppResults,
+  type ChatId,
   type SessionMessagePart,
+  type SignInAsk,
 } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -37,11 +39,30 @@ type ConnectAppPart = Extract<
  * the credential.
  */
 export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
+  const chatId = useContext(WindowContext)?.chatId;
+  // The chat's sign-in for this call, when another computer asked it: its
+  // rows are that computer's, where signing in happens.
+  const asks = useQuery(
+    chatId === undefined
+      ? { enabled: false, queryKey: ["no-chat-asks"] }
+      : rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+          input: { id: chatId },
+        }),
+  ).data;
+  const remote = asks?.find(
+    (ask): ask is SignInAsk =>
+      ask.kind === "sign-in" && ask.partId === part.metadata.id && !ask.here,
+  );
   if (!part.input) {
     return <ToolCardEmpty message="The request has not arrived yet." />;
   }
   if (part.state !== "output-available") {
     return null;
+  }
+  if (remote !== undefined && chatId !== undefined) {
+    return (
+      <RemoteSignInCard ask={remote} chatId={chatId} reason={part.input.reason} />
+    );
   }
   const results = connectAppResults(part.output);
   const rows = askedOnCard(part.output);
@@ -67,6 +88,91 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
       </ToolCardSection>
     </ToolCard>
   );
+}
+
+/**
+ * A sign-in card another computer put up: its rows as that computer last
+ * wrote them, since signing in happens there, where its sign-ins and keys
+ * are. This device may say Not now to the whole card.
+ */
+function RemoteSignInCard({
+  ask,
+  chatId,
+  reason,
+}: {
+  ask: SignInAsk;
+  chatId: ChatId;
+  reason: string;
+}) {
+  const decline = useMutation(
+    rpcClient.workspace.chats.declineSignIn.mutationOptions({
+      onError: (error: Error) => {
+        toast.error("Couldn't send your answer", { cause: error });
+      },
+    }),
+  );
+  return (
+    <ToolCard>
+      <div className="px-4 py-3">
+        <p className="text-sm font-medium">
+          {ask.apps.length === 1
+            ? `Connect ${ask.apps[0]?.name ?? "an app"}`
+            : `Connect ${ask.apps.length} apps`}
+        </p>
+        <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
+      </div>
+      {ask.apps.map((app) => (
+        <div
+          className="flex min-h-11 items-center gap-3 border-t border-border px-4 py-1.5"
+          key={app.slug}
+        >
+          <span className="min-w-0 flex-1 truncate text-sm">{app.name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {remoteRowLine(app)}
+          </span>
+        </div>
+      ))}
+      <div className="flex min-h-11 items-center justify-between gap-3 border-t border-border bg-muted/40 px-4 py-1.5">
+        <span className="text-xs text-muted-foreground">
+          {ask.answered
+            ? `You said not now from ${ask.answered.by}. It takes effect once ${ask.computer} picks it up.`
+            : `You can sign in on ${ask.computer}.`}
+        </span>
+        {ask.answerable ? (
+          <Button
+            disabled={decline.isPending}
+            onClick={() => {
+              decline.mutate({ askId: ask.id, id: chatId });
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            Not now
+          </Button>
+        ) : null}
+      </div>
+    </ToolCard>
+  );
+}
+
+/** Where a row of another computer's sign-in stands, as that computer last wrote it. */
+function remoteRowLine(app: { account?: string; standing: string }): string {
+  switch (app.standing) {
+    case "connected": {
+      return app.account === undefined
+        ? "Connected"
+        : `Connected as ${app.account}`;
+    }
+    case "declined": {
+      return "Skipped";
+    }
+    case "failed": {
+      return "The sign-in didn’t go through.";
+    }
+    default: {
+      return "Not signed in yet";
+    }
+  }
 }
 
 function ConnectCard({

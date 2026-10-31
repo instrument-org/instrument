@@ -633,7 +633,7 @@ export function ToolChoose({
     }),
   ).data;
   const ask = asks?.find(
-    (open) =>
+    (open): open is Extract<typeof open, { kind: "question" }> =>
       open.kind === "question" &&
       open.askers.some((asker) => asker.partId === part.metadata.id),
   );
@@ -650,14 +650,26 @@ export function ToolChoose({
 
   const output =
     part.state === "output-available" ? chooseAnswer(part.output) : undefined;
+  // Answered on any device and not taken yet by the computer that asked,
+  // which writes it onto the call: drawn as given meanwhile.
+  const given = output === undefined ? ask?.answered : undefined;
   // Answerable once the call has returned, which is what the answer is
-  // written onto.
+  // written onto, and until any device answers it.
   const isOpen =
     ask !== undefined &&
+    ask.answerable &&
     output === undefined &&
     part.state === "output-available";
+  const line =
+    ask === undefined || output !== undefined
+      ? undefined
+      : given && !ask.here
+        ? `You answered from ${given.by}. It takes effect once ${ask.computer} picks it up.`
+        : !given && ask.away
+          ? `You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so it’s asking again.`
+          : undefined;
 
-  return (
+  const card = (
     <QuestionCard
       onAnswer={(answered) => {
         if (!ask) {
@@ -675,17 +687,25 @@ export function ToolChoose({
       }}
       output={output}
       questions={questions}
-      sending={output === undefined ? sending : undefined}
+      sending={output === undefined ? (sending ?? given?.answer) : undefined}
       status={
         // Closed with no answer drawn while the chat's asks load, so the card
         // neither offers buttons nor says it ended before it knows.
         output !== undefined || asks === undefined
           ? "closed"
-          : isOpen || sending !== undefined
+          : isOpen || sending !== undefined || given !== undefined
             ? "open"
             : "ended"
       }
     />
+  );
+  return line === undefined ? (
+    card
+  ) : (
+    <div>
+      {card}
+      <p className="mt-1.5 px-1 text-[13px] text-muted-foreground">{line}</p>
+    </div>
   );
 }
 

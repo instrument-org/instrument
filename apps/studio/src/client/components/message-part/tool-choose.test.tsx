@@ -76,7 +76,10 @@ describe("ToolChoose", () => {
 
   /** Renders the card with the chat's open asks as given. */
   function withAsks(
-    asks: { askers: { partId: string; sessionId: string }[] }[],
+    asks: ({ askers: { partId: string; sessionId: string }[] } & Record<
+      string,
+      unknown
+    >)[],
     output: unknown = { asked: true },
   ) {
     const rendered = renderWithProviders(
@@ -87,7 +90,10 @@ describe("ToolChoose", () => {
         input: { id: chatId },
       }).queryKey,
       asks.map((ask) => ({
+        answerable: true,
         askedAt: new Date(0),
+        computer: "Studio Mac",
+        here: true,
         id: "ask-1",
         kind: "question",
         messageId: StoreId.newMessageId(),
@@ -106,6 +112,30 @@ describe("ToolChoose", () => {
       expect(screen.getAllByRole("radio")).toHaveLength(2);
     });
     expect(screen.getByLabelText("Your own answer")).toBeDefined();
+    expect(container.textContent).not.toContain("No answer");
+  });
+
+  it("draws an answer given on another device as given, waiting for the computer that asked", async () => {
+    const { container } = withAsks([
+      {
+        answerable: false,
+        answered: {
+          answer: { replies: [{ picked: ["Vue"] }] },
+          by: "Sam’s iPhone",
+          taken: false,
+        },
+        askers: [{ partId, sessionId }],
+        here: false,
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain(
+        "You answered from Sam’s iPhone. It takes effect once Studio Mac picks it up.",
+      );
+    });
+    expect(container.textContent).toContain("Vue");
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
     expect(container.textContent).not.toContain("No answer");
   });
 

@@ -107,3 +107,4 @@ export {
   parseBrowserTargetId,
 } from "./types";
 export type { ChildTask } from "./rpc/routes/chats";
+export type { SignInAsk } from "./schemas/chat-state";

@@ -13,10 +13,15 @@ import { ToolConnectApp } from "./tool-connect-app";
 const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
+    asks: vi.fn<() => Promise<unknown>>(),
+    declineSignIn:
+      vi.fn<(input: { askId: string; id: string }) => Promise<unknown>>(),
     dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     signInOnWeb: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     startOAuth:
-      vi.fn<(input: { chatId?: string; opensIn: string }) => Promise<unknown>>(),
+      vi.fn<
+        (input: { chatId?: string; opensIn: string }) => Promise<unknown>
+      >(),
   },
   mutation: (mutationFn = () => Promise.resolve()) => ({
     mutationOptions: (options: object) => ({ ...options, mutationFn }),
@@ -54,6 +59,17 @@ vi.mock("@/client/rpc/client", () => ({
           ...options,
           mutationFn: mocks.startOAuth,
         }),
+      },
+    },
+    workspace: {
+      chats: {
+        declineSignIn: {
+          mutationOptions: (options: object) => ({
+            ...options,
+            mutationFn: mocks.declineSignIn,
+          }),
+        },
+        live: { asks: query("asks", mocks.asks) },
       },
     },
     utils: {
@@ -100,8 +116,9 @@ function outlook(
   };
 }
 
-function renderCard() {
+function renderCard(chatId?: string) {
   const window = {
+    ...(chatId === undefined ? {} : { chatId: ChatIdSchema.parse(chatId) }),
     ask: vi.fn(),
     // Only whether there is one is read here.
     browser: {} as BrowserTabsHandle,
@@ -118,7 +135,7 @@ function renderCard() {
           metadata: {
             createdAt: new Date(1),
             endedAt: new Date(2),
-            id: StoreId.newPartId(),
+            id: PART_ID,
             messageId: StoreId.newMessageId(),
             sessionId: StoreId.newSessionId(),
           },
@@ -138,6 +155,8 @@ function renderCard() {
   );
 }
 
+const PART_ID = StoreId.newPartId();
+
 /** The card's words and buttons, in the order they read. */
 async function cardReads(): Promise<string[]> {
   await screen.findByRole("button", { name: "Sign in on the web" });
@@ -152,6 +171,9 @@ async function cardReads(): Promise<string[]> {
 }
 
 beforeEach(() => {
+  mocks.asks.mockReset();
+  mocks.asks.mockResolvedValue([]);
+  mocks.declineSignIn.mockReset();
   mocks.apps.mockReset();
   mocks.dismiss.mockReset();
   mocks.signInOnWeb.mockReset();
@@ -340,7 +362,7 @@ function renderGroupCard() {
           metadata: {
             createdAt: new Date(1),
             endedAt: new Date(2),
-            id: StoreId.newPartId(),
+            id: PART_ID,
             messageId: StoreId.newMessageId(),
             sessionId: StoreId.newSessionId(),
           },
@@ -435,7 +457,10 @@ describe("the card asking for several apps", () => {
     mocks.apps.mockResolvedValue(
       google({ docs: "declined", drive: "connected", gmail: "connected" }),
     );
-    mocks.startOAuth.mockResolvedValue({ status: "started", url: "https://login.example" });
+    mocks.startOAuth.mockResolvedValue({
+      status: "started",
+      url: "https://login.example",
+    });
     renderGroupCard();
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
@@ -445,6 +470,42 @@ describe("the card asking for several apps", () => {
     expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
       chatId: "2026-10-27-google",
       slug: "docs",
+    });
+  });
+});
+
+describe("a sign-in card another computer put up", () => {
+  it("draws its rows as that computer wrote them, and says Not now from here", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    mocks.asks.mockResolvedValue([
+      {
+        answerable: true,
+        apps: [{ name: "Outlook", slug: "outlook", standing: "waiting" }],
+        askedAt: new Date(1),
+        askers: [],
+        computer: "Studio Mac",
+        device: "dev_0WNER000",
+        here: false,
+        id: "ask-1",
+        kind: "sign-in",
+        messageId: StoreId.newMessageId(),
+        partId: PART_ID,
+      },
+    ]);
+    mocks.declineSignIn.mockResolvedValue(undefined);
+    renderCard("2026-10-31-mail");
+
+    expect(
+      await screen.findByText("You can sign in on Studio Mac."),
+    ).toBeDefined();
+    expect(screen.getByText("Not signed in yet")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    await waitFor(() => {
+      expect(mocks.declineSignIn).toHaveBeenCalledWith(
+        { askId: "ask-1", id: "2026-10-31-mail" },
+        expect.anything(),
+      );
     });
   });
 });

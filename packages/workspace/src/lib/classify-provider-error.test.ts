@@ -248,6 +248,24 @@ const cases: {
     name: "Anthropic over-long PDF",
   },
   {
+    // Recorded from Claude Code 2026-10-31, for a PNG whose pixel data does
+    // not inflate. A corrupt PDF reads the same with "a document".
+    error: apiCallError({
+      message:
+        "API Error: an image in the conversation could not be processed and was removed. Re-read the file with a different approach if you still need it.",
+      responseBody: JSON.stringify({
+        error: {
+          message:
+            "API Error: an image in the conversation could not be processed and was removed. Re-read the file with a different approach if you still need it.",
+          type: "invalid_request_error",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "prose", kind: "unsendable-content" },
+    name: "Claude account undecodable image",
+  },
+  {
     error: apiCallError({
       message:
         "The image data you provided does not represent a valid image format",

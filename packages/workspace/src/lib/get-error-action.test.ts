@@ -98,6 +98,22 @@ describe("getErrorAction", () => {
     expect(getErrorAction(message)).toEqual({ type: "stop" });
   });
 
+  it("returns retry for refused content once the media it blames is named", () => {
+    const message = createMessage(
+      {
+        classification: "unsendable-content",
+        kind: "api-call",
+        message: "Invalid image",
+        name: "APIError",
+        statusCode: 400,
+        url: "claude-account://",
+      },
+      CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
+    );
+    message.metadata.refusedMedia = ["digest"];
+    expect(getErrorAction(message)).toEqual({ type: "retry" });
+  });
+
   it("returns retry for no-such-tool errors", () => {
     const message = createMessage({
       kind: "no-such-tool",

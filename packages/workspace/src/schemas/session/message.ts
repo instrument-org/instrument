@@ -232,6 +232,12 @@ export namespace SessionMessage {
     completionTokensPerSecond: z.number().optional(),
     endedAt: z.date().optional(),
     error: ErrorSchema.optional(),
+    /**
+     * Digests of the media a provider refused this reply's request over, which
+     * every later request leaves out (`lib/refused-media.ts`). Only on a reply
+     * whose error is `unsendable-content`.
+     */
+    refusedMedia: z.array(z.string()).optional(),
     finishedAt: z.date().optional(),
     finishReason: z
       .enum([

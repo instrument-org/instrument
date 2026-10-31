@@ -38,6 +38,7 @@ import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
+import { refusalCandidates } from "../lib/refused-media";
 import { summarizeBeforePriceStep } from "../lib/price-step-summary";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { cacheSessionFor } from "../lib/fork-cache-session";
@@ -1061,6 +1062,22 @@ export const llmRequestLogic = fromPromise<
             sessionId: input.sessionId,
           });
         }
+      }
+    }
+
+    // The refused part is in the records and every later request replays it,
+    // so the media it most likely was is named here, and left out from the
+    // next request on. Nothing to name when the request carried no media,
+    // and the refusal ends the turn as before.
+    const recorded = assistantMessage.metadata.error;
+    if (
+      recorded !== undefined &&
+      "classification" in recorded &&
+      recorded.classification === "unsendable-content"
+    ) {
+      const refused = await refusalCandidates(messagesResult.value);
+      if (refused.length > 0) {
+        assistantMessage.metadata.refusedMedia = refused;
       }
     }
 

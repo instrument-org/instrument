@@ -1,6 +1,6 @@
 # Recovering a session whose history the provider will not accept
 
-Status: open. In progress (checked 2026-10-29: `get-error-action.ts` still stops on `unsendable-content`). Owner: TBD. Prevention and classification have landed (phases 1 and 4, see "What already exists"). Recovery has not: an `unsendable-content` refusal still ends the task, now with a named error ("Content the model refused", `describe-message-error.ts`) that tells the user to start a new task. Phases 2 and 3 are unblocked: "Relationship to context compaction" ends with the two plans proceeding independently.
+Status: done. Every phase has landed. Phases 2 and 3 took a simpler shape than planned, described under "What landed for phases 2 and 3": no separate stripped probe, but a refusal that names the media it blames, which every later request leaves out.
 
 ## Problem
 
@@ -114,6 +114,18 @@ A session survives content the provider will not accept, without a human editing
 13. PDF, audio, and video are checked before they leave `read_file`, in [probe-media.ts](../../packages/workspace/src/lib/probe-media.ts). See "What already exists" for what each check does and for the media-type gap it does not close.
 14. A small image file declaring enormous dimensions is refused from its header, before anything decodes it. That is [the coordinate contract review](image-read-coordinate-contract.md)'s item 3, and it serves this plan's cause 1 as much as that one.
 15. The fixed-index audit came back clean. `truncateHead`, `truncateTail`, and `truncateMiddle` cut between lines, and the one path that cuts inside a line walks to a UTF-8 lead byte first. That path fails differently from the surrogate case -- a `Buffer` decode substitutes U+FFFD rather than leaving a half character -- so the test asserts both: nothing a sanitizer would strip, and no replacement character.
+
+## What landed for phases 2 and 3
+
+A Claude account refusal of an image a local check passed (a PNG whose header, dimensions and `IEND` are in order and whose pixel data does not inflate) reproduced the problem: Claude Code rewords Anthropic's refusal as "an image in the conversation could not be processed and was removed", which classified as `unknown`, so each turn spent three attempts on the same bytes and every later turn failed the same way. A corrupt PDF reads the same with "a document". Claude Code's wording is now a sourced prose pattern in the classifier.
+
+The recovery, in [refused-media.ts](../../packages/workspace/src/lib/refused-media.ts):
+
+- On an `unsendable-content` refusal, `llm-request.ts` records on the refused reply (`refusedMedia`) the sha256 of the media it most likely was: what the request carried past its last assistant message, which no earlier accepted request did, or every media part when nothing past it is media (a stricter model, or a first guess already left out).
+- `getErrorAction` retries such a reply, and stops as before when there was no media to name.
+- `prepareModelMessages` reads every recorded digest and, after image normalization, puts a note naming the media type in place of those bytes. The record stays, so the repair is permanent and costs no probe on later turns, and the note tells the model, which tells the user.
+
+Departures from phases 2 and 3: the retry leaves out only the blamed media rather than all of it, the record is a digest on the refused reply rather than a flag on each part, and nothing counts recoveries beyond the records themselves. Covered by `llm-request.test.ts` ("leaves out an image the provider refused") and the `unsendable-image-passes-local-checks` eval case.
 
 ## Relationship to context compaction
 

@@ -92,6 +92,11 @@ const UNSENDABLE_CONTENT_PATTERNS = [
   /image exceeds [^.]*maximum/i, // Anthropic: "image exceeds 5 MB maximum"
   /image dimensions exceed max allowed size/i, // Anthropic, many-image requests
   /maximum of \d+ pdf pages/i, // Anthropic
+  // Claude account, as Claude Code rewords Anthropic's refusal of an image or
+  // a PDF, under a 400 `invalid_request_error`: "API Error: an image in the
+  // conversation could not be processed and was removed. Re-read the file
+  // with a different approach if you still need it."
+  /an? (?:image|document) in the conversation could not be processed/i,
   /the image data you provided does not represent a valid image/i, // OpenAI
 ];
 

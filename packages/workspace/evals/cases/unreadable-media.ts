@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 
 import { type Assertion, defineEval } from "../harness";
 
@@ -48,6 +49,35 @@ const truncatedPdf = () => {
   return whole
     .subarray(0, Math.floor(whole.byteLength * 0.4))
     .toString("base64");
+};
+
+// A small PNG whose header, dimensions and end marker are all in order and
+// whose pixel data is noise no inflater accepts. Every check that runs before
+// a request passes it, since none of them decodes an image inside the preview
+// budget, and Anthropic refuses the request that carries it.
+const undecodablePng = () => {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.byteLength);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(zlib.crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(64, 0);
+  header.writeUInt32BE(64, 4);
+  header[8] = 8; // bit depth
+  header[9] = 2; // truecolor
+  const noise = Buffer.from(
+    Array.from({ length: 2000 }, (_, index) => (index * 7919 + 13) % 251),
+  );
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", noise),
+    chunk("IEND", Buffer.alloc(0)),
+  ]).toString("base64");
 };
 
 // The value drawn in the source image. It cannot be read from any of these
@@ -125,6 +155,24 @@ const assertDoesNotRetryTheSameFile = (filename: string): Assertion => ({
   text: "Stops asking the file that cannot be read",
 });
 
+/**
+ * The turn after a refused image answers. The refused part stays in the
+ * history, so a session that cannot leave it behind fails this turn too.
+ */
+const assertAnswersTheNextTurn: Assertion = {
+  check: ({ sessions }) => {
+    const answered = /\b51\b/.test(conversationText(sessions));
+    return {
+      evidence: answered
+        ? "Answered the follow-up"
+        : "No answer to the follow-up, so the refused image still blocks the session",
+      passed: answered,
+      text: "Answers the turn after a refused image",
+    };
+  },
+  text: "Answers the turn after a refused image",
+};
+
 export const UNREADABLE_MEDIA_EVALS = [
   defineEval({
     assertions: [
@@ -156,6 +204,13 @@ export const UNREADABLE_MEDIA_EVALS = [
     files: [{ content: truncatedPdf(), filename: "report.pdf" }],
     name: "unreadable-truncated-pdf",
     prompt: "What does this report conclude?",
+  }),
+  defineEval({
+    assertions: [assertSaysItCannotBeRead, assertAnswersTheNextTurn],
+    files: [{ content: undecodablePng(), filename: "label.png" }],
+    followUps: ["Never mind the picture. What is 17 times 3?"],
+    name: "unsendable-image-passes-local-checks",
+    prompt: "What does this label say? Read it and tell me.",
   }),
 ];
 

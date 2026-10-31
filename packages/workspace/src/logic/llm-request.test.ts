@@ -14,6 +14,7 @@ import { errAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import {
   afterAll,
   afterEach,
@@ -42,6 +43,7 @@ import { logFileName } from "../lib/records/file-names";
 import { liveView } from "../lib/records/views";
 import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
+import { mediaDigest } from "../lib/refused-media";
 import { SESSION_CONTEXT_VERSION } from "../lib/session-baseline";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { RelativePathSchema } from "../schemas/paths";
@@ -159,6 +161,7 @@ describe("llmRequestLogic", () => {
     chunks,
     finishReason = "stop",
     getMessages = () => Promise.resolve(mockMessages),
+    modelFeatures,
     modelProvider,
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
@@ -168,6 +171,7 @@ describe("llmRequestLogic", () => {
     chunks: LanguageModelV4StreamPart[];
     finishReason?: "length" | "stop";
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
+    modelFeatures?: AIGatewayModel.ModelFeatures[];
     /** The connection the chat's model is on, where it differs from `provider`'s. */
     modelProvider?: AIProviderType;
     onChunkReceived?: () => void;
@@ -209,6 +213,7 @@ describe("llmRequestLogic", () => {
     });
 
     const model = createMockAIGatewayModel({
+      features: modelFeatures,
       provider:
         modelProvider ??
         (provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type),
@@ -3362,6 +3367,140 @@ describe("llmRequestLogic", () => {
         ?.parts.filter((part) => part.type === "tool-unavailable")
         .map((part) => "state" in part && part.state),
     ).toEqual(["output-error"]);
+  });
+
+  it("leaves out an image the provider refused, from the next request on", async () => {
+    // Header, dimensions and end marker in order, pixel data that does not
+    // inflate: every local check passes it, and Claude refuses it.
+    const chunk = (type: string, data: Buffer) => {
+      const length = Buffer.alloc(4);
+      length.writeUInt32BE(data.byteLength);
+      const body = Buffer.concat([Buffer.from(type), data]);
+      const crc = Buffer.alloc(4);
+      crc.writeUInt32BE(zlib.crc32(body));
+      return Buffer.concat([length, body, crc]);
+    };
+    const header = Buffer.alloc(13);
+    header.writeUInt32BE(64, 0);
+    header.writeUInt32BE(64, 4);
+    header[8] = 8;
+    header[9] = 2;
+    const poisoned = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk("IHDR", header),
+      chunk("IDAT", Buffer.alloc(500, 0xab)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]).toString("base64");
+
+    const userMessageId = StoreId.newMessageId();
+    const assistantMessageId = StoreId.newMessageId();
+    let requests = 0;
+    const testMachine = await createTestMachine({
+      beforeStream: () => {
+        requests++;
+        if (requests > 1) {
+          return Promise.resolve();
+        }
+        // As Claude Code reports Anthropic's refusal.
+        const message =
+          "API Error: an image in the conversation could not be processed and was removed. Re-read the file with a different approach if you still need it.";
+        throw new APICallError({
+          isRetryable: false,
+          message,
+          requestBodyValues: {},
+          responseBody: JSON.stringify({
+            error: { message, type: "invalid_request_error" },
+          }),
+          statusCode: 400,
+          url: "claude-account://",
+        });
+      },
+      chunks: [],
+      modelFeatures: ["inputImage", "inputText", "outputText", "tools"],
+    });
+    await ChatWrites.saveMessage(
+      {
+        id: userMessageId,
+        metadata: { createdAt: mockDate, sessionId },
+        role: "user",
+      },
+      testMachine.chatId,
+    );
+    await saveParts(
+      [
+        {
+          metadata: {
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId: userMessageId,
+            sessionId,
+          },
+          state: "done",
+          text: "What does label.png say?",
+          type: "text",
+        },
+      ],
+      testMachine.chatId,
+    );
+    await ChatWrites.saveMessage(
+      {
+        id: assistantMessageId,
+        metadata: {
+          createdAt: mockDate,
+          modelId: "mock-model-id",
+          providerId: "mock-provider",
+          sessionId,
+          usage: mockTotalUsage,
+          finishReason: "tool-calls",
+        },
+        role: "assistant",
+      },
+      testMachine.chatId,
+    );
+    await saveParts(
+      [
+        SessionMessagePart.CoercedSchema.parse({
+          input: { filePath: "label.png" },
+          metadata: {
+            createdAt: mockDate,
+            endedAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId: assistantMessageId,
+            sessionId,
+          },
+          output: {
+            base64Data: poisoned,
+            filePath: "label.png",
+            height: 64,
+            mimeType: "image/png",
+            modifiedAt: 0,
+            state: "image",
+            width: 64,
+          },
+          state: "output-available",
+          toolCallId: "1",
+          type: "tool-read_file",
+        }),
+      ],
+      testMachine.chatId,
+    );
+
+    const refused = await runTestMachine(testMachine);
+    const refusal = refused.messages.at(-1);
+    // The refused request blamed the image, by the bytes it sent.
+    expect(
+      refusal?.role === "assistant" ? refusal.metadata.refusedMedia : [],
+    ).toEqual([mediaDigest(Buffer.from(poisoned, "base64"))]);
+
+    await runTestMachine(testMachine);
+    // The refused request threw before its prompt was kept, so this is the
+    // one after: the image left out, with a note in its place.
+    expect(prompts).toHaveLength(1);
+    const next = JSON.stringify(prompts[0]);
+    expect(next).not.toContain(poisoned.slice(0, 40));
+    expect(next).toContain(
+      "image/png omitted: the model's provider refused it",
+    );
   });
 
   it("holds a reply still arriving in the turn's memory, and records none of it", async () => {

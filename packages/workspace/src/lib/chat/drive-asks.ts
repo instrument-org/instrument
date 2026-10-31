@@ -157,14 +157,18 @@ async function step(
     return close(chatId, ask.id, { kind: "left" }, undefined, true);
   }
   if (!live) {
-    return false;
+    // The person wrote past it or stopped the chat: it closes, waking nobody.
+    return close(chatId, ask.id, { kind: "left" }, undefined, true);
   }
   if (pending) {
-    const { failed: _failed, ...rest } = ask;
-    return write(chatId, ask.id, () => ({
-      ...rest,
-      stage: { answer: pending, is: "taken" },
-    }));
+    // Read again: an asker may have joined since this round read the ask.
+    return write(chatId, ask.id, (now) => {
+      if (!sameAnswer(now.pending, pending)) {
+        return undefined;
+      }
+      const { failed: _failed, ...rest } = now.ask;
+      return { ...rest, stage: { answer: pending, is: "taken" } };
+    });
   }
   if (
     stage.is === "taken" &&
@@ -191,15 +195,15 @@ async function step(
     stage.answer.kind === "sign-in"
   ) {
     // Not now from another device: this computer turns down every app on
-    // the card still waiting, as its own Not now does, and the card settles.
-    for (const app of ask.apps) {
-      if (app.standing === "waiting") {
+    // the card not connected or turned down already, as read now, as its
+    // own Not now does, and the card settles.
+    for (const app of (await signInProgress(ask.apps)) ?? []) {
+      if (app.standing !== "connected" && app.standing !== "declined") {
         await recordConnection(app.slug, { status: "declined" });
         await appChanged(app.slug, { event: "declined" });
       }
     }
-    await refreshSignIn(chatId, ask.id, undefined, workspaceRef);
-    return true;
+    return refreshSignIn(chatId, ask.id, undefined, workspaceRef);
   }
   if (stage.is === "taken" && ask.kind === "permission") {
     const { answer } = stage;
@@ -239,15 +243,38 @@ function close(
   return write(chatId, askId, ({ ask }) =>
     ask.stage.is === "closed"
       ? undefined
-      : {
-          ...ask,
-          stage: {
-            ...(answer && { answer: { at: answer.at, device: answer.device } }),
-            is: "closed",
-            outcome,
-            woken,
-          },
-        },
+      : { ...ask, stage: closedStage(outcome, answer, woken) },
+  );
+}
+
+/**
+ * An ask's closed stage, by this computer's clock. One that closes on a
+ * stale answer from before this process started, which an earlier run
+ * took and never carried out, is told with a note that starts no turn.
+ */
+function closedStage(
+  outcome: Outcome,
+  answer: AnswerRef | undefined,
+  woken = false,
+) {
+  return {
+    ...(answer && { answer: { at: answer.at, device: answer.device } }),
+    closedAt: getCurrentDate(),
+    is: "closed" as const,
+    outcome,
+    ...(answer &&
+      answer.at.getTime() < launchedAt &&
+      !isFreshAsk(answer.at) && { quiet: true as const }),
+    woken,
+  };
+}
+
+/** Whether two answers are the same one: the same device, at the same moment by its clock. */
+function sameAnswer(a: AnswerRef | undefined, b: AnswerRef): boolean {
+  return (
+    a !== undefined &&
+    a.device === b.device &&
+    a.at.getTime() === b.at.getTime()
   );
 }
 
@@ -422,12 +449,8 @@ function startLook(
       stillYes(now)
         ? {
             ...now.ask,
-            stage: {
-              ...(answer && {
-                answer: { at: answer.at, device: answer.device },
-              }),
-              is: "closed",
-              outcome: permissionOutcome({
+            stage: closedStage(
+              permissionOutcome({
                 answer: decision,
                 kind: ask.on,
                 target: ask.target,
@@ -441,8 +464,8 @@ function startLook(
                     through: "macos" as const,
                   }),
               }),
-              woken: false,
-            },
+              answer,
+            ),
           }
         : undefined,
     );
@@ -480,10 +503,13 @@ async function wake(
       stage.outcome.data.answer === "always") &&
     ask.kind === "permission" &&
     ask.on !== "tab";
+  // Loud only for an ask that closed while this process ran, on an answer
+  // it heard: one owed since before (the app quit between closing and
+  // waking) is read with the person's next message.
   const quiet =
-    stage.answer !== undefined &&
-    stage.answer.at.getTime() < launchedAt &&
-    !isFreshAsk(stage.answer.at);
+    stage.quiet === true ||
+    stage.closedAt === undefined ||
+    stage.closedAt.getTime() < launchedAt;
   for (const asker of askers) {
     if (
       (yes && asker.waits === true) ||
@@ -593,31 +619,33 @@ export async function refreshSignIn(
   askId: string,
   event: AppEventLine | undefined,
   workspaceRef: WorkspaceActorRef,
-): Promise<void> {
+): Promise<boolean> {
   const state = (await chatAskStates(chatId)).find(
     ({ ask, live }) => live && ask.id === askId && ask.device === thisDevice(),
   );
   if (state?.ask.kind !== "sign-in") {
-    return;
+    return false;
   }
   const { ask } = state;
   const taken = ask.stage.is === "taken" ? ask.stage.answer : undefined;
   const progress = await signInProgress(ask.apps);
   // Every app on it is gone since it asked: nothing left to answer.
   if (progress === undefined) {
-    await close(
+    return close(
       chatId,
       ask.id,
       event ? { events: [event], kind: "sign-in" } : { kind: "left" },
       taken,
       event === undefined,
     );
-    return;
   }
   const card = ask.apps.length > 1 || ask.notOnCard !== undefined;
   if (event?.event === "failed" || !signInsSettled(progress)) {
-    await changeAsk(chatId, ask.id, ({ ask: now }) =>
-      now.kind === "sign-in" && now.stage.is !== "closed"
+    // Rows that did not change write nothing, so nothing goes round again.
+    const wrote = await write(chatId, ask.id, ({ ask: now }) =>
+      now.kind === "sign-in" &&
+      now.stage.is !== "closed" &&
+      JSON.stringify(now.apps) !== JSON.stringify(progress)
         ? { ...now, apps: progress }
         : undefined,
     );
@@ -629,7 +657,7 @@ export async function refreshSignIn(
         card ? { signIns: progress } : {},
       );
     }
-    return;
+    return wrote;
   }
   const others = progress.filter((app) => app.slug !== event?.slug);
   const told = [
@@ -656,22 +684,20 @@ export async function refreshSignIn(
       ? each
       : { ...each, account };
   });
-  await changeAsk(chatId, ask.id, ({ ask: now }) =>
+  return write(chatId, ask.id, ({ ask: now }) =>
     now.kind === "sign-in" && now.stage.is !== "closed"
       ? {
           ...now,
           apps: progress,
-          stage: {
-            ...(taken && { answer: { at: taken.at, device: taken.device } }),
-            is: "closed",
-            outcome: {
+          stage: closedStage(
+            {
               events,
               kind: "sign-in",
               ...(card && ask.notOnCard && { notOnCard: ask.notOnCard }),
               ...(card && { signIns: progress }),
             },
-            woken: false,
-          },
+            taken,
+          ),
         }
       : undefined,
   );

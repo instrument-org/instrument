@@ -63,6 +63,11 @@ vi.mock(import("../../lib/chat/folder-look"), async (importOriginal) => {
   };
 });
 
+// What a wake waits on to find the chat's model, which a test may hold.
+const modelGate = vi.hoisted(() => ({
+  wait: () => Promise.resolve(),
+}));
+
 // A write a test makes fail, by what it is about.
 const failing = vi.hoisted(() => ({
   denial: false,
@@ -95,7 +100,8 @@ vi.mock(import("../../lib/chat/grants"), async (importOriginal) => {
 
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
-  fetchModel: () => Promise.resolve({ ok: true, value: {} } as never),
+  fetchModel: () =>
+    modelGate.wait().then(() => ({ ok: true, value: {} }) as never),
 }));
 
 function createContext(): WorkspaceRPCContext {
@@ -1215,6 +1221,109 @@ describe("permissions.answer", () => {
       expect(notes).toHaveLength(1);
     });
 
+    // A wake ahead of it in the same pass can take minutes finding the
+    // chat's model; a session that asks meanwhile is still woken.
+    it("keeps a session that joined while an earlier wake waited, when it takes the answer", async () => {
+      const { chatId, own, task } = await chatWithTask();
+      chatIdNow = chatId;
+      await computer("Studio Mac", owner().device);
+      // Asked first, so a pass reaches it first.
+      const cellar = await recordAsk(
+        { chatId, sessionId: own },
+        "folder",
+        "/Users/me/Cellar",
+      );
+      const pantry = await recordAsk(
+        { chatId, sessionId: task },
+        "folder",
+        "/Users/me/Pantry",
+      );
+      const card = { id: pantry };
+      // The cellar closed a moment ago and is owed its wake.
+      await changeAsk(chatId, cellar, ({ ask }) => ({
+        ...ask,
+        stage: {
+          closedAt: new Date(),
+          is: "closed",
+          outcome: {
+            data: {
+              answer: "allowed",
+              kind: "folder",
+              target: "/Users/me/Cellar",
+            },
+            kind: "permission",
+          },
+          woken: false,
+        },
+      }));
+      const phone = await computer("Jeremy's iPhone");
+      await on(phone, () => answer(chatId, card.id, "allowed"));
+      await owner().catchUp(chatId);
+      let release = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let waiting = false;
+      modelGate.wait = () => {
+        waiting = true;
+        return held;
+      };
+      const sentBefore = sent.length;
+      try {
+        const driving = driveAsks(chatId, context().workspaceRef);
+        await vi.waitFor(() => {
+          expect(waiting).toBe(true);
+        });
+        modelGate.wait = () => Promise.resolve();
+        const late = await chatTaskFor(chatId, { title: "Count the jars" });
+        await recordAsk(
+          { chatId, sessionId: late },
+          "folder",
+          "/Users/me/Pantry",
+        );
+        release();
+        await driving;
+
+        expect(
+          wokenSince(sentBefore).map(({ sessionId }) => sessionId),
+        ).toEqual(expect.arrayContaining([own, task, late]));
+      } finally {
+        modelGate.wait = () => Promise.resolve();
+        release();
+      }
+    });
+
+    // The app quit between closing an ask and waking its askers, and comes
+    // back later: the ask closed on no answer of anyone's (a sign-in that
+    // finished, a look that got in), so only when it closed says the wake
+    // is owed from before.
+    it("leaves a note that starts no turn for a wake owed since before it started", async () => {
+      const { card, chatId, pantry, task } = await raised();
+      await changeAsk(chatId, card.id, ({ ask }) => ({
+        ...ask,
+        stage: {
+          closedAt: new Date(Date.now() - 60 * 60 * 1000),
+          is: "closed",
+          outcome: {
+            data: { answer: "allowed", kind: "folder", target: pantry },
+            kind: "permission",
+          },
+          woken: false,
+        },
+      }));
+      const sentBefore = sent.length;
+
+      await driveOwedAsks(context().workspaceRef);
+
+      expect(sent.slice(sentBefore)).toEqual([]);
+      const notes = (await owner().read(chatId)).chat.sessions
+        .find(({ id }) => id === task)
+        ?.messages.filter((message) =>
+          message.parts.some((part) => part.type === "data-permissionAnswer"),
+        );
+      expect(notes).toHaveLength(1);
+    });
+
     it("takes a session another computer stopped off the card, waking nobody", async () => {
       const { card, chatId, task } = await raised();
       const phone = await computer("Jeremy's iPhone");
@@ -1231,7 +1340,11 @@ describe("permissions.answer", () => {
       expect(session?.asks).toEqual([
         expect.objectContaining({
           id: card.id,
-          stage: { is: "closed", outcome: { kind: "left" }, woken: true },
+          stage: expect.objectContaining({
+            is: "closed",
+            outcome: { kind: "left" },
+            woken: true,
+          }),
         }),
       ]);
       expect(wokenSince(sentBefore)).toEqual([]);

@@ -161,8 +161,19 @@ const StageSchema = z.discriminatedUnion("is", [
   z.object({
     /** The answer it closed on, if one did. */
     answer: AnswerRefSchema.optional(),
+    /**
+     * When it closed, by its own computer's clock, the only one that writes
+     * it: a wake owed since before this process started is a note that
+     * starts no turn.
+     */
+    closedAt: z.coerce.date().optional(),
     is: z.literal("closed"),
     outcome: OutcomeSchema,
+    /**
+     * Its askers hear it with a note that starts no turn: it closed on a
+     * stale answer an earlier run of the app took and never carried out.
+     */
+    quiet: z.literal(true).optional(),
     woken: z.boolean(),
   }),
 ]);

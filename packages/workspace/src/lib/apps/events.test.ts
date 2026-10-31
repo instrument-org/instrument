@@ -463,4 +463,49 @@ describe("Not now from another computer", () => {
     ]);
     expect(await openAsks(chatId)).toEqual([]);
   });
+
+  it("settles a card with a sign-in that failed, and leaves an app that just connected", async () => {
+    const { chatId, sessionId } = await chatWithCard();
+    await answerRow("drive", "failed");
+    // Connected on this computer since the card's rows were last written.
+    await setStatus("gmail", "connected");
+    woken.mockClear();
+    const phone = new ChatRecords({
+      app: "0.0.0-test",
+      device: newDeviceId(),
+      dirOf: chatDir,
+      fsync: false,
+    });
+    made.push(phone);
+    const owner = writingChatRecords();
+    if (!owner) {
+      throw new Error("expected the test's records in place");
+    }
+    await phone.catchUp(chatId);
+    const [card] = await openAsks(chatId);
+    await phone.answer(chatId, sessionId, {
+      ask: card?.id ?? "",
+      given: { decision: "declined", kind: "sign-in" },
+    });
+    await owner.catchUp(chatId);
+    let writes = 0;
+    const stop = publisher.subscribe("record.changed", ({ id, kind }) => {
+      if (id === chatId && kind === "session") {
+        writes++;
+      }
+    });
+
+    try {
+      await driveAsks(chatId, {} as WorkspaceActorRef);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    } finally {
+      stop();
+    }
+
+    expect((await readConnection("drive"))?.status).toBe("declined");
+    expect((await readConnection("gmail"))?.status).toBe("connected");
+    expect(await openAsks(chatId)).toEqual([]);
+    expect(wakes().filter((wake) => wake.chatId === chatId)).toHaveLength(1);
+    expect(writes).toBeLessThan(8);
+  });
 });

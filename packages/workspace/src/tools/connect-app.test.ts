@@ -8,6 +8,7 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
+import { openPermissionAsks } from "../lib/chat/asks";
 import { openAsks } from "../lib/chat/open-asks";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
@@ -89,6 +90,8 @@ describe("connect_app", () => {
     expect(await readConnection("linear")).toMatchObject({
       status: "needs-sign-in",
     });
+    // A sign-in is no permission card.
+    expect(await openPermissionAsks(lisbon.chatId)).toEqual([]);
     for (const { chatId } of [lisbon, porto]) {
       expect(await openAsks(chatId)).toEqual([
         expect.objectContaining({

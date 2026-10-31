@@ -296,7 +296,12 @@ export async function recordSignIn(
         apps: left.length > 0 ? left : ask.apps,
         notOnCard: notAsked?.length ? notAsked : undefined,
         ...(left.length === 0 && {
-          stage: { is: "closed", outcome: { kind: "left" }, woken: true },
+          stage: {
+            closedAt: getCurrentDate(),
+            is: "closed",
+            outcome: { kind: "left" },
+            woken: true,
+          },
         }),
       });
     }
@@ -527,7 +532,8 @@ export async function openPermissionAsks(
   chatId: ChatId,
 ): Promise<PermissionAsk[]> {
   return (await asksOf(await chatAskStates(chatId))).filter(
-    (ask): ask is PermissionAsk => ask.kind !== "question",
+    (ask): ask is PermissionAsk =>
+      ask.kind !== "question" && ask.kind !== "sign-in",
   );
 }
 

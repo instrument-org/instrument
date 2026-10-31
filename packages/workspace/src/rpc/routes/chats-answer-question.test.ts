@@ -211,6 +211,25 @@ it("closes the chat's questions when the person writes instead, and leaves its p
   expect((await openAsks(chatId)).map((ask) => ask.kind)).toEqual(["folder"]);
 });
 
+it("closes a question the person wrote past, waking nobody, so no launch drives it again", async () => {
+  const { askId, chatId, sessionId } = await chatAsking();
+  await writeMessage(chatId, sessionId, "user", [
+    { state: "done", text: "Tea, please.", type: "text" },
+  ]);
+
+  await driveAsks(chatId, context().workspaceRef);
+
+  const ask = (await ChatReads.asks({ chatId, sessionId }))
+    ._unsafeUnwrap()
+    .asks.find(({ id }) => id === askId);
+  expect(ask?.stage).toMatchObject({
+    is: "closed",
+    outcome: { kind: "left" },
+    woken: true,
+  });
+  expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+});
+
 it("keeps the question open past a note no one typed", async () => {
   const { chatId, sessionId } = await chatAsking();
 

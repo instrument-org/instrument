@@ -55,7 +55,11 @@ specs=$(node -e '
   }
 ' "$top" "$@")
 cd "$top"
-paths=$(cut -f1 <<< "$specs" | sort -u)
+# Byte order, as git lists the staged paths they are compared against below:
+# comm needs both sides sorted the same way, and a locale sort puts KIT.md
+# after kit/ where git puts it before, which reads as a named path with no
+# change.
+paths=$(cut -f1 <<< "$specs" | LC_ALL=C sort -u)
 
 index_dir=$(mktemp -d)
 trap 'rm -rf "$index_dir"' EXIT
@@ -122,7 +126,7 @@ for attempt in 1 2 3 4 5; do
   # Without renames, so a renamed file's old path counts as the deletion it is.
   staged=$(git diff --cached --name-only --no-renames "$base")
   [[ -n "$staged" ]] || fail "none of the named paths differ from HEAD"
-  unchanged=$(comm -23 <(echo "$paths") <(echo "$staged"))
+  unchanged=$(LC_ALL=C comm -23 <(echo "$paths") <(echo "$staged"))
   [[ -z "$unchanged" ]] || fail "these named paths do not differ from HEAD: $unchanged"
   commit=$(git commit-tree ${sign[@]+"${sign[@]}"} "$(git write-tree)" -p "$base" -F "$message")
   unset GIT_INDEX_FILE

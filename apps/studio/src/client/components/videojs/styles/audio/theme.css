@@ -1,0 +1,30 @@
+@layer base.theme, base.preset, base.preferences;
+
+@layer base.preset {
+  /* The app's own tokens, which already follow its light and dark themes: the
+     page is the viewer's card, the timeline and the play button are the
+     brand's, and popovers are the app's. */
+  .media-skin:is([data-preset="audio"], [data-preset="live-audio"]) {
+    --media-background: var(--card);
+    --media-foreground: var(--card-foreground);
+    --media-controls: transparent;
+    --media-controls-foreground: var(--media-foreground);
+    --media-popover: var(--popover);
+    --media-popover-foreground: var(--popover-foreground);
+    --media-muted: var(--muted);
+    --media-surface-border: var(--border);
+    --media-primary: var(--media-accent-color, var(--brand-600));
+    --media-primary-foreground: #ffffff;
+    --media-border: var(--border);
+    --media-ring: var(--ring);
+    --media-default-accent-color: var(--brand-600);
+    --media-default-accent-text-color: #ffffff;
+    --media-internal-accent-text-fallback: #ffffff;
+    --media-accent: var(--accent);
+    --media-accent-foreground: var(--accent-foreground);
+    --media-shadow-current-color: transparent;
+    --media-popover-boundary-offset: calc(var(--media-spacing) * 2);
+    --media-popover-side-offset: calc(var(--media-spacing) * 3);
+    --media-slider-preview-label-offset: calc(var(--media-spacing) * 10);
+  }
+}

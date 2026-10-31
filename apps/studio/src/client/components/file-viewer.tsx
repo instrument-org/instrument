@@ -18,7 +18,6 @@ import {
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { flushFileWrites } from "@/client/lib/file-flush";
-import { readUnknownDuration } from "@/client/lib/media-duration";
 import {
   type FileType,
   getFileType,
@@ -389,62 +388,76 @@ function soundAllowed(silent: boolean) {
   return !silent && document.hasFocus();
 }
 
-/**
- * A video that starts playing as it opens, with sound where `soundAllowed`
- * says and muted otherwise. Decided once per file, so the person's own mute
- * or unmute stands.
- */
-function VideoPlayer({
-  onError,
-  silent,
-  src,
-}: {
-  onError: () => void;
-  silent: boolean;
-  src: string;
-}) {
-  const [muted] = useState(() => !soundAllowed(silent));
-  return (
-    <video
-      autoPlay
-      className="size-full object-contain"
-      controls
-      muted={muted}
-      onError={onError}
-      onLoadedMetadata={(event) => {
-        readUnknownDuration(event.currentTarget);
-      }}
-      playsInline
-      src={src}
-    />
-  );
-}
+// The player (Video.js and its skin) loads the first time a video or a sound
+// is opened, not with the viewer.
+const VideoPlayer = lazy(() =>
+  import("./media-player").then((module) => ({
+    default: module.VideoPlayer,
+  })),
+);
+const AudioPlayer = lazy(() =>
+  import("./media-player").then((module) => ({
+    default: module.AudioPlayer,
+  })),
+);
 
 /**
- * A sound file that starts playing as it opens where `soundAllowed` says, and
- * waits for a press otherwise; there is nothing to show of it muted.
+ * A video or a sound that starts playing as it opens. A video plays with
+ * sound where `soundAllowed` says and muted otherwise; a sound plays where it
+ * says and waits for a press otherwise, since there is nothing to show of it
+ * muted. Decided once per file, so the person's own mute or unmute stands.
+ * A file typed as video that turns out to have no picture (a voice recording
+ * in WebM) is shown as the sound it is. Keyed per file by the caller.
  */
-function AudioPlayer({
-  onError,
-  silent,
-  src,
+function MediaViewer({
+  context: { fallback, file, onMediaError, silent },
+  kind,
 }: {
-  onError: () => void;
-  silent: boolean;
-  src: string;
+  context: ViewerContext;
+  kind: "audio" | "video";
 }) {
-  const [autoPlay] = useState(() => soundAllowed(silent));
+  const [sound] = useState(() => soundAllowed(silent));
+  const [audioOnly, setAudioOnly] = useState(false);
+  if (silent && kind === "video") {
+    // A thumbnail: a picture of the video, with nothing to press.
+    return (
+      <video
+        autoPlay
+        className="size-full object-contain"
+        muted
+        onError={() => {
+          onMediaError("mp4");
+        }}
+        playsInline
+        src={file.url}
+      />
+    );
+  }
   return (
-    <audio
-      autoPlay={autoPlay}
-      className="w-full max-w-2xl"
-      controls
-      onError={onError}
-      onLoadedMetadata={(event) => {
-        readUnknownDuration(event.currentTarget);
-      }}
-      src={src}
-    />
+    <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
+      {kind === "audio" || audioOnly ? (
+        <AudioPlayer
+          autoPlay={sound}
+          name={file.filename}
+          onError={() => {
+            onMediaError(kind === "audio" ? "mp3" : "mp4");
+          }}
+          src={file.url}
+        />
+      ) : (
+        <VideoPlayer
+          hostPath={file.hostPath}
+          muted={!sound}
+          onAudioOnly={() => {
+            setAudioOnly(true);
+          }}
+          onError={() => {
+            onMediaError("mp4");
+          }}
+          src={file.url}
+        />
+      )}
+    </ViewerSurface>
   );
 }
 
@@ -490,17 +503,8 @@ const VIEWERS = {
   },
   audio: {
     hasToolbar: false,
-    render: ({ file, onMediaError, silent }) => (
-      <div className="flex size-full items-center justify-center p-8">
-        <AudioPlayer
-          key={file.hostPath}
-          onError={() => {
-            onMediaError("mp3");
-          }}
-          silent={silent}
-          src={file.url}
-        />
-      </div>
+    render: (context) => (
+      <MediaViewer context={context} key={context.file.hostPath} kind="audio" />
     ),
     scrolls: "container",
   },
@@ -725,21 +729,18 @@ const VIEWERS = {
   },
   video: {
     hasToolbar: false,
-    render: ({ file, onMediaError, silent }) => (
+    render: (context) => (
       <ContextMenu>
         <ContextMenuTrigger className="size-full">
-          <VideoPlayer
-            key={file.hostPath}
-            onError={() => {
-              onMediaError("mp4");
-            }}
-            silent={silent}
-            src={file.url}
+          <MediaViewer
+            context={context}
+            key={context.file.hostPath}
+            kind="video"
           />
         </ContextMenuTrigger>
         <ContextMenuContent>
           <FileActionsMenuItems
-            file={file}
+            file={context.file}
             menuComponents={contextMenuComponents}
           />
         </ContextMenuContent>

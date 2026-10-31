@@ -8,6 +8,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./code-colors.css";
+@import "../components/videojs/styles/tailwind.css";
 
 .prompt-editor {
   position: relative;
@@ -253,6 +254,22 @@ body {
   --color-dev-800: var(--dev-800);
   --color-dev-900: var(--dev-900);
   --color-dev-950: var(--dev-950);
+  /* The Video.js skin's colors (`components/videojs/styles/tailwind.css`). */
+  --color-media-accent: var(--media-accent);
+  --color-media-background: var(--media-background);
+  --color-media-border: var(--media-border);
+  --color-media-controls: var(--media-controls);
+  --color-media-controls-foreground: var(--media-controls-foreground);
+  --color-media-foreground: var(--media-foreground);
+  --color-media-live: var(--media-live-color);
+  --color-media-muted: var(--media-muted);
+  --color-media-muted-foreground: var(--media-muted-foreground);
+  --color-media-popover: var(--media-popover);
+  --color-media-popover-foreground: var(--media-popover-foreground);
+  --color-media-primary: var(--media-primary);
+  --color-media-primary-foreground: var(--media-primary-foreground);
+  --color-media-ring: var(--media-ring);
+  --color-media-backdrop: var(--media-backdrop);
 }
 
 /* Maps the shadow scale onto per-mode `--elevation-*` vars. `inline` keeps

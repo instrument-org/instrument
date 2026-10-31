@@ -176,11 +176,34 @@ export function LookPanel({
         // control in it, so Space puts the panel away instead of pressing
         // whatever button it landed on, the way a second Space does in the
         // Finder. Caught on the way down, before any control sees it.
+        // K plays and pauses the video or sound in the panel wherever the
+        // keyboard is in it, as the player's own K does; caught here so the
+        // player's K does not count the same press twice.
         onKeyDownCapture={(event) => {
-          if (event.key === " " && !isTypingTarget(event.target)) {
+          if (isTypingTarget(event.target)) {
+            return;
+          }
+          if (event.key === " ") {
             event.preventDefault();
             event.stopPropagation();
             onClose();
+            return;
+          }
+          const media = event.currentTarget.querySelector("video, audio");
+          if (
+            event.key.toLowerCase() === "k" &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            media instanceof HTMLMediaElement
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (media.paused) {
+              void media.play().catch(() => undefined);
+            } else {
+              media.pause();
+            }
           }
         }}
         onOpenAutoFocus={(event) => {

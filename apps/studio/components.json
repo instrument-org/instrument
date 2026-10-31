@@ -19,6 +19,7 @@
   },
   "iconLibrary": "lucide",
   "registries": {
-    "@extend": "https://ui.extend.ai/r/{name}.json"
+    "@extend": "https://ui.extend.ai/r/{name}.json",
+    "@videojs": "https://shadcn.videojs.org/r/react/{name}.json"
   }
 }

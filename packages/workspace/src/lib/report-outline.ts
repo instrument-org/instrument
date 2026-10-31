@@ -195,61 +195,220 @@ function forEachSimple(
   script.statements.forEach(statement);
 }
 
-/** What a command carries rather than says: heredoc bodies and long quoted words, as written in the source. */
-function carried(script: ScriptNode): string[] {
-  const texts: string[] = [];
-  forEachSimple(script, (command) => {
-    for (const word of command.args) {
-      for (const part of word.parts) {
-        if (part.type === "SingleQuoted" && part.value.length > LONG_WORD) {
-          texts.push(part.value);
-        }
-        if (part.type === "DoubleQuoted") {
-          const inner = wordText({ parts: [part], type: "Word" });
-          if (inner && inner.length > LONG_WORD) {
-            texts.push(inner);
-          }
-        }
+/** Every node type just-bash's parser writes; a command holding any other goes as its length. */
+const AST_TYPES = new Set([
+  "ArithArrayElement",
+  "ArithAssignment",
+  "ArithBinary",
+  "ArithBracedExpansion",
+  "ArithCommandSubst",
+  "ArithConcat",
+  "ArithDoubleSubscript",
+  "ArithDynamicAssignment",
+  "ArithDynamicBase",
+  "ArithDynamicElement",
+  "ArithDynamicNumber",
+  "ArithGroup",
+  "ArithNested",
+  "ArithNumber",
+  "ArithNumberSubscript",
+  "ArithSingleQuote",
+  "ArithSpecialVar",
+  "ArithSyntaxError",
+  "ArithTernary",
+  "ArithUnary",
+  "ArithVariable",
+  "ArithmeticCommand",
+  "ArithmeticExpansion",
+  "ArithmeticExpression",
+  "ArrayKeys",
+  "AssignDefault",
+  "Assignment",
+  "BadSubstitution",
+  "BraceExpansion",
+  "CStyleFor",
+  "Case",
+  "CaseItem",
+  "CaseModification",
+  "CommandSubstitution",
+  "CondAnd",
+  "CondBinary",
+  "CondGroup",
+  "CondNot",
+  "CondOr",
+  "CondUnary",
+  "CondWord",
+  "ConditionalCommand",
+  "DefaultValue",
+  "DoubleQuoted",
+  "ErrorIfUnset",
+  "Escaped",
+  "For",
+  "FunctionDef",
+  "Glob",
+  "Group",
+  "If",
+  "Indirection",
+  "Length",
+  "LengthSliceError",
+  "Literal",
+  "ParameterExpansion",
+  "PatternRemoval",
+  "PatternReplacement",
+  "Pipeline",
+  "ProcessSubstitution",
+  "Range",
+  "Redirection",
+  "Script",
+  "SimpleCommand",
+  "SingleQuoted",
+  "Statement",
+  "Subshell",
+  "Substring",
+  "TildeExpansion",
+  "Transform",
+  "Until",
+  "UseAlternative",
+  "VarNamePrefix",
+  "While",
+  "Word",
+]);
+
+/** The string fields of a node that hold text as written: a literal, a quoted string, a glob. */
+const TEXT_FIELDS = new Set(["pattern", "value"]);
+
+type Carried = {
+  /** Heredocs in the order the parser met them, by their closing word. */
+  heredocs: { delimiter: string; stripTabs: boolean }[];
+  /** Text over 80 characters written in the command itself. */
+  long: string[];
+};
+
+/**
+ * What a command carries rather than says, from every node of its syntax
+ * tree: each heredoc, wherever it is, and every piece of text over 80
+ * characters (an argument, an assignment's value, a word inside a command
+ * substitution or a `[[ ]]` test). Undefined when the tree holds a node this
+ * walk doesn't know, so the whole command goes as its length.
+ */
+function carried(script: ScriptNode): Carried | undefined {
+  const found: Carried = { heredocs: [], long: [] };
+  let known = true;
+  const visit = (value: unknown) => {
+    if (!known) {
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!isObj(value)) {
+      return;
+    }
+    if (typeof value.type === "string") {
+      if (value.type === "HereDoc") {
+        found.heredocs.push({
+          delimiter: String(value.delimiter),
+          stripTabs: value.stripTabs === true,
+        });
+        // Its body is sized whole from the source, expansions and all.
+        return;
+      }
+      if (!AST_TYPES.has(value.type)) {
+        known = false;
+        return;
       }
     }
-    for (const redirection of command.redirections) {
-      if (redirection.target.type === "HereDoc") {
-        const body = wordText(redirection.target.content);
-        texts.push(body ?? "\u0000");
+    for (const [key, item] of Object.entries(value)) {
+      if (
+        TEXT_FIELDS.has(key) &&
+        typeof item === "string" &&
+        item.length > LONG_WORD
+      ) {
+        found.long.push(item);
+      } else if (typeof item === "object") {
+        visit(item);
       }
     }
-  });
-  return texts;
+  };
+  visit(script);
+  return known ? found : undefined;
+}
+
+const escapeRegExp = (text: string) =>
+  text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The command with each heredoc's body as its length, found in the source
+ * in the order the parser met them: an opener (`<<'EOF'`), the lines after
+ * the line it is on, and the closing word on a line of its own. Undefined
+ * when one can't be found as the parser read it.
+ */
+function sizeHeredocs(
+  command: string,
+  heredocs: Carried["heredocs"],
+): string | undefined {
+  let out = "";
+  let opened = 0;
+  let bodyFrom = 0;
+  for (const { delimiter, stripTabs } of heredocs) {
+    const name = escapeRegExp(delimiter);
+    const opener = new RegExp(`<<-?\\s*(['"]?)${name}\\1`, "g");
+    opener.lastIndex = opened;
+    const open = opener.exec(command);
+    if (!open) {
+      return undefined;
+    }
+    opened = open.index + open[0].length;
+    const lineEnd = command.indexOf("\n", Math.max(opened, bodyFrom));
+    if (lineEnd < 0) {
+      return undefined;
+    }
+    const start = lineEnd + 1;
+    const closer = new RegExp(`^${stripTabs ? "\\t*" : ""}${name}$`, "gm");
+    closer.lastIndex = start;
+    const close = closer.exec(command);
+    const end = close ? close.index : command.length;
+    // The newline before the closing word belongs to the body.
+    const body = command.slice(start, close ? Math.max(start, end - 1) : end);
+    out += `${command.slice(bodyFrom, start)}<${body.length} chars>`;
+    bodyFrom = start + body.length;
+    opened = Math.max(opened, close ? close.index + close[0].length : end);
+  }
+  return out + command.slice(bodyFrom);
 }
 
 /**
  * A command line as a report sends it: its words, flags and paths as
- * written, and each heredoc body and quoted word over 80 characters as its
- * length. A command the parser can't read, or whose carried text can't be
- * found in it, goes as its length.
+ * written, and each heredoc body and any piece of text over 80 characters
+ * as its length. A command the parser can't read, that holds a node the
+ * walk doesn't know, or whose carried text can't be found in it, goes as
+ * its length.
  */
 export function outlineCommand(command: string): string {
+  const whole = `<${command.length} chars>`;
   let script: ScriptNode;
   try {
     script = parse(command);
   } catch {
-    return `<${command.length} chars>`;
+    return whole;
   }
-  let out = "";
-  let cursor = 0;
-  for (const text of carried(script)) {
-    const body = text.endsWith("\n") ? text.slice(0, -1) : text;
-    const at = body === "" ? -1 : command.indexOf(body, cursor);
+  const found = carried(script);
+  if (!found) {
+    return whole;
+  }
+  let out = sizeHeredocs(command, found.heredocs);
+  if (out === undefined) {
+    return whole;
+  }
+  for (const text of found.long.toSorted((a, b) => b.length - a.length)) {
+    const at = out.indexOf(text);
     if (at < 0) {
-      if (body === "") {
-        continue;
-      }
-      return `<${command.length} chars>`;
+      return whole;
     }
-    out += `${command.slice(cursor, at)}<${body.length} chars>`;
-    cursor = at + body.length;
+    out = `${out.slice(0, at)}<${text.length} chars>${out.slice(at + text.length)}`;
   }
-  return out + command.slice(cursor);
+  return out;
 }
 
 /** Instrument's own commands whose output is the app's status rather than anything from outside it. */
@@ -326,6 +485,22 @@ function appsCalled(command: string, sources: OutlineSources) {
 
 // ---- tools -----------------------------------------------------------------
 
+/**
+ * A tool part's own bookkeeping as written and every other field (its input,
+ * output, raw input, anything a later build adds) as its length, for each
+ * handler to fill in what of it goes.
+ */
+function envelope(part: Obj): Obj {
+  return fields(part, [
+    "type",
+    "toolCallId",
+    "state",
+    "metadata",
+    "preliminary",
+    "providerExecuted",
+  ]);
+}
+
 const SAID = ["explanation", "activity"];
 
 function toolBash(part: Obj, sources: OutlineSources): Obj {
@@ -333,7 +508,7 @@ function toolBash(part: Obj, sources: OutlineSources): Obj {
   const command = typeof input.command === "string" ? input.command : "";
   appsCalled(command, sources);
   const next: Obj = {
-    ...part,
+    ...envelope(part),
     input: {
       ...fields(input, [...SAID, "yieldMs"]),
       ...(command && { command: outlineCommand(command) }),
@@ -449,7 +624,7 @@ function toolPart(part: Obj, sources: OutlineSources): Obj {
   if (type === "tool-bash") {
     next = toolBash(rest, sources);
   } else if (type === "tool-web_search") {
-    next = { ...rest, input: pick(rest.input, [...SAID, "query"]) };
+    next = { ...envelope(rest), input: pick(rest.input, [...SAID, "query"]) };
     const results = isObj(rest.output) ? rest.output.results : undefined;
     next.output = Array.isArray(results)
       ? {
@@ -467,7 +642,7 @@ function toolPart(part: Obj, sources: OutlineSources): Obj {
       sources.apps.add(rest.input.slug);
     }
     next = {
-      ...rest,
+      ...envelope(rest),
       ...("input" in rest && {
         input: rule
           ? pick(
@@ -478,7 +653,6 @@ function toolPart(part: Obj, sources: OutlineSources): Obj {
             )
           : size(rest.input),
       }),
-      ...("rawInput" in rest && { rawInput: size(rest.rawInput) }),
       ...("output" in rest && {
         output: rule ? pick(rest.output, rule.output ?? []) : size(rest.output),
       }),

@@ -10,6 +10,8 @@ import {
 
 /** Planted in every field of every kind; the outline sends it only where the table says words go as written. */
 const SECRET = "CANARY-5f1e";
+/** The canary long enough that a command's text goes as its length. */
+const LONG = `${SECRET} `.repeat(10);
 
 const part = (body: Record<string, unknown>) => ({
   at: "2026-10-31T00:00:00.000Z",
@@ -35,6 +37,32 @@ const PLANTED = [
     type: "tool-bash",
     input: { command: `echo '${SECRET.repeat(20)}'` },
     output: { exitCode: 0, output: SECRET },
+  }),
+  // Every shape a command can carry text in: a case arm, a heredoc on a
+  // loop or a group, an assignment's value, a command substitution, a
+  // `[[ ]]` test.
+  ...[
+    `case x in a) echo '${LONG}';; esac`,
+    `while read l; do echo $l; done <<'EOF'\n${SECRET}\nEOF`,
+    `{ cat; } <<EOF\n${SECRET} $HOME\nEOF`,
+    `NOTE='${LONG}'; echo ok`,
+    `X="${LONG}" python x.py`,
+    `git commit -m "$(cat <<'EOF'\n${SECRET}\nEOF\n)"`,
+    `[[ "$x" == "${LONG}" ]] && echo yes`,
+    `echo $(printf '%s' '${LONG}')`,
+  ].map((command) =>
+    part({ type: "tool-bash", input: { command }, output: { exitCode: 0 } }),
+  ),
+  part({
+    type: "tool-bash",
+    input: { command: "ls" },
+    rawInput: { command: SECRET },
+    output: { exitCode: 0 },
+  }),
+  part({
+    type: "tool-unavailable",
+    rawInput: { command: SECRET },
+    errorText: "no such tool",
   }),
   part({
     type: "tool-web_fetch",
@@ -346,6 +374,17 @@ describe("outlineCommand", () => {
       "rg -n -A12 'Your cart' page.txt | head -3",
     ],
     ["echo 'unterminated", "<18 chars>"],
+    [`NOTE='${"x".repeat(90)}'; echo ok`, "NOTE='<90 chars>'; echo ok"],
+    [
+      "git commit -m \"$(cat <<'EOF'\nthe message\nEOF\n)\"",
+      "git commit -m \"$(cat <<'EOF'\n<11 chars>\nEOF\n)\"",
+    ],
+    [
+      "while read l; do echo $l; done <<EOF\nthe list $HOME\nEOF",
+      "while read l; do echo $l; done <<EOF\n<14 chars>\nEOF",
+    ],
+    // Two heredocs on one line are more than the source search reads.
+    ["cat <<'A' <<'B'\none\nA\ntwo\nB", "<27 chars>"],
   ])("%j", (command, outlined) => {
     expect(outlineCommand(command)).toBe(outlined);
   });

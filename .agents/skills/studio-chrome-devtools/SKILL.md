@@ -177,7 +177,7 @@ It runs as the chat's own session unless `--task` names one of its tasks by sess
 
 This is not `run-bash`, and the difference decides which one answers a question. `run-bash` builds its own sandbox from a checkout's dependencies, with no task and no app, which makes it fast and makes it blind to anything about a package: a command missing from a bundle resolves fine from `node_modules` and reports success. `bash` runs the mounts, shims, network policy, and bundled binaries of the build that is actually running. Verifying a shipped release wants this one; iterating on a shell fix wants the other.
 
-- It is gated on the **Developer Mode** preference, checked per call. Fixture workspaces pin it on; the shared dev workspace depends on what was last set in Settings > General, and the bridge cannot turn it on for you.
+- It is gated on the **Developer Mode** preference, checked per call. Fixture workspaces pin it on, and every boot writes it back, so a run that turned it off gets it again by booting; the shared dev workspace depends on what was last set in Settings > General, and the bridge cannot turn it on for you. Turning it off from a run shuts the bridge for the rest of that run: typing `!dev` in the command menu turns it back on.
 - `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`chats.tasks`, not `chats.live.tasks`).
 - Errors come back as data, so a Zod failure prints its issues rather than a stack.
 

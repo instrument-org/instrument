@@ -344,8 +344,48 @@ function prepareWorkspace(name, { dirName = name, fresh, keepTabs }) {
   if (!keepTabs && machineDir) {
     rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
   }
+  if (machineDir) {
+    repinSettings(name, machineDir);
+  }
 
   return { home, outputDir, tasks: result.tasks, userDataDir };
+}
+
+/**
+ * Writes what the fixture's manifest pins (`settings:`, each store's keys in
+ * its `<store>.json` in the machine folder) back over the seed on every boot.
+ * The seeder writes them only when it builds the workspace, so a run that
+ * changed one kept it until the fixture itself changed: turning developer mode
+ * off from Settings shut the debug bridge every `rpc` goes through, and no
+ * later boot opened it again. Merged, so whatever the app wrote beside a
+ * pinned key stays.
+ */
+function repinSettings(name, machineDir) {
+  const manifest = path.join(
+    REPO_ROOT,
+    "fixtures",
+    "workspaces",
+    name,
+    "manifest.yaml",
+  );
+  if (!existsSync(manifest)) {
+    return;
+  }
+  // The workspace package's copy, since the repo root has none of its own.
+  const yaml = createRequire(
+    path.join(REPO_ROOT, "packages", "workspace", "package.json"),
+  )("yaml");
+  const settings = yaml.parse(readFileSync(manifest, "utf8"))?.settings ?? {};
+  for (const [store, pinned] of Object.entries(settings)) {
+    const file = path.join(machineDir, `${store}.json`);
+    let current = {};
+    try {
+      current = JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+      // Not written yet: the pinned keys are the whole file.
+    }
+    writeFileSync(file, `${JSON.stringify({ ...current, ...pinned }, undefined, "\t")}\n`);
+  }
 }
 
 // --- clean rooms -------------------------------------------------------

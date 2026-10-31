@@ -110,6 +110,18 @@ export function evaluatePart(/** @type {string} */ part) {
   return ctx.__out;
 }
 
+/** A value the kit defines (`kitValue("FOLDER_ROWS")`), run in Node and handed back as JSON. */
+export function kitValue(/** @type {string} */ expression) {
+  /** @type {{ __value?: string }} */
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(
+    `${kitSource()}\n;globalThis.__value = JSON.stringify(${expression});`,
+    ctx,
+  );
+  return JSON.parse(ctx.__value ?? "null");
+}
+
 /**
  * A page of frames alone at true size, one under another, each in a section with an
  * id of `f<n>`: for a kit check, and for measure/ to take pictures of.

@@ -2,6 +2,8 @@
 // Build it after changing the kit and look at it before drawing a round:
 //   node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
 // A proposal starts from one of these frames and changes only what it argues about.
+// `measure` names the picture of the running app measure/ takes for the same state, so
+// `node .agents/wireframe-kit/measure/measure.mjs <dir>` lays each frame beside it.
 
 const META = {
   title: "Kit baseline: every surface as built",
@@ -21,16 +23,19 @@ const states = [
   {
     title: "Chats",
     note: "The window opens on Chat with nothing open: the rail, the list of chats, and a quiet empty state beside it, since there's no Home page.",
+    measure: "chats",
     body: appWindow(),
   },
   {
     title: "Chat running",
     note: "While the pricing chat runs, its newest step shimmers under its title and on its row, and a row shows its topic and star in the corner.",
+    measure: "chat",
     body: appWindow({ bar: chatBar, body: running() }),
   },
   {
     title: "Chats picker",
     note: "The picker sits bare on the card until it's pressed, then lists the views with their counts, the topics with their marks, and New topic.",
+    measure: "inbox-view-menu",
     body: appWindow({
       bar: chatBar,
       body: inboxCol({ on: 0, picking: true }) + thread({ working: "Reading plans on zendesk.com" }),
@@ -40,6 +45,7 @@ const states = [
   {
     title: "Chat list search",
     note: "Typing folds the picker down to its mark and raises the search into a white field, and we bold the words that matched in each row.",
+    measure: "inbox-search",
     body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, search: "pricing", rows: [ROWS[0]] }) + thread({ working: "Reading plans on zendesk.com" }) }),
   },
   {
@@ -53,6 +59,7 @@ const states = [
   {
     title: "Topic",
     note: "Standing in a topic tints the list's head in the topic's color, and its instructions sit under the picker with Edit topic.",
+    measure: "inbox-topic",
     body: appWindow({
       bar: chatBar,
       body: inboxCol({ on: 0, topic: "Pricing", rows: [ROWS[0], { title: "Intercom's AI agent pricing per resolution", preview: "Fin bills $0.99 per resolution on every plan, on top of the seat price.", time: "Tue", holds: [{ site: "intercom" }] }, { title: "Freshdesk plan limits for 10 agents", preview: "Pro covers 10 agents with custom roles; Growth stops at 5 collaborators.", time: "Oct 22", holds: [{ site: "freshdesk" }] }] }) + thread({ working: "Reading plans on zendesk.com" }),
@@ -75,6 +82,7 @@ const states = [
   {
     title: "Window tabs",
     note: "Tabs grow to 240 pixels and share the bar evenly, cutting a long title with a fade rather than an ellipsis, with a hairline between tabs that aren't up.",
+    measure: "tabs-five",
     body: appWindow({
       on: "files",
       bar: winBar({ tabs: [{ site: "g2" }, { chats: true, title: PRICING_TITLE }, { folder: "Instrument" }, { apps: true }, { file: "comparison" }], active: 4 }),
@@ -84,6 +92,7 @@ const states = [
   {
     title: "Window tabs crowded",
     note: "When the bar runs out of room the tab up keeps its name and the rest go to their marks, and hovering one shows its whole title and where it is.",
+    measure: "tab-hover",
     body: appWindow({
       on: "",
       bar: winBar({ tabs: [{ site: "g2" }, { chats: true, title: PRICING_TITLE }, { folder: "Instrument" }, { apps: true }, { file: "comparison" }, { newtab: true }, { browser: true }, { site: "zendesk" }, { site: "intercom" }, { site: "freshdesk" }, { file: "prices" }, { notes: true }], active: 11, hover: 1, right: statusPill("update") }),
@@ -94,6 +103,7 @@ const states = [
   {
     title: "Bell",
     note: "The bell lists what the team sends and what went wrong, each with its own buttons, and a dot on the bell says something is new.",
+    measure: "bell",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }], bell: { open: true } }),
       body: running(),
@@ -103,6 +113,7 @@ const states = [
   {
     title: "Status pill",
     note: "A warning pill sits before the bell while Instrument can't be reached, and pressing it says what's out and what still works.",
+    measure: "status-pill",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }], right: statusPill("unreachable") }),
       body: running(),
@@ -113,36 +124,43 @@ const states = [
   {
     title: "Files",
     note: "Files opens on a folder in Table, its places down the side and one row across the top: the four views, sort, more and search, the omnibar walking the path, and Ask.",
+    measure: "files-table",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ pick: 6 }) }),
   },
   {
     title: "Files list",
     note: "List shows each file's picture with its title over its name, so a folder of pages reads by what they're about.",
+    measure: "files-list",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ view: "list" }) }),
   },
   {
     title: "Files grid",
     note: "Grid lays the folder out as pictures with their names under them.",
+    measure: "files-grid",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ view: "icons" }) }),
   },
   {
     title: "Files columns",
     note: "Columns walks the path a column at a time, and a picked file shows its picture and details after the last one.",
+    measure: "files-columns",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ view: "columns", pick: 6 }) }),
   },
   {
     title: "Files sort",
     note: "The sort menu picks the order and the grouping, and shows hidden files.",
+    measure: "files-sort-menu",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder(), over: sortMenu() }),
   },
   {
     title: "Files search",
     note: "Search opens a field in place of the views and buttons, and Show only narrows the folder to one kind of file.",
+    measure: "files-search",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ search: true }), over: kindMenu() }),
   },
   {
     title: "Files omnibar",
     note: "Typing into the omnibar finds files in the folder as you go, and Return opens the first.",
+    measure: "files-omnibar-typing",
     body: appWindow({
       on: "files",
       bar: winBar({ tabs: [{ folder: "Instrument" }] }),
@@ -153,27 +171,32 @@ const states = [
   {
     title: "Files without the sidebar",
     note: "The toggle at the row's left folds the places away, and the listing and the row take the width.",
+    measure: "files-no-sidebar",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ folder: "Instrument" }] }), body: finder({ side: false, pick: 6 }) }),
   },
   {
     title: "File beside its folder",
     note: "Opening a file puts it beside its folder, which narrows to a column, and the row splits at the column's edge with the file's own controls over it.",
+    measure: "files-beside",
     body: appWindow({ on: "files", bar: winBar({ tabs: [{ file: "comparison" }] }), body: fileBeside() }),
   },
   // ---- Browser, New tab, Apps, release notes -----------------------------------------------
   {
     title: "Browser",
     note: "With no page open, Browser is the omnibar over Bookmarks and Recent pages.",
+    measure: "browser-home",
     body: appWindow({ on: "browser", bar: winBar({ tabs: [{ browser: true }] }), body: browserHome() }),
   },
   {
     title: "Browser page",
     note: "A page fills the card under its location row: reload, the omnibar across the row with the host quiet and the open-in icon at its end, Ask and the page's menu.",
+    measure: "browser-page",
     body: appWindow({ on: "browser", bar: winBar({ tabs: [{ chats: true }, { site: "g2" }], active: 1 }), body: placeCard({ tab: { site: "g2" } }) }),
   },
   {
     title: "Browser omnibar",
     note: "Typing an address or words offers a web search first, then suggestions, in a panel as wide as the field.",
+    measure: "browser-typing",
     body: appWindow({
       on: "browser",
       bar: winBar({ tabs: [{ browser: true }] }),
@@ -189,16 +212,19 @@ const states = [
   {
     title: "New tab",
     note: "A new window tab opens on a greeting over the command menu's list, open in place.",
+    measure: "new-tab",
     body: appWindow({ on: "", bar: winBar({ tabs: [{ chats: true }, { newtab: true }], active: 1 }), body: newTabPage() }),
   },
   {
     title: "Command menu",
     note: "⌘K brings the same list up over whatever is open.",
+    measure: "command-menu",
     body: appWindow({ bar: chatBar, body: running(), over: commandMenu() }),
   },
   {
     title: "Apps",
     note: "Apps with nothing open lists the popular services in two columns, each with Connect.",
+    measure: "apps",
     body: appWindow({ on: "apps", bar: winBar({ tabs: [{ chats: true }, { apps: true }], active: 1 }), body: appsPlace() }),
   },
   {
@@ -210,26 +236,31 @@ const states = [
   {
     title: "Settings",
     note: "Settings opens as a large sheet with the search and tabs down its left, and each tab's sections over white cards of rows.",
+    measure: "settings-general",
     body: appWindow({ bar: chatBar, body: running(), over: settingsSheet() }),
   },
   {
     title: "Settings providers",
     note: "Providers leads with Instrument, then the AI subscriptions someone may already pay for.",
+    measure: "settings-providers",
     body: appWindow({ bar: chatBar, body: running(), over: settingsSheet({ on: "Providers", body: settingsProviders() }) }),
   },
   {
     title: "Settings permissions",
     note: "Permissions lists each folder with how Instrument answers when a chat asks for it.",
+    measure: "settings-permissions",
     body: appWindow({ bar: chatBar, body: running(), over: settingsSheet({ on: "Permissions", body: settingsPermissions() }) }),
   },
   {
     title: "Settings memory",
     note: "Memory with nothing in it offers to bring in what another AI already knows.",
+    measure: "settings-memory",
     body: appWindow({ bar: chatBar, body: running(), over: settingsSheet({ on: "Memory", body: settingsMemory() }) }),
   },
   {
     title: "Send feedback",
     note: "Feedback lists everything that goes with it, and picking an item shows exactly what it holds before you send.",
+    measure: "feedback",
     body: appWindow({ bar: chatBar, body: running(), over: feedbackDialog() }),
   },
   {
@@ -307,6 +338,7 @@ const states = [
   {
     title: "Draft",
     note: "A new chat opens a compose window docked at the bottom right, with the model, the mic and send in its head, and Browser, This Mac and Apps under the words.",
+    measure: "draft",
     body: appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread(), over: composeWin() }),
   },
   {

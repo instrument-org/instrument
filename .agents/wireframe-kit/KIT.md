@@ -194,12 +194,27 @@ node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wirefra
 
 `appWindow({ dark: true })` draws the dark theme for everything built on tokens; hard-coded light colors (page bodies, tiles) stay light. Not in the kit yet, so drawn by hand when a round needs it: an app's own page, a task opened on its own, and the transcript's newer pieces.
 
+## Measuring against the app
+
+A baseline frame that names a state of the running app in `measure` is checked against it. [`measure/measure.mjs`](measure/measure.mjs) takes a picture of every baseline frame at true size, has [`measure/capture.mjs`](measure/capture.mjs) put a booted Studio into each named state and take a picture at the same 1280x800, 1x and light theme (with what only a developer sees in the bar hidden), and writes `compare.html`, each frame laid over the app with a slider between them, so drift shows up as a ghost:
+
+```bash
+DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
+node $DRIVE boot --purpose "kit measure" --workspace documents
+node .agents/wireframe-kit/measure/measure.mjs ~/wireframes/kit-measure          # everything, about a minute and a half
+node .agents/wireframe-kit/measure/measure.mjs ~/wireframes/kit-measure --only files-table,files-list
+node .agents/wireframe-kit/measure/measure.mjs ~/wireframes/kit-measure --no-app  # retake only the kit's pictures
+node $DRIVE stop --workspace documents
+```
+
+It writes the Instrument folder Files is shown on into the output folder, files the fixture's chat under Pricing, and leaves the app's theme as it found it. `--only` writes a `compare.html` of just those states. A state the app cannot reach in a fixture (the release notes need the API) has no `measure` and is checked by reading the code it names.
+
 ## Changing the kit
 
 The kit is meant to be edited by whoever draws with it.
 
-- **When a round draws a surface the kit lacks**, or corrects one it draws wrong, move that piece into the kit file for its surface as a function, add a frame for it to `baseline.js`, rebuild the baseline, and list it in the tables above.
-- **When the app changes, measure it again** rather than patching from memory: boot a disposable instance (`studio-drive.mjs boot --purpose "kit measure" --workspace documents`), take pictures of it at 1280x800 in the light theme, and correct the kit to match. Each file's header says when it was last measured.
+- **When a round draws a surface the kit lacks**, or corrects one it draws wrong, move that piece into the kit file for its surface as a function, add a frame for it to `baseline.js` (with a `measure` key and a state in `capture.mjs` when the app can reach it), rebuild the baseline, and list it in the tables above.
+- **When the app changes, measure** (above) rather than patching from memory, then correct the kit until the ghosts go away. Each file's header says when it was last measured.
 - **A new file** goes in `kit/` and in `KIT_FILES`, after the files whose top-level values it uses.
 - **Names are global.** A part that defines a name the kit has fails the build with that name; a new kit name that a part's helper already uses is fine, since the build says what to do. Avoid the template's own top-level names (`layout`, `stage`, `step`, `views`, `more`, `rack`, `shortcut`), which the build's compile check catches.
 
@@ -247,4 +262,4 @@ A page about how two surfaces share the screen names both of them (_Page and cha
 
 ## Where the files go
 
-Wireframes are working artifacts, not history: write them outside the repository, wherever your own setup keeps pages, and never commit one. A decision a wireframe settled belongs in the plan's prose or a decision record, where the next reader will find it.
+Wireframes are working artifacts, not history: write them outside the repository, wherever your own setup keeps pages, and never commit one. A decision a wireframe settled belongs in the plan's prose or a decision record, where the next reader will find it. The same goes for a measure run's pictures.

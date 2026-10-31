@@ -28,6 +28,7 @@ import { ChatWrites } from "./chat-writes";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 import {
+  dropRepeatingReplies,
   dropRetriedFailedMessages,
   dropTrailingFailedMessages,
 } from "./drop-trailing-failed-messages";
@@ -464,11 +465,13 @@ export async function prepareModelMessages({
   const contextMessages = baselineResult.value;
 
   const orderedMessages = dropTrailingFailedMessages(
-    dropRetriedFailedMessages([
-      // ulid sorts oldest to newest
-      ...alphabetical(contextMessages, (message) => message.id),
-      ...alphabetical(nonContextMessages, (message) => message.id),
-    ]),
+    dropRetriedFailedMessages(
+      dropRepeatingReplies([
+        // ulid sorts oldest to newest
+        ...alphabetical(contextMessages, (message) => message.id),
+        ...alphabetical(nonContextMessages, (message) => message.id),
+      ]),
+    ),
   );
 
   const portableMessagesResult = removeCrossModelReasoningDetails({

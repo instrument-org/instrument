@@ -73,3 +73,19 @@ export function dropRetriedFailedMessages(
     ? messages
     : messages.filter((message) => !retried.has(message));
 }
+
+/**
+ * Drop each reply stopped for repeating itself, wherever it is. Its text is
+ * the loop, which tells the model nothing and invites the same loop again,
+ * so no request ever carries it, and leaving it out from the first request
+ * after it keeps the history every later request sends the same.
+ */
+export function dropRepeatingReplies(
+  messages: SessionMessage.WithParts[],
+): SessionMessage.WithParts[] {
+  return messages.filter(
+    (message) =>
+      message.role !== "assistant" ||
+      message.metadata.error?.kind !== "repetition",
+  );
+}

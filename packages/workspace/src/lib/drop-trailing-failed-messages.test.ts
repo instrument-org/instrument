@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import {
+  dropRepeatingReplies,
   dropRetriedFailedMessages,
   dropTrailingFailedMessages,
 } from "./drop-trailing-failed-messages";
@@ -205,5 +206,24 @@ describe("dropRetriedFailedMessages", () => {
     ];
 
     expect(dropRetriedFailedMessages(messages)).toBe(messages);
+  });
+});
+
+describe("dropRepeatingReplies", () => {
+  it("leaves out a reply stopped for repeating itself, even mid-session", () => {
+    const ask = createUserMessage("Make the spreadsheet");
+    const looped = createAssistantMessage({
+      error: { kind: "repetition", message: "repeated" },
+      text: "Loading the skill. Loading the skill. Loading the skill.",
+    });
+    const followUp = createUserMessage("Try again");
+    const failed = createAssistantMessage({
+      error: { kind: "unknown", message: "boom" },
+      text: "partial",
+    });
+
+    expect(
+      dropRepeatingReplies([ask, looped, followUp, failed]).map((m) => m.id),
+    ).toEqual([ask.id, followUp.id, failed.id]);
   });
 });

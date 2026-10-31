@@ -558,8 +558,8 @@ export function simulateChat(random: Random): SimulatedChat {
       case "sites":
         model.sites = record.visited;
         break;
-      // The fake devices raise no cards.
-      case "card":
+      // The fake devices raise no asks.
+      case "ask":
       case "answer":
         break;
     }

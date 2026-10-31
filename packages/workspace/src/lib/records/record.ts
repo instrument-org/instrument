@@ -1,11 +1,7 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
-import {
-  AskerEntrySchema,
-  CardAnswerDecisionSchema,
-  PermissionCardSchema,
-} from "../../schemas/permission-card";
+import { AnswerGivenSchema, AskRecordSchema } from "../../schemas/ask";
 import { Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -170,22 +166,21 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     visited: z.array(z.string()),
   }),
   z.object({
-    t: z.literal("card"),
+    t: z.literal("ask"),
     ...envelope,
     /**
-     * A permission card whole, as the computer it belongs to last wrote it,
-     * in the chat's own session's log; the newest record of a card stands.
+     * Something the chat waits on the person for, whole, as the computer it
+     * belongs to last wrote it, in the chat's own session's log; the newest
+     * record of an ask stands.
      */
-    card: PermissionCardSchema,
+    ask: AskRecordSchema,
   }),
   z.object({
     t: z.literal("answer"),
     ...envelope,
-    /** The card it answers, by id; the log's device is the one that answered. */
-    card: z.string(),
-    decision: CardAnswerDecisionSchema,
-    /** On a Stop, the asker entries it took off the card, as the card it saw had them. */
-    askers: z.array(AskerEntrySchema).optional(),
+    /** The ask it answers, by id; the log's device is the one that answered. */
+    ask: z.string(),
+    given: AnswerGivenSchema,
   }),
 ]);
 

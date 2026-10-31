@@ -234,9 +234,7 @@ describe("PermissionAsksFoot", () => {
           computer: "Studio Mac",
           device,
           failed: {
-            at: new Date(1),
             decision: "always",
-            device,
             message: "Couldn't write the folder rule",
           },
           here: true,

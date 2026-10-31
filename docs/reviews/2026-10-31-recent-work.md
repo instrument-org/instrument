@@ -64,7 +64,7 @@ Five blind readers took one area each, following `REVIEW.md`: the capability reg
 ### G. One card's answer waits on, and fails with, another card acted on in the same pass
 
 - Status: fixed `b65c514cf`
-- Where: [card-answers.ts:105](/packages/workspace/src/lib/chat/card-answers.ts#L105), [card-answers.ts:166](/packages/workspace/src/lib/chat/card-answers.ts#L166)
+- Where: `card-answers.ts:105` at 417c95c1f, `card-answers.ts:166` at 417c95c1f
 - What: `answerAsk` awaits `takeCardAnswers`, which awaits every card that pass took, before waiting on its own. When another device's answer to card X lands in the same pass as the person's Allow on Y, or under `declineAll`, Y's call waits on X's macOS prompt, and fails with X's error after Y was granted and closed, so the card that worked shows "Couldn't…".
 - Verification: traced statically.
 - Fix: start the pass without awaiting the other cards and await only `acting.get(actingKey(chatId, askId))`.
@@ -73,7 +73,7 @@ Five blind readers took one area each, following `REVIEW.md`: the capability reg
 ### H. A declined card can close without waking the session that asked
 
 - Status: fixed `b65c514cf`
-- Where: [card-answers.ts:275](/packages/workspace/src/lib/chat/card-answers.ts#L275), [card-answers.ts:129](/packages/workspace/src/lib/chat/card-answers.ts#L129)
+- Where: `card-answers.ts:275` at 417c95c1f, `card-answers.ts:129` at 417c95c1f
 - What: `decline` runs `closeAsk`, then `setDenied`, then `wakeAskers`. If `setDenied` throws (an unwritable `permissions.json`) or the app quits between them, the card is closed on every device, `failAnswer` skips it as closed, and `isDue` re-acts only on open cards, so the asker waits for good. `d911acdd6`'s recovery covers a crash before the close only.
 - Verification: traced statically.
 - Fix: write the refusal and the wake before closing, or mark on the card that its askers were woken and re-act on a closed card without the mark.

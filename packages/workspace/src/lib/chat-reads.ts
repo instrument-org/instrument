@@ -239,21 +239,21 @@ export namespace ChatReads {
   }
 
   /**
-   * The permission cards in the session's log, each as it was last written,
+   * What the chat waits on the person for, each ask as it was last written,
    * and every answer to them from every device, in log order: what
-   * `openCardsIn` reads the open cards from.
+   * `askStates` reads.
    */
-  export function cards({
+  export function asks({
     chatId,
     sessionId,
   }: {
     chatId: ChatId;
     sessionId: StoreId.Session;
-  }): ResultAsync<Required<Pick<FoldedSession, "answers" | "cards">>, Failure> {
+  }): ResultAsync<Required<Pick<FoldedSession, "answers" | "asks">>, Failure> {
     return read(chatId).andThen((chat) => {
       const found = chat.chat.sessions.find(({ id }) => id === sessionId);
       return found
-        ? okAsync({ answers: found.answers ?? [], cards: found.cards ?? [] })
+        ? okAsync({ answers: found.answers ?? [], asks: found.asks ?? [] })
         : errAsync(missingSession(chatId, sessionId));
     });
   }

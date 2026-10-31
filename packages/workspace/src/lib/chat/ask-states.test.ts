@@ -11,6 +11,7 @@ const laptop = DeviceIdSchema.parse("dev_1APT0P00");
 const own = StoreId.newSessionId();
 const task = StoreId.newSessionId();
 const at = (minute: number) => new Date(Date.UTC(2026, 9, 31, 12, minute));
+const NOW = at(10).getTime();
 
 function folder(stage: AskRecord["stage"] = { is: "open" }): AskRecord {
   return {
@@ -55,6 +56,7 @@ describe("askStates", () => {
     const [state] = askStates({
       answers: [yes(phone, 5), no(laptop, 2)],
       asks: [folder()],
+      now: NOW,
     });
     expect(state?.pending).toEqual({
       at: at(5),
@@ -68,23 +70,43 @@ describe("askStates", () => {
     const [state] = askStates({
       answers: [yes(phone, 5), no(laptop, 2)],
       asks: [{ ...folder(), spent: [{ at: at(5), device: phone }] }],
+      now: NOW,
     });
     expect(state?.pending).toMatchObject({ decision: "declined" });
   });
 
-  it("has nothing pending once an answer is taken, but a later no", () => {
+  it("has nothing pending once an answer is taken, but a later no on its own computer", () => {
     const taken = folder({
-      answer: { ...yes(phone, 5), ...yes(phone, 5).given },
+      answer: {
+        at: at(5),
+        decision: "allowed",
+        device: phone,
+        kind: "permission",
+      },
       is: "taken",
     });
     expect(
-      askStates({ answers: [yes(phone, 5), yes(laptop, 6)], asks: [taken] })[0]
-        ?.pending,
+      askStates({
+        answers: [yes(phone, 5), yes(laptop, 6)],
+        asks: [taken],
+        now: NOW,
+      })[0]?.pending,
     ).toBeUndefined();
     expect(
-      askStates({ answers: [yes(phone, 5), no(laptop, 6)], asks: [taken] })[0]
-        ?.pending,
-    ).toMatchObject({ decision: "declined", device: laptop });
+      askStates({
+        answers: [yes(phone, 5), no(laptop, 6)],
+        asks: [taken],
+        now: NOW,
+      })[0]?.pending,
+    ).toBeUndefined();
+    // The no that counts is given where the system's prompt is.
+    expect(
+      askStates({
+        answers: [yes(phone, 5), no(owner, 6)],
+        asks: [taken],
+        now: NOW,
+      })[0]?.pending,
+    ).toMatchObject({ decision: "declined", device: owner });
   });
 
   it("takes stopped askers off, and an ask nobody is left on stops being live", () => {
@@ -94,7 +116,7 @@ describe("askStates", () => {
       device: phone,
       given: { askers: [{ at: at(minute), sessionId }], kind: "stopped" },
     });
-    expect(seen({ answers: [stop(task, 0)], asks: [folder()] }))
+    expect(seen({ answers: [stop(task, 0)], asks: [folder()], now: NOW }))
       .toMatchInlineSnapshot(`
       [
         {
@@ -107,15 +129,21 @@ describe("askStates", () => {
       ]
     `);
     // A Stop naming an entry from another moment names a different ask.
-    expect(seen({ answers: [stop(own, 7)], asks: [folder()] })[0]?.askers)
-      .toMatchInlineSnapshot(`
+    expect(
+      seen({ answers: [stop(own, 7)], asks: [folder()], now: NOW })[0]?.askers,
+    ).toMatchInlineSnapshot(`
         [
           "task",
           "own",
         ]
       `);
-    expect(seen({ answers: [stop(task, 0), stop(own, 1)], asks: [folder()] }))
-      .toMatchInlineSnapshot(`
+    expect(
+      seen({
+        answers: [stop(task, 0), stop(own, 1)],
+        asks: [folder()],
+        now: NOW,
+      }),
+    ).toMatchInlineSnapshot(`
       [
         {
           "askers": [],
@@ -137,8 +165,27 @@ describe("askStates", () => {
             woken: true,
           }),
         ],
+        now: NOW,
       }),
     ).toMatchObject([{ live: false, pending: undefined }]);
+  });
+
+  it("takes no answer given longer ago than an ask stays fresh, and keeps the newest as given while away", () => {
+    const [state] = askStates({
+      answers: [yes(phone, 1), no(laptop, 2)],
+      asks: [folder()],
+      now: at(30).getTime(),
+    });
+    expect(state?.pending).toBeUndefined();
+    expect(state?.away).toMatchObject({ decision: "declined", device: laptop });
+    // A fresh answer given since is taken over a stale one before it.
+    const [later] = askStates({
+      answers: [yes(phone, 1), no(laptop, 25)],
+      asks: [folder()],
+      now: at(30).getTime(),
+    });
+    expect(later?.pending).toMatchObject({ device: laptop });
+    expect(later?.away).toBeUndefined();
   });
 
   it("lets what the person wrote since move past an open question, never a permission", () => {
@@ -158,6 +205,7 @@ describe("askStates", () => {
         answers: [],
         asks: [question, folder()],
         movedPastAt: at(3),
+        now: NOW,
       }).map(({ ask, live }) => `${ask.kind} ${String(live)}`),
     ).toMatchInlineSnapshot(`
       [

@@ -22,16 +22,15 @@ import {
 import { appBundleId } from "../../lib/permissions/apps";
 import {
   answerableElsewhere,
-  computerName,
-  openCard,
-  openCards,
+  chatAskStates,
   thisDevice,
 } from "../../lib/chat/asks";
 import {
   answerAsk,
-  settle,
+  ownWaitingAsk,
+  retryAsk,
   withFolderLevel,
-} from "../../lib/chat/card-answers";
+} from "../../lib/chat/drive-asks";
 import {
   macAppStanding,
   macosRefusedFolders,
@@ -40,11 +39,7 @@ import { allowThroughProtection } from "../../lib/permissions/windows-protection
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
-import {
-  CardDecisionSchema,
-  type PermissionCard,
-} from "../../schemas/permission-card";
-import { type ChatId } from "../../schemas/chat-id";
+import { PermissionDecisionSchema } from "../../schemas/ask";
 
 const PermissionsViewSchema = z.object({
   /**
@@ -284,13 +279,13 @@ const removeApp = base
  * when the system's own prompt for it comes up, and the call settles once
  * that is answered; one the system refuses keeps its card, `macos-refused`,
  * until `retry` gets in or the person declines. On any other device the
- * answer is recorded for that computer to take (`card-answers.ts`).
+ * answer is recorded for that computer to take (`drive-asks.ts`).
  */
 const answer = base
   .input(
     z.object({
       askId: z.string(),
-      decision: CardDecisionSchema,
+      decision: PermissionDecisionSchema,
       id: ChatIdSchema,
     }),
   )
@@ -315,18 +310,7 @@ const retry = base
   .input(z.object({ askId: z.string(), id: ChatIdSchema }))
   .output(z.void())
   .handler(async ({ context, input }) => {
-    const ask = await ownOpenCard(input.id, input.askId);
-    if (
-      (ask.status !== "macos-refused" &&
-        ask.status !== "macos-asking" &&
-        ask.status !== "windows-blocked") ||
-      !ask.allowed
-    ) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "That request isn't waiting on the system.",
-      });
-    }
-    await settle(input.id, ask, ask.allowed, context.workspaceRef);
+    await retryAsk(input.id, input.askId, context.workspaceRef);
   });
 
 /**
@@ -339,8 +323,12 @@ const allowThroughProtectionRoute = base
   .input(z.object({ askId: z.string(), id: ChatIdSchema }))
   .output(z.object({ outcome: z.enum(["allowed", "canceled", "failed"]) }))
   .handler(async ({ context, input }) => {
-    const ask = await ownOpenCard(input.id, input.askId);
-    if (ask.status !== "windows-blocked" || process.platform !== "win32") {
+    const ask = await ownWaitingAsk(input.id, input.askId);
+    if (
+      ask.stage.is !== "waiting" ||
+      ask.stage.on !== "windows-blocked" ||
+      process.platform !== "win32"
+    ) {
       throw new ORPCError("BAD_REQUEST", {
         message: "That request isn't waiting on ransomware protection.",
       });
@@ -349,12 +337,7 @@ const allowThroughProtectionRoute = base
       ...new Set([...(ask.programs ?? []), process.execPath]),
     ]);
     if (outcome === "allowed") {
-      await settle(
-        input.id,
-        ask,
-        ask.allowed ?? "allowed",
-        context.workspaceRef,
-      );
+      await retryAsk(input.id, input.askId, context.workspaceRef);
     }
     return { outcome };
   });
@@ -369,36 +352,18 @@ const declineAll = base
   .output(z.void())
   .handler(async ({ context, input }) => {
     const device = thisDevice();
-    const asks = (await openCards(input.id)).filter(
-      ({ answer: given, card }) =>
-        card.device === device ||
-        answerableElsewhere(card, given !== undefined),
+    const asks = (await chatAskStates(input.id)).filter(
+      (state) =>
+        state.live &&
+        state.ask.kind === "permission" &&
+        (state.ask.device === device || answerableElsewhere(state)),
     );
     await Promise.all(
-      asks.map(({ card }) =>
-        answerAsk(input.id, card.id, "declined", context.workspaceRef),
+      asks.map(({ ask }) =>
+        answerAsk(input.id, ask.id, "declined", context.workspaceRef),
       ),
     );
   });
-
-/** One of this computer's open cards, which only it can act on. */
-async function ownOpenCard(
-  chatId: ChatId,
-  askId: string,
-): Promise<PermissionCard> {
-  const open = await openCard(chatId, askId);
-  if (!open) {
-    throw new ORPCError("NOT_FOUND", {
-      message: "That request was already answered.",
-    });
-  }
-  if (open.card.device !== thisDevice()) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: `That request needs answering on ${await computerName(open.card.device)}.`,
-    });
-  }
-  return open.card;
-}
 
 export const permissions = {
   allowThroughProtection: allowThroughProtectionRoute,

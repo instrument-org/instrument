@@ -32,7 +32,7 @@ export const AskerSchema = z.object({
  * a session that asks again later is a new entry no earlier Stop names, and
  * no clock of another device's is ever compared with the ask's.
  */
-export const AskerEntrySchema = z.object({
+const AskerEntrySchema = z.object({
   at: z.coerce.date(),
   sessionId: StoreId.SessionSchema,
 });
@@ -60,7 +60,7 @@ export const PermissionDecisionSchema = z.enum([
 export type PermissionDecision = z.output<typeof PermissionDecisionSchema>;
 
 /** What an answer gives, by the kind of ask it answers. */
-export const GivenSchema = z.discriminatedUnion("kind", [
+const GivenSchema = z.discriminatedUnion("kind", [
   z.object({
     decision: PermissionDecisionSchema,
     kind: z.literal("permission"),
@@ -72,8 +72,6 @@ export const GivenSchema = z.discriminatedUnion("kind", [
   /** Not now to a sign-in: signing in happens on the ask's computer alone. */
   z.object({ decision: z.literal("declined"), kind: z.literal("sign-in") }),
 ]);
-
-export type Given = z.output<typeof GivenSchema>;
 
 /**
  * What an `answer` record says: an answer, or a Stop on that device, which
@@ -118,7 +116,7 @@ export const SystemWaitSchema = z.enum([
 export type SystemWait = z.output<typeof SystemWaitSchema>;
 
 /** How an ask ended, which its askers are woken with. */
-export const OutcomeSchema = z.discriminatedUnion("kind", [
+const OutcomeSchema = z.discriminatedUnion("kind", [
   z.object({
     data: SessionMessageDataPart.PermissionAnswerDataPartSchema,
     kind: z.literal("permission"),
@@ -145,7 +143,7 @@ export type Outcome = z.output<typeof OutcomeSchema>;
  * ask was raised for the system alone); `closed`, with how it ended and
  * whether its askers were woken with it.
  */
-export const StageSchema = z.discriminatedUnion("is", [
+const StageSchema = z.discriminatedUnion("is", [
   z.object({ is: z.literal("open") }),
   z.object({ answer: TakenSchema, is: z.literal("taken") }),
   z.object({
@@ -155,13 +153,13 @@ export const StageSchema = z.discriminatedUnion("is", [
     on: SystemWaitSchema,
   }),
   z.object({
+    /** The answer it closed on, if one did. */
+    answer: AnswerRefSchema.optional(),
     is: z.literal("closed"),
     outcome: OutcomeSchema,
     woken: z.boolean(),
   }),
 ]);
-
-export type Stage = z.output<typeof StageSchema>;
 
 const AskBaseSchema = z.object({
   askedAt: z.coerce.date(),

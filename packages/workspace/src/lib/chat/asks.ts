@@ -1,34 +1,36 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { ulid } from "ulid";
 
+import {
+  type AnswerGiven,
+  type AnswerRef,
+  type AskRecord,
+  type PermissionAskRecord,
+  type SystemWait,
+} from "../../schemas/ask";
 import { type ChatId } from "../../schemas/chat-id";
 import { type Ask, type PermissionAsk } from "../../schemas/chat-state";
-import {
-  type CardAnswer,
-  type CardDecision,
-  type PermissionCard,
-} from "../../schemas/permission-card";
 import { type DeviceId } from "../../schemas/device-id";
 import { type StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
+import { askTargetName } from "../permissions/ask-target";
 import { sessionOfChat } from "../record-folders";
 import { readDeviceName } from "../records/device-file";
 import { writingChatRecords } from "../records/installed-records";
-import { askTargetName } from "../permissions/ask-target";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { TOOL_NAMES } from "../../tools/name";
+import { type AskState, askStates } from "./ask-states";
 
 /**
- * A chat's permission cards: the folders, apps and tabs its agents asked the
- * person for. A card is a `card` record in the chat's own session's log,
- * written whole by the computer it belongs to, the one whose grants it is
- * about, so every device the chat syncs to shows it. Any device answers it
- * with an `answer` record in its own log; the first in log order wins, and
- * the card's computer takes it (`card-answers.ts`), grants what it says
- * there, and closes the card. A Stop on any device takes its sessions off
- * the card the same way.
+ * What a chat waits on the person for: the folders, apps and tabs its
+ * agents asked for. Each is an `ask` record in the chat's own session's
+ * log, written whole by the computer it belongs to, the one whose grants
+ * it is about, so every device the chat syncs to shows it. Any device
+ * answers it, or stops a session on it, with an `answer` record in its own
+ * log; where it stands is `askStates` over those records, and the ask's
+ * computer alone acts on it (`drive-asks.ts`).
  */
 
 /** What raised an ask: the chat and the session that asked. */
@@ -37,121 +39,38 @@ export interface Asker {
   /** The call that asked, by its part's id. */
   partId?: StoreId.Part;
   sessionId: StoreId.Session;
-  /** The session's command waits on what the card is about itself (`waits` on the card's asker). */
+  /** The session's command waits on what the ask is about itself (`waits` on the ask's asker). */
   waits?: true;
 }
 
-/** A card still up, as `openCardsIn` reads it from the records. */
-export interface OpenCard {
-  /** The answer it has: the one its computer took, else the first given. */
-  answer?: NonNullable<PermissionCard["answer"]> & { taken: boolean };
-  /** The card, with only the sessions no Stop has taken off it. */
-  card: PermissionCard;
-}
-
 /**
- * The cards still up among a session's records, oldest first: each card's
- * newest record, not closed, with the sessions that a Stop (an `answer`
- * that says `stopped`, from any device) made after they asked taken off it,
- * and with at least one session left. Its answer is the one its computer
- * took, or else the first decision in log order.
- */
-export function openCardsIn({
-  answers,
-  cards,
-}: {
-  answers: readonly CardAnswer[];
-  cards: readonly PermissionCard[];
-}): OpenCard[] {
-  const open: OpenCard[] = [];
-  for (const card of cards) {
-    if (card.closedAt !== undefined) {
-      continue;
-    }
-    const toCard = answers.filter((answer) => answer.card === card.id);
-    const askers = askersLeft(card, toCard);
-    if (askers.length === 0) {
-      continue;
-    }
-    const first = toCard.find(
-      (answer): answer is CardAnswer & { decision: CardDecision } =>
-        answer.decision !== "stopped" &&
-        !(card.spent ?? []).some((ref) => isAnswer(answer, ref)),
-    );
-    const answer = card.answer
-      ? { ...card.answer, taken: true }
-      : first && {
-          at: first.at,
-          decision: first.decision,
-          device: first.device,
-          taken: false,
-        };
-    open.push({
-      ...(answer && { answer }),
-      card: askers.length === card.askers.length ? card : { ...card, askers },
-    });
-  }
-  return open.toSorted(
-    (a, b) => a.card.askedAt.getTime() - b.card.askedAt.getTime(),
-  );
-}
-
-/**
- * The sessions still on a card: those no Stop made after they asked took
- * off it, by `answers` to it.
- */
-function askersLeft(
-  card: PermissionCard,
-  answers: readonly CardAnswer[],
-): PermissionCard["askers"] {
-  return card.askers.filter(
-    (asker) =>
-      !answers.some(
-        (answer) =>
-          answer.card === card.id &&
-          answer.decision === "stopped" &&
-          answer.askers?.some(
-            (entry) =>
-              entry.sessionId === asker.sessionId &&
-              entry.at.getTime() === asker.at.getTime(),
-          ),
-      ),
-  );
-}
-
-/** Whether `answer` is the answer `ref` names: the same device, at the same moment by its clock. */
-function isAnswer(
-  answer: Pick<CardAnswer, "at" | "device">,
-  ref: { at: Date; device: CardAnswer["device"] },
-): boolean {
-  return (
-    answer.device === ref.device && answer.at.getTime() === ref.at.getTime()
-  );
-}
-
-/**
- * The chat's cards and the answers to them, as its records have them with
+ * The chat's asks and the answers to them, as its records have them with
  * this device's writes still on their way. Read through the records this
  * process has in place rather than `ChatReads`, which the permission rules
- * that raise a card cannot import without the records' own schemas
+ * that raise an ask cannot import without the records' own schemas
  * reaching back to them.
  */
-async function cardRecords(
+export async function askRecords(
   chatId: ChatId,
-): Promise<{ answers: CardAnswer[]; cards: PermissionCard[] }> {
+): Promise<Pick<Parameters<typeof askStates>[0], "answers" | "asks">> {
   const sessionId = sessionOfChat(chatId);
   const records = writingChatRecords();
   if (sessionId === undefined || records === undefined) {
-    return { answers: [], cards: [] };
+    return { answers: [], asks: [] };
   }
-  // A chat whose records cannot be read has no card anyone can answer.
+  // A chat whose records cannot be read has no ask anyone can answer.
   const read = await records.read(chatId).catch(() => undefined);
   const session = read?.chat.sessions.find(({ id }) => id === sessionId);
-  return { answers: session?.answers ?? [], cards: session?.cards ?? [] };
+  return { answers: session?.answers ?? [], asks: session?.asks ?? [] };
 }
 
-/** The records this process writes the chat's cards and answers to. */
-function cardWriter(chatId: ChatId) {
+/** Where each of the chat's asks stands now, every computer's, oldest first. */
+export async function chatAskStates(chatId: ChatId): Promise<AskState[]> {
+  return askStates({ ...(await askRecords(chatId)), now: Date.now() });
+}
+
+/** The records this process writes the chat's asks and answers to. */
+function askWriter(chatId: ChatId) {
   const records = writingChatRecords();
   if (records === undefined) {
     throw new Error(`No records are in place to write chat ${chatId} to`);
@@ -159,21 +78,8 @@ function cardWriter(chatId: ChatId) {
   return records;
 }
 
-/** The chat's open cards, from every computer, oldest first (`openCardsIn`). */
-export async function openCards(chatId: ChatId): Promise<OpenCard[]> {
-  return openCardsIn(await cardRecords(chatId));
-}
-
-/** The open card by its id, or none. */
-export async function openCard(
-  chatId: ChatId,
-  askId: string,
-): Promise<OpenCard | undefined> {
-  return (await openCards(chatId)).find(({ card }) => card.id === askId);
-}
-
 /**
- * This device's id, which a card it raises names as its computer: the one
+ * This device's id, which an ask it raises names as its computer: the one
  * its records are written as.
  */
 export function thisDevice(): DeviceId {
@@ -181,104 +87,54 @@ export function thisDevice(): DeviceId {
 }
 
 /**
- * Changes to this device's cards, one at a time per chat, so each reads what
- * the last one wrote.
+ * Changes to this device's asks, one at a time per chat, so each reads what
+ * the last one wrote: raising one, and every step the driver takes.
  */
-const cardWrites = createWriteQueue();
+const askWrites = createWriteQueue();
 
 /**
- * Changes one of this device's open cards and writes it whole, answering the
- * card as it was before; nothing for a card that is not open, or another
- * computer's. `change` is handed the card with the sessions a Stop took off
- * it gone, and answers the card as it is to be, `closed` to close it, or
- * nothing to leave it. A card every session was taken off by a Stop on
- * another device is closed, whatever `change` says, and answers nothing.
+ * Changes one of this device's asks and writes it whole, answering the ask
+ * as written, or nothing when `change` leaves it be. `change` is handed the
+ * ask's state as the records have it now, and nothing is asked of an ask
+ * that is another computer's or gone.
  */
-async function changeCard(
+export function changeAsk(
   chatId: ChatId,
   askId: string,
-  change: (card: PermissionCard) => "closed" | PermissionCard | undefined,
-): Promise<PermissionCard | undefined> {
+  change: (state: AskState) => AskRecord | undefined,
+): Promise<AskRecord | undefined> {
   const sessionId = sessionOfChat(chatId);
   if (sessionId === undefined) {
-    return undefined;
+    return Promise.resolve(undefined);
   }
-  return cardWrites(chatId, async () => {
-    const { answers, cards } = await cardRecords(chatId);
-    const written = cards.find(
-      (card) =>
-        card.id === askId &&
-        card.closedAt === undefined &&
-        card.device === thisDevice(),
+  return askWrites(chatId, async () => {
+    const state = (await chatAskStates(chatId)).find(
+      ({ ask }) => ask.id === askId && ask.device === thisDevice(),
     );
-    if (!written) {
-      return undefined;
-    }
-    const askers = askersLeft(written, answers);
-    if (askers.length === 0) {
-      await write(chatId, sessionId, {
-        ...written,
-        closedAt: getCurrentDate(),
-      });
-      return undefined;
-    }
-    const card = { ...written, askers };
-    const changed = change(card);
+    const changed = state && change(state);
     if (changed !== undefined) {
-      await write(
-        chatId,
-        sessionId,
-        changed === "closed"
-          ? { ...card, closedAt: getCurrentDate() }
-          : changed,
-      );
-    } else if (askers.length < written.askers.length) {
-      await write(chatId, sessionId, card);
+      await askWriter(chatId).ask(chatId, sessionId, changed);
     }
-    return card;
+    return changed;
   });
 }
 
-/**
- * Writes into each of this device's cards the Stops another device made
- * since, closing a card nobody is left on: what keeps a stopped session
- * from being woken by a later answer, and a card from waiting on no one.
- */
-export async function takeStops(chatId: ChatId): Promise<void> {
-  const { answers, cards } = await cardRecords(chatId);
-  await Promise.all(
-    cards
-      .filter(
-        (card) =>
-          card.closedAt === undefined &&
-          card.device === thisDevice() &&
-          askersLeft(card, answers).length < card.askers.length,
-      )
-      .map((card) => changeCard(chatId, card.id, () => undefined)),
-  );
-}
-
-async function write(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  card: PermissionCard,
-): Promise<void> {
-  await cardWriter(chatId).card(chatId, sessionId, card);
-}
+/** What a permission ask about the system's own answer says: macOS asking, refusing, or private, or Windows blocking. */
+export type MacosAskStatus = SystemWait;
 
 /**
- * Records that the agent asked for a folder or an app the person has not
- * answered for, so the chat shows the card on every computer it is open on.
- * One card per thing: asking again while the card is up raises nothing new,
- * and another session that asks joins the card, to be woken with its answer
- * too. `macos` raises it, or turns the card already up, into one about the
- * system's own answer (macOS, or Windows' ransomware protection, with the
- * `programs` it blocked), for a thing the person's rules already allow. A
- * tab's card carries its `page`. Answers the card's id.
+ * Records that the agent asked for a folder, an app or a tab the person
+ * has not answered for, so the chat shows the card on every computer it
+ * is open on. One ask per thing: asking again while it is up raises
+ * nothing new, and another session that asks joins it, to be woken with
+ * its answer too. `status` raises it, or turns the one already up, into
+ * one about the system's own answer (macOS, or Windows' ransomware
+ * protection, with the `programs` it blocked), for a thing the person's
+ * rules already allow. A tab's ask carries its `page`. Answers its id.
  */
 export async function recordAsk(
   asker: Asker & { reason?: string },
-  kind: PermissionCard["kind"],
+  kind: PermissionAskRecord["on"],
   target: string,
   extra?:
     | {
@@ -286,10 +142,10 @@ export async function recordAsk(
         programs?: string[];
         status: MacosAskStatus;
       }
-    | { page: NonNullable<PermissionCard["page"]> },
+    | { page: NonNullable<PermissionAskRecord["page"]> },
 ): Promise<string> {
-  const macos = extra && "status" in extra ? extra : undefined;
-  const page = extra && "page" in extra ? extra : undefined;
+  const system = extra && "status" in extra ? extra : undefined;
+  const page = extra && "page" in extra ? extra.page : undefined;
   const joining = {
     at: getCurrentDate(),
     ...(asker.partId && { partId: asker.partId }),
@@ -302,50 +158,63 @@ export async function recordAsk(
   if (sessionId === undefined) {
     return id;
   }
-  return cardWrites(asker.chatId, async () => {
-    const open = (await openCards(asker.chatId)).find(
-      ({ card }) =>
-        card.device === thisDevice() &&
-        card.kind === kind &&
-        card.target === target,
-    )?.card;
-    if (!open) {
-      await write(asker.chatId, sessionId, {
+  return askWrites(asker.chatId, async () => {
+    const open = (await chatAskStates(asker.chatId)).find(
+      ({ ask, live }) =>
+        live &&
+        ask.device === thisDevice() &&
+        ask.kind === "permission" &&
+        ask.on === kind &&
+        ask.target === target,
+    );
+    const waiting = system && {
+      allowed: system.allowed,
+      is: "waiting" as const,
+      on: system.status,
+    };
+    if (open?.ask.kind !== "permission") {
+      await askWriter(asker.chatId).ask(asker.chatId, sessionId, {
         askedAt: joining.at,
         askers: [joining],
         device: thisDevice(),
         id,
-        kind,
-        status: "open",
+        kind: "permission",
+        on: kind,
+        ...(page && { page }),
+        ...(system?.programs && { programs: system.programs }),
+        stage: waiting ?? { is: "open" },
         target,
-        ...macos,
-        ...page,
       });
       return id;
     }
-    const on = open.askers.find((one) => one.sessionId === asker.sessionId);
-    // A session already on the card whose command waited on it, asking now
+    const { ask, askers } = open;
+    const on = askers.find((one) => one.sessionId === asker.sessionId);
+    // A session already on the ask whose command waited on it, asking now
     // with a call that ends its turn, is woken by the answer from now on.
     const stopsWaiting = on?.waits === true && asker.waits !== true;
-    if (on !== undefined && !stopsWaiting && macos === undefined) {
-      return open.id;
+    if (on !== undefined && !stopsWaiting && waiting === undefined) {
+      return ask.id;
     }
-    await write(asker.chatId, sessionId, {
-      ...open,
-      ...macos,
+    const taken = ask.stage.is === "taken" ? ask.stage.answer : undefined;
+    await askWriter(asker.chatId).ask(asker.chatId, sessionId, {
+      ...ask,
       askers:
         on === undefined
-          ? [...open.askers, joining]
+          ? [...askers, joining]
           : stopsWaiting
-            ? open.askers.map((one) => (one === on ? joining : one))
-            : open.askers,
+            ? askers.map((one) => (one === on ? joining : one))
+            : askers,
+      ...(system?.programs && { programs: system.programs }),
+      ...(waiting && {
+        stage: {
+          ...waiting,
+          ...(taken && { answer: { at: taken.at, device: taken.device } }),
+        },
+      }),
     });
-    return open.id;
+    return ask.id;
   });
 }
-
-/** What a card about macOS's own answer says: asking, refused, or private. */
-export type MacosAskStatus = Exclude<PermissionCard["status"], "open">;
 
 /** Each computer's name by its device, once read. */
 const computerNames = new Map<DeviceId, string>();
@@ -371,45 +240,90 @@ export async function computerName(device: DeviceId): Promise<string> {
 }
 
 /**
- * Whether a device other than the card's computer may answer it: while it
- * is open, unanswered, and not a tab, which is moved on the screen it is
- * on, as the system's own prompts and blocks are answered there.
+ * Whether a device other than the ask's computer may answer it: while it
+ * is open with no answer pending, and not a tab, which is moved on the
+ * screen it is on, as the system's own prompts and blocks are answered
+ * there.
  */
-export function answerableElsewhere(
-  card: Pick<PermissionCard, "kind" | "status">,
-  answered: boolean,
-): boolean {
-  return !answered && card.kind !== "tab" && card.status === "open";
-}
-
-/** Open cards as this device's readers draw them, oldest first. */
-export function asksOf(cards: readonly OpenCard[]): Promise<PermissionAsk[]> {
-  return Promise.all(
-    cards.map(async ({ answer, card }) => {
-      const { closedAt: _closed, ...rest } = card;
-      const here = card.device === thisDevice();
-      return {
-        ...rest,
-        answerable: here || answerableElsewhere(card, answer !== undefined),
-        ...(answer && {
-          answered: {
-            by: await computerName(answer.device),
-            decision: answer.decision,
-            taken: answer.taken,
-          },
-        }),
-        computer: await computerName(card.device),
-        here,
-      };
-    }),
+export function answerableElsewhere(state: AskState): boolean {
+  return (
+    state.live &&
+    state.pending === undefined &&
+    state.ask.stage.is === "open" &&
+    !(state.ask.kind === "permission" && state.ask.on === "tab")
   );
 }
 
-/** The chat's open permission cards, every computer's, oldest first. */
+/** A live permission ask as this device's readers draw it. */
+async function permissionAskOf(
+  state: AskState & { ask: PermissionAskRecord },
+): Promise<PermissionAsk> {
+  const { ask, askers, away, pending } = state;
+  const { stage } = ask;
+  const here = ask.device === thisDevice();
+  const taken =
+    stage.is === "taken" && stage.answer.kind === "permission"
+      ? stage.answer
+      : undefined;
+  const answer = taken ?? pending;
+  const waitingOn =
+    stage.is === "waiting" && stage.answer ? stage.answer : undefined;
+  return {
+    ...(stage.is === "waiting" && { allowed: stage.allowed }),
+    ...(answer?.kind === "permission" && {
+      answered: {
+        by: await computerName(answer.device),
+        decision: answer.decision,
+        taken: answer === taken,
+      },
+    }),
+    ...(waitingOn &&
+      stage.is === "waiting" && {
+        answered: {
+          by: await computerName(waitingOn.device),
+          decision: stage.allowed,
+          taken: true,
+        },
+      }),
+    answerable: here || answerableElsewhere(state),
+    askedAt: ask.askedAt,
+    askers,
+    ...(away?.kind === "permission" && {
+      away: { by: await computerName(away.device), decision: away.decision },
+    }),
+    computer: await computerName(ask.device),
+    device: ask.device,
+    ...(ask.failed?.kind === "permission" && {
+      failed: { decision: ask.failed.decision, message: ask.failed.message },
+    }),
+    here,
+    id: ask.id,
+    kind: ask.on,
+    ...(ask.page && { page: ask.page }),
+    ...(ask.programs && { programs: ask.programs }),
+    status: stage.is === "waiting" ? stage.on : "open",
+    target: ask.target,
+  };
+}
+
+/** The live permission asks among `states` as this device's readers draw them, oldest first. */
+export function permissionAsksOf(
+  states: readonly AskState[],
+): Promise<PermissionAsk[]> {
+  return Promise.all(
+    states.flatMap((state) =>
+      state.live && state.ask.kind === "permission"
+        ? [permissionAskOf({ ...state, ask: state.ask })]
+        : [],
+    ),
+  );
+}
+
+/** The chat's open permission asks, every computer's, oldest first. */
 export async function openPermissionAsks(
   chatId: ChatId,
 ): Promise<PermissionAsk[]> {
-  return asksOf(await openCards(chatId));
+  return permissionAsksOf(await chatAskStates(chatId));
 }
 
 /** Asks oldest first. */
@@ -418,20 +332,35 @@ export function sortAsks<T extends { askedAt: Date }>(asks: T[]): T[] {
 }
 
 /**
- * What an open card waits on the user for: the question itself, or the
+ * What an open ask waits on the user for: the question itself, or the
  * folder or app it asks about.
  */
 export function cardLine(
-  card: Ask | Pick<PermissionCard, "kind" | "page" | "status" | "target">,
+  card:
+    | Ask
+    | Pick<PermissionAsk, "kind" | "page" | "status" | "target">
+    | AskRecord,
 ): string {
   if (card.kind === "question") {
-    return card.question.trim() || "Waiting for you to answer";
+    return "question" in card
+      ? card.question.trim() || "Waiting for you to answer"
+      : card.questions[0]?.trim() || "Waiting for you to answer";
   }
-  if (card.kind === "tab") {
+  if (card.kind === "sign-in") {
+    return `Waiting for you to connect ${card.apps.map((app) => app.name).join(", ")}`;
+  }
+  const kind = card.kind === "permission" ? card.on : card.kind;
+  const status =
+    card.kind === "permission"
+      ? card.stage.is === "waiting"
+        ? card.stage.on
+        : "open"
+      : card.status;
+  if (kind === "tab") {
     return `Waiting for you to move your tab “${card.page?.title || "a page"}” here`;
   }
-  const name = askTargetName(card.kind, card.target);
-  switch (card.status) {
+  const name = askTargetName(kind, card.target);
+  switch (status) {
     case "macos-asking":
       return `Your Mac is asking about ${name}`;
     case "windows-blocked":
@@ -442,144 +371,57 @@ export function cardLine(
 }
 
 /**
- * Closes one of this device's cards, answered and settled, and answers what
- * it was: its sessions are the ones to wake.
+ * Appends this device's answer to an ask, whichever computer it belongs
+ * to: answers who gave it and when. The first fresh answer in log order
+ * wins; this one may come after another.
  */
-export function closeAsk(
+export async function appendAnswer(
   chatId: ChatId,
   askId: string,
-): Promise<PermissionCard | undefined> {
-  return changeCard(chatId, askId, () => "closed");
-}
-
-/**
- * Notes on one of this device's cards the answer it takes, from whichever
- * device gave it, so a card that stays up waiting on the system says it was
- * answered, and no later answer is taken. Answers the card as it was, or
- * none for one already answered.
- */
-export function takeAnswer(
-  chatId: ChatId,
-  askId: string,
-  answer: NonNullable<PermissionCard["answer"]>,
-): Promise<PermissionCard | undefined> {
-  let took = false;
-  return changeCard(chatId, askId, (card) => {
-    if (card.answer !== undefined) {
-      return undefined;
-    }
-    took = true;
-    const { failed: _failed, ...rest } = card;
-    return { ...rest, answer };
-  }).then((card) => (took ? card : undefined));
-}
-
-/**
- * Gives up on the answer one of this device's cards took, which could not
- * be carried out: the card is up and unanswered again, says why on
- * `failed`, and the answer is spent, so the next one given is taken rather
- * than this one again.
- */
-export async function failAnswer(
-  chatId: ChatId,
-  askId: string,
-  message: string,
-): Promise<void> {
-  await changeCard(chatId, askId, (card) => {
-    if (card.answer === undefined) {
-      return undefined;
-    }
-    const { answer, ...rest } = card;
-    return {
-      ...rest,
-      failed: { ...answer, message },
-      spent: [...(card.spent ?? []), { at: answer.at, device: answer.device }],
-    };
-  });
-}
-
-/**
- * Marks an allowed folder or app as waiting on macOS, keeping the yes:
- * macOS asking the person, refusing it (the card offers the system's own
- * ways in, and a retry wakes the askers with the yes), or keeping it to its
- * own app.
- */
-export async function setMacosStatus(
-  chatId: ChatId,
-  askId: string,
-  status: MacosAskStatus,
-  allowed: "allowed" | "always",
-): Promise<void> {
-  await changeCard(chatId, askId, (card) =>
-    card.status === status && card.allowed === allowed
-      ? undefined
-      : { ...card, allowed, status },
-  );
-}
-
-/**
- * Appends this device's answer to a card, whichever computer it belongs
- * to. The first answer in log order wins; this one may come after another.
- */
-export async function answerCard(
-  chatId: ChatId,
-  askId: string,
-  decision: CardDecision,
-): Promise<void> {
+  given: AnswerGiven,
+): Promise<AnswerRef | undefined> {
   const sessionId = sessionOfChat(chatId);
   if (sessionId === undefined) {
-    return;
+    return undefined;
   }
-  await cardWriter(chatId).answer(chatId, sessionId, { card: askId, decision });
+  return askWriter(chatId).answer(chatId, sessionId, { ask: askId, given });
 }
 
 /**
- * Takes a session the person stopped off the cards it asked on, or with no
- * session every session off every card of the chat's, answering none: the
+ * Takes a session the person stopped off the asks it is on, or with no
+ * session every session off every ask of the chat's, answering none: the
  * Stop ends what the session waited on them for, and an answer would start
- * it again. A card another session still waits on stays up for that one,
- * and one nobody is left on closes. A later ask for the same thing, by any
- * session, raises a card of its own. This device's cards are written so; a
- * card of another computer's gets a `stopped` answer, which every device
- * reads the same way and that computer writes into the card. A question is
- * closed by the Stop's own record (`openQuestionsIn`).
+ * it again. An ask another session still waits on stays up for that one,
+ * and one nobody is left on closes. A later ask for the same thing raises
+ * an ask of its own. Every device, the ask's own computer too, writes the
+ * Stop as a `stopped` answer naming the asker entries it takes off, which
+ * every reader folds the same way and the ask's computer writes into the
+ * ask.
  */
 export async function closeAsksOf(
   chatId: ChatId,
   sessionId: StoreId.Session | undefined,
 ): Promise<void> {
-  const stays = (asker: Pick<PermissionCard["askers"][number], "sessionId">) =>
-    sessionId !== undefined && asker.sessionId !== sessionId;
-  const leaving = (await openCards(chatId)).filter(({ card }) =>
-    card.askers.some((asker) => !stays(asker)),
+  const leaving = (await chatAskStates(chatId)).flatMap(
+    ({ ask, askers, live }) => {
+      const off = askers.filter(
+        (asker) => sessionId === undefined || asker.sessionId === sessionId,
+      );
+      return live && off.length > 0 ? [{ ask, off }] : [];
+    },
   );
-  const chatSession = sessionOfChat(chatId);
   await Promise.all(
-    leaving.map(async ({ card }) => {
-      if (card.device === thisDevice()) {
-        await changeCard(chatId, card.id, (now) => {
-          const askers = now.askers.filter(stays);
-          return askers.length === now.askers.length
-            ? undefined
-            : askers.length === 0
-              ? "closed"
-              : { ...now, askers };
-        });
-        return;
-      }
-      if (chatSession === undefined) {
-        return;
-      }
-      // The entries it takes off, as this device saw the card, so no clock
-      // but the card's own is read.
-      await cardWriter(chatId).answer(chatId, chatSession, {
-        askers: card.askers
-          .filter((asker) => !stays(asker))
-          .map(({ at, sessionId: asking }) => ({ at, sessionId: asking })),
-        card: card.id,
-        decision: "stopped",
-      });
-    }),
+    leaving.map(({ ask, off }) =>
+      // The entries as this device saw the ask, so no clock but the ask's
+      // own is read.
+      appendAnswer(chatId, ask.id, {
+        askers: off.map(({ at, sessionId: asking }) => ({
+          at,
+          sessionId: asking,
+        })),
+        kind: "stopped",
+      }),
+    ),
   );
 }
 

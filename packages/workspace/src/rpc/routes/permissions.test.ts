@@ -10,13 +10,13 @@ import { heldTabs } from "../../lib/held-tabs";
 import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
 import {
-  answerCard,
+  appendAnswer,
+  changeAsk,
   closeAsksOf,
   openPermissionAsks,
   recordAsk,
-  takeAnswer,
 } from "../../lib/chat/asks";
-import { takeCardAnswers } from "../../lib/chat/card-answers";
+import { driveAsks, driveOwedAsks } from "../../lib/chat/drive-asks";
 import { chatGrants } from "../../lib/chat/grants";
 import { openAsks } from "../../lib/chat/open-asks";
 import {
@@ -28,7 +28,7 @@ import { writeDeviceFile } from "../../lib/records/device-file";
 import { newDeviceId } from "../../lib/records/device-id";
 import { workspaceLayout } from "../../lib/workspace-layout";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
-import { type CardDecision } from "../../schemas/permission-card";
+import { type PermissionDecision } from "../../schemas/ask";
 import { chatDenials } from "../../lib/permissions/denials";
 import {
   readPermissionSettings,
@@ -463,13 +463,11 @@ describe("permissions.answer", () => {
     failing.denial = true;
 
     try {
-      await expect(
-        call(
-          permissions.answer,
-          { askId: card?.id ?? "", decision: "declined", id: chatId },
-          { context: context() },
-        ),
-      ).rejects.toThrow("permissions.json could not be written");
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "declined", id: chatId },
+        { context: context() },
+      );
     } finally {
       failing.denial = false;
     }
@@ -492,7 +490,10 @@ describe("permissions.answer", () => {
     const pantry = cards.find((card) => card.target === "/Users/me/Pantry");
     // Another device's yes to the cellar, not taken yet when the person
     // answers the pantry, so one look takes both.
-    await answerCard(chatId, cellar?.id ?? "", "allowed");
+    await appendAnswer(chatId, cellar?.id ?? "", {
+      decision: "allowed",
+      kind: "permission",
+    });
     failing.grant = "/Users/me/Cellar";
     const sentBefore = sent.length;
 
@@ -783,7 +784,11 @@ describe("permissions.answer", () => {
     });
 
     /** A device with a name, its records over the same chats folder. */
-    async function computer(name: string, device = newDeviceId()) {
+    async function computer(
+      name: string,
+      device = newDeviceId(),
+      now?: () => Date,
+    ) {
       await writeDeviceFile({
         device,
         devicesDir: workspaceLayout(getWorkspaceConfig().rootDir).devicesDir,
@@ -797,6 +802,7 @@ describe("permissions.answer", () => {
         device,
         dirOf: chatDir,
         fsync: false,
+        ...(now && { now }),
       });
       made.push(records);
       return records;
@@ -836,7 +842,11 @@ describe("permissions.answer", () => {
       return { ...ref, card, pantry };
     }
 
-    const answer = (chatId: ChatId, askId: string, decision: CardDecision) =>
+    const answer = (
+      chatId: ChatId,
+      askId: string,
+      decision: PermissionDecision,
+    ) =>
       call(
         permissions.answer,
         { askId, decision, id: chatId },
@@ -866,11 +876,14 @@ describe("permissions.answer", () => {
       // The laptop's no lands after it, as one given before the phone's had
       // synced there would.
       await laptop.catchUp(chatId);
-      await laptop.answer(chatId, own, { card: card.id, decision: "declined" });
+      await laptop.answer(chatId, own, {
+        ask: card.id,
+        given: { decision: "declined", kind: "permission" },
+      });
       const sentBefore = sent.length;
       // The owner hears both arrive.
       await owner().catchUp(chatId);
-      await takeCardAnswers(chatId, context().workspaceRef);
+      await driveAsks(chatId, context().workspaceRef);
 
       expect(await chatGrants(chatId)).toEqual([
         expect.objectContaining({ path: pantry }),
@@ -937,7 +950,7 @@ describe("permissions.answer", () => {
         await on(phone, () => answer(chatId, card.id, "allowed"));
 
         await owner().catchUp(chatId);
-        await takeCardAnswers(chatId, context().workspaceRef);
+        await driveAsks(chatId, context().workspaceRef);
         macos.look = undefined;
 
         expect(await on(phone, () => openAsks(chatId))).toEqual([
@@ -976,15 +989,15 @@ describe("permissions.answer", () => {
         given?.kind === "question" ? undefined : given?.answered?.taken;
       expect(taken).toBe(false);
       // What the quit left: the answer on the card, nothing granted.
-      await takeAnswer(chatId, card.id, {
-        at: new Date(),
-        decision: "allowed",
-        device: phone.device,
-      });
+      await changeAsk(chatId, card.id, ({ ask, pending }) =>
+        pending
+          ? { ...ask, stage: { answer: pending, is: "taken" } }
+          : undefined,
+      );
       expect(await chatGrants(chatId)).toEqual([]);
       const sentBefore = sent.length;
 
-      await takeCardAnswers(chatId, context().workspaceRef);
+      await driveAsks(chatId, context().workspaceRef);
 
       expect(await chatGrants(chatId)).toEqual([
         expect.objectContaining({ path: pantry }),
@@ -1006,9 +1019,7 @@ describe("permissions.answer", () => {
       await on(phone, () => answer(chatId, card?.id ?? "", "always"));
       await owner().catchUp(chatId);
 
-      await expect(
-        takeCardAnswers(chatId, context().workspaceRef),
-      ).rejects.toThrow();
+      await driveAsks(chatId, context().workspaceRef);
 
       const [after] = await on(phone, () => openAsks(chatId));
       expect(after).toMatchObject({
@@ -1019,7 +1030,7 @@ describe("permissions.answer", () => {
       // Answered again, the next answer is taken.
       await on(phone, () => answer(chatId, card?.id ?? "", "declined"));
       await owner().catchUp(chatId);
-      await takeCardAnswers(chatId, context().workspaceRef);
+      await driveAsks(chatId, context().workspaceRef);
       expect(await openAsks(chatId)).toEqual([]);
     });
 
@@ -1047,9 +1058,7 @@ describe("permissions.answer", () => {
         "record.changed",
         ({ id, kind }) => {
           if (id === chatId && kind === "session") {
-            takeCardAnswers(chatId, context().workspaceRef).catch(
-              () => undefined,
-            );
+            driveAsks(chatId, context().workspaceRef).catch(() => undefined);
           }
         },
       );
@@ -1076,6 +1085,136 @@ describe("permissions.answer", () => {
       }
     });
 
+    /** A clock as it read half an hour ago, past when an answer stays fresh. */
+    const halfAnHourAgo = () => new Date(Date.now() - 30 * 60 * 1000);
+
+    it("never takes an answer given while it was away, and asks again", async () => {
+      const { card, chatId, own, task } = await raised();
+      const phone = await computer("Jeremy's iPhone", undefined, halfAnHourAgo);
+      await on(phone, () => answer(chatId, card.id, "allowed"));
+      const sentBefore = sent.length;
+      const ours = ({ sessionId }: { sessionId?: string }) =>
+        sessionId === own || sessionId === task;
+
+      // What a launch does: drive every chat something is owed on.
+      await owner().catchUp(chatId);
+      await driveOwedAsks(context().workspaceRef);
+
+      expect(await chatGrants(chatId)).toEqual([]);
+      expect(wokenSince(sentBefore).filter(ours)).toEqual([]);
+      const laptop = await computer("MacBook Air");
+      expect(await on(laptop, () => openAsks(chatId))).toEqual([
+        expect.objectContaining({
+          answerable: true,
+          away: { by: "Jeremy's iPhone", decision: "allowed" },
+          status: "open",
+        }),
+      ]);
+      expect((await openAsks(chatId))[0]).not.toHaveProperty("answered");
+    });
+
+    it("never takes a stale answer that arrives while it runs, and takes a fresh one", async () => {
+      const { card, chatId, pantry, task } = await raised();
+      const stale = await computer("Jeremy's iPhone", undefined, halfAnHourAgo);
+      const fresh = await computer("MacBook Air");
+      const stopWatcher = publisher.subscribe(
+        "record.changed",
+        ({ id, kind }) => {
+          if (id === chatId && kind === "session") {
+            driveAsks(chatId, context().workspaceRef).catch(() => undefined);
+          }
+        },
+      );
+      try {
+        const sentBefore = sent.length;
+        await on(stale, () => answer(chatId, card.id, "allowed"));
+        await owner().catchUp(chatId);
+        await driveAsks(chatId, context().workspaceRef);
+        expect(await chatGrants(chatId)).toEqual([]);
+        expect(wokenSince(sentBefore)).toEqual([]);
+
+        await on(fresh, () => answer(chatId, card.id, "allowed"));
+        await owner().catchUp(chatId);
+        await driveAsks(chatId, context().workspaceRef);
+        expect(await chatGrants(chatId)).toEqual([
+          expect.objectContaining({ path: pantry }),
+        ]);
+        expect(wokenSince(sentBefore)).toEqual([
+          { answer: ["allowed"], sessionId: task },
+        ]);
+      } finally {
+        stopWatcher();
+      }
+    });
+
+    // The app quit, or crashed, after taking an answer and before it woke
+    // anyone, and comes back once the answer is stale: what was owed is
+    // finished, and the askers read the answer with the person's next
+    // message rather than starting work nobody is watching.
+    it("finishes a stale answer it took before a crash, leaving a note that starts no turn", async () => {
+      const { card, chatId, pantry, task } = await raised();
+      const phone = await computer("Jeremy's iPhone", undefined, halfAnHourAgo);
+      await on(phone, () => answer(chatId, card.id, "allowed"));
+      await owner().catchUp(chatId);
+      const given = (await owner().read(chatId)).chat.sessions
+        .flatMap((session) => session.answers ?? [])
+        .find((one) => one.ask === card.id);
+      if (given?.given.kind !== "permission") {
+        throw new Error("expected the phone's answer");
+      }
+      const { ask: _ask, given: what, ...ref } = given;
+      await changeAsk(chatId, card.id, ({ ask }) => ({
+        ...ask,
+        stage: { answer: { ...ref, ...what }, is: "taken" },
+      }));
+      const sentBefore = sent.length;
+
+      await driveOwedAsks(context().workspaceRef);
+
+      expect(await chatGrants(chatId)).toEqual([
+        expect.objectContaining({ path: pantry }),
+      ]);
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(sent.slice(sentBefore)).toEqual([]);
+      const history = (await owner().read(chatId)).chat.sessions.find(
+        ({ id }) => id === task,
+      );
+      expect(
+        history?.messages.flatMap((message) =>
+          message.parts.flatMap((part) =>
+            part.type === "data-permissionAnswer"
+              ? [{ answer: part.data.answer, ask: part.data.ask }]
+              : [],
+          ),
+        ),
+      ).toEqual([{ answer: "allowed", ask: card.id }]);
+    });
+
+    it("wakes nobody twice when it stopped between the note and saying so", async () => {
+      const { card, chatId, task } = await raised();
+      const phone = await computer("Jeremy's iPhone");
+      await on(phone, () => answer(chatId, card.id, "allowed"));
+      await owner().catchUp(chatId);
+      await driveAsks(chatId, context().workspaceRef);
+      const sentBefore = sent.length;
+      // What a crash after the note left: the ask not marked woken.
+      await changeAsk(chatId, card.id, ({ ask }) =>
+        ask.stage.is === "closed"
+          ? { ...ask, stage: { ...ask.stage, woken: false } }
+          : undefined,
+      );
+
+      await driveAsks(chatId, context().workspaceRef);
+
+      expect(wokenSince(sentBefore)).toEqual([]);
+      const notes = (await owner().read(chatId)).chat.sessions
+        .find(({ id }) => id === task)
+        ?.messages.filter((message) =>
+          message.parts.some((part) => part.type === "data-permissionAnswer"),
+        );
+      expect(notes).toHaveLength(1);
+    });
+
     it("takes a session another computer stopped off the card, waking nobody", async () => {
       const { card, chatId, task } = await raised();
       const phone = await computer("Jeremy's iPhone");
@@ -1084,13 +1223,16 @@ describe("permissions.answer", () => {
       const sentBefore = sent.length;
 
       await owner().catchUp(chatId);
-      await takeCardAnswers(chatId, context().workspaceRef);
+      await driveAsks(chatId, context().workspaceRef);
 
       const session = (await owner().read(chatId)).chat.sessions.find(
         ({ id }) => id === sessionOfChat(chatId),
       );
-      expect(session?.cards).toEqual([
-        expect.objectContaining({ closedAt: expect.any(Date), id: card.id }),
+      expect(session?.asks).toEqual([
+        expect.objectContaining({
+          id: card.id,
+          stage: { is: "closed", outcome: { kind: "left" }, woken: true },
+        }),
       ]);
       expect(wokenSince(sentBefore)).toEqual([]);
     });

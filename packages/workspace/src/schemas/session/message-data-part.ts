@@ -813,6 +813,8 @@ export namespace SessionMessageDataPart {
    * turn if it is still going. `gone` is a tab closed before the answer.
    */
   export const PermissionAnswerDataPartSchema = z.object({
+    /** The ask it answers, by id: a session holds one note per ask. */
+    ask: z.string().optional(),
     answer: z.enum(["allowed", "always", "declined", "gone"]),
     kind: z.enum(["app", "folder", "tab"]),
     /** A tab's page as the card showed it. */
@@ -897,6 +899,8 @@ export namespace SessionMessageDataPart {
   ]);
 
   const QuestionAnswerContextSchema = z.object({
+    /** The ask it answers, by id: a session holds one note per ask. */
+    ask: z.string().optional(),
     /** The `choose` call it answers, by its part's id. */
     partId: StoreId.PartSchema,
     /**

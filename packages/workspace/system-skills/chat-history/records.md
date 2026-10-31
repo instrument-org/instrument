@@ -10,8 +10,8 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `session`: the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own, and `startedAs`, the title it was started with
   - `sites`: the hosts the session's browser has been on, oldest first, in `visited`; the newest record stands
   - `stop`: the turn was stopped, `by` saying who: `person`, `agent` (the chat's agent stopping its task) or `app` (it quit)
-  - `card`: a permission card for a folder, app or tab the agent asked for, whole in `card`, written by the computer it belongs to (`card.device`) and only there; the newest record of a card's `id` stands, one with `answer` took that answer, one with `failed` could not carry an answer out and waits for another, and one with `closedAt` is no longer up
-  - `answer`: a device's answer to the card `card` names, the device being the log's: `allowed`, `always` or `declined`, the first in the logs winning, or `stopped`, a Stop that took the `askers` entries it names (each a `sessionId` and the `at` the card gave it) off it
+  - `ask`: something the chat waits on the person for, whole in `ask`: a `permission` for a folder, app or tab (`on`, `target`), a `question` (a `choose` call), or a `sign-in` (a `connect_app` call), written by the computer it belongs to (`ask.device`) and only there; the newest record of an ask's `id` stands, and its `stage` says where it is: `open`, `taken` (the answer it took), `waiting` on the system with the yes given, or `closed` with its `outcome` and whether its askers were `woken`
+  - `answer`: a device's answer to the ask `ask` names, the device being the log's, in `given`: a permission's `allowed`, `always` or `declined`, a question's replies, a sign-in's Not now, the first fresh one in the logs winning, or `stopped`, a Stop that took the `askers` entries it names (each a `sessionId` and the `at` the ask gave it) off it
   - A message's `role`:
     - `assistant`: you
     - `session-context`: what the app told you at the start, the same in every chat and no part of the conversation

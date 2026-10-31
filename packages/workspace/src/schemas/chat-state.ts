@@ -1,11 +1,8 @@
 import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
-import {
-  AskerSchema,
-  CardDecisionSchema,
-  PermissionCardSchema,
-} from "./permission-card";
+import { AskerSchema, PermissionDecisionSchema, SystemWaitSchema } from "./ask";
+import { DeviceIdSchema } from "./device-id";
 import { StoreId } from "./store-id";
 
 /** A tab's id as an earlier build saved it, read as the tab's id now: the same ULID under `tab_`. */
@@ -65,35 +62,58 @@ const ClosedTabSchema = z.object({
 export type ClosedTab = z.output<typeof ClosedTabSchema>;
 
 /**
- * An open permission card as a reader on this device draws it: the card,
- * less the sessions a Stop took off it, and where it can be answered.
+ * A permission ask still up, as a reader on this device draws it on its
+ * card, from where the ask stands (`askStates`).
  */
-const PermissionAskSchema = PermissionCardSchema.omit({
-  closedAt: true,
-}).extend({
+const PermissionAskSchema = z.object({
+  /** The yes the person gave, kept while the ask waits on the system. */
+  allowed: z.enum(["allowed", "always"]).optional(),
   /**
-   * The answer the card has, once one is given: the one its computer took,
-   * or else the first in log order, which its computer takes next. `by`
-   * names the computer that gave it, and `taken` says whether the card's
-   * computer has acted on it.
+   * The answer it has: the one its computer took, or else the first fresh
+   * one given, which its computer takes next. `by` names the computer that
+   * gave it, and `taken` says whether the ask's computer has taken it.
    */
   answered: z
     .object({
       by: z.string(),
-      decision: CardDecisionSchema,
+      decision: PermissionDecisionSchema,
       taken: z.boolean(),
     })
     .optional(),
   /**
-   * Whether this device can answer it: the card's computer always, and
-   * another device while it is open, unanswered and not a tab
-   * (`answerableElsewhere`).
+   * Whether this device can answer it: the ask's computer always, and
+   * another device while it is open, unanswered and not a tab.
    */
   answerable: z.boolean(),
-  /** The name of the computer the card belongs to. */
+  askedAt: z.coerce.date(),
+  /** The sessions still on it, each with when it asked. */
+  askers: z.array(AskerSchema.extend({ at: z.coerce.date() })),
+  /**
+   * An answer given while the ask's computer was away, which it never acts
+   * on when it comes back, so the card asks again: who gave it, and what.
+   */
+  away: z
+    .object({ by: z.string(), decision: PermissionDecisionSchema })
+    .optional(),
+  /** The name of the computer the ask belongs to. */
   computer: z.string(),
-  /** Whether the card belongs to this computer, which alone acts on it. */
+  device: DeviceIdSchema,
+  /** The last answer taken that could not be carried out, and why. */
+  failed: z
+    .object({ decision: PermissionDecisionSchema, message: z.string() })
+    .optional(),
+  /** Whether the ask belongs to this computer, which alone acts on it. */
   here: z.boolean(),
+  id: z.string(),
+  /** A folder, a Mac app, or a tab of the person's outside the chat. */
+  kind: z.enum(["app", "folder", "tab"]),
+  page: z.object({ title: z.string(), url: z.string() }).optional(),
+  /** The programs Windows' ransomware protection blocked, on `windows-blocked`. */
+  programs: z.array(z.string()).optional(),
+  /** What it waits on: the person's answer (`open`), or the system's. */
+  status: z.enum(["open", ...SystemWaitSchema.options]),
+  /** The folder's absolute path, the app's name, or the tab's id. */
+  target: z.string(),
 });
 
 export type PermissionAsk = z.output<typeof PermissionAskSchema>;

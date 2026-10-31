@@ -10,9 +10,11 @@ import {
 } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import {
-  type CardAnswer,
-  type PermissionCard,
-} from "../../schemas/permission-card";
+  type AnswerGiven,
+  type AnswerRef,
+  type AskAnswer,
+  type AskRecord,
+} from "../../schemas/ask";
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -180,9 +182,9 @@ interface PendingSession {
   rollover?: Queued<NonNullable<FoldedSession["rollover"]>>;
   sites?: Queued<string[]>;
   stopped?: Queued<NonNullable<FoldedSession["stopped"]>>;
-  cards: Map<string, Queued<PermissionCard>>;
+  asks: Map<string, Queued<AskRecord>>;
   /** By ticket, in the order they were queued. */
-  answers: Map<number, CardAnswer>;
+  answers: Map<number, AskAnswer>;
 }
 
 /** One file this process appends to, and how far its writes reach. */
@@ -727,11 +729,11 @@ export class ChatRecords {
     });
   }
 
-  /** A permission card whole, as this device, the one it belongs to, has it now. */
-  card(
+  /** An ask whole, as this device, the one it belongs to, has it now. */
+  ask(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    card: PermissionCard,
+    ask: AskRecord,
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
       const at = this.#now();
@@ -739,27 +741,32 @@ export class ChatRecords {
         at,
         changed: () => recordChanged(chat.id, "session"),
         hold: (session, ticket) => {
-          session.cards.set(card.id, { ticket, value: card });
+          session.asks.set(ask.id, { ticket, value: ask });
           return (held) => {
-            if (held.cards.get(card.id)?.ticket === ticket) {
-              held.cards.delete(card.id);
+            if (held.asks.get(ask.id)?.ticket === ticket) {
+              held.asks.delete(ask.id);
             }
           };
         },
-        record: () => ({ t: "card", at, card }),
+        record: () => ({ t: "ask", at, ask }),
       });
     });
   }
 
-  /** This device's answer to a permission card, whichever device it belongs to. */
-  answer(
+  /**
+   * This device's answer to an ask, whichever device it belongs to, or its
+   * Stop. Answers who gave it and when, the answer's identity.
+   */
+  async answer(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    answer: Pick<CardAnswer, "card" | "decision" | "askers">,
-  ): Promise<void> {
-    return this.#with(chatId, (chat) => {
+    answer: { ask: string; given: AnswerGiven },
+  ): Promise<AnswerRef> {
+    let ref: AnswerRef | undefined;
+    await this.#with(chatId, (chat) => {
       const at = this.#now();
-      const value: CardAnswer = { ...answer, at, device: this.device };
+      const value: AskAnswer = { ...answer, at, device: this.device };
+      ref = { at, device: this.device };
       return this.#log(chat, sessionId, {
         at,
         changed: () => recordChanged(chat.id, "session"),
@@ -769,15 +776,13 @@ export class ChatRecords {
             held.answers.delete(ticket);
           };
         },
-        record: () => ({
-          t: "answer",
-          at,
-          card: answer.card,
-          decision: answer.decision,
-          ...(answer.askers !== undefined && { askers: answer.askers }),
-        }),
+        record: () => ({ t: "answer", at, ask: answer.ask, given: answer.given }),
       });
     });
+    if (ref === undefined) {
+      throw new Error(`No answer was written to chat ${chatId}`);
+    }
+    return ref;
   }
 
   /**
@@ -1518,8 +1523,8 @@ function pendingOf(chat: OpenChat, sessionId: StoreId.Session): PendingSession {
   }
   const session: PendingSession = {
     answers: new Map(),
+    asks: new Map(),
     at: 0,
-    cards: new Map(),
     settings: new Map(),
     messages: new Map(),
     parts: new Map(),
@@ -1960,27 +1965,27 @@ function overlaid(
     ...(queued.rollover && { rollover: queued.rollover.value }),
     ...(queued.sites && { sites: queued.sites.value }),
     ...(queued.stopped && { stopped: queued.stopped.value }),
-    ...cardsOverlaid(session, queued),
+    ...asksOverlaid(session, queued),
     updatedAt: new Date(Math.max(session.updatedAt.getTime(), queued.at)),
     writtenBy,
   };
 }
 
-/** A session's cards and answers with this device's queued ones over them. */
-function cardsOverlaid(
+/** A session's asks and answers with this device's queued ones over them. */
+function asksOverlaid(
   session: FoldedSession,
   queued: PendingSession,
-): Pick<FoldedSession, "answers" | "cards"> {
-  if (queued.cards.size === 0 && queued.answers.size === 0) {
+): Pick<FoldedSession, "answers" | "asks"> {
+  if (queued.asks.size === 0 && queued.answers.size === 0) {
     return {};
   }
-  const cards = new Map((session.cards ?? []).map((card) => [card.id, card]));
-  for (const { value } of queued.cards.values()) {
-    cards.set(value.id, value);
+  const asks = new Map((session.asks ?? []).map((ask) => [ask.id, ask]));
+  for (const { value } of queued.asks.values()) {
+    asks.set(value.id, value);
   }
   return {
     answers: [...(session.answers ?? []), ...queued.answers.values()],
-    cards: [...cards.values()],
+    asks: [...asks.values()],
   };
 }
 

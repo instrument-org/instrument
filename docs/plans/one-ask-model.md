@@ -40,6 +40,20 @@ One record for everything a chat waits on, one fold that says where each stands,
 
 Each step reads its input from the fold, so a launch after a crash resumes at the step it stopped on: recovery is the normal path. A Stop from any device takes askers off as today; an ask nobody is left on closes with no wake. The person's own action on this computer (Allow on the card) appends an `answer` like any device and runs a pass, and its call settles when that ask leaves `taken`.
 
+#### Fresh answers only
+
+What another device does is acted on live only. An answer, from any device this one's own included, is taken only while fresh: given within `ASK_FRESH_MS` (ten minutes, `isFreshAsk` in `@instrument-org/shared`, the window a phone's asked-to-send drafts already used) of now, by the answer's own `at`. This compares the answering device's clock with this one's on purpose, as the drafts do: the question is how long ago the person acted. The check is in the fold (`askStates` takes `now`; `pending` is the first fresh unused answer), so a pass a sync arrival starts at launch takes no stale answer either.
+
+- A stale answer is not taken and not spent: the ask stays open and answerable, and the fold reports the newest such answer as `away`, so the card says it was answered on that device while this computer was away and asks again.
+- An ask found part-way (taken, or closed with `woken: false`) whose answer was given before this process started and is no longer fresh finishes its bookkeeping (a grant already made stays, the ask closes), and its askers get the outcome as a note that starts no turn, read with the person's next message.
+
+#### Deviations, as built
+
+- The macOS look inside an allowed folder or app runs beside the passes, keyed by ask id, since macOS's own prompt can stay up for minutes and a No given meanwhile must not wait behind it. What it finds is written through the same ask writes (closed, or `waiting`), and a pass after it wakes the askers. A crash during the look leaves the ask `taken` (looked at again) or `waiting macos-asking` (the card's retry), as before.
+- A later No closes a yes under way (taken, or waiting on the system) only when given on the ask's own computer, where the system's prompt is; another device's later answer never overrides the first.
+- A Stop on the ask's own computer is written as a `stopped` answer like any device's, so every reader sees it at once and the driver closes an ask nobody is left on.
+- A No whose refusal cannot be kept in `permissions.json` still closes the ask and wakes its askers, and the failure is reported rather than failing the person's call.
+
 ### Sign-in
 
 Signing in stays on the computer that asked: OAuth runs on its loopback server and the credentials stay in its `keys/`. `connect_app` raises a `sign-in` ask; the owner's app events (`apps/events.ts`) carry it to `closed` when every row settles, instead of `waitingChats`. Another device draws the card from the ask (which apps, which have settled, as the owner last wrote it) with "Sign in on <computer>", and may say Not now. `waitingChats` goes.
@@ -61,4 +75,5 @@ Each step lands with its tests, and the end is checked with two dev Studio insta
 
 ## Open points
 
-- A question answered while the asking computer is off waits for it. Today the device answered on starts the turn itself; nothing short of an owner can make that exactly once.
+- A question answered while the asking computer is off waits for it, and if it stays off past `ASK_FRESH_MS` the answer is not taken when it comes back: the card asks again. Before this, the device answered on started the turn itself; nothing short of an owner can make that exactly once, and acting on a stale answer would start work nobody is watching.
+- A pending answer turning stale changes nothing in the records, so a card shows it as waiting for the asking computer until the chat's records next change.

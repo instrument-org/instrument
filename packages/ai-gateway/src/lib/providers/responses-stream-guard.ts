@@ -138,7 +138,11 @@ export async function guardResponsesStream({
   try {
     second = await send();
   } catch {
-    onEndedEarly({ first: firstEvents, retry: "failed" });
+    // The client's abort reaches the retry's request too.
+    onEndedEarly({
+      first: firstEvents,
+      retry: signal?.aborted ? "canceled" : "failed",
+    });
     return relay(first, opened, () => {});
   }
   if (!isEventStream(second)) {

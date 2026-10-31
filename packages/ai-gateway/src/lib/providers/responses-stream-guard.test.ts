@@ -369,6 +369,26 @@ describe("guardResponsesStream, framing", () => {
 });
 
 describe("guardResponsesStream, when the client goes away", () => {
+  it("reports a retry the client aborted as canceled", async () => {
+    const client = new AbortController();
+    const reports: StreamEndedEarly[] = [];
+    const send = vi
+      .fn<() => Promise<Response>>()
+      .mockResolvedValueOnce(sse([created]))
+      .mockImplementationOnce(() => {
+        client.abort();
+        return Promise.reject(new DOMException("aborted", "AbortError"));
+      });
+    await (
+      await guardResponsesStream({
+        onEndedEarly: (report) => reports.push(report),
+        send,
+        signal: client.signal,
+      })
+    ).text();
+    expect(reports.map((report) => report.retry)).toEqual(["canceled"]);
+  });
+
   it("lets go of the held body and does not ask again", async () => {
     const client = new AbortController();
     let upstreamCanceled = false;

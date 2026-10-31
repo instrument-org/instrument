@@ -176,37 +176,46 @@ function Entry({
   );
 }
 
-/** An older version as its opening line, opening to its notes on a press. */
+/**
+ * An older version as its opening line, which a press opens to its notes
+ * below and a second press folds again.
+ */
 function FoldedEntry({ release }: { release: Release }) {
   const [open, setOpen] = useState(false);
-  if (open) {
-    return (
-      <div className="pt-2">
-        <Entry release={release} />
-      </div>
-    );
-  }
   return (
-    <button
-      className="-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[1fr_auto] items-baseline gap-6 rounded-lg px-3 py-2.5 text-left hover:bg-foreground/4 @xl/app-content:grid-cols-[9.5rem_1fr_auto]"
-      onClick={() => {
-        setOpen(true);
-      }}
-      type="button"
-    >
-      <span className="flex items-baseline gap-2">
-        <span className="text-sm font-medium whitespace-nowrap">
-          {versionLabel(release.version)}
+    <div className={cn(open && "pb-8")}>
+      <button
+        aria-expanded={open}
+        className="-mx-3 grid w-[calc(100%+1.5rem)] grid-cols-[1fr_auto] items-baseline gap-6 rounded-lg px-3 py-2.5 text-left hover:bg-foreground/4 @xl/app-content:grid-cols-[9.5rem_1fr_auto]"
+        onClick={() => {
+          setOpen(!open);
+        }}
+        type="button"
+      >
+        <span className="flex items-baseline gap-2">
+          <span className="text-sm font-medium whitespace-nowrap">
+            {versionLabel(release.version)}
+          </span>
+          <span className="text-[13px] whitespace-nowrap text-muted-foreground">
+            {releaseDate(release.publishedAt)}
+          </span>
         </span>
-        <span className="text-[13px] whitespace-nowrap text-muted-foreground">
-          {releaseDate(release.publishedAt)}
+        <span className="hidden truncate text-[13px] text-foreground/75 @xl/app-content:block">
+          {open ? "" : (release.summary ?? "")}
         </span>
-      </span>
-      <span className="hidden truncate text-[13px] text-foreground/75 @xl/app-content:block">
-        {release.summary ?? ""}
-      </span>
-      <CaretDownIcon className="size-3.5 text-muted-foreground" />
-    </button>
+        <CaretDownIcon
+          className={cn(
+            "size-3.5 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open && (
+        <div className="pt-1 @xl/app-content:pl-44">
+          <Notes release={release} />
+        </div>
+      )}
+    </div>
   );
 }
 

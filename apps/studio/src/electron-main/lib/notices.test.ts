@@ -193,6 +193,18 @@ describe("notices", () => {
     ).toEqual(["newer", "older"]);
   });
 
+  it("hands a stuck build's notice to the Update pill rather than the bell", async () => {
+    const notices = await load();
+    answer([
+      notice({ id: "stuck-build-2.0.0-beta.58", kind: "update" }),
+      notice({ id: "other" }),
+    ]);
+    await notices.fetchNotices();
+
+    expect(notices.listNotices().map((n) => n.id)).toEqual(["other"]);
+    expect(notices.stuckBuildNotice()?.id).toBe("stuck-build-2.0.0-beta.58");
+  });
+
   it("marks notices seen once the bell is opened", async () => {
     const notices = await load();
     answer([notice()]);

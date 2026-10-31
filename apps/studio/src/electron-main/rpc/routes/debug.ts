@@ -8,6 +8,7 @@ import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { simulateChromiumSandboxOff } from "@/electron-main/lib/chromium-sandbox";
 import { noteUpdate } from "@/electron-main/lib/notices";
+import { getNoticesStore } from "@/electron-main/stores/machine/notices";
 import { simulateSandboxOff } from "@instrument-org/workspace/electron";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import {
@@ -125,6 +126,34 @@ const trigger = {
   testUpdatedNotice: devOnly.handler(() => {
     noteUpdate({ from: "0.0.0-simulated", to: app.getVersion() });
   }),
+  // Puts a notice from the service into the bell, as a stuck build's (which
+  // the Update pill shows instead) or as an important one that toasts from
+  // the bell, so both show without the service sending them.
+  simulateServiceNotice: devOnly
+    .input(z.object({ kind: z.enum(["stuck-build", "important"]) }))
+    .handler(({ input }) => {
+      const store = getNoticesStore();
+      const stuck = input.kind === "stuck-build";
+      store.set("notices", [
+        ...store.get("notices"),
+        {
+          action: {
+            label: "Download",
+            url: "https://tryinstrument.com/beta/download",
+          },
+          body: stuck
+            ? `A newer version came out 9 days ago, and this computer is still on ${app.getVersion()}. Downloading it again usually fixes this.`
+            : "This is how an important notice from us looks when it arrives.",
+          id: `${stuck ? "stuck-build" : "simulated"}-${Date.now()}`,
+          kind: stuck ? "update" : "announcement",
+          publishedAt: new Date().toISOString(),
+          severity: "important",
+          title: stuck
+            ? "Instrument hasn't been able to update"
+            : "A notice from Instrument",
+        },
+      ]);
+    }),
   // Reports the sandbox as off for a reason, or as it is with none, so the
   // bell's notice and Settings' warning show on a computer whose sandbox
   // works. Nothing about how commands are held changes.

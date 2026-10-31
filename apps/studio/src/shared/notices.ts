@@ -36,7 +36,7 @@ export const NoticeSchema = z.object({
   title: z.string(),
 });
 
-type Notice = z.output<typeof NoticeSchema>;
+export type Notice = z.output<typeof NoticeSchema>;
 
 export const NoticesResponseSchema = z.object({
   notices: z.array(z.unknown()),

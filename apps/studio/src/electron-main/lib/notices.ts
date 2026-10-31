@@ -35,6 +35,13 @@ import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("Notices");
 
+/**
+ * The service's notice for a build that hasn't updated in the week since a
+ * newer one came out. The Update pill says it (`stuckBuildNotice`), so the
+ * bell leaves it out; a build from before the pill shows it in the bell.
+ */
+const STUCK_BUILD_PREFIX = "stuck-build-";
+
 /** The least time between asks, whatever the service says. */
 const MIN_POLL_SECONDS = 15 * 60;
 
@@ -142,7 +149,9 @@ export function startNotices() {
 /** The notices the bell shows: not dismissed and not past their end. */
 export function listNotices(now = Date.now()): BellNotice[] {
   const { installFailed, marks, notices, updated } = getNoticesStore().store;
-  const all: Omit<BellNotice, "seen">[] = [...notices];
+  const all: Omit<BellNotice, "seen">[] = notices.filter(
+    (notice) => !notice.id.startsWith(STUCK_BUILD_PREFIX),
+  );
   // Only while it's still the build running, so a later downgrade or a
   // simulated bump in development doesn't leave it behind.
   if (updated && updated.to === app.getVersion()) {
@@ -176,6 +185,17 @@ export function listNotices(now = Date.now()): BellNotice[] {
     )
     .map((notice) => ({ ...notice, seen: !!marks[notice.id]?.seenAt }))
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+}
+
+/** The service's word that this build is stuck, for the Update pill. */
+export function stuckBuildNotice(now = Date.now()) {
+  return getNoticesStore()
+    .get("notices")
+    .find(
+      (notice) =>
+        notice.id.startsWith(STUCK_BUILD_PREFIX) &&
+        !(notice.endsAt && Date.parse(notice.endsAt) <= now),
+    );
 }
 
 /**

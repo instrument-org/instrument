@@ -1,6 +1,12 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
@@ -17,11 +23,12 @@ import {
   useInstallUpdate,
 } from "@/client/components/use-install-update";
 import { rpcClient } from "@/client/rpc/client";
+import { type Notice } from "@/shared/notices";
 import { APP_NAME } from "@instrument-org/shared";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import ms from "ms";
 import {
@@ -41,6 +48,9 @@ const MUTED_TRIGGER_CLASS_NAME =
   "border-black/5 bg-background text-muted-foreground hover:bg-muted dark:border-white/10";
 
 type UpdateStatusBadgeState =
+  | {
+      type: "cant-update";
+    }
   | {
       message?: string;
       type: "error";
@@ -68,6 +78,14 @@ type UpdateStatusBadgeState =
 // Settings, no toolbar pill, unless the user ran the check). Keyed by the badge
 // union so adding a state is one entry and the compiler enforces completeness.
 const BADGE_META = {
+  // The service says a newer version has been out a week and this build is
+  // still behind, and nothing here is on its way to it.
+  "cant-update": {
+    className:
+      "border-warning-500/25 bg-background text-warning-700 hover:bg-warning-500/10 dark:border-warning-500/35 dark:text-warning-300",
+    label: "Can't update",
+    manualOnly: false,
+  },
   checking: {
     className: MUTED_TRIGGER_CLASS_NAME,
     label: "Checking",
@@ -111,6 +129,9 @@ const BADGE_META = {
 export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
+  );
+  const { data: stuckBuild } = useQuery(
+    rpcClient.notices.live.stuckBuild.experimental_liveOptions(),
   );
   const { restart, restarting } = useRestartToUpdate(updateState?.type);
   // A manual "up to date" result auto-hides after a beat so it's transient
@@ -168,7 +189,7 @@ export function UpdateStatusIndicator() {
 
   // Hidden when: no badge for this status; a silent background poll of a
   // manual-only status; or the auto-dismissed manual "up to date" pill.
-  const visibleBadge: null | UpdateStatusBadgeState = showsAsRestarting(
+  const statusBadge: null | UpdateStatusBadgeState = showsAsRestarting(
     restarting,
     updateState?.type,
   )
@@ -179,6 +200,17 @@ export function UpdateStatusIndicator() {
         !(dismissedNotAvailable && isManualNotAvailable)
       ? badgeState
       : null;
+  // A stuck build shows only while the updater isn't on its way to a newer
+  // one: a download, even one nobody sees, or a build ready to install means
+  // it may yet land by itself.
+  const onItsWay =
+    restarting ||
+    (!!updateState &&
+      ["available", "downloading", "downloaded", "installing"].includes(
+        updateState.type,
+      ));
+  const visibleBadge: null | UpdateStatusBadgeState =
+    statusBadge ?? (stuckBuild && !onItsWay ? { type: "cant-update" } : null);
 
   return (
     <AnimatePresence initial={false} mode="wait">
@@ -191,7 +223,11 @@ export function UpdateStatusIndicator() {
           key={visibleBadge.type}
           transition={{ duration: 0.28, ease: "easeOut" }}
         >
-          {visibleBadge.type === "downloaded" ? (
+          {visibleBadge.type === "cant-update" && stuckBuild ? (
+            <CantUpdateCard notice={stuckBuild}>
+              <UpdateStatusBadge state={visibleBadge} />
+            </CantUpdateCard>
+          ) : visibleBadge.type === "downloaded" ? (
             <UpdateReadyCard
               onRestart={handleClick}
               version={visibleBadge.version}
@@ -249,6 +285,9 @@ function CircularProgressIcon({
 
 function getAriaLabel(state: UpdateStatusBadgeState) {
   switch (state.type) {
+    case "cant-update": {
+      return `${APP_NAME} can't update itself`;
+    }
     case "checking": {
       return "Checking for updates";
     }
@@ -352,7 +391,7 @@ function renderTriggerIcon(state: UpdateStatusBadgeState) {
     return <Spinner className="size-3" delay={0} />;
   }
 
-  if (state.type === "error") {
+  if (state.type === "error" || state.type === "cant-update") {
     return <WarningCircleIcon className={ICON_CLASS_NAME} weight="fill" />;
   }
 
@@ -568,5 +607,67 @@ function UpdateReadyCardBody({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * What a Can't update pill opens: the service's words for why, a fresh check,
+ * and the download page, since the updater that should have fixed this is
+ * what isn't working.
+ */
+function CantUpdateCard({
+  children,
+  notice,
+}: {
+  children: ReactNode;
+  notice: Notice;
+}) {
+  const [open, setOpen] = useState(false);
+  const check = useMutation(
+    rpcClient.preferences.checkForUpdates.mutationOptions(),
+  );
+  const openExternalLink = useOpenExternalLink();
+  const url = notice.action && "url" in notice.action ? notice.action.url : "";
+  return (
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align="end" className="w-85 p-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warning-500/15 text-warning-700 dark:text-warning-300">
+              <WarningCircleIcon className="size-4.5" weight="bold" />
+            </span>
+            <div className="min-w-0 text-sm font-semibold">{notice.title}</div>
+          </div>
+          <p className="text-[13px] leading-5 text-muted-foreground">
+            {notice.body}
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              onClick={() => {
+                setOpen(false);
+                check.mutate();
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Try again
+            </Button>
+            {url && (
+              <Button
+                onClick={() => {
+                  setOpen(false);
+                  openExternalLink(url);
+                }}
+                size="sm"
+                variant="brand"
+              >
+                {notice.action?.label ?? "Download"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

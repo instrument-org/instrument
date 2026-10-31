@@ -115,6 +115,14 @@ A development run under the supervisor takes two variables. `IDLE_RESTART_SIMULA
 
 Squirrel.Mac's relaunch can only be seen with two signed builds of one identity. `preview.yml`'s `update_test_version` input packages the preview a second time at that higher version, under the same identity, and a preview launched with `INSTRUMENT_TEST_UPDATE_FEED=<url>` turns its updater on against that feed, which a test serves with the second build's zip and a `latest-mac.yml` for it. Both are test seams: a shipping build never reads the variable, and a release never sets the input.
 
+## A build that stopped updating
+
+Nothing inside the updater can notice that the updater itself broke (a moved feed, a signing change, a cache that eats every download), so the reports service says so instead. Its `GET /notices` answers a build with a `stuck-build-<version>` notice once the first release newer than it on its channel has been out for a week; the rule, its 7 days and its wording live in the service, so changing them reaches every build already shipped. The app sends its version and channel with every ask, so the notice goes once the build is current.
+
+The Update pill's slot shows it as "Can't update", with a card offering a fresh check and the download page (`CantUpdateCard` in `update-status-indicator.tsx`), and the bell leaves it out (`stuckBuildNotice` in `notices.ts`). The slot shows one state at a time: a download or install in progress, or an update ready to install, comes first, since then the updater may still land the newer build by itself, as when a laptop opens after weeks shut. A build from before the pill shows the same notice in the bell, toast included.
+
+`debug.trigger.simulateServiceNotice` puts such a notice, or an important one that toasts, into the notices store of a development run; the next answer from the service with a body replaces both.
+
 ## Downloaded means staged by Squirrel on macOS
 
 electron-updater's `MacUpdater` hands each completed download to Squirrel immediately (`autoInstallOnAppQuit` defaults to true): it emits `update-downloaded` once the zip is in its cache, then Squirrel fetches it again through a local proxy and unpacks it. Starting that fetch deletes whatever Squirrel unpacked before. `MacUpdater` tracks Squirrel's part with a `squirrelDownloadedUpdate` latch that is never cleared, so after a first staging `quitAndInstall` calls straight through, and a quit before Squirrel finishes leaves ShipIt with no bundle: it relaunches the version that was running ([the finding](../findings/update-check-un-stages-the-macos-build.md)).

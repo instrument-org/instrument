@@ -5,6 +5,7 @@ import {
   listNotices,
   markNoticesSeen,
   signedOutAccounts,
+  stuckBuildNotice,
 } from "@/electron-main/lib/notices";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -19,6 +20,15 @@ const live = {
     yield* liveRead({
       changes: [changes, preferences],
       read: () => listNotices(),
+    });
+  }),
+  // The service's notice that this build hasn't updated, which the Update
+  // pill shows; null when there is none.
+  stuckBuild: base.handler(async function* ({ signal }) {
+    const changes = publisher.subscribe("notices.updated", { signal });
+    yield* liveRead({
+      changes: [changes],
+      read: () => stuckBuildNotice() ?? null,
     });
   }),
   // The accounts signed out without the person asking, so the composer can

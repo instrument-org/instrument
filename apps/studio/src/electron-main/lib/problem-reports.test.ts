@@ -391,7 +391,14 @@ describe("feedback", () => {
     });
     const chat = reports.chatFeedback({
       files: [
-        file("state.mac1.json"),
+        file(
+          "state.mac1.json",
+          JSON.stringify({
+            closedTabs: [
+              { title: "Inbox (3)", url: "https://mail.google.com/mail/u/0" },
+            ],
+          }),
+        ),
         file(`${TASK}.mac1.jsonl`, `${step}\n`),
         file(`${OWN}.mac1.jsonl`),
         file(`${OWN}.win1.jsonl`),
@@ -415,11 +422,13 @@ describe("feedback", () => {
         "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.mac1.jsonl",
         "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.win1.jsonl",
         "Task: Competitor pricing pages: chat/ses_01JB2W0000000000000000000B.mac1.jsonl",
-        "Chat settings: chat/state.mac1.json",
         "Chat settings: chat/settings.mac1.jsonl",
       ]
     `);
-    // Full details add what the task read, and the notes a handoff left.
+    // Full details add what the task read, the pages a device's tabs had
+    // open, and the notes a handoff left.
+    expect(JSON.stringify(chat?.item)).not.toContain("mail.google.com");
+    expect(JSON.stringify(chat?.full)).toContain("mail.google.com");
     expect(JSON.stringify(chat?.item)).not.toContain("what the file says");
     expect(JSON.stringify(chat?.full)).toContain("what the file says");
     expect(chat?.full?.files.map((each) => each.path)).toContain(

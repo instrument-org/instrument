@@ -502,6 +502,9 @@ const SESSION_LOG = /^(ses_[0-9A-Za-z]+)\..+\.jsonl$/;
 const CHAT_SETTINGS =
   /^(?:(?:settings|marks)\..+\.jsonl|state\..+\.json|handoff-notes\.md)$/;
 
+/** The chat's own files the outline sends: each device's settings and marks. */
+const CHAT_SETTINGS_OUTLINED = /^(?:settings|marks)\..+\.jsonl$/;
+
 /** A name that can stand in a report's path, which a sync engine's copy (`… 2.jsonl`) cannot. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
 
@@ -566,8 +569,10 @@ export function chatFeedback({
       path: `chat/${file.name}`,
     };
     full.push(each);
-    // The notes a handoff leaves are the agent's own summary of what it read.
-    if (file.name !== "handoff-notes.md") {
+    // Only the settings go by default. A device's state names the pages its
+    // tabs had open, closed ones too, and the notes a handoff leaves are the
+    // agent's own summary of what it read.
+    if (CHAT_SETTINGS_OUTLINED.test(file.name)) {
       outline.push(each);
     }
   }

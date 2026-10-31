@@ -2,14 +2,23 @@ import { AudioSkin } from "@/client/components/videojs/audio/skin";
 import { VideoSkin } from "@/client/components/videojs/video/skin";
 import { readUnknownDuration } from "@/client/lib/media-duration";
 import { useSiblingCaptions } from "@/client/lib/use-sibling-captions";
+import { useStoryboardTrack } from "@/client/lib/use-storyboard-track";
 import { Audio, AudioPlayer as AudioPlayerRoot } from "@videojs/react/audio";
 import { Video, VideoPlayer as VideoPlayerRoot } from "@videojs/react/video";
+import { useState } from "react";
+
+/** Played this far, a video is being watched, and its timeline previews are made. */
+const WATCHED_SECONDS = 10;
 
 /**
  * The file viewer's video player: Video.js over the file's own `<video>`,
  * starting as it opens, muted where the viewer says so, with the captions
  * file beside the video when there is one. The player's keys answer only
  * while it has the keyboard, so the screen around it keeps its own.
+ *
+ * Its timeline previews are asked for once the pointer is on the player or
+ * it has played a while, never as it opens, so a video glanced at costs
+ * nothing and playback never waits on them.
  *
  * Loaded on its own, the first time a video or a sound is opened.
  */
@@ -28,9 +37,20 @@ export function VideoPlayer({
   src: string;
 }) {
   const captions = useSiblingCaptions(hostPath);
+  const [wantsPreviews, setWantsPreviews] = useState(false);
+  const storyboard = useStoryboardTrack(hostPath, wantsPreviews);
   return (
     <VideoPlayerRoot>
-      <VideoSkin className="size-full">
+      <VideoSkin
+        className="size-full"
+        onPointerMove={
+          wantsPreviews
+            ? undefined
+            : () => {
+                setWantsPreviews(true);
+              }
+        }
+      >
         <Video
           autoPlay
           muted={muted}
@@ -43,6 +63,16 @@ export function VideoPlayer({
             }
             readUnknownDuration(media);
           }}
+          onTimeUpdate={
+            wantsPreviews
+              ? undefined
+              : (event) => {
+                  const media = event.currentTarget;
+                  if (!media.seeking && media.currentTime >= WATCHED_SECONDS) {
+                    setWantsPreviews(true);
+                  }
+                }
+          }
           playsInline
           src={src}
         >
@@ -53,6 +83,15 @@ export function VideoPlayer({
               kind="captions"
               label={captions.label}
               src={captions.url}
+            />
+          ) : null}
+          {storyboard ? (
+            <track
+              default
+              key={storyboard}
+              kind="metadata"
+              label="thumbnails"
+              src={storyboard}
             />
           ) : null}
         </Video>

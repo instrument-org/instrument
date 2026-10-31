@@ -22,6 +22,7 @@ import {
   fileThumbnailDeps,
   THUMBNAIL_SIZES,
 } from "./file-thumbnails";
+import { storyboardSheet, videoStoryboardDeps } from "./video-storyboard";
 
 /**
  * The channel the person's own viewers read a file on this computer through:
@@ -161,6 +162,25 @@ app.all("/*", async (c) => {
   // file tab that asked can say the file is kept closed rather than gone.
   if (isRefusedByName(asked) || (await isRefusedFile(hostPath))) {
     return c.body(null, 403);
+  }
+  // `?storyboard`: a video's storyboard sheet, once the player has had one
+  // made (`video-storyboard.ts`); a 404 where none has been. Kept for good
+  // only by a caller naming the mtime it was made from.
+  if (c.req.query("storyboard") !== undefined) {
+    const sheet = await storyboardSheet(hostPath, videoStoryboardDeps()).catch(
+      () => null,
+    );
+    if (!sheet) {
+      return c.notFound();
+    }
+    c.header(
+      "Cache-Control",
+      c.req.query("version") === String(sheet.modifiedAt)
+        ? `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`
+        : "no-cache",
+    );
+    c.header("Content-Type", "image/jpeg");
+    return c.body(new Uint8Array(sheet.bytes));
   }
   // `?thumbnail=<px>`: the file drawn small rather than the file itself (see
   // `file-thumbnails.ts`), for a grid or a row that would otherwise decode

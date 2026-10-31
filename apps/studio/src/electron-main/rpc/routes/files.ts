@@ -38,6 +38,10 @@ import {
 } from "@/electron-main/lib/refused-files";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
+import {
+  videoStoryboard,
+  videoStoryboardDeps,
+} from "@/electron-main/lib/video-storyboard";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import {
@@ -52,6 +56,7 @@ import {
   SYSTEM_FOLDER_REASON,
 } from "@/shared/instrument-folders";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
+import { StoryboardSchema } from "@/shared/video-storyboard";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
 import { clipboard, ClipboardItem, shell, webContents } from "electron";
@@ -1022,6 +1027,24 @@ const read = base
   });
 
 /**
+ * A video's storyboard for the player's timeline previews, made now if it
+ * has none (`video-storyboard.ts`), or null where it gets none. The player
+ * asks once the person points at the video or it has played a while; going
+ * away cancels the ask, and the run with it once nobody else is waiting. The
+ * sheet itself is read through the file channel's `?storyboard`.
+ */
+const storyboard = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(StoryboardSchema.nullable())
+  .handler(async ({ input, signal }) => {
+    const filePath = await followAliases(input.path);
+    if (await isClosed(input.path, filePath)) {
+      return null;
+    }
+    return videoStoryboard(filePath, videoStoryboardDeps(), signal);
+  });
+
+/**
  * Whether a file is the app's own data, which the person's views keep closed:
  * the editors read and write through here what the viewers read through the
  * file channel, which refuses it by the same rule (`refused-files.ts`), by
@@ -1095,6 +1118,7 @@ export const files = {
   read,
   rename,
   showInTrash,
+  storyboard,
   trash,
   undo,
   write,

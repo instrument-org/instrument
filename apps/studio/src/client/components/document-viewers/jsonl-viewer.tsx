@@ -109,6 +109,11 @@ function JsonlBody({ text }: { text: string }) {
 
 function parseLines(text: string) {
   const lines = text.split("\n").filter((line) => line.trim() !== "");
+  // A file with no lines is an empty table, which the grid says in words; the
+  // text fallback would draw nothing at all.
+  if (lines.length === 0) {
+    return { columns: [], note: undefined, rows: [] };
+  }
   const records: Record<string, unknown>[] = [];
   let malformed = 0;
   let truncated = false;

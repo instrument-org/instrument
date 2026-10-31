@@ -40,7 +40,6 @@ Each entry is the plan's title and the opening of its status.
 - [Chat transcript redesign](chat-transcript-redesign.md): Design rules being worked out against real chats;
 - [The user chooses where Instrument keeps files](choose-where-instrument-keeps-files.md): The step is built, as setup's first step (`9246172a7`, with the Welcome page before it from `b92123c54`).
 - [Context compaction](context-compaction.md): Phases 0 through 2 built, plus the reactive trigger from phase 4.
-- [Killing a degenerate stream loop](degenerate-stream-loops.md): Half built.
 - [Dependency sweep: what upstream has fixed for us](dependency-upgrade-sweep.md): Two passes landed;
 - [Dependency work behind the PR queue](dependency-work-behind-the-pr-queue.md): Items 1 and 2 done, 3 to 5 partly.
 - [Drive Studio a sequence at a time, not a command at a time](driving-studio-in-batches.md): The session runner landed (`studio-drive.mjs run` over `.agents/skills/studio-chrome-devtools/scripts/studio-app.mjs`), with saved recipes beside it (`sweep-...
@@ -96,6 +95,7 @@ Each entry is the plan's title and the opening of its status.
 - [A cheaper chat list rebuild](chat-list-payload-and-parentage.md): Both changes landed.
 - [The chat's status line and loading states](chat-status-line-and-loading-states.md): Done.
 - [Chat surface](chat-surface.md): Landed, then partly reshaped.
+- [Killing a degenerate stream loop](degenerate-stream-loops.md): Both changes are built.
 - [Dictation](dictation.md): Landed (`b57a3a2ca`, with mic access in Settings from `bafc2b9b5`): live dictation in the composer, the problem report, topic instructions and the question c...
 - [Document viewers](document-viewers.md): Completed.
 - [Explicit permission asks](explicit-permission-asks.md): Landed in full in `489ff735f`: `ask_permission` (`tools/ask-permission.ts`) is the only way a card goes up, refusals name what to ask for and raise nothing,...

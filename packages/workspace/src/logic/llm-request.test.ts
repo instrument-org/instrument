@@ -3053,6 +3053,88 @@ describe("llmRequestLogic", () => {
       `);
     });
 
+    // One unit of the loop GLM 5.3 Flash was captured in, as a provider
+    // streams it: enough of it to run several minutes at that model's speed.
+    const loopDeltas = Array.from(
+      { length: 400 },
+      () =>
+        "— **Loading the spreadsheet skill** — I need to load the spreadsheet skill first. — `load_skill` spreadsheet ",
+    );
+
+    it.each(["text", "reasoning"] as const)(
+      "ends the turn when its %s falls into a loop, without retrying",
+      async (channel) => {
+        vi.spyOn(performance, "now").mockReturnValue(0);
+        const { messages } = await createAndRunTestMachine({
+          chunks: [
+            { id: "1", type: `${channel}-start` },
+            ...loopDeltas.map((delta) => ({
+              delta,
+              id: "1",
+              type: `${channel}-delta` as const,
+            })),
+            { id: "1", type: `${channel}-end` },
+          ],
+        });
+
+        expect(prompts).toHaveLength(1);
+        const assistant = messages.findLast(
+          (message) => message.role === "assistant",
+        );
+        expect({
+          error: assistant?.metadata.error,
+          finishReason: assistant?.metadata.finishReason,
+        }).toMatchInlineSnapshot(`
+          {
+            "error": {
+              "kind": "repetition",
+              "message": "The reply kept repeating itself and was stopped",
+            },
+            "finishReason": "error",
+          }
+        `);
+        // Stopped a few windows in rather than at the stream's end.
+        const streamed = assistant?.parts.find((part) => part.type === channel);
+        expect(
+          streamed && "text" in streamed ? streamed.text.length : 0,
+        ).toBeLessThan(loopDeltas.join("").length / 2);
+      },
+    );
+
+    it("leaves a tool call's repetitive input alone", async () => {
+      vi.spyOn(performance, "now").mockReturnValue(0);
+      const content = "0,0,0,0\n".repeat(4000);
+      const input = JSON.stringify({ content, filePath: "zeros.csv" });
+      const { messages } = await createAndRunTestMachine({
+        chunks: [
+          { id: "call-1", toolName: "write_file", type: "tool-input-start" },
+          ...Array.from(
+            { length: Math.ceil(input.length / 100) },
+            (_, index) => ({
+              delta: input.slice(index * 100, (index + 1) * 100),
+              id: "call-1",
+              type: "tool-input-delta" as const,
+            }),
+          ),
+          { id: "call-1", type: "tool-input-end" },
+          {
+            input,
+            toolCallId: "call-1",
+            toolName: "write_file",
+            type: "tool-call",
+          },
+        ],
+      });
+
+      const assistant = messages.find((message) =>
+        message.parts.some((part) => part.type === "tool-write_file"),
+      );
+      expect(assistant?.role).toBe("assistant");
+      expect(
+        assistant?.role === "assistant" ? assistant.metadata.error : "none",
+      ).toBeUndefined();
+    });
+
     it("flushes the unsaved tail when the request is aborted", async () => {
       vi.spyOn(performance, "now").mockReturnValue(0);
       const deltaTexts = Array.from(

@@ -38,11 +38,18 @@ export async function lastAssistantText({
   return lastAssistantTextIn(messages.value);
 }
 
-/** The same words, read from a transcript already in hand. */
+/**
+ * The same words, read from a transcript already in hand. A reply stopped for
+ * repeating itself has none: what it streamed is the loop, and the turn reads
+ * as ending without words, by its error.
+ */
 export function lastAssistantTextIn(
   messages: SessionMessage.WithParts[],
 ): string | undefined {
   const last = messages.findLast((message) => message.role === "assistant");
+  if (last?.metadata.error?.kind === "repetition") {
+    return undefined;
+  }
   const text = last?.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")

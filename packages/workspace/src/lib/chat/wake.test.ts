@@ -333,6 +333,60 @@ describe("a task whose request timed out", () => {
   });
 });
 
+describe("a task whose reply fell into a loop", () => {
+  // What it streamed is the loop, which is not words it meant: the chat hears
+  // a failure it can act on, not a finish quoting the repetition.
+  it("wakes the chat with a failure rather than the loop as its summary", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    const now = new Date();
+    const looped = StoreId.newMessageId();
+    await ChatWrites.saveMessageWithParts(
+      {
+        id: looped,
+        metadata: {
+          createdAt: now,
+          error: {
+            kind: "repetition",
+            message: "The reply kept repeating itself and was stopped",
+          },
+          finishReason: "error",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId: taskSession,
+        },
+        parts: [
+          {
+            metadata: {
+              createdAt: now,
+              id: StoreId.newPartId(),
+              messageId: looped,
+              sessionId: taskSession,
+            },
+            state: "streaming",
+            text: "I need to load the spreadsheet skill first. ".repeat(300),
+            type: "text",
+          },
+        ],
+        role: "assistant",
+      },
+      chatId,
+    );
+
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
+
+    await vi.waitFor(() => {
+      expect(wakesOf(chatId)).toHaveLength(1);
+    }, 5000);
+    const [event] = wakesOf(chatId);
+    expect(event).toMatchObject({
+      ended: "Model got stuck repeating itself",
+      resumable: true,
+      status: "error",
+      summary: undefined,
+    });
+  });
+});
+
 describe("a task whose turn ended on a card", () => {
   // The card it ran into outlives its turn, and the person's answer wakes it:
   // the chat is told the task waits on that answer rather than that it

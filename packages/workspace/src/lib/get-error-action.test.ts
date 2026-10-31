@@ -46,6 +46,14 @@ describe("getErrorAction", () => {
     expect(getErrorAction(message)).toEqual({ type: "stop" });
   });
 
+  it("returns stop for a reply that fell into a loop", () => {
+    const message = createMessage({
+      kind: "repetition",
+      message: "The reply kept repeating itself and was stopped",
+    });
+    expect(getErrorAction(message)).toEqual({ type: "stop" });
+  });
+
   it("returns error for unknown errors", () => {
     const message = createMessage({ kind: "unknown", message: "Test error" });
     const result = getErrorAction(message);

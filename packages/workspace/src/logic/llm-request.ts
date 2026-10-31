@@ -52,6 +52,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
+import { StreamDegeneration } from "./stream-degeneration";
 
 // A call's input arrives as fragments of JSON, and each one is parsed over
 // the whole text so far for the window to draw the call as it is typed, so
@@ -364,6 +365,14 @@ export const llmRequestLogic = fromPromise<
   // arrives: that part carries only the SDK's rendering of this error.
   const invalidToolCallErrors = new Map<string, unknown>();
   const toolCallInputText: Record<string, string> = {};
+  // A model that falls into a loop streams it inside one step for as long as
+  // it is let, so the reply's words and its thinking are each watched for
+  // one, and a loop ends the request through `repetitionStop`. A tool call's
+  // input is not watched: a file written through one can be as repetitive as
+  // a loop on purpose, and the output limit bounds it.
+  const textRepetition = new StreamDegeneration();
+  const reasoningRepetition = new StreamDegeneration();
+  const repetitionStop = new AbortController();
 
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
@@ -424,7 +433,7 @@ export const llmRequestLogic = fromPromise<
 
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
-      abortSignal: signal,
+      abortSignal: AbortSignal.any([signal, repetitionStop.signal]),
       // Persisted system context rides in the message list, not only at the top.
       allowSystemInMessages: true,
       // A shell command called as though it were a tool becomes the bash call
@@ -574,6 +583,9 @@ export const llmRequestLogic = fromPromise<
             reasoningPart.metadata.endedAt = undefined;
             await writes.savePart(reasoningPart);
           }
+          if (reasoningRepetition.push(part.text)) {
+            throw new RepetitionError();
+          }
           break;
         }
         case "reasoning-end": {
@@ -689,6 +701,9 @@ export const llmRequestLogic = fromPromise<
               textPart.providerMetadata = part.providerMetadata;
             }
             await writes.savePart(textPart);
+          }
+          if (textRepetition.push(part.text)) {
+            throw new RepetitionError();
           }
           break;
         }
@@ -964,6 +979,17 @@ export const llmRequestLogic = fromPromise<
     }
   } catch (error) {
     switch (true) {
+      case error instanceof RepetitionError: {
+        // Leaving the loop let go of the stream; the abort also ends the
+        // request itself, so the provider stops generating.
+        repetitionStop.abort();
+        assistantMessage.metadata.error = {
+          kind: "repetition",
+          message: error.message,
+        };
+        assistantMessage.metadata.finishReason = "error";
+        break;
+      }
       case isStorageFullError(error): {
         reportStorageError(error);
         assistantMessage.metadata.error = {
@@ -1166,6 +1192,14 @@ export const llmRequestLogic = fromPromise<
 
   return { message: assistantMessage, parts };
 });
+
+/** Thrown from the stream loop when the reply has fallen into repeating itself. */
+class RepetitionError extends Error {
+  constructor() {
+    super("The reply kept repeating itself and was stopped");
+    this.name = "RepetitionError";
+  }
+}
 
 /** What a tool call stopped part way through by the output limit answers with. */
 const CUT_OFF_CALL_TEXT =

@@ -110,6 +110,13 @@ export function describeMessageError(
         summary: "Disk is full",
       };
     }
+    case "repetition": {
+      return {
+        detail:
+          "The model got stuck saying the same thing over and over, so Instrument stopped it. Try again, or switch to another model.",
+        summary: "Model got stuck repeating itself",
+      };
+    }
     case "invalid-tool-input":
     case "no-such-tool": {
       return {

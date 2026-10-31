@@ -62,8 +62,14 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "wait" };
   }
 
-  // Retrying cannot help until the user frees space.
-  if (error.kind === "aborted" || error.kind === "disk-full") {
+  // Retrying cannot help until the user frees space. A reply that looped
+  // would likely loop again on the same request; a task's chat recovers by
+  // starting a fresh one.
+  if (
+    error.kind === "aborted" ||
+    error.kind === "disk-full" ||
+    error.kind === "repetition"
+  ) {
     return { type: "stop" };
   }
 

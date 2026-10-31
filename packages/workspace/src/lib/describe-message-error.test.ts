@@ -31,6 +31,10 @@ const cases: Record<string, MessageError> = {
     kind: "unknown",
     message: UPSTREAM_THROTTLE_TEXT,
   },
+  "a reply that fell into a loop": {
+    kind: "repetition",
+    message: "The reply kept repeating itself and was stopped",
+  },
   "a turn the user stopped": { kind: "aborted", message: "Aborted" },
   "content the provider refused": {
     classification: "unsendable-content",
@@ -67,6 +71,10 @@ describe("describeMessageError", () => {
         "a rejection nothing could name": {
           "detail": "Try again, or start a new task.",
           "summary": "Something went wrong",
+        },
+        "a reply that fell into a loop": {
+          "detail": "The model got stuck saying the same thing over and over, so Instrument stopped it. Try again, or switch to another model.",
+          "summary": "Model got stuck repeating itself",
         },
         "a throttle reported inside a 200 stream": {
           "detail": "The model is busy right now. Trying again in a moment usually clears it.",

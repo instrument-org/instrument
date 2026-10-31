@@ -101,6 +101,12 @@ export namespace SessionMessage {
       kind: z.literal("disk-full"),
       message: z.string(),
     }),
+    // The reply fell into repeating itself and was cut off
+    // (`logic/stream-degeneration.ts`).
+    z.object({
+      kind: z.literal("repetition"),
+      message: z.string(),
+    }),
     z.object({
       /** The error's `cause` chain, as `describeErrorCause` says it. */
       cause: z.string().optional(),

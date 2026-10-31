@@ -1,6 +1,6 @@
 # Killing a degenerate stream loop
 
-Status: open. Half built. The detector (change 1 under [The gap that makes the recovery work](#the-gap-that-makes-the-recovery-work)) is not built. Change 2 landed on its own (`10dfecaab`): a task whose turn ended in a failure wakes the chat with `status: "error"` and a line saying how it ended, so a detector's kill would reach the chat as an error rather than a success. The detector below is calibrated against 289 real eval sessions and the separation is decisive. The response policy is settled: kill the turn, record a real error, and let the orchestrator above the task recover — no in-place resample.
+Status: done. Both changes are built. The detector is `src/logic/stream-degeneration.ts`, fed each reply's text and reasoning in `llm-request.ts`; a trip ends the request with an error of kind `repetition`, which `getErrorAction` stops on rather than retrying, and the task wakes its chat with `status: "error"` (`10dfecaab`), its looped text not counted as its words. It differs from the sketch below in three ways: fenced code blocks are left out of the window, since templated data and code measured within a point or two of the threshold; tool-call input is not watched, since a file written through one can be as repetitive as a loop on purpose and the output limit bounds it; and the machine needs no event of its own, since an error recorded on the reply already ends the turn. The questions under [Still open](#still-open) stand.
 
 ## What actually happens
 

@@ -6008,9 +6008,15 @@ function FileSystemListView({
               box={{ height: 2.375, width: 2 }}
               className="rounded-xs shadow-xs"
               file={entry}
-              // A blank sheet: the line under the title already says
-              // what kind of file it is.
-              generic={<div className="size-full bg-muted" />}
+              // A blank page with its corner turned down, so it reads as a
+              // file with nothing to show rather than a picture still on
+              // the way; the line under the title already says what kind
+              // of file it is.
+              generic={
+                <div className="relative size-full bg-card [clip-path:polygon(0_0,calc(100%_-_0.5rem)_0,100%_0.5rem,100%_100%,0_100%)]">
+                  <div className="absolute top-0 right-0 size-2 bg-linear-to-bl from-transparent from-50% to-foreground/14 to-50%" />
+                </div>
+              }
               pageClassName="w-7.5"
             />
           )}

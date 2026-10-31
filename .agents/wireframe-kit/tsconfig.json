@@ -6,5 +6,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["build.mjs"]
+  "include": ["build.mjs", "kit.mjs"]
 }

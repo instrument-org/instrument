@@ -6,11 +6,12 @@ The pieces of Studio, for drawing a proposed flow with the `wireframe` skill. Th
 
 ## The window
 
-`window.js` is the window as built (the rail, the window bar and its tabs, Chat with its inbox and pane, the places, the floating chat, and setup), measured off the running app and redrawn at 1280x800 in the light theme; `brands.js` holds the brand marks it draws, as data URIs. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined` or lacks a caption fails the build rather than the page:
+`kit/` is the window as built (the rail, the window bar and its tabs, Chat with its inbox and pane, the places, the floating chat, and setup), one file per surface, measured off the running app and redrawn at 1280x800 in the light theme; `kit/brands.js` holds the brand marks it draws, as data URIs. `build.mjs` pastes the files in the order `KIT_FILES` in `kit.mjs` gives, so a file's top-level values may use only the files before it. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined`, lacks a caption, or redefines a name the kit has fails the build rather than the page:
 
 ```bash
 node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html
-RAW=3 node .agents/wireframe-kit/build.mjs part.js out.html   # also writes out.raw.html: frame 3 alone at true size
+RAW=3 node .agents/wireframe-kit/build.mjs part.js out.html     # also writes out.raw.html: frame 3 alone at true size
+RAW=all node .agents/wireframe-kit/build.mjs part.js out.html   # every frame there, one under another
 ```
 
 It reads the skill from `~/.claude/skills/wireframe`, or from `WIREFRAME_SKILL_DIR`.
@@ -88,7 +89,7 @@ A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`), `{ folder
 
 ## Outside the window
 
-`mac.js` draws what surrounds the app: the Mac it runs on and the web people meet it on first. These frames are the desktop's size, so a state that uses them spreads `DESKTOP` into itself (`{ title, note, ...DESKTOP, body }`), and the window goes onto the desktop through `placed`, scaled.
+`kit/mac.js` draws what surrounds the app: the Mac it runs on and the web people meet it on first. These frames are the desktop's size, so a state that uses them spreads `DESKTOP` into itself (`{ title, note, ...DESKTOP, body }`), and the window goes onto the desktop through `placed`, scaled.
 
 | Function                                              | Draws                                                                                                       |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -136,7 +137,7 @@ Not in the kit yet, so drawn by hand when a round needs it: Settings, an app's o
 
 ## Changing the kit
 
-The kit is meant to be edited by whoever draws with it. When a round draws a surface the kit lacks, or corrects one it draws wrong, move that piece into `window.js` (inside the window) or `mac.js` (outside it) as a function, add a frame for it to `baseline.js`, rebuild the baseline, and list it in the tables above. When the app itself changes, re-measure (below) rather than patching from memory. Fixed scenario data (`ROWS`, `SITES`, `FILES`, `PAGES`) is shared across rounds so files compare; add to it rather than renaming what is there.
+The kit is meant to be edited by whoever draws with it. When a round draws a surface the kit lacks, or corrects one it draws wrong, move that piece into the `kit/` file for its surface (`kit/mac.js` outside the window) as a function, add a frame for it to `baseline.js`, rebuild the baseline, and list it in the tables above. When the app itself changes, re-measure (below) rather than patching from memory. Fixed scenario data (`ROWS`, `SITES`, `FILES`, `PAGES`) is shared across rounds so files compare; add to it rather than renaming what is there.
 
 ## What rounds here keep correcting
 
@@ -149,9 +150,9 @@ The kit is meant to be edited by whoever draws with it. When a round draws a sur
 
 Marks come from the template (`clickable`, `fresh`, `noted`, `ann`, `cursor`) and are in scope for a part. Icons are Phosphor regular only (`ph ph-name`): the starter loads no other weight, so `ph-fill` draws nothing, and a lit rail place keeps its outline icon in the brand color where the app swaps to the fill weight.
 
-The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `setupWin` is what the skin's `light-dark()` tokens resolve against inside the frame. Anything drawn outside them sets its own `text-foreground` and ground, or it inherits the reader's theme. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles. Placeholder prose is `h-[7px] rounded-full bg-gray-300` at varying widths (`bars2`). A third party's logo is inlined in `brands.js`, never a runtime URL into an icon CDN.
+The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `setupWin` is what the skin's `light-dark()` tokens resolve against inside the frame. Anything drawn outside them sets its own `text-foreground` and ground, or it inherits the reader's theme. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles. Placeholder prose is `h-[7px] rounded-full bg-gray-300` at varying widths (`bars2`). A third party's logo is inlined in `kit/brands.js`, never a runtime URL into an icon CDN.
 
-When the product moves, measure it again rather than trusting this file: boot a disposable instance (`studio-drive.mjs boot --purpose "kit measure" --workspace documents`), screenshot it in the light theme, then correct `window.js` to match.
+When the product moves, measure it again rather than trusting this file: boot a disposable instance (`studio-drive.mjs boot --purpose "kit measure" --workspace documents`), screenshot it in the light theme, then correct the kit to match.
 
 ## Naming a page
 

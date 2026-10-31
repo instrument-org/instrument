@@ -1,30 +1,32 @@
 // node build.mjs <part.js> <out.html>
 // Builds a wireframe of the Studio window from the wireframe skill's shell.html and
-// main.html, this kit (brands.js + window.js + mac.js) and a part that defines META and
-// states. A part that defines META and SCREEN instead builds a prototype: one live screen
-// from the skill's prototype.html. WIREFRAME_SKILL_DIR points at the wireframe skill when
-// it is not installed at ~/.claude/skills/wireframe.
+// main.html, this kit (the files in kit/, in KIT_FILES order) and a part that defines META
+// and states. A part that defines META and SCREEN instead builds a prototype: one live
+// screen from the skill's prototype.html. WIREFRAME_SKILL_DIR points at the wireframe skill
+// when it is not installed at ~/.claude/skills/wireframe.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 
+import {
+  SKILL,
+  evaluatePart,
+  here,
+  isPrototype,
+  kitSource,
+  rawPage,
+  template,
+} from "./kit.mjs";
+
 const [partPath, outPath] = process.argv.slice(2);
 if (!partPath || !outPath)
   throw new Error("usage: node build.mjs <part.js> <out.html>");
-const here = path.dirname(new URL(import.meta.url).pathname);
-const SKILL =
-  process.env.WIREFRAME_SKILL_DIR ??
-  path.join(os.homedir(), ".claude/skills/wireframe");
 const starter = fs.readFileSync(path.join(SKILL, "shell.html"), "utf8");
-const part0 = fs.readFileSync(partPath, "utf8");
-const PROTOTYPE = /^const SCREEN\s*=/m.test(part0);
-let main = fs.readFileSync(path.join(SKILL, PROTOTYPE ? "prototype.html" : "main.html"), "utf8");
-const kit = ["brands.js", "window.js", "mac.js"]
-  .map((f) => fs.readFileSync(path.join(here, f), "utf8"))
-  .join("\n");
-const part = part0;
+const part = fs.readFileSync(partPath, "utf8");
+const PROTOTYPE = isPrototype(part);
+let main = template(PROTOTYPE);
+const kit = kitSource();
 
 /** @type {(s: string, from: string, to: string, insert: string) => string} */
 const cut = (s, from, to, insert) => {
@@ -35,28 +37,7 @@ const cut = (s, from, to, insert) => {
 };
 
 // Evaluate kit + marks + part in node, so a broken frame fails here rather than on screen.
-const marks = main.slice(
-  main.indexOf("// ---- annotations"),
-  main.indexOf(PROTOTYPE ? "// ---- the screen" : "// ---- the frames"),
-);
-/** @type {{ __out?: { META: { title: string; line: string; source: string; slotH?: number; tileMin?: number }; states: { title: string; note: string; body: string; w?: number; h?: number }[] } }} */
-const ctx = {};
-vm.createContext(ctx);
-vm.runInContext(
-  PROTOTYPE
-    ? `${kit}\n${marks}\n${part}\n;globalThis.__out = { META, states: [{ title: "Screen", note: "The prototype's screen", body: SCREEN.draw() + (SCREEN.controls ? SCREEN.controls() : ""), w: SCREEN.w, h: SCREEN.h }] };`
-    : `${kit}\n${marks}\n${part}\n;globalThis.__out = { META, states };`,
-  ctx,
-);
-if (!ctx.__out) throw new Error(`the part defined no META or ${PROTOTYPE ? "SCREEN" : "states"}`);
-const { META, states } = ctx.__out;
-for (const [i, s] of states.entries()) {
-  if (typeof s.body !== "string") throw new Error(`frame ${i + 1} has no body`);
-  if (/undefined|\[object Object\]|NaN/.test(s.body))
-    throw new Error(`frame ${i + 1} renders undefined/object/NaN`);
-  if (!s.title || !s.note)
-    throw new Error(`frame ${i + 1} lacks a title or note`);
-}
+const { META, states } = evaluatePart(part);
 
 // A class naming one of Studio's colors that the skill's skin does not define draws
 // nothing: Tailwind skips it and the element falls back to inherited ink. That is
@@ -145,15 +126,12 @@ for (const [, src] of html.matchAll(
   }
 }
 fs.writeFileSync(outPath, html);
-// RAW=<n> also writes <out>.raw.html: frame n alone at true size, for a kit check.
+// RAW=<n> also writes <out>.raw.html: frame n alone at true size, for a kit check;
+// RAW=all writes every frame there, one under another.
 if (process.env.RAW) {
-  const s = states[Number(process.env.RAW) - 1];
-  const raw = starter.replace(
-    /<main class="[^"]*">[\s\S]*?<\/main>/,
-    () =>
-      `<main style="padding:0"><div style="position:relative;width:${s.w || 1280}px;height:${s.h || 800}px;overflow:hidden">${s.body}</div></main>`,
-  );
-  fs.writeFileSync(outPath.replace(/\.html$/, ".raw.html"), raw);
+  const frames =
+    process.env.RAW === "all" ? states : [states[Number(process.env.RAW) - 1]];
+  fs.writeFileSync(outPath.replace(/\.html$/, ".raw.html"), rawPage(frames));
 }
 console.log(
   `${outPath}: ${PROTOTYPE ? "a prototype" : `${states.length} frames`}, ${Math.round(html.length / 1024)} KB`,

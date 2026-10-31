@@ -1,6 +1,6 @@
 # One ask model
 
-Status: open.
+Status: done.
 
 ## Problem
 
@@ -81,3 +81,4 @@ Each step lands with its tests, and the end is checked with two dev Studio insta
 
 - A question answered while the asking computer is off waits for it, and if it stays off past `ASK_FRESH_MS` the answer is not taken when it comes back: the card asks again. Before this, the device answered on started the turn itself; nothing short of an owner can make that exactly once, and acting on a stale answer would start work nobody is watching.
 - A pending answer turning stale changes nothing in the records, so a card shows it as waiting for the asking computer until the chat's records next change.
+- The end check with two dev Studio instances on one workspace (a folder card, a question and a sign-in's Not now answered from the instance that did not ask) has not been run; the two-device unit tests in `permissions.test.ts`, `chats-answer-question.test.ts` and `events.test.ts` cover the same paths over two `ChatRecords` on one chats folder.

@@ -54,7 +54,6 @@ Each entry is the plan's title and the opening of its status.
 - [Model request controls](model-request-controls.md): Phases 1 and 3 built;
 - [Word, PowerPoint and Excel files through LibreOffice, fetched on first need](office-documents-with-libreoffice.md): Proposed, not started.
 - [The onboarding setup assistant](onboarding-setup-assistant.md): Building.
-- [One ask model](one-ask-model.md): open
 - [Plugins](plugins.md): Phase 1 landed under another shape, phase 2 not adopted, phase 3 overtaken, phase 4 not started.
 - [How the agent presents files, data, and artifacts](presentation-syntax.md): The file group is built and measured;
 - [Privacy-first diagnostics and feedback](privacy-first-diagnostics-and-feedback.md): In progress.
@@ -114,6 +113,7 @@ Each entry is the plan's title and the opening of its status.
 - [One Mac update feed for both architectures](intel-mac-update-feed.md): Built as below, with two departures: `latest-x64-mac.yml` is the x64 leg's own `latest` feed rather than a copy of the merged one, so a pinned install reads...
 - [One Python and one JavaScript, both native](native-script-runtimes.md): Completed.
 - [One network status, shown in the window's corner](network-status.md): Landed in full: the status, the window-bar pill and its card in `f5721409f` (which replaced `PlatformApiIndicator`), setup's pill opening the card in `2d35ee...
+- [One ask model](one-ask-model.md): done
 - [One capability layer](one-capability-layer.md): Landed in full (phase 3 in `5d7ff3d5b`), phases 0 to 3: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and eve...
 - [One chat, one database](one-chat-one-database.md): Done, steps 1-6 landed (`b834385c7` through the docs commit).
 - [One path namespace for a chat and its tasks](one-path-namespace.md): Completed.

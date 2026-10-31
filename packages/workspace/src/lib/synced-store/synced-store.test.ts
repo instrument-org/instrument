@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEVICE_A, DEVICE_B } from "../records/test-records";
 import { withTempDir } from "../../test/helpers/temp-dir";
+import { readBytes } from "../workspace-files";
 import { openSyncedStore, type SyncedStore } from "./synced-store";
+
+vi.mock(import("../workspace-files"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, readBytes: vi.fn(actual.readBytes) };
+});
 
 const dir = withTempDir("synced-store");
 const T0 = Date.parse("2026-10-19T12:00:00.000Z");
@@ -101,6 +107,32 @@ describe("openSyncedStore", () => {
     const b = await open(DEVICE_B);
     expect(b.get("bookmark/x")).toEqual({ title: "From A" });
     expect(readSync).not.toHaveBeenCalled();
+  });
+
+  it("reads another device's file again after a read of it failed", async () => {
+    const a = await open(DEVICE_A);
+    await a.apply([
+      { key: "bookmark/x", t: "set", value: { title: "From A" } },
+    ]);
+    const aFile = path.join(dir.path, DEVICE_A, "bookmarks.jsonl");
+    const actual =
+      await vi.importActual<typeof import("../workspace-files")>(
+        "../workspace-files",
+      );
+    let refused = false;
+    vi.mocked(readBytes).mockImplementation(async (file) => {
+      if (file === aFile && !refused) {
+        refused = true;
+        throw Object.assign(new Error("resource busy or locked"), {
+          code: "EBUSY",
+        });
+      }
+      return actual.readBytes(file);
+    });
+    const b = await open(DEVICE_B);
+    expect(b.get("bookmark/x")).toBeUndefined();
+    await b.look();
+    expect(b.get("bookmark/x")).toEqual({ title: "From A" });
   });
 
   it("leaves other files in the devices folder alone", async () => {

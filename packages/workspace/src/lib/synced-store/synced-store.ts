@@ -110,7 +110,7 @@ export async function openSyncedStore({
 
   // This device's file is folded from what its writer writes, as it writes
   // it, and from its bytes on disk as the store opens.
-  let ownBytes = await readIfThere(ownFile);
+  let ownBytes = await readIfThere(ownFile).catch(() => Buffer.alloc(0));
   fold.add(ownFile, ownBytes);
   let written = new Set<string>();
   const writer = new RecordWriter<SyncedRecord>(
@@ -163,11 +163,16 @@ export async function openSyncedStore({
       if (last?.size === stat.size && last.mtimeMs === stat.mtimeMs) {
         continue;
       }
-      seen.set(file, { mtimeMs: stat.mtimeMs, size: stat.size });
-      const bytes = await readIfThere(file);
+      // Seen only once read, so a read that failed (a cloud file that would
+      // not download, one another program holds) is tried again next look.
+      const bytes = await readIfThere(file).catch(() => undefined);
       if (closed) {
         return;
       }
+      if (bytes === undefined) {
+        continue;
+      }
+      seen.set(file, { mtimeMs: stat.mtimeMs, size: stat.size });
       for (const key of fold.add(file, bytes)) {
         changed.add(key);
       }
@@ -342,11 +347,15 @@ function watchFolder(
   };
 }
 
+/** A file's bytes, none when it is not there, failing on any other error. */
 async function readIfThere(file: string): Promise<Buffer> {
   try {
     return await readBytes(file);
-  } catch {
-    return Buffer.alloc(0);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return Buffer.alloc(0);
+    }
+    throw error;
   }
 }
 

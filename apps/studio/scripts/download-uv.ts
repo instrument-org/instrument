@@ -191,8 +191,7 @@ function parseChecksum(text: string): string {
   return hex.toLowerCase();
 }
 
-// Honor electron-builder's ARCH convention (used in electron-builder.ts) so a
-// cross-arch package build (e.g. mac x64 on an arm runner) vendors the right
+// Honor electron-builder's ARCH convention so a cross-arch package build (e.g. mac x64 on an arm runner) vendors the right
 // binary; fall back to the host arch otherwise.
 function resolveArch(): NodeArch {
   const arch = process.env.ARCH ?? process.arch;

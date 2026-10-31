@@ -1,6 +1,6 @@
 # Plan: one Mac update feed for both architectures
 
-Status: open. Not started. Nobody on an Intel Mac takes betas yet; do this before one does.
+Status: done. Built as below, with two departures: `latest-x64-mac.yml` is the x64 leg's own `latest` feed rather than a copy of the merged one, so a pinned install reads exactly what it read before, and the merged feeds are written as JSON, which every YAML parser reads with its types intact. The two release checks under Checks are still owed.
 
 ## Why Intel has its own channel
 

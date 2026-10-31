@@ -344,10 +344,6 @@ const config: Configuration = {
     provisioningProfile: isPreview
       ? undefined
       : "build/Instrument_Developer_ID.provisionprofile",
-    publish: {
-      ...publishConfig,
-      channel: process.env.ARCH === "x64" ? "${channel}-${arch}" : undefined,
-    },
     target: ["dmg", "zip"],
   },
   npmRebuild: true,

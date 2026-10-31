@@ -57,6 +57,7 @@ const config: KnipConfig = {
       ],
       ignoreBinaries: [
         "magick", // System ImageMagick used to generate the Windows folder icon
+        "yq", // On the Ubuntu runner image; parses the Mac legs' update manifests (scripts/merge-mac-feeds.ts)
         "swift", // Xcode toolchain that builds the Mac helper (scripts/build-mac-helper.ts)
         "clang", // Xcode toolchain that links the Mac helper's native module
         "plutil", // macOS tool that names the dev Electron clone (scripts/dev-supervisor.ts)

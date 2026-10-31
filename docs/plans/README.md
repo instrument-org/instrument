@@ -51,7 +51,6 @@ Each entry is the plan's title and the opening of its status.
 - [Grouping a run of tool calls under what it is for](grouped-activities.md): In progress -- the `activity` field, the heading, and collapsing groups are built;
 - [Incremental live transcript updates](incremental-live-transcript-updates.md): Partly overtaken.
 - [Everything visible in the Instrument folder](instrument-folder.md): Built and landed, apart from what is listed below.
-- [One Mac update feed for both architectures](intel-mac-update-feed.md): Not started.
 - [Bringing 1.x tasks and projects into chats](legacy-data-migration.md): Migration built (`packages/workspace/src/lib/migrate-legacy-tasks.ts`, first in `3d7504b0f`) and shipped in the 2.0 betas, then reshaped so the 1.x task's fo...
 - [Memory: what the conversation keeps about the user](memory.md): Built, first version, global only.
 - [Model request controls](model-request-controls.md): Phases 1 and 3 built;
@@ -113,6 +112,7 @@ Each entry is the plan's title and the opening of its status.
 - [Validate the inspector before drawing it again](inspector-validation.md): Complete.
 - [Apps in the Instrument 2.0 prototype](instrument-2-0-apps.md): Landed.
 - [The Instrument 2.0 orchestrator spike](instrument-2-0-prototype.md): Overtaken by the product it prototyped.
+- [One Mac update feed for both architectures](intel-mac-update-feed.md): Built as below, with two departures: `latest-x64-mac.yml` is the x64 leg's own `latest` feed rather than a copy of the merged one, so a pinned install reads...
 - [One Python and one JavaScript, both native](native-script-runtimes.md): Completed.
 - [One network status, shown in the window's corner](network-status.md): Landed in full: the status, the window-bar pill and its card in `f5721409f` (which replaced `PlatformApiIndicator`), setup's pill opening the card in `2d35ee...
 - [One capability layer](one-capability-layer.md): Landed in full (phase 3 in `5d7ff3d5b`), phases 0 to 3: the baseline, the registry with `apps.*` and both runtimes, the Mac apps as bundled MCP apps, and eve...

@@ -145,7 +145,7 @@ electron-updater returns the auto-download promise on the check result and attac
 
 ## Channels
 
-The feed URL is re-applied before every check, so a release-channel change in preferences takes effect without a restart. The channel is passed through `setFeedURL` options rather than `autoUpdater.channel`; the latter's setter flips `allowDowngrade` to `true` as a side effect, which would let the feed hand back an older build. macOS on Intel is pinned to `latest-x64`, the channel its release leg publishes to so its manifest does not overwrite the arm64 one; that is why Intel gets no betas. electron-updater itself can serve both from one manifest ([intel-mac-update-feed.md](../plans/intel-mac-update-feed.md)).
+The feed URL is re-applied before every check, so a release-channel change in preferences takes effect without a restart. The channel is passed through `setFeedURL` options rather than `autoUpdater.channel`; the latter's setter flips `allowDowngrade` to `true` as a side effect, which would let the feed hand back an older build. Both Mac architectures read the same feed: each channel's manifest lists the arm64 and the x64 zips, and `MacUpdater` takes the arm64 one on Apple silicon, an x64 install running under Rosetta included, and the other on Intel ([releasing.md](releasing.md#what-the-tag-starts)).
 
 ## Windows: Velopack
 

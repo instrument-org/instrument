@@ -45,8 +45,6 @@ type ConfirmQuit = () => Promise<boolean>;
 const { autoUpdater } = pkg;
 const scopedLogger = logger.scope("appUpdater");
 
-const IS_MACOS_INTEL = os.platform() === "darwin" && os.arch() === "x64";
-
 // TEST SEAM, preview builds only: `INSTRUMENT_TEST_UPDATE_FEED=<url>` turns a
 // preview's updater on against that feed, so an update between two builds of
 // one preview (the same signing identity, which Squirrel.Mac requires) can be
@@ -60,9 +58,6 @@ const TEST_UPDATE_FEED =
 const VELOPACK_FEED =
   TEST_UPDATE_FEED ??
   (process.env.INSTRUMENT_VELOPACK_FEED_URL || VELOPACK_FEED_URL);
-// macOS on Intel is the only custom channel, otherwise use the defaults.
-const MACOS_INTEL_CHANNEL = "latest-x64";
-
 // The staged update, recorded when the download finishes: where its artifact
 // landed, and what the feed published for it this session. On Linux the
 // artifact is checked against that right before it is installed; the Debian
@@ -418,13 +413,6 @@ function removeInstalledDownloads() {
 }
 
 function getChannel() {
-  // beta and alpha channels are not supported on macOS x64/intel due to lack of support
-  // from electron-builder.
-  // https://github.com/electron-userland/electron-builder/issues/5592
-  if (IS_MACOS_INTEL) {
-    return MACOS_INTEL_CHANNEL;
-  }
-
   // Release channels are used internally for testing and must be set on the
   // machine preferences store manually.
   const channel = getMachinePreferences().get("releaseChannel");

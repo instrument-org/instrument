@@ -26,12 +26,10 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import {
-  answerQuestionAsk,
-  declineSignInAsk,
-} from "../../lib/chat/drive-asks";
+import { answerQuestionAsk, declineSignInAsk } from "../../lib/chat/drive-asks";
 import { openAsks, openAsksOf } from "../../lib/chat/open-asks";
-import { AskSchema } from "../../schemas/chat-state";
+import { AskSchema, SignInAskSchema } from "../../schemas/chat-state";
+import { signInOfCall } from "../../lib/chat/asks";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
@@ -353,6 +351,33 @@ const liveAsksRoute = base
   });
 
 /**
+ * The sign-in a `connect_app` call put up, read again as the chat's records
+ * move: which computer asked it, where signing in happens, and its rows as
+ * that computer last wrote them, still up or not. None for a call that
+ * raised no ask.
+ */
+const liveSignInRoute = base
+  .input(z.object({ id: ChatIdSchema, partId: StoreId.PartSchema }))
+  .output(
+    eventIterator(SignInAskSchema.extend({ live: z.boolean() }).nullable()),
+  )
+  .handler(async function* ({ input, signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) =>
+              change.id === input.id &&
+              (change.kind === "messages" || change.kind === "session"),
+          ),
+        ],
+        read: () => signInOfCall(input.id, input.partId),
+      }),
+    );
+  });
+
+/**
  * Not now to a sign-in card, from any device: the computer that asked
  * turns down every app on it still waiting and wakes the chat once. Signing
  * in itself happens on that computer alone, where its sign-ins and keys
@@ -438,6 +463,7 @@ export const chats = {
   live: {
     ...chatRoutes.live,
     asks: liveAsksRoute,
+    signIn: liveSignInRoute,
     list: liveListChatsRoute,
     tasks: liveChildTasksRoute,
   },

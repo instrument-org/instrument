@@ -8,7 +8,11 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
-import { openPermissionAsks } from "../lib/chat/asks";
+import {
+  closeAsksOf,
+  openPermissionAsks,
+  signInOfCall,
+} from "../lib/chat/asks";
 import { openAsks } from "../lib/chat/open-asks";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
@@ -63,9 +67,11 @@ beforeEach(async () => {
 async function ask(
   { chatId, sessionId }: Awaited<ReturnType<typeof chat>>,
   slugs = ["linear"],
+  partId = StoreId.newPartId(),
 ) {
   const result = await runTool(ConnectApp, {
     chatId,
+    partId,
     sessionId,
     input: {
       activity: "Connecting Linear",
@@ -101,6 +107,23 @@ describe("connect_app", () => {
         }),
       ]);
     }
+  });
+
+  it("names the computer whose call it is, still up or written past", async () => {
+    const lisbon = await chat();
+    const partId = StoreId.newPartId();
+    await ask(lisbon, ["linear"], partId);
+
+    expect(await signInOfCall(lisbon.chatId, partId)).toMatchObject({
+      here: true,
+      live: true,
+    });
+    await closeAsksOf(lisbon.chatId, undefined);
+    expect(await signInOfCall(lisbon.chatId, partId)).toMatchObject({
+      here: true,
+      live: false,
+    });
+    expect(await signInOfCall(lisbon.chatId, StoreId.newPartId())).toBeNull();
   });
 
   it("answers that a connected app is connected, leaving its record alone", async () => {

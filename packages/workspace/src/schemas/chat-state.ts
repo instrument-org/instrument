@@ -168,7 +168,7 @@ export type QuestionAsk = z.output<typeof QuestionAskSchema>;
  * where its sign-ins and keys are; another device shows the card from here
  * and may say Not now to it.
  */
-const SignInAskSchema = z.object({
+export const SignInAskSchema = z.object({
   /** A Not now given and not taken yet: who gave it, and whether the computer that asked has. */
   answered: z.object({ by: z.string(), taken: z.boolean() }).optional(),
   /** Whether this device can say Not now to it: open, with no answer given yet. */

@@ -40,18 +40,15 @@ type ConnectAppPart = Extract<
  */
 export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
   const chatId = useContext(WindowContext)?.chatId;
-  // The chat's sign-in for this call, when another computer asked it: its
-  // rows are that computer's, where signing in happens.
-  const asks = useQuery(
+  // The sign-in this call put up, still up or not, which says the computer
+  // that asked: signing in happens there alone, where its sign-ins and keys
+  // are, so another computer's call never offers this one's controls.
+  const signIn = useQuery(
     chatId === undefined
-      ? { enabled: false, queryKey: ["no-chat-asks"] }
-      : rpcClient.workspace.chats.live.asks.experimental_liveOptions({
-          input: { id: chatId },
+      ? { enabled: false, queryKey: ["no-chat-sign-in"] }
+      : rpcClient.workspace.chats.live.signIn.experimental_liveOptions({
+          input: { id: chatId, partId: part.metadata.id },
         }),
-  ).data;
-  const remote = asks?.find(
-    (ask): ask is SignInAsk =>
-      ask.kind === "sign-in" && ask.partId === part.metadata.id && !ask.here,
   );
   if (!part.input) {
     return <ToolCardEmpty message="The request has not arrived yet." />;
@@ -59,10 +56,21 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
   if (part.state !== "output-available") {
     return null;
   }
-  if (remote !== undefined && chatId !== undefined) {
-    return (
-      <RemoteSignInCard ask={remote} chatId={chatId} reason={part.input.reason} />
-    );
+  if (chatId !== undefined) {
+    // Which computer asked is not known yet: neither card, rather than
+    // controls that might be the wrong computer's.
+    if (signIn.data === undefined) {
+      return null;
+    }
+    if (signIn.data !== null && !signIn.data.here) {
+      return (
+        <RemoteSignInCard
+          ask={signIn.data}
+          chatId={chatId}
+          reason={part.input.reason}
+        />
+      );
+    }
   }
   const results = connectAppResults(part.output);
   const rows = askedOnCard(part.output);
@@ -100,7 +108,7 @@ function RemoteSignInCard({
   chatId,
   reason,
 }: {
-  ask: SignInAsk;
+  ask: SignInAsk & { live: boolean };
   chatId: ChatId;
   reason: string;
 }) {
@@ -132,25 +140,27 @@ function RemoteSignInCard({
           </span>
         </div>
       ))}
-      <div className="flex min-h-11 items-center justify-between gap-3 border-t border-border bg-muted/40 px-4 py-1.5">
-        <span className="text-xs text-muted-foreground">
-          {ask.answered
-            ? `You said not now from ${ask.answered.by}. It takes effect once ${ask.computer} picks it up.`
-            : `You can sign in on ${ask.computer}.`}
-        </span>
-        {ask.answerable ? (
-          <Button
-            disabled={decline.isPending}
-            onClick={() => {
-              decline.mutate({ askId: ask.id, id: chatId });
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            Not now
-          </Button>
-        ) : null}
-      </div>
+      {ask.live ? (
+        <div className="flex min-h-11 items-center justify-between gap-3 border-t border-border bg-muted/40 px-4 py-1.5">
+          <span className="text-xs text-muted-foreground">
+            {ask.answered
+              ? `You said not now from ${ask.answered.by}. It takes effect once ${ask.computer} picks it up.`
+              : `You can sign in on ${ask.computer}.`}
+          </span>
+          {ask.answerable ? (
+            <Button
+              disabled={decline.isPending}
+              onClick={() => {
+                decline.mutate({ askId: ask.id, id: chatId });
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Not now
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </ToolCard>
   );
 }

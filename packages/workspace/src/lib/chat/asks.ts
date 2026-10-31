@@ -508,6 +508,32 @@ async function signInAskOf(
   };
 }
 
+/**
+ * The sign-in a `connect_app` call put up, as this device's readers draw
+ * it, whether or not it still waits: the one of the call's asks still up,
+ * else its newest. None for a call that raised no ask.
+ */
+export async function signInOfCall(
+  chatId: ChatId,
+  partId: StoreId.Part,
+): Promise<(SignInAsk & { live: boolean }) | null> {
+  const ofCall = (await chatAskStates(chatId)).filter(
+    ({ ask }) => ask.kind === "sign-in" && ask.partId === partId,
+  );
+  const state =
+    ofCall.find(({ live }) => live) ??
+    ofCall.toSorted(
+      (a, b) => b.ask.askedAt.getTime() - a.ask.askedAt.getTime(),
+    )[0];
+  if (state?.ask.kind !== "sign-in") {
+    return null;
+  }
+  return {
+    ...(await signInAskOf({ ...state, ask: state.ask })),
+    live: state.live,
+  };
+}
+
 /** The live asks among `states` as this device's readers draw them, oldest first. */
 export function asksOf(states: readonly AskState[]): Promise<Ask[]> {
   return Promise.all(

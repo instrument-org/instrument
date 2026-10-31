@@ -13,7 +13,7 @@ import { ToolConnectApp } from "./tool-connect-app";
 const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
-    asks: vi.fn<() => Promise<unknown>>(),
+    signIn: vi.fn<() => Promise<unknown>>(),
     declineSignIn:
       vi.fn<(input: { askId: string; id: string }) => Promise<unknown>>(),
     dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
@@ -69,7 +69,7 @@ vi.mock("@/client/rpc/client", () => ({
             mutationFn: mocks.declineSignIn,
           }),
         },
-        live: { asks: query("asks", mocks.asks) },
+        live: { signIn: query("signIn", mocks.signIn) },
       },
     },
     utils: {
@@ -171,8 +171,8 @@ async function cardReads(): Promise<string[]> {
 }
 
 beforeEach(() => {
-  mocks.asks.mockReset();
-  mocks.asks.mockResolvedValue([]);
+  mocks.signIn.mockReset();
+  mocks.signIn.mockResolvedValue(null);
   mocks.declineSignIn.mockReset();
   mocks.apps.mockReset();
   mocks.dismiss.mockReset();
@@ -475,23 +475,26 @@ describe("the card asking for several apps", () => {
 });
 
 describe("a sign-in card another computer put up", () => {
+  /** The call's sign-in as the asking computer, "Studio Mac", last wrote it. */
+  const asked = (extra: object = {}) => ({
+    answerable: true,
+    apps: [{ name: "Outlook", slug: "outlook", standing: "waiting" }],
+    askedAt: new Date(1),
+    askers: [],
+    computer: "Studio Mac",
+    device: "dev_0WNER000",
+    here: false,
+    id: "ask-1",
+    kind: "sign-in",
+    live: true,
+    messageId: StoreId.newMessageId(),
+    partId: PART_ID,
+    ...extra,
+  });
+
   it("draws its rows as that computer wrote them, and says Not now from here", async () => {
     mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
-    mocks.asks.mockResolvedValue([
-      {
-        answerable: true,
-        apps: [{ name: "Outlook", slug: "outlook", standing: "waiting" }],
-        askedAt: new Date(1),
-        askers: [],
-        computer: "Studio Mac",
-        device: "dev_0WNER000",
-        here: false,
-        id: "ask-1",
-        kind: "sign-in",
-        messageId: StoreId.newMessageId(),
-        partId: PART_ID,
-      },
-    ]);
+    mocks.signIn.mockResolvedValue(asked());
     mocks.declineSignIn.mockResolvedValue(undefined);
     renderCard("2026-10-31-mail");
 
@@ -507,5 +510,42 @@ describe("a sign-in card another computer put up", () => {
         expect.anything(),
       );
     });
+  });
+
+  // Written past, or settled with an app skipped: still that computer's
+  // card, so this one never offers to sign in, which would keep the
+  // credentials here and wake nobody.
+  it("never offers this computer's sign-in once it no longer waits", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    mocks.signIn.mockResolvedValue(
+      asked({
+        answerable: false,
+        apps: [{ name: "Outlook", slug: "outlook", standing: "declined" }],
+        live: false,
+      }),
+    );
+    renderCard("2026-10-31-mail");
+
+    expect(await screen.findByText("Skipped")).toBeDefined();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  it("draws nothing while it is not known which computer asked", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    mocks.signIn.mockReturnValue(new Promise(() => {}));
+    const { container } = renderCard("2026-10-31-mail");
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(container.textContent).toBe("");
+  });
+
+  it("offers this computer's own sign-in on a call it asked", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    mocks.signIn.mockResolvedValue(asked({ here: true }));
+    renderCard("2026-10-31-mail");
+
+    expect(
+      await screen.findAllByRole("button", { name: /sign in/i }),
+    ).not.toEqual([]);
   });
 });

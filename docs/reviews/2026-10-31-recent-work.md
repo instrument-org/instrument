@@ -45,7 +45,7 @@ Five blind readers took one area each, following `REVIEW.md`: the capability reg
 
 ### E. Removing the installed download at launch reads a stable arm64 Mac zip's version as a prerelease and deletes it on a beta
 
-- Status: open
+- Status: fixed `9b5452b5d`
 - Where: [updater-cache.ts:55](/apps/studio/src/electron-main/lib/updater-cache.ts#L55)
 - What: the Mac target sets no `artifactName`, so its zip keeps electron-builder's `Instrument-2.0.0-arm64-mac.zip`, and the optional prerelease group takes `-arm64`. `2.0.0-arm64` sorts below `2.0.0-beta.119`, so on an arm64 beta a 2.0.0 download that never installed (the app quit before Squirrel finished) is deleted at the next launch and fetched again. An x64 zip reads as newer and is kept.
 - Verification: run by the reviewer with the same regex and `semver`: `Instrument-2.0.0-arm64-mac.zip 2.0.0-arm64 removed: true`.
@@ -54,7 +54,7 @@ Five blind readers took one area each, following `REVIEW.md`: the capability reg
 
 ### F. While a restart waits on a newer download, the no-window clock goes stale and can restart right after the window was used
 
-- Status: open
+- Status: fixed `c425a6a41`
 - Where: [idle-restart.ts:203](/apps/studio/src/electron-main/lib/idle-restart.ts#L203), [idle-restart.ts:61](/apps/studio/src/electron-main/lib/idle-restart.ts#L61), [idle-restart-policy.ts:123](/apps/studio/src/electron-main/lib/idle-restart-policy.ts#L123)
 - What: once `restarting` is set, `tick` returns early for up to the three-minute superseding-download wait, so nothing samples the window; the focus handler clears only `quietSince`. Open the window, use it, minimize it, and the `confirm` reading sees `shown: false` with the old `noWindowSince` and restarts at once. Work, focus and the lock are re-read, so nothing running is cut off.
 - Verification: traced statically.

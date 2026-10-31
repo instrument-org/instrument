@@ -367,7 +367,6 @@ export const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
 // so it belongs to the code table instead.
 export const MEDIA_EXTENSIONS: Record<string, FileType> = {
   aac: "audio",
-  aiff: "audio",
   avif: "image",
   bmp: "image",
   flac: "audio",
@@ -395,6 +394,36 @@ export const MEDIA_EXTENSIONS: Record<string, FileType> = {
   webp: "image",
 };
 
+/**
+ * Audio and video whose decoding depends on the codec inside or that Chromium
+ * may not read at all (AVI, WMV, AIFF), still sent to the player: playback
+ * fails into the fallback card, which beats never trying a file that would
+ * have played. Kept out of `MEDIA_EXTENSIONS`, so the system's Open With
+ * offers Instrument only for what it reliably plays.
+ */
+export const TRIED_MEDIA_EXTENSIONS: Record<string, FileType> = {
+  "3g2": "video",
+  "3gp": "video",
+  aif: "audio",
+  aifc: "audio",
+  aiff: "audio",
+  amr: "audio",
+  avi: "video",
+  caf: "audio",
+  flv: "video",
+  m2ts: "video",
+  m4b: "audio",
+  m4r: "audio",
+  mka: "audio",
+  mkv: "video",
+  mpeg: "video",
+  mpg: "video",
+  mts: "video",
+  weba: "audio",
+  wma: "audio",
+  wmv: "video",
+};
+
 export function getFileType({
   filename,
   mimeType,
@@ -420,7 +449,9 @@ export function getFileType({
     return documentType;
   }
 
-  const mediaType = extension ? MEDIA_EXTENSIONS[extension] : undefined;
+  const mediaType = extension
+    ? (MEDIA_EXTENSIONS[extension] ?? TRIED_MEDIA_EXTENSIONS[extension])
+    : undefined;
   if (mediaType) {
     return mediaType;
   }

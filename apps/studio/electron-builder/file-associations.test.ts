@@ -22,6 +22,15 @@ describe("documentTypesWearingAppIcon", () => {
   });
 });
 
+describe("WINDOWS_EXTENSIONS", () => {
+  it("offers Instrument only for media it reliably plays", () => {
+    expect(WINDOWS_EXTENSIONS).toContain("mp4");
+    for (const tried of ["avi", "wmv", "mkv", "aiff"]) {
+      expect(WINDOWS_EXTENSIONS).not.toContain(tried);
+    }
+  });
+});
+
 describe("windowsFileAssociationsScript", () => {
   it("adds Instrument to Open With and takes it out on uninstall", () => {
     expect(windowsFileAssociationsScript(["md"])).toMatchInlineSnapshot(`

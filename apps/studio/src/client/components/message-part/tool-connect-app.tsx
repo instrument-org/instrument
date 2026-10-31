@@ -67,6 +67,7 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
         <RemoteSignInCard
           ask={signIn.data}
           chatId={chatId}
+          kind={askedOnCard(part.output)[0]?.kind ?? "sign-in"}
           reason={part.input.reason}
         />
       );
@@ -106,10 +107,13 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
 function RemoteSignInCard({
   ask,
   chatId,
+  kind,
   reason,
 }: {
   ask: SignInAsk & { live: boolean };
   chatId: ChatId;
+  /** What the call asked of its one app, for the title the asking computer shows. */
+  kind: Extract<ConnectAppResult, { state: "asked" }>["kind"];
   reason: string;
 }) {
   const decline = useMutation(
@@ -124,7 +128,7 @@ function RemoteSignInCard({
       <div className="px-4 py-3">
         <p className="text-sm font-medium">
           {ask.apps.length === 1
-            ? `Connect ${ask.apps[0]?.name ?? "an app"}`
+            ? connectTitle(kind, ask.apps[0]?.name ?? "the app", ask.computer)
             : `Connect ${ask.apps.length} apps`}
         </p>
         <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
@@ -163,6 +167,31 @@ function RemoteSignInCard({
       ) : null}
     </ToolCard>
   );
+}
+
+/** A one-app card's title, the same on every computer: what the app needs. */
+function connectTitle(
+  kind: Extract<ConnectAppResult, { state: "asked" }>["kind"],
+  name: string,
+  computer: string,
+): string {
+  switch (kind) {
+    case "sign-in": {
+      return `Sign in to ${name}`;
+    }
+    case "web": {
+      return `Sign in to ${name} on the web`;
+    }
+    case "key": {
+      return `${name} needs a key`;
+    }
+    case "run": {
+      return `${name} runs on ${computer}`;
+    }
+    default: {
+      return `Connect ${name}`;
+    }
+  }
 }
 
 /** Where a row of another computer's sign-in stands, as that computer last wrote it. */
@@ -250,15 +279,7 @@ function ConnectCard({
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">
-                {kind === "sign-in"
-                  ? `Sign in to ${name}`
-                  : kind === "web"
-                    ? `Sign in to ${name} on the web`
-                    : kind === "key"
-                      ? `${name} needs a key`
-                      : kind === "run"
-                        ? `${name} runs on ${osConventions().thisComputer}`
-                        : `Connect ${name}`}
+                {connectTitle(kind, name, osConventions().thisComputer)}
               </p>
               <p className="text-xs leading-5 text-muted-foreground">
                 {reason}

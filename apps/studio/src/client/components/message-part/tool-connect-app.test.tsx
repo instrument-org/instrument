@@ -501,6 +501,8 @@ describe("a sign-in card another computer put up", () => {
     expect(
       await screen.findByText("You can sign in on Studio Mac."),
     ).toBeDefined();
+    // Titled as the computer that asked titles it.
+    expect(screen.getByText("Sign in to Outlook")).toBeDefined();
     expect(screen.getByText("Not signed in yet")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));

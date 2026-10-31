@@ -75,7 +75,11 @@ function isMovedPast(ask: AskRecord, moved: MovedPast | undefined): boolean {
     return false;
   }
   return (
-    (moved.typed !== undefined && moved.typed > ask.messageId) ||
+    (moved.typed !== undefined &&
+      moved.typed >
+        (ask.kind === "sign-in"
+          ? (ask.since ?? ask.messageId)
+          : ask.messageId)) ||
     (moved.stoppedAt !== undefined &&
       moved.stoppedAt.getTime() >= ask.askedAt.getTime())
   );

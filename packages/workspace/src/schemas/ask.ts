@@ -235,6 +235,12 @@ export const AskRecordSchema = z.discriminatedUnion("kind", [
     /** The apps the call named that could not be asked, with why. */
     notOnCard: SessionMessageDataPart.NotOnCardSchema.optional(),
     partId: StoreId.PartSchema,
+    /**
+     * Where what the person writes starts moving past it, when not the
+     * call's own message: a card waited on again after they wrote past it
+     * (`waitInChat`) waits from then.
+     */
+    since: StoreId.MessageSchema.optional(),
   }),
 ]);
 

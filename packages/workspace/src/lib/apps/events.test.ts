@@ -401,6 +401,32 @@ describe("a card asking for several apps", () => {
     expect(await openAsks(chatId)).toEqual([]);
   });
 
+  it("wakes the chat for a sign-in on a card the person already wrote past", async () => {
+    const { chatId, sessionId } = await chatWithCard();
+    await answerRow("drive", "connected");
+    await answerRow("docs", "declined");
+    // The person moves on before the last row, which leaves the card.
+    await writeMessage(chatId, sessionId, "user", [
+      { state: "done", text: "Never mind Gmail for now.", type: "text" },
+    ]);
+    expect(await openAsks(chatId)).toEqual([]);
+    woken.mockClear();
+
+    // Then signs in on that card's row after all.
+    await waitInChat("gmail", chatId);
+    await answerRow("gmail", "connected");
+
+    await vi.waitFor(() =>
+      expect(wakes()).toEqual([
+        {
+          chatId,
+          events: ["gmail connected as you@example.com"],
+          signIns: undefined,
+        },
+      ]),
+    );
+  });
+
   it("names the apps its call could not ask for in the settling note", async () => {
     const reason =
       'No app is "sheets": no APP.md in Apps/ gives that as its id.';

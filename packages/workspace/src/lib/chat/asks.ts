@@ -17,7 +17,7 @@ import {
 } from "../../schemas/chat-state";
 import { type DeviceId } from "../../schemas/device-id";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { type StoreId } from "../../schemas/store-id";
+import { StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
 import { askLine } from "../choose-call";
@@ -271,7 +271,7 @@ export async function recordSignIn(
   asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
   apps: { name: string; slug: string }[],
   notOnCard: SessionMessageDataPart.NotOnCard | undefined,
-  { id = asker.partId }: { id?: string } = {},
+  { id = asker.partId, since }: { id?: string; since?: StoreId.Message } = {},
 ): Promise<void> {
   if (apps.length === 0) {
     return;
@@ -316,6 +316,7 @@ export async function recordSignIn(
       messageId: asker.messageId,
       ...(notOnCard && { notOnCard }),
       partId: asker.partId,
+      ...(since && { since }),
       stage: { is: "open" },
     });
   });
@@ -356,7 +357,8 @@ export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
     },
     [{ name: app.name, slug }],
     undefined,
-    { id: ulid() },
+    // Waiting from now, past whatever the person wrote since the call.
+    { id: ulid(), since: StoreId.newMessageId() },
   );
 }
 

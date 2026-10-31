@@ -2,6 +2,7 @@ import { displayLocale } from "@/client/lib/display-locale";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
+import { BELL_TOASTER } from "@/client/components/ui/sonner";
 import {
   Popover,
   PopoverContent,
@@ -192,6 +193,7 @@ function useToastLoudNotices(
             },
             description: notice.body,
             duration: notice.severity === "critical" ? Infinity : undefined,
+            toasterId: BELL_TOASTER,
           });
         })
         .catch(() => {

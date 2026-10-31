@@ -12,6 +12,10 @@ import { setToastDeveloperMode } from "@/client/lib/toast";
 import { useTheme } from "../theme-provider";
 import { Spinner } from "./spinner";
 
+// The bell's notices toast from a second Toaster hung under the bell
+// (`window/window-frame.tsx`), so a notice turns up where it waits afterward.
+export const BELL_TOASTER = "bell";
+
 // Toasts sit low in the window's bottom-left corner, where the pointer rarely
 // is; a window with a rail moves them in past it (`window/window-frame.tsx`).
 // A toast with only a title is a one-line pill as wide as its words; one with

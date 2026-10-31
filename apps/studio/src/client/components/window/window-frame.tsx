@@ -2,7 +2,7 @@ import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { SetupHost } from "@/client/components/setup/setup-host";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
-import { Toaster } from "@/client/components/ui/sonner";
+import { BELL_TOASTER, Toaster } from "@/client/components/ui/sonner";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
@@ -15,6 +15,8 @@ import { LinkSurface } from "./link-surface";
 // The toasts' corner, 12px in from the card's own: the rail on its left, and
 // the card's `mb-2` foot below it.
 const CARD_CORNER = { bottom: 8 + 12, left: APP_RAIL_WIDTH + 12 };
+// Just under the bell, at the bar's right end.
+const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 
 // A pasted file opened from a composer, at its full size: loaded the first
 // time one is opened, since most windows never open one.
@@ -115,6 +117,12 @@ export function WindowFrame({
               {...(rail
                 ? { mobileOffset: CARD_CORNER, offset: CARD_CORNER }
                 : {})}
+            />
+            <Toaster
+              id={BELL_TOASTER}
+              mobileOffset={BELL_CORNER}
+              offset={BELL_CORNER}
+              position="top-right"
             />
           </>
         )}

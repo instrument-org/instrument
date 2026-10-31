@@ -9,7 +9,13 @@ import { setChatModel } from "../../lib/chat-settings";
 import { heldTabs } from "../../lib/held-tabs";
 import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
-import { closeAsksOf, recordAsk, takeAnswer } from "../../lib/chat/asks";
+import {
+  answerCard,
+  closeAsksOf,
+  openPermissionAsks,
+  recordAsk,
+  takeAnswer,
+} from "../../lib/chat/asks";
 import { takeCardAnswers } from "../../lib/chat/card-answers";
 import { chatGrants } from "../../lib/chat/grants";
 import { openAsks } from "../../lib/chat/open-asks";
@@ -54,6 +60,36 @@ vi.mock(import("../../lib/chat/folder-look"), async (importOriginal) => {
     ...original,
     listFolder: (folderPath: string) =>
       macos.look ? macos.look() : original.listFolder(folderPath),
+  };
+});
+
+// A write a test makes fail, by what it is about.
+const failing = vi.hoisted(() => ({
+  denial: false,
+  grant: undefined as string | undefined,
+}));
+vi.mock(import("../../lib/permissions/denials"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    setDenied: async (...args: Parameters<typeof original.setDenied>) => {
+      if (failing.denial) {
+        throw new Error("permissions.json could not be written");
+      }
+      return original.setDenied(...args);
+    },
+  };
+});
+vi.mock(import("../../lib/chat/grants"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    grantFolder: async (...args: Parameters<typeof original.grantFolder>) => {
+      if (args[0].path === failing.grant) {
+        throw new Error(`could not grant ${args[0].path}`);
+      }
+      return original.grantFolder(...args);
+    },
   };
 });
 
@@ -418,6 +454,66 @@ describe("permissions.answer", () => {
       "using Contacts needs the person's yes first.",
     );
   });
+  it("wakes the askers of a declined card when the refusal cannot be kept", async () => {
+    const { chatId, own, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    const [card] = await openAsks(chatId);
+    const sentBefore = sent.length;
+    failing.denial = true;
+
+    try {
+      await expect(
+        call(
+          permissions.answer,
+          { askId: card?.id ?? "", decision: "declined", id: chatId },
+          { context: context() },
+        ),
+      ).rejects.toThrow("permissions.json could not be written");
+    } finally {
+      failing.denial = false;
+    }
+
+    expect(await openAsks(chatId)).toEqual([]);
+    expect(wokenSince(sentBefore)).toEqual(
+      expect.arrayContaining([
+        { answer: ["declined"], sessionId: own },
+        { answer: ["declined"], sessionId: task },
+      ]),
+    );
+  });
+
+  it("answers a card by its own outcome when another card taken with it fails", async () => {
+    const { chatId, own, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Cellar");
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    const cards = await openPermissionAsks(chatId);
+    const cellar = cards.find((card) => card.target === "/Users/me/Cellar");
+    const pantry = cards.find((card) => card.target === "/Users/me/Pantry");
+    // Another device's yes to the cellar, not taken yet when the person
+    // answers the pantry, so one look takes both.
+    await answerCard(chatId, cellar?.id ?? "", "allowed");
+    failing.grant = "/Users/me/Cellar";
+    const sentBefore = sent.length;
+
+    try {
+      await call(
+        permissions.answer,
+        { askId: pantry?.id ?? "", decision: "allowed", id: chatId },
+        { context: context() },
+      );
+    } finally {
+      failing.grant = undefined;
+    }
+
+    expect(wokenSince(sentBefore)).toEqual([
+      { answer: ["allowed"], sessionId: own },
+    ]);
+    expect(
+      (await openPermissionAsks(chatId)).map((card) => card.target),
+    ).toEqual(["/Users/me/Cellar"]);
+  });
+
   it("says not now to every card at once", async () => {
     const { chatId, own } = await chatWithTask();
     await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");

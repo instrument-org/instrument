@@ -102,7 +102,14 @@ export async function answerAsk(
   if (!answer) {
     await answerCard(chatId, askId, decision);
   }
-  await takeCardAnswers(chatId, workspaceRef);
+  // Another card this pass takes settles on its own, and its failure is
+  // reported, never this call's.
+  const others = (await takeDueAnswers(chatId, workspaceRef)).filter(
+    (started) => started.askId !== askId,
+  );
+  void Promise.all(others.map(({ outcome }) => outcome)).catch(
+    getWorkspaceConfig().captureException,
+  );
   // Whichever pass took the card's answer, this one or the watcher's that
   // heard the write, the call settles with it, and fails with it.
   await acting.get(actingKey(chatId, askId));
@@ -160,10 +167,22 @@ export async function takeCardAnswers(
   chatId: ChatId,
   workspaceRef: WorkspaceActorRef,
 ): Promise<void> {
-  const started = await taking(chatId, async () => {
+  const started = await takeDueAnswers(chatId, workspaceRef);
+  await Promise.all(started.map(({ outcome }) => outcome));
+}
+
+/**
+ * One look at the chat's cards that takes what is due and starts acting on
+ * it, answering what it started, card by card, without waiting for any.
+ */
+function takeDueAnswers(
+  chatId: ChatId,
+  workspaceRef: WorkspaceActorRef,
+): Promise<{ askId: string; outcome: Promise<void> }[]> {
+  return taking(chatId, async () => {
     await takeStops(chatId);
     const due = (await openCards(chatId)).filter((open) => isDue(open, chatId));
-    const acts: Promise<void>[] = [];
+    const started: { askId: string; outcome: Promise<void> }[] = [];
     for (const { answer, card } of due) {
       if (!answer) {
         continue;
@@ -176,12 +195,14 @@ export async function takeCardAnswers(
             device: answer.device,
           });
       if (took) {
-        acts.push(startActing(chatId, took, answer.decision, workspaceRef));
+        started.push({
+          askId: took.id,
+          outcome: startActing(chatId, took, answer.decision, workspaceRef),
+        });
       }
     }
-    return acts;
+    return started;
   });
-  await Promise.all(started);
 }
 
 /** Acts on a card's taken answer, kept where any caller can wait for it. */
@@ -265,7 +286,11 @@ export function startCardAnswers(workspaceRef: WorkspaceActorRef): void {
   })();
 }
 
-/** Closes a card with a no, which the chat keeps, and wakes its askers with it. */
+/**
+ * Closes a card with a no, which the chat keeps, and wakes its askers with
+ * it. Closing is what claims the card, and no failure after it keeps the
+ * wake from going out, so a closed card's askers are not left waiting.
+ */
 async function decline(
   chatId: ChatId,
   ask: PermissionCard,
@@ -276,10 +301,16 @@ async function decline(
   if (!closed) {
     return;
   }
-  // A tab kept is the person's to keep; asking again later is no worse for it.
-  if (ask.kind !== "tab") {
-    await setDenied(chatId, ask.kind, ask.target, true);
-  }
+  // Kept before the wake, so an asker that asks again meets it; one that
+  // cannot be kept still wakes the askers, then fails the call. A tab kept
+  // is the person's to keep; asking again later is no worse for it.
+  const denied =
+    ask.kind === "tab"
+      ? undefined
+      : await setDenied(chatId, ask.kind, ask.target, true).then(
+          () => undefined,
+          (error: unknown) => ({ error }),
+        );
   await wakeAskers(
     {
       data: {
@@ -294,6 +325,9 @@ async function decline(
     chatId,
     closed.askers.map((asker) => asker.sessionId),
   );
+  if (denied !== undefined) {
+    throw denied.error;
+  }
 }
 
 /**
@@ -320,12 +354,18 @@ async function moveTabIn(
   const driver = closed.askers[0]?.sessionId;
   const moved =
     took !== undefined && took.error === undefined && tabId !== null;
-  if (moved && driver !== undefined) {
-    await updateHeldTabs(chatId, driver, (tabs) => [
-      ...tabs.filter((tab) => tab.id !== tabId),
-      { id: tabId, inWindow: true, openedBy: "handed" },
-    ]);
-  }
+  // A write of the driver's tabs that fails still wakes the askers, then
+  // fails the call.
+  const held =
+    moved && driver !== undefined
+      ? await updateHeldTabs(chatId, driver, (tabs) => [
+          ...tabs.filter((tab) => tab.id !== tabId),
+          { id: tabId, inWindow: true, openedBy: "handed" },
+        ]).then(
+          () => undefined,
+          (error: unknown) => ({ error }),
+        )
+      : undefined;
   await wakeAskers(
     {
       data: {
@@ -340,6 +380,9 @@ async function moveTabIn(
     chatId,
     closed.askers.map((asker) => asker.sessionId),
   );
+  if (held !== undefined) {
+    throw held.error;
+  }
 }
 
 /**

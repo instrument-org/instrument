@@ -28,7 +28,7 @@ const log = logger.scope("idleRestart");
  * Restarts the app to install a staged update while no one is using it
  * (`idle-restart-policy.ts` decides when). It reads the facts every
  * `recheckMs` while it runs, and a window taking focus starts the backstop's
- * wait over at once.
+ * and the no-window waits over at once.
  *
  * The restart goes through the updater's own install, in its automatic mode:
  * the same latch, pre-install check and wait for a superseding download as
@@ -58,9 +58,12 @@ export function startIdleRestart({
   let lockedAt: number | undefined;
   let lockSeenAt: number | undefined;
 
+  // A focused window is in view, which resets the no-window clock too: no
+  // reading is taken while a restart waits on a download, so the last look
+  // would otherwise see a window minimized again with the clock from before.
   app.on("browser-window-focus", () => {
     focuses += 1;
-    state = { ...state, quietSince: undefined };
+    state = { noWindowSince: undefined, quietSince: undefined };
   });
   powerMonitor.on("lock-screen", () => {
     lockedAt = Date.now();

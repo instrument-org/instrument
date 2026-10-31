@@ -60,7 +60,7 @@ const PROVIDER_METADATA = {
     },
     // Added by signing in through Instrument's copy of Claude Code, never with a key.
     canAddManually: false,
-    description: "Claude models on your Claude Pro or Max subscription",
+    description: "Claude models on your paid Claude plan",
     name: "Claude",
     quirks: { supportsMultipartToolResults: true },
     // Searches with Claude Code's own WebSearch, run on Anthropic's side.

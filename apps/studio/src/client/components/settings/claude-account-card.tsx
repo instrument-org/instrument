@@ -194,7 +194,8 @@ function describe(status: Status) {
   }
   switch (status.kind) {
     case "signed-in": {
-      // Claude Code names the subscription in lowercase: `pro`, `max`.
+      // Claude's own name ("Ultra"), or Claude Code's lowercase `pro`, `max`
+      // where its text status names none.
       return [status.email, status.plan && capitalize(status.plan)]
         .filter(Boolean)
         .join(" · ");
@@ -202,14 +203,14 @@ function describe(status: Status) {
     case "signed-out": {
       return status.expired
         ? "You're signed out. Continue with Claude to sign in again."
-        : "Pay for Claude Pro or Max? Use it here.";
+        : "Pay for a Claude plan? Use it here.";
     }
     case "not-a-plan": {
       return "This sign-in uses an API key rather than a Claude subscription. Continue with Claude to sign in with your Claude account.";
     }
     case "not-installed": {
       return status.canInstall
-        ? "Pay for Claude Pro or Max? Use it here."
+        ? "Pay for a Claude plan? Use it here."
         : `Claude Code doesn't run on this computer, so ${APP_NAME} can't use a Claude subscription here.`;
     }
   }

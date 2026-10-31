@@ -315,8 +315,17 @@ async function readSignIn(executablePath: string) {
     email: parsed.email ?? undefined,
     executablePath,
     kind: "signed-in" as const,
-    plan: parsed.subscriptionType ?? undefined,
+    plan: planName(text) ?? parsed.subscriptionType ?? undefined,
   };
+}
+
+/**
+ * The plan as Claude names it, from the text status's
+ * "Login method: Claude Ultra account". The JSON's `subscriptionType` keeps
+ * Claude's internal names, `max` for both Max and Ultra.
+ */
+function planName(text: string) {
+  return /^Login method: Claude (.+?) account$/m.exec(text)?.[1];
 }
 
 /**

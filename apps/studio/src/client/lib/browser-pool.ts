@@ -123,6 +123,12 @@ export interface GuestEventMap {
  * empty page (no address, no history) and ignores what it is asked to do.
  */
 export interface GuestHandle {
+  /**
+   * Lets the page play sound, when the window has focus: for a page a person
+   * opened from the window. A guest starts muted, since an agent may be
+   * driving it with nobody watching.
+   */
+  allowSound(): void;
   canGoBack(): boolean;
   canGoForward(): boolean;
   /** The page as it looks now, as a data URL; null when nothing could be taken. */
@@ -132,7 +138,10 @@ export interface GuestHandle {
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
   /** Whether the page, or a frame in it, is still loading. */
   isLoading(): boolean;
-  /** Loads `url`, settling once it has, and rejecting for a load that failed. */
+  /**
+   * Loads `url`, settling once it has, and rejecting for a load that failed.
+   * Only the window asks for one, for a person, so it calls `allowSound` first.
+   */
   load(url: string): Promise<void>;
   on<K extends keyof GuestEventMap>(
     event: K,
@@ -192,6 +201,7 @@ interface WebviewElement extends HTMLElement {
   reloadIgnoringCache(): void;
   /** A message to the guest's preload, on a channel it listens on. */
   send(channel: string, ...args: unknown[]): void;
+  setAudioMuted(muted: boolean): void;
   setZoomFactor(factor: number): void;
   stop(): void;
   stopFindInPage(
@@ -1018,7 +1028,15 @@ function guestHandle(
       return otherwise;
     }
   };
+  const allowSound = () => {
+    if (document.hasFocus()) {
+      guard(() => {
+        webview.setAudioMuted(false);
+      }, undefined);
+    }
+  };
   return {
+    allowSound,
     canGoBack: () => guard(() => webview.canGoBack(), false),
     canGoForward: () => guard(() => webview.canGoForward(), false),
     capture: async () => {
@@ -1037,7 +1055,10 @@ function guestHandle(
       guard(() => webview.findInPage(text, options), 0);
     },
     isLoading: () => guard(() => webview.isLoading(), false),
-    load: (url) => webview.loadURL(url),
+    load: (url) => {
+      allowSound();
+      return webview.loadURL(url);
+    },
     on: (event, listener) => {
       // Electron fires these as DOM events carrying its own fields, which
       // the DOM's types know nothing of; GuestEventMap names them.

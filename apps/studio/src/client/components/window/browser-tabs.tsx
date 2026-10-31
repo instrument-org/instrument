@@ -433,10 +433,19 @@ export function BrowserTabs({
         select: show || into === undefined || into === onScreen,
       }),
     );
-    void rpcClient.workspace.browser.open.call({
-      targetId: browserTargetOf(id),
-      ...(url ? { url } : {}),
-    });
+    // Read now: by the time the guest is up, the window may have lost focus
+    // to whatever the page opened.
+    const audible = url !== undefined && document.hasFocus();
+    void rpcClient.workspace.browser.open
+      .call({
+        targetId: browserTargetOf(id),
+        ...(url ? { url } : {}),
+      })
+      .then(() => {
+        if (audible) {
+          getGuest(browserTargetOf(id))?.allowSound();
+        }
+      });
     return id;
   };
 

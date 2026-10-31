@@ -26,7 +26,9 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
-import { recordAsk, recordQuestion } from "./asks";
+import { type WorkspaceActorRef } from "../../machines/workspace";
+import { recordAsk, recordQuestion, recordSignIn } from "./asks";
+import { refreshSignIn } from "./drive-asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { ChatReads } from "../chat-reads";
@@ -1048,11 +1050,11 @@ describe("listChats", () => {
     await connections.set("apple-reminders", {
       status: "needs-approval",
       updatedAt: 1,
-      waitingChats: [chatId],
     });
     const sessionId = await session(chatId, "Dentist");
     await userSays(chatId, sessionId, "remind me to call the dentist", 1);
     const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
     const saved = await ChatWrites.saveMessageWithParts(
       {
         id: messageId,
@@ -1069,6 +1071,7 @@ describe("listChats", () => {
             input: { reason: "To add it.", slugs: ["apple-reminders"] },
             metadata: {
               ...partMetadata({ messageId, sessionId }),
+              id: partId,
               createdAt: at(5),
               endedAt: at(5),
             },
@@ -1092,27 +1095,47 @@ describe("listChats", () => {
       await chatFor(sessionId),
     );
     expect(saved.isOk()).toBe(true);
+    // What the call's own run records.
+    const reminders = [{ name: "Reminders", slug: "apple-reminders" }];
+    await recordSignIn(
+      { chatId: await chatFor(sessionId), messageId, partId, sessionId },
+      reminders,
+      undefined,
+    );
 
     const [asked] = await listChats();
     expect(asked?.state).toBe("waiting");
     expect(asked?.latest).toEqual({
-      at: at(5).getTime(),
+      at: expect.any(Number),
       kind: "question",
       text: "Waiting for you to connect Reminders",
     });
 
+    // What the app's event does once the person allows it.
     await connections.set("apple-reminders", {
       status: "connected",
       updatedAt: 2,
     });
-    recordChanged(chatId, "state");
+    await refreshSignIn(
+      await chatFor(sessionId),
+      partId,
+      { event: "connected", name: "Reminders", slug: "apple-reminders" },
+      {} as WorkspaceActorRef,
+    );
     expect((await listChats())[0]?.state).toBe("idle");
 
+    // Asked again, then written past.
     await connections.set("apple-reminders", {
       status: "needs-approval",
       updatedAt: 1,
-      waitingChats: [chatId],
     });
+    await recordSignIn(
+      { chatId: await chatFor(sessionId), messageId, partId, sessionId },
+      reminders,
+      undefined,
+      { id: StoreId.newPartId() },
+    );
+    expect((await listChats())[0]?.state).toBe("waiting");
     await userSays(chatId, sessionId, "never mind", 7);
     recordChanged(chatId, "state");
     expect((await listChats())[0]?.state).toBe("idle");
@@ -1143,11 +1166,11 @@ describe("listChats", () => {
     await getWorkspaceConfig().apps.connections.set("apple-reminders", {
       status: "needs-approval",
       updatedAt: 1,
-      waitingChats: [chatId],
     });
     const sessionId = await session(chatId, "Dentist");
     await userSays(chatId, sessionId, "remind me to call the dentist", 1);
     const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
     await ChatWrites.saveMessageWithParts(
       {
         id: messageId,
@@ -1164,6 +1187,7 @@ describe("listChats", () => {
             input: { reason: "To add it.", slugs: ["apple-reminders"] },
             metadata: {
               ...partMetadata({ messageId, sessionId }),
+              id: partId,
               createdAt: at(5),
               endedAt: at(5),
             },
@@ -1186,13 +1210,18 @@ describe("listChats", () => {
       },
       await chatFor(sessionId),
     );
+    await recordSignIn(
+      { chatId: await chatFor(sessionId), messageId, partId, sessionId },
+      [{ name: "Reminders", slug: "apple-reminders" }],
+      undefined,
+    );
     expect((await listChats())[0]?.state).toBe("waiting");
 
     const stopped = await ChatWrites.stopped(
       await chatFor(sessionId),
       sessionId,
       "person",
-      at(6),
+      new Date(),
     );
     expect(stopped.isOk()).toBe(true);
     recordChanged(chatId, "state");

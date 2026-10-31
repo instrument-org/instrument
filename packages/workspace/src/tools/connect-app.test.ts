@@ -8,7 +8,9 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../lib/workspace-config";
-import { ChatIdSchema } from "../schemas/chat-id";
+import { openAsks } from "../lib/chat/open-asks";
+import { StoreId } from "../schemas/store-id";
+import { chatFor } from "../test/helpers/chat-record";
 import { AppSlugSchema } from "../lib/apps/manifest";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { runTool } from "../test/helpers/run-tool";
@@ -21,8 +23,11 @@ vi.mock(import("../lib/chat/children"), async (importOriginal) => ({
 }));
 
 const model = createMockAIGatewayModel();
-const LISBON = ChatIdSchema.parse("2026-10-08-lisbon");
-const PORTO = ChatIdSchema.parse("2026-10-09-porto");
+/** A chat someone has written in, and its own session, where the card goes. */
+async function chat() {
+  const sessionId = StoreId.newSessionId();
+  return { chatId: await chatFor(sessionId), sessionId };
+}
 const INPUT = { reason: "So I can read your issues.", slugs: ["linear"] };
 const manifest = {
   auth: { kind: "oauth" },
@@ -54,9 +59,13 @@ beforeEach(async () => {
   });
 });
 
-async function ask(chatId: typeof LISBON, slugs = ["linear"]) {
+async function ask(
+  { chatId, sessionId }: Awaited<ReturnType<typeof chat>>,
+  slugs = ["linear"],
+) {
   const result = await runTool(ConnectApp, {
     chatId,
+    sessionId,
     input: {
       activity: "Connecting Linear",
       explanation: "To read issues",
@@ -70,15 +79,25 @@ async function ask(chatId: typeof LISBON, slugs = ["linear"]) {
 }
 
 describe("connect_app", () => {
-  it("keeps every chat that asks waiting on the answer", async () => {
-    await ask(LISBON);
-    await ask(PORTO);
-    await ask(LISBON);
+  it("puts a sign-in card up in every chat that asks, the newest in each", async () => {
+    const lisbon = await chat();
+    const porto = await chat();
+    await ask(lisbon);
+    await ask(porto);
+    await ask(lisbon);
 
     expect(await readConnection("linear")).toMatchObject({
       status: "needs-sign-in",
-      waitingChats: [LISBON, PORTO],
     });
+    for (const { chatId } of [lisbon, porto]) {
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({
+          apps: [{ name: "Linear", slug: "linear", standing: "waiting" }],
+          here: true,
+          kind: "sign-in",
+        }),
+      ]);
+    }
   });
 
   it("answers that a connected app is connected, leaving its record alone", async () => {
@@ -92,7 +111,8 @@ describe("connect_app", () => {
     };
     await getWorkspaceConfig().apps.connections.set("linear", connected);
 
-    expect(await ask(LISBON)).toEqual({
+    const lisbon = await chat();
+    expect(await ask(lisbon)).toEqual({
       apps: [{ name: "Linear", slug: "linear", state: "connected" }],
     });
     expect(await readConnection("linear")).toEqual(connected);
@@ -106,7 +126,8 @@ describe("connect_app", () => {
       name: "Notion",
       slug: AppSlugSchema.parse("notion"),
     });
-    const output = await ask(LISBON, ["linear", "notion", "linear", "jira"]);
+    const lisbon = await chat();
+    const output = await ask(lisbon, ["linear", "notion", "linear", "jira"]);
 
     expect(output).toMatchInlineSnapshot(`
       {
@@ -135,8 +156,12 @@ describe("connect_app", () => {
     `);
     expect(await readConnection("notion")).toMatchObject({
       status: "needs-sign-in",
-      waitingChats: [LISBON],
     });
+    expect(
+      (await openAsks(lisbon.chatId)).map((card) =>
+        card.kind === "sign-in" ? card.apps.map((app) => app.slug) : [],
+      ),
+    ).toEqual([["linear", "notion"]]);
     expect(ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }))
       .toMatchInlineSnapshot(`
         {

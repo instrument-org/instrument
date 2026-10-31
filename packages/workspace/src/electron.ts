@@ -28,8 +28,8 @@ export {
   nameAppAccount,
   recordConnection,
   type SignInEnd,
-  waitInChat,
 } from "./lib/apps/connection";
+export { waitInChat } from "./lib/chat/asks";
 export {
   type AppManifest,
   AppSlugSchema,

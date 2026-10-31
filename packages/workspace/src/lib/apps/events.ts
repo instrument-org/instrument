@@ -1,47 +1,30 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
-import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { ChatReads } from "../chat-reads";
-import { wakeChatForApp } from "../chat/wake";
-import { resolveChat, sessionOfChat } from "../record-folders";
+import { thisDevice } from "../chat/asks";
+import { listChatIds } from "../chat/chat-records";
+import { chatAskStatesOf } from "../chat/chats";
+import { driveAsks, refreshSignIn } from "../chat/drive-asks";
 import { getWorkspaceConfig } from "../workspace-config";
-import { appEventOf } from "./changed";
-import { readConnection } from "./connection";
-import { signInsSettled } from "../sign-in-progress-model-text";
-import { signInCardOf, signInProgress } from "./sign-in-group";
 
 type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
 
 /**
- * Wakes the chat that asked for an app when the user answers the ask
- * outside the conversation: a sign-in finished in the browser, a key saved
- * on a card, a decline, a failure. The host app publishes the event; here it
- * becomes a `data-appEvent` part on a text-less user message, the same way a
- * finishing task reaches the chat, so the agent learns without anyone typing
- * and answers on a turn of its own.
+ * Carries what the person does about an app outside the conversation (a
+ * sign-in finished in the browser, a key saved on a card, a decline, a
+ * failure) to the sign-in cards of this computer's that have the app on a
+ * row: each card's rows are written as they now stand, and the card
+ * settles once no app on it waits, which wakes its chat once with every app
+ * on it (`refreshSignIn`, `drive-asks.ts`). A sign-in that did not connect
+ * wakes the chat at once with the card as it stands. The host app
+ * publishes the event; signing in happens on this computer alone, where
+ * its connections and keys are.
  *
- * The chats woken are every one the app's connection record says is waiting.
- * An answer that settles the ask (connected, declined) takes them all off the
- * record, since the standing every card draws is the app's and says the same
- * thing in each chat, and connecting the app again later from Settings wakes
- * nobody. A failure leaves them, since the user can try again from any of the
- * cards.
- *
- * An app asked for on one card with others wakes its chat once for the whole
- * card: an answer that leaves another app on it waiting wakes nothing, and
- * the answer that settles the last one wakes the chat with every app on the
- * card, read from their connections, and takes the chat off all of them. A
- * failure still wakes at once, with the card as it stands, since the agent
- * may have something to say about it. Once the chat has heard the card
- * settle, a sign-in to an app the user skipped on it (the card's row puts
- * the chat back on the app's waiting list, `waitInChat`) wakes it on its
- * own, with that one event. The settling note also names the apps the
- * card's call could not ask for, which never had a row to answer.
- *
- * A disconnect or a removal is the user putting an app away, not answering
- * anything, so it wakes no chat; each chat hears of it on the next message
- * the user writes there.
+ * A card the person moved past, by writing in the chat or stopping it, no
+ * longer waits; an answer on its row raises a card of that one app again
+ * (`waitInChat`). Connecting an app from Settings, which no card asked for,
+ * wakes nobody, and neither does a disconnect or a removal, which each
+ * chat hears of on the next message the person writes there.
  */
 export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
   void (async () => {
@@ -50,7 +33,7 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
         continue;
       }
       try {
-        await answerWaitingChats(event, workspaceRef);
+        await settleSignIns(event, workspaceRef);
       } catch (error) {
         getWorkspaceConfig().captureException(error);
       }
@@ -58,132 +41,24 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
   })();
 }
 
-/** Wakes, or holds, every chat waiting on the app an event is about (`startAppEvents`). */
-async function answerWaitingChats(
+/** Brings every card of this computer's with the event's app on a row up to date with it. */
+async function settleSignIns(
   event: AppEventLine,
   workspaceRef: WorkspaceActorRef,
 ): Promise<void> {
-  const connection = await readConnection(event.slug);
-  const waiting = connection?.waitingChats ?? [];
-  await Promise.all(
-    waiting.map((chatId) => answerChat(event, workspaceRef, chatId)),
-  );
-  if (event.event !== "failed") {
-    await stopWaiting(event.slug, waiting);
+  for (const chatId of listChatIds()) {
+    const cards = (await chatAskStatesOf(chatId)).filter(
+      ({ ask, live }) =>
+        live &&
+        ask.kind === "sign-in" &&
+        ask.device === thisDevice() &&
+        ask.apps.some((app) => app.slug === event.slug),
+    );
+    for (const { ask } of cards) {
+      await refreshSignIn(chatId, ask.id, event, workspaceRef);
+    }
+    if (cards.length > 0) {
+      await driveAsks(chatId, workspaceRef);
+    }
   }
-}
-
-/**
- * Wakes one waiting chat with an event, or with its card once the event
- * settles the card, or holds the wake while the card has an app left.
- */
-async function answerChat(
-  event: AppEventLine,
-  workspaceRef: WorkspaceActorRef,
-  chatId: ChatId,
-): Promise<void> {
-  const card = await cardOf(chatId, event.slug);
-  // A card of one app that its call asked for alone, or one the chat already
-  // heard settle: the user came back to an app on it they had skipped, which
-  // is news of its own. A call that named apps it could not ask for wakes
-  // through its card even with one row, so the note can name them.
-  if (
-    card === undefined ||
-    card.toldSettled ||
-    (card.apps.length < 2 && card.notOnCard === undefined)
-  ) {
-    await wakeChatForApp([event], workspaceRef, chatId);
-    return;
-  }
-  const progress = await signInProgress(card.apps);
-  if (progress === undefined) {
-    await wakeChatForApp([event], workspaceRef, chatId);
-    return;
-  }
-  if (event.event === "failed") {
-    await wakeChatForApp([event], workspaceRef, chatId, { signIns: progress });
-    return;
-  }
-  if (!signInsSettled(progress)) {
-    return;
-  }
-  const others = progress.filter((app) => app.slug !== event.slug);
-  const events = [
-    event,
-    ...(await Promise.all(
-      others.map((app) =>
-        app.standing === "connected"
-          ? connectedEvent(app.slug)
-          : appEventOf(app.slug, { event: "declined" }),
-      ),
-    )),
-  ];
-  // Off every app on the card before the wake, so the answers to the others
-  // that are still on their way ("Skip the rest" declines several at once)
-  // find this chat waiting on nothing and wake it no second time.
-  await Promise.all(others.map((app) => stopWaiting(app.slug, [chatId])));
-  // The account a sign-in learned is on the connection, where the event,
-  // read from the manifest, does not look; told per app, so the note does
-  // not ask the agent to name an account it already has.
-  const accounts = new Map(
-    progress.flatMap((app) =>
-      app.account === undefined ? [] : [[app.slug, app.account] as const],
-    ),
-  );
-  await wakeChatForApp(
-    events.map((each) => {
-      const account = each.account ?? accounts.get(each.slug);
-      return account === undefined || each.event !== "connected"
-        ? each
-        : { ...each, account };
-    }),
-    workspaceRef,
-    chatId,
-    {
-      ...(card.notOnCard === undefined ? {} : { notOnCard: card.notOnCard }),
-      signIns: progress,
-    },
-  );
-}
-
-/** The card in the chat's own conversation that `slug` has its row on. */
-async function cardOf(chatId: ChatId, slug: string) {
-  if (!resolveChat(chatId)) {
-    return undefined;
-  }
-  const sessionId = sessionOfChat(chatId);
-  if (sessionId === undefined) {
-    return undefined;
-  }
-  const history = await ChatReads.history({ chatId, sessionId });
-  return history.isOk() ? signInCardOf(history.value, slug) : undefined;
-}
-
-/** An app's connection told as the event that made it, as `announceConnected` tells it. */
-async function connectedEvent(slug: string): Promise<AppEventLine> {
-  const connection = await readConnection(slug);
-  return appEventOf(slug, {
-    ...(connection?.toolCount === undefined
-      ? {}
-      : { detail: `${connection.toolCount} tools` }),
-    event: "connected",
-  });
-}
-
-/** Takes chats off an app's waiting list, reading it again for a chat that asked meanwhile. */
-async function stopWaiting(slug: string, answered: ChatId[]): Promise<void> {
-  const after = await readConnection(slug);
-  if (after?.waitingChats === undefined) {
-    return;
-  }
-  const done = new Set(answered);
-  const still = after.waitingChats.filter((chatId) => !done.has(chatId));
-  if (still.length === after.waitingChats.length) {
-    return;
-  }
-  const { waitingChats: _answered, ...rest } = after;
-  await getWorkspaceConfig().apps.connections.set(slug, {
-    ...rest,
-    ...(still.length > 0 ? { waitingChats: still } : {}),
-  });
 }

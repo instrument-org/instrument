@@ -162,9 +162,40 @@ const QuestionAskSchema = z.object({
 export type QuestionAsk = z.output<typeof QuestionAskSchema>;
 
 /** Anything a chat is waiting on the person to answer on a card. */
+/**
+ * A sign-in card the chat's agent put up with `connect_app`, as its
+ * computer last wrote its rows. Signing in happens on that computer alone,
+ * where its sign-ins and keys are; another device shows the card from here
+ * and may say Not now to it.
+ */
+const SignInAskSchema = z.object({
+  /** A Not now given and not taken yet: who gave it, and whether the computer that asked has. */
+  answered: z.object({ by: z.string(), taken: z.boolean() }).optional(),
+  /** Whether this device can say Not now to it: open, with no answer given yet. */
+  answerable: z.boolean(),
+  /** Each app on the card as it stood when its computer last wrote it. */
+  apps: SessionMessageDataPart.SignInProgressSchema,
+  askedAt: z.coerce.date(),
+  askers: z.array(AskerSchema),
+  /** The name of the computer that asked, where signing in happens. */
+  computer: z.string(),
+  device: DeviceIdSchema,
+  /** Whether this computer asked it. */
+  here: z.boolean(),
+  id: z.string(),
+  kind: z.literal("sign-in"),
+  /** The message holding the `connect_app` call, whose part's id is `partId`. */
+  messageId: StoreId.MessageSchema,
+  partId: StoreId.PartSchema,
+});
+
+export type SignInAsk = z.output<typeof SignInAskSchema>;
+
+/** Anything a chat is waiting on the person to answer on a card. */
 export const AskSchema = z.discriminatedUnion("kind", [
   PermissionAskSchema,
   QuestionAskSchema,
+  SignInAskSchema,
 ]);
 
 export type Ask = z.output<typeof AskSchema>;

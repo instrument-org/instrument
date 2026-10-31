@@ -1250,6 +1250,10 @@ export async function runEvals(
                   continue;
                 }
                 handledAskIds.add(ask.id);
+                // A sign-in is answered through the app's own events.
+                if (ask.kind === "sign-in") {
+                  continue;
+                }
                 let answer: () => Promise<unknown>;
                 if (ask.kind === "question") {
                   const partId = ask.askers[0]?.partId;

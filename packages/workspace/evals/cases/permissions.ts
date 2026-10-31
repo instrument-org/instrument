@@ -837,7 +837,9 @@ async function asksOf(
   sessions: Session.WithMessagesAndParts[],
 ): Promise<AskRecord[]> {
   const open = (await openAsks(ctx.chatId)).flatMap((ask) =>
-    ask.kind === "question" ? [] : [{ kind: ask.kind, target: ask.target }],
+    ask.kind === "question" || ask.kind === "sign-in"
+      ? []
+      : [{ kind: ask.kind, target: ask.target }],
   );
   const answered = sessions.flatMap((session) =>
     session.messages.flatMap((message) =>

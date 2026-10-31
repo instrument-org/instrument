@@ -26,15 +26,25 @@ import { Spinner } from "./ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type Decision = "allowed" | "always" | "declined";
-type Ask = NonNullable<ReturnType<typeof useAsks>>[number];
+type Ask = Exclude<
+  NonNullable<ReturnType<typeof useChatAsks>>[number],
+  { kind: "question" | "sign-in" }
+>;
 
-/** The chat's open permission cards; its questions draw under their calls. */
-function useAsks(chatId: ChatId) {
+/** Everything the chat waits on the person for. */
+function useChatAsks(chatId: ChatId) {
   return useQuery(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }),
-  ).data?.filter((ask) => ask.kind !== "question");
+  ).data;
+}
+
+/** The chat's open permission cards; its questions and sign-ins draw under their calls. */
+function useAsks(chatId: ChatId) {
+  return useChatAsks(chatId)?.filter(
+    (ask): ask is Ask => ask.kind !== "question" && ask.kind !== "sign-in",
+  );
 }
 
 const onAnswerError = {

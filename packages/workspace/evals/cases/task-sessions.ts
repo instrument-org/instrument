@@ -441,7 +441,7 @@ const t1WaitsOnTheCard: Assertion = {
       (child) => child.handle === "t1",
     );
     const card = (await openAsks(ctx.chatId)).find(
-      (ask): ask is Exclude<typeof ask, { kind: "question" }> =>
+      (ask): ask is Exclude<typeof ask, { kind: "question" | "sign-in" }> =>
         ask.kind === "folder" &&
         // By its end: a report read later runs under another home.
         /[/\\]Documents(?:[/\\]Pantry)?$/.test(ask.target) &&

@@ -125,10 +125,16 @@ const OutcomeSchema = z.discriminatedUnion("kind", [
     answer: SessionMessageDataPart.QuestionCardAnswerSchema,
     kind: z.literal("question"),
   }),
-  /** Every app on a sign-in settled, as each now stands. */
+  /**
+   * Every app on a sign-in settled: what happened to each, and for a card
+   * of several apps (or one whose call named apps it could not ask for),
+   * the card as it stands and those apps.
+   */
   z.object({
-    apps: SessionMessageDataPart.SignInProgressSchema,
+    events: SessionMessageDataPart.AppEventDataPartSchema.shape.events,
     kind: z.literal("sign-in"),
+    notOnCard: SessionMessageDataPart.NotOnCardSchema.optional(),
+    signIns: SessionMessageDataPart.SignInProgressSchema.optional(),
   }),
   /** Every asker was stopped: nobody is woken. */
   z.object({ kind: z.literal("left") }),

@@ -11,7 +11,6 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
-import { signInCardsSinceTyped, signInsWaiting } from "../apps/sign-in-group";
 import { listApps } from "../apps/store";
 import { ChatWrites } from "../chat-writes";
 import { cappedTitle } from "../chat-folders/folder-name";
@@ -562,8 +561,6 @@ interface ChatDigest {
   lastStep?: { at: number; text: string };
   /** Where each of the chat's asks stood when the digest was read (`askStates`). */
   asks: AskState[];
-  /** The sign-in cards its agent put up since the user last wrote (`signInCardsSinceTyped`). */
-  signIns: ReturnType<typeof signInCardsSinceTyped>;
   /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
   stepInTurn?: string;
   /** Whether the user stopped the chat's own turn, and no turn has started since. */
@@ -612,20 +609,6 @@ function asksOf(
     at: card.askedAt.getTime(),
     text: cardLine(card),
   }));
-}
-
-/** The chat's sign-in card as one more thing it waits on the user for. */
-function signInWaitOf(
-  waiting: Awaited<ReturnType<typeof signInsWaiting>>,
-): { at: number; text: string }[] {
-  return waiting === undefined
-    ? []
-    : [
-        {
-          at: waiting.at,
-          text: `Waiting for you to connect ${waiting.names.join(", ")}`,
-        },
-      ];
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -681,14 +664,23 @@ async function chatFor(
     ownWorking,
     state,
     working,
-  } = stateOf(chatId, digest, filed, [
-    ...asksOf(
-      sortAsks([
-        ...digest.asks.flatMap(({ ask, live }) => (live ? [ask] : [])),
-      ]),
+  } = stateOf(
+    chatId,
+    digest,
+    filed,
+    asksOf(
+      sortAsks(
+        // A sign-in waits on the person while an app on it does.
+        digest.asks.flatMap(({ ask, live }) =>
+          live &&
+          (ask.kind !== "sign-in" ||
+            ask.apps.some((app) => app.standing === "waiting"))
+            ? [ask]
+            : [],
+        ),
+      ),
     ),
-    ...signInWaitOf(await signInsWaiting(digest.signIns)),
-  ]);
+  );
   const ask = state === "working" ? undefined : anyAsk;
 
   const [lead] = runningTasks;
@@ -902,7 +894,6 @@ function digestOf(
       },
     }),
     ...(lastStep && { lastStep }),
-    signIns: signInCardsSinceTyped(messages, stop),
     ...(stepInTurn !== undefined && { stepInTurn }),
     stopped,
   };

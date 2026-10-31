@@ -20,7 +20,6 @@ import {
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { shellPath } from "../lib/workspace-fs-layout";
-import { type ChatId } from "../schemas/chat-id";
 import {
   type ConnectAppResult,
   askedOnCard,
@@ -28,6 +27,7 @@ import {
   connectAppResults,
 } from "./connect-app-output";
 import { defineCapability } from "../lib/capabilities/define";
+import { recordSignIn } from "../lib/chat/asks";
 import { modelTool } from "../lib/capabilities/tool";
 
 // A task runs the chat's agent where no card is seen.
@@ -67,13 +67,23 @@ const connectAppCapability = defineCapability({
       description: dedent`
     Ask the user to connect apps whose folders you have written in the apps folder. One card appears in the conversation with a row for each app and a count of how many are connected: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
-      execute: async ({ input, chatId }) => {
+      execute: async ({ input, messageId, partId, sessionId, chatId }) => {
         const slugs = [...new Set(input.slugs)];
         const apps: ConnectAppResult[] = [];
         // One at a time: each ask writes the app's connection record.
         for (const slug of slugs) {
-          apps.push(await askFor(slug, chatId));
+          apps.push(await askFor(slug));
         }
+        const failed = apps.flatMap((result) =>
+          result.state === "failure"
+            ? [{ reason: result.message, slug: result.slug }]
+            : [],
+        );
+        await recordSignIn(
+          { chatId, messageId, partId, sessionId },
+          askedOnCard({ apps }).map(({ name, slug }) => ({ name, slug })),
+          failed.length === 0 ? undefined : failed,
+        );
         return ok({ apps });
       },
       readOnly: false,
@@ -99,10 +109,7 @@ const connectAppCapability = defineCapability({
 export const ConnectApp = modelTool(connectAppCapability);
 
 /** What asking for one app comes to: a row on the card, already connected, or why it could not be asked. */
-async function askFor(
-  requested: string,
-  chatId: ChatId,
-): Promise<ConnectAppResult> {
+async function askFor(requested: string): Promise<ConnectAppResult> {
   const config = getWorkspaceConfig();
   const loaded = await loadApp(config.appsDir, requested);
   if (loaded.isErr()) {
@@ -156,9 +163,7 @@ async function askFor(
   }
   if (kind !== "none") {
     // What the user does on the card or the app's page comes back as an
-    // app event with no chat of its own; the asks kept with the app are
-    // what tell it which chats to wake.
-    const waiting = connection?.waitingChats ?? [];
+    // app event, which settles the call's sign-in ask (`lib/apps/events.ts`).
     await recordConnection(slug, {
       status:
         kind === "key"
@@ -166,7 +171,6 @@ async function askFor(
           : kind === "run"
             ? "needs-approval"
             : "needs-sign-in",
-      waitingChats: waiting.includes(chatId) ? waiting : [...waiting, chatId],
     });
   }
   return {

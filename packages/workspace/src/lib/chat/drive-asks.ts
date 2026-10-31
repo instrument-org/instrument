@@ -16,7 +16,11 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { AbsolutePathSchema, type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
 import { parseBrowserTargetId } from "../../types";
-import { openSignInsOf } from "../apps/sign-in-group";
+import { appEventOf } from "../apps/changed";
+import { appChanged } from "../apps/changed";
+import { readConnection, recordConnection } from "../apps/connection";
+import { signInProgress } from "../apps/sign-in-group";
+import { signInsSettled } from "../sign-in-progress-model-text";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";
@@ -49,6 +53,7 @@ import {
 import { listChatIds } from "./chat-records";
 import { chatAskStatesOf } from "./chats";
 import { grantFolder } from "./grants";
+import { wakeChatForApp } from "./wake";
 import { enqueueWake, saveNote, type WakePart } from "./wake-queue";
 import { askWindow } from "./window-tab";
 
@@ -179,6 +184,22 @@ async function step(
       { answer: answer.answer, kind: "question" },
       answer,
     );
+  }
+  if (
+    stage.is === "taken" &&
+    ask.kind === "sign-in" &&
+    stage.answer.kind === "sign-in"
+  ) {
+    // Not now from another device: this computer turns down every app on
+    // the card still waiting, as its own Not now does, and the card settles.
+    for (const app of ask.apps) {
+      if (app.standing === "waiting") {
+        await recordConnection(app.slug, { status: "declined" });
+        await appChanged(app.slug, { event: "declined" });
+      }
+    }
+    await refreshSignIn(chatId, ask.id, undefined, workspaceRef);
+    return true;
   }
   if (stage.is === "taken" && ask.kind === "permission") {
     const { answer } = stage;
@@ -450,7 +471,7 @@ async function wake(
   if (stage.is !== "closed") {
     return;
   }
-  if (wakePartOf(stage.outcome, ask, undefined) === undefined) {
+  if (stage.outcome.kind === "left") {
     return;
   }
   const yes =
@@ -470,12 +491,20 @@ async function wake(
     ) {
       continue;
     }
+    if (stage.outcome.kind === "sign-in") {
+      const { events, notOnCard, signIns } = stage.outcome;
+      await wakeChatForApp(events, workspaceRef, chatId, {
+        ask: ask.id,
+        ...(notOnCard && { notOnCard }),
+        quiet,
+        ...(signIns && { signIns }),
+      });
+      continue;
+    }
     const part = wakePartOf(
       stage.outcome,
       ask,
-      ask.kind === "question"
-        ? await openSignInsOf(chatId, asker.sessionId)
-        : undefined,
+      ask.kind === "question" ? await openSignInsOf(chatId) : undefined,
     );
     if (part === undefined) {
       continue;
@@ -528,6 +557,164 @@ function wakePartOf(
 }
 
 /**
+ * The chat's sign-ins still waiting on the person, each card whole as this
+ * computer's connections stand, for a note that wakes the chat about
+ * something else; undefined when none waits.
+ */
+export async function openSignInsOf(
+  chatId: ChatId,
+): Promise<SessionMessageDataPart.SignInProgress | undefined> {
+  const open: SessionMessageDataPart.SignInProgress = [];
+  for (const { ask, live } of await chatAskStates(chatId)) {
+    if (!live || ask.kind !== "sign-in") {
+      continue;
+    }
+    const progress =
+      ask.device === thisDevice() ? await signInProgress(ask.apps) : ask.apps;
+    if (progress !== undefined && !signInsSettled(progress)) {
+      open.push(...progress);
+    }
+  }
+  return open.length === 0 ? undefined : open;
+}
+
+/**
+ * Brings one of this computer's sign-ins up to date with its apps'
+ * connections, after `event` (something the person did to one of them) or
+ * a Not now: its rows are written as they stand, so every device draws
+ * them; a sign-in that did not connect wakes the chat at once with the
+ * card as it stands, and the ask stays up to try again; and once no app on
+ * it waits, it closes with what happened to each, which wakes the chat
+ * once. A card of one app its call asked for alone is told as that app's
+ * event alone.
+ */
+export async function refreshSignIn(
+  chatId: ChatId,
+  askId: string,
+  event: AppEventLine | undefined,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const state = (await chatAskStates(chatId)).find(
+    ({ ask, live }) => live && ask.id === askId && ask.device === thisDevice(),
+  );
+  if (state?.ask.kind !== "sign-in") {
+    return;
+  }
+  const { ask } = state;
+  const taken = ask.stage.is === "taken" ? ask.stage.answer : undefined;
+  const progress = await signInProgress(ask.apps);
+  // Every app on it is gone since it asked: nothing left to answer.
+  if (progress === undefined) {
+    await close(
+      chatId,
+      ask.id,
+      event ? { events: [event], kind: "sign-in" } : { kind: "left" },
+      taken,
+      event === undefined,
+    );
+    return;
+  }
+  const card = ask.apps.length > 1 || ask.notOnCard !== undefined;
+  if (event?.event === "failed" || !signInsSettled(progress)) {
+    await changeAsk(chatId, ask.id, ({ ask: now }) =>
+      now.kind === "sign-in" && now.stage.is !== "closed"
+        ? { ...now, apps: progress }
+        : undefined,
+    );
+    if (event?.event === "failed") {
+      await wakeChatForApp(
+        [event],
+        workspaceRef,
+        chatId,
+        card ? { signIns: progress } : {},
+      );
+    }
+    return;
+  }
+  const others = progress.filter((app) => app.slug !== event?.slug);
+  const told = [
+    ...(event ? [event] : []),
+    ...(await Promise.all(
+      others.map((app) =>
+        app.standing === "connected"
+          ? connectedEvent(app.slug)
+          : appEventOf(app.slug, { event: "declined" }),
+      ),
+    )),
+  ];
+  // The account a sign-in learned is on the connection, where the event,
+  // read from the manifest, does not look; told per app, so the note does
+  // not ask the agent to name an account it already has.
+  const accounts = new Map(
+    progress.flatMap((app) =>
+      app.account === undefined ? [] : [[app.slug, app.account] as const],
+    ),
+  );
+  const events = told.map((each) => {
+    const account = each.account ?? accounts.get(each.slug);
+    return account === undefined || each.event !== "connected"
+      ? each
+      : { ...each, account };
+  });
+  await changeAsk(chatId, ask.id, ({ ask: now }) =>
+    now.kind === "sign-in" && now.stage.is !== "closed"
+      ? {
+          ...now,
+          apps: progress,
+          stage: {
+            ...(taken && { answer: { at: taken.at, device: taken.device } }),
+            is: "closed",
+            outcome: {
+              events,
+              kind: "sign-in",
+              ...(card && ask.notOnCard && { notOnCard: ask.notOnCard }),
+              ...(card && { signIns: progress }),
+            },
+            woken: false,
+          },
+        }
+      : undefined,
+  );
+}
+
+type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
+
+/** An app's connection told as the event that made it, as `announceConnected` tells it. */
+async function connectedEvent(slug: string): Promise<AppEventLine> {
+  const connection = await readConnection(slug);
+  return appEventOf(slug, {
+    ...(connection?.toolCount === undefined
+      ? {}
+      : { detail: `${connection.toolCount} tools` }),
+    event: "connected",
+  });
+}
+
+/**
+ * Not now to a sign-in, given on this device: appended like any device's,
+ * and taken at once on the computer that asked. Signing in itself happens
+ * there alone.
+ */
+export async function declineSignInAsk(
+  chatId: ChatId,
+  askId: string,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const state = (await chatAskStates(chatId)).find(
+    ({ ask, live }) => live && ask.id === askId,
+  );
+  if (!state || state.ask.kind !== "sign-in" || !answerableElsewhere(state)) {
+    throw new ORPCError("NOT_FOUND", {
+      message: "That request was already answered.",
+    });
+  }
+  await appendAnswer(chatId, askId, { decision: "declined", kind: "sign-in" });
+  if (state.ask.device === thisDevice()) {
+    await driveAsks(chatId, workspaceRef);
+  }
+}
+
+/**
  * The person's answers to a question, given on this device: appended like
  * any device's, and on the computer that asked, taken at once, written onto
  * the call, and the chat woken with them. Elsewhere they wait for that
@@ -575,7 +762,8 @@ async function holdsNote(
         message.parts.some(
           (part) =>
             (part.type === "data-permissionAnswer" ||
-              part.type === "data-questionAnswer") &&
+              part.type === "data-questionAnswer" ||
+              part.type === "data-appEvent") &&
             part.data.ask === askId,
         ),
     )

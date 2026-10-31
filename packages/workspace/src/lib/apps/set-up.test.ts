@@ -10,7 +10,6 @@ import {
   vi,
 } from "vitest";
 
-import { ChatIdSchema } from "../../schemas/chat-id";
 import { applyServedAppCatalog, resetServedAppCatalog } from "./catalog";
 import seed from "./catalog-seed.json";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -149,7 +148,6 @@ describe("moveAppToWeb", () => {
       ended: "refused",
       error: "access_denied: AADSTS65001",
       status: "failed",
-      waitingChats: [ChatIdSchema.parse("asked-for-ahrefs")],
     });
 
     expect(await moveAppToWeb("ahrefs")).toEqual({
@@ -169,15 +167,11 @@ describe("moveAppToWeb", () => {
       ended: connection?.ended,
       error: connection?.error,
       status: connection?.status,
-      waitingChats: connection?.waitingChats,
     }).toMatchInlineSnapshot(`
       {
         "ended": undefined,
         "error": undefined,
         "status": "needs-sign-in",
-        "waitingChats": [
-          "asked-for-ahrefs",
-        ],
       }
     `);
     // Pressed again, it opens the same page and writes nothing.

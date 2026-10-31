@@ -152,11 +152,17 @@ export async function wakeChatForApp(
   workspaceRef: WorkspaceActorRef,
   asked: ChatId,
   {
+    ask,
     notOnCard,
+    quiet,
     signIns,
   }: {
+    /** The sign-in ask the note answers, which it names. */
+    ask?: string;
     /** For a wake about a card, the apps its call named that never reached it. */
     notOnCard?: SessionMessageDataPart.NotOnCard;
+    /** Leaves the note without starting a turn, read with the person's next message. */
+    quiet?: boolean;
     /** For an app asked for on a card with others, every app on the card as it stands. */
     signIns?: SessionMessageDataPart.SignInProgress;
   } = {},
@@ -178,12 +184,15 @@ export async function wakeChatForApp(
   if (note.isErr()) {
     throw note.error;
   }
-  await enqueueWake({
-    chatId: asked,
-    part: { data: note.value, type: "data-appEvent" },
-    sessionId,
-    workspaceRef,
-  });
+  const part = {
+    data: { ...note.value, ...(ask && { ask }) },
+    type: "data-appEvent" as const,
+  };
+  if (quiet) {
+    await saveNote(asked, sessionId, part);
+    return;
+  }
+  await enqueueWake({ chatId: asked, part, sessionId, workspaceRef });
 }
 
 /**
@@ -543,6 +552,9 @@ async function hasConversation(chatId: ChatId): Promise<boolean> {
 function cardNeed(card: Ask): string {
   if (card.kind === "question") {
     return `question: ${card.question}, on the card in this chat waiting for the person's answer, which wakes it`;
+  }
+  if (card.kind === "sign-in") {
+    return `sign-in: ${card.apps.map((app) => app.name).join(", ")}, on the card in this chat waiting for the person, which wakes it`;
   }
   const what = card.kind === "folder" ? shellPath(card.target) : card.target;
   return `${card.kind}: ${what}, on the card in this chat waiting for the person's answer, which wakes it`;

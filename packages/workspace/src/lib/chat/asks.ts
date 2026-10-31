@@ -13,8 +13,10 @@ import {
   type Ask,
   type PermissionAsk,
   type QuestionAsk,
+  type SignInAsk,
 } from "../../schemas/chat-state";
 import { type DeviceId } from "../../schemas/device-id";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
@@ -68,8 +70,7 @@ export async function askRecords(
   // A chat whose records cannot be read has no ask anyone can answer.
   const read = await records.read(chatId).catch(() => undefined);
   const session = read?.chat.sessions.find(({ id }) => id === sessionId);
-  const movedPast =
-    session && movedPastOf(session.messages, session.stopped);
+  const movedPast = session && movedPastOf(session.messages, session.stopped);
   return {
     answers: session?.answers ?? [],
     asks: session?.asks ?? [],
@@ -259,6 +260,101 @@ export async function recordQuestion(
   );
 }
 
+/**
+ * Records the sign-in card a `connect_app` call put up, by the call's part
+ * id: its rows, each waiting, and the apps the call could not ask for. An
+ * app asked for again belongs to the newer card, so it leaves the rows of
+ * this computer's earlier ones in the chat, and one left with no row
+ * closes, waking nobody.
+ */
+export async function recordSignIn(
+  asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
+  apps: { name: string; slug: string }[],
+  notOnCard: SessionMessageDataPart.NotOnCard | undefined,
+  { id = asker.partId }: { id?: string } = {},
+): Promise<void> {
+  if (apps.length === 0) {
+    return;
+  }
+  const slugs = new Set(apps.map((app) => app.slug));
+  await askWrites(asker.chatId, async () => {
+    const writer = askWriter(asker.chatId);
+    for (const { ask, live } of await chatAskStates(asker.chatId)) {
+      if (
+        !live ||
+        ask.kind !== "sign-in" ||
+        ask.device !== thisDevice() ||
+        !ask.apps.some((app) => slugs.has(app.slug))
+      ) {
+        continue;
+      }
+      const left = ask.apps.filter((app) => !slugs.has(app.slug));
+      const notAsked = ask.notOnCard?.filter((app) => !slugs.has(app.slug));
+      await writer.ask(asker.chatId, asker.sessionId, {
+        ...ask,
+        // A card left with no row keeps its rows as they were, closed.
+        apps: left.length > 0 ? left : ask.apps,
+        notOnCard: notAsked?.length ? notAsked : undefined,
+        ...(left.length === 0 && {
+          stage: { is: "closed", outcome: { kind: "left" }, woken: true },
+        }),
+      });
+    }
+    const at = getCurrentDate();
+    await writer.ask(asker.chatId, asker.sessionId, {
+      apps: apps.map(({ name, slug }) => ({ name, slug, standing: "waiting" })),
+      askedAt: at,
+      askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
+      device: thisDevice(),
+      id,
+      kind: "sign-in",
+      messageId: asker.messageId,
+      ...(notOnCard && { notOnCard }),
+      partId: asker.partId,
+      stage: { is: "open" },
+    });
+  });
+}
+
+/**
+ * Has the chat wait again on an app the person answers on a card it no
+ * longer waits on (a sign-in to an app they skipped there, after the card
+ * settled or after they wrote past it): a one-app sign-in on the same
+ * call, which the answer then settles and wakes the chat with. Nothing
+ * when a live card already has the app, or no card of this computer's in
+ * the chat ever asked for it.
+ */
+export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
+  const states = await chatAskStates(chatId);
+  const own = states.flatMap(({ ask, live }) =>
+    ask.kind === "sign-in" &&
+    ask.device === thisDevice() &&
+    ask.apps.some((app) => app.slug === slug)
+      ? [{ ask, live }]
+      : [],
+  );
+  const asked = own.at(-1)?.ask;
+  if (own.some(({ live }) => live) || asked === undefined) {
+    return;
+  }
+  const [asker] = asked.askers;
+  const app = asked.apps.find((row) => row.slug === slug);
+  if (asker === undefined || app === undefined) {
+    return;
+  }
+  await recordSignIn(
+    {
+      chatId,
+      messageId: asked.messageId,
+      partId: asked.partId,
+      sessionId: asker.sessionId,
+    },
+    [{ name: app.name, slug }],
+    undefined,
+    { id: ulid() },
+  );
+}
+
 /** Each computer's name by its device, once read. */
 const computerNames = new Map<DeviceId, string>();
 
@@ -379,6 +475,34 @@ async function questionAskOf(
   };
 }
 
+/** A live sign-in as this device's readers draw it. */
+async function signInAskOf(
+  state: AskState & { ask: Extract<AskRecord, { kind: "sign-in" }> },
+): Promise<SignInAsk> {
+  const { ask, askers, pending } = state;
+  const taken = ask.stage.is === "taken" ? ask.stage.answer : undefined;
+  const answer = taken ?? pending;
+  return {
+    ...(answer && {
+      answered: {
+        by: await computerName(answer.device),
+        taken: answer === taken,
+      },
+    }),
+    answerable: answerableElsewhere(state),
+    apps: ask.apps,
+    askedAt: ask.askedAt,
+    askers,
+    computer: await computerName(ask.device),
+    device: ask.device,
+    here: ask.device === thisDevice(),
+    id: ask.id,
+    kind: "sign-in",
+    messageId: ask.messageId,
+    partId: ask.partId,
+  };
+}
+
 /** The live asks among `states` as this device's readers draw them, oldest first. */
 export function asksOf(states: readonly AskState[]): Promise<Ask[]> {
   return Promise.all(
@@ -391,8 +515,8 @@ export function asksOf(states: readonly AskState[]): Promise<Ask[]> {
           return [permissionAskOf({ ...state, ask: state.ask })];
         case "question":
           return [questionAskOf({ ...state, ask: state.ask })];
-        default:
-          return [];
+        case "sign-in":
+          return [signInAskOf({ ...state, ask: state.ask })];
       }
     }),
   );
@@ -428,7 +552,8 @@ export function cardLine(
       : card.questions[0]?.trim() || "Waiting for you to answer";
   }
   if (card.kind === "sign-in") {
-    return `Waiting for you to connect ${card.apps.map((app) => app.name).join(", ")}`;
+    const waiting = card.apps.filter((app) => app.standing === "waiting");
+    return `Waiting for you to connect ${(waiting.length > 0 ? waiting : card.apps).map((app) => app.name).join(", ")}`;
   }
   const kind = card.kind === "permission" ? card.on : card.kind;
   const status =

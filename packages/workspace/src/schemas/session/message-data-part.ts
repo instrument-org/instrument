@@ -743,6 +743,8 @@ export namespace SessionMessageDataPart {
    */
   export const AppEventDataPartSchema = z
     .object({
+      /** The sign-in ask it answers, by id: a session holds one note per ask. */
+      ask: z.string().optional(),
       /**
        * Carried on a message the user wrote, for changes made outside the
        * conversation since the agent's last turn, rather than waking the chat.

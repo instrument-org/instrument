@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
@@ -56,14 +55,6 @@ export const AppConnectionSchema = z.object({
   status: AppConnectionStatusSchema,
   toolCount: z.number().optional(),
   updatedAt: z.number(),
-  /**
-   * The chats that asked the user to connect the app and are still waiting on
-   * the answer. The answer (a sign-in finished in the browser, a key saved,
-   * a decline) can come from any chat's card or the app's own page, none of
-   * which is the chat, so the asks are kept with the app and every chat in
-   * them is woken from here. Gone once the answer has reached them.
-   */
-  waitingChats: z.array(ChatIdSchema).optional(),
 });
 
 export type AppConnection = z.output<typeof AppConnectionSchema>;
@@ -156,27 +147,6 @@ export async function nameAppAccount(
     });
   }
   return manifest;
-}
-
-/**
- * Puts a chat on an app's waiting list, for an answer given on that chat's
- * card after the card stopped waiting: a sign-in to an app the user skipped
- * there. The answer then wakes the chat the way one the card asked for does.
- * Nothing for an app with no record, which no card asked for.
- */
-export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
-  const connection = await readConnection(slug);
-  if (connection === undefined) {
-    return;
-  }
-  const waiting = connection.waitingChats ?? [];
-  if (waiting.includes(chatId)) {
-    return;
-  }
-  await getWorkspaceConfig().apps.connections.set(slug, {
-    ...connection,
-    waitingChats: [...waiting, chatId],
-  });
 }
 
 export async function readConnection(

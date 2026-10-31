@@ -1524,7 +1524,11 @@ describe("sessionMachine", () => {
     vi.spyOn(recordFolders, "sessionOfChat").mockReturnValue(result.sessionId);
     expect(
       (await openAsks(ChatIdSchema.parse(chatFolder))).map((ask) =>
-        ask.kind === "question" ? ask.question : ask.target,
+        ask.kind === "question"
+          ? ask.question
+          : ask.kind === "sign-in"
+            ? ask.partId
+            : ask.target,
       ),
     ).toEqual(["What would you like to do next?"]);
   });

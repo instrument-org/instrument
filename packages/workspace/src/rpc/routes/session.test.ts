@@ -383,7 +383,12 @@ describe("session.stop", () => {
         asker: ask.askers.map((asker) =>
           asker.sessionId === own ? "chat" : "task",
         ),
-        target: ask.kind === "question" ? ask.question : ask.target,
+        target:
+          ask.kind === "question"
+            ? ask.question
+            : ask.kind === "sign-in"
+              ? ask.partId
+              : ask.target,
       })),
     ).toMatchInlineSnapshot(`
       [

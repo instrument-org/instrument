@@ -26,7 +26,10 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import { answerQuestionAsk } from "../../lib/chat/drive-asks";
+import {
+  answerQuestionAsk,
+  declineSignInAsk,
+} from "../../lib/chat/drive-asks";
 import { openAsks, openAsksOf } from "../../lib/chat/open-asks";
 import { AskSchema } from "../../schemas/chat-state";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
@@ -350,6 +353,19 @@ const liveAsksRoute = base
   });
 
 /**
+ * Not now to a sign-in card, from any device: the computer that asked
+ * turns down every app on it still waiting and wakes the chat once. Signing
+ * in itself happens on that computer alone, where its sign-ins and keys
+ * are, so another device offers only this (`drive-asks.ts`).
+ */
+const declineSignInRoute = base
+  .input(z.object({ askId: z.string(), id: ChatIdSchema }))
+  .output(z.void())
+  .handler(async ({ context, input }) => {
+    await declineSignInAsk(input.id, input.askId, context.workspaceRef);
+  });
+
+/**
  * The person's answers to a card the chat put up with `choose`: for each
  * question a choice, their own words, or a skip, from any device. The
  * computer that asked writes them onto the call, which the card draws, and
@@ -414,6 +430,7 @@ const settleFeedbackOfferRoute = base
 export const chats = {
   ...chatRoutes,
   answerQuestion: answerQuestionRoute,
+  declineSignIn: declineSignInRoute,
   settleFeedbackOffer: settleFeedbackOfferRoute,
   archive: archiveChatRoute,
   byId: chatByIdRoute,

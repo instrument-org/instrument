@@ -141,7 +141,7 @@ function Notes({ release }: { release: Release }) {
       {detail && (
         <div
           className={cn(
-            "prose-session prose-release-notes prose prose-custom prose-sm wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
+            "prose-session prose prose-custom prose-sm prose-release-notes wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
             release.summary && "mt-2",
           )}
         >

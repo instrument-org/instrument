@@ -120,6 +120,9 @@ export async function* everyOne(source: AsyncIterable<unknown>) {
   }
 }
 
+/** The longest wait `setTimeout` takes, 2^31 - 1 ms (about 24.8 days). */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 /**
  * A change that comes at a known moment rather than from a write: fires
  * once at the moment last `set`, each `set` replacing the one before (none
@@ -136,16 +139,20 @@ export function atMoment(signal: AbortSignal | undefined): {
   const set = (at: number | undefined) => {
     clearTimeout(timer);
     timer = undefined;
-    if (at === undefined) {
+    // A read that lands after the reader went arms nothing.
+    if (at === undefined || signal?.aborted === true) {
       return;
     }
-    timer = setTimeout(
-      () => {
-        due = true;
-        wake?.();
-      },
-      Math.max(0, at - Date.now()),
-    );
+    const delay = Math.max(0, at - Date.now());
+    // Past the longest wait a timer takes, Node fires at once instead; a
+    // moment that far off (a clock weeks ahead) is left for a later read.
+    if (delay > MAX_TIMER_MS) {
+      return;
+    }
+    timer = setTimeout(() => {
+      due = true;
+      wake?.();
+    }, delay);
     timer.unref();
   };
   async function* fires() {

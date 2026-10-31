@@ -1,7 +1,7 @@
 import { EventPublisher } from "@orpc/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { liveRead, where } from "./live-read";
+import { atMoment, liveRead, where } from "./live-read";
 
 function setup() {
   const publisher = new EventPublisher<{ changed: { id: string } }>({
@@ -86,5 +86,45 @@ describe("liveRead", () => {
 
     expect((await answers.next()).value).toBe(2);
     controller.abort();
+  });
+});
+
+describe("atMoment", () => {
+  /** Whether `fires` yields within `ms`. */
+  async function firesWithin(fires: AsyncGenerator<void>, ms: number) {
+    return Promise.race([
+      fires.next().then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms)),
+    ]);
+  }
+
+  it("fires at the moment it is set to", async () => {
+    const { fires, set } = atMoment(undefined);
+    set(Date.now() + 5);
+    expect(await firesWithin(fires, 200)).toBe(true);
+    await fires.return(undefined);
+  });
+
+  // Node fires a timer past 2^31 ms at once, which would read again every
+  // millisecond for an answer from a clock weeks ahead.
+  it("leaves a moment past the longest timer wait unarmed", async () => {
+    const controller = new AbortController();
+    const { fires, set } = atMoment(controller.signal);
+    set(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    expect(await firesWithin(fires, 50)).toBe(false);
+    controller.abort();
+  });
+
+  it("arms nothing once its reader has gone", () => {
+    const controller = new AbortController();
+    const { set } = atMoment(controller.signal);
+    controller.abort();
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    try {
+      set(Date.now() + 5);
+      expect(timers).not.toHaveBeenCalled();
+    } finally {
+      timers.mockRestore();
+    }
   });
 });

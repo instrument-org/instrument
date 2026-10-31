@@ -49,7 +49,11 @@ import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning
 import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
-import { clearOldToolResults } from "./tool-result-clearing";
+import { markRepeatSearchSources } from "./repeat-search-sources";
+import {
+  clearOldToolResults,
+  toolResultsClearedThrough,
+} from "./tool-result-clearing";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -467,7 +471,10 @@ export async function prepareModelMessages({
   // Including all tools so they can run their toModelOutput even if they are
   // not used in this session
   const modelMessages = await SessionMessage.toModelMessages(
-    portableMessagesResult.messages,
+    markRepeatSearchSources(
+      portableMessagesResult.messages,
+      toolResultsClearedThrough(nonContextMessages),
+    ),
     TOOLS_FOR_MODEL_OUTPUT,
     {
       attachmentsDir: shellPath(chatAttachmentsDir(chatDir(chatId))),

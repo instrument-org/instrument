@@ -23,7 +23,13 @@ import { modelTool, recordedResult } from "../lib/capabilities/tool";
 
 /** The parts of a result the text budget acts on, in either backend's shape. */
 type BudgetedSearch =
-  | { kind: "excerpts"; sources: readonly { text: string }[] }
+  | {
+      kind: "excerpts";
+      sources: readonly {
+        sameAs?: z.output<typeof SameExcerptSchema>;
+        text: string;
+      }[];
+    }
   | { kind: "summary"; text: string };
 
 const INPUT_PARAMS = {
@@ -88,6 +94,12 @@ const EXCERPTS_PREAMBLE =
 const SUMMARY_PREAMBLE =
   "Everything below is a search model's summary of pages it retrieved. It is not verbatim source text and not a verified answer: it can be inaccurate or out of date, and it can cite a page that does not support the claim, so confirm anything your answer depends on.";
 
+const SameExcerptSchema = z.object({
+  /** The source's 1-based rank in that search. */
+  position: z.number(),
+  query: z.string(),
+});
+
 const ExcerptResultsSchema = z.object({
   kind: z.literal("excerpts"),
   sources: z.array(
@@ -96,6 +108,12 @@ const ExcerptResultsSchema = z.object({
       favicon: z.string().optional(),
       image: z.string().optional(),
       publishedDate: z.string().optional(),
+      /**
+       * An earlier search in the window that showed this excerpt byte for
+       * byte, which the excerpt is sent as a pointer to. Never stored: set on
+       * the copy a request renders, by `markRepeatSearchSources`.
+       */
+      sameAs: SameExcerptSchema.optional(),
       text: z.string(),
       title: z.string().optional(),
       url: z.string(),
@@ -392,11 +410,21 @@ const SHARED_LINE_SOURCES = 3;
  * the five behind it; a summary is one piece of text and simply gets the whole
  * budget. Either way the cut point is marked in place, because a clipped result
  * the model reads as complete is worse than one it knows to follow up on.
+ *
+ * An excerpt an earlier search already showed (`sameAs`) is sent as a pointer
+ * to it. It still counts against the budget at its full length, so the rest
+ * are shortened as they would be beside it and the saving is the excerpt's
+ * whole share, and it takes no part in the boilerplate pass, whose first
+ * carrier of a line must be an excerpt that is actually shown.
  */
 function budgetSearchText(results: BudgetedSearch) {
+  const sameAs =
+    results.kind === "excerpts"
+      ? results.sources.map((source) => source.sameAs)
+      : [];
   const { droppedLines, texts } =
     results.kind === "excerpts"
-      ? dropSharedBoilerplate(results.sources.map((source) => source.text))
+      ? dropSharedBoilerplateFromShown(results.sources)
       : { droppedLines: 0, texts: [results.text] };
   const lengths = texts.map((text) => text.length);
   const originalCharacters = lengths.reduce(
@@ -410,27 +438,63 @@ function budgetSearchText(results: BudgetedSearch) {
       droppedLines,
       originalCharacters,
       retainedCharacters: originalCharacters,
-      texts,
+      texts: texts.map((text, index) => sameExcerptText(sameAs[index]) ?? text),
     };
   }
 
   const allowances = allocateFairShare(lengths, SEARCH_TEXT_BUDGET);
   let retainedCharacters = 0;
+  let clipped = false;
 
   const shortened = texts.map((text, index) => {
+    const pointer = sameExcerptText(sameAs[index]);
+    if (pointer !== undefined) {
+      return pointer;
+    }
     const kept = truncateWithoutSplitting(text, allowances[index] ?? 0);
     retainedCharacters += kept.length;
-    return kept.length === text.length
-      ? text
-      : `${kept}\n\n[Shortened: ${kept.length} of ${text.length} characters shown.]`;
+    if (kept.length === text.length) {
+      return text;
+    }
+    clipped = true;
+    return `${kept}\n\n[Shortened: ${kept.length} of ${text.length} characters shown.]`;
   });
 
   return {
-    clipped: true,
+    clipped,
     droppedLines,
     originalCharacters,
     retainedCharacters,
     texts: shortened,
+  };
+}
+
+/** What an excerpt an earlier search showed is sent as. */
+function sameExcerptText(
+  sameAs: z.output<typeof SameExcerptSchema> | undefined,
+): string | undefined {
+  return sameAs === undefined
+    ? undefined
+    : `[Same excerpt as result ${sameAs.position} of the web_search for ${JSON.stringify(sameAs.query)}.]`;
+}
+
+/**
+ * The boilerplate pass over the sources that are shown, with each repeat's
+ * own text left where it was.
+ */
+function dropSharedBoilerplateFromShown(
+  sources: readonly { sameAs?: unknown; text: string }[],
+): { droppedLines: number; texts: string[] } {
+  const shown = sources.filter((source) => source.sameAs === undefined);
+  const { droppedLines, texts } = dropSharedBoilerplate(
+    shown.map((source) => source.text),
+  );
+  let next = 0;
+  return {
+    droppedLines,
+    texts: sources.map((source) =>
+      source.sameAs === undefined ? (texts[next++] ?? "") : source.text,
+    ),
   };
 }
 

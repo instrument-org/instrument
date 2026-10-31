@@ -63,7 +63,6 @@ Each entry is the plan's title and the opening of its status.
 - [Radix upgrade, and whether to move to Base UI](radix-upgrade-and-base-ui-migration.md): Phase 0 landed (`fa27ad0e2` took the July 2026 Radix releases, `894c2cdd6` the 2026-10-05 ones);
 - [The code React Compiler never sees](react-compiler-blind-spots.md): Proposal, mostly not started (checked 2026-10-29).
 - [Letting a task look at what it made](render-a-file-to-look-at-it.md): Proposed, 2026-09-07.
-- [Stop paying for the same search result twice](repeat-search-results.md): Proposed, not started (checked 2026-10-29: no deduplication pass in `prepare-model-messages.ts`).
 - [Seeded, disposable workspaces for driving and testing Studio](seeded-test-workspaces.md): Corpus (`fixtures/workspaces/`), seeder (`pnpm workspace:seed`), recorder and `studio-drive --workspace` wiring landed, on the 2.0 chat layout.
 - [Seeded workspaces on the Windows test host](seeded-workspaces-on-windows.md): The helper side has landed;
 - [Semantic prompt composer](semantic-prompt-composer.md): Landed for skills and apps, deferred for the rest.
@@ -126,6 +125,7 @@ Each entry is the plan's title and the opening of its status.
 - [Pnpm 10 -> 11 migration](pnpm-11-migration.md): Completed.
 - [Real host paths, held to the Permissions rules](real-host-paths.md): Completed.
 - [One change feed for records](record-change-feed.md): Completed.
+- [Stop paying for the same search result twice](repeat-search-results.md): Built as `markRepeatSearchSources` (`packages/workspace/src/lib/repeat-search-sources.ts`), run in prepare-model-messages.ts over the messages a request sends.
 - [Sandbox and workspace adjustments](sandbox-and-workspace-adjustments.md): Landed.
 - [Sandboxed script runtimes as the default](sandboxed-script-runtimes.md): Landed 2026-09-10, all phases, in the end state the plan recommends: `python`/`python3` are the sandboxed CPython, `python-native` is the virtualenv interpre...
 - [One window browser](single-window-browser.md): Landed.

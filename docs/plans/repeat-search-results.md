@@ -1,6 +1,6 @@
 # Stop paying for the same search result twice
 
-Status: open. Proposed, not started (checked 2026-10-29: no deduplication pass in `prepare-model-messages.ts`). Owner: TBD. Depends on [context compaction](context-compaction.md) for the reason in "Interaction with rollover"; the rollover it needs (compaction phases 0 to 2) has landed, so this is unblocked.
+Status: done. Built as `markRepeatSearchSources` (`packages/workspace/src/lib/repeat-search-sources.ts`), run in [prepare-model-messages.ts](../../packages/workspace/src/lib/prepare-model-messages.ts) over the messages a request sends. Two choices beyond what is written below: a repeat is keyed on its URL and its excerpt text together, so a page excerpted differently for another query is shown whole; and a repeat still counts against its search's [character budget](tool-result-context-budgets.md) at full length while sitting out the boilerplate pass, so the other excerpts read exactly as they would beside it and the saving is the repeat's whole share. Searches in messages a recorded tool-result clearing covers neither count as shown nor are marked. A summary from the model's own provider's search (the `summary` kind) has no per-source text, so this saves nothing there.
 
 ## Problem
 

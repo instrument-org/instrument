@@ -23,6 +23,11 @@ const ResultsSchema = z.discriminatedUnion("kind", [
         favicon: z.string().optional(),
         image: z.string().optional(),
         publishedDate: z.string().optional(),
+        // Never stored: set on the copy a request renders, by
+        // `markRepeatSearchSources`.
+        sameAs: z
+          .object({ position: z.number(), query: z.string() })
+          .optional(),
         text: z.string(),
         title: z.string().optional(),
         url: z.string(),

@@ -373,17 +373,24 @@ interface ViewerContext {
   onMediaError: (fallbackExtension: string) => void;
   /** A page's file drawn as its page, when the surface around the viewer can draw one. */
   page?: ReactNode;
-  /** Whether a video plays without sound whatever else is true. */
+  /** Whether video and audio stay quiet whatever else is true. */
   silent: boolean;
   wrapLines: boolean;
 }
 
 /**
- * A video that starts playing as it opens. With sound when the window has
- * focus as it opens, since then a person is at the window and opened it or
- * watched it open; muted when the window is in the background (an agent
- * showing it while the person is in another app) or the caller asks for
- * silence. Decided once per file, so the person's own mute or unmute stands.
+ * Whether media opening now may play sound: when the window has focus, a
+ * person is at it and opened the file or watched it open; in the background
+ * it is an agent showing the file while the person is in another app.
+ */
+function soundAllowed(silent: boolean) {
+  return !silent && document.hasFocus();
+}
+
+/**
+ * A video that starts playing as it opens, with sound where `soundAllowed`
+ * says and muted otherwise. Decided once per file, so the person's own mute
+ * or unmute stands.
  */
 function VideoPlayer({
   onError,
@@ -394,7 +401,7 @@ function VideoPlayer({
   silent: boolean;
   src: string;
 }) {
-  const [muted] = useState(() => silent || !document.hasFocus());
+  const [muted] = useState(() => !soundAllowed(silent));
   return (
     <video
       autoPlay
@@ -403,6 +410,31 @@ function VideoPlayer({
       muted={muted}
       onError={onError}
       playsInline
+      src={src}
+    />
+  );
+}
+
+/**
+ * A sound file that starts playing as it opens where `soundAllowed` says, and
+ * waits for a press otherwise; there is nothing to show of it muted.
+ */
+function AudioPlayer({
+  onError,
+  silent,
+  src,
+}: {
+  onError: () => void;
+  silent: boolean;
+  src: string;
+}) {
+  const [autoPlay] = useState(() => soundAllowed(silent));
+  return (
+    <audio
+      autoPlay={autoPlay}
+      className="w-full max-w-2xl"
+      controls
+      onError={onError}
       src={src}
     />
   );
@@ -450,15 +482,14 @@ const VIEWERS = {
   },
   audio: {
     hasToolbar: false,
-    render: ({ file, onMediaError }) => (
+    render: ({ file, onMediaError, silent }) => (
       <div className="flex size-full items-center justify-center p-8">
-        <audio
-          className="w-full max-w-2xl"
-          controls
+        <AudioPlayer
           key={file.hostPath}
           onError={() => {
             onMediaError("mp3");
           }}
+          silent={silent}
           src={file.url}
         />
       </div>
@@ -893,7 +924,7 @@ export function FileViewer({
    * HTML file alone.
    */
   page?: ReactNode;
-  /** Set where a video must never play sound, such as a thumbnail. */
+  /** Set where video and audio must never play sound, such as a thumbnail. */
   silent?: boolean;
 }) {
   const { filename, hostPath, mimeType, url } = file;

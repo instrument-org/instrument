@@ -440,6 +440,35 @@ describe("a gesture in a file manager", () => {
     },
   );
 
+  it.runIf(process.platform === "darwin")(
+    "records no folder the shell finds while it passed over another transcript",
+    async () => {
+      const { dir } = await writeChat("2026-10-14-dishwashers", {
+        title: "Dishwashers",
+      });
+      await writeFolder("2026-10-14-dishwashers");
+      await fs.rm(machineDir(), { force: true, recursive: true });
+      await copyFolder("Dishwashers", "Dishwashers, my copy");
+      const original = fsSync.statSync(
+        path.join(chatsFolder(), "Dishwashers", "CHAT.md"),
+      ).ino;
+      const fstat = fsSync.fstatSync;
+      // The original's transcript only in the cloud, the copy's on disk.
+      vi.spyOn(fsSync, "fstatSync").mockImplementation((handle) => {
+        const stat = fstat(handle);
+        return stat.ino === original
+          ? Object.assign(stat, { blocks: 0 })
+          : stat;
+      });
+
+      expect(chatOwnFolder(dir)).toBe(
+        path.join(chatsFolder(), "Dishwashers, my copy"),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(folderOf(dir)).toBeUndefined();
+    },
+  );
+
   it("records at launch each chat's one folder this computer has no name for", async () => {
     const one = await writeChat("2026-10-14-dishwashers", {
       title: "Dishwashers",

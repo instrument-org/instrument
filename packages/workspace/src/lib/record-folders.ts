@@ -244,9 +244,12 @@ export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
   if (name !== undefined && isDir(path.join(chats, name))) {
     return AbsolutePathSchema.parse(path.join(chats, name));
   }
-  const found = id.success ? folderLinkedTo(chats, id.data, names) : undefined;
-  // Recorded, so the next ask finds it by name rather than by another scan.
-  if (id.success && found !== undefined) {
+  const linked = id.success ? folderLinkedTo(chats, id.data, names) : undefined;
+  const found = linked?.folder;
+  // Recorded, so the next ask finds it by name rather than by another scan;
+  // a scan that passed over a file leaves recording to the next launch's
+  // read of every one.
+  if (id.success && found !== undefined && linked?.sure === true) {
     recordChatFolderName(workspaceMachineDir, id.data, found).catch(
       (error: unknown) => {
         getWorkspaceConfig().captureException(error);

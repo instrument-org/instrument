@@ -56,6 +56,9 @@ export async function recordChatFolderName(
   );
 }
 
+/** What a `CHAT.md` a cloud service keeps by name only reads as, unread. */
+const KEPT_BY_NAME_ONLY = Symbol("kept by name only");
+
 /**
  * The one folder directly under `chats` (the workspace's `Chats/`) whose
  * `CHAT.md` names this chat and that no other chat claims, or nothing when
@@ -65,26 +68,32 @@ export async function recordChatFolderName(
  * Synchronous, for the callers that cannot wait, so a `CHAT.md` a cloud
  * service keeps by name only is passed over rather than downloaded: reading
  * one blocks the thread until it arrives. {@link findChatFolderNames} reads
- * those at launch and records what they name.
+ * those at launch and records what they name. `sure` is false when one was
+ * passed over, since it may name the chat too, which makes the folder found
+ * one of two.
  */
 export function folderLinkedTo(
   chats: string,
   id: ChatId,
   names: ReadonlyMap<string, string>,
-): string | undefined {
+): { folder: string | undefined; sure: boolean } {
   const startedAt = performance.now();
   const folders = unclaimedFolders(chats, id, names);
-  const linked = folders.filter(
-    (name) =>
-      chatLinkedInFileSync(path.join(chats, name, CHAT_FILE_NAME)) === id,
-  );
+  let sure = true;
+  const linked = folders.filter((name) => {
+    const named = chatLinkedInFileSync(path.join(chats, name, CHAT_FILE_NAME));
+    if (named === KEPT_BY_NAME_ONLY) {
+      sure = false;
+    }
+    return named === id;
+  });
   const took = Math.round(performance.now() - startedAt);
   if (took >= SLOW_SCAN_MS) {
     console.warn(
       `Chat folders: looked for ${id}'s folder through ${folders.length} CHAT.md files in ${took}ms (${names.size} names recorded on this computer)`,
     );
   }
-  return linked.length === 1 ? linked[0] : undefined;
+  return { folder: linked.length === 1 ? linked[0] : undefined, sure };
 }
 
 /**
@@ -187,21 +196,24 @@ function comparable(name: string): string {
 
 /** The chat the `CHAT.md` in `folder` names, if it has one of ours. */
 export function chatLinkedInFolder(folder: string): ChatId | undefined {
-  return chatLinkedInFileSync(path.join(folder, CHAT_FILE_NAME));
+  const named = chatLinkedInFileSync(path.join(folder, CHAT_FILE_NAME));
+  return named === KEPT_BY_NAME_ONLY ? undefined : named;
 }
 
 /* oxlint-disable studio/no-sync-content-read -- synchronous on purpose: the shell's layout is synchronous, and this passes over a CHAT.md kept by name only. */
 /**
- * Nothing for a file a cloud service keeps by name only, which is left
- * unread. A file this passes over by mistake is read by
+ * {@link KEPT_BY_NAME_ONLY} for a file a cloud service keeps by name only,
+ * which is left unread. A file this passes over by mistake is read by
  * {@link findChatFolderNames} anyway.
  */
-function chatLinkedInFileSync(file: string): ChatId | undefined {
+function chatLinkedInFileSync(
+  file: string,
+): ChatId | typeof KEPT_BY_NAME_ONLY | undefined {
   let handle: number | undefined;
   try {
     handle = fs.openSync(file, "r");
     if (keptByNameOnly(fs.fstatSync(handle))) {
-      return undefined;
+      return KEPT_BY_NAME_ONLY;
     }
     const buffer = Buffer.alloc(LINK_HEAD_BYTES);
     const bytesRead = fs.readSync(handle, buffer, 0, LINK_HEAD_BYTES, 0);

@@ -485,7 +485,7 @@ export function ChatStream({
       const retriedAway =
         message.role === "assistant" &&
         !isDeveloperMode &&
-        isRetriedAway(message.metadata.error, {
+        isRetriedAway(message.metadata, {
           endedTurn: nextMessage?.role !== "assistant",
           isLastMessage,
         });

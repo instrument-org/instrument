@@ -72,7 +72,7 @@ export function describeMessageError(
     case "unsendable-content": {
       return {
         detail:
-          "The model would not accept something in this conversation, such as an attached file. Starting a new task leaves it behind.",
+          "The model wouldn't accept something in this chat, like an attached file. Starting a new chat leaves it behind.",
         summary: "Content the model refused",
       };
     }

@@ -140,12 +140,13 @@ export function MessageError({
   const classification =
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
-  // stopped themselves, or a throttle the machine waited out before the turn
-  // that followed succeeded. One the turn ended on was never waited out, and
+  // stopped themselves, a throttle the machine waited out, or media the
+  // provider refused that the retry left out, before the turn that followed
+  // succeeded. One the turn ended on was never waited out, and
   // stays where it happened after the user writes again.
   const isHiddenFromReader =
     error.kind === "aborted" ||
-    isRetriedAway(error, { endedTurn, isLastMessage });
+    isRetriedAway(message.metadata, { endedTurn, isLastMessage });
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
   }

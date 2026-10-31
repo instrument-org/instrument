@@ -319,7 +319,7 @@ function bubbleBoxes(
     const superseded = message.metadata.error?.kind === "aborted";
     const retriedAway =
       !isDeveloperMode &&
-      isRetriedAway(message.metadata.error, {
+      isRetriedAway(message.metadata, {
         endedTurn: regular[index + 1]?.role !== "assistant",
         isLastMessage,
       });

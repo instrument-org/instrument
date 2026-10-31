@@ -85,7 +85,7 @@ describe("describeMessageError", () => {
           "summary": "Stopped",
         },
         "content the provider refused": {
-          "detail": "The model would not accept something in this conversation, such as an attached file. Starting a new task leaves it behind.",
+          "detail": "The model wouldn't accept something in this chat, like an attached file. Starting a new chat leaves it behind.",
           "summary": "Content the model refused",
         },
       }

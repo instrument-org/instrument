@@ -19,6 +19,7 @@ describe("shouldRestoreScroll", () => {
     ["/debug/components/transcript", "the transcript page"],
     ["/chats/ses_01M1YN1KHE4J98KASDQXYF86GF", "a 2.0 chat"],
     ["/tasks/abc123", "a 2.0 task's transcript"],
+    ["/files", "the Files views"],
   ])("leaves %s to its own scroller", (pathname) => {
     expect(at(pathname)).toBe(false);
   });

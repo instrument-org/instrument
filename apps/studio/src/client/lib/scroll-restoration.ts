@@ -3,8 +3,9 @@ import { type ParsedLocation } from "@tanstack/react-router";
 import { type FileRouteTypes } from "../routeTree.gen";
 
 /**
- * Pages whose scroll position belongs to a `MessageScroller` rather than to the
- * document.
+ * Pages whose scroll position belongs to the page's own scroller rather than
+ * to the document: a `MessageScroller`, or the Files views, which keep their
+ * selection in view.
  *
  * Restoration keys elements by DOM path and, on every navigation, copies the
  * previous location's entries forward onto the new one for any selector that
@@ -15,8 +16,11 @@ import { type FileRouteTypes } from "../routeTree.gen";
  *
  * That is wrong even when it is the same transcript, since these are
  * bottom-anchored and their height differs between visits as content streams in
- * and renders asynchronously. The scroller owns its own position, so these pages
- * opt out; every other page keeps element-level restoration.
+ * and renders asynchronously. Files writes its selection into the address as it
+ * moves, so each arrow key is a navigation, and the offset written back after
+ * it undoes the view scrolling the new selection into view. The scroller owns
+ * its own position, so these pages opt out; every other page keeps
+ * element-level restoration.
  *
  * Validated against the generated route tree so a route move or rename fails to
  * compile instead of silently re-enabling restoration.
@@ -25,6 +29,7 @@ const SCROLLER_OWNED_PATHS = [
   "/debug/components/transcript",
   "/chats/$id",
   "/tasks/$sessionId",
+  "/files",
 ] satisfies FileRouteTypes["fullPaths"][];
 
 // A path parameter cannot be compared literally, so an entry carrying one is

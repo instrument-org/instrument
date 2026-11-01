@@ -73,8 +73,6 @@ describe("limitModelImages", () => {
     );
     expect(kinds.filter((kind) => kind === "note")).toHaveLength(41);
     expect(kinds.slice(41).every((kind) => kind === "image")).toBe(true);
-    expect(JSON.stringify(limited[0])).toContain(
-      "This image was left out",
-    );
+    expect(JSON.stringify(limited[0])).toContain("This image was left out");
   });
 });

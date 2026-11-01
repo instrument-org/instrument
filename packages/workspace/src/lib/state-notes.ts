@@ -106,9 +106,7 @@ export function goesUnsaid(
 }
 
 /** A `state` part read through its `STATE_NOTES` entry; undefined for any other part. */
-function stateOf(
-  part: SessionMessagePart.Type,
-):
+function stateOf(part: SessionMessagePart.Type):
   | {
       isEmpty: () => boolean;
       name: StateName;

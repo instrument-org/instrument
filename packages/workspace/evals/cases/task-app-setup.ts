@@ -188,10 +188,7 @@ const askedThenSentOn: Assertion = {
 
 export const TASK_APP_SETUP_EVALS = [
   defineEval({
-    assertions: [
-      setUpNoApp(ASANA, "Asana"),
-      namedItInItsNeeds(ASANA, "Asana"),
-    ],
+    assertions: [setUpNoApp(ASANA, "Asana"), namedItInItsNeeds(ASANA, "Asana")],
     name: "task-app-setup-refused",
     prompt:
       "Set up Asana as an app in this workspace (it has a hosted MCP server), then list the user's open Asana tasks. Report the list.",

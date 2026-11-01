@@ -776,7 +776,12 @@ export class ChatRecords {
             held.answers.delete(ticket);
           };
         },
-        record: () => ({ t: "answer", at, ask: answer.ask, given: answer.given }),
+        record: () => ({
+          t: "answer",
+          at,
+          ask: answer.ask,
+          given: answer.given,
+        }),
       });
     });
     if (ref === undefined) {

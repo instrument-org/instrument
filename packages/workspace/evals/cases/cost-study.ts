@@ -98,7 +98,11 @@ const sortedDownloads: Assertion = {
 function chatCase(
   evalCase: Omit<EvalCase, "kind"> & { name: string },
 ): EvalCase {
-  return defineEval({ ...evalCase, kind: "chat", name: `cost-${evalCase.name}` });
+  return defineEval({
+    ...evalCase,
+    kind: "chat",
+    name: `cost-${evalCase.name}`,
+  });
 }
 
 export const COST_STUDY_EVALS = [
@@ -147,22 +151,73 @@ export const COST_STUDY_EVALS = [
     prompt:
       "I'm hosting a dinner party for eight next Saturday. Two guests are vegetarian and one can't have gluten. Help me plan a menu.",
     followUps: [
-      { prompt: "Love it. Can you find actual recipes online for each dish?", settled: true },
-      { prompt: "Swap the dessert for something that can be made the day before.", settled: true },
-      { prompt: "Make me a page with the menu and the recipes.", settled: true },
-      { prompt: "Now a combined shopping list on that page, grouped by store section.", settled: true },
-      { prompt: "Check Whole Foods' site for rough prices on the main ingredients and add an estimated total.", settled: true },
-      { prompt: "Add a cooking timeline for the day so everything is ready at 7pm.", settled: true },
-      { prompt: "What wine would go with the main course? Something under $25.", settled: true },
+      {
+        prompt: "Love it. Can you find actual recipes online for each dish?",
+        settled: true,
+      },
+      {
+        prompt:
+          "Swap the dessert for something that can be made the day before.",
+        settled: true,
+      },
+      {
+        prompt: "Make me a page with the menu and the recipes.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Now a combined shopping list on that page, grouped by store section.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Check Whole Foods' site for rough prices on the main ingredients and add an estimated total.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Add a cooking timeline for the day so everything is ready at 7pm.",
+        settled: true,
+      },
+      {
+        prompt: "What wine would go with the main course? Something under $25.",
+        settled: true,
+      },
       { prompt: "Add the wine to the page.", settled: true },
-      { prompt: "Actually one more guest is coming, so nine. Update the quantities.", settled: true },
-      { prompt: "Can you make the page look nicer? More like a menu card at the top.", settled: true },
-      { prompt: "Write a short text I can send the guests with the time and what to bring.", settled: true },
-      { prompt: "Add a section for a playlist vibe, with a few artist suggestions.", settled: true },
-      { prompt: "The gluten-free guest also can't have dairy. Which dishes need to change?", settled: true },
+      {
+        prompt:
+          "Actually one more guest is coming, so nine. Update the quantities.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Can you make the page look nicer? More like a menu card at the top.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Write a short text I can send the guests with the time and what to bring.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Add a section for a playlist vibe, with a few artist suggestions.",
+        settled: true,
+      },
+      {
+        prompt:
+          "The gluten-free guest also can't have dairy. Which dishes need to change?",
+        settled: true,
+      },
       { prompt: "Make those changes on the page.", settled: true },
-      { prompt: "Give me a printable one-page version of just the timeline.", settled: true },
-      { prompt: "Last thing: double-check every recipe link still works.", settled: true },
+      {
+        prompt: "Give me a printable one-page version of just the timeline.",
+        settled: true,
+      },
+      {
+        prompt: "Last thing: double-check every recipe link still works.",
+        settled: true,
+      },
     ],
   }),
   chatCase({
@@ -215,18 +270,52 @@ export const COST_STUDY_EVALS = [
     prompt:
       "Build me a simple habit tracker as a web app in a Habit Tracker folder in my workspace: plain HTML, CSS and JavaScript, saving to localStorage. Habits down the side, the last 14 days across, click a cell to mark it done.",
     followUps: [
-      { prompt: "Open it in the browser and make sure clicking actually works.", settled: true },
+      {
+        prompt: "Open it in the browser and make sure clicking actually works.",
+        settled: true,
+      },
       { prompt: "Add a streak count next to each habit.", settled: true },
       { prompt: "Let me rename and delete habits.", settled: true },
-      { prompt: "Add a dark mode that follows the system setting.", settled: true },
-      { prompt: "The grid is cramped on my phone. Make it work on a narrow screen.", settled: true },
-      { prompt: "Add a weekly summary chart under the grid, no libraries.", settled: true },
-      { prompt: "Let me export and import my data as a JSON file.", settled: true },
-      { prompt: "Write some tests for the streak logic and run them.", settled: true },
-      { prompt: "There's a bug: the streak resets when a day in the past is unchecked. Fix it.", settled: true },
-      { prompt: "Add reminders: a note at the top if a habit hasn't been done today after 8pm.", settled: true },
-      { prompt: "Clean up the code, split it into a few files, and make sure everything still works in the browser.", settled: true },
-      { prompt: "Write a short README explaining how to use it.", settled: true },
+      {
+        prompt: "Add a dark mode that follows the system setting.",
+        settled: true,
+      },
+      {
+        prompt:
+          "The grid is cramped on my phone. Make it work on a narrow screen.",
+        settled: true,
+      },
+      {
+        prompt: "Add a weekly summary chart under the grid, no libraries.",
+        settled: true,
+      },
+      {
+        prompt: "Let me export and import my data as a JSON file.",
+        settled: true,
+      },
+      {
+        prompt: "Write some tests for the streak logic and run them.",
+        settled: true,
+      },
+      {
+        prompt:
+          "There's a bug: the streak resets when a day in the past is unchecked. Fix it.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Add reminders: a note at the top if a habit hasn't been done today after 8pm.",
+        settled: true,
+      },
+      {
+        prompt:
+          "Clean up the code, split it into a few files, and make sure everything still works in the browser.",
+        settled: true,
+      },
+      {
+        prompt: "Write a short README explaining how to use it.",
+        settled: true,
+      },
     ],
   }),
 ];

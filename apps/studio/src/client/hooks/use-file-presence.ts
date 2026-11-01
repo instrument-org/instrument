@@ -50,5 +50,5 @@ export function useFilePresence<T extends HTMLElement>(
     };
   }, [isNear, url]);
 
-  return { isMissing: missingUrl === url, ref };
+  return { isMissing: url !== undefined && missingUrl === url, ref };
 }

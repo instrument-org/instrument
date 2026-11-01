@@ -137,9 +137,17 @@ export function useWindowSteps(): TabSteps {
     canGoForward: stepOf(stack, "forward") !== undefined,
     go: (direction) => {
       const layer = stepOf(stack, direction);
-      if (layer === "guest" && hosted.target) {
-        goGuest(hosted.target, direction);
-      } else if (layer === "screen") {
+      // The page's steps as last heard can be stale (a page put away has
+      // its history cleared without a navigation), so one it can no longer
+      // take is the tab's.
+      if (
+        layer === "guest" &&
+        hosted.target &&
+        goGuest(hosted.target, direction)
+      ) {
+        return;
+      }
+      if (layer === "guest" ? stack.screen[direction] : layer === "screen") {
         if (direction === "back") {
           router.history.back();
         } else {

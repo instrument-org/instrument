@@ -436,7 +436,12 @@ export function FilesScreen({
         return;
       }
       if (step.kind === "file") {
-        showFile(step.path, { replace: true });
+        // Another page goes on in the page, whose own history holds the
+        // step. A file of another kind puts the page away blank, with no
+        // history to walk back to the file, so the step is the tab's.
+        showFile(step.path, {
+          replace: getFileType({ filename: step.path }) === "html",
+        });
         return;
       }
       if (hostedTabId === undefined) {

@@ -263,10 +263,18 @@ export function useHostedPage({
     } else if (url === undefined && current) {
       // A page put away for a file of another kind keeps its guest a while,
       // blank so nothing of it plays on out of sight, for the next page in a
-      // folder being walked to go on in.
+      // folder being walked to go on in. Its history goes with what it
+      // showed: back would otherwise walk the hidden guest onto the file it
+      // left for, a video playing again where no one can see or stop it.
       const { id } = current;
       kept = id;
-      getGuest(browserTargetOf(id))?.load("about:blank").catch(noop);
+      const guest = getGuest(browserTargetOf(id));
+      guest
+        ?.load("about:blank")
+        .then(() => {
+          guest.clearHistory();
+        })
+        .catch(noop);
       parked.current = window.setTimeout(() => {
         parked.current = undefined;
         hostLoads.delete(browserTargetOf(id));

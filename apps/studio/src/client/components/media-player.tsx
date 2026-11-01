@@ -5,7 +5,7 @@ import { useSiblingCaptions } from "@/client/lib/use-sibling-captions";
 import { useStoryboardTrack } from "@/client/lib/use-storyboard-track";
 import { Audio, AudioPlayer as AudioPlayerRoot } from "@videojs/react/audio";
 import { Video, VideoPlayer as VideoPlayerRoot } from "@videojs/react/video";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** Played this far, a video is being watched, and its timeline previews are made. */
 const WATCHED_SECONDS = 10;
@@ -39,6 +39,7 @@ export function VideoPlayer({
   const captions = useSiblingCaptions(hostPath);
   const [wantsPreviews, setWantsPreviews] = useState(false);
   const storyboard = useStoryboardTrack(hostPath, wantsPreviews);
+  const mediaRef = usePlayerSession<HTMLVideoElement>();
   const onMetadata = (media: HTMLVideoElement) => {
     if (media.videoWidth === 0 && media.videoHeight === 0) {
       onAudioOnly();
@@ -60,11 +61,13 @@ export function VideoPlayer({
       >
         <Video
           autoPlay
+          mediaRef={mediaRef}
           muted={muted}
           onError={onError}
           onLoadedMetadata={(event) => {
             onMetadataOnce(event.currentTarget, onMetadata);
           }}
+          onPlay={pauseOtherPlayers}
           onTimeUpdate={
             wantsPreviews
               ? undefined
@@ -121,15 +124,18 @@ export function AudioPlayer({
   onError: () => void;
   src: string;
 }) {
+  const mediaRef = usePlayerSession<HTMLAudioElement>();
   return (
     <AudioPlayerRoot>
       <AudioSkin name={name}>
         <Audio
           autoPlay={autoPlay}
+          mediaRef={mediaRef}
           onError={onError}
           onLoadedMetadata={(event) => {
             onMetadataOnce(event.currentTarget, readUnknownDuration);
           }}
+          onPlay={pauseOtherPlayers}
           ref={(media) => {
             whenLoadedBeforeMount(media, readUnknownDuration);
           }}
@@ -138,6 +144,48 @@ export function AudioPlayer({
       </AudioSkin>
     </AudioPlayerRoot>
   );
+}
+
+/** Every player on a page of the window, playing or not. */
+const players = new Set<HTMLMediaElement>();
+
+/**
+ * A player's hold on its element, for as long as it is mounted. Taken off
+ * the page, the element is paused and emptied of its source, so nothing
+ * that still holds it (the player's store, a late event, a play() from
+ * anywhere) can make it sound again; leaving the page alone does not
+ * promise that. One kept on the page out of sight (a tab behind) stays as
+ * it is, and so does one React mounts twice in development, which is still
+ * on the page when the first mount is cleaned up.
+ */
+function usePlayerSession<T extends HTMLMediaElement>() {
+  const mediaRef = useRef<T | null>(null);
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media) {
+      return;
+    }
+    players.add(media);
+    return () => {
+      players.delete(media);
+      if (media.isConnected) {
+        return;
+      }
+      media.pause();
+      media.removeAttribute("src");
+      media.load();
+    };
+  }, []);
+  return mediaRef;
+}
+
+/** One player sounds at a time: the one that starts pauses the rest. */
+function pauseOtherPlayers(event: { currentTarget: HTMLMediaElement }) {
+  for (const other of players) {
+    if (other !== event.currentTarget && !other.paused) {
+      other.pause();
+    }
+  }
 }
 
 /** The source each element's metadata was last handled for, once per source. */

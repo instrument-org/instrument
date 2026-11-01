@@ -54,6 +54,7 @@ Each entry is the plan's title and the opening of its status.
 - [Model request controls](model-request-controls.md): Phases 1 and 3 built;
 - [Word, PowerPoint and Excel files through LibreOffice, fetched on first need](office-documents-with-libreoffice.md): Proposed, not started.
 - [The onboarding setup assistant](onboarding-setup-assistant.md): Building.
+- [The phone runs the window's renderer on a local records core, with a host when one answers](phone-client-local-core.md): The remote half is built as a development spike: `apps/studio/src/electron-main/phone-host/` serves the router to `apps/studio/src/phone.html` over one WebSo...
 - [Plugins](plugins.md): Phase 1 landed under another shape, phase 2 not adopted, phase 3 overtaken, phase 4 not started.
 - [How the agent presents files, data, and artifacts](presentation-syntax.md): The file group is built and measured;
 - [Privacy-first diagnostics and feedback](privacy-first-diagnostics-and-feedback.md): In progress.

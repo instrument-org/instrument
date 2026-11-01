@@ -39,6 +39,8 @@ import { WebSocketServer } from "ws";
  *   connections to a host over plain HTTP, after which every call waits.
  * - `/bootstrap`: what the preload reads for the window before its first
  *   render, as one JSON document.
+ * - `/log`: what went wrong on the phone, into this process's log, since
+ *   nobody watches a phone's console.
  * - `/p/<token>/<host>/<path>`: the app's own scheme by proxy, so a file on
  *   this computer, a site's icon or a viewer's engine loads on the phone from
  *   the URL the renderer builds for it. The token is in the path because an
@@ -89,6 +91,16 @@ export function startPhoneHost(): void {
       response.end();
       return;
     }
+    if (url.pathname === "/log" && request.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) {
+        chunks.push(chunk as Buffer);
+      }
+      log.warn(`From the phone: ${Buffer.concat(chunks).toString("utf8")}`);
+      response.writeHead(204, corsHeaders());
+      response.end();
+      return;
+    }
     if (url.pathname === "/bootstrap") {
       const body = JSON.stringify(bootstrap({ origin: url.origin, token }));
       response.writeHead(200, {
@@ -110,11 +122,17 @@ export function startPhoneHost(): void {
       `http://${request.headers.host ?? "localhost"}`,
     );
     const given = url.searchParams.get("token");
+    const agent = request.headers["user-agent"] ?? "unknown";
     if (url.pathname !== "/rpc" || !given || !sameToken(given, token)) {
+      log.warn(`Refused a socket from ${agent}`);
       socket.destroy();
       return;
     }
+    log.info(`Socket from ${agent}`);
     sockets.handleUpgrade(request, socket, head, (ws) => {
+      ws.on("close", (code) => {
+        log.info(`Socket closed ${String(code)} from ${agent}`);
+      });
       void handler.upgrade(ws, {
         context: rpcContextFor(getAppWindow()?.webContents.id ?? -1),
       });

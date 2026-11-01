@@ -40,6 +40,72 @@ function readHost(): PhoneHost | undefined {
   return undefined;
 }
 
+/**
+ * What went wrong on the phone, sent to the host's log: a phone has no
+ * console anyone is watching, and the window's own capture goes nowhere here.
+ */
+function report(
+  host: PhoneHost,
+  entry: { kind: string; message: string; stack?: string },
+) {
+  void fetch(`${host.origin}/log`, {
+    body: JSON.stringify({ ...entry, userAgent: navigator.userAgent }),
+    headers: {
+      authorization: `Bearer ${host.token}`,
+      "content-type": "application/json",
+    },
+    keepalive: true,
+    method: "POST",
+  }).catch(() => undefined);
+}
+
+function reportFailuresTo(host: PhoneHost) {
+  report(host, {
+    kind: "hello",
+    message: `${String(innerWidth)}x${String(innerHeight)} secure=${String(isSecureContext)}`,
+  });
+  // What the page shows a while after loading, for a screen that is blank
+  // without an error: a content blocker on the phone hides elements it
+  // matches with a stylesheet nothing in the page can see or outrank.
+  setTimeout(() => {
+    const root = document.querySelector("#root");
+    const box = root?.getBoundingClientRect();
+    report(host, {
+      kind: "status",
+      message: `root ${box ? [box.width, box.height].map(Math.round).join("x") : "none"}, ${String(root?.querySelectorAll("*").length ?? 0)} elements, text: ${(root instanceof HTMLElement ? root.innerText : "").replace(/\s+/g, " ").slice(0, 160)}`,
+    });
+  }, 20_000);
+  window.addEventListener("error", (event) => {
+    report(host, {
+      kind: "error",
+      message: `${event.message} (${event.filename}:${String(event.lineno)})`,
+      stack: event.error instanceof Error ? event.error.stack : undefined,
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason: unknown = event.reason;
+    report(host, {
+      kind: "rejection",
+      message: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+    });
+  });
+  const consoleError = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    consoleError(...args);
+    report(host, {
+      kind: "console.error",
+      message: args
+        .map((arg) =>
+          arg instanceof Error
+            ? `${arg.message}\n${arg.stack ?? ""}`
+            : String(arg),
+        )
+        .join(" "),
+    });
+  };
+}
+
 async function start() {
   const host = readHost();
   if (!host) {
@@ -48,6 +114,7 @@ async function start() {
     return;
   }
   globalThis.__instrumentPhone = host;
+  reportFailuresTo(host);
   // Over plain HTTP on the network the page is no secure context, which
   // takes `crypto.randomUUID` away (the tab model mints ids with it) while
   // leaving `getRandomValues`; the one is built from the other.
@@ -75,7 +142,14 @@ async function start() {
   const { setComputerFileBase } = await import("./lib/computer-file-url");
   setComputerFileBase(bootstrap.computerFileBase);
   window.api = {
-    captureException: () => Promise.resolve(null),
+    captureException: (payload) => {
+      report(host, {
+        kind: "captured",
+        message: `${payload.error.type}: ${payload.error.value}`,
+        stack: payload.error.stack,
+      });
+      return Promise.resolve(null);
+    },
     codeEditorFocus: () => undefined,
     getFilePath: () => "",
     homeDir: bootstrap.homeDir,
@@ -88,13 +162,25 @@ async function start() {
   window.electron = {
     process: { platform: bootstrap.platform },
   } as unknown as ElectronAPI;
-  await import("./main");
+  try {
+    await import("./main");
+  } catch (error: unknown) {
+    report(host, {
+      kind: "load",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw error;
+  }
 }
 
 start().catch((error: unknown) => {
   // A failure before React mounts has no boundary to show it, so the page
   // says what it was.
   const pre = document.createElement("pre");
+  // Readable on either theme's background, which the app's stylesheet sets.
+  pre.style.cssText =
+    "color:#f87171;white-space:pre-wrap;padding:16px;font-size:12px";
   pre.textContent =
     error instanceof Error
       ? `${error.message}\n${error.stack ?? ""}`

@@ -75,6 +75,9 @@ progres = "progres"
 # A misspelled `--name` flag that shell-command tests pass on purpose to check
 # the unknown-flag error; "corrected", the flag is valid and the tests fail.
 nam = "nam"
+# The media element's own event name; "corrected" to `sought`, the listener
+# waits for an event that never fires.
+seeked = "seeked"
 # A regex stem that has to match both "truncated" and "truncation".
 truncat = "truncat"
 

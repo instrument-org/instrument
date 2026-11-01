@@ -1,4 +1,5 @@
 import { InlineLink } from "@/client/components/inline-link";
+import { PathChip } from "@/client/components/path-chip";
 import {
   SkillMention,
   useSkillsByName,
@@ -21,10 +22,12 @@ import { Fragment } from "react";
  * is only a guess until then.
  */
 export function SkillMentionText({ text }: { text: string }) {
-  const lines = text.split("\n").map((line) => splitMessageText(line));
+  const lines = text
+    .split("\n")
+    .map((line) => splitMessageText(line, window.electron.process.platform));
   // The list is only wanted to resolve and describe the tokens, so leave it
-  // unfetched for the many messages that reference no skill at all. A link is
-  // not one: it is drawn from itself and asks the workspace nothing.
+  // unfetched for the many messages that reference no skill at all. A link or a
+  // path is not one: it is drawn from itself and asks the workspace nothing.
   const hasReferences = lines
     .flat()
     .some((segment) => segment.type === "skill" || segment.type === "slash");
@@ -36,6 +39,9 @@ export function SkillMentionText({ text }: { text: string }) {
       {segments.map((segment, segmentIndex) => {
         if (segment.type === "text") {
           return <Fragment key={segmentIndex}>{segment.text}</Fragment>;
+        }
+        if (segment.type === "path") {
+          return <PathChip key={segmentIndex} path={segment.path} />;
         }
         if (segment.type === "link") {
           return (

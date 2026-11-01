@@ -63,7 +63,7 @@ export const INLINE_CHIP_CLASS_NAME =
  * The box a chip's icon sits in, ahead of its label. Joined to the label's
  * first word by {@link ChipBody}, so a line never ends on a chip's icon alone.
  */
-const INLINE_CHIP_ICON_SLOT_CLASS_NAME =
+export const INLINE_CHIP_ICON_SLOT_CLASS_NAME =
   "mr-1 inline-flex size-3 items-center justify-center align-[-1px]";
 
 /** The icon that leads a chip, sized to what the chip's height leaves it. */

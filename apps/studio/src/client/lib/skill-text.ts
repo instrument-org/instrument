@@ -6,9 +6,12 @@ import {
 
 import { type LinkTextSegment, splitLinks } from "@/shared/link-text";
 
-/** A sent message's segments: the skill references, plus the links. */
+import { type PathTextSegment, splitPaths } from "./path-text";
+
+/** A sent message's segments: the skill references, plus the links and the paths. */
 export type MessageTextSegment =
   | Exclude<LinkTextSegment, { type: "text" }>
+  | Exclude<PathTextSegment, { type: "text" }>
   | SkillTextSegment;
 
 export type SkillTextSegment =
@@ -23,20 +26,26 @@ export type SkillTextSegment =
 const SLASH_COMMAND_PATTERN = /(^|\s)\/([\w:-]+)/g;
 
 /**
- * The same split, plus the links the line carries.
+ * The same split, plus the links and the paths on this computer (`platform`'s)
+ * the line carries.
  *
  * Apart from `splitSkillText` because that one also builds the composer's
  * tokens, and a URL turning into a chip under the caret while it is still being
  * typed is not something anyone asked for. A sent message is read rather than
  * edited, so it is the only one that gets links.
  *
- * Links are taken before slash commands, so a destination is never re-split by
- * a pass that has no idea it is inside one.
+ * Links are taken before paths, and both before slash commands, so a
+ * destination is never re-split by a pass that has no idea it is inside one.
  */
-export function splitMessageText(line: string): MessageTextSegment[] {
+export function splitMessageText(
+  line: string,
+  platform: string,
+): MessageTextSegment[] {
   // Dictated words read as the words they are.
   return splitSkillMention(stripDictatedMarks(line)).flatMap((segment) =>
-    segment.type === "text" ? splitLinksAndCommands(segment.text) : [segment],
+    segment.type === "text"
+      ? splitLinksAndCommands(segment.text, platform)
+      : [segment],
   );
 }
 
@@ -54,9 +63,17 @@ export function splitSkillText(line: string): SkillTextSegment[] {
   );
 }
 
-function splitLinksAndCommands(text: string): MessageTextSegment[] {
+function splitLinksAndCommands(
+  text: string,
+  platform: string,
+): MessageTextSegment[] {
   return splitLinks(text).flatMap((segment): MessageTextSegment[] =>
-    segment.type === "text" ? splitSlashCommands(segment.text) : [segment],
+    segment.type === "text"
+      ? splitPaths(segment.text, platform).flatMap(
+          (part): MessageTextSegment[] =>
+            part.type === "text" ? splitSlashCommands(part.text) : [part],
+        )
+      : [segment],
   );
 }
 

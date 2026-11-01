@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { splitSkillText } from "./skill-text";
+import { splitMessageText, splitSkillText } from "./skill-text";
 
 describe("splitSkillText", () => {
   it("separates composer tokens, bare slash commands and the text around them", () => {
@@ -115,6 +115,48 @@ describe("splitSkillText", () => {
           },
         ],
       }
+    `);
+  });
+});
+
+describe("splitMessageText", () => {
+  it("takes links before paths and paths before slash commands", () => {
+    const shape = (line: string) =>
+      splitMessageText(line, "darwin").map((segment) =>
+        segment.type === "path"
+          ? `path:${segment.text}`
+          : segment.type === "link"
+            ? `link:${segment.href}`
+            : segment.type === "slash"
+              ? `slash:${segment.name}`
+              : segment.type === "text"
+                ? segment.text
+                : segment.type,
+      );
+    expect(
+      [
+        "Read /Users/casey/notes.md then /release",
+        "See https://example.com/Users/casey/a.md",
+        "[$release](skill:release) ~/Desktop/plan.pdf",
+      ].map(shape),
+    ).toMatchInlineSnapshot(`
+      [
+        [
+          "Read ",
+          "path:/Users/casey/notes.md",
+          " then ",
+          "slash:release",
+        ],
+        [
+          "See ",
+          "link:https://example.com/Users/casey/a.md",
+        ],
+        [
+          "skill",
+          " ",
+          "path:~/Desktop/plan.pdf",
+        ],
+      ]
     `);
   });
 });

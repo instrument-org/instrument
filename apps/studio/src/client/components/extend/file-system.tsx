@@ -6061,8 +6061,9 @@ function FileSystemListView({
                 secondary,
               )}
             >
+              {/* The type's icon, since the row's own picture is beside it. */}
               <span className="flex size-3.5 shrink-0 items-center justify-center">
-                <FileSystemRowGlyph entry={entry} />
+                <FileTypeIcon className="size-4" fileName={entry.name} />
               </span>
               <span className="min-w-0 flex-1 truncate">
                 {hasTitle ? shownName(entry) : fileKindLabel(entry)}

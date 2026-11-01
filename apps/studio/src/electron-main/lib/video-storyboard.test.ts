@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -26,6 +26,8 @@ const binaries = createRequire(import.meta.url)("ffmpeg-ffprobe-static") as {
 let root: string;
 let video: string;
 let short: string;
+/** A screen recording's shape: one keyframe at the start and none after. */
+let sparse: string;
 /** An ffmpeg that writes a line per run to `runs.log`, then is ffmpeg. */
 let countingFfmpeg: string;
 
@@ -33,9 +35,11 @@ beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "storyboard-"));
   video = path.join(root, "clip.mp4");
   short = path.join(root, "short.mp4");
-  for (const [out, seconds] of [
-    [video, 30],
-    [short, 5],
+  sparse = path.join(root, "sparse.mp4");
+  for (const [out, seconds, keyframeEvery] of [
+    [video, 30, 10],
+    [short, 5, 10],
+    [sparse, 30, 1000],
   ] as const) {
     execFileSync(binaries.ffmpegPath, [
       "-v",
@@ -47,7 +51,7 @@ beforeAll(async () => {
       "-c:v",
       "libx264",
       "-g",
-      "10",
+      String(keyframeEvery),
       "-pix_fmt",
       "yuv420p",
       out,
@@ -111,6 +115,39 @@ describe.skipIf(process.platform === "win32")("videoStoryboard", () => {
 
     expect(await videoStoryboard(video, deps)).toEqual(made);
     expect(await runCount()).toBe(1);
+  });
+
+  it("draws every frame of a video with one keyframe, the last included", async () => {
+    const deps = await freshDeps("sparse");
+    const made = await videoStoryboard(sparse, deps);
+    expect(made?.count).toBe(15);
+    const sheet = path.join(
+      deps.dir,
+      `${storyboardKey(sparse, (await fs.stat(sparse)).mtimeMs)}.jpg`,
+    );
+    // The test pattern is bright everywhere; a frame never drawn is black.
+    const brightness = (column: number) =>
+      Number(
+        /YAVG=([\d.]+)/.exec(
+          spawnSync(
+            binaries.ffmpegPath,
+            [
+              "-v",
+              "info",
+              "-i",
+              sheet,
+              "-vf",
+              `crop=160:90:${column * 160}:90,signalstats,metadata=print:key=lavfi.signalstats.YAVG`,
+              "-f",
+              "null",
+              "-",
+            ],
+            { encoding: "utf8" },
+          ).stderr,
+        )?.[1],
+      );
+    // The last frame, at 29s, is the second row's fifth tile.
+    expect(brightness(4)).toBeGreaterThan(30);
   });
 
   it("shares one run between two askers", async () => {

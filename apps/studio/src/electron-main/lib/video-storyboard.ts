@@ -24,9 +24,10 @@ const log = createScopedLogger("VideoStoryboard");
  * renderer and the app's own thread never wait on it.
  *
  * Made only when the player asks, which it does once the person points at
- * the video or it has played a while, never as it opens. One pass over the
- * file decodes its keyframes alone and tiles a frame from each step onto one
- * JPEG, so a long video costs a read of the file rather than a decode of it.
+ * the video or it has played a while, never as it opens. One ffmpeg run
+ * seeks to the middle of each step and decodes the frame there, from the
+ * keyframe before it, and tiles the frames onto one JPEG: a long video costs
+ * a keyframe's gap of decoding per frame rather than a decode of the whole.
  *
  * Kept on disk by the file's path and mtime, like the thumbnails, so a video
  * is done once; a video written since is a new name. One that gets none (too
@@ -36,7 +37,7 @@ const log = createScopedLogger("VideoStoryboard");
  */
 
 /** Part of the key, so sheets made before a change to how they are made are made again. */
-const MAKING = "1";
+const MAKING = "2";
 /** Longer than this, a run is stopped and the video gets none. */
 const TIMEOUT_MS = 90_000;
 const KEEP = {
@@ -215,28 +216,7 @@ async function make(
   const started = performance.now();
   const result = await runBinary(
     deps.ffmpeg,
-    [
-      "-nostdin",
-      "-v",
-      "error",
-      // Keyframes alone are decoded: a frame per step comes from the
-      // keyframe at or before it, which is what makes a long video cheap.
-      "-skip_frame",
-      "nokey",
-      "-i",
-      hostPath,
-      "-an",
-      "-sn",
-      "-dn",
-      "-vf",
-      `fps=1/${plan.interval.toFixed(3)},scale=${plan.frameWidth}:${plan.frameHeight},tile=${plan.columns}x${plan.rows}`,
-      "-frames:v",
-      "1",
-      "-q:v",
-      "6",
-      "-y",
-      partial,
-    ],
+    sheetArgs(hostPath, plan, partial),
     stop,
   );
   if (signal.aborted) {
@@ -260,6 +240,44 @@ async function make(
     void pruneThumbnails(deps.dir, KEEP);
   }
   return storyboard;
+}
+
+/**
+ * ffmpeg's arguments for a sheet: an input per frame, each seeked to the
+ * middle of its step (an exact seek, decoding from the keyframe before it),
+ * its first frame scaled, and every frame tiled in order. Taking frames from
+ * keyframes alone left a screen recording, whose keyframes can be many
+ * seconds apart, with nothing past its last keyframe: black tiles.
+ */
+function sheetArgs(
+  hostPath: string,
+  plan: Omit<Storyboard, "modifiedAt">,
+  out: string,
+) {
+  const steps = Array.from({ length: plan.count }, (_, index) =>
+    ((index + 0.5) * plan.interval).toFixed(3),
+  );
+  const frames = steps.map(
+    (_, index) =>
+      `[${index}:v:0]trim=end_frame=1,setpts=PTS-STARTPTS,scale=${plan.frameWidth}:${plan.frameHeight},setsar=1[f${index}]`,
+  );
+  const inputs = steps.map((_, index) => `[f${index}]`).join("");
+  return [
+    "-nostdin",
+    "-v",
+    "error",
+    ...steps.flatMap((seconds) => ["-ss", seconds, "-i", hostPath]),
+    "-filter_complex",
+    `${frames.join(";")};${inputs}concat=n=${plan.count}:v=1:a=0,tile=${plan.columns}x${plan.rows}[sheet]`,
+    "-map",
+    "[sheet]",
+    "-frames:v",
+    "1",
+    "-q:v",
+    "6",
+    "-y",
+    out,
+  ];
 }
 
 const ProbeSchema = z.object({

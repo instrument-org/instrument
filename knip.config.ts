@@ -45,6 +45,8 @@ const config: KnipConfig = {
         "src/client/components/ui/*.tsx!",
         "src/client/router.tsx!",
         "src/client/main.tsx!",
+        // The phone page's entry (`src/phone.html`), a second renderer input.
+        "src/client/phone.tsx!",
         "src/electron-main/boot.ts!",
         "src/electron-preload/index.ts!",
         // Page editor guest: built by a nested Vite build in electron.vite.config.ts.
@@ -52,6 +54,7 @@ const config: KnipConfig = {
         "src/page-editor-guest/editor/index.ts!",
         "electron.vite.config.ts!",
         "src/index.html!",
+        "src/phone.html!",
         "electron-builder.ts!",
         "validate-env.ts!",
       ],

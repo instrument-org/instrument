@@ -62,6 +62,7 @@
       "outputs": ["dist/**", "out/**"]
     },
     "build:vite": {
+      "cache": false,
       "env": ["CI", "INSTRUMENT_PREVIEW_NAME", "MAIN_VITE_APP_API_BASE_URL"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["out/**"]

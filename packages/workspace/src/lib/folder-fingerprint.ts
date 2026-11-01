@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
+import { readBytes } from "./workspace-files";
 
 /**
  * What a folder of the person's holds, as one string that changes when what
@@ -120,7 +121,7 @@ async function contentOf(file: string): Promise<string | undefined> {
   if (cached?.size === stats.size && cached.mtimeMs === stats.mtimeMs) {
     return cached.hash;
   }
-  const bytes = await fs.readFile(file).catch(() => undefined);
+  const bytes = await readBytes(file).catch(() => undefined);
   if (!bytes) {
     return undefined;
   }

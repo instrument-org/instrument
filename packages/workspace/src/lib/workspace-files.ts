@@ -14,9 +14,42 @@ import { openOwnFileToRead } from "./own-file";
  *
  * A read waits for a file kept by name only. A caller whose next look picks
  * the file up, and so would rather pass over one, tells it first with
- * {@link keptByNameOnly}: metadata (`stat`, `readdir`) never downloads, so
- * it is cheap either way.
+ * {@link keptByNameOnly}. A `stat` of a file does not download it, but a
+ * `readdir` of a folder the service keeps by name only does, and either may
+ * wait on macOS's approval to reach the service's files.
+ *
+ * At most {@link OPEN_AT_ONCE} reads are open at a time, however many callers
+ * fan out: each one into a synced folder can be a download, or a request to
+ * macOS's sandboxd for approval, and a burst of those starves the thread
+ * pool and can wedge sandboxd for the whole computer
+ * (docs/findings/sandboxd-deadlocks-at-64-approvals.md).
  */
+
+/** How many reads of workspace files are open at once; the rest wait their turn. */
+const OPEN_AT_ONCE = 8;
+
+let open = 0;
+const waiting: (() => void)[] = [];
+
+async function turn(): Promise<void> {
+  if (open < OPEN_AT_ONCE) {
+    open += 1;
+    return;
+  }
+  // The read finishing hands its place straight to this one, so `open` stays put.
+  await new Promise<void>((resolve) => {
+    waiting.push(resolve);
+  });
+}
+
+function done(): void {
+  const next = waiting.shift();
+  if (next) {
+    next();
+  } else {
+    open -= 1;
+  }
+}
 
 /**
  * For a file in a folder the agent's programs can change, that folder, from
@@ -154,13 +187,18 @@ async function withHandle<T>(
   { ownFolder }: ReadOptions,
   read: (handle: fs.promises.FileHandle) => Promise<T>,
 ): Promise<T> {
-  const handle =
-    ownFolder === undefined
-      ? await fs.promises.open(file, "r")
-      : await openOwnFileToRead({ file, folder: ownFolder });
+  await turn();
   try {
-    return await read(handle);
+    const handle =
+      ownFolder === undefined
+        ? await fs.promises.open(file, "r")
+        : await openOwnFileToRead({ file, folder: ownFolder });
+    try {
+      return await read(handle);
+    } finally {
+      await handle.close();
+    }
   } finally {
-    await handle.close();
+    done();
   }
 }

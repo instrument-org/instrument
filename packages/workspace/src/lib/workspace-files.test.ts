@@ -137,3 +137,43 @@ describe("CachedReads", () => {
     ]);
   });
 });
+
+describe("reads at once", () => {
+  it("keeps at most eight open however many callers fan out", async () => {
+    const files = await Promise.all(
+      Array.from({ length: 30 }, (_, i) => write(`f${i}.md`, `file ${i}`)),
+    );
+    const open = fsSync.promises.open;
+    let inFlight = 0;
+    let most = 0;
+    vi.spyOn(fsSync.promises, "open").mockImplementation(async (...args) => {
+      inFlight += 1;
+      most = Math.max(most, inFlight);
+      // Long enough that every caller has asked before the first one finishes.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const handle = await open(...args);
+      const close = handle.close.bind(handle);
+      handle.close = async () => {
+        inFlight -= 1;
+        await close();
+      };
+      return handle;
+    });
+
+    const texts = await Promise.all(files.map((file) => readText(file)));
+
+    expect(most).toBe(8);
+    expect(texts[29]).toBe("file 29");
+  });
+
+  it("lets the next read in when one fails", async () => {
+    const missing = path.join(dir.path, "missing.md");
+    const results = await Promise.allSettled(
+      Array.from({ length: 20 }, () => readText(missing)),
+    );
+    const file = await write("after.md", "after");
+
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    await expect(readText(file)).resolves.toBe("after");
+  });
+});

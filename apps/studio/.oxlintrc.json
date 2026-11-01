@@ -79,7 +79,6 @@
         "src/electron-main/lib/register-crash-diagnostics.ts",
         "src/electron-main/lib/setup-dbus-env.ts",
         "src/electron-main/lib/setup-state.ts",
-        "src/electron-main/lib/tested-before.ts",
         "src/electron-main/lib/update-bridge.ts",
         "src/electron-main/lib/update-velopack.ts",
         "src/electron-main/lib/update.ts",
@@ -91,7 +90,11 @@
         // synchronous callers, mostly launch and move code, and the launch
         // reads the open workspace's workspace.json first. The rest of its
         // reads are pid files in the machine folder.
-        "src/electron-main/lib/workspaces.ts"
+        "src/electron-main/lib/workspaces.ts",
+        // Reads the synced workspace, synchronously for now: readSetupFacts,
+        // its one caller, is synchronous into setup. It reads the first 16 KB
+        // of each chat's logs once per process, and stops at the first sign.
+        "src/electron-main/lib/tested-before.ts"
       ],
       "rules": {
         "studio/no-sync-content-read": "off"

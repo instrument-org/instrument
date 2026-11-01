@@ -39,6 +39,13 @@ export function VideoPlayer({
   const captions = useSiblingCaptions(hostPath);
   const [wantsPreviews, setWantsPreviews] = useState(false);
   const storyboard = useStoryboardTrack(hostPath, wantsPreviews);
+  const onMetadata = (media: HTMLVideoElement) => {
+    if (media.videoWidth === 0 && media.videoHeight === 0) {
+      onAudioOnly();
+      return;
+    }
+    readUnknownDuration(media);
+  };
   return (
     <VideoPlayerRoot>
       <VideoSkin
@@ -56,12 +63,7 @@ export function VideoPlayer({
           muted={muted}
           onError={onError}
           onLoadedMetadata={(event) => {
-            const media = event.currentTarget;
-            if (media.videoWidth === 0 && media.videoHeight === 0) {
-              onAudioOnly();
-              return;
-            }
-            readUnknownDuration(media);
+            onMetadataOnce(event.currentTarget, onMetadata);
           }}
           onTimeUpdate={
             wantsPreviews
@@ -74,6 +76,9 @@ export function VideoPlayer({
                 }
           }
           playsInline
+          ref={(media) => {
+            whenLoadedBeforeMount(media, onMetadata);
+          }}
           src={src}
         >
           {captions ? (
@@ -123,11 +128,44 @@ export function AudioPlayer({
           autoPlay={autoPlay}
           onError={onError}
           onLoadedMetadata={(event) => {
-            readUnknownDuration(event.currentTarget);
+            onMetadataOnce(event.currentTarget, readUnknownDuration);
+          }}
+          ref={(media) => {
+            whenLoadedBeforeMount(media, readUnknownDuration);
           }}
           src={src}
         />
       </AudioSkin>
     </AudioPlayerRoot>
   );
+}
+
+/** The source each element's metadata was last handled for, once per source. */
+const metadataRead = new WeakMap<HTMLMediaElement, string>();
+
+function onMetadataOnce<T extends HTMLMediaElement>(
+  media: T,
+  onMetadata: (media: T) => void,
+) {
+  if (metadataRead.get(media) === media.currentSrc) {
+    return;
+  }
+  metadataRead.set(media, media.currentSrc);
+  onMetadata(media);
+}
+
+/**
+ * Runs what `loadedmetadata` would have, for an element whose metadata
+ * arrived before it was on the page. The element loads from the moment React
+ * creates it, and a render held up (the player's own code still loading,
+ * the first time a video is opened) commits it after the event has fired,
+ * which React drops for an element it has not mounted yet.
+ */
+function whenLoadedBeforeMount<T extends HTMLMediaElement>(
+  media: T | null,
+  onMetadata: (media: T) => void,
+) {
+  if (media && media.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    onMetadataOnce(media, onMetadata);
+  }
 }

@@ -35,6 +35,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-11, after a week on a beta with the cause capture · Last checked: never
 - [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-11-14, after a week on the first beta that carries the attribution fix below · Last checked: 2026-10-24
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
+- [What a phone's content blockers hide of the window served to it](phone-page-under-content-blockers.md): open · Check after: the phone page has a layout of its own for a phone's width · Last checked: 2026-11-01, one phone, blockers then turned off for the host's...
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24
 - [Why Responses streams end without a terminal event](responses-streams-ending-early.md): open · Check after: 2026-11-13, after a week on a beta with the stream guard · Last checked: never
 - [Whether the unattended-step and output-limit caps ever trip](step-and-output-caps.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24

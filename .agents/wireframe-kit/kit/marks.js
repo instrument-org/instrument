@@ -25,6 +25,9 @@ const fileMark = (kind, cls = "text-[13px]") =>
       md: `<span class="text-[0.72em] font-bold tracking-tighter text-[#3f9d52]">M↓</span>`,
       csv: `<i class="ph ph-file-text text-[#2b9aa0]"></i>`,
       pdf: `<i class="ph ph-file-pdf text-[#d14b3f]"></i>`,
+      video: `<i class="ph ph-film-strip text-[#6d5bd0]"></i>`,
+      audio: `<i class="ph ph-waveform text-[#d0457a]"></i>`,
+      captions: `<i class="ph ph-closed-captioning text-[#6b7280]"></i>`,
       img: `<i class="ph ph-image text-[#8a6bd1]"></i>`,
       doc: `<i class="ph ph-file-doc text-[#2f6fd6]"></i>`,
       xls: `<i class="ph ph-file-xls text-[#1f8a4c]"></i>`,
@@ -117,6 +120,8 @@ const openIn = (kind) =>
     html: `<span class="grid size-4 shrink-0 place-items-center rounded-full bg-gradient-to-b from-[#5fb4ff] to-[#1e7ae8] text-white"><i class="ph ph-compass text-[11px]"></i></span>`,
     md: `<span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-white text-foreground/70 ring-1 ring-border"><i class="ph ph-note-pencil text-[10px]"></i></span>`,
     csv: `<span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-[#2f8f5b] text-white"><i class="ph ph-chart-bar text-[10px]"></i></span>`,
+    video: `<span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-[#2b2b2e] text-white"><i class="ph ph-play text-[9px]"></i></span>`,
+    audio: `<span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-[#fa3e5f] text-white"><i class="ph ph-music-note text-[10px]"></i></span>`,
   })[kind] ?? "";
 
 /** Ask, which starts a chat about what is shown: the Instrument glyph, and its word where the row has room (`label`). */

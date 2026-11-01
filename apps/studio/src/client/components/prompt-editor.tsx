@@ -56,6 +56,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { dictationKey, dictationPlugin } from "./prompt-editor-dictation";
+import { pathsPlugin } from "./prompt-editor-paths";
 import {
   appOfNode,
   appendDictated,
@@ -87,6 +88,7 @@ const editorAttributes = (placeholder?: string) => ({
 const editorPlugins = () => [
   slashMenuPlugin(),
   dictationPlugin(),
+  pathsPlugin(window.electron.process.platform),
   history(),
   keymap({
     Backspace: deleteTokenBackward,

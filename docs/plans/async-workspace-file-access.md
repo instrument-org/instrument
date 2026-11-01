@@ -10,7 +10,7 @@ Everything in `packages/workspace` and Studio's main process runs on the Electro
 
 `async` on the function does not help. A handler declared `async` that calls `fs.readFileSync` still holds the thread for the whole read; only an awaited `fs.promises` call hands the read to libuv's thread pool. `listApps` (`apps/store.ts`) is the clearest example: it is `async`, and reads every `APP.md` synchronously inside a `.map`.
 
-Metadata calls (`stat`, `lstat`, `readdir`, `existsSync`, `realpath`) do not download a file, so they are cheap even on an evicted one. The danger is reading contents: `readFileSync`, `openSync` plus `readSync`, `appendFileSync`, and the repo's sync wrappers over them (`readJsonRecordSync`, `updateJsonRecordSync`).
+A `stat` of an evicted file does not download it. A `readdir` of a folder the service keeps by name only does, and any call into the synced folder can wait on macOS's approval to reach the service's files, so no call there is free on the main thread ([sandboxd deadlocks at 64 approvals](../findings/sandboxd-deadlocks-at-64-approvals.md), which also covers why async reads are capped at 8 open at once). The danger this plan converts is reading contents: `readFileSync`, `openSync` plus `readSync`, `appendFileSync`, and the repo's sync wrappers over them (`readJsonRecordSync`, `updateJsonRecordSync`).
 
 Moving the workspace to a utility process ([agent turn off the main thread](agent-turn-off-the-main-thread.md)) changes the symptom, not the cause: a sync read there stalls every chat in the workspace instead of the window. So this plan stands on its own and should land first.
 

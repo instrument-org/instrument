@@ -82,6 +82,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Reasoning effort was never connected](reasoning-effort-was-never-connected.md): fixed 2026-09-06 across `llm-request.ts`, `reasoning-effort.ts` and `parse-workers-ai-models.ts`;
 - [Root causes of three weeks of fixes](root-causes-of-three-weeks-of-fixes.md): measured on 2026-10-12 over the commits from 2026-09-21 to then;
 - [Preloading a route's code does not pay in a desktop app](route-preloading-does-not-pay.md): closed as working-as-designed, measured 2026-10-10.
+- [Sandboxd deadlocks at 64 approvals in flight, and the app could send 64](sandboxd-deadlocks-at-64-approvals.md): contained: Node's file thread pool is 16 (`apps/studio/src/electron-main/thread-pool.ts`) and reads of workspace files are capped at 8 open at once (`package...
 - [The search backend returns more per result than we forwarded](search-result-fields-we-discard.md): fixed for what was fixable.
 - [Why the spell checker is `typos` and not `cspell`](spelling-check-cost-versus-signal.md): resolved.
 - [Syncing a data folder through third-party file sync: upper bound and painful truths](syncing-a-data-folder-through-file-sync.md): research.

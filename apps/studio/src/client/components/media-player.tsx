@@ -12,7 +12,7 @@ const WATCHED_SECONDS = 10;
 
 /**
  * The file viewer's video player: Video.js over the file's own `<video>`,
- * starting as it opens, muted where the viewer says so, with the captions
+ * starting as it opens where the viewer says it may, with the captions
  * file beside the video when there is one. The player's keys answer only
  * while it has the keyboard, so the screen around it keeps its own.
  *
@@ -23,30 +23,20 @@ const WATCHED_SECONDS = 10;
  * Loaded on its own, the first time a video or a sound is opened.
  */
 export function VideoPlayer({
+  autoPlay,
   hostPath,
-  muted,
-  onAudioOnly,
   onError,
   src,
 }: {
+  autoPlay: boolean;
   hostPath: string;
-  muted: boolean;
-  /** A file typed as video that has no picture, such as a voice recording in WebM. */
-  onAudioOnly: () => void;
   onError: () => void;
   src: string;
 }) {
   const captions = useSiblingCaptions(hostPath);
   const [wantsPreviews, setWantsPreviews] = useState(false);
   const storyboard = useStoryboardTrack(hostPath, wantsPreviews);
-  const mediaRef = usePlayerSession<HTMLVideoElement>();
-  const onMetadata = (media: HTMLVideoElement) => {
-    if (media.videoWidth === 0 && media.videoHeight === 0) {
-      onAudioOnly();
-      return;
-    }
-    readUnknownDuration(media);
-  };
+  const mediaRef = usePlayerSession<HTMLVideoElement>(autoPlay);
   return (
     <VideoPlayerRoot>
       <VideoSkin
@@ -60,12 +50,10 @@ export function VideoPlayer({
         }
       >
         <Video
-          autoPlay
           mediaRef={mediaRef}
-          muted={muted}
           onError={onError}
           onLoadedMetadata={(event) => {
-            onMetadataOnce(event.currentTarget, onMetadata);
+            onMetadataOnce(event.currentTarget, readUnknownDuration);
           }}
           onPlay={pauseOtherPlayers}
           onTimeUpdate={
@@ -80,7 +68,7 @@ export function VideoPlayer({
           }
           playsInline
           ref={(media) => {
-            whenLoadedBeforeMount(media, onMetadata);
+            whenLoadedBeforeMount(media, readUnknownDuration);
           }}
           src={src}
         >
@@ -124,12 +112,11 @@ export function AudioPlayer({
   onError: () => void;
   src: string;
 }) {
-  const mediaRef = usePlayerSession<HTMLAudioElement>();
+  const mediaRef = usePlayerSession<HTMLAudioElement>(autoPlay);
   return (
     <AudioPlayerRoot>
       <AudioSkin name={name}>
         <Audio
-          autoPlay={autoPlay}
           mediaRef={mediaRef}
           onError={onError}
           onLoadedMetadata={(event) => {
@@ -150,15 +137,20 @@ export function AudioPlayer({
 const players = new Set<HTMLMediaElement>();
 
 /**
- * A player's hold on its element, for as long as it is mounted. Taken off
- * the page, the element is paused and emptied of its source, so nothing
- * that still holds it (the player's store, a late event, a play() from
- * anywhere) can make it sound again; leaving the page alone does not
- * promise that. One kept on the page out of sight (a tab behind) stays as
- * it is, and so does one React mounts twice in development, which is still
- * on the page when the first mount is cleaned up.
+ * A player's hold on its element, for as long as it is mounted, and the one
+ * place it starts playing. The element is rendered without `autoplay`: React
+ * builds elements while it renders and throws some renders away, and an
+ * `autoplay` element it built and never mounted plays on its own, with sound,
+ * where nothing can reach it. Started here instead, from the effect, it plays
+ * only once it is on the page.
+ *
+ * Taken off the page, the element is paused and emptied of its source, so
+ * nothing that still holds it can make it sound again. One kept on the page
+ * out of sight (a tab behind) stays as it is, and so does one React mounts
+ * twice in development, which is still on the page when the first mount is
+ * cleaned up.
  */
-function usePlayerSession<T extends HTMLMediaElement>() {
+function usePlayerSession<T extends HTMLMediaElement>(autoPlay: boolean) {
   const mediaRef = useRef<T | null>(null);
   useEffect(() => {
     const media = mediaRef.current;
@@ -166,7 +158,25 @@ function usePlayerSession<T extends HTMLMediaElement>() {
       return;
     }
     players.add(media);
+    // Started on mount and again whenever it can play until it does: a load
+    // that lands after mount (its address updated to the file's version)
+    // interrupts the first play().
+    const start = () => {
+      if (media.isConnected && media.paused) {
+        media.play().catch(() => undefined);
+      }
+    };
+    const started = () => {
+      media.removeEventListener("canplay", start);
+      media.removeEventListener("playing", started);
+    };
+    if (autoPlay) {
+      media.addEventListener("canplay", start);
+      media.addEventListener("playing", started);
+      start();
+    }
     return () => {
+      started();
       players.delete(media);
       if (media.isConnected) {
         return;
@@ -175,6 +185,8 @@ function usePlayerSession<T extends HTMLMediaElement>() {
       media.removeAttribute("src");
       media.load();
     };
+    // Decided once, as the player opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return mediaRef;
 }

@@ -14,8 +14,8 @@ import {
 
 import { AudioPlayer } from "./media-player";
 
-const player = (src: string) => (
-  <AudioPlayer autoPlay={false} name={src} onError={vi.fn()} src={src} />
+const player = (src: string, autoPlay = false) => (
+  <AudioPlayer autoPlay={autoPlay} name={src} onError={vi.fn()} src={src} />
 );
 
 describe("media player session", () => {
@@ -30,6 +30,16 @@ describe("media player session", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("never renders autoplay, and plays only once mounted", () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const view = renderWithProviders(player("file:///song-a.mp3", true));
+    const media = view.container.querySelector("audio");
+    expect(media?.hasAttribute("autoplay")).toBe(false);
+    expect(play.mock.contexts).toEqual([media]);
   });
 
   it("pauses and empties its element once it leaves the page", () => {

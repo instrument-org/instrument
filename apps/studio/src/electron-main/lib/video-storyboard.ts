@@ -289,7 +289,7 @@ function probeShape(stdout: string) {
  * Runs a binary to its end, at the lowest priority, killed when `signal`
  * goes; `ok` only for an exit of 0.
  */
-function runBinary(
+export function runBinary(
   binary: string,
   args: string[],
   signal: AbortSignal,

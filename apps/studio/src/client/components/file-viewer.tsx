@@ -31,6 +31,7 @@ import {
   showInFolderLabel,
 } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import {
   isMessageDocument,
   parseMessage,
@@ -43,7 +44,7 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { XIcon } from "@phosphor-icons/react/X";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
 import {
@@ -380,12 +381,18 @@ interface ViewerContext {
 }
 
 /**
- * Whether media opening now may play sound: when the window has focus, a
- * person is at it and opened the file or watched it open; in the background
- * it is an agent showing the file while the person is in another app.
+ * Whether media opening now starts playing: only in a focused window a
+ * person has clicked or typed in since it loaded, which the browser's sticky
+ * user activation tells. A tab restored at launch or by a reload, or a file
+ * an agent opens while the person is in another app, waits for a press.
  */
-function soundAllowed(silent: boolean) {
-  return !silent && document.hasFocus();
+function startsPlaying(silent: boolean) {
+  return (
+    !silent &&
+    document.hasFocus() &&
+    "userActivation" in navigator &&
+    navigator.userActivation.hasBeenActive
+  );
 }
 
 // The player (Video.js and its skin) loads the first time a video or a sound
@@ -402,12 +409,12 @@ const AudioPlayer = lazy(() =>
 );
 
 /**
- * A video or a sound that starts playing as it opens. A video plays with
- * sound where `soundAllowed` says and muted otherwise; a sound plays where it
- * says and waits for a press otherwise, since there is nothing to show of it
- * muted. Decided once per file, so the person's own mute or unmute stands.
- * A file typed as video that turns out to have no picture (a voice recording
- * in WebM) is shown as the sound it is. Keyed per file by the caller.
+ * A video or a sound, in the one player its file calls for. A file typed as
+ * video is read first (`files.probeMedia`), and one with no picture (a voice
+ * recording in WebM) opens in the sound player; where it cannot be read it
+ * opens as its extension says. Nothing is mounted until then, so no player is
+ * ever made to find out and thrown away. Whether it starts playing is decided
+ * once, as it opens (`startsPlaying`). Keyed per file by the caller.
  */
 function MediaViewer({
   context: { fallback, file, onMediaError, silent },
@@ -416,13 +423,21 @@ function MediaViewer({
   context: ViewerContext;
   kind: "audio" | "video";
 }) {
-  const [sound] = useState(() => soundAllowed(silent));
-  const [audioOnly, setAudioOnly] = useState(false);
+  const [autoPlay] = useState(() => startsPlaying(silent));
+  const probe = useQuery(
+    rpcClient.files.probeMedia.queryOptions({
+      input: kind === "video" && !silent ? { path: file.hostPath } : skipToken,
+      // Asked afresh each time a file opens, so a file written since is read
+      // again; the main process keeps the answer per version.
+      gcTime: 0,
+      retry: false,
+    }),
+  );
   if (silent && kind === "video") {
-    // A thumbnail: a picture of the video, with nothing to press.
+    // A thumbnail: the video's first frame, with nothing to press. Never
+    // `autoplay`, which a copy React builds and discards would do unseen.
     return (
       <video
-        autoPlay
         className="size-full object-contain"
         muted
         onError={() => {
@@ -433,11 +448,15 @@ function MediaViewer({
       />
     );
   }
+  if (kind === "video" && probe.isPending) {
+    return null;
+  }
+  const isSound = kind === "audio" || probe.data?.picture === false;
   return (
     <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-      {kind === "audio" || audioOnly ? (
+      {isSound ? (
         <AudioPlayer
-          autoPlay={sound}
+          autoPlay={autoPlay}
           name={file.filename}
           onError={() => {
             onMediaError(kind === "audio" ? "mp3" : "mp4");
@@ -446,11 +465,8 @@ function MediaViewer({
         />
       ) : (
         <VideoPlayer
+          autoPlay={autoPlay}
           hostPath={file.hostPath}
-          muted={!sound}
-          onAudioOnly={() => {
-            setAudioOnly(true);
-          }}
           onError={() => {
             onMediaError("mp4");
           }}

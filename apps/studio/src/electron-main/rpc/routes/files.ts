@@ -42,6 +42,7 @@ import {
   videoStoryboard,
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
+import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import {
@@ -1045,6 +1046,22 @@ const storyboard = base
   });
 
 /**
+ * Whether a file opened as a video has a picture, read before the viewer
+ * picks a player for it (`media-probe.ts`), or null where it could not be
+ * read, which the viewer takes as its extension says.
+ */
+const probeMediaRoute = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.object({ picture: z.boolean() }).nullable())
+  .handler(async ({ input, signal }) => {
+    const filePath = await followAliases(input.path);
+    if (await isClosed(input.path, filePath)) {
+      return null;
+    }
+    return probeMedia(filePath, signal).catch(() => null);
+  });
+
+/**
  * Whether a file is the app's own data, which the person's views keep closed:
  * the editors read and write through here what the viewers read through the
  * file channel, which refuses it by the same rule (`refused-files.ts`), by
@@ -1118,6 +1135,7 @@ export const files = {
   read,
   rename,
   showInTrash,
+  probeMedia: probeMediaRoute,
   storyboard,
   trash,
   undo,

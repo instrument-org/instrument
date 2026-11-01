@@ -113,6 +113,7 @@ import {
 import { servePageEditorBoot } from "./page-editor/sessions";
 import { startNetworkStatus } from "./lib/network-status";
 import { platformApiQueryClient } from "./platform-api/client";
+import { startPhoneHost } from "./phone-host";
 import { initializeRPC } from "./rpc/initialize";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 import { watchProcessCpu } from "./lib/process-cpu";
@@ -428,6 +429,10 @@ async function bootstrapPrimaryInstance() {
   await timeBootStep("initializeRPC", () => {
     initializeRPC({ appUpdater: updater });
   });
+  // DEV SEAM: the router over HTTP for a phone on the network; see the host.
+  if (process.env.INSTRUMENT_PHONE_HOST === "1") {
+    startPhoneHost();
+  }
 
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).

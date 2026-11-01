@@ -22,36 +22,42 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+/**
+ * What every call through the router goes through, whichever transport
+ * brought it: the stall tracker, the breadcrumb, and the error reporter.
+ */
+export const rpcClientInterceptors = [
+  trackRPCForStalls,
+  breadcrumbRPC,
+  createErrorClientInterceptor({
+    onAsyncIteratorError: (e, options) => {
+      if (isReportableRPCError(e)) {
+        captureServerException(e, {
+          mechanism: "rpc",
+          rpcPath: options.path.join("."),
+        });
+      }
+      throw e;
+    },
+    onError: (e, options) => {
+      // DON'T treat aborted signal as error - the client disconnected
+      // intentionally (e.g. navigated away, query input changed).
+      if (options.signal?.aborted && options.signal.reason === e) {
+        throw e;
+      }
+      if (isReportableRPCError(e)) {
+        captureServerException(e, {
+          mechanism: "rpc",
+          rpcPath: options.path.join("."),
+        });
+      }
+      throw e;
+    },
+  }),
+];
+
 const handler = new RPCHandler<InitialRPCContext>(router, {
-  clientInterceptors: [
-    trackRPCForStalls,
-    breadcrumbRPC,
-    createErrorClientInterceptor({
-      onAsyncIteratorError: (e, options) => {
-        if (isReportableRPCError(e)) {
-          captureServerException(e, {
-            mechanism: "rpc",
-            rpcPath: options.path.join("."),
-          });
-        }
-        throw e;
-      },
-      onError: (e, options) => {
-        // DON'T treat aborted signal as error - the client disconnected
-        // intentionally (e.g. navigated away, query input changed).
-        if (options.signal?.aborted && options.signal.reason === e) {
-          throw e;
-        }
-        if (isReportableRPCError(e)) {
-          captureServerException(e, {
-            mechanism: "rpc",
-            rpcPath: options.path.join("."),
-          });
-        }
-        throw e;
-      },
-    }),
-  ],
+  clientInterceptors: rpcClientInterceptors,
 });
 
 /**
@@ -70,6 +76,33 @@ function notStarted<T extends object>(): T {
   });
 }
 
+let updater: AppUpdaterHandle | undefined;
+
+/**
+ * The context a connection's calls run with: the running workspace, or the
+ * stand-ins for a connection made before it starts, and the web contents the
+ * calls are made for.
+ */
+export function rpcContextFor(webContentsId: number): InitialRPCContext {
+  if (!updater) {
+    throw new Error("The RPC router was reached before it was initialized");
+  }
+  const run = getWorkspaceRun();
+  return {
+    appUpdater: updater,
+    webContentsId,
+    ...(run.kind === "started"
+      ? {
+          workspaceConfig: run.workspaceConfig,
+          workspaceRef: run.workspaceRef,
+        }
+      : {
+          workspaceConfig: notStarted<WorkspaceConfig>(),
+          workspaceRef: notStarted<WorkspaceActorRef>(),
+        }),
+  };
+}
+
 /**
  * Opens the router to each window that connects, with the running workspace
  * in its context, or the stand-ins for a window that connects before the
@@ -80,6 +113,7 @@ export function initializeRPC({
 }: {
   appUpdater: AppUpdaterHandle;
 }) {
+  updater = appUpdater;
   ipcMain.on("start-orpc-server", (event) => {
     // The port handshake is the renderer's one route to the whole router, so
     // only the top frame gets to open it. Preload is the sole sender and today
@@ -98,23 +132,8 @@ export function initializeRPC({
       return;
     }
 
-    const webContentsId = event.sender.id;
-    const run = getWorkspaceRun();
-
     handler.upgrade(serverPort, {
-      context: {
-        appUpdater,
-        webContentsId,
-        ...(run.kind === "started"
-          ? {
-              workspaceConfig: run.workspaceConfig,
-              workspaceRef: run.workspaceRef,
-            }
-          : {
-              workspaceConfig: notStarted<WorkspaceConfig>(),
-              workspaceRef: notStarted<WorkspaceActorRef>(),
-            }),
-      },
+      context: rpcContextFor(event.sender.id),
     });
     serverPort.start();
   });

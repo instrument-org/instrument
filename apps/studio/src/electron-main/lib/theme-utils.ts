@@ -18,8 +18,13 @@ export function getBackgroundColor() {
  */
 export function serveResolvedTheme() {
   ipcMain.on(RESOLVE_THEME_CHANNEL, (event) => {
-    event.returnValue = shouldUseDarkMode() ? "dark" : "light";
+    event.returnValue = resolvedTheme();
   });
+}
+
+/** The theme the windows draw in now, the preference resolved against the system's. */
+export function resolvedTheme(): "dark" | "light" {
+  return shouldUseDarkMode() ? "dark" : "light";
 }
 
 export function watchThemePreferenceAndApply(callback?: () => void): void {

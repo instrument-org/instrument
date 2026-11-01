@@ -101,6 +101,10 @@ declare namespace NodeJS {
        * notification clicked at once (`requestNotifications`, `showTestNotification`).
        */
       INSTRUMENT_NOTIFICATION_ANSWER: string | undefined;
+      /** Dev only: `1` serves the router over HTTP to a phone on the network (`phone-host/`). */
+      INSTRUMENT_PHONE_HOST: string | undefined;
+      /** Dev only: the port the phone host listens on, 48180 unless set. */
+      INSTRUMENT_PHONE_HOST_PORT: string | undefined;
       /** Dev only: a stand-in home folder for the folders setup offers (`workspaces.folder`). */
       INSTRUMENT_SETUP_HOME: string | undefined;
       /**

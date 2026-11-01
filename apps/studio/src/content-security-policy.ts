@@ -81,7 +81,12 @@ export function contentSecurityPolicyMeta({
       nodeEnv = process.env.NODE_ENV || config.mode;
     },
     name: "content-security-policy-meta",
-    transformIndexHtml(html) {
+    transformIndexHtml(html, context) {
+      // The phone page (`phone.html`) loads from a development server and
+      // talks to a host on another origin, so it carries no policy.
+      if (context.filename.endsWith("phone.html")) {
+        return html;
+      }
       if (html.split(PLACEHOLDER).length !== 2) {
         throw new Error(`index.html must hold exactly one ${PLACEHOLDER}`);
       }

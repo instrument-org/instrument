@@ -545,6 +545,9 @@ export default defineConfig(({ command }) => {
         rollupOptions: {
           input: {
             browser: path.join(process.cwd(), "src/index.html"),
+            // The same renderer for a phone or a browser on the network,
+            // driven over the phone host (`electron-main/phone-host/`).
+            phone: path.join(process.cwd(), "src/phone.html"),
           },
         },
         sourcemap: isProduction,
@@ -613,6 +616,8 @@ export default defineConfig(({ command }) => {
       // about a second later than with no warmup at all. Warming the entry
       // alone stays inside the head start and is ahead on every measure.
       server: {
+        // Reachable from a phone on the network, for `phone.html`.
+        host: true,
         warmup: {
           clientFiles: ["./client/main.tsx"],
         },

@@ -10,6 +10,7 @@ import { initBrowserPool } from "./lib/browser-pool";
 import { initExceptionCapture } from "./lib/capture-exception";
 import { initNetworkStatusForwarding } from "./lib/network-status-forwarding";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
+import { phoneHost } from "./lib/phone-host";
 import { initStudioDrive } from "./lib/studio-drive";
 
 declare global {
@@ -45,7 +46,9 @@ function start() {
     </>,
   );
 
-  if (isAppWindow) {
+  // On a phone the window's chrome is drawn but no browser guest can be:
+  // the pool wants a webview tag, and driving scripts want the window.
+  if (isAppWindow && !phoneHost()) {
     // Subscribe the browser webview pool to main-process mount/unmount
     // commands for the lifetime of the renderer: every browser guest is
     // mounted here.

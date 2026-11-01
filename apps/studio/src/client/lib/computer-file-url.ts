@@ -106,7 +106,15 @@ export function hostPathOfComputerFileUrl(url: string): string | undefined {
   }
 }
 
+/** The channel as another host names it, for a page the phone host serves (`phone.tsx`). */
+export function setComputerFileBase(url: string) {
+  base = url;
+}
+
 export async function resolveComputerFileBase() {
+  if (base !== undefined) {
+    return;
+  }
   const [error, data] = await safe(rpcClient.utils.computerFileBase.call());
   if (error) {
     captureException(

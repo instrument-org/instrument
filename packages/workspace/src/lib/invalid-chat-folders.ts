@@ -38,7 +38,7 @@ const REASONS = {
 export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
   const root = chatsDir();
   const invalid: InvalidChatFolder[] = [];
-  for (const name of listDirs(root)) {
+  for (const name of await listDirs(root)) {
     const id = ChatIdSchema.safeParse(name);
     if (!id.success) {
       invalid.push({ name, reason: REASONS["bad-name"] });
@@ -101,10 +101,9 @@ export async function trashInvalidChatFolder(
   );
 }
 
-function listDirs(dir: string): string[] {
+async function listDirs(dir: string): Promise<string[]> {
   try {
-    return fs
-      .readdirSync(dir, { withFileTypes: true })
+    return (await fs.promises.readdir(dir, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
       .map((entry) => entry.name);
   } catch {

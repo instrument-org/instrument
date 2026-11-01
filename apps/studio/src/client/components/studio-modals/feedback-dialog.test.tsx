@@ -1,5 +1,4 @@
 import { reportDialogAtom } from "@/client/atoms/report-dialog";
-import { listedSources } from "@/client/components/studio-modals/feedback-dialog";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { type FeedbackItem } from "@/shared/problem-reports";
@@ -30,10 +29,20 @@ vi.mock("@/client/rpc/client", () => ({
         queryOptions: () => ({
           queryFn: () => ({
             chat: {
-              full: item("chat-full", "chat", "This chat", "the page it read"),
-              item: item("chat", "chat", "This chat", "the chat's steps"),
-              sources: ["mail.google.com", "Gmail"],
-              summary: "“Star my first email” and 1 task",
+              item: {
+                bytes: 100,
+                files: [
+                  {
+                    content: `${JSON.stringify({ part: { text: "favorite my first email", type: "text" }, seq: 1, t: "part" })}\n`,
+                    label: "“Star my first email”",
+                    path: "chat/ses_1.mac.jsonl",
+                  },
+                ],
+                id: "chat",
+                kind: "chat",
+                label: "This chat",
+              },
+              title: "“Star my first email”",
             },
             diagnostics: item(
               "diagnostics",
@@ -65,46 +74,37 @@ async function open(writeup?: { text: string; title: string }) {
       feedbackReport({ surface: "test", writeup }),
     );
   });
-  await screen.findByRole("button", { name: "Read Diagnostics" });
+  await screen.findByRole("button", { name: "View Diagnostics" });
 }
 
 describe("FeedbackDialogContent", () => {
-  it("offers the chat and the diagnostics as one row each, the chat named by its title", async () => {
+  it("lists the chat by its title and the diagnostics, with nothing to check", async () => {
     await open();
-    expect(screen.getByText("“Star my first email” and 1 task")).toBeTruthy();
-    expect(screen.getByText("the chat's steps")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Read Diagnostics" }));
-    expect(screen.getByText("the app's log")).toBeTruthy();
-    expect(screen.queryByText("the chat's steps")).toBeNull();
+    expect(screen.getByText("“Star my first email”")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
-  it("sends what the agent read only once Include full details is checked", async () => {
+  it("shows the chat a record a row on its own page, and goes back", async () => {
     await open();
-    const box = screen.getByRole("checkbox", { name: "Include full details" });
-    expect(box.getAttribute("aria-checked")).toBe("false");
-    expect(screen.queryByText("the page it read")).toBeNull();
-    fireEvent.click(box);
-    expect(screen.getByText("the page it read")).toBeTruthy();
-    expect(screen.queryByText("the chat's steps")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View This chat" }));
+    expect(screen.getByText("What we'll send")).toBeTruthy();
+    expect(screen.getByText("favorite my first email")).toBeTruthy();
+    // A tab takes the press, as Radix has it, rather than the click.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Diagnostics" }));
+    expect(screen.queryByText("favorite my first email")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Send feedback")).toBeTruthy();
   });
 
-  it("opens on the agent's write-up when there is one", async () => {
+  it("lists the agent's write-up first when there is one", async () => {
     await open({ text: "The tab crashed.", title: "Tab crashed" });
-    expect(
-      screen
-        .getByRole("button", { name: "Read writeup.md" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
-  });
-});
-
-describe("listedSources", () => {
-  it.each([
-    [[], ""],
-    [["mail.google.com"], "mail.google.com"],
-    [["mail.google.com", "Gmail"], "mail.google.com and Gmail"],
-    [["a.com", "b.com", "Gmail", "2 files"], "a.com, b.com and Gmail"],
-  ])("%j", (sources, listed) => {
-    expect(listedSources(sources)).toBe(listed);
+    const views = screen
+      .getAllByRole("button", { name: /^View / })
+      .map((button) => button.getAttribute("aria-label"));
+    expect(views).toEqual([
+      "View Write-up",
+      "View This chat",
+      "View Diagnostics",
+    ]);
   });
 });

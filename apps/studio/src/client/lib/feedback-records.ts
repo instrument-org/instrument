@@ -1,112 +1,393 @@
 /**
- * One line of a chat's JSON Lines file, as feedback lists it: the record
- * itself, and a gist read off it in the record's own terms (its `t`, a
- * part's `type`) with the words a person can scan for beside them.
+ * What a feedback report sends, as rows a person can scan: one row per
+ * record of a chat's JSON Lines files, drawn the same way for every kind.
+ * A row is a plain label, the record's first line, and how much of it the
+ * outline sent only the length of; opened, it lists every field by name.
+ * Only the labels know record kinds, and a kind they don't know shows its
+ * own name, so a new kind of record shows up without code here.
  */
-export type RecordRow = {
-  at?: string;
-  detail: string;
-  failed: boolean;
-  /** The line indented as JSON, or the line as it is when it is not JSON. */
-  json: string;
-  kind: string;
-  seq?: number;
+
+/** A field of a record, by its path in the record, and what goes for it. */
+export type RecordField = {
+  name: string;
+  /** How many characters of it went only as their length. */
+  notSent?: number;
+  value: string;
 };
 
-const DETAIL_MAX = 200;
+export type RecordRow = {
+  at?: string;
+  failed: boolean;
+  fields: RecordField[];
+  label: string;
+  /** Whether `text` is a command, shown in the code face. */
+  mono: boolean;
+  /** How many characters of the record went only as their length. */
+  notSent: number;
+  text: string;
+};
+
+/** The rows of one session, or of the chat's settings, under its name. */
+export type RecordGroup = {
+  rows: RecordRow[];
+  steps: number;
+  title: string;
+};
 
 type Fields = Record<string, unknown>;
+
+const TEXT_MAX = 200;
+const FIELDS_MAX = 80;
+const FIELD_VALUE_MAX = 4000;
+
+/** The outline's mark for text it sent only the length of. */
+const SIZED = /<(\d+) chars>/g;
+const ONLY_SIZED = /^<(\d+) chars>$/;
+
+/** Words the gist looks under first, in order, for a record's first line. */
+const GIST_KEYS = [
+  "command",
+  "explanation",
+  "title",
+  "name",
+  "query",
+  "url",
+  "filePath",
+  "slug",
+  "status",
+  "message",
+  "text",
+  "summary",
+];
+
+/** Labels for kinds whose own name reads badly. Anything else is its name in words. */
+const LABELS: Record<string, string> = {
+  "data-viewContext": "On screen",
+  "source-url": "Source",
+  "tool-bash": "Ran",
+  "tool-connect_app": "Sign-in",
+  answer: "Answer",
+  set: "Setting",
+  sites: "Sites",
+};
+
+/** Records and parts that say nothing a person reads: where a turn or session starts. */
+const SKIPPED = new Set(["message", "session", "reasoning", "step-start"]);
 
 function isFields(value: unknown): value is Fields {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function text(value: unknown) {
-  return typeof value === "string" ? value : "";
+/** Text with what the outline sized read as "…", the row's pill saying how much. */
+function unsized(value: string) {
+  return value.replaceAll(SIZED, "…");
 }
 
 function oneLine(value: string) {
-  return value.replaceAll(/\s+/g, " ").trim().slice(0, DETAIL_MAX);
+  return unsized(value).replaceAll(/\s+/g, " ").trim().slice(0, TEXT_MAX);
 }
 
-/** What a part says, by its type: its text, or what a tool was asked to do. */
-function partDetail(part: Fields) {
-  const type = text(part.type);
-  if (type === "text" || type === "reasoning") {
-    return text(part.text);
+/** A kind's name in words: `tool-read_file` as "Read file", `data-taskEvent` as "Task event". */
+export function kindLabel(kind: string): string {
+  const known = LABELS[kind];
+  if (known) {
+    return known;
   }
-  if (type.startsWith("tool-") && isFields(part.input)) {
-    const input = part.input;
-    return (
-      text(input.explanation) || text(input.command) || text(input.filePath)
+  const words = kind
+    .replace(/^(tool|data)-/, "")
+    .replaceAll(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Record";
+}
+
+/** How many characters went only as their length anywhere in `value`. */
+function sizedChars(value: unknown): number {
+  if (typeof value === "string") {
+    let sum = 0;
+    for (const match of value.matchAll(SIZED)) {
+      sum += Number(match[1]);
+    }
+    return sum;
+  }
+  if (Array.isArray(value)) {
+    return value.reduce((sum: number, each) => sum + sizedChars(each), 0);
+  }
+  if (isFields(value)) {
+    return Object.values(value).reduce(
+      (sum: number, each) => sum + sizedChars(each),
+      0,
     );
+  }
+  return 0;
+}
+
+/** The first written string under the gist's keys, breadth first. */
+function gist(value: unknown): string {
+  let level: unknown[] = [value];
+  for (let depth = 0; depth < 4 && level.length > 0; depth++) {
+    const next: unknown[] = [];
+    for (const each of level) {
+      if (!isFields(each)) {
+        if (Array.isArray(each)) {
+          next.push(...(each as unknown[])); // Array.isArray narrows to any[]
+        }
+        continue;
+      }
+      for (const key of GIST_KEYS) {
+        const found = each[key];
+        if (typeof found === "string" && found && !ONLY_SIZED.test(found)) {
+          return found;
+        }
+      }
+      next.push(...Object.values(each));
+    }
+    level = next;
   }
   return "";
 }
 
-function recordDetail(record: Fields) {
-  switch (record.t) {
-    case "session": {
-      return text(record.startedAs) || text(record.id);
-    }
-    case "message": {
-      if (!isFields(record.message)) {
-        return "";
-      }
-      const metadata = isFields(record.message.metadata)
-        ? record.message.metadata
-        : {};
-      const model = isFields(metadata.aiGatewayModel)
-        ? text(metadata.aiGatewayModel.name)
-        : "";
-      return [text(record.message.role), model].filter(Boolean).join(" · ");
-    }
-    case "part": {
-      return isFields(record.part) ? partDetail(record.part) : "";
-    }
-    case "retract": {
-      return Array.isArray(record.messages)
-        ? `${record.messages.length} messages`
-        : "";
-    }
-    case "stop": {
-      return text(record.by);
-    }
-    case "sites": {
-      return Array.isArray(record.visited) ? record.visited.join(", ") : "";
-    }
-    case "set": {
-      return `${text(record.field)} = ${JSON.stringify(record.value)}`;
-    }
-    default: {
-      return "";
-    }
+/** Every leaf of `value` by its path, at most FIELDS_MAX of them. */
+function flatten(value: unknown, at = "", out: RecordField[] = []) {
+  if (out.length >= FIELDS_MAX) {
+    return out;
   }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      out.push({ name: at, value: "none" });
+    }
+    value.forEach((each, index) => {
+      flatten(each, `${at}[${index}]`, out);
+    });
+    return out;
+  }
+  if (isFields(value)) {
+    for (const [key, each] of Object.entries(value)) {
+      flatten(each, at ? `${at}.${key}` : key, out);
+    }
+    return out;
+  }
+  if (typeof value === "string") {
+    const sized = ONLY_SIZED.exec(value);
+    const inside = sizedChars(value);
+    out.push(
+      sized
+        ? { name: at, notSent: Number(sized[1]), value: "" }
+        : {
+            name: at,
+            ...(inside > 0 && { notSent: inside }),
+            value: unsized(value).slice(0, FIELD_VALUE_MAX),
+          },
+    );
+    return out;
+  }
+  out.push({ name: at, value: JSON.stringify(value) ?? String(value) });
+  return out;
 }
 
-/** Each non-blank line of a JSON Lines file as a row. */
+function exitedBadly(output: unknown) {
+  return (
+    isFields(output) &&
+    typeof output.exitCode === "number" &&
+    output.exitCode !== 0
+  );
+}
+
+function partRow(part: Fields, role: string): RecordRow | undefined {
+  const type = typeof part.type === "string" ? part.type : "part";
+  if (SKIPPED.has(type)) {
+    return undefined;
+  }
+  const { type: _type, ...rest } = part;
+  if (type === "text") {
+    const text = typeof part.text === "string" ? part.text : "";
+    return {
+      failed: false,
+      fields: flatten(rest),
+      label: role === "user" ? "You" : "Instrument",
+      mono: false,
+      notSent: sizedChars(rest),
+      text: oneLine(text),
+    };
+  }
+  const failed =
+    part.state === "output-error" ||
+    typeof part.errorText === "string" ||
+    exitedBadly(part.output);
+  const command =
+    isFields(part.input) && typeof part.input.command === "string"
+      ? part.input.command
+      : "";
+  return {
+    failed,
+    fields: flatten(rest),
+    label: failed ? "Failed" : kindLabel(type),
+    mono: command !== "",
+    notSent: sizedChars(rest),
+    text: oneLine(command || gist(rest.input ?? rest.data ?? rest)),
+  };
+}
+
+function recordRow(record: Fields): RecordRow | undefined {
+  const kind = typeof record.t === "string" ? record.t : "record";
+  if (SKIPPED.has(kind)) {
+    return undefined;
+  }
+  const { at: _at, seq: _seq, t: _t, ...rest } = record;
+  const text =
+    kind === "set"
+      ? `${String(record.field)}: ${typeof record.value === "string" ? record.value : gist(record.value) || JSON.stringify(record.value)}`
+      : kind === "sites" && Array.isArray(record.visited)
+        ? record.visited.join(", ")
+        : gist(rest);
+  return {
+    failed: false,
+    fields: flatten(rest),
+    label: kindLabel(kind),
+    mono: false,
+    notSent: sizedChars(rest),
+    text: oneLine(text),
+  };
+}
+
+/** Each record of a JSON Lines file as a row, the ones that say nothing left out. */
 export function recordRows(content: string): RecordRow[] {
-  return content
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .map((line): RecordRow => {
-      let record: unknown;
-      try {
-        record = JSON.parse(line);
-      } catch {
-        return { detail: oneLine(line), failed: true, json: line, kind: "?" };
-      }
-      if (!isFields(record)) {
-        return { detail: oneLine(line), failed: false, json: line, kind: "?" };
-      }
-      const part = record.t === "part" && isFields(record.part) && record.part;
+  const rows: RecordRow[] = [];
+  let role = "";
+  for (const line of content.split("\n")) {
+    if (line.trim() === "") {
+      continue;
+    }
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      rows.push({
+        failed: true,
+        fields: [],
+        label: "Unreadable",
+        mono: true,
+        notSent: 0,
+        text: oneLine(line),
+      });
+      continue;
+    }
+    if (!isFields(record)) {
+      continue;
+    }
+    if (record.t === "message" && isFields(record.message)) {
+      role = typeof record.message.role === "string" ? record.message.role : "";
+    }
+    const row =
+      record.t === "part" && isFields(record.part)
+        ? partRow(record.part, role)
+        : recordRow(record);
+    if (row) {
+      rows.push({
+        ...row,
+        ...(typeof record.at === "string" && { at: record.at }),
+      });
+    }
+  }
+  return rows;
+}
+
+/** The label main gives a chat's settings files. */
+const SETTINGS_TITLE = "Chat settings";
+
+/** The labels of what the person and the agent said, as opposed to the steps between. */
+const SAID = new Set(["You", "Instrument"]);
+
+/**
+ * A chat's files as groups: its settings first, every device's in one, then
+ * each session, a session's logs from every device merged in time order.
+ */
+export function chatGroups(
+  files: readonly { content: string; label?: string; path: string }[],
+): RecordGroup[] {
+  const groups = new Map<string, RecordRow[]>();
+  for (const file of files) {
+    if (!file.path.endsWith(".jsonl")) {
+      continue;
+    }
+    const title = file.label ?? file.path.split("/").pop() ?? file.path;
+    groups.set(title, [
+      ...(groups.get(title) ?? []),
+      ...recordRows(file.content),
+    ]);
+  }
+  return [...groups.entries()]
+    .map(([title, rows]) => {
+      const sorted = rows.toSorted((a, b) =>
+        (a.at ?? "").localeCompare(b.at ?? ""),
+      );
+      // Every device writes its own settings; a change two of them made is one row.
+      const shown =
+        title === SETTINGS_TITLE
+          ? [...new Map(sorted.map((row) => [row.text, row])).values()]
+          : sorted;
       return {
-        at: text(record.at) || undefined,
-        detail: oneLine(recordDetail(record)),
-        failed: part ? part.state === "output-error" : false,
-        json: JSON.stringify(record, null, 2),
-        kind: part ? text(part.type) || "part" : text(record.t) || "?",
-        seq: typeof record.seq === "number" ? record.seq : undefined,
+        rows: shown,
+        steps:
+          title === SETTINGS_TITLE
+            ? 0
+            : shown.filter((row) => !SAID.has(row.label)).length,
+        title,
       };
-    });
+    })
+    .toSorted(
+      (a, b) =>
+        Number(b.title === SETTINGS_TITLE) - Number(a.title === SETTINGS_TITLE),
+    );
+}
+
+/** What about.json's fields are called on the Diagnostics page; anything else goes by its path. */
+const ABOUT_LABELS: Record<string, string> = {
+  "app.packaged": "Installed build",
+  "app.version": "Version",
+  "chat.id": "Chat",
+  "chat.startedWith": "Chat started on",
+  locale: "Language",
+  "os.arch": "Architecture",
+  "os.platform": "System",
+  "os.release": "Kernel",
+  "os.version": "System version",
+  "versions.chrome": "Chromium",
+  "versions.electron": "Electron",
+  "versions.node": "Node",
+};
+
+/** `process.platform` as a person names the system. */
+const SYSTEM_NAMES: Record<string, string> = {
+  darwin: "macOS",
+  linux: "Linux",
+  win32: "Windows",
+};
+
+/** A JSON file's fields as named rows, for the Diagnostics page. */
+export function aboutFields(content: string): RecordField[] {
+  let about: unknown;
+  try {
+    about = JSON.parse(content);
+  } catch {
+    return [{ name: "about.json", value: content.slice(0, FIELD_VALUE_MAX) }];
+  }
+  return flatten(about).map((field) => ({
+    ...field,
+    name: ABOUT_LABELS[field.name] ?? field.name,
+    value:
+      field.name === "os.platform"
+        ? (SYSTEM_NAMES[field.value] ?? field.value)
+        : field.value === "true"
+          ? "Yes"
+          : field.value === "false"
+            ? "No"
+            : field.value,
+  }));
+}
+
+/** An error's fields by name, for its row on the Diagnostics page to open onto. */
+export function eventFields(event: unknown): RecordField[] {
+  return flatten(event);
 }

@@ -62,7 +62,7 @@ export const ReportInputSchema = z.object({
    * whole; `details` has them in readable form, and Show details has both.
    */
   events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
-  /** What feedback carries besides the note: the chat's records and the diagnostics the person kept checked. */
+  /** What feedback carries besides the note: the chat's records and the diagnostics. */
   files: z
     .array(ReportFileSchema)
     .max(MAX_REPORT_FILES)
@@ -86,12 +86,6 @@ export const ReportInputSchema = z.object({
 
 export type ReportInput = z.output<typeof ReportInputSchema>;
 
-/**
- * One line of a feedback report the person can check or leave out: the
- * chat, the diagnostics, or the agent's write-up. `files` and
- * `events` are what it sends, exactly as the main process read them, and
- * `bytes` is what they add to the report.
- */
 /** A file of a feedback item: what it sends, and what the dialog calls it. */
 const FeedbackFileSchema = ReportFileSchema.extend({
   /** What the dialog names the file by; never sent. */
@@ -100,6 +94,11 @@ const FeedbackFileSchema = ReportFileSchema.extend({
 
 export type FeedbackFile = z.output<typeof FeedbackFileSchema>;
 
+/**
+ * One part of what a feedback report carries: the chat, the diagnostics, or
+ * the agent's write-up. `files` and `events` are what it sends, exactly as
+ * the main process read them, and `bytes` is what they add to the report.
+ */
 export const FeedbackItemSchema = z.object({
   bytes: z.number().int().min(0),
   events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
@@ -111,24 +110,14 @@ export const FeedbackItemSchema = z.object({
 
 export type FeedbackItem = z.output<typeof FeedbackItemSchema>;
 
-/** Said when the chat a person kept checked is more than one report may carry. */
+/** Said when the chat is more than one report may carry. */
 export const FEEDBACK_TOO_LARGE =
-  "This chat is too big to send in one go. Leave out a task or two and try again.";
+  "This chat is too big to send with your feedback.";
 
-/**
- * The chat a feedback report is about: its steps and what was said, and the
- * same chat with what the agent read, when that differs, for the person to
- * add with Include full details.
- */
+/** The chat a feedback report is about: the outline of its records, and its title in quotes. */
 export type ChatFeedbackDescription = {
-  /** What the chat sends with full details: everything but its thinking. */
-  full?: FeedbackItem;
-  /** What the chat sends by default: the outline of its records. */
   item: FeedbackItem;
-  /** Where what full details add came from: hosts, apps, and a count of files. */
-  sources: string[];
-  /** The chat's title in quotes, and how many tasks it started. */
-  summary: string;
+  title: string;
 };
 
 /** What a feedback report can carry, for the dialog to offer. */

@@ -1,5 +1,5 @@
 /**
- * A chat's records as a feedback report sends them by default: what the
+ * A chat's records as a feedback report sends them: what the
  * person and the agent said and every step it took, without what it read.
  *
  * Every kind of record the app writes has a handler here naming each of its
@@ -849,27 +849,6 @@ export function outlineRecord(
   return { ...sizeFields(record), t: record.t };
 }
 
-/** One record of a session's log as full details have it: everything but the thinking. */
-export function fullRecord(record: unknown): unknown {
-  if (
-    isObj(record) &&
-    record.t === "part" &&
-    isObj(record.part) &&
-    record.part.type === "reasoning"
-  ) {
-    return { ...record, part: withoutThinkingPart(record.part) };
-  }
-  if (isObj(record) && record.t === "part" && isObj(record.part)) {
-    const {
-      callProviderMetadata: _a,
-      providerMetadata: _b,
-      ...part
-    } = record.part;
-    return { ...record, part };
-  }
-  return record;
-}
-
 function mapLines(content: string, map: (record: unknown) => unknown): string {
   return content
     .split("\n")
@@ -895,9 +874,4 @@ export function outlineSessionLog(
     content: mapLines(content, (record) => outlineRecord(record, sources)),
     sources,
   };
-}
-
-/** A session's log as full details have it: every record, thinking left out. */
-export function fullSessionLog(content: string): string {
-  return mapLines(content, fullRecord);
 }

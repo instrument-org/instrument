@@ -121,7 +121,7 @@ const describeFeedbackRoute = base
   .handler(({ input }) => describeFeedback(input.chatId));
 
 /**
- * Sends feedback: the note and the items the person kept checked, as the
+ * Sends feedback: the note and the items the dialog showed, as the
  * dialog was given them, trimmed to the service's cap, and the images they
  * attached, as Blobs the RPC link carries as binary.
  */

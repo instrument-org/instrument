@@ -41,11 +41,7 @@ import {
   listMemories,
   memoryDir,
 } from "@instrument-org/workspace/electron";
-import {
-  emptySources,
-  fullSessionLog,
-  outlineSessionLog,
-} from "@instrument-org/workspace/report-outline";
+import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -498,12 +494,8 @@ export const FEEDBACK_LOG_PATH = "diagnostics/app.log";
 /** A session's log, `<session>.<device>.jsonl` and its later generations. */
 const SESSION_LOG = /^(ses_[0-9A-Za-z]+)\..+\.jsonl$/;
 
-/** The chat's own files beside its logs: each device's settings and state, and the notes a handoff leaves. */
-const CHAT_SETTINGS =
-  /^(?:(?:settings|marks)\..+\.jsonl|state\..+\.json|handoff-notes\.md)$/;
-
-/** The chat's own files the outline sends: each device's settings and marks. */
-const CHAT_SETTINGS_OUTLINED = /^(?:settings|marks)\..+\.jsonl$/;
+/** The chat's own files the outline sends beside its logs: each device's settings and marks. */
+const CHAT_SETTINGS = /^(?:settings|marks)\..+\.jsonl$/;
 
 /** A name that can stand in a report's path, which a sync engine's copy (`… 2.jsonl`) cannot. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
@@ -512,12 +504,11 @@ type ChatFile = { content: string; name: string };
 
 /**
  * A chat as feedback offers it: one item, every session's log as the outline
- * has it (the chat's own first, then its tasks) and the chat's settings, and
- * beside it the same chat with what the agent read, for the person to add.
+ * has it (the chat's own first, then its tasks), then the chat's settings.
  * Each file goes as `chat/<name on disk>`, so the folder can be laid out
- * again from the report. Blobs and attachments are never among them, nor
- * the work folder. `files` are the chat's files as full details send them,
- * redacted and with the thinking taken out.
+ * again from the report. A device's state, the notes a handoff leaves,
+ * blobs, attachments and the work folder never go: the state names the pages
+ * its tabs had open, and the notes are the agent's summary of what it read.
  */
 export function chatFeedback({
   files,
@@ -542,78 +533,38 @@ export function chatFeedback({
       .filter((id) => !known.has(id))
       .map((id) => ({ id, parentId: id, title: id })),
   ];
-  const sources = emptySources();
-  const full: FeedbackFile[] = [];
   const outline: FeedbackFile[] = [];
   for (const session of ordered) {
     for (const file of logs.get(session.id) ?? []) {
-      const label = session.parentId
-        ? `Task: ${session.title}`
-        : `“${session.title}”`;
-      const at = `chat/${file.name}`;
-      full.push({ content: file.content, label, path: at });
       outline.push({
-        content: outlineSessionLog(file.content, sources).content,
-        label,
-        path: at,
+        content: outlineSessionLog(file.content).content,
+        label: session.parentId
+          ? `Task: ${session.title}`
+          : `“${session.title}”`,
+        path: `chat/${file.name}`,
       });
     }
   }
-  if (full.length === 0) {
+  if (outline.length === 0) {
     return undefined;
   }
   for (const file of plain.filter((each) => CHAT_SETTINGS.test(each.name))) {
-    const each = {
+    outline.push({
       content: file.content,
       label: "Chat settings",
       path: `chat/${file.name}`,
-    };
-    full.push(each);
-    // Only the settings go by default. A device's state names the pages its
-    // tabs had open, closed ones too, and the notes a handoff leaves are the
-    // agent's own summary of what it read.
-    if (CHAT_SETTINGS_OUTLINED.test(file.name)) {
-      outline.push(each);
-    }
+    });
   }
   const own = ordered.find((session) => !session.parentId);
-  const tasks = ordered.filter((session) => session.parentId).length;
-  const title = own ? `“${own.title}”` : "This chat";
-  const differs =
-    full.length !== outline.length ||
-    full.some((file, index) => file.content !== outline[index]?.content);
   return {
-    ...(differs && {
-      full: feedbackItem({
-        files: full,
-        id: "chat-full",
-        kind: "chat",
-        label: "This chat",
-      }),
-    }),
     item: feedbackItem({
       files: outline,
       id: "chat",
       kind: "chat",
       label: "This chat",
     }),
-    sources: [
-      ...sources.hosts,
-      ...[...sources.apps].map((slug) => appName(slug)),
-      ...(sources.files > 0
-        ? [sources.files === 1 ? "1 file" : `${sources.files} files`]
-        : []),
-    ],
-    summary:
-      tasks === 0
-        ? title
-        : `${title} and ${tasks === 1 ? "1 task" : `${tasks} tasks`}`,
+    title: own ? `“${own.title}”` : "This chat",
   };
-}
-
-/** An app's slug as a person reads it: `gmail` as Gmail. */
-function appName(slug: string) {
-  return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
 function feedbackItem(item: Omit<FeedbackItem, "bytes">): FeedbackItem {
@@ -688,18 +639,17 @@ async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
     entries
-      .filter((entry) => entry.isFile())
+      .filter(
+        (entry) =>
+          entry.isFile() &&
+          (SESSION_LOG.test(entry.name) || CHAT_SETTINGS.test(entry.name)),
+      )
       .map(async (entry) => {
         const content = await fs.promises.readFile(
           path.join(dir, entry.name),
           "utf8",
         );
-        return {
-          content: SESSION_LOG.test(entry.name)
-            ? fullSessionLog(content)
-            : content,
-          name: entry.name,
-        };
+        return { content, name: entry.name };
       }),
   );
   return {
@@ -721,7 +671,7 @@ function diagnosticsItem(
   redactor: ReportRedactor,
 ): FeedbackItem {
   const about = {
-    app: { packaged: app.isPackaged, version: app.getVersion() },
+    app: { version: app.getVersion(), packaged: app.isPackaged },
     ...(chat && {
       chat: { id: chat.id, startedWith: chat.startedWith ?? null },
     }),
@@ -792,8 +742,8 @@ export class FeedbackTooLargeError extends Error {
 }
 
 /**
- * The report feedback sends: the person's note and the items they kept
- * checked, their files in `files` and the recent errors in `events`. Over
+ * The report feedback sends: the person's note and the items the dialog
+ * showed, their files in `files` and the recent errors in `events`. Over
  * the service's cap, the log loses lines from its top first, then the
  * oldest errors go; a chat still over it is refused whole rather than sent
  * cut short.

@@ -1,41 +1,29 @@
 import { type FeedbackRequest } from "@/client/atoms/report-dialog";
-import {
-  BlockToolbarButton,
-  blockToolbarButtonClassName,
-  CodeBlock,
-  wrapLinesClassName,
-} from "@/client/components/code-block";
-import { CopyButton } from "@/client/components/copy-button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
 import { Button } from "@/client/components/ui/button";
-import { Checkbox } from "@/client/components/ui/checkbox";
-import { Spinner } from "@/client/components/ui/spinner";
-import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import {
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/client/components/ui/dialog";
+import { Skeleton } from "@/client/components/ui/skeleton";
+import { Spinner } from "@/client/components/ui/spinner";
+import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import {
   DictatedTextarea,
   useDictatedText,
 } from "@/client/components/dictation-controls";
 import { isDictating } from "@/client/hooks/use-dictation";
 import {
-  bytesGoing,
-  formatSize,
-  partState,
-  toggleItem,
-  togglePart,
-} from "@/client/lib/feedback-selection";
-import { type RecordRow, recordRows } from "@/client/lib/feedback-records";
+  aboutFields,
+  chatGroups,
+  eventFields,
+  type RecordField,
+  type RecordGroup,
+  type RecordRow,
+} from "@/client/lib/feedback-records";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { SENT_CLOSE_MS } from "@/client/lib/problem-reports";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   checkFeedbackImages,
@@ -45,31 +33,22 @@ import {
 } from "@/shared/feedback-images";
 import {
   FEEDBACK_TOO_LARGE,
-  type FeedbackDescription,
   type FeedbackItem,
   MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
-import { type Icon } from "@phosphor-icons/react";
-import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
-import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { ImageIcon } from "@phosphor-icons/react/Image";
-import { NoteIcon } from "@phosphor-icons/react/Note";
-import { InfoIcon } from "@phosphor-icons/react/Info";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const ITEM_ICONS: Record<FeedbackItem["kind"], Icon> = {
-  chat: ChatCircleIcon,
-  diagnostics: InfoIcon,
-  writeup: NoteIcon,
-};
-
-/** The agent's write-up as one file of what goes, for the dialog to offer like the rest. */
+/** The agent's write-up as one file of what goes, sent like the rest. */
 function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
   const content = `# ${writeup.title}\n\n${writeup.text}\n`;
   return {
@@ -81,23 +60,11 @@ function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
   };
 }
 
-/**
- * The form and what goes down the left, the file picked from it on the right,
- * at one size so picking another file never moves the dialog. The window caps
- * both where it is smaller.
- */
-const DIALOG_WIDTH = "60rem";
-const DIALOG_HEIGHT = "40rem";
+/** One short column; what goes is read on a page of its own at this height. */
+const DIALOG_WIDTH = "38rem";
+const REVIEW_HEIGHT = "40rem";
 
 const NOTE_MAX_LENGTH = 5000;
-
-type Part = {
-  /** A line under the part's name: the chat's title and its tasks. */
-  detail?: string;
-  id: string;
-  items: FeedbackItem[];
-  title: string;
-};
 
 /** An image the person attached: a picked, pasted or dropped file. */
 type AttachedImage = {
@@ -153,12 +120,20 @@ async function offerImages(already: number, files: readonly File[]) {
   };
 }
 
+/** A part of what goes, as the dialog lists it and its review page shows it. */
+type Part = {
+  item: FeedbackItem;
+  line: string;
+  /** The switch's word for it on the review page. */
+  tab: string;
+  title: string;
+};
+
 /**
- * Feedback: the person's comments and the images they attach, then what
- * goes with them in parts (the agent's write-up, the chat, when there is one,
- * and the diagnostics), each a box over its files, every file with its own
- * box. Beside them is the file picked, as it will be sent, starting on the
- * first. Everything starts checked.
+ * Feedback: the person's note and the images they attach, then what goes
+ * with them, a row each (the agent's write-up, the chat when there is one,
+ * and the diagnostics). View turns the dialog into a page that shows each
+ * as it will be sent, a row per record; everything listed goes.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -169,7 +144,6 @@ export function FeedbackDialogContent({
   onExitComplete: () => void;
   request: FeedbackRequest;
 }) {
-  const noteId = useId();
   const [note, setNote] = useState("");
   const noteDictation = useDictatedText({
     maxLength: NOTE_MAX_LENGTH,
@@ -177,12 +151,12 @@ export function FeedbackDialogContent({
     surface: "report",
     value: note,
   });
-  const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set());
-  const [fullDetails, setFullDetails] = useState(false);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
+  const { thisComputer } = osConventions();
+  const yourComputer = thisComputer.replace(/^this /, "your ");
 
   const addImages = async (files: readonly File[]) => {
     if (files.length === 0) {
@@ -202,46 +176,44 @@ export function FeedbackDialogContent({
     staleTime: Infinity,
   });
 
-  const parts: Part[] = described.data
-    ? [
-        ...(request.writeup
-          ? [
-              {
-                id: "writeup",
-                items: [writeupItem(request.writeup)],
-                title: `${APP_NAME}'s write-up`,
-              },
-            ]
-          : []),
-        ...(described.data.chat
-          ? [
-              {
-                detail: described.data.chat.summary,
-                id: "chat",
-                items: [chatItem(described.data.chat, fullDetails)],
-                title: "This chat",
-              },
-            ]
-          : []),
-        {
-          id: "diagnostics",
-          items: [described.data.diagnostics],
-          title: "Diagnostics",
-        },
-      ]
-    : [];
-  const allItems = parts.flatMap((part) => part.items);
-  const going = allItems.filter((item) => !leftOut.has(item.id));
-  // A picked image that was removed falls back to the first file.
-  const viewing: AttachedImage | FeedbackItem | undefined =
-    images.find((image) => image.id === picked) ??
-    allItems.find((item) => item.id === picked) ??
-    allItems[0];
-  const chatTooLarge =
-    bytesGoing(
-      described.data?.chat ? [chatItem(described.data.chat, fullDetails)] : [],
-      leftOut,
-    ) > MAX_REPORT_BYTES;
+  const chat = described.data?.chat;
+  const chatTooLarge = chat ? chat.item.bytes > MAX_REPORT_BYTES : false;
+  const parts: Part[] = [
+    ...(request.writeup
+      ? [
+          {
+            item: writeupItem(request.writeup),
+            line: request.writeup.title,
+            tab: "Write-up",
+            title: `${APP_NAME}'s write-up`,
+          },
+        ]
+      : []),
+    ...(chat
+      ? [
+          {
+            item: chat.item,
+            line: chatTooLarge
+              ? FEEDBACK_TOO_LARGE
+              : `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}.`,
+            tab: "This chat",
+            title: chat.title,
+          },
+        ]
+      : []),
+    ...(described.data
+      ? [
+          {
+            item: described.data.diagnostics,
+            line: `${APP_NAME}'s version, ${yourComputer} and recent errors.`,
+            tab: "Diagnostics",
+            title: "Diagnostics",
+          },
+        ]
+      : []),
+  ];
+  const going = parts.map((part) => part.item);
+  const reviewed = parts.find((part) => part.item.id === viewing);
 
   const send = useMutation({
     mutationFn: () => {
@@ -272,13 +244,11 @@ export function FeedbackDialogContent({
     };
   }, [onClose, send.isSuccess]);
 
-  const problem = chatTooLarge
-    ? FEEDBACK_TOO_LARGE
-    : send.error
-      ? send.error.message
-      : described.error
-        ? `We couldn't gather what goes with your feedback: ${described.error.message}`
-        : undefined;
+  const problem = send.error
+    ? send.error.message
+    : described.error
+      ? `We couldn't gather what goes with your feedback: ${described.error.message}`
+      : undefined;
 
   const sendButton = (
     <Button
@@ -286,9 +256,8 @@ export function FeedbackDialogContent({
         described.isPending ||
         chatTooLarge ||
         send.isPending ||
-        // Waits for dictated words, so the comments go with them.
-        isDictating(noteDictation.phase) ||
-        (going.length === 0 && images.length === 0 && note.trim() === "")
+        // Waits for dictated words, so the note goes with them.
+        isDictating(noteDictation.phase)
       }
       onClick={() => {
         send.mutate();
@@ -308,18 +277,18 @@ export function FeedbackDialogContent({
     </Button>
   );
 
-  // One `DialogContent` for the form and the thanks, so sending swaps what is
-  // inside rather than opening the dialog again with its entrance animation.
+  // One `DialogContent` for the form, the review and the thanks, so moving
+  // between them swaps what is inside rather than opening the dialog again.
   return (
     <DialogContent
       className={cn(
         "flex flex-col gap-0 overflow-hidden p-0",
         send.isSuccess && "items-center justify-center p-6",
       )}
-      maxHeight={DIALOG_HEIGHT}
+      maxHeight={REVIEW_HEIGHT}
       maxWidth={DIALOG_WIDTH}
       onDragOver={(event) => {
-        if (send.isSuccess) {
+        if (send.isSuccess || reviewed) {
           return;
         }
         if (event.dataTransfer.types.includes("Files")) {
@@ -328,7 +297,7 @@ export function FeedbackDialogContent({
         }
       }}
       onDrop={(event) => {
-        if (send.isSuccess) {
+        if (send.isSuccess || reviewed) {
           return;
         }
         if (event.dataTransfer.files.length > 0) {
@@ -337,9 +306,16 @@ export function FeedbackDialogContent({
           void addImages([...event.dataTransfer.files]);
         }
       }}
+      // Escape on the review goes back to the form rather than closing.
+      onEscapeKeyDown={(event) => {
+        if (reviewed && !send.isSuccess) {
+          event.preventDefault();
+          setViewing(null);
+        }
+      }}
       onExitComplete={onExitComplete}
       onPaste={(event) => {
-        if (send.isSuccess) {
+        if (send.isSuccess || reviewed) {
           return;
         }
         const text = event.clipboardData.getData("text/plain");
@@ -356,9 +332,10 @@ export function FeedbackDialogContent({
           void addImages(files);
         }
       }}
-      showCloseButton={false}
-      // The thanks is as tall as what it shows.
-      style={send.isSuccess ? undefined : { height: DIALOG_HEIGHT }}
+      showCloseButton={!reviewed && !send.isSuccess}
+      style={
+        reviewed && !send.isSuccess ? { height: REVIEW_HEIGHT } : undefined
+      }
     >
       {send.isSuccess ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -368,173 +345,125 @@ export function FeedbackDialogContent({
             The feedback was sent.
           </DialogDescription>
         </div>
+      ) : reviewed ? (
+        <Review
+          onBack={() => {
+            setViewing(null);
+          }}
+          onPick={setViewing}
+          part={reviewed}
+          parts={parts}
+          yourComputer={yourComputer}
+        />
       ) : (
-        <>
-          <div className="flex min-h-0 flex-1">
-            <div className="flex w-88 shrink-0 flex-col gap-4 border-r border-border p-6">
-              <div className="flex flex-col gap-1.5">
-                <DialogTitle>Send feedback</DialogTitle>
-                <DialogDescription>
-                  Only the {APP_NAME} team will see what you send. Pick anything
-                  below to read it first, and uncheck what you’d rather keep to
-                  yourself.
-                </DialogDescription>
-              </div>
+        <div className="flex flex-col gap-5 p-6">
+          <div className="flex flex-col gap-2 pr-6">
+            <DialogTitle>Send feedback</DialogTitle>
+            <DialogDescription>
+              Only the {APP_NAME} team will see what you send, and you can look
+              it over first.
+            </DialogDescription>
+          </div>
 
-              <div className="flex shrink-0 flex-col gap-1.5">
-                <label className="text-xs font-medium" htmlFor={noteId}>
-                  Comments
-                </label>
-                <DictatedTextarea
-                  autoFocus
-                  className="max-h-32"
-                  dictation={noteDictation}
-                  id={noteId}
-                  maxLength={NOTE_MAX_LENGTH}
-                  onChange={(event) => {
-                    setNote(event.target.value);
-                  }}
-                  placeholder={
-                    request.writeup
-                      ? "Anything to add? You can also send it as it is."
-                      : "What happened, and what did you expect?"
-                  }
-                  value={note}
-                />
-              </div>
+          <DictatedTextarea
+            aria-label="Your note"
+            autoFocus
+            className="min-h-24"
+            dictation={noteDictation}
+            maxLength={NOTE_MAX_LENGTH}
+            onChange={(event) => {
+              setNote(event.target.value);
+            }}
+            placeholder={
+              request.writeup
+                ? "Anything to add? You can also send it as it is."
+                : "What happened, and what did you expect?"
+            }
+            value={note}
+          />
 
-              <div className="flex shrink-0 flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  {images.map((image) => (
-                    <div className="relative" key={image.id}>
-                      <button
-                        aria-label={`View ${image.name}`}
-                        aria-pressed={viewing === image}
-                        className={cn(
-                          "block size-14 overflow-hidden rounded-md border border-border bg-muted",
-                          viewing === image &&
-                            "ring-2 ring-brand-600 ring-offset-1 ring-offset-background",
-                        )}
-                        onClick={() => {
-                          setPicked(image.id);
-                        }}
-                        type="button"
-                      >
-                        <img
-                          alt=""
-                          className="size-full object-cover"
-                          src={image.src}
-                        />
-                      </button>
-                      <button
-                        aria-label={`Remove ${image.name}`}
-                        className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
-                        onClick={() => {
-                          setImages((current) =>
-                            current.filter((other) => other.id !== image.id),
-                          );
-                          setImageProblems([]);
-                        }}
-                        type="button"
-                      >
-                        <XIcon className="size-2.5" weight="bold" />
-                      </button>
-                    </div>
-                  ))}
-                  <Button
-                    disabled={images.length >= MAX_FEEDBACK_IMAGES}
-                    onClick={() => {
-                      pickerRef.current?.click();
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    <ImageIcon />
-                    Add images
-                  </Button>
-                  <input
-                    accept={FEEDBACK_IMAGE_TYPES.join(",")}
-                    className="hidden"
-                    multiple
-                    onChange={(event) => {
-                      const files = [...(event.target.files ?? [])];
-                      event.target.value = "";
-                      void addImages(files);
-                    }}
-                    ref={pickerRef}
-                    type="file"
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              {images.map((image) => (
+                <div className="relative" key={image.id}>
+                  <img
+                    alt={image.name}
+                    className="block size-14 rounded-md border border-border bg-muted object-cover"
+                    src={image.src}
                   />
-                </div>
-                {imageProblems.map((line) => (
-                  <p
-                    className="flex items-start gap-1.5 text-xs text-destructive"
-                    key={line}
+                  <button
+                    aria-label={`Remove ${image.name}`}
+                    className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                    onClick={() => {
+                      setImages((current) =>
+                        current.filter((other) => other.id !== image.id),
+                      );
+                      setImageProblems([]);
+                    }}
+                    type="button"
                   >
-                    <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
-                    {line}
-                  </p>
-                ))}
-              </div>
-
-              {/* What goes takes the room left, and scrolls in it. */}
-              <div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
-                {described.isPending && (
-                  <p className="text-sm text-muted-foreground">
-                    Gathering the details…
-                  </p>
-                )}
-                {parts.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {parts.map((part) => (
-                      <div className="flex flex-col gap-1" key={part.id}>
-                        <FeedbackPart
-                          leftOut={leftOut}
-                          onLeftOut={setLeftOut}
-                          onView={(item) => {
-                            setPicked(item.id);
-                          }}
-                          part={part}
-                          viewing={viewing}
-                        />
-                        {part.id === "chat" &&
-                          described.data?.chat?.full &&
-                          !leftOut.has(
-                            chatItem(described.data.chat, fullDetails).id,
-                          ) && (
-                            <FullDetailsBox
-                              checked={fullDetails}
-                              onCheckedChange={(checked) => {
-                                setFullDetails(checked);
-                                if (described.data?.chat) {
-                                  setPicked(
-                                    chatItem(described.data.chat, checked).id,
-                                  );
-                                }
-                              }}
-                              sources={described.data.chat.sources}
-                            />
-                          )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex min-w-0 flex-1 flex-col bg-muted/30">
-              {viewing && (
-                // Keyed so each file picked fades in rather than swapping in place.
-                <div
-                  className="flex min-h-0 flex-1 animate-in flex-col duration-150 fade-in-0"
-                  key={viewing.id}
-                >
-                  <FileView viewing={viewing} />
+                    <XIcon className="size-2.5" weight="bold" />
+                  </button>
                 </div>
-              )}
+              ))}
+              <Button
+                disabled={images.length >= MAX_FEEDBACK_IMAGES}
+                onClick={() => {
+                  pickerRef.current?.click();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                <ImageIcon />
+                Add images
+              </Button>
+              <input
+                accept={FEEDBACK_IMAGE_TYPES.join(",")}
+                className="hidden"
+                multiple
+                onChange={(event) => {
+                  const files = [...(event.target.files ?? [])];
+                  event.target.value = "";
+                  void addImages(files);
+                }}
+                ref={pickerRef}
+                type="file"
+              />
+            </div>
+            {imageProblems.map((line) => (
+              <p
+                className="flex items-start gap-1.5 text-xs text-destructive"
+                key={line}
+              >
+                <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
+                {line}
+              </p>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <p className="text-[13px] font-medium text-muted-foreground">
+              Sent with your note
+            </p>
+            <div className="divide-y divide-border rounded-xl border border-border">
+              {described.isPending
+                ? (request.chatId
+                    ? ["chat", "diagnostics"]
+                    : ["diagnostics"]
+                  ).map((id) => <PartRowLoading key={id} />)
+                : parts.map((part) => (
+                    <PartRow
+                      key={part.item.id}
+                      onView={() => {
+                        setViewing(part.item.id);
+                      }}
+                      part={part}
+                    />
+                  ))}
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 border-t border-border px-6 py-3">
+          <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               {problem && (
                 <p className="flex items-start gap-1.5 text-xs text-destructive">
@@ -548,450 +477,331 @@ export function FeedbackDialogContent({
             </Button>
             {sendButton}
           </div>
-        </>
+        </div>
       )}
     </DialogContent>
   );
 }
 
-/**
- * One part of what goes: its box and name over its files, each with its own
- * box, the file being read marked.
- */
-function FeedbackPart({
-  leftOut,
-  onLeftOut,
-  onView,
-  part,
-  viewing,
-}: {
-  leftOut: ReadonlySet<string>;
-  onLeftOut: (next: ReadonlySet<string>) => void;
-  onView: (item: FeedbackItem) => void;
-  part: Part;
-  viewing: AttachedImage | FeedbackItem | undefined;
-}) {
-  const ids = part.items.map((item) => item.id);
-  const state = partState(ids, leftOut);
-  const [only] = part.items;
-  // A part of one file is that file's row, under the part's name.
-  if (only && part.items.length === 1) {
-    return (
-      <FileRow
-        detail={part.detail}
-        included={!leftOut.has(only.id)}
-        item={only}
-        label={part.title}
-        onToggle={() => {
-          onLeftOut(toggleItem(only.id, leftOut));
-        }}
-        onView={onView}
-        shown={viewing === only}
-      />
-    );
-  }
+/** A part of what goes: its name, the line saying what it is, and View. */
+function PartRow({ onView, part }: { onView: () => void; part: Part }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <div className="flex items-center gap-2.5 px-2 py-1">
-        <Checkbox
-          aria-label={part.title}
-          checked={state}
-          onCheckedChange={() => {
-            onLeftOut(togglePart(ids, leftOut));
-          }}
-        />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">
-          {part.title}
-        </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {state === false
-            ? "Not included"
-            : formatSize(bytesGoing(part.items, leftOut))}
-        </span>
+    <div className="flex items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{part.title}</p>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">{part.line}</p>
       </div>
-      {part.items.map((item) => (
-        <FileRow
-          className="pl-7"
-          included={!leftOut.has(item.id)}
-          item={item}
-          key={item.id}
-          label={item.label}
-          onToggle={() => {
-            onLeftOut(toggleItem(item.id, leftOut));
-          }}
-          onView={onView}
-          shown={viewing === item}
-        />
+      <Button
+        aria-label={`View ${part.tab}`}
+        onClick={onView}
+        size="sm"
+        variant="outline"
+      >
+        View
+      </Button>
+    </div>
+  );
+}
+
+function PartRowLoading() {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-3.5 w-40" />
+        <Skeleton className="h-3 w-64" />
+      </div>
+      <Button disabled size="sm" variant="outline">
+        View
+      </Button>
+    </div>
+  );
+}
+
+/** The review page: one part as it will be sent, with a switch to the others. */
+function Review({
+  onBack,
+  onPick,
+  part,
+  parts,
+  yourComputer,
+}: {
+  onBack: () => void;
+  onPick: (id: string) => void;
+  part: Part;
+  parts: readonly Part[];
+  yourComputer: string;
+}) {
+  return (
+    <>
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+        <Button
+          aria-label="Back"
+          onClick={onBack}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <ArrowLeftIcon />
+        </Button>
+        <DialogTitle className="flex-1 text-[15px]">
+          What we'll send
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Everything listed here goes with your feedback.
+        </DialogDescription>
+        {parts.length > 1 && (
+          <Tabs onValueChange={onPick} value={part.item.id}>
+            <TabsList>
+              {parts.map((each) => (
+                <TabsTrigger key={each.item.id} value={each.item.id}>
+                  {each.tab}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+      </div>
+      <div
+        className="min-h-0 flex-1 animate-in overflow-y-auto px-3 py-2 duration-150 fade-in-0"
+        // Keyed so each part fades in rather than swapping in place.
+        key={part.item.id}
+      >
+        {part.item.kind === "chat" ? (
+          <ChatReview item={part.item} />
+        ) : part.item.kind === "diagnostics" ? (
+          <DiagnosticsReview item={part.item} />
+        ) : (
+          <p className="px-3 py-2 text-sm whitespace-pre-wrap">
+            {part.item.files[0]?.content}
+          </p>
+        )}
+      </div>
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-t border-border px-5">
+        <p className="flex-1 text-[13px] text-muted-foreground">
+          {part.item.kind === "chat" &&
+            `What ${APP_NAME} read stays on ${yourComputer}.`}
+        </p>
+        <Button onClick={onBack} variant="outline">
+          Done
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function ChatReview({ item }: { item: FeedbackItem }) {
+  const groups = chatGroups(item.files);
+  return (
+    <div className="flex flex-col gap-1">
+      {groups.map((group) => (
+        <Group group={group} key={group.title} />
       ))}
     </div>
   );
 }
 
-/** The chat as it goes: its outline, or everything with full details. */
-function chatItem(
-  chat: NonNullable<FeedbackDescription["chat"]>,
-  fullDetails: boolean,
-): FeedbackItem {
-  return fullDetails && chat.full ? chat.full : chat.item;
-}
-
-/** Up to three names as a person lists them: "a, b and c". */
-export function listedSources(sources: readonly string[]): string {
-  const shown = sources.slice(0, 3);
-  const last = shown.pop();
-  if (last === undefined) {
-    return "";
-  }
-  return shown.length > 0 ? `${shown.join(", ")} and ${last}` : last;
-}
-
-/**
- * The box under the chat that adds what the agent read, off until the person
- * checks it, with a button that says what it adds.
- */
-function FullDetailsBox({
-  checked,
-  onCheckedChange,
-  sources,
-}: {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  sources: readonly string[];
-}) {
-  const id = useId();
-  const like = listedSources(sources);
+function Group({ group }: { group: RecordGroup }) {
   return (
-    <div className="flex items-center gap-2 pl-8.5 text-xs">
-      <Checkbox
-        checked={checked}
-        id={id}
-        onCheckedChange={(value) => {
-          onCheckedChange(value === true);
-        }}
-      />
-      <label className={cn(!checked && "text-muted-foreground")} htmlFor={id}>
-        Include full details
-      </label>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            aria-label="What full details add"
-            className="grid size-5 place-items-center rounded-full text-muted-foreground hover:text-foreground"
-            type="button"
-          >
-            <InfoIcon className="size-3.5" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 text-sm">
-          <p className="font-medium">Full details</p>
-          <p className="mt-1 text-muted-foreground">
-            {like
-              ? `The pages and files ${APP_NAME} read in this chat, like ${like}.`
-              : `The pages and files ${APP_NAME} read in this chat.`}{" "}
-            You only need these if the problem was about something it read.
+    <div>
+      <div className="flex items-baseline gap-2 px-3 pt-3 pb-1">
+        <p className="min-w-0 truncate text-[13px] font-medium">
+          {group.title}
+        </p>
+        {group.steps > 0 && (
+          <p className="shrink-0 text-xs text-muted-foreground">
+            {group.steps === 1 ? "1 step" : `${group.steps} steps`}
           </p>
-        </PopoverContent>
-      </Popover>
+        )}
+      </div>
+      <div className="divide-y divide-border/60">
+        {group.rows.map((row, index) => (
+          // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
+          <RecordLine key={index} row={row} />
+        ))}
+      </div>
     </div>
   );
 }
 
-/** A file of what goes: its box, and the row that shows it beside the list. */
-function FileRow({
-  className,
-  detail,
-  included,
-  item,
-  label,
-  onToggle,
-  onView,
-  shown,
-}: {
-  className?: string;
-  detail?: string;
-  included: boolean;
-  item: FeedbackItem;
-  label: string;
-  onToggle: () => void;
-  onView: (item: FeedbackItem) => void;
-  shown: boolean;
-}) {
-  const ItemIcon = ITEM_ICONS[item.kind];
+/** A count of characters as a person reads it: "1,500 characters". */
+function characters(count: number) {
+  return `${count.toLocaleString()} ${count === 1 ? "character" : "characters"}`;
+}
+
+function NotSent({ count }: { count: number }) {
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2.5 rounded-md pl-2 text-[13px]",
-        shown && "bg-accent",
-        !included && "text-muted-foreground",
-        className,
-      )}
-    >
-      <Checkbox
-        aria-label={label}
-        checked={included}
-        onCheckedChange={onToggle}
-      />
+    <span className="shrink-0 rounded border border-dashed border-foreground/25 px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-muted-foreground">
+      Not sent · {characters(count)}
+    </span>
+  );
+}
+
+/** One record: its label, its first line and what of it stayed home, opening onto its fields. */
+function RecordLine({ row }: { row: RecordRow }) {
+  const [open, setOpen] = useState(false);
+  const Caret = open ? CaretDownIcon : CaretRightIcon;
+  return (
+    <div>
       <button
-        aria-label={`Read ${item.label}`}
-        aria-pressed={shown}
+        aria-expanded={open}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-1.5 pr-2 text-left",
-          !shown && "hover:bg-accent/60",
+          "flex h-8 w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-[13px] hover:bg-accent",
+          open && "bg-accent",
         )}
         onClick={() => {
-          onView(item);
+          setOpen(!open);
         }}
         type="button"
       >
-        <ItemIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate">{label}</span>
-          {detail && (
-            <span className="truncate text-xs text-muted-foreground">
-              {detail}
-            </span>
+        <span
+          className={cn(
+            "w-20 shrink-0 truncate text-xs",
+            row.failed ? "text-destructive" : "text-muted-foreground",
           )}
+        >
+          {row.label}
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {included ? formatSize(item.bytes) : "Not included"}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            row.mono && "font-mono text-xs",
+            row.failed && "text-destructive",
+          )}
+        >
+          {row.text}
         </span>
+        {row.notSent > 0 && <NotSent count={row.notSent} />}
+        <Caret className="size-3 shrink-0 text-muted-foreground/70" />
       </button>
+      {open && <FieldList fields={row.fields} />}
     </div>
   );
 }
 
-/** A block of the file view: what it shows, in which language, and what Copy copies. */
-type ViewBlock = {
-  code: string;
-  copy: string;
-  key: string;
-  label?: string;
-  language?: string;
-  /** A JSON Lines file's lines, which the view can list one record a row. */
-  records?: RecordRow[];
-};
-
-/**
- * An item as blocks to read: each of its files, named when there are more
- * than one, and its errors as JSON. A JSON Lines file shows each record
- * indented under the last; Copy takes the file as it is sent.
- */
-function itemBlocks(item: FeedbackItem): ViewBlock[] {
-  const files = item.files.map((file): ViewBlock => {
-    const extension = file.path.split(".").pop()?.toLowerCase();
-    const records =
-      extension === "jsonl" ? recordRows(file.content) : undefined;
-    return {
-      code: records
-        ? records.map((record) => record.json).join("\n\n")
-        : file.content,
-      copy: file.content,
-      key: file.path,
-      label:
-        item.files.length > 1 || item.events?.length
-          ? (file.label ?? file.path.split("/").pop())
-          : undefined,
-      language: records ? "json" : extension,
-      records,
-    };
-  });
-  if (!item.events || item.events.length === 0) {
-    return files;
-  }
-  const events = JSON.stringify(item.events, null, 2);
-  return [
-    ...files,
-    {
-      code: events,
-      copy: events,
-      key: "events",
-      label: files.length > 0 ? "Recent errors" : undefined,
-      language: "json",
-    },
-  ];
-}
-
-/** A file or an image being read, beside the list it was picked from. */
-function FileView({ viewing }: { viewing: AttachedImage | FeedbackItem }) {
-  const [showRaw, setShowRaw] = useState(false);
-  const blocks = "files" in viewing ? itemBlocks(viewing) : [];
-  const hasRecords = blocks.some((block) => block.records);
+/** A record's fields by name, with what goes for each. */
+function FieldList({ fields }: { fields: readonly RecordField[] }) {
   return (
-    <>
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium">
-          {"files" in viewing ? viewing.label : viewing.name}
-        </p>
-        {hasRecords && (
-          <Tabs
-            onValueChange={(value) => {
-              setShowRaw(value === "raw");
-            }}
-            value={showRaw ? "raw" : "records"}
-          >
-            <TabsList className="h-7">
-              <TabsTrigger className="px-2 text-xs" value="records">
-                Records
-              </TabsTrigger>
-              <TabsTrigger className="px-2 text-xs" value="raw">
-                Raw
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        )}
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {formatSize("files" in viewing ? viewing.bytes : viewing.size)}
-        </span>
-      </div>
-      {"files" in viewing ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
-          {blocks.map((block) =>
-            block.records && !showRaw ? (
-              <RecordsBlock
-                block={block}
-                key={block.key}
-                records={block.records}
-              />
-            ) : (
-              <FileBlock block={block} key={block.key} />
-            ),
-          )}
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center bg-muted/40 p-4">
-          <img
-            alt={viewing.name}
-            className="max-h-full max-w-full object-contain"
-            src={viewing.src}
-          />
-        </div>
+    <div className="mx-3 mb-1 rounded-b-md border-x border-b border-border bg-background px-3 py-2 select-text">
+      {fields.length === 0 && (
+        <p className="text-xs text-muted-foreground">Nothing else.</p>
       )}
-    </>
-  );
-}
-
-/**
- * A JSON Lines file a record a row: its `seq`, its time, its type and a
- * gist, each row opening to the record whole. Copy takes the file as it is
- * sent.
- */
-function RecordsBlock({
-  block,
-  records,
-}: {
-  block: ViewBlock;
-  records: readonly RecordRow[];
-}) {
-  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  return (
-    <div className="group/block-toolbar relative isolate rounded-lg bg-muted/50 py-1.5">
-      <div className="sticky top-0 z-10 h-0">
-        <div className="flex items-start justify-end p-1.5 opacity-0 group-hover/block-toolbar:opacity-100 focus-within:opacity-100">
-          <CopyButton
-            className={blockToolbarButtonClassName}
-            iconSize={12}
-            onCopy={async () => {
-              await navigator.clipboard.writeText(block.copy);
-            }}
-            tooltip="Copy"
-          />
-        </div>
-      </div>
-      {block.label && (
-        <p className="truncate px-3 pt-1 pb-1.5 text-xs text-muted-foreground">
-          {block.label}
-        </p>
-      )}
-      {records.map((record, index) => {
-        const open = opened.has(String(index));
-        return (
-          // oxlint-disable-next-line react/no-array-index-key -- a file's lines never move
-          <div key={index}>
-            <button
-              aria-expanded={open}
-              className="flex w-full min-w-0 items-baseline gap-2.5 px-3 py-0.5 text-left font-mono text-[11px] leading-[17px] hover:bg-accent"
-              onClick={() => {
-                setOpened((current) => toggleItem(String(index), current));
-              }}
-              type="button"
-            >
-              <span className="w-7 shrink-0 text-right text-muted-foreground/70 tabular-nums">
-                {record.seq ?? ""}
-              </span>
-              <span className="shrink-0 text-muted-foreground tabular-nums">
-                {record.at?.slice(11, 19) ?? ""}
-              </span>
-              <span
-                className={cn(
-                  "shrink-0",
-                  record.failed ? "text-destructive" : "text-foreground",
-                )}
-              >
-                {record.kind}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {record.detail}
-              </span>
-            </button>
-            {open && (
-              <div
-                className={cn(
-                  "mx-3 my-1 rounded-md bg-background/60 font-mono text-[11px] leading-[17px] text-foreground/90 select-text [&_pre]:px-3 [&_pre]:py-2",
-                  wrapLinesClassName,
-                )}
-              >
-                <CodeBlock code={record.json} language="json" />
-              </div>
+      {fields.map((field) => (
+        <div className="flex gap-3 py-0.5 text-xs" key={field.name}>
+          <span className="w-28 shrink-0 break-words text-muted-foreground">
+            {field.name}
+          </span>
+          <span className="min-w-0 flex-1 font-mono break-words whitespace-pre-wrap">
+            {field.value}
+            {field.notSent !== undefined && (
+              <>
+                {field.value && " "}
+                <NotSent count={field.notSent} />
+              </>
             )}
-          </div>
-        );
-      })}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
 
-/**
- * One file as code, with the wrap and copy controls code blocks have
- * elsewhere. They stay at the top of the view while the block scrolls under
- * them, since a file here is usually taller than the dialog.
- */
-function FileBlock({ block }: { block: ViewBlock }) {
-  const [wrapLines, setWrapLines] = useState(true);
+/** The time of day an error last happened, in the person's own clock. */
+function timeOfDay(at: number) {
+  return new Date(at).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function errorLine(event: ExceptionEvent) {
+  const [first] = event.exceptions;
+  return first ? `${first.type}: ${first.value}` : event.fingerprint;
+}
+
+function DiagnosticsReview({ item }: { item: FeedbackItem }) {
+  const about = item.files.find((file) => file.path.endsWith(".json"));
+  const log = item.files.find((file) => file.path.endsWith(".log"));
+  const events = item.events ?? [];
   return (
-    <div className="group/block-toolbar relative isolate rounded-lg bg-muted/50">
-      <div className="sticky top-0 z-10 h-0">
-        <div className="flex items-start justify-end gap-1 p-1.5 opacity-0 group-hover/block-toolbar:opacity-100 focus-within:opacity-100">
-          <BlockToolbarButton
-            icon={wrapLines ? ArrowElbowDownLeftIcon : ArrowsHorizontalIcon}
-            label="Wrap lines"
-            onClick={() => {
-              setWrapLines(!wrapLines);
-            }}
-            pressed={wrapLines}
-          />
-          <CopyButton
-            className={blockToolbarButtonClassName}
-            iconSize={12}
-            onCopy={async () => {
-              await navigator.clipboard.writeText(block.copy);
-            }}
-            tooltip="Copy"
-          />
+    <div className="flex flex-col gap-4 px-3 py-2">
+      {about && (
+        <div className="divide-y divide-border rounded-xl border border-border">
+          {aboutFields(about.content).map((field) => (
+            <div
+              className="flex justify-between gap-4 px-4 py-2 text-sm"
+              key={field.name}
+            >
+              <span className="text-muted-foreground">{field.name}</span>
+              <span className="min-w-0 truncate">{field.value}</span>
+            </div>
+          ))}
         </div>
-      </div>
-      {block.label && (
-        <p className="truncate px-3 pt-2.5 text-xs text-muted-foreground">
-          {block.label}
-        </p>
       )}
-      <div
-        className={cn(
-          "overflow-x-auto font-mono text-[11px] leading-[17px] text-foreground/90 select-text [&_pre]:px-3 [&_pre]:py-2.5",
-          wrapLines && wrapLinesClassName,
-        )}
+      {events.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] font-medium text-muted-foreground">
+            Recent errors
+          </p>
+          <div className="divide-y divide-border rounded-xl border border-border">
+            {events.map((event) => (
+              <ErrorLine event={event} key={event.id} />
+            ))}
+          </div>
+        </div>
+      )}
+      {log && <LogLine content={log.content} />}
+    </div>
+  );
+}
+
+function ErrorLine({ event }: { event: ExceptionEvent }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        aria-expanded={open}
+        className="flex w-full min-w-0 gap-3 px-4 py-2 text-left text-[13px] hover:bg-accent/60"
+        onClick={() => {
+          setOpen(!open);
+        }}
+        type="button"
       >
-        <CodeBlock code={block.code} language={block.language} />
-      </div>
+        <span className="w-16 shrink-0 text-muted-foreground tabular-nums">
+          {timeOfDay(event.lastAt)}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{errorLine(event)}</span>
+      </button>
+      {open && <FieldList fields={eventFields(event)} />}
+    </div>
+  );
+}
+
+function LogLine({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  const lines = content.split("\n").filter(Boolean).length;
+  const Caret = open ? CaretDownIcon : CaretRightIcon;
+  return (
+    <div className="rounded-xl border border-border">
+      <button
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-accent/60"
+        onClick={() => {
+          setOpen(!open);
+        }}
+        type="button"
+      >
+        <span className="flex-1">
+          App log{" "}
+          <span className="text-muted-foreground">
+            · the last {lines.toLocaleString()} lines
+          </span>
+        </span>
+        <Caret className="size-3.5 text-muted-foreground" />
+      </button>
+      {open && (
+        <pre className="max-h-72 overflow-auto border-t border-border px-4 py-3 font-mono text-[11px] leading-[17px] whitespace-pre-wrap select-text">
+          {content}
+        </pre>
+      )}
     </div>
   );
 }

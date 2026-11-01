@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   emptySources,
-  fullSessionLog,
   outlineCommand,
   outlineRecord,
   outlineSessionLog,
@@ -387,27 +386,5 @@ describe("outlineCommand", () => {
     ["cat <<'A' <<'B'\none\nA\ntwo\nB", "<27 chars>"],
   ])("%j", (command, outlined) => {
     expect(outlineCommand(command)).toBe(outlined);
-  });
-});
-
-describe("fullSessionLog", () => {
-  it("keeps what was read and leaves out the thinking", () => {
-    const log = [
-      part({
-        type: "reasoning",
-        text: "thinking about it",
-        providerMetadata: { x: 1 },
-      }),
-      part({
-        type: "tool-read_file",
-        input: { filePath: "/a.md" },
-        output: { content: "the file" },
-      }),
-    ]
-      .map((record) => JSON.stringify(record))
-      .join("\n");
-    const full = fullSessionLog(log);
-    expect(full).not.toContain("thinking about it");
-    expect(full).toContain("the file");
   });
 });

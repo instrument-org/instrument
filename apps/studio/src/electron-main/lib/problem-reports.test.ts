@@ -415,7 +415,7 @@ describe("feedback", () => {
       ],
     });
 
-    expect(chat?.summary).toBe("“Help desk pricing” and 1 task");
+    expect(chat?.title).toBe("“Help desk pricing”");
     expect(chat?.item.files.map((each) => `${each.label ?? ""}: ${each.path}`))
       .toMatchInlineSnapshot(`
       [
@@ -425,15 +425,10 @@ describe("feedback", () => {
         "Chat settings: chat/settings.mac1.jsonl",
       ]
     `);
-    // Full details add what the task read, the pages a device's tabs had
-    // open, and the notes a handoff left.
-    expect(JSON.stringify(chat?.item)).not.toContain("mail.google.com");
-    expect(JSON.stringify(chat?.full)).toContain("mail.google.com");
-    expect(JSON.stringify(chat?.item)).not.toContain("what the file says");
-    expect(JSON.stringify(chat?.full)).toContain("what the file says");
-    expect(chat?.full?.files.map((each) => each.path)).toContain(
-      "chat/handoff-notes.md",
-    );
+    // What the task read, the pages a device's tabs had open and the notes a
+    // handoff left all stay home.
+    expect(JSON.stringify(chat)).not.toContain("mail.google.com");
+    expect(JSON.stringify(chat)).not.toContain("what the file says");
     expect(chat?.item.bytes).toBe(
       chat?.item.files.reduce(
         (sum, each) =>
@@ -445,15 +440,6 @@ describe("feedback", () => {
         0,
       ),
     );
-  });
-
-  it("offers no full details when the outline leaves nothing out", () => {
-    const chat = reports.chatFeedback({
-      files: [file(`${OWN}.mac1.jsonl`, "")],
-      sessions: [{ id: OWN, title: "Hi" }],
-    });
-    expect(chat?.full).toBeUndefined();
-    expect(chat?.summary).toBe("“Hi”");
   });
 
   const item = (

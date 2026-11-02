@@ -1,6 +1,6 @@
-import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
+import { FileMark } from "./file-mark";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -542,7 +542,13 @@ function locationMark(location: TabLocation): ReactNode {
     case "file": {
       // A file wears its own type's mark, the way a site wears a favicon: it
       // is the one thing about a file you can tell before opening it.
-      return <FileTypeIcon className="size-4" fileName={location.name} />;
+      return (
+        <FileMark
+          className="size-4"
+          hostPath={location.path}
+          name={location.name}
+        />
+      );
     }
     case "folder": {
       return <FolderMark path={location.path} />;

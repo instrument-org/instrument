@@ -1310,7 +1310,13 @@ function FileGenericPreview({ file }: { file: FileEntry }) {
       className="flex size-full flex-col items-center justify-center gap-1.5 bg-white"
       data-file-system-on-light=""
     >
-      <FileTypeIcon className="size-1/3 min-h-4 min-w-4" fileName={file.name} />
+      <FileTypeIcon
+        className="size-1/3 min-h-4 min-w-4"
+        {...(file.contentType === undefined
+          ? {}
+          : { contentType: file.contentType })}
+        fileName={file.name}
+      />
       {extension ? (
         <span className="text-[min(0.625rem,18cqw)] font-semibold tracking-wide uppercase">
           {extension}
@@ -1351,19 +1357,38 @@ export function resolveFileTypeIcon(
   if (icon.token !== "default" || !fallbackExtension) return icon;
   return resolveFileIcon("file-tree-icon-file", `file.${fallbackExtension}`);
 }
+/**
+ * The icon for a file, by its name, except that a sound in a video's
+ * container (a voice recording in WebM, typed `audio/` once read) is drawn as
+ * a sound.
+ */
+function resolveEntryIcon(fileName: string, contentType?: string) {
+  const icon = resolveFileTypeIcon(fileName);
+  return icon.name === "file-system-icon-video" &&
+    contentType?.startsWith("audio/")
+    ? resolveFileTypeIcon("file.mp3")
+    : icon;
+}
 export function FileTypeIcon({
   className,
+  contentType,
   fallbackExtension,
   fileName,
 }: {
   className?: string;
+  /** The file's type where it was read from the file, which can overrule its extension. */
+  contentType?: string;
   fallbackExtension?: string;
   fileName: string;
 }) {
   return (
     <FileTypeGlyph
       className={className}
-      icon={resolveFileTypeIcon(fileName, fallbackExtension)}
+      icon={
+        contentType === undefined
+          ? resolveFileTypeIcon(fileName, fallbackExtension)
+          : resolveEntryIcon(fileName, contentType)
+      }
     />
   );
 }
@@ -6063,7 +6088,13 @@ function FileSystemListView({
             >
               {/* The type's icon, since the row's own picture is beside it. */}
               <span className="flex size-3.5 shrink-0 items-center justify-center">
-                <FileTypeIcon className="size-4" fileName={entry.name} />
+                <FileTypeIcon
+                  className="size-4"
+                  {...(entry.contentType === undefined
+                    ? {}
+                    : { contentType: entry.contentType })}
+                  fileName={entry.name}
+                />
               </span>
               <span className="min-w-0 flex-1 truncate">
                 {hasTitle ? shownName(entry) : fileKindLabel(entry)}
@@ -6188,7 +6219,15 @@ export function FileSystemRowGlyph({
     );
   }
   if (!glyphUrl || failedRowThumbnails.has(glyphUrl)) {
-    return <FileTypeIcon className="size-4" fileName={entry.name} />;
+    return (
+      <FileTypeIcon
+        className="size-4"
+        {...(entry.contentType === undefined
+          ? {}
+          : { contentType: entry.contentType })}
+        fileName={entry.name}
+      />
+    );
   }
   if (!src) {
     return (
@@ -6196,7 +6235,13 @@ export function FileSystemRowGlyph({
         className="flex size-4 shrink-0 items-center justify-center"
         ref={ref}
       >
-        <FileTypeIcon className="size-4" fileName={entry.name} />
+        <FileTypeIcon
+          className="size-4"
+          {...(entry.contentType === undefined
+            ? {}
+            : { contentType: entry.contentType })}
+          fileName={entry.name}
+        />
       </span>
     );
   }

@@ -1,5 +1,4 @@
 import { PlaceIcon } from "@/client/components/window/place-icons";
-import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -14,6 +13,7 @@ import { type ReactNode } from "react";
 import { AppIcon } from "./app-icon";
 import { osConventions } from "@/client/lib/utils";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
+import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
@@ -151,7 +151,9 @@ export function screenPresentation(
       if (screen.file !== undefined) {
         const name = segmentsOf(screen.file).at(-1) ?? screen.file;
         return {
-          icon: <FileTypeIcon className="size-4" fileName={name} />,
+          icon: (
+            <FileMark className="size-4" hostPath={screen.file} name={name} />
+          ),
           title: name,
         };
       }

@@ -535,9 +535,40 @@ export function ComputerPage({
   // since a list of what was opened is not a tree.
   const recentEntries = recents.files;
   const recentKeys = recentPaths(recentEntries);
+  // A WebM is a video or a sound, which its name cannot tell. Each one listed
+  // is read (`files.probeMedia`, kept per version), and one with no picture is
+  // typed and drawn as a sound, as the viewer opens it.
+  const webmPaths = [
+    ...new Set(
+      [
+        ...listings.flatMap(({ data }) => data?.entries ?? []),
+        ...recentEntries,
+      ].flatMap((entry) =>
+        entry.kind !== "folder" && /\.webm$/i.test(entry.name)
+          ? [entry.path]
+          : [],
+      ),
+    ),
+  ];
+  const soundOnly = useQueries({
+    combine: (results) =>
+      new Set(
+        results.flatMap((result, index) =>
+          result.data?.picture === false ? [webmPaths[index]] : [],
+        ),
+      ),
+    queries: webmPaths.map((webmPath) =>
+      rpcClient.files.probeMedia.queryOptions({
+        input: { path: webmPath },
+        retry: false,
+      }),
+    ),
+  });
+  const contentTypeOf = (entry: { mimeType?: string; path: string }) =>
+    soundOnly.has(entry.path) ? "audio/webm" : entry.mimeType;
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
     return {
-      contentType: entry.mimeType,
+      contentType: contentTypeOf(entry),
       ...(entry.createdAt === undefined
         ? {}
         : { createdAt: new Date(entry.createdAt).toISOString() }),
@@ -593,7 +624,7 @@ export function ComputerPage({
           // list, the viewer can show, whether or not the agent can reach it.
           return {
             ...stamps,
-            contentType: entry.mimeType,
+            contentType: contentTypeOf(entry),
             ...(entry.displayName === undefined
               ? {}
               : { displayName: entry.displayName }),

@@ -1,4 +1,4 @@
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import nodeIgnore from "ignore";
 import ms from "ms";
 import { ok } from "neverthrow";
@@ -13,6 +13,7 @@ import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { PYTHON_COMMAND } from "../lib/shell-commands/python";
 import { SKILL_COPY_IGNORE } from "../lib/skill-artifact-ignore";
+import { SKILL_NAMES } from "../lib/skill-names";
 import { renderSkillCatalog } from "../lib/skill-catalog";
 import {
   ensureNodeEnvironment,
@@ -128,7 +129,11 @@ const loadSkillCapability = defineCapability({
         );
         rememberLoadedSkill(sessionId, skillDir);
 
-        const body = truncateSkillContent(skill.content);
+        const body = truncateSkillContent(
+          origin === APP_NAME_SLUG && skill.name === SKILL_NAMES.instrumentGuide
+            ? `${skill.content}\n\n${thisBuildText(workspaceConfig.appVersion)}`
+            : skill.content,
+        );
 
         return ok({
           content: body.content,
@@ -413,4 +418,16 @@ export function skillInstructions({
   name: string;
 }) {
   return `Everything below is the text of the skill "${name}".\n\n${content}`;
+}
+
+/**
+ * The build running on this computer, added to the bundled guide as it is
+ * loaded, since the guide's files are the same in every build.
+ */
+function thisBuildText(appVersion: string) {
+  return dedent`
+    ## This build
+
+    This computer runs ${APP_NAME} ${appVersion}. Answer a question about the version from this line, and link [Version and updates](instrument://settings/version), where the user reads the release notes and checks for updates.
+  `;
 }

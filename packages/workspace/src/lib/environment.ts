@@ -47,7 +47,7 @@ export async function currentEnvironment(
   return {
     appsFolder: shellPath(getWorkspaceConfig().appsDir),
     commands: computerCommandsText(),
-    computer: getSystemInfo(),
+    computer: await getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
     imageOptions: imageOptionsFor(runsOn),
     outputFolder: shellPath(

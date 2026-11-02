@@ -222,6 +222,7 @@ export function LookPanel({
         {folder ? <FolderCard folder={folder} onClose={onClose} /> : null}
         {file && fileUrl !== undefined ? (
           <FileViewer
+            autoPlay
             className="h-full"
             file={{
               filename: file.name,

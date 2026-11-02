@@ -375,24 +375,11 @@ interface ViewerContext {
   onMediaError: (fallbackExtension: string) => void;
   /** A page's file drawn as its page, when the surface around the viewer can draw one. */
   page?: ReactNode;
+  /** Whether video and audio start playing as they open. */
+  autoPlay: boolean;
   /** Whether video and audio stay quiet whatever else is true. */
   silent: boolean;
   wrapLines: boolean;
-}
-
-/**
- * Whether media opening now starts playing: only in a focused window a
- * person has clicked or typed in since it loaded, which the browser's sticky
- * user activation tells. A tab restored at launch or by a reload, or a file
- * an agent opens while the person is in another app, waits for a press.
- */
-function startsPlaying(silent: boolean) {
-  return (
-    !silent &&
-    document.hasFocus() &&
-    "userActivation" in navigator &&
-    navigator.userActivation.hasBeenActive
-  );
 }
 
 // The player (Video.js and its skin) loads the first time a video or a sound
@@ -413,17 +400,18 @@ const AudioPlayer = lazy(() =>
  * video is read first (`files.probeMedia`), and one with no picture (a voice
  * recording in WebM) opens in the sound player; where it cannot be read it
  * opens as its extension says. Nothing is mounted until then, so no player is
- * ever made to find out and thrown away. Whether it starts playing is decided
- * once, as it opens (`startsPlaying`). Keyed per file by the caller.
+ * ever made to find out and thrown away. It opens paused, the way a movie
+ * opened from the desktop does, unless the surface asks for it to start (Quick
+ * Look, which a person opens to glance at the file). Keyed per file by the
+ * caller.
  */
 function MediaViewer({
-  context: { fallback, file, onMediaError, silent },
+  context: { autoPlay, fallback, file, onMediaError, silent },
   kind,
 }: {
   context: ViewerContext;
   kind: "audio" | "video";
 }) {
-  const [autoPlay] = useState(() => startsPlaying(silent));
   const probe = useQuery(
     rpcClient.files.probeMedia.queryOptions({
       input: kind === "video" && !silent ? { path: file.hostPath } : skipToken,
@@ -903,6 +891,7 @@ export function FileViewer({
   actionsInto,
   actionsLead,
   actionsTrail,
+  autoPlay = false,
   className,
   editable = false,
   file,
@@ -922,6 +911,11 @@ export function FileViewer({
   actionsLead?: ReactNode;
   /** Buttons of the caller's own, after the viewer's in the row it draws them into. */
   actionsTrail?: ReactNode;
+  /**
+   * Whether a video or a sound starts playing as it opens; set by Quick Look.
+   * Everywhere else it opens paused, waiting for a press.
+   */
+  autoPlay?: boolean;
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
@@ -1102,6 +1096,7 @@ export function FileViewer({
       setMediaErrorType(fallbackExtension);
     },
     ...(page === undefined ? {} : { page }),
+    autoPlay,
     silent,
     wrapLines,
   };

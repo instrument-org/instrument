@@ -198,13 +198,16 @@ describe("refreshPythonBaseIfDue", () => {
     // The refresh writes the state file from a promise of its own, so the
     // wait is on a real write landing. A second, which is what the default
     // gives it, is not enough of one on a machine running the whole suite at
-    // once.
+    // once. The refresh goes on past that write, removing superseded sets
+    // and then its lock, and a removal still running when the next test
+    // installs takes that test's set with it, so the wait is on the lock too.
     await vi.waitFor(
       () => {
         const next = readState();
         expect(next.checkedAt !== checkedAt || next.failedAt !== failedAt).toBe(
           true,
         );
+        expect(existsSync(path.join(root(), "refresh.lock"))).toBe(false);
       },
       { timeout: 10_000 },
     );

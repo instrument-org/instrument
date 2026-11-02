@@ -149,6 +149,7 @@ import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
+import { soundTypeIfNoPicture } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { lookPathOf, type LookTarget } from "./look-at";
 import { FolderNameMenu } from "./folder-name-menu";
@@ -535,16 +536,16 @@ export function ComputerPage({
   // since a list of what was opened is not a tree.
   const recentEntries = recents.files;
   const recentKeys = recentPaths(recentEntries);
-  // A WebM is a video or a sound, which its name cannot tell. Each one listed
-  // is read (`files.probeMedia`, kept per version), and one with no picture is
-  // typed and drawn as a sound, as the viewer opens it.
-  const webmPaths = [
+  // A WebM or a 3GP is a video or a sound, which its name cannot tell. Each
+  // one listed is read (`files.probeMedia`, kept per version), and one with
+  // no picture is typed and drawn as a sound, as the viewer opens it.
+  const ambiguousPaths = [
     ...new Set(
       [
         ...listings.flatMap(({ data }) => data?.entries ?? []),
         ...recentEntries,
       ].flatMap((entry) =>
-        entry.kind !== "folder" && /\.webm$/i.test(entry.name)
+        entry.kind !== "folder" && soundTypeIfNoPicture(entry.name)
           ? [entry.path]
           : [],
       ),
@@ -554,18 +555,24 @@ export function ComputerPage({
     combine: (results) =>
       new Set(
         results.flatMap((result, index) =>
-          result.data?.picture === false ? [webmPaths[index]] : [],
+          result.data?.picture === false ? [ambiguousPaths[index]] : [],
         ),
       ),
-    queries: webmPaths.map((webmPath) =>
+    queries: ambiguousPaths.map((ambiguousPath) =>
       rpcClient.files.probeMedia.queryOptions({
-        input: { path: webmPath },
+        input: { path: ambiguousPath },
         retry: false,
       }),
     ),
   });
-  const contentTypeOf = (entry: { mimeType?: string; path: string }) =>
-    soundOnly.has(entry.path) ? "audio/webm" : entry.mimeType;
+  const contentTypeOf = (entry: {
+    mimeType?: string;
+    name: string;
+    path: string;
+  }) =>
+    (soundOnly.has(entry.path)
+      ? soundTypeIfNoPicture(entry.name)
+      : undefined) ?? entry.mimeType;
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
     return {
       contentType: contentTypeOf(entry),

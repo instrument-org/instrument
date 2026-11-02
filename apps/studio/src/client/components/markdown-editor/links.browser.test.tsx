@@ -75,7 +75,7 @@ it.each(CASES)(
 );
 
 it.each(CASES)(
-  "Cmd-clicking %s in the text opens what it names in the app",
+  "Cmd-clicking %s in the text opens what it names in a tab of its own",
   async (href, target) => {
     const onOpenLink = vi.fn();
     const view = await openMarkdownEditor(`See [the plan](${href}) here.\n`, {
@@ -90,7 +90,7 @@ it.each(CASES)(
     });
 
     expect(click.prevented).toBe(true);
-    expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, false);
+    expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, true);
   },
 );
 
@@ -136,6 +136,6 @@ it("finds a link rooted at `/` under a folder above the file, as a repository's 
 
   expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(
     { kind: "path", path: "/repo/apps/main.ts" },
-    false,
+    true,
   );
 });

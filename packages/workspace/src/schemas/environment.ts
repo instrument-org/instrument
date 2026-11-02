@@ -17,7 +17,7 @@ export const EnvironmentSchema = z.object({
    * written before it was told, which the next note then tells.
    */
   commands: z.string().optional(),
-  /** The OS and its version, as `getSystemInfo` names them. */
+  /** The computer's name and its OS, as `getSystemInfo` names them. */
   computer: z.string(),
   homeFolder: z.string(),
   /**

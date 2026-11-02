@@ -6,7 +6,7 @@ import { CaptionsButton } from "@/client/components/videojs/ui/captions-button";
 import { FullscreenButton } from "@/client/components/videojs/ui/fullscreen-button";
 import { PiPButton } from "@/client/components/videojs/ui/pip-button";
 import { PlayButton } from "@/client/components/videojs/ui/play-button";
-import { PlaybackRateButton } from "@/client/components/videojs/ui/playback-rate-button";
+import { PlaybackRateMenu } from "@/client/components/videojs/ui/playback-rate-menu";
 import { SeekButton } from "@/client/components/videojs/ui/seek-button";
 import { TimeSlider } from "@/client/components/videojs/ui/time-slider";
 import { VolumePopover } from "@/client/components/videojs/ui/volume-popover";
@@ -84,7 +84,7 @@ export function DefaultVideoControls({
                 type="duration"
               />
             </div>
-            <PlaybackRateButton className={"w-auto px-2 font-medium"} />
+            <PlaybackRateMenu className={"w-auto px-2 font-medium"} />
             <ButtonTooltip side="top">
               <CaptionsButton />
             </ButtonTooltip>

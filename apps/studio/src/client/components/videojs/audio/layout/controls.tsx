@@ -4,7 +4,7 @@ import { AudioLinesIcon } from "lucide-react";
 import { BufferingIndicator } from "@/client/components/videojs/ui/buffering-indicator";
 import { ButtonTooltip } from "@/client/components/videojs/ui/button-tooltip";
 import { PlayButton } from "@/client/components/videojs/ui/play-button";
-import { PlaybackRateButton } from "@/client/components/videojs/ui/playback-rate-button";
+import { PlaybackRateMenu } from "@/client/components/videojs/ui/playback-rate-menu";
 import { SeekButton } from "@/client/components/videojs/ui/seek-button";
 import { VolumePopover } from "@/client/components/videojs/ui/volume-popover";
 import { cn } from "@/client/lib/resolve-class-name";
@@ -83,7 +83,7 @@ export function DefaultAudioControls({ name }: { name: string }) {
             <ButtonTooltip boundary="viewport" side="top">
               <SeekButton seconds={10} />
             </ButtonTooltip>
-            <PlaybackRateButton
+            <PlaybackRateMenu
               className={
                 "w-12 rounded-md font-sans text-sm font-medium ring-1 ring-border"
               }

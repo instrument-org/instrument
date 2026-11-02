@@ -21,7 +21,7 @@ export interface AudioSkinProps extends Omit<
 }
 
 /**
- * A sound file as a page of its own: its name and length over a wide
+ * A sound file as a page of its own, centered: its name and length over a wide
  * timeline, with skip, play and speed beneath it.
  */
 export function AudioSkin({
@@ -32,7 +32,10 @@ export function AudioSkin({
 }: AudioSkinProps) {
   return (
     <Container
-      className={cn("overflow-y-auto! rounded-none! after:hidden", className)}
+      className={cn(
+        "flex flex-col justify-center-safe overflow-y-auto! rounded-none! after:hidden",
+        className,
+      )}
       data-theme="default"
       data-preset="audio"
       {...props}

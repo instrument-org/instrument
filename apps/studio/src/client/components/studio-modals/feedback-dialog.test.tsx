@@ -1,4 +1,5 @@
 import { reportDialogAtom } from "@/client/atoms/report-dialog";
+import { modalBackStackAtom } from "@/client/atoms/tab-navigation-block";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { type FeedbackItem } from "@/shared/problem-reports";
@@ -33,7 +34,13 @@ vi.mock("@/client/rpc/client", () => ({
                 bytes: 100,
                 files: [
                   {
-                    content: `${JSON.stringify({ part: { text: "favorite my first email", type: "text" }, seq: 1, t: "part" })}\n`,
+                    content: `${[
+                      { message: { role: "user" }, seq: 0, t: "message" },
+                      { part: { text: "favorite my first email", type: "text" }, seq: 1, t: "part" },
+                      { part: { input: { command: "app test gmail" }, type: "tool-bash" }, seq: 2, t: "part" },
+                    ]
+                      .map((record) => JSON.stringify(record))
+                      .join("\n")}\n`,
                     label: "“Star my first email”",
                     path: "chat/ses_1.mac.jsonl",
                   },
@@ -84,15 +91,29 @@ describe("FeedbackDialogContent", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
-  it("shows the chat a record a row on its own page, and goes back", async () => {
+  it("shows the chat on a page of its own, steps folded, and goes back", async () => {
     await open();
-    fireEvent.click(screen.getByRole("button", { name: "View This chat" }));
-    expect(screen.getByText("What we'll send")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "View “Star my first email”" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "“Star my first email”" }),
+    ).toBeTruthy();
     expect(screen.getByText("favorite my first email")).toBeTruthy();
-    // A tab takes the press, as Radix has it, rather than the click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Diagnostics" }));
-    expect(screen.queryByText("favorite my first email")).toBeNull();
+    expect(screen.queryByText("app test gmail")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /1 step/ }));
+    expect(screen.getByText("app test gmail")).toBeTruthy();
+    expect(screen.queryByRole("tab")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Send feedback")).toBeTruthy();
+  });
+
+  it("steps back from the review to the form on a back press, as Settings does", async () => {
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "View Diagnostics" }));
+    act(() => {
+      getDefaultStore().get(modalBackStackAtom).at(-1)?.run();
+    });
     expect(screen.getByText("Send feedback")).toBeTruthy();
   });
 
@@ -102,8 +123,8 @@ describe("FeedbackDialogContent", () => {
       .getAllByRole("button", { name: /^View / })
       .map((button) => button.getAttribute("aria-label"));
     expect(views).toEqual([
-      "View Write-up",
-      "View This chat",
+      "View Instrument's write-up",
+      "View “Star my first email”",
       "View Diagnostics",
     ]);
   });

@@ -17,6 +17,7 @@ import { feedbackReport } from "@/client/lib/problem-reports";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
@@ -45,12 +46,15 @@ export const APP_RAIL_WIDTH = 76;
  * either. Away from Chat, Chat wears a dot for where the chats stand.
  */
 export function AppRail({
+  chatInView,
   chatMark,
   onChoose,
   onHoverChat,
   onNew,
   place,
 }: {
+  /** The chat the tab up shows, which Feedback is about when there is one. */
+  chatInView?: ChatId;
   /** The dot Chat wears while the window stands in another place. */
   chatMark?: RailChatMark;
   /** A place asked for: in the tab up, or in a tab of its own for a middle or modified click or the menu's ask. */
@@ -111,7 +115,7 @@ export function AppRail({
       </div>
       <div className="flex-1" />
       <div className="flex flex-col items-center gap-1">
-        <RailFeedback />
+        <RailFeedback chatId={chatInView} />
         <RailUser />
       </div>
     </nav>
@@ -199,14 +203,15 @@ function RailEntry({
 
 /**
  * Send feedback, kept in sight above the user rather than only in the Help
- * menu: the feedback dialog, about no chat in particular.
+ * menu: the feedback dialog, about the chat on screen when there is one,
+ * since that is what someone pressing it is most likely telling us about.
  */
-function RailFeedback() {
+function RailFeedback({ chatId }: { chatId?: ChatId }) {
   return (
     <button
       className="flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
       onClick={() => {
-        openReportDialog(feedbackReport({ surface: "rail" }));
+        openReportDialog(feedbackReport({ chatId, surface: "rail" }));
       }}
       type="button"
     >

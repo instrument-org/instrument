@@ -7,16 +7,18 @@ import {
 } from "@/client/components/ui/dialog";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { Spinner } from "@/client/components/ui/spinner";
-import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import {
   DictatedTextarea,
   useDictatedText,
 } from "@/client/components/dictation-controls";
 import { isDictating } from "@/client/hooks/use-dictation";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import {
   aboutFields,
   chatGroups,
   eventFields,
+  type GroupItem,
+  REDACTION,
   type RecordField,
   type RecordGroup,
   type RecordRow,
@@ -46,7 +48,7 @@ import { ImageIcon } from "@phosphor-icons/react/Image";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 /** The agent's write-up as one file of what goes, sent like the rest. */
 function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
@@ -124,8 +126,6 @@ async function offerImages(already: number, files: readonly File[]) {
 type Part = {
   item: FeedbackItem;
   line: string;
-  /** The switch's word for it on the review page. */
-  tab: string;
   title: string;
 };
 
@@ -184,7 +184,6 @@ export function FeedbackDialogContent({
           {
             item: writeupItem(request.writeup),
             line: request.writeup.title,
-            tab: "Write-up",
             title: `${APP_NAME}'s write-up`,
           },
         ]
@@ -196,7 +195,6 @@ export function FeedbackDialogContent({
             line: chatTooLarge
               ? FEEDBACK_TOO_LARGE
               : `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}.`,
-            tab: "This chat",
             title: chat.title,
           },
         ]
@@ -206,7 +204,6 @@ export function FeedbackDialogContent({
           {
             item: described.data.diagnostics,
             line: `${APP_NAME}'s version, ${yourComputer} and recent errors.`,
-            tab: "Diagnostics",
             title: "Diagnostics",
           },
         ]
@@ -233,6 +230,12 @@ export function FeedbackDialogContent({
       request.onSent?.();
     },
   });
+
+  // Back (a thumb button, a swipe, the History menu) leaves the review for
+  // the form, as it leaves a page inside Settings.
+  useModalBack(() => {
+    setViewing(null);
+  }, reviewed !== undefined && !send.isSuccess);
 
   useEffect(() => {
     if (!send.isSuccess) {
@@ -350,10 +353,7 @@ export function FeedbackDialogContent({
           onBack={() => {
             setViewing(null);
           }}
-          onPick={setViewing}
           part={reviewed}
-          parts={parts}
-          yourComputer={yourComputer}
         />
       ) : (
         <div className="flex flex-col gap-5 p-6">
@@ -492,7 +492,7 @@ function PartRow({ onView, part }: { onView: () => void; part: Part }) {
         <p className="mt-0.5 text-[13px] text-muted-foreground">{part.line}</p>
       </div>
       <Button
-        aria-label={`View ${part.tab}`}
+        aria-label={`View ${part.title}`}
         onClick={onView}
         size="sm"
         variant="outline"
@@ -517,20 +517,8 @@ function PartRowLoading() {
   );
 }
 
-/** The review page: one part as it will be sent, with a switch to the others. */
-function Review({
-  onBack,
-  onPick,
-  part,
-  parts,
-  yourComputer,
-}: {
-  onBack: () => void;
-  onPick: (id: string) => void;
-  part: Part;
-  parts: readonly Part[];
-  yourComputer: string;
-}) {
+/** The review page: one part as it will be sent, under its own name. */
+function Review({ onBack, part }: { onBack: () => void; part: Part }) {
   return (
     <>
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
@@ -542,29 +530,12 @@ function Review({
         >
           <ArrowLeftIcon />
         </Button>
-        <DialogTitle className="flex-1 text-[15px]">
-          What we'll send
+        <DialogTitle className="min-w-0 flex-1 truncate text-[15px]">
+          {part.title}
         </DialogTitle>
-        <DialogDescription className="sr-only">
-          Everything listed here goes with your feedback.
-        </DialogDescription>
-        {parts.length > 1 && (
-          <Tabs onValueChange={onPick} value={part.item.id}>
-            <TabsList>
-              {parts.map((each) => (
-                <TabsTrigger key={each.item.id} value={each.item.id}>
-                  {each.tab}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        )}
+        <DialogDescription className="sr-only">{part.line}</DialogDescription>
       </div>
-      <div
-        className="min-h-0 flex-1 animate-in overflow-y-auto px-3 py-2 duration-150 fade-in-0"
-        // Keyed so each part fades in rather than swapping in place.
-        key={part.item.id}
-      >
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {part.item.kind === "chat" ? (
           <ChatReview item={part.item} />
         ) : part.item.kind === "diagnostics" ? (
@@ -575,11 +546,7 @@ function Review({
           </p>
         )}
       </div>
-      <div className="flex h-14 shrink-0 items-center gap-2.5 border-t border-border px-5">
-        <p className="flex-1 text-[13px] text-muted-foreground">
-          {part.item.kind === "chat" &&
-            `What ${APP_NAME} read stays on ${yourComputer}.`}
-        </p>
+      <div className="flex h-14 shrink-0 items-center justify-end border-t border-border px-5">
         <Button onClick={onBack} variant="outline">
           Done
         </Button>
@@ -599,43 +566,85 @@ function ChatReview({ item }: { item: FeedbackItem }) {
   );
 }
 
+/** A session or the chat's settings under its name, which opens and closes it. */
 function Group({ group }: { group: RecordGroup }) {
+  const [open, setOpen] = useState(group.open);
+  const Caret = open ? CaretDownIcon : CaretRightIcon;
   return (
     <div>
-      <div className="flex items-baseline gap-2 px-3 pt-3 pb-1">
-        <p className="min-w-0 truncate text-[13px] font-medium">
+      <button
+        aria-expanded={open}
+        className="flex w-full min-w-0 items-center gap-2 rounded-md px-3 pt-3 pb-1 text-left"
+        onClick={() => {
+          setOpen(!open);
+        }}
+        type="button"
+      >
+        <span className="min-w-0 truncate text-[13px] font-medium">
           {group.title}
-        </p>
-        {group.steps > 0 && (
-          <p className="shrink-0 text-xs text-muted-foreground">
-            {group.steps === 1 ? "1 step" : `${group.steps} steps`}
-          </p>
-        )}
-      </div>
-      <div className="divide-y divide-border/60">
-        {group.rows.map((row, index) => (
-          // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
-          <RecordLine key={index} row={row} />
-        ))}
-      </div>
+        </span>
+        <Caret className="size-3 shrink-0 text-muted-foreground/70" />
+      </button>
+      {open && (
+        <div className="divide-y divide-border/60">
+          {group.items.map((item, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
+            <Item item={item} key={index} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/** A count of characters as a person reads it: "1,500 characters". */
-function characters(count: number) {
-  return `${count.toLocaleString()} ${count === 1 ? "character" : "characters"}`;
-}
-
-function NotSent({ count }: { count: number }) {
-  return (
-    <span className="shrink-0 rounded border border-dashed border-foreground/25 px-1.5 text-[11px] leading-[18px] whitespace-nowrap text-muted-foreground">
-      Not sent · {characters(count)}
-    </span>
+function Item({ item }: { item: GroupItem }) {
+  return "row" in item ? (
+    <RecordLine row={item.row} />
+  ) : (
+    <StepsLine steps={item.steps} />
   );
 }
 
-/** One record: its label, its first line and what of it stayed home, opening onto its fields. */
+/** The steps between two things said, as one line that opens onto each of them. */
+function StepsLine({ steps }: { steps: readonly RecordRow[] }) {
+  const [open, setOpen] = useState(false);
+  const failed = steps.filter((step) => step.failed).length;
+  const Caret = open ? CaretDownIcon : CaretRightIcon;
+  return (
+    <div>
+      <button
+        aria-expanded={open}
+        className="flex h-8 w-full min-w-0 items-center gap-3 rounded-md px-3 text-left text-[13px] text-muted-foreground hover:bg-accent"
+        onClick={() => {
+          setOpen(!open);
+        }}
+        type="button"
+      >
+        <span className="w-20 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">
+          {steps.length === 1 ? "1 step" : `${steps.length} steps`}
+          {failed > 0 && (
+            <span className="text-destructive">
+              {" "}
+              · {failed === 1 ? "1 failed" : `${failed} failed`}
+            </span>
+          )}
+        </span>
+        <Caret className="size-3 shrink-0 text-muted-foreground/70" />
+      </button>
+      {open && (
+        <div className="rounded-md bg-muted/40">
+          {steps.map((step, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
+            <RecordLine key={index} row={step} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One record: its label and its first line, opening onto its fields. */
 function RecordLine({ row }: { row: RecordRow }) {
   const [open, setOpen] = useState(false);
   const Caret = open ? CaretDownIcon : CaretRightIcon;
@@ -669,11 +678,18 @@ function RecordLine({ row }: { row: RecordRow }) {
         >
           {row.text}
         </span>
-        {row.notSent > 0 && <NotSent count={row.notSent} />}
         <Caret className="size-3 shrink-0 text-muted-foreground/70" />
       </button>
       {open && <FieldList fields={row.fields} />}
     </div>
+  );
+}
+
+function Redacted() {
+  return (
+    <span className="rounded bg-muted px-1.5 font-sans text-[11px] leading-[18px] text-muted-foreground">
+      Redacted
+    </span>
   );
 }
 
@@ -690,12 +706,16 @@ function FieldList({ fields }: { fields: readonly RecordField[] }) {
             {field.name}
           </span>
           <span className="min-w-0 flex-1 font-mono break-words whitespace-pre-wrap">
-            {field.value}
-            {field.notSent !== undefined && (
-              <>
-                {field.value && " "}
-                <NotSent count={field.notSent} />
-              </>
+            {field.redacted && !field.value ? (
+              <Redacted />
+            ) : (
+              field.value.split(REDACTION).map((piece, index) => (
+                // oxlint-disable-next-line react/no-array-index-key -- a value's pieces never move
+                <Fragment key={index}>
+                  {index > 0 && <Redacted />}
+                  {piece}
+                </Fragment>
+              ))
             )}
           </span>
         </div>
@@ -722,34 +742,46 @@ function DiagnosticsReview({ item }: { item: FeedbackItem }) {
   const log = item.files.find((file) => file.path.endsWith(".log"));
   const events = item.events ?? [];
   return (
-    <div className="flex flex-col gap-4 px-3 py-2">
+    <div className="flex flex-col gap-5 px-3 py-2">
       {about && (
-        <div className="divide-y divide-border rounded-xl border border-border">
-          {aboutFields(about.content).map((field) => (
-            <div
-              className="flex justify-between gap-4 px-4 py-2 text-sm"
-              key={field.name}
-            >
-              <span className="text-muted-foreground">{field.name}</span>
-              <span className="min-w-0 truncate">{field.value}</span>
-            </div>
-          ))}
-        </div>
+        <Section title={about.label ?? "About"}>
+          <div className="divide-y divide-border rounded-xl border border-border">
+            {aboutFields(about.content).map((field) => (
+              <div
+                className="flex justify-between gap-4 px-4 py-2 text-sm"
+                key={field.name}
+              >
+                <span className="text-muted-foreground">{field.name}</span>
+                <span className="min-w-0 truncate">{field.value}</span>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
       {events.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-[13px] font-medium text-muted-foreground">
-            Recent errors
-          </p>
+        <Section title="Recent errors">
           <div className="divide-y divide-border rounded-xl border border-border">
             {events.map((event) => (
               <ErrorLine event={event} key={event.id} />
             ))}
           </div>
-        </div>
+        </Section>
       )}
-      {log && <LogLine content={log.content} />}
+      {log && (
+        <Section title={log.label ?? "App log"}>
+          <LogLine content={log.content} />
+        </Section>
+      )}
     </div>
+  );
+}
+
+function Section({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-[13px] font-medium text-muted-foreground">{title}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -790,10 +822,7 @@ function LogLine({ content }: { content: string }) {
         type="button"
       >
         <span className="flex-1">
-          App log{" "}
-          <span className="text-muted-foreground">
-            · the last {lines.toLocaleString()} lines
-          </span>
+          The last {lines.toLocaleString()} lines
         </span>
         <Caret className="size-3.5 text-muted-foreground" />
       </button>

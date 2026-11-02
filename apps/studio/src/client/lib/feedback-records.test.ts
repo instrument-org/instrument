@@ -54,27 +54,25 @@ const chat = log([
 ]);
 
 describe("recordRows", () => {
-  it("draws every record the outline sends as a label, its first line and what stayed home", () => {
+  it("draws every record the outline sends as a label and its first line", () => {
     const rows = recordRows(outlineSessionLog(`${chat}\nnot json\n`).content);
     expect(
-      rows.map(({ label, notSent, text }) =>
-        [label, text, notSent].join(" | "),
-      ),
+      rows.map(({ label, text }) => `${label} | ${text}`),
     ).toMatchInlineSnapshot(`
       [
-        "You | favorite my first email | 0",
-        "On screen | https://mail.google.com/… | 1524",
-        "Instrument | Starring it now. | 0",
-        "Failed | app call gmail search_threads | 0",
-        "Ran | agent-browser snapshot | 6212",
-        "Read file | /notes.md | 18",
-        "Sites | mail.google.com | 0",
-        "Unreadable | … | 0",
+        "You | favorite my first email",
+        "On screen | https://mail.google.com/…",
+        "Instrument | Starring it now.",
+        "Failed | app call gmail search_threads",
+        "Ran | agent-browser snapshot",
+        "Read file | /notes.md",
+        "Sites | mail.google.com",
+        "Unreadable | …",
       ]
     `);
   });
 
-  it("opens a record onto its fields by name, a sized one as its length", () => {
+  it("opens a record onto its fields by name, what was left out marked redacted", () => {
     const [, page] = recordRows(outlineSessionLog(chat).content);
     expect(page?.fields).toMatchInlineSnapshot(`
       [
@@ -88,17 +86,17 @@ describe("recordRows", () => {
         },
         {
           "name": "data.url",
-          "notSent": 15,
-          "value": "https://mail.google.com/…",
+          "redacted": true,
+          "value": "https://mail.google.com/￼",
         },
         {
           "name": "data.page.text",
-          "notSent": 1500,
+          "redacted": true,
           "value": "",
         },
         {
           "name": "data.page.title",
-          "notSent": 9,
+          "redacted": true,
           "value": "",
         },
       ]
@@ -118,7 +116,7 @@ describe("kindLabel", () => {
 });
 
 describe("chatGroups", () => {
-  it("puts the settings first, one row per change every device made, then each session in time order", () => {
+  it("puts the settings first and closed, one row per change every device made, then each session in time order", () => {
     const setting = log([{ field: "title", seq: 0, t: "set", value: "Hi" }]);
     const groups = chatGroups([
       {
@@ -132,6 +130,11 @@ describe("chatGroups", () => {
         path: "chat/ses_1.win.jsonl",
       },
       {
+        content: log([part(1, { text: "go", type: "text" })]),
+        label: "Task: Look",
+        path: "chat/ses_2.mac.jsonl",
+      },
+      {
         content: setting,
         label: "Chat settings",
         path: "chat/settings.mac.jsonl",
@@ -143,10 +146,39 @@ describe("chatGroups", () => {
       },
     ]);
     expect(
-      groups.map((group) => [group.title, group.rows.map((row) => row.text)]),
+      groups.map((group) => [
+        group.title,
+        group.open,
+        group.items.map((item) => ("row" in item ? item.row.text : "steps")),
+      ]),
     ).toEqual([
-      ["Chat settings", ["title: Hi"]],
-      ["“Hi”", ["first", "second"]],
+      ["Chat settings", false, ["title: Hi"]],
+      ["“Hi”", true, ["first", "second"]],
+      ["Task: Look", false, ["go"]],
     ]);
+  });
+
+  it("folds each run of steps between two things said into one item", () => {
+    const [group] = chatGroups([
+      {
+        content: outlineSessionLog(chat).content,
+        label: "“Star my first email”",
+        path: "chat/ses_1.mac.jsonl",
+      },
+    ]);
+    expect(
+      group?.items.map((item) =>
+        "row" in item
+          ? item.row.label
+          : item.steps.map((step) => step.label).join(", "),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "You",
+        "On screen",
+        "Instrument",
+        "Failed, Ran, Read file, Sites",
+      ]
+    `);
   });
 });

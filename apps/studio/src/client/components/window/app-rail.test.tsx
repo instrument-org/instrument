@@ -1,4 +1,5 @@
 import { type AppPlace } from "@/client/atoms/window";
+import { type ChatId } from "@instrument-org/workspace/client";
 // The rail down the window's edge: New, one entry per place with the one
 // stood in in its well, and at the foot Feedback over the user, the way to
 // Settings.
@@ -88,6 +89,24 @@ describe("AppRail", () => {
       metaKey: true,
     });
     expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: true });
+  });
+
+  it("opens the feedback dialog about the chat on screen, when there is one", () => {
+    const onChoose = vi.fn();
+    renderWithProviders(
+      <AppRail
+        chatInView={"cht_1" as ChatId}
+        onChoose={onChoose}
+        onNew={vi.fn()}
+        place="chat"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    expect(openReportDialog).toHaveBeenLastCalledWith({
+      chatId: "cht_1",
+      kind: "feedback",
+      surface: "rail",
+    });
   });
 
   it("opens the feedback dialog, about no chat, from Feedback", () => {

@@ -979,6 +979,7 @@ function WindowShell({
             }
             rail={
               <AppRail
+                chatInView={chatUp}
                 chatMark={railMarkOf(
                   (chats.data ?? []).filter(
                     (chat) => !floatingChats.has(chat.id),

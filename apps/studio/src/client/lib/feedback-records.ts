@@ -10,8 +10,8 @@
 /** A field of a record, by its path in the record, and what goes for it. */
 export type RecordField = {
   name: string;
-  /** How many characters of it went only as their length. */
-  notSent?: number;
+  /** Whether the outline left it out: all of it when `value` is empty, else each REDACTION in `value`. */
+  redacted?: boolean;
   value: string;
 };
 
@@ -22,15 +22,20 @@ export type RecordRow = {
   label: string;
   /** Whether `text` is a command, shown in the code face. */
   mono: boolean;
-  /** How many characters of the record went only as their length. */
-  notSent: number;
   text: string;
 };
 
+/**
+ * A line of a group as the review lists it: something said, shown as it is,
+ * or the steps between two of them folded into one line that opens onto them.
+ */
+export type GroupItem = { row: RecordRow } | { steps: RecordRow[] };
+
 /** The rows of one session, or of the chat's settings, under its name. */
 export type RecordGroup = {
-  rows: RecordRow[];
-  steps: number;
+  items: GroupItem[];
+  /** Whether it starts open: the chat's own session does, its settings and tasks don't. */
+  open: boolean;
   title: string;
 };
 
@@ -43,6 +48,7 @@ const FIELD_VALUE_MAX = 4000;
 /** The outline's mark for text it sent only the length of. */
 const SIZED = /<(\d+) chars>/g;
 const ONLY_SIZED = /^<(\d+) chars>$/;
+const SIZED_ANYWHERE = /<\d+ chars>/;
 
 /** Words the gist looks under first, in order, for a record's first line. */
 const GIST_KEYS = [
@@ -78,7 +84,13 @@ function isFields(value: unknown): value is Fields {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Text with what the outline sized read as "…", the row's pill saying how much. */
+/**
+ * Where a field's text had a part left out, for the review to mark in place.
+ * The object replacement character, which no record writes as text.
+ */
+export const REDACTION = "\uFFFC";
+
+/** Text with what the outline left out read as "…". */
 function unsized(value: string) {
   return value.replaceAll(SIZED, "…");
 }
@@ -100,27 +112,6 @@ export function kindLabel(kind: string): string {
     .trim()
     .toLowerCase();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Record";
-}
-
-/** How many characters went only as their length anywhere in `value`. */
-function sizedChars(value: unknown): number {
-  if (typeof value === "string") {
-    let sum = 0;
-    for (const match of value.matchAll(SIZED)) {
-      sum += Number(match[1]);
-    }
-    return sum;
-  }
-  if (Array.isArray(value)) {
-    return value.reduce((sum: number, each) => sum + sizedChars(each), 0);
-  }
-  if (isFields(value)) {
-    return Object.values(value).reduce(
-      (sum: number, each) => sum + sizedChars(each),
-      0,
-    );
-  }
-  return 0;
 }
 
 /** The first written string under the gist's keys, breadth first. */
@@ -170,14 +161,13 @@ function flatten(value: unknown, at = "", out: RecordField[] = []) {
   }
   if (typeof value === "string") {
     const sized = ONLY_SIZED.exec(value);
-    const inside = sizedChars(value);
     out.push(
       sized
-        ? { name: at, notSent: Number(sized[1]), value: "" }
+        ? { name: at, redacted: true, value: "" }
         : {
             name: at,
-            ...(inside > 0 && { notSent: inside }),
-            value: unsized(value).slice(0, FIELD_VALUE_MAX),
+            ...(SIZED_ANYWHERE.test(value) && { redacted: true }),
+            value: value.replaceAll(SIZED, REDACTION).slice(0, FIELD_VALUE_MAX),
           },
     );
     return out;
@@ -207,7 +197,6 @@ function partRow(part: Fields, role: string): RecordRow | undefined {
       fields: flatten(rest),
       label: role === "user" ? "You" : "Instrument",
       mono: false,
-      notSent: sizedChars(rest),
       text: oneLine(text),
     };
   }
@@ -224,7 +213,6 @@ function partRow(part: Fields, role: string): RecordRow | undefined {
     fields: flatten(rest),
     label: failed ? "Failed" : kindLabel(type),
     mono: command !== "",
-    notSent: sizedChars(rest),
     text: oneLine(command || gist(rest.input ?? rest.data ?? rest)),
   };
 }
@@ -246,7 +234,6 @@ function recordRow(record: Fields): RecordRow | undefined {
     fields: flatten(rest),
     label: kindLabel(kind),
     mono: false,
-    notSent: sizedChars(rest),
     text: oneLine(text),
   };
 }
@@ -268,7 +255,6 @@ export function recordRows(content: string): RecordRow[] {
         fields: [],
         label: "Unreadable",
         mono: true,
-        notSent: 0,
         text: oneLine(line),
       });
       continue;
@@ -312,34 +298,52 @@ export function chatGroups(
       continue;
     }
     const title = file.label ?? file.path.split("/").pop() ?? file.path;
-    groups.set(title, [
-      ...(groups.get(title) ?? []),
-      ...recordRows(file.content),
-    ]);
+    // A record with no time of its own sorts where the one before it does.
+    let at = "";
+    const rows = recordRows(file.content).map((row) => {
+      at = row.at ?? at;
+      return { ...row, at };
+    });
+    groups.set(title, [...(groups.get(title) ?? []), ...rows]);
   }
-  return [...groups.entries()]
+  const sorted = [...groups.entries()]
     .map(([title, rows]) => {
-      const sorted = rows.toSorted((a, b) =>
+      const inOrder = rows.toSorted((a, b) =>
         (a.at ?? "").localeCompare(b.at ?? ""),
       );
       // Every device writes its own settings; a change two of them made is one row.
-      const shown =
-        title === SETTINGS_TITLE
-          ? [...new Map(sorted.map((row) => [row.text, row])).values()]
-          : sorted;
-      return {
-        rows: shown,
-        steps:
-          title === SETTINGS_TITLE
-            ? 0
-            : shown.filter((row) => !SAID.has(row.label)).length,
-        title,
-      };
+      return title === SETTINGS_TITLE
+        ? {
+            items: [
+              ...new Map(inOrder.map((row) => [row.text, row])).values(),
+            ].map((row) => ({ row })),
+            title,
+          }
+        : { items: foldSteps(inOrder), title };
     })
     .toSorted(
       (a, b) =>
         Number(b.title === SETTINGS_TITLE) - Number(a.title === SETTINGS_TITLE),
     );
+  // Main lists the chat's own session before its tasks.
+  const own = sorted.find((group) => group.title !== SETTINGS_TITLE);
+  return sorted.map((group) => ({ ...group, open: group === own }));
+}
+
+/** What was said as rows, and each run of steps between as one item. */
+function foldSteps(rows: readonly RecordRow[]): GroupItem[] {
+  const items: GroupItem[] = [];
+  for (const row of rows) {
+    const last = items.at(-1);
+    if (SAID.has(row.label)) {
+      items.push({ row });
+    } else if (last && "steps" in last) {
+      last.steps.push(row);
+    } else {
+      items.push({ steps: [row] });
+    }
+  }
+  return items;
 }
 
 /** What about.json's fields are called on the Diagnostics page; anything else goes by its path. */

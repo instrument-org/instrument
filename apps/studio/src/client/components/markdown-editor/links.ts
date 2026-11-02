@@ -22,10 +22,12 @@ import { $prose } from "@milkdown/kit/utils";
 import { icon, type IconName, instrumentMark } from "./icons";
 
 // Links in the Markdown editor. A plain click edits, as it does anywhere in
-// the text; a Cmd-click (Ctrl off macOS) follows the link, and a middle click
-// opens it in a tab of its own. A link written relative to the file names a
-// file beside it and opens in the app's viewer; one that names nothing on
-// disk is marked, so a renamed or deleted file shows where it was linked.
+// the text, and shows the link's tooltip, whose address opens the link in
+// place. A Cmd-click (Ctrl off macOS) or a middle click, on the link or on
+// that address, opens it in a tab of its own, as anywhere else in the window.
+// A link written relative to the file names a file beside it and opens in the
+// app's viewer; one that names nothing on disk is marked, so a renamed or
+// deleted file shows where it was linked.
 // A link into the app (`instrument://chat/…`) is drawn as the chip the
 // app's other Markdown draws it as, its kind's glyph in front of its words,
 // and a link to a web page with the site's icon in front, as there too.
@@ -150,7 +152,7 @@ export function linksPlugin({
     event.preventDefault();
     const href = anchor.textContent?.trim();
     if (href) {
-      follow(href, event.type === "auxclick" || event.shiftKey);
+      follow(href, event.type === "auxclick" || commandKeyHeld(event));
     }
   };
 
@@ -216,7 +218,7 @@ export function linksPlugin({
                 return false;
               }
               event.preventDefault();
-              follow(href, event.shiftKey);
+              follow(href, true);
               return true;
             },
             // Kept from starting a scroll or, on Linux, pasting the selection.

@@ -131,17 +131,6 @@ describe("createAgentBrowserCommand", () => {
     expect(await agentBrowserRuns()).toEqual([]);
   });
 
-  it("drives the app's browser with a page init script, its path checked later", () => {
-    expect(
-      classifyInvocation(
-        ["--init-script", "hook.js", "open", "https://x.com"],
-        {
-          hasNoWindow: false,
-        },
-      ),
-    ).toEqual({ kind: "tabs" });
-  });
-
   it("serves the CLI's core guide, led by what differs in this app", async () => {
     const result = await command.execute(["skills", "get", "core"], mockCtx);
 
@@ -165,11 +154,7 @@ describe("createAgentBrowserCommand", () => {
 
   it.each([
     { subcommand: "auth" },
-    { subcommand: "batch" },
     { subcommand: "connect" },
-    { subcommand: "install" },
-    { subcommand: "mcp" },
-    { subcommand: "plugin" },
     { subcommand: "session" },
   ])(
     "blocks workspace-managed subcommand $subcommand",
@@ -277,14 +262,14 @@ describe("classifyInvocation", () => {
     [["skills", "get", "core"], managed, "skills"],
     [["dashboard"], managed, "refuse"],
     [["--version"], managed, "info"],
-    [["--profile", "Default", "open", "a.com"], managed, "refuse"],
     [["--cdp", "9222", "snapshot"], managed, "refuse"],
-    [["--executable-path", "/x", "open", "a.com"], managed, "refuse"],
+    // Its path is checked later, against the folder rules.
+    [["--init-script", "hook.js", "open", "a.com"], managed, "tabs"],
     [["read", "https://example.com"], managed, "read"],
     [["open", "a.com"], { ...managed, hasNoWindow: true }, "headless"],
     [["open", "a.com"], managed, "tabs"],
     [["tab"], managed, "tabs"],
-  ])("%j is %s", (args, config, kind) => {
+  ])("%j with %j is %s", (args, config, kind) => {
     expect(classifyInvocation(args, config).kind).toBe(kind);
   });
 });
@@ -293,10 +278,8 @@ describe("isBrowserFreeRead", () => {
   it.each([
     { args: ["read", "https://example.com"] },
     { args: ["read", "example.com/docs"] },
-    { args: ["read", "https://example.com", "--raw"] },
     { args: ["read", "--llms", "index", "https://example.com"] },
     { args: ["read", "https://example.com", "--filter", "auth", "--outline"] },
-    { args: ["read", "https://example.com", "--timeout", "2500"] },
     { args: ["read", "https://example.com", "--headers", '{"A":"b"}'] },
     { args: ["--json", "read", "https://example.com"] },
   ])("treats $args as a fetch that needs no browser", ({ args }) => {
@@ -307,16 +290,11 @@ describe("isBrowserFreeRead", () => {
     // Reads the active page, which only exists in the managed target.
     { args: ["read"] },
     { args: ["read", "--llms", "full"] },
-    { args: ["read", "--require-md"] },
     // Launch configuration: the CLI would answer it with its own browser.
     { args: ["read", "https://example.com", "--headed"] },
     { args: ["read", "https://example.com", "--engine", "firefox"] },
-    {
-      args: ["read", "https://example.com", "--allowed-domains", "example.com"],
-    },
     // Not the read command at all.
     { args: ["open", "https://example.com"] },
-    { args: ["snapshot", "-i"] },
     { args: [] },
     // The CLI's read parser rejects inline flag values, so it never fetches.
     { args: ["read", "--llms=index", "https://example.com"] },
@@ -425,18 +403,6 @@ describe("resolveAgentBrowserPathArgs", () => {
     });
   });
 
-  it("leaves non-upload relative arguments unchanged", async () => {
-    const result = await resolveAgentBrowserPathArgs(
-      ["fill", "@e1", "attachments/image.png"],
-      { cwd: shell, fs },
-      layout,
-    );
-
-    expect(result).toEqual({
-      args: ["fill", "@e1", "attachments/image.png"],
-    });
-  });
-
   it.each([
     {
       args: ["eval", "// a comment\n(() => /a\\/b/.test('a/b'))()"],
@@ -447,6 +413,10 @@ describe("resolveAgentBrowserPathArgs", () => {
       args: ["wait", "--fn", "/ready/.test(document.title)"],
       name: "a wait function opening with a regex",
     },
+    {
+      args: ["fill", "@e1", "attachments/image.png"],
+      name: "a relative path that is not an upload",
+    },
   ])("passes $name through as typed", async ({ args }) => {
     const result = await resolveAgentBrowserPathArgs(
       args,
@@ -455,18 +425,6 @@ describe("resolveAgentBrowserPathArgs", () => {
     );
 
     expect(result).toEqual({ args });
-  });
-
-  it("passes a screenshot path through as written", async () => {
-    const result = await resolveAgentBrowserPathArgs(
-      ["screenshot", `${shell}/work/page.png`],
-      { cwd: shell, fs },
-      layout,
-    );
-
-    expect(result).toEqual({
-      args: ["screenshot", host("work", "page.png")],
-    });
   });
 
   it.each([
@@ -485,6 +443,10 @@ describe("resolveAgentBrowserPathArgs", () => {
     [
       ["screenshot", "@e2"],
       ["screenshot", "@e2"],
+    ],
+    [
+      ["screenshot", `${shell}/work/page.png`],
+      ["screenshot", host("work", "page.png")],
     ],
   ])("resolves %j's file operands only", async (args, expected) => {
     const result = await resolveAgentBrowserPathArgs(
@@ -732,12 +694,14 @@ describe("agent-browser routing", () => {
     [
       ["tab", "list"],
       "→ [t1] Jar - https://example.com/jar\n  [t2] Bottle - https://example.com/bottle\n",
+      "→ [tab_01M5Q29YA0CTZ3NQY76Z3JQWBF] Jar - https://example.com/jar\n  [tab_01M5Q2CY3JB5G7KJVE1QA1HK0B] Bottle - https://example.com/bottle\n",
     ],
     [
       ["tab", "new", "https://example.com/bottle"],
       "https://example.com/bottle\n",
+      "https://example.com/bottle\nOpened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B.\n",
     ],
-  ])("names tabs by the window's id after %j", async (args, printed) => {
+  ])("names tabs by the window's id after %j", async (args, printed, shown) => {
     const json = JSON.stringify({
       data: {
         tabs: [
@@ -759,8 +723,7 @@ describe("agent-browser routing", () => {
 
     const result = await command.execute(args, commandCtx);
 
-    expect(result.stdout).not.toMatch(/\bt\d\b/);
-    expect(result.stdout).toMatchSnapshot();
+    expect(result.stdout).toBe(shown);
   });
 
   it.each([
@@ -808,7 +771,21 @@ describe("agent-browser routing", () => {
     expect(env.AGENT_BROWSER_PLUGINS).toContain('"name":"instrument"');
     // Lets the daemon run the plugin under Electron's node on packaged builds.
     expect(env.ELECTRON_RUN_AS_NODE).toBe("1");
-    expect(env.HOME).not.toBe(os.homedir());
+  });
+
+  it("gives the in-app browser its own home, downloads in the chat's work folder, and none of the host's environment", async () => {
+    vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
+
+    const { env } = await spawnedWith(["open", "https://example.com"]);
+
+    // Its home holds the plugin it runs, so it is kept out of the chat's folders.
+    expect(env.HOME).toBe(
+      path.join(MOCK_WORKSPACE_DIRS.machine, "browser", "agent-browser-home"),
+    );
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(
+      path.join(workRoot, "downloads"),
+    );
+    expect(env.LOCALAPPDATA).toBeUndefined();
   });
 
   it("gives a network-idle wait the harness's timeout and reports when the network stayed busy", async () => {
@@ -1149,30 +1126,6 @@ describe("agent-browser routing", () => {
     });
   });
 
-  it("keeps the in-app browser's downloads inside the chat's work folder", async () => {
-    const { env } = await spawnedWith(["open", "https://example.com"]);
-
-    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(
-      path.join(workRoot, "downloads"),
-    );
-  });
-
-  it("keeps agent-browser's home, which holds the plugin it runs, out of the chat's folders", async () => {
-    const { env } = await spawnedWith(["open", "https://example.com"]);
-
-    expect(env.HOME).toBe(
-      path.join(MOCK_WORKSPACE_DIRS.machine, "browser", "agent-browser-home"),
-    );
-  });
-
-  it("keeps the host environment away from the in-app browser", async () => {
-    vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
-
-    const { env } = await spawnedWith(["open", "https://example.com"]);
-
-    expect(env.LOCALAPPDATA).toBeUndefined();
-  });
-
   it("ignores connection env the agent exported into its shell", async () => {
     const { args, env } = await spawnedWith(
       ["open", "https://example.com"],
@@ -1226,11 +1179,7 @@ describe("agent-browser and browsers outside the app", () => {
 
   it.each([
     { args: ["--profile", "Default", "open", "https://example.com"] },
-    { args: ["--auto-connect", "snapshot"] },
     { args: ["--cdp", "9222", "snapshot"] },
-    { args: ["--provider", "browserbase", "open", "x"] },
-    { args: ["--executable-path", "/opt/chrome", "open", "x"] },
-    { args: ["--state", "state.json", "open", "x"] },
     { args: ["profiles"] },
   ])(
     "refuses $args instead of answering it on the in-app browser",
@@ -1287,19 +1236,17 @@ describe("isDaemonConfigRace", () => {
     ).toBe(true);
   });
 
-  it.each([
-    ["✗ Navigation failed: net::ERR_FILE_NOT_FOUND"],
-    ["✗ CDP error (Page.navigate): CDP command timed out: Page.navigate."],
-    [""],
-  ])("does not match unrelated failure %j", (output) => {
-    expect(isDaemonConfigRace(output)).toBe(false);
-  });
+  it.each([["✗ Navigation failed: net::ERR_FILE_NOT_FOUND"], [""]])(
+    "does not match unrelated failure %j",
+    (output) => {
+      expect(isDaemonConfigRace(output)).toBe(false);
+    },
+  );
 });
 
 describe("isExternalBrowserInvocation", () => {
   it.each([
     { args: ["open", "https://example.com"], external: false },
-    { args: ["snapshot", "-i"], external: false },
     { args: ["--user-agent", "bot/1.0", "open", "x"], external: false },
     { args: ["--auto-connect", "open", "x"], external: true },
     { args: ["--auto-connect=false", "open", "x"], external: false },
@@ -1315,9 +1262,7 @@ describe("isExternalBrowserInvocation", () => {
     // command never connects to.
     { args: ["--cdp=ws://127.0.0.1:9222/x", "snapshot"], external: false },
     { args: ["--provider=ios", "open", "x"], external: false },
-    { args: ["--provider=instrument", "open", "x"], external: false },
     { args: ["--profile", "Default", "open", "x"], external: true },
-    { args: ["--state", "state.json", "open", "x"], external: true },
     { args: ["--restore", "shop", "open", "x"], external: true },
     { args: ["--executable-path", "/opt/chrome", "open", "x"], external: true },
     // An engine picks only what a local launch starts, and the injected

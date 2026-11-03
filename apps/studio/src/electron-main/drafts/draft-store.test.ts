@@ -336,9 +336,12 @@ describe("the folder changing under the app", () => {
     });
 
     const looked = store.reconcile();
-    await vi.waitFor(() => {
-      expect(fs.promises.open).toHaveBeenCalled();
-    });
+    await vi.waitFor(
+      () => {
+        expect(fs.promises.open).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     apply({
       at: DAY,
       id: "a",

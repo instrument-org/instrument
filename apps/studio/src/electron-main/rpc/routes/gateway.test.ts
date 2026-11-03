@@ -72,7 +72,9 @@ it.each(["cached", "fresh"])(
       ? stream.next()
       : call(gateway.models.list, {}, { context, signal });
 
-    await vi.waitFor(() => expect(mocks.claudeStatusKnown).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mocks.claudeStatusKnown).toHaveBeenCalled(), {
+      interval: 1,
+    });
     expect(getAIProviderConfigs).not.toHaveBeenCalled();
     expect(readCache).not.toHaveBeenCalled();
     expect(mocks.fetchModels).not.toHaveBeenCalled();

@@ -816,22 +816,33 @@ describe("finishPendingMove", () => {
       requestWorkspaceMove({ target: picked, userDataDir, workspace });
       fs.mkdirSync(machineDir(), { recursive: true });
       // Another launch of this program holds the lock while it moves the
-      // records and points the entry at the target, then lets go. It holds
-      // for two seconds rather than a few hundred milliseconds: the lock has
-      // to still be there when this launch looks, and on a loaded machine
-      // the wait below can notice it appear a few hundred milliseconds late.
+      // records and points the entry at the target, then lets go: a moment
+      // after it sees this launch try for the lock (the pid file a launch
+      // stages beside it), so this launch finds it held and waits; after two
+      // seconds at most, should the watch miss that file.
       const other = spawn(
         process.execPath,
         [
           "-e",
           `
           const fs = require("node:fs");
-          const [lock, registry, from, to] = process.argv.slice(1);
+          const path = require("node:path");
+          const [lock, registry, from, to, waiter] = process.argv.slice(1);
+          const tried = path.basename(lock) + "." + waiter;
+          const watcher = fs.watch(path.dirname(lock), (_event, name) => {
+            if (name === tried) setTimeout(release, 50);
+          });
+          const timer = setTimeout(release, 2000);
           // Named and then moved into place, the way a launch takes the lock,
           // so this launch never finds it there with no pid in it.
           fs.writeFileSync(lock + ".staged", String(process.pid));
           fs.renameSync(lock + ".staged", lock);
-          setTimeout(() => {
+          let released = false;
+          function release() {
+            if (released) return;
+            released = true;
+            watcher.close();
+            clearTimeout(timer);
             fs.renameSync(from + "/.instrument", to + "/.instrument");
             const value = JSON.parse(fs.readFileSync(registry, "utf8"));
             for (const entry of value.workspaces) {
@@ -842,12 +853,13 @@ describe("finishPendingMove", () => {
             }
             fs.writeFileSync(registry, JSON.stringify(value));
             fs.rmSync(lock);
-          }, 2000);
+          }
           `,
           lockFile(),
           registryFile(),
           workspace.path,
           picked,
+          process.pid.toString(),
         ],
         { stdio: "ignore" },
       );

@@ -165,9 +165,12 @@ describe("ChatGPT account refresh", () => {
         refresh_token: "refresh-2",
       }),
     );
-    await vi.waitFor(() => {
-      expect(storedAccount()?.refreshToken).toBe("refresh-2");
-    });
+    await vi.waitFor(
+      () => {
+        expect(storedAccount()?.refreshToken).toBe("refresh-2");
+      },
+      { interval: 1 },
+    );
   });
 
   it("revokes the token a refresh in flight brings back when signing out, and keeps none", async () => {
@@ -203,12 +206,15 @@ describe("ChatGPT account refresh", () => {
         refresh_token: "refresh-2",
       }),
     );
-    await vi.waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        TOKEN_URL,
-        expect.anything(),
-      );
-    });
+    await vi.waitFor(
+      () => {
+        expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+          TOKEN_URL,
+          expect.anything(),
+        );
+      },
+      { interval: 1 },
+    );
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(storedAccount()).toMatchObject({
@@ -396,9 +402,12 @@ describe("several ChatGPT accounts", () => {
       }),
     );
 
-    await vi.waitFor(() => {
-      expect(storedAccount(personal.id)?.refreshToken).toBe("refresh-2");
-    });
+    await vi.waitFor(
+      () => {
+        expect(storedAccount(personal.id)?.refreshToken).toBe("refresh-2");
+      },
+      { interval: 1 },
+    );
     expect(storedAccount(work.id)).toMatchObject({
       accessToken: "access-work",
       refreshToken: "refresh-work",
@@ -411,9 +420,12 @@ describe("how a ChatGPT sign-in ends", () => {
   async function start() {
     openExternal.mockClear();
     const ended = plan.signInWithChatGPT({ callbackPort: 1455 });
-    await vi.waitFor(() => {
-      expect(openExternal).toHaveBeenCalled();
-    });
+    await vi.waitFor(
+      () => {
+        expect(openExternal).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     const url = new URL(String(openExternal.mock.calls[0]?.[0]));
     return { ended, state: url.searchParams.get("state") ?? "" };
   }
@@ -521,9 +533,12 @@ describe("the sign-in setup our API serves", () => {
   async function authorizeURL() {
     openExternal.mockClear();
     void plan.signInWithChatGPT({ callbackPort: 1455 });
-    await vi.waitFor(() => {
-      expect(openExternal).toHaveBeenCalled();
-    });
+    await vi.waitFor(
+      () => {
+        expect(openExternal).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     plan.cancelChatGPTSignIn();
     return new URL(String(openExternal.mock.calls[0]?.[0]));
   }
@@ -588,9 +603,12 @@ describe("the sign-in setup our API serves", () => {
       }),
     );
     startRefresh();
-    await vi.waitFor(() => {
-      expect(storedAccount()?.accessToken).toBe("access-2");
-    });
+    await vi.waitFor(
+      () => {
+        expect(storedAccount()?.accessToken).toBe("access-2");
+      },
+      { interval: 1 },
+    );
     expect(tokenURLs).toEqual([MOVED_TOKEN_URL]);
   });
 });

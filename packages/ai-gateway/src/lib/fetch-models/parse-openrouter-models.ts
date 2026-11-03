@@ -161,7 +161,9 @@ function splitOpenRouterProviderId(providerId: string) {
     return null;
   }
 
-  const author = providerId.slice(0, slashIndex);
+  // OpenRouter's "latest" aliases (`~anthropic/claude-opus-latest`) mark the
+  // author with a tilde; the maker is the same one its numbered models name.
+  const author = providerId.slice(0, slashIndex).replace(/^~/, "");
   const modelId = providerId.slice(slashIndex + 1);
   if (!author || !modelId) {
     return null;

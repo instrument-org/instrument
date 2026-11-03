@@ -95,6 +95,20 @@ describe("parseOpenRouterModelsList", () => {
     }).toEqual({ alias: "openai/gpt-6-luna", plain: undefined });
   });
 
+  it("files a latest alias under the maker its tilde marks", () => {
+    const alias = parseOne(
+      openRouterModel({
+        id: "~anthropic/claude-opus-latest",
+        name: "Anthropic: Claude Opus Latest",
+      }),
+    );
+    expect([alias.author, alias.canonicalId, alias.name]).toEqual([
+      "anthropic",
+      "claude-opus-latest",
+      "Claude Opus Latest",
+    ]);
+  });
+
   it("drops batch variants and keeps the model they mirror", () => {
     const models = parseOpenRouterModelsList({
       config,

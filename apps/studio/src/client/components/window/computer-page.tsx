@@ -3972,6 +3972,7 @@ function infoItemOf(item: FileSystemItem): FileInfoItem[] {
         ...(item.contentType ? { contentType: item.contentType } : {}),
         ...(item.typeName ? { typeName: item.typeName } : {}),
       }),
+      ...(item.size === undefined ? { isPackage: true } : {}),
       name: item.displayName ?? name,
       ...(item.previewImageUrl && !item.previewIsIcon
         ? { previewImageUrl: item.previewImageUrl }

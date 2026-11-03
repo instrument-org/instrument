@@ -26,7 +26,7 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { folderOf } from "./host-path";
+import { parentFolderOf } from "./host-path";
 
 /** One file or folder the card can say something about, as its row has it. */
 export type FileInfoItem = {
@@ -34,6 +34,8 @@ export type FileInfoItem = {
   createdAt?: string;
   glyphSrc?: string;
   hostPath: string;
+  /** A folder the system shows as one file: an app, a Pages document. */
+  isPackage?: boolean;
   kind: "file" | "folder";
   kindLabel: string;
   modifiedAt?: string;
@@ -191,6 +193,11 @@ type EscapePress = Pick<
   | "target"
 >;
 
+/** The folder a file or folder is in, a drive's or a share's top as it is written. */
+function whereIs(hostPath: string) {
+  return parentFolderOf(hostPath) ?? hostPath;
+}
+
 function bareItem(hostPath: string): FileInfoItem {
   const name = folderNameFromPath(hostPath);
   return {
@@ -205,7 +212,7 @@ function bareItem(hostPath: string): FileInfoItem {
 function useFileItem(hostPath: string | undefined) {
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({
-      input: hostPath ? { id: WINDOW_ID, path: folderOf(hostPath) } : skipToken,
+      input: hostPath ? { id: WINDOW_ID, path: whereIs(hostPath) } : skipToken,
       retry: false,
     }),
   );
@@ -287,11 +294,21 @@ function FileInfo({ item }: { item: FileInfoItem }) {
       retry: false,
     }),
   );
+  // A vector's natural size is whatever the browser made up for it.
   const imageUrl = useWatchedFileUrl(
-    type === "image" ? item.hostPath : undefined,
+    type === "image" && !/\.svgz?$/i.test(item.name)
+      ? item.hostPath
+      : undefined,
   );
   const imageShape = useImageShape(imageUrl);
   const shape = type === "image" ? imageShape : probe.data;
+  const packageSize = useQuery({
+    ...rpcClient.files.folderSize.queryOptions({
+      input: item.isPackage ? { path: item.hostPath } : skipToken,
+      retry: false,
+    }),
+    refetchOnWindowFocus: false,
+  });
   const opens = useFileOpenTarget({ hostPath: item.hostPath });
   const titles = useQuery(
     rpcClient.workspace.computer.titles.queryOptions({
@@ -323,9 +340,13 @@ function FileInfo({ item }: { item: FileInfoItem }) {
       sub={item.kindLabel}
     >
       {title ? <InfoRow label="Title">{title}</InfoRow> : null}
-      {item.size === undefined ? null : (
+      {item.size !== undefined ? (
         <InfoRow label="Size">{sizeWords(item.size)}</InfoRow>
-      )}
+      ) : item.isPackage ? (
+        <InfoRow label="Size">
+          <WalkedSize size={packageSize} />
+        </InfoRow>
+      ) : null}
       {shape?.width && shape.height && type !== "audio" ? (
         <InfoRow label="Dimensions">
           {shape.width} × {shape.height}
@@ -336,7 +357,7 @@ function FileInfo({ item }: { item: FileInfoItem }) {
       ) : null}
       <WhereRow hostPath={item.hostPath} />
       <DateRows item={item} />
-      {opens.appName ? (
+      {opens.appName && !item.isPackage ? (
         <InfoRow label="Opens with">
           <span className="flex min-w-0 items-center gap-1.5">
             <OpenTargetIcon
@@ -369,6 +390,8 @@ function useImageShape(url: string | undefined) {
     image.src = url;
     return () => {
       image.onload = null;
+      // Stops a large or far-off picture nobody is looking at any more.
+      image.src = "";
     };
   }, [url]);
   return shape;
@@ -401,12 +424,13 @@ function FolderInfo({
   );
   // Walks the folder for as long as the card is on it: moving on or closing
   // the card ends the query, and with it the walk.
-  const size = useQuery(
-    rpcClient.files.folderSize.queryOptions({
+  const size = useQuery({
+    ...rpcClient.files.folderSize.queryOptions({
       input: mayRead ? { path: item.hostPath } : skipToken,
       retry: false,
     }),
-  );
+    refetchOnWindowFocus: false,
+  });
   const showHidden = useAtomValue(computerHiddenFilesAtom);
   const count =
     listing.data?.kind === "listing"
@@ -447,14 +471,10 @@ function FolderInfo({
           >
             Calculate
           </button>
-        ) : size.isPending ? (
-          <Calculating />
-        ) : !size.data || isRefused ? (
+        ) : isRefused ? (
           <Quiet>{CANT_BE_READ}</Quiet>
-        ) : size.data.complete ? (
-          sizeWords(size.data.bytes)
         ) : (
-          `More than ${shortSize(size.data.bytes)}`
+          <WalkedSize size={size} />
         )}
       </InfoRow>
       <WhereRow hostPath={item.hostPath} />
@@ -463,14 +483,38 @@ function FolderInfo({
   );
 }
 
+/** A size that took a walk: what it found, or that it is still looking, never an older answer. */
+function WalkedSize({
+  size,
+}: {
+  size: {
+    data?: { bytes: number; complete: boolean } | null;
+    isFetching: boolean;
+  };
+}) {
+  if (size.isFetching) {
+    return <Calculating />;
+  }
+  if (!size.data) {
+    return <Quiet>{CANT_BE_READ}</Quiet>;
+  }
+  return size.data.complete
+    ? sizeWords(size.data.bytes)
+    : `More than ${shortSize(size.data.bytes)}`;
+}
+
 function SeveralInfo({ items }: { items: FileInfoItem[] }) {
-  const folders = items.filter(({ kind }) => kind === "folder").length;
+  // What takes a walk to size is said apart, rather than as nothing.
+  const unsized = items.filter(({ size }) => size === undefined);
+  const unsizedNoun = unsized.every(({ kind }) => kind === "folder")
+    ? "folder"
+    : "item";
   const bytes = items.reduce((sum, { size = 0 }) => sum + size, 0);
   const kinds = new Map<string, number>();
   for (const { kindLabel } of items) {
     kinds.set(kindLabel, (kinds.get(kindLabel) ?? 0) + 1);
   }
-  const places = new Set(items.map(({ hostPath }) => folderOf(hostPath)));
+  const places = new Set(items.map(({ hostPath }) => whereIs(hostPath)));
   const [place] = places;
   const modified = formatDateSpan(items.map(({ modifiedAt }) => modifiedAt));
   return (
@@ -483,11 +527,13 @@ function SeveralInfo({ items }: { items: FileInfoItem[] }) {
           : "Selected"
       }
     >
-      <InfoRow label="Size">
-        {folders === 0
-          ? `${shortSize(bytes)} in all`
-          : `${shortSize(bytes)}, plus ${folders} ${folders === 1 ? "folder" : "folders"}`}
-      </InfoRow>
+      {unsized.length === items.length ? null : (
+        <InfoRow label="Size">
+          {unsized.length === 0
+            ? `${shortSize(bytes)} in all`
+            : `${shortSize(bytes)}, plus ${unsized.length} ${unsizedNoun}${unsized.length === 1 ? "" : "s"}`}
+        </InfoRow>
+      )}
       <InfoRow label="Kinds">
         {[...kinds]
           .map(([kind, count]) =>
@@ -546,13 +592,17 @@ function InfoRow({ children, label }: { children: ReactNode; label: string }) {
 function WhereRow({ hostPath }: { hostPath: string }) {
   return (
     <InfoRow label="Where">
-      <FolderTrail path={folderOf(hostPath)} />
+      <FolderTrail path={whereIs(hostPath)} />
     </InfoRow>
   );
 }
 
 function DateRows({ item }: { item: FileInfoItem }) {
-  const created = formatTimestamp(item.createdAt);
+  // A system that keeps no creation date answers with the epoch.
+  const created =
+    item.createdAt && new Date(item.createdAt).getTime() > 0
+      ? formatTimestamp(item.createdAt)
+      : null;
   const modified = formatTimestamp(item.modifiedAt);
   return (
     <>

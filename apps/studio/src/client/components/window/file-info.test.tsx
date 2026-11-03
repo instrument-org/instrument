@@ -14,7 +14,10 @@ vi.mock("@/client/hooks/use-watched-file-url", () => ({
   useWatchedFileUrl: () => undefined,
 }));
 vi.mock("@/client/hooks/use-file-open-target", () => ({
-  useFileOpenTarget: () => ({ appName: null }),
+  useFileOpenTarget: () => ({ appName: "Finder" }),
+}));
+vi.mock("@/client/components/open-target-icon", () => ({
+  OpenTargetIcon: () => null,
 }));
 vi.mock("@/client/components/folder-trail", () => ({
   FolderTrail: ({ path }: { path: string }) => <span>{path}</span>,
@@ -176,6 +179,45 @@ describe("the info card", () => {
     press();
     press();
     expect(screen.queryByRole("button", { name: "Calculate" })).toBeNull();
+  });
+
+  it("leaves out a creation date the system does not keep", () => {
+    renderWithProviders(
+      <Screen
+        selection={[{ ...note, createdAt: "1970-01-01T00:00:00.000Z" }]}
+      />,
+    );
+    press();
+    expect(card()?.textContent).not.toContain("Created");
+  });
+
+  it("does not say an app opens in the file manager", () => {
+    const app: FileInfoItem = {
+      hostPath: "/work/Tool.app",
+      isPackage: true,
+      kind: "file",
+      kindLabel: "Application",
+      name: "Tool.app",
+    };
+    renderWithProviders(<Screen selection={[app]} />);
+    press();
+    expect(card()?.textContent).toContain("Size");
+    expect(card()?.textContent).not.toContain("Opens with");
+  });
+
+  it("does not add up what has no size as nothing", () => {
+    const app: FileInfoItem = {
+      hostPath: "/work/Tool.app",
+      isPackage: true,
+      kind: "file",
+      kindLabel: "Application",
+      name: "Tool.app",
+    };
+    renderWithProviders(
+      <Screen selection={[app, { ...app, hostPath: "/work/Other.app" }]} />,
+    );
+    press();
+    expect(card()?.textContent).not.toContain("0 bytes");
   });
 
   it("adds up several, and counts folders apart", () => {

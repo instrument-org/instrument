@@ -302,7 +302,10 @@ export function useHostedPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  usePageHost(group, { ...host, into: slot });
+  // A page put away stops being drawn at once. Its slot can outlive it, inside
+  // a viewer fading out, and the guest stands apart from that fade: at full
+  // strength, blank, over whatever the viewer is giving way to.
+  usePageHost(group, { ...host, into: url === undefined ? null : slot });
   return {
     release: (tabId: string) => {
       tabIdsNow.current = tabIdsNow.current.filter((id) => id !== tabId);

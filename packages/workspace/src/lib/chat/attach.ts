@@ -7,6 +7,7 @@ import { startAskDriver } from "./drive-asks";
 import { startChatListFile } from "./chat-list-file";
 import { startChatSettle, startChatUnreadOnSettle } from "./chats";
 import { startJobWake } from "./job-wake";
+import { startNextMessageSuggestions } from "./next-message";
 import { startChatRetitle } from "./retitle";
 import { startSignInWake } from "./sign-in-wake";
 import { startChatWake } from "./wake";
@@ -38,6 +39,7 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startAskDriver(workspaceRef);
   startChatSettle();
   startChatRetitle();
+  startNextMessageSuggestions();
   startChatUnreadOnSettle();
   startChatFolderWrites();
   startChatFolderNames();

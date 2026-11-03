@@ -99,6 +99,13 @@ export const publisher = new EventPublisher<{
     sessionId: StoreId.Session;
   };
   /**
+   * This computer has a suggestion for the chat's person's next message
+   * (`startNextMessageSuggestions`). Kept in memory, so no record changes.
+   */
+  "chat.nextMessage": {
+    id: ChatId;
+  };
+  /**
    * An agent sent a command to a guest. One per command rather than a
    * start/stop pair: the agent's browser work arrives as separate tool calls
    * seconds apart, so where one stretch of it ends is a question for whoever

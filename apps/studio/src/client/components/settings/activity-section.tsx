@@ -201,6 +201,7 @@ const PURPOSE_LABELS: Record<Row["purpose"], string> = {
   "chat-search": "Chat search",
   "chat-title": "Chat title",
   "emoji-suggestion": "Emoji suggestion",
+  "next-message": "Suggested reply",
   image: "Image",
   other: "Other",
   "settings-search": "Settings search",

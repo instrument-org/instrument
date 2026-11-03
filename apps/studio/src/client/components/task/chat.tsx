@@ -217,6 +217,13 @@ export function ChatConversation({
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
   const nextModel = reachModel(modelsData, selectedModelURI).model;
+  // What the person might send next, offered in the chat's own box once the
+  // chat is at rest.
+  const { data: nextMessage } = useQuery(
+    rpcClient.workspace.chats.live.nextMessage.experimental_liveOptions({
+      input: { id },
+    }),
+  );
   const shownMessages = [
     ...messages,
     ...unsettled
@@ -564,6 +571,11 @@ export function ChatConversation({
       places={places}
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
+      suggestion={
+        draftKey.scope === "chat" && !replyTo
+          ? (nextMessage ?? undefined)
+          : undefined
+      }
       variant="pill"
     />
   );

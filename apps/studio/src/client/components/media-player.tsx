@@ -1,6 +1,7 @@
 import { AudioSkin } from "@/client/components/videojs/audio/skin";
 import { VideoSkin } from "@/client/components/videojs/video/skin";
 import { readUnknownDuration } from "@/client/lib/media-duration";
+import { players } from "@/client/lib/media-players";
 import { useSiblingCaptions } from "@/client/lib/use-sibling-captions";
 import { useStoryboardTrack } from "@/client/lib/use-storyboard-track";
 import { Audio, AudioPlayer as AudioPlayerRoot } from "@videojs/react/audio";
@@ -132,9 +133,6 @@ export function AudioPlayer({
     </AudioPlayerRoot>
   );
 }
-
-/** Every player on a page of the window, playing or not. */
-const players = new Set<HTMLMediaElement>();
 
 /**
  * A player's hold on its element, for as long as it is mounted, and the one

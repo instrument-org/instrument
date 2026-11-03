@@ -23,6 +23,7 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { giveKeyboardTo } from "@/client/lib/browser-pool";
 import { setHomeFocus } from "@/client/lib/keyboard-home";
+import { togglePlayerIn } from "@/client/lib/media-players";
 import { cn } from "@/client/lib/utils";
 import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
@@ -224,6 +225,39 @@ export function FilesScreen({
   // In a narrow tab the folder keeps to its share, so the file is never
   // the narrower of the two.
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
+  // Space plays and pauses the video or sound on screen wherever the keyboard
+  // is, the folder beside it above all, so the arrows and Space leaf through a
+  // folder of them. Inside the player the key is the player's own, and it goes
+  // no further than this screen, so a dialog over it keeps its own.
+  useEffect(() => {
+    if (!layout || !isActiveTab) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const { target } = event;
+      if (
+        event.key !== " " ||
+        event.repeat ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey ||
+        !(target instanceof Node) ||
+        !(target === document.body || layout.contains(target)) ||
+        isTypingTarget(target) ||
+        (target instanceof Element && target.closest("[data-preset]"))
+      ) {
+        return;
+      }
+      if (togglePlayerIn(layout)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isActiveTab, layout]);
   useLayoutEffect(() => {
     if (!layout) {
       return;

@@ -1,5 +1,6 @@
 // A player taken off the page can never sound again, and one player sounds
 // at a time, whatever else still holds its element.
+import { togglePlayerIn } from "@/client/lib/media-players";
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent } from "@testing-library/react";
 import {
@@ -50,6 +51,24 @@ describe("media player session", () => {
     expect(media?.isConnected).toBe(false);
     expect(media?.hasAttribute("src")).toBe(false);
     expect(pause).toHaveBeenCalled();
+  });
+
+  it("plays and pauses only the player inside what it is given", () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    renderWithProviders(player("file:///song-a.mp3"));
+    const inside = renderWithProviders(player("file:///song-b.mp3"));
+    const media = inside.container.querySelector("audio");
+    if (!media) {
+      throw new Error("no audio element");
+    }
+    expect(togglePlayerIn(inside.container)).toBe(true);
+    expect(play.mock.contexts).toEqual([media]);
+    Object.defineProperty(media, "paused", { value: false });
+    expect(togglePlayerIn(inside.container)).toBe(true);
+    expect(pause.mock.contexts).toEqual([media]);
+    expect(togglePlayerIn(document.createElement("div"))).toBe(false);
   });
 
   it("pauses every other player when one starts", () => {

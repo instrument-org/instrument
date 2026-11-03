@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
@@ -291,6 +292,14 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
               <FileSystemFolderGlyph className="h-3 w-auto" />
             )
           }
+          drags={
+            chip.kind === "paths" && chip.items[0]
+              ? {
+                  hostPath: chip.items[0].path,
+                  others: chip.items.slice(1).map((item) => item.path),
+                }
+              : undefined
+          }
           name={nameOfChip(chip)}
           onOpen={openerOf(chip)}
           slot="sent-chip"
@@ -336,6 +345,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * button that opens it, a modified or middle click in a tab of its own.
  */
 function ContextChip({
+  drags,
   label,
   mark,
   name,
@@ -343,6 +353,8 @@ function ContextChip({
   onOpen,
   slot,
 }: {
+  /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
+  drags?: { hostPath: string; others: string[] };
   label: ReactNode;
   mark: ReactNode;
   name: string;
@@ -355,6 +367,8 @@ function ContextChip({
     "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
     onLeaveOut ? "pr-0.5" : "pr-2.5",
   );
+  const fileDragProps = useFileDrag(drags);
+  const dragProps = drags ? fileDragProps : {};
   const content = (
     <>
       <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
@@ -378,6 +392,7 @@ function ContextChip({
       <TooltipTrigger asChild>
         {onOpen && !onLeaveOut ? (
           <button
+            {...dragProps}
             className={cn(
               className,
               "cursor-pointer hover:bg-muted hover:text-foreground",
@@ -397,7 +412,7 @@ function ContextChip({
             {content}
           </button>
         ) : (
-          <span className={className} data-slot={slot}>
+          <span {...dragProps} className={className} data-slot={slot}>
             {content}
           </span>
         )}

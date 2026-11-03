@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { TextTIcon } from "@phosphor-icons/react/TextT";
 
 import { AttachmentRemoveButton } from "./attachment-remove-button";
@@ -7,6 +8,7 @@ import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function AttachedItemPreview({
+  hostPath,
   icon,
   label,
   onClick,
@@ -14,6 +16,8 @@ export function AttachedItemPreview({
   onRemove,
   tooltip,
 }: {
+  /** Where it is on disk, which dragging it out of the window carries; none for words pasted in. */
+  hostPath?: string;
   icon: ReactNode;
   label: string;
   onClick?: () => void;
@@ -22,8 +26,10 @@ export function AttachedItemPreview({
   onRemove?: () => void;
   tooltip?: ReactNode;
 }) {
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
   const button = (
     <Button
+      {...dragProps}
       className="size-full min-w-0 justify-start gap-x-2 overflow-hidden"
       onClick={onClick}
       type="button"

@@ -1,5 +1,7 @@
 import { formatBytes } from "@instrument-org/workspace/client";
 
+import { useFileDrag } from "@/client/hooks/use-file-drag";
+
 import { AttachedItemPreview } from "./attached-item-preview";
 import { AttachmentRemoveButton } from "./attachment-remove-button";
 import { FileTypeIcon } from "./extend/file-system";
@@ -10,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function AttachedFilePreview({
   filename,
+  hostPath,
   mimeType,
   onClick,
   onPutInMessage,
@@ -18,6 +21,8 @@ export function AttachedFilePreview({
   url,
 }: {
   filename: string;
+  /** Where it is on disk, which dragging it out of the window carries; none for words pasted in. */
+  hostPath?: string;
   mimeType?: string;
   onClick?: () => void;
   /** For words pasted in as a file: takes the file away and puts the words in the message. */
@@ -28,6 +33,7 @@ export function AttachedFilePreview({
 }) {
   const isImage = mimeType?.startsWith("image/");
   const hasPreview = Boolean(url);
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   const tooltipContent = (
     <div className="flex items-center gap-2">
@@ -42,6 +48,7 @@ export function AttachedFilePreview({
         <TooltipTrigger asChild>
           <div className="group relative size-12 shrink-0">
             <Button
+              {...dragProps}
               className="size-12 overflow-hidden p-0"
               onClick={onClick}
               type="button"
@@ -78,6 +85,7 @@ export function AttachedFilePreview({
           fileName={filename}
         />
       }
+      {...(hostPath ? { hostPath } : {})}
       label={filename}
       onClick={onClick}
       onPutInMessage={onPutInMessage}

@@ -1191,6 +1191,7 @@ export const PromptInput = ({
                 >
                   {item.type === "folder" ? (
                     <AttachedItemPreview
+                      hostPath={item.path}
                       icon={<SystemFolderIcon className="size-5 shrink-0" />}
                       label={folderLabel(item.path)}
                       onRemove={() => {
@@ -1201,6 +1202,7 @@ export const PromptInput = ({
                   ) : (
                     <AttachedFilePreview
                       filename={item.name}
+                      {...("path" in item ? { hostPath: item.path } : {})}
                       mimeType={item.mimeType}
                       onClick={() => {
                         if (item.url) {

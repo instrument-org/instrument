@@ -54,7 +54,7 @@ interface Gesture {
  * element is simply not draggable rather than starting a drag that carries
  * nothing.
  */
-export function useFileDrag(file: FileRef | undefined) {
+export function useFileDrag(file: DraggedFiles | undefined) {
   const canDrag = Boolean(file && window.api.startFileDrag);
   const gesture = useDragGesture();
 

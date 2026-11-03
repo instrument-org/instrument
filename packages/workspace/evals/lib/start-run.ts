@@ -14,6 +14,7 @@ import { type SessionMessageDataPart } from "../../src/schemas/session/message-d
 import { StoreId } from "../../src/schemas/store-id";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type WorkspaceConfig } from "../../src/types";
+import { type StartsTask, startTaskForChat } from "./start-task";
 
 /**
  * Starts one eval run the way the product starts the agent it measures.
@@ -24,6 +25,11 @@ import { type WorkspaceConfig } from "../../src/types";
  * new` does: the agent answers in a task a chat owns, the only kind the
  * product makes, without spending a chat turn to get there. That chat is
  * never written in, so it is never woken when the task finishes.
+ *
+ * A chat case with `startsTask` sends the prompt without running the chat's
+ * turn on it: the chat's first step is a stand-in that starts t1 through
+ * `task new` (`startTaskForChat`), and the chat runs from its next message,
+ * a follow-up or the task's wake.
  */
 export async function startRun(
   {
@@ -33,6 +39,7 @@ export async function startRun(
     modelURI,
     name,
     prompt,
+    startsTask,
     viewing,
   }: {
     files?: FileUpload.Type[];
@@ -41,6 +48,7 @@ export async function startRun(
     modelURI: string;
     name: string;
     prompt: string;
+    startsTask?: StartsTask;
     /** What the window had on screen, as the note on the first message. */
     viewing?: SessionMessageDataPart.ViewContextDataPart;
   },
@@ -107,6 +115,15 @@ export async function startRun(
   // chat case's first exchange retitles it, and a task case's chat stays a
   // placeholder, and `report <dir>` finds a run's case by that name.
   await renameChat(chatId, name);
+
+  if (startsTask && kind === "chat") {
+    // What the composer's send does before the turn: the chat's model, and
+    // the message in the store.
+    (await setChatModel(chatId, uri))._unsafeUnwrap();
+    (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
+    await startTaskForChat(chatId, sessionId, startsTask, model);
+    return { id: chatId, sessionId };
+  }
 
   workspaceRef.send({
     type: "createSession",

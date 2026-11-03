@@ -12,8 +12,8 @@
  * the task's last message ends on a needs fence naming it.
  *
  * `task-app-setup-hop` is the chat's half. Linear is connected and the user
- * asks for a multi-step pass over its issues, which is a task's by the
- * chat's own rule; a task the chat started is stood in
+ * asks for its issues; the chat's first step starts a task for them
+ * (`startsTask`), which is stood in
  * for (`finishesAs`), ending on a needs fence for GitHub, which is set up and
  * waiting for a sign-in and which the user never named, so the chat has no
  * reason to connect it before the task asks. The sign-in the chat asks for
@@ -209,7 +209,12 @@ export const TASK_APP_SETUP_EVALS = [
     kind: "chat",
     name: "task-app-setup-hop",
     prompt:
-      "Can you go through all my open Linear issues, read the comments and linked work on each, and pull them into a short list grouped by project, with what is already in review marked?",
+      "Pull my open Linear issues into a short list grouped by project, with what is already in review marked.",
+    startsTask: {
+      brief:
+        "Pull the user's open Linear issues into a short list grouped by project, with what is already in review marked.",
+      name: "Linear issues",
+    },
     signInsAnswerAs: {},
   }),
 ];

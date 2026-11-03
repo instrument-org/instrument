@@ -3,15 +3,16 @@
  * the `task` command reach it by its handle?
  *
  * A task is a session in the chat's store, carrying the chat's conversation
- * on from where it forked, addressed as `t1`, `t2`, … The user never asks
- * for one: each case asks for work slow enough that the chat's own rule
- * starts a task for it, a script in a folder the user sends that runs for
- * minutes, so a run that keeps it in the chat fails the first assertion and
- * says nothing about the rest. They score what the store holds as well as
- * what the user got:
+ * on from where it forked, addressed as `t1`, `t2`, … Whether a model forks
+ * is its own call, which other cases score by what the user got; these score
+ * the plumbing, so the chat's first step is a stand-in that starts t1 with
+ * `task new` (`startsTask`), and the model's first turn in the chat is the
+ * next message's. They score what the store holds as well as what the user
+ * got:
  *
  * - **It starts one task, as t1.** One `instrument task new`, one session of the chat's
- *   with a parent and a fork point, and the work done there.
+ *   with a parent and a fork point, and the work done there: the stand-in's
+ *   command reaching the store as a real one does.
  * - **It steers that task by its handle.** A change of plan reaches t1
  *   through `instrument task send t1`, or `instrument task stop t1` before a
  *   task in its place, rather than a second task beside it.
@@ -43,7 +44,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
+import {
+  CUT_OFF_TOOL_CALL_ERROR_TEXT,
+  STOPPED_TOOL_CALL_ERROR_TEXT,
+} from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
 import { openAsks } from "../../src/lib/chat/open-asks";
@@ -178,26 +182,7 @@ const steeredT1: Assertion = {
 
 /** The user's open tab, as the note on their message names it. */
 const PAGE = "https://example.com/";
-const PAGE_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0D";
-
-/** The chat started its task with the user's tab handed over. */
-const handedTheTab: Assertion = {
-  check: (ctx: Context) => {
-    const text = `handed the task tab ${PAGE_TAB}`;
-    const handed = commandsIn(ctx.sessions).filter(
-      (command) =>
-        /(?:^|[\n;&|])\s*instrument task new\b/.test(command) &&
-        new RegExp(`--tab[ =]['"]?${PAGE_TAB}`).test(command),
-    );
-    return (handed.length > 0 ? pass : fail)(
-      text,
-      handed.join(" | ") ||
-        commandsIn(ctx.sessions).join(" | ").slice(0, 300) ||
-        "no commands",
-    );
-  },
-  text: `handed the task tab ${PAGE_TAB}`,
-};
+const PAGE_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0D";
 
 /** Once the task finished, the tab it drove is the chat's again. */
 const tabCameBack: Assertion = {
@@ -256,9 +241,12 @@ const stoppedTheTurnAndTheTask: Assertion = {
     const text = "the user stopped the chat's turn and then t1";
     const cutOff = (ctx.sessions[0]?.messages ?? []).flatMap((message) =>
       message.parts.filter(
+        // Stopped as it ran, or while its input was still arriving: the
+        // user's Stop ended the turn mid-call either way.
         (part) =>
           "errorText" in part &&
-          part.errorText === STOPPED_TOOL_CALL_ERROR_TEXT,
+          (part.errorText === STOPPED_TOOL_CALL_ERROR_TEXT ||
+            part.errorText === CUT_OFF_TOOL_CALL_ERROR_TEXT),
       ),
     );
     const task = (await listChildTasks(ctx.chatId)).find(
@@ -328,6 +316,14 @@ function afterTheTimeout(sessions: Session.WithMessagesAndParts[]) {
   const after = messages.slice(woke + 1);
   return {
     commands: commandsIn([{ ...chat, messages: after }]),
+    /** Whether the chat wrote a file itself after the note. */
+    wrote: after.some((message) =>
+      message.parts.some(
+        (part) =>
+          (part.type === "tool-write_file" || part.type === "tool-edit_file") &&
+          part.state === "output-available",
+      ),
+    ),
     reply: after
       .filter((message) => message.role === "assistant")
       .flatMap((message) =>
@@ -377,7 +373,7 @@ const notedTheTimeout: Assertion = {
 const retriedOrOfferedTo: Assertion = {
   check: (ctx: Context) => {
     const text =
-      "picked the timed-out task up again or offered to, not as a stop";
+      "picked the timed-out work up again, did it, or offered to, not as a stop";
     const after = afterTheTimeout(ctx.sessions);
     if (!after) {
       return fail(text, "no timeout note");
@@ -393,12 +389,13 @@ const retriedOrOfferedTo: Assertion = {
       /\b(?:you stopped|stopped by you|by the user|you(?:'ve)? cancel)/i.test(
         after.reply,
       );
-    return ((retried || offered) && !readAsStop ? pass : fail)(
+    // Doing the work itself serves the user as well as sending t1 on.
+    return ((retried || offered || after.wrote) && !readAsStop ? pass : fail)(
       text,
-      `${after.commands.filter((command) => /\btask\b/.test(command)).join(" | ") || "no task command"}; reply: ${after.reply.slice(0, 300) || "(none)"}`,
+      `${after.commands.filter((command) => /\btask\b/.test(command)).join(" | ") || "no task command"}; ${after.wrote ? "wrote a file itself; " : ""}reply: ${after.reply.slice(0, 300) || "(none)"}`,
     );
   },
-  text: "picked the timed-out task up again or offered to, not as a stop",
+  text: "picked the timed-out work up again, did it, or offered to, not as a stop",
 };
 
 /**
@@ -410,11 +407,8 @@ const PANTRY = path.join(os.homedir(), "Documents", "Pantry");
 /** A folder directly in the home folder, sent with the prompt. */
 const SCRIPTS = path.join(os.homedir(), "Scripts");
 
-/**
- * A script in `SCRIPTS` that runs for `seconds` and then `body`: the slow
- * part of a job, which makes the job a task's by the chat's own rule.
- */
-export function seedScript(name: string, seconds: number, body: string) {
+/** A script in `SCRIPTS` that runs for `seconds` and then `body`. */
+function seedScript(name: string, seconds: number, body: string) {
   fs.mkdirSync(SCRIPTS, { recursive: true });
   fs.writeFileSync(
     path.join(SCRIPTS, name),
@@ -422,28 +416,7 @@ export function seedScript(name: string, seconds: number, body: string) {
   );
 }
 
-export const SENT_SCRIPTS = [{ inPlace: true, path: SCRIPTS }];
-
-/** export.sh: about two and a half minutes, then the row count. */
-function seedExport() {
-  seedScript("export.sh", 150, 'echo "rows: 18342"');
-}
-
-/** export.sh takes the archive's year: 2025 has 18342 rows, 2024 has 9127. */
-function seedYearlyExport() {
-  seedScript(
-    "export.sh",
-    120,
-    'if [ "$1" = "2024" ]; then echo "rows: 9127"; else echo "rows: 18342"; fi',
-  );
-}
-
 function seedPantry() {
-  seedScript(
-    "stock-check.sh",
-    60,
-    'echo "stock check done: see the pantry notes"',
-  );
   fs.rmSync(PANTRY, { force: true, recursive: true });
   fs.mkdirSync(PANTRY, { recursive: true });
   fs.writeFileSync(
@@ -661,48 +634,60 @@ const chatAskedForT1sNeed: Assertion = {
   text: "t1 named its need, the chat asked on a choose card, and sent t1 the answer",
 };
 
+const PANTRY_LIST = () =>
+  `read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
+
 export const TASK_SESSION_EVALS = [
   defineEval({
     assertions: [
       startedOneTaskAsT1,
       workedInTheTask,
-      wrote("export-rows.md", /18,?342/),
+      wrote("tea-haiku.md", /\S/),
     ],
     kind: "chat",
-    folders: SENT_SCRIPTS,
     name: "task-session-start",
     prompt:
-      "Can you run export.sh in this folder? It takes a few minutes. When it's done, save how many rows it exported in export-rows.md in the workspace folder.",
-    setup: seedExport,
+      "Write three haiku about tea and save them as tea-haiku.md in the workspace folder.",
+    startsTask: {
+      brief:
+        "Write three haiku about tea and save them as tea-haiku.md in the workspace folder.",
+      name: "Tea haiku",
+    },
   }),
   defineEval({
-    // Sending t1 the change and stopping it for a fresh task both serve the
-    // user, so the case scores neither as the one way.
-    assertions: [steeredT1, wrote("export-rows.md", /9,?127/)],
-    folders: SENT_SCRIPTS,
+    assertions: [startedOneTaskAsT1, steeredT1, wrote("haiku.md", /sea/i)],
     followUps: [
       {
-        afterMs: 20_000,
-        prompt: "Oh wait, sorry: I need the 2024 archive, not 2025.",
+        afterMs: 8000,
+        prompt: "Change of plan: make the haiku about the sea instead of tea.",
       },
     ],
     kind: "chat",
     name: "task-session-steer",
     prompt:
-      "Can you export the 2025 archive with export.sh in this folder (./export.sh 2025)? It takes a few minutes. Save how many rows it exported in export-rows.md in the workspace folder.",
-    setup: seedYearlyExport,
+      "Write twelve haiku about tea, look each one over for its syllable counts, and save them as haiku.md in the workspace folder.",
+    startsTask: {
+      brief:
+        "Write twelve haiku about tea, check each one's syllable counts, and save them as haiku.md in the workspace folder.",
+      name: "Twelve tea haiku",
+    },
   }),
   defineEval({
     assertions: [
       startedOneTaskAsT1,
-      handedTheTab,
       tabCameBack,
       wrote("page-title.md", /example domain/i),
     ],
     kind: "chat",
     name: "task-session-tab",
     prompt:
-      "Keep an eye on this page for the next three minutes and tell me if its title changes. At the end, save the title you see as page-title.md in the workspace folder.",
+      "Read this page's title and save it as page-title.md in the workspace folder.",
+    startsTask: {
+      brief:
+        "Read the title of the page in the tab you were handed and save it as page-title.md in the workspace folder.",
+      name: "Page title",
+      tabs: [PAGE_TAB],
+    },
     viewing: {
       page: {
         tab: PAGE_TAB,
@@ -718,44 +703,61 @@ export const TASK_SESSION_EVALS = [
     assertions: [notedTheTimeout, retriedOrOfferedTo],
     followUps: [{ afterMs: 25_000, timeOutTask: "t1" }],
     kind: "chat",
-    folders: SENT_SCRIPTS,
     name: "task-session-timed-out",
     prompt:
-      "Can you run export.sh in this folder? It takes a few minutes. When it's done, save how many rows it exported in export-rows.md in the workspace folder.",
-    setup: seedExport,
+      "Write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
+    startsTask: {
+      brief:
+        "Write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
+      name: "Twenty tea haiku",
+    },
   }),
   defineEval({
     assertions: [stoppedTheTurnAndTheTask, explainedTheStop, restartedNothing],
+    folders: [{ inPlace: true, path: SCRIPTS }],
     followUps: [
-      "Also run cleanup.sh in that folder, it's a quick one. Tell me once it's done.",
+      "Also run cleanup.sh in that folder, it's a quick one. Wait for it to finish before you reply.",
       {
-        duringWork: { afterToolCalls: 0, command: /\bcleanup\.sh\b|\bfg\b/ },
+        duringWork: {
+          afterToolCalls: 0,
+          // Running it, not a listing or a read that names it.
+          command:
+            /\b(?:sh|bash)\s+(?:\S*\/)?cleanup\.sh\b|(?:^|[\s;&|])\.\/cleanup\.sh\b|\bfg\b/,
+        },
         stopChat: true,
       },
       { afterMs: 5000, stopTask: "t1" },
       { prompt: WHAT_HAPPENED, settled: true },
     ],
     kind: "chat",
-    folders: SENT_SCRIPTS,
     name: "task-session-stopped-then-asked",
     prompt:
       "Can you run export.sh in this folder? It takes a few minutes. Tell me when it's finished.",
-    // cleanup.sh, which the user thinks quick, runs long enough to be
-    // stopped mid-command.
+    // cleanup.sh, which the user thinks quick, runs long enough for the chat's
+    // own turn to be stopped mid-command.
     setup: () => {
-      seedExport();
+      seedScript("export.sh", 150, 'echo "rows: 18342"');
       seedScript("cleanup.sh", 120, 'echo "cleaned up"');
+    },
+    startsTask: {
+      brief: `Run export.sh in ${SCRIPTS} and tell me when it's finished.`,
+      name: "Export",
     },
   }),
   defineEval({
     assertions: [t1WaitsOnTheCard, taskDidNotCallItRefused, chatSaidItWaits],
     kind: "chat",
-    folders: SENT_SCRIPTS,
     name: "task-session-folder-card",
     get prompt() {
-      return `Can you run stock-check.sh in this folder? It takes a minute or two. Once it's done, read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
+      return `Can you ${PANTRY_LIST()}`;
     },
     setup: seedPantry,
+    get startsTask() {
+      return {
+        brief: `${PANTRY_LIST().replace(/^r/, "R")}`,
+        name: "Shopping list",
+      };
+    },
   }),
   defineEval({
     // The person allows the card in the chat, the way they would, and the
@@ -767,32 +769,31 @@ export const TASK_SESSION_EVALS = [
       wrote("shopping-list.md", /(?=[\s\S]*olive oil)(?=[\s\S]*lentil)/i),
     ],
     kind: "chat",
-    folders: SENT_SCRIPTS,
     name: "task-session-folder-card-answered",
     get prompt() {
-      return `Can you run stock-check.sh in this folder? It takes a minute or two. Once it's done, read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
+      return `Can you ${PANTRY_LIST()}`;
     },
     setup: seedPantry,
+    get startsTask() {
+      return {
+        brief: `${PANTRY_LIST().replace(/^r/, "R")}`,
+        name: "Shopping list",
+      };
+    },
   }),
   defineEval({
     // A task cannot put a card up; what only the person can settle goes in
     // its needs fence, and the chat asks them.
-    answers: [answerEach((question) => pickChoice(question, /sat|15/i))],
-    assertions: [
-      chatAskedForT1sNeed,
-      wrote("invite.md", /(?:sat\w*|nov\w* 15|11-15)/i),
-    ],
-    folders: SENT_SCRIPTS,
+    answers: [answerEach((question) => pickChoice(question, /funny/i))],
+    assertions: [chatAskedForT1sNeed, wrote("sam-note.md", /\S/)],
     kind: "chat",
     name: "task-session-needs-a-pick",
     prompt:
-      "Can you run free-dates.sh in this folder? It takes a couple of minutes and finds the evenings the restaurant still has a table. Then write a two-line invite to Sam's birthday dinner on one of those dates into invite.md in the workspace folder. Which date is my call.",
-    setup: () => {
-      seedScript(
-        "free-dates.sh",
-        90,
-        'echo "free: Friday 2026-11-14, Saturday 2026-11-15"',
-      );
+      "Write a two-line birthday note for my friend Sam into sam-note.md in the workspace folder. Funny or sentimental is my call.",
+    startsTask: {
+      brief:
+        "Write a two-line birthday note for Sam into sam-note.md in the workspace folder. Funny or sentimental is the user's call, so get their pick before you write anything.",
+      name: "Note for Sam",
     },
   }),
 ];

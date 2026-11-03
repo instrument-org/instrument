@@ -94,6 +94,7 @@ import {
 import { createStandInWindow } from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { grantCaseFolders, startRun } from "./lib/start-run";
+import { type StartsTask } from "./lib/start-task";
 import { timeOutTaskTurn } from "./lib/time-out-task";
 import { freshRuntimeDir, sharedRuntimeDir } from "./lib/workspace-cleanup";
 import {
@@ -555,6 +556,13 @@ export interface EvalCase {
     needs?: string[];
     said: string;
   };
+  /**
+   * For a chat case scoring the task plumbing rather than whether the model
+   * forks: the chat's first step is a stand-in that starts t1 through `task
+   * new` with this brief, so every model gets the task, and the chat's own
+   * turns begin at the next message (`startRun`).
+   */
+  startsTask?: StartsTask;
   /**
    * Where the prompt is answered. A chat forks tasks inside the same
    * workspace, so a run of that kind produces the chat's transcript plus one
@@ -1027,6 +1035,7 @@ export async function runEvals(
               modelURI: uri,
               name: evalCase.name,
               prompt: evalCase.prompt,
+              startsTask: evalCase.startsTask,
               viewing: evalCase.viewing,
             },
             context,
@@ -1525,9 +1534,12 @@ export async function runEvals(
         // Counted from each message sent, so a `duringWork` follow-up waits on
         // tool calls of the turn it is meant to land in.
         let toolsAtLastSend = 0;
-        let turn = waitForSessionDone(sessionId, id, {
-          timeoutMs: remainingMs(),
-        });
+        // A stand-in first step ran no turn of the chat's to wait for.
+        let turn: Promise<"done" | "timeout"> = evalCase.startsTask
+          ? Promise.resolve("done")
+          : waitForSessionDone(sessionId, id, {
+              timeoutMs: remainingMs(),
+            });
         let outcome: "done" | "timeout" = "done";
         let doneAt = startedAt;
         let lastSentAt = startedAt;

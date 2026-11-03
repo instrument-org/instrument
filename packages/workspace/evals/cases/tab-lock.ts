@@ -495,6 +495,16 @@ const answeredDelivery = replied(
 
 const LONG_JOB =
   "Go through all four pages of this catalog and add every item that costs under $3 to my cart.";
+/**
+ * The chat's first step hands the long job and the shop tab to t1, so the
+ * follow-up meets a task driving the tab on every model.
+ */
+const LONG_JOB_TASK = {
+  brief:
+    "Go through all four pages of the catalog in the shop tab you were handed and add every item that costs under $3 to the cart.",
+  name: "Cart under $3",
+  tabs: [SHOP_TAB],
+};
 const RETURNS_FOLLOW_UP =
   "Oh, and what's their returns policy? There's a link at the bottom of the page.";
 
@@ -520,6 +530,7 @@ export const TAB_LOCK_EVALS = [
     kind: "chat",
     name: "tab-lock-follow-up",
     prompt: LONG_JOB,
+    startsTask: LONG_JOB_TASK,
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,
@@ -533,6 +544,7 @@ export const TAB_LOCK_EVALS = [
     kind: "chat",
     name: "tab-lock-quick-check",
     prompt: LONG_JOB,
+    startsTask: LONG_JOB_TASK,
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,

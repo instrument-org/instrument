@@ -665,13 +665,16 @@ describe("the chat's billing notice", () => {
       await screen.findByRole("button", { name: "Change model" }),
     ).toBeDefined();
     // The status confirms the window is spent, so a send waits for it.
-    await vi.waitFor(() => {
-      expect(
-        document
-          .querySelector("[data-holds-send]")
-          ?.getAttribute("data-holds-send"),
-      ).toBe("true");
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          document
+            .querySelector("[data-holds-send]")
+            ?.getAttribute("data-holds-send"),
+        ).toBe("true");
+      },
+      { interval: 1 },
+    );
   });
 
   it("leaves Change model out when Instrument's models are all there is", async () => {
@@ -791,11 +794,14 @@ describe("the chat's billing notice", () => {
     );
 
     expect(await screen.findByText(/^Images are paused until /)).toBeDefined();
-    await vi.waitFor(() => {
-      expect(
-        document.querySelector("[data-slot=reply-note]")?.textContent,
-      ).toContain("Your free Instrument usage ran out.");
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          document.querySelector("[data-slot=reply-note]")?.textContent,
+        ).toContain("Your free Instrument usage ran out.");
+      },
+      { interval: 1 },
+    );
     // The chat goes on with the person's own AI, so nothing reads as stopped.
     expect(screen.queryByRole("alert")).toBeNull();
     expect(
@@ -841,9 +847,12 @@ describe("the chat's billing notice", () => {
     ).toBeDefined();
     expect(screen.getByText("Your free trial has started.")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await vi.waitFor(() => {
-      expect(screen.queryByText("Your free trial has started.")).toBeNull();
-    });
+    await vi.waitFor(
+      () => {
+        expect(screen.queryByText("Your free trial has started.")).toBeNull();
+      },
+      { interval: 1 },
+    );
   });
 
   it("holds a send on Instrument's models on the free allowance before any refusal", async () => {
@@ -856,13 +865,16 @@ describe("the chat's billing notice", () => {
     expect(
       await screen.findByRole("button", { name: "Start free trial" }),
     ).toBeDefined();
-    await vi.waitFor(() => {
-      expect(
-        document
-          .querySelector("[data-holds-send]")
-          ?.getAttribute("data-holds-send"),
-      ).toBe("true");
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          document
+            .querySelector("[data-holds-send]")
+            ?.getAttribute("data-holds-send"),
+        ).toBe("true");
+      },
+      { interval: 1 },
+    );
   });
 
   it("says quietly that advanced web search is paused after a search fell back", async () => {

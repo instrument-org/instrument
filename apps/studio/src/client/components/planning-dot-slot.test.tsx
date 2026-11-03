@@ -1,15 +1,25 @@
 import { renderWithProviders } from "@/tests/render";
-import { describe, expect, it } from "vitest";
+import { MotionGlobalConfig } from "motion/react";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PlanningDotSlot } from "./planning-dot-slot";
 
 // The point of the slot is the 28px it gives back, and jsdom has no layout to
 // measure that in. What it can see is the lifetime the width animation needs:
 // the dot has to outlive the flag that turned it off, and then it has to go.
+// Instant animations still finish a frame after they start, so the exit is in
+// flight for the synchronous assertion and over by the first poll.
 const dot = (container: HTMLElement) =>
   container.querySelector(".planning-dot-core");
 
 describe("PlanningDotSlot", () => {
+  beforeAll(() => {
+    MotionGlobalConfig.instantAnimations = true;
+  });
+  afterAll(() => {
+    MotionGlobalConfig.instantAnimations = false;
+  });
+
   it("draws nothing for a row that is not working", () => {
     const { container } = renderWithProviders(
       <PlanningDotSlot isRunning={false} />,

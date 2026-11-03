@@ -112,9 +112,12 @@ describe("ChooseAI", () => {
     const onDone = renderChoices();
     fireEvent.click(await screen.findByRole("button", { name: "See plans" }));
     expect(instrument.start).toHaveBeenCalledWith({ plans: true });
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "See plans" })).toBeTruthy();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole("button", { name: "See plans" })).toBeTruthy();
+      },
+      { interval: 1 },
+    );
     expect(
       screen.getByRole("button", { name: /Use an existing subscription/ }),
     ).toBeTruthy();
@@ -126,8 +129,11 @@ describe("ChooseAI", () => {
     instrument.start.mockResolvedValue({ outcome: { kind: "ready" } });
     const onDone = renderChoices();
     fireEvent.click(await screen.findByRole("button", { name: "See plans" }));
-    await waitFor(() => {
-      expect(onDone).toHaveBeenCalledOnce();
-    });
+    await waitFor(
+      () => {
+        expect(onDone).toHaveBeenCalledOnce();
+      },
+      { interval: 1 },
+    );
   });
 });

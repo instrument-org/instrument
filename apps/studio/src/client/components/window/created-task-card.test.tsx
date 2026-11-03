@@ -148,12 +148,15 @@ describe("CreatedTaskCard", () => {
       await screen.findByRole("button", { name: "Stop this task" }),
     );
 
-    await vi.waitFor(() => {
-      expect(stopSessions).toHaveBeenCalledWith(
-        { id: CHAT_ID, sessionId: TASK_ID },
-        expect.anything(),
-      );
-    });
+    await vi.waitFor(
+      () => {
+        expect(stopSessions).toHaveBeenCalledWith(
+          { id: CHAT_ID, sessionId: TASK_ID },
+          expect.anything(),
+        );
+      },
+      { interval: 1 },
+    );
     expect(openScreen).not.toHaveBeenCalled();
   });
 

@@ -12,6 +12,8 @@ import { describe, expect, it, vi } from "vitest";
 // alias to this module and every access downstream then reads as an error type.
 import { renderWithProviders } from "../../tests/render";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
+import { promptDocFromText } from "./prompt-editor-model";
+import { pathDecorations } from "./prompt-editor-paths";
 
 // The window's apps by slug, which a chip draws its icon and name from.
 const appsBySlug = vi.hoisted(() => ({
@@ -211,5 +213,25 @@ describe("PromptEditor app chips", () => {
     expect(
       container.querySelector('[data-app="drafts"] [role="img"]'),
     ).not.toBeNull();
+  });
+});
+
+describe("pathDecorations", () => {
+  it("tints the words of each path, on every line and past a skill", () => {
+    const doc = promptDocFromText(
+      "Use [$release](skill:release) on /Users/casey/app.ts\nand ~/Projects/site/ too",
+    );
+    const tinted = pathDecorations(doc, "darwin")
+      .find()
+      .filter((decoration) => decoration.from !== decoration.to)
+      .map((decoration) =>
+        doc.textBetween(decoration.from, decoration.to, "\n", "#"),
+      );
+    expect(tinted).toMatchInlineSnapshot(`
+      [
+        "/Users/casey/app.ts",
+        "~/Projects/site/",
+      ]
+    `);
   });
 });

@@ -102,15 +102,21 @@ describe("useMainModelChoice", () => {
   it("keeps the order and the recommendation it opened with after Continue saves the pick", async () => {
     state.defaultURI = models[0]?.uri;
     const { queryClient } = renderWithProviders(<Choice />);
-    await waitFor(() => {
-      expect(rows()).toEqual(["FirstRecommended", "Second"]);
-    });
+    await waitFor(
+      () => {
+        expect(rows()).toEqual(["FirstRecommended", "Second"]);
+      },
+      { interval: 1 },
+    );
 
     fireEvent.click(screen.getByText("Second"));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await waitFor(() => {
-      expect(state.saved).toEqual([models[1]?.uri]);
-    });
+    await waitFor(
+      () => {
+        expect(state.saved).toEqual([models[1]?.uri]);
+      },
+      { interval: 1 },
+    );
     await act(() => queryClient.invalidateQueries({ queryKey: ["default"] }));
     expect(queryClient.getQueryData(["default"])).toBe(models[1]?.uri);
     // Query Cache tells its observers on a timer of its own.

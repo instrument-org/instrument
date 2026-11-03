@@ -278,9 +278,12 @@ describe("the connect card after a sign-in that did not connect", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Sign in on the web" }),
     );
-    await waitFor(() => {
-      expect(openPage).toHaveBeenCalledWith("https://outlook.office.com");
-    });
+    await waitFor(
+      () => {
+        expect(openPage).toHaveBeenCalledWith("https://outlook.office.com");
+      },
+      { interval: 1 },
+    );
     expect(mocks.signInOnWeb.mock.calls[0]?.[0]).toEqual({ slug: "outlook" });
     await queryClient.invalidateQueries();
 
@@ -306,9 +309,12 @@ describe("the connect card after a sign-in that did not connect", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Sign in with Safari" }),
     );
-    await waitFor(() => {
-      expect(mocks.startOAuth).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(mocks.startOAuth).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
       opensIn: "external",
     });
@@ -433,9 +439,12 @@ describe("the card asking for several apps", () => {
 
     await screen.findByText("1 of 3 connected");
     fireEvent.click(screen.getByRole("button", { name: "Skip the rest" }));
-    await waitFor(() => {
-      expect(mocks.dismiss).toHaveBeenCalledTimes(2);
-    });
+    await waitFor(
+      () => {
+        expect(mocks.dismiss).toHaveBeenCalledTimes(2);
+      },
+      { interval: 1 },
+    );
     expect(mocks.dismiss.mock.calls.map(([input]) => input.slug)).toEqual([
       "docs",
       "gmail",
@@ -470,9 +479,12 @@ describe("the card asking for several apps", () => {
     renderGroupCard();
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
-    await waitFor(() => {
-      expect(mocks.startOAuth).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(mocks.startOAuth).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
       chatId: "2026-10-27-google",
       slug: "docs",
@@ -512,12 +524,15 @@ describe("a sign-in card another computer put up", () => {
     expect(screen.getByText("Not signed in yet")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
-    await waitFor(() => {
-      expect(mocks.declineSignIn).toHaveBeenCalledWith(
-        { askId: "ask-1", id: "2026-10-31-mail" },
-        expect.anything(),
-      );
-    });
+    await waitFor(
+      () => {
+        expect(mocks.declineSignIn).toHaveBeenCalledWith(
+          { askId: "ask-1", id: "2026-10-31-mail" },
+          expect.anything(),
+        );
+      },
+      { interval: 1 },
+    );
   });
 
   // Written past, or settled with an app skipped: still that computer's

@@ -228,9 +228,12 @@ describe("AfterInstrumentSignIn", () => {
   it("finishes with the signed-in toast for an account with a trial running", async () => {
     account.status = trialRunning;
     const onFinish = renderAfter();
-    await waitFor(() => {
-      expect(onFinish).toHaveBeenCalledOnce();
-    });
+    await waitFor(
+      () => {
+        expect(onFinish).toHaveBeenCalledOnce();
+      },
+      { interval: 1 },
+    );
     expect(toastSuccess).toHaveBeenCalledWith(
       "Signed in to Instrument",
       expect.anything(),
@@ -241,9 +244,12 @@ describe("AfterInstrumentSignIn", () => {
     account.status = noPlan;
     account.claude = { kind: "signed-in" };
     const onFinish = renderAfter();
-    await waitFor(() => {
-      expect(onFinish).toHaveBeenCalledOnce();
-    });
+    await waitFor(
+      () => {
+        expect(onFinish).toHaveBeenCalledOnce();
+      },
+      { interval: 1 },
+    );
   });
 
   it("offers the website's plans to an account with no plan and no AI of its own", async () => {

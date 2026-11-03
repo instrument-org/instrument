@@ -91,9 +91,12 @@ describe("ToolOfferFeedback", () => {
       <ToolOfferFeedback chatId={chatId} part={part({ offered: true })} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Don’t offer again" }));
-    await waitFor(() => {
-      expect(mocks.settle).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(mocks.settle).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     expect(mocks.settle.mock.calls[0]?.[0]).toMatchObject({
       outcome: "dismissed",
     });

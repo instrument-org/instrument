@@ -1,14 +1,24 @@
 import { renderWithProviders } from "@/tests/render";
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { MotionGlobalConfig } from "motion/react";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { GroupStandIn } from "./group-stand-in";
 
 // jsdom has no layout and runs no real animation, so nothing here is about how
 // the swap looks. What it can see is the thing the swap depends on and the thing
 // it could leak: that a new row id replaces the row on screen, and that the row
-// it replaced does not stay behind it.
+// it replaced does not stay behind it. Instant animations still finish a frame
+// after they start, so a roll is in flight for every synchronous assertion and
+// over by the first poll.
 describe("GroupStandIn", () => {
+  beforeAll(() => {
+    MotionGlobalConfig.instantAnimations = true;
+  });
+  afterAll(() => {
+    MotionGlobalConfig.instantAnimations = false;
+  });
+
   it("draws the row it is given", () => {
     renderWithProviders(
       <GroupStandIn rowId="row-1">

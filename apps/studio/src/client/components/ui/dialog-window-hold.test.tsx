@@ -107,7 +107,9 @@ describe("dialog window holds", () => {
           <Commands closeTab={closeTab} newTab={vi.fn()} />
         </>,
       );
-      await waitFor(() => expect(screen.queryByText("Example")).toBeNull());
+      await waitFor(() => expect(screen.queryByText("Example")).toBeNull(), {
+        interval: 1,
+      });
       expect(closeTab).not.toHaveBeenCalled();
     },
   );
@@ -165,7 +167,9 @@ describe("dialog window holds", () => {
         <Commands closeTab={closeTab} newTab={vi.fn()} />
       </>,
     );
-    await waitFor(() => expect(screen.queryByText("Example")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Example")).toBeNull(), {
+      interval: 1,
+    });
     expect(outerClose).not.toHaveBeenCalled();
     expect(closeTab).not.toHaveBeenCalled();
   });
@@ -230,6 +234,8 @@ describe("dialog window holds", () => {
     commandStream();
     const closeTab = vi.fn();
     renderWithDefaultStore(<Commands closeTab={closeTab} newTab={vi.fn()} />);
-    await waitFor(() => expect(closeTab).toHaveBeenCalledOnce());
+    await waitFor(() => expect(closeTab).toHaveBeenCalledOnce(), {
+      interval: 1,
+    });
   });
 });

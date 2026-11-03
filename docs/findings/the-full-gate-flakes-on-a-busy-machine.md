@@ -25,4 +25,4 @@ What not to do: widen a timeout so a loaded run passes. It hides the next real f
 
 ## Why CI does not see it
 
-A CI runner gives the job the whole machine, so 40% plus 40% fits. This is a local-only property of running the gate beside other work, and it is worse on a slower machine: the caps in the suites were tuned on a faster one, so the same percentage of cores is fewer effective cycles here.
+CI does not run the gate as one command. Each test shard has a runner to itself and runs the suites one at a time, with `VITEST_MAX_WORKERS` set to one fewer than the runner's cores in place of the 40% cap, so nothing else competes for them. This is a local-only property of running the gate beside other work, and it is worse on a slower machine: the caps in the suites were tuned on a faster one, so the same percentage of cores is fewer effective cycles here.

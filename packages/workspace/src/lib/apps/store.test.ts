@@ -174,7 +174,9 @@ describe("listing the apps", () => {
     // The files are read at once, so in no set order.
     expect(
       opened.mock.calls
-        .map(([file]) => path.relative(apps, String(file)))
+        .map(([file]) =>
+          path.relative(apps, String(file)).split(path.sep).join("/"),
+        )
         .toSorted(),
     ).toMatchInlineSnapshot(`
       [

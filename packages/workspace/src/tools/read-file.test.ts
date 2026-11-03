@@ -547,7 +547,7 @@ describe("ReadFile", () => {
            1→This is a test file for grep functionality.
         ... 29 lines not shown ...
 
-        (Use offset parameter to read beyond line 2)
+        (Use offset=2 to continue)
         </content>
         <instrument-system-note>
         region only applies to images, and \`./grep-test.txt\` is not one, so it was ignored and the file read as text. Leave region out when reading anything but an image.
@@ -647,7 +647,7 @@ describe("toModelOutput", () => {
          7→line7
       ... 13 lines not shown ...
 
-      (Use offset parameter to read beyond line 8)
+      (Use offset=8 to continue)
       </content>",
       }
     `);
@@ -670,27 +670,28 @@ describe("toModelOutput", () => {
          2→line2
       ... 498 lines not shown (output capped at 50KB) ...
 
-      (Use offset parameter to read beyond line 2)
+      (Use offset=3 to continue)
       </content>",
       }
     `);
   });
 
-  // A model passes the line it is told as `offset`. After the same two lines
-  // the byte-cap note names line 2 and the limit note line 3, so one of them
-  // re-reads a line or skips one.
-  it.fails("names the same line to read beyond after a byte cap and after a limit", () => {
-    const beyond = (truncatedByBytes: boolean) => {
+  // Whole lines are shown either way, so the next read starts on the line
+  // after the last one shown.
+  it.each([true, false])(
+    "names the line after the last one shown as the next offset (byte cap: %s)",
+    (truncatedByBytes) => {
       const output = textOutput({
         content: "line1\nline2",
         hasMoreLines: true,
         totalLines: 500,
         truncatedByBytes,
       });
-      return /read beyond line (\d+)/.exec(JSON.stringify(output))?.[1];
-    };
-    expect(beyond(true)).toBe(beyond(false));
-  });
+      expect(/offset=(\d+) to continue/.exec(JSON.stringify(output))?.[1]).toBe(
+        "3",
+      );
+    },
+  );
 
   it("reports an empty file as a note instead of a blank numbered line", () => {
     expect(textOutput({ content: "", displayedLines: 1, totalLines: 1 }))

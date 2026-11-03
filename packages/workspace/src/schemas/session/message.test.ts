@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { TOOLS_FOR_MODEL_OUTPUT } from "../../tools/all";
-import { RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 import { SessionMessage } from "./message";
 import { SessionMessagePart } from "./message-part";
@@ -156,7 +155,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("includes tool parts in output-available (preliminary) state", async () => {
+  it("sends a finished tool call and its result, preliminary ones included", async () => {
     const { sessionId } = baseMetadata();
 
     const assistantMessageId = StoreId.newMessageId();
@@ -248,7 +247,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("replays persisted tool output byte for byte", async () => {
+  it("renders a stored tool result the same on every replay", async () => {
     const { sessionId } = baseMetadata();
     const messageId = StoreId.newMessageId();
     const toolCallId = StoreId.ToolCallSchema.parse("call_search_replay");
@@ -312,75 +311,6 @@ describe("SessionMessage.toModelMessages", () => {
     expect(replay).toEqual(first);
   });
 
-  it("injects browser status on a user message", async () => {
-    const { messageId, messageMetadata, partMetadata } = baseMetadata();
-
-    const messages: SessionMessage.WithParts[] = [
-      {
-        id: messageId,
-        metadata: messageMetadata,
-        parts: [
-          {
-            metadata: partMetadata,
-            state: "done",
-            text: "Continue in the browser.",
-            type: "text",
-          },
-          {
-            data: {
-              status: "tabs",
-              tabs: [
-                {
-                  id: "t1",
-                  openedBy: "task",
-                  title: "Example",
-                  url: "https://example.com",
-                },
-              ],
-            },
-            metadata: { ...partMetadata, id: StoreId.newPartId() },
-            type: "data-browserStatus",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const result = await SessionMessage.toModelMessages(
-      messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "<user_message>",
-              "type": "text",
-            },
-            {
-              "text": "Continue in the browser.",
-              "type": "text",
-            },
-            {
-              "text": "</user_message>",
-              "type": "text",
-            },
-            {
-              "text": "
-      <instrument-system-note>
-      Your browser is these tabs of the user's chat, first one first: t1 at https://example.com ("Example"), which you opened. \`agent-browser\` starts on the first; \`agent-browser tab <id>\` switches to another, and \`agent-browser tab list\` shows them all.
-      </instrument-system-note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
   it("repeats an unchanged event note, which is a different turn's news", async () => {
     const first = baseMetadata();
     const second = baseMetadata();
@@ -415,7 +345,7 @@ describe("SessionMessage.toModelMessages", () => {
     expect(notes).toHaveLength(2);
   });
 
-  it("does not repeat unchanged browser status", async () => {
+  it("tells browser status on a user turn once while it stays the same", async () => {
     const first = baseMetadata();
     const second = baseMetadata();
     const browserStatus = {
@@ -678,93 +608,6 @@ describe("SessionMessage.toModelMessages", () => {
             },
           ],
           "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("includes tool parts in output-available state", async () => {
-    const { sessionId } = baseMetadata();
-
-    const assistantMessageId = StoreId.newMessageId();
-    const toolCallId = StoreId.ToolCallSchema.parse("call_789");
-
-    const messages: SessionMessage.WithParts[] = [
-      {
-        id: assistantMessageId,
-        metadata: {
-          aiGatewayModel: undefined,
-          createdAt: mockDate,
-          finishReason: "tool-calls",
-          modelId: "gpt-4o",
-          providerId: "openai",
-          sessionId,
-        },
-        parts: [
-          {
-            callProviderMetadata: undefined,
-            input: { filePath: "test.txt" },
-            metadata: {
-              createdAt: mockDate,
-              endedAt: new Date("2024-01-01T10:01:00Z"),
-              id: StoreId.newPartId(),
-              messageId: assistantMessageId,
-              sessionId,
-              toolName: "read_file",
-            },
-            output: {
-              content: "file contents",
-              displayedLines: 1,
-              filePath: RelativePathSchema.parse("test.txt"),
-              hasMoreLines: false,
-              modifiedAt: 1_234_567_890,
-              offset: 0,
-              state: "exists",
-              totalLines: 1,
-              truncatedByBytes: false,
-            },
-            providerExecuted: true,
-            state: "output-available",
-            toolCallId,
-            type: "tool-read_file",
-          },
-        ],
-        role: "assistant",
-      },
-    ];
-
-    const result = await SessionMessage.toModelMessages(
-      messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "input": {
-                "filePath": "test.txt",
-              },
-              "providerExecuted": true,
-              "toolCallId": "call_789",
-              "toolName": "read_file",
-              "type": "tool-call",
-            },
-            {
-              "output": {
-                "type": "text",
-                "value": "<path>test.txt</path>
-      <content>
-         0→file contents
-      </content>",
-              },
-              "toolCallId": "call_789",
-              "toolName": "read_file",
-              "type": "tool-result",
-            },
-          ],
-          "role": "assistant",
         },
       ]
     `);

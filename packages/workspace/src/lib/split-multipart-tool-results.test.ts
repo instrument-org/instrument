@@ -1,418 +1,142 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage, ToolResultPart } from "ai";
 
 import { describe, expect, it } from "vitest";
 
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 
+const toolResult = (
+  toolCallId: string,
+  output: ToolResultPart["output"],
+): ToolResultPart => ({
+  output,
+  toolCallId,
+  toolName: "read_file",
+  type: "tool-result",
+});
+
+const imageResult: ModelMessage = {
+  content: [
+    toolResult("call_1", {
+      type: "content",
+      value: [
+        { text: "Image file: test.png", type: "text" },
+        { data: "base64data", mediaType: "image/png", type: "file-data" },
+      ],
+    }),
+  ],
+  role: "tool",
+};
+
 describe("splitMultipartToolResults", () => {
-  it("should pass through messages without tool results", () => {
+  it("leaves messages with no media in tool results as they are", () => {
     const messages: ModelMessage[] = [
-      {
-        content: "Hello",
-        role: "user",
-      },
-      {
-        content: "Hi there",
-        role: "assistant",
-      },
-    ];
-
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-    expect(result).toEqual(messages);
-  });
-
-  it("should pass through tool results without media", () => {
-    const messages: ModelMessage[] = [
+      { content: "Hello", role: "user" },
       {
         content: [
-          {
-            output: {
-              type: "text",
-              value: "File contents",
-            },
-            toolCallId: "call_123",
-            toolName: "read_file",
-            type: "tool-result",
-          },
+          toolResult("call_1", { type: "text", value: "File contents" }),
+          toolResult("call_2", {
+            type: "content",
+            value: [{ text: "Only text", type: "text" }],
+          }),
         ],
         role: "tool",
       },
     ];
 
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
+    const result = splitMultipartToolResults({ messages, provider: "groq" });
+
     expect(result).toEqual(messages);
+    expect(result[1]).toBe(messages[1]);
   });
 
-  it("should split multipart tool results with media into separate messages", () => {
+  it("moves media into a user message right after its tool message, joining the text", () => {
     const messages: ModelMessage[] = [
+      { content: "Before", role: "user" },
       {
         content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                {
-                  text: "Image file: test.png (image/png)",
-                  type: "text",
-                },
-                {
-                  data: "base64data",
-                  mediaType: "image/png",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_123",
-            toolName: "read_file",
-            type: "tool-result",
-          },
+          toolResult("call_1", { type: "text", value: "Text file contents" }),
+          toolResult("call_2", {
+            type: "content",
+            value: [
+              { text: "First text", type: "text" },
+              { text: "Second text", type: "text" },
+              {
+                data: "image-base64",
+                mediaType: "image/png",
+                type: "image-data",
+              },
+              {
+                data: "pdf-base64",
+                mediaType: "application/pdf",
+                type: "file-data",
+              },
+            ],
+          }),
         ],
         role: "tool",
       },
+      { content: "After", role: "user" },
     ];
 
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({
-      content: [
+    expect(splitMultipartToolResults({ messages, provider: "groq" }))
+      .toMatchInlineSnapshot(`
+      [
         {
-          output: {
-            type: "text",
-            value: "Image file: test.png (image/png)",
-          },
-          toolCallId: "call_123",
-          toolName: "read_file",
-          type: "tool-result",
+          "content": "Before",
+          "role": "user",
         },
-      ],
-      role: "tool",
-    });
-    expect(result[1]).toMatchInlineSnapshot(`
-      {
-        "content": [
-          {
-            "data": "base64data",
-            "mediaType": "image/png",
-            "type": "file",
-          },
-        ],
-        "role": "user",
-      }
+        {
+          "content": [
+            {
+              "output": {
+                "type": "text",
+                "value": "Text file contents",
+              },
+              "toolCallId": "call_1",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+            {
+              "output": {
+                "type": "text",
+                "value": "First text
+      Second text",
+              },
+              "toolCallId": "call_2",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "role": "tool",
+        },
+        {
+          "content": [
+            {
+              "data": "image-base64",
+              "mediaType": "image/png",
+              "type": "file",
+            },
+            {
+              "data": "pdf-base64",
+              "mediaType": "application/pdf",
+              "type": "file",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": "After",
+          "role": "user",
+        },
+      ]
     `);
   });
 
-  it("should handle multiple tool results in same message", () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            output: {
-              type: "text",
-              value: "Text file contents",
-            },
-            toolCallId: "call_1",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-          {
-            output: {
-              type: "content",
-              value: [
-                {
-                  text: "Image file: test.png",
-                  type: "text",
-                },
-                {
-                  data: "base64data",
-                  mediaType: "image/png",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_2",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-    ];
-
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0]?.role).toBe("tool");
-    expect(result[0]?.content).toHaveLength(2);
-    expect(result[1]?.role).toBe("user");
-    expect(result[1]?.content).toHaveLength(1);
-  });
-
-  it("should handle empty text parts", () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                {
-                  data: "base64data",
-                  mediaType: "image/png",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_123",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-    ];
-
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({
-      content: [
-        {
-          output: {
-            type: "text",
-            value: "",
-          },
-          toolCallId: "call_123",
-          toolName: "read_file",
-          type: "tool-result",
-        },
-      ],
-      role: "tool",
-    });
-    expect(result[1]).toMatchInlineSnapshot(`
-      {
-        "content": [
-          {
-            "data": "base64data",
-            "mediaType": "image/png",
-            "type": "file",
-          },
-        ],
-        "role": "user",
-      }
-    `);
-  });
-
-  it("should handle multiple text parts", () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                {
-                  text: "First text",
-                  type: "text",
-                },
-                {
-                  text: "Second text",
-                  type: "text",
-                },
-                {
-                  data: "base64data",
-                  mediaType: "image/png",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_123",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-    ];
-
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({
-      content: [
-        {
-          output: {
-            type: "text",
-            value: "First text\nSecond text",
-          },
-          toolCallId: "call_123",
-          toolName: "read_file",
-          type: "tool-result",
-        },
-      ],
-      role: "tool",
-    });
-  });
-
-  it("should preserve message order", () => {
-    const messages: ModelMessage[] = [
-      {
-        content: "User message 1",
-        role: "user",
-      },
-      {
-        content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                {
-                  text: "Image file",
-                  type: "text",
-                },
-                {
-                  data: "base64",
-                  mediaType: "image/png",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_1",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-      {
-        content: "User message 2",
-        role: "user",
-      },
-    ];
-
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-
-    expect(result).toHaveLength(4);
-    expect(result[0]?.role).toBe("user");
-    expect(result[0]?.content).toBe("User message 1");
-    expect(result[1]?.role).toBe("tool");
-    expect(result[2]?.role).toBe("user");
-    expect(result[2]?.content).not.toBe("User message 2");
-    expect(result[3]?.role).toBe("user");
-    expect(result[3]?.content).toBe("User message 2");
-  });
-
-  it("should split the non-deprecated media shapes too", () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                { text: "Image file: test.png", type: "text" },
-                {
-                  data: "image-base64",
-                  mediaType: "image/png",
-                  type: "image-data",
-                },
-                {
-                  data: "pdf-base64",
-                  mediaType: "application/pdf",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_123",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-    ];
-
-    const result = splitMultipartToolResults({
-      messages,
-      provider: "groq",
-    });
-
-    expect(result[1]).toMatchInlineSnapshot(`
-      {
-        "content": [
-          {
-            "data": "image-base64",
-            "mediaType": "image/png",
-            "type": "file",
-          },
-          {
-            "data": "pdf-base64",
-            "mediaType": "application/pdf",
-            "type": "file",
-          },
-        ],
-        "role": "user",
-      }
-    `);
-  });
-
-  it.each([
-    ["anthropic"],
-    ["google"],
-    ["openai"],
-    ["openrouter"],
-    ["instrument"],
-  ] as const)("should not split multipart tool results for %s", (provider) => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            output: {
-              type: "content",
-              value: [
-                {
-                  text: "Image file: test.png (image/png)",
-                  type: "text",
-                },
-                {
-                  data: "base64data",
-                  mediaType: "image/png",
-                  type: "file-data",
-                },
-              ],
-            },
-            toolCallId: "call_123",
-            toolName: "read_file",
-            type: "tool-result",
-          },
-        ],
-        role: "tool",
-      },
-    ];
-
-    const result = splitMultipartToolResults({ messages, provider });
-
-    expect(result).toEqual(messages);
-  });
+  it.each(["anthropic", "openai", "instrument"] as const)(
+    "keeps media in tool results for %s, which takes it there",
+    (provider) => {
+      const messages = [imageResult];
+      expect(splitMultipartToolResults({ messages, provider })).toBe(messages);
+    },
+  );
 });

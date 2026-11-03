@@ -14,6 +14,7 @@ import {
 } from "@/client/components/ui/context-menu";
 import { Delayed } from "@/client/components/ui/delayed";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { cn, osConventions } from "@/client/lib/utils";
@@ -230,6 +231,7 @@ function FileRow({
           }}
         />
       }
+      hostPath={entry.path}
       isMenuTarget={rows.menuTarget === entry.path}
       isSelected={entry.path === rows.selected}
       name={entry.displayName ?? entry.name}
@@ -306,6 +308,7 @@ function Folder({
             {...(glyphSrc === undefined ? {} : { src: glyphSrc })}
           />
         }
+        hostPath={path}
         isExpanded={open}
         isMenuTarget={rows.menuTarget === path}
         name={name}
@@ -373,6 +376,7 @@ function Folder({
 function Row({
   depth,
   glyph,
+  hostPath,
   isExpanded,
   isMenuTarget,
   isSelected = false,
@@ -383,6 +387,8 @@ function Row({
 }: {
   depth: number;
   glyph: ReactNode;
+  /** What dragging the row out of the window carries. */
+  hostPath: string;
   /** Set for a folder: whether it stands open. */
   isExpanded?: boolean;
   isMenuTarget: boolean;
@@ -394,6 +400,7 @@ function Row({
   onPress: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
+  const dragProps = useFileDrag({ hostPath });
   // The selected file is where the tree opens, whether it mounts selected
   // (the tab opening on a file deep in a long folder) or becomes so (a link
   // followed to another file); a row above the fold is scrolled to as well.
@@ -404,6 +411,7 @@ function Row({
   }, [isSelected]);
   return (
     <button
+      {...dragProps}
       aria-expanded={isExpanded}
       aria-level={depth + 1}
       aria-selected={isSelected}

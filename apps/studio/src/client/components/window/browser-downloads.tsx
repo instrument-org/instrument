@@ -10,6 +10,7 @@ import {
 import { Progress } from "@/client/components/ui/progress";
 import { nameOf } from "@/client/components/window/host-path";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
@@ -141,10 +142,15 @@ function DownloadRow({ download }: { download: Download }) {
   const { path } = download;
   const running = isRunning(download);
   const openable = download.exists && path !== null;
+  // A file still being written drags out half of itself.
+  const dragProps = useFileDrag(
+    openable && !running ? { hostPath: path } : undefined,
+  );
 
   return (
     <li className="group/download flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-accent">
       <button
+        {...dragProps}
         className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:opacity-100"
         disabled={!openable}
         onClick={() => {

@@ -30,12 +30,21 @@ vi.mock("node:child_process", async (importOriginal) => ({
 }));
 
 // Each case reloads the module and so a fresh config holder; a config with
-// no Seatbelt launcher keeps every wrapped command on sandbox-exec.
-const config = vi.hoisted(() => ({ programsWithoutSandbox: false }));
+// no Seatbelt launcher keeps every wrapped command on sandbox-exec. Before the
+// workspace starts there is none, and reading it throws.
+const config = vi.hoisted(() => ({
+  programsWithoutSandbox: false,
+  started: true,
+}));
 
 vi.mock("../workspace-config", () => ({
-  getWorkspaceConfig: () => config,
-  hasWorkspaceConfig: () => true,
+  getWorkspaceConfig: () => {
+    if (!config.started) {
+      throw new Error("No workspace config");
+    }
+    return config;
+  },
+  hasWorkspaceConfig: () => config.started,
   setWorkspaceConfig: () => undefined,
 }));
 
@@ -57,6 +66,7 @@ describe("the sandbox probe on macOS", () => {
     vi.resetModules();
     execFileSync.mockReset();
     config.programsWithoutSandbox = false;
+    config.started = true;
     vi.spyOn(console, "warn").mockImplementation(() => {});
     Object.defineProperty(process, "platform", { value: "darwin" });
   });
@@ -111,6 +121,7 @@ describe("the sandbox probe on Linux", () => {
     vi.resetModules();
     execFileSync.mockReset();
     config.programsWithoutSandbox = false;
+    config.started = true;
     vi.spyOn(console, "warn").mockImplementation(() => {});
     Object.defineProperty(process, "platform", { value: "linux" });
     files.bwrap = true;
@@ -177,5 +188,15 @@ describe("the sandbox probe on Linux", () => {
       NativeSandboxUnavailableError,
     );
     expect(nativeSandboxOff()).toBe("no-bubblewrap");
+  });
+
+  // The bell lists its notices from the moment the window opens, before the
+  // workspace has a config to probe with, and a listing then threw
+  // (e5fc86cbc). Nothing runs a command before then.
+  it("reports nothing before the workspace has started", async () => {
+    const { nativeSandboxOff } = await import("./index");
+    files.bwrap = false;
+    config.started = false;
+    expect(nativeSandboxOff()).toBeUndefined();
   });
 });

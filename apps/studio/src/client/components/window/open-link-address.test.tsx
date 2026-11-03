@@ -44,9 +44,12 @@ describe("openLinkAddress", () => {
 
   it("opens a skill's folder and leaves no address for a tab", async () => {
     expect(openLinkAddress("/skills/agents%3Ahandoff")).toBeUndefined();
-    await vi.waitFor(() => {
-      expect(showSkillFolder).toHaveBeenCalledWith("agents:handoff");
-    });
+    await vi.waitFor(
+      () => {
+        expect(showSkillFolder).toHaveBeenCalledWith("agents:handoff");
+      },
+      { interval: 1 },
+    );
     expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
   });
 
@@ -106,9 +109,12 @@ describe("a skill's address handed straight to the tabs", () => {
     expect(store.get(appTabsAtom).tabs.map((tab) => tab.pathname)).toEqual([
       `/chats/${CHAT}`,
     ]);
-    await vi.waitFor(() => {
-      expect(showSkillFolder).toHaveBeenCalledWith("handoff");
-    });
+    await vi.waitFor(
+      () => {
+        expect(showSkillFolder).toHaveBeenCalledWith("handoff");
+      },
+      { interval: 1 },
+    );
   });
 
   it.each(["openScreen", "openOrFocusScreen"] as const)(
@@ -121,9 +127,12 @@ describe("a skill's address handed straight to the tabs", () => {
       });
       expect(id).toBeUndefined();
       expect(store.get(windowTabsAtom).tabs).toEqual([]);
-      await vi.waitFor(() => {
-        expect(showSkillFolder).toHaveBeenCalledWith("handoff");
-      });
+      await vi.waitFor(
+        () => {
+          expect(showSkillFolder).toHaveBeenCalledWith("handoff");
+        },
+        { interval: 1 },
+      );
     },
   );
 });

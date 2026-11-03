@@ -1,5 +1,6 @@
 import mockFs from "mock-fs";
 import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -24,82 +25,87 @@ const chatId = createMockChatConfig(ChatIdSchema.parse("test"), {
   model,
 });
 
-function makeExecuteArgs(
-  input: Parameters<typeof WriteFile.execute>[0]["input"],
-) {
+function makeExecuteArgs(input: { content: string; filePath: string }) {
   return {
-    input,
+    input: { explanation: "test", ...input },
     model,
     signal: AbortSignal.timeout(10_000),
     chatId,
   };
 }
 
-describe("WriteFile - toModelOutput", () => {
+describe("WriteFile", () => {
   afterEach(() => {
     mockFs.restore();
   });
 
-  it("returns a bare success line for a new file", async () => {
+  it("tells a new file from an overwritten one", async () => {
     mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
 
-    const input = {
-      content: "const x = 2;",
-      explanation: "test",
-      filePath: "./index.ts",
+    const write = async (content: string) => {
+      const args = makeExecuteArgs({ content, filePath: "./index.ts" });
+      const output = (await runTool(WriteFile, args))._unsafeUnwrap();
+      return WriteFile.toModelOutput({
+        input: args.input,
+        output,
+        toolCallId: "test",
+      });
     };
-    const result = await runTool(WriteFile, makeExecuteArgs(input));
-    const output = result._unsafeUnwrap();
-    expect(WriteFile.toModelOutput({ input, output, toolCallId: "test" }))
+
+    expect([await write("const x = 1;"), await write("const x = 2;")])
       .toMatchInlineSnapshot(`
-        {
-          "type": "text",
-          "value": "Successfully wrote new file ./index.ts",
-        }
+        [
+          {
+            "type": "text",
+            "value": "Successfully wrote new file ./index.ts",
+          },
+          {
+            "type": "text",
+            "value": "Successfully overwrote existing file ./index.ts",
+          },
+        ]
       `);
+    await expect(
+      fs.readFile(path.join(workDir(chatId), "index.ts"), "utf8"),
+    ).resolves.toBe("const x = 2;");
   });
 
-  it("returns a bare success line for an overwritten file", async () => {
-    mockFs({
-      [MOCK_WORKSPACE_DIRS.work]: {
-        [chatId]: { "index.ts": "const x = 1;" },
-      },
-    });
-
-    const input = {
-      content: "const x = 2;",
-      explanation: "test",
-      filePath: "./index.ts",
-    };
-    const result = await runTool(WriteFile, makeExecuteArgs(input));
-    const output = result._unsafeUnwrap();
-    expect(WriteFile.toModelOutput({ input, output, toolCallId: "test" }))
-      .toMatchInlineSnapshot(`
-        {
-          "type": "text",
-          "value": "Successfully overwrote existing file ./index.ts",
-        }
-      `);
-  });
-});
-
-describe("WriteFile - path policy", () => {
-  afterEach(() => {
-    mockFs.restore();
-  });
-
-  it("writes the chat's own folder by its full path", async () => {
+  it("writes the chat's own folder by its full path, making the folders it needs", async () => {
     mockFs({ [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} } });
 
     const result = await runTool(
       WriteFile,
       makeExecuteArgs({
         content: "report",
-        explanation: "test",
         filePath: `${workDir(chatId)}/output/report.md`,
       }),
     );
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
+    await expect(
+      fs.readFile(path.join(workDir(chatId), "output/report.md"), "utf8"),
+    ).resolves.toBe("report");
+  });
+
+  it("writes into a granted folder by its full path", async () => {
+    mockFs({
+      "/ext/Docs": {},
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} },
+    });
+    await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
+
+    const result = await runTool(
+      WriteFile,
+      makeExecuteArgs({
+        content: "written by the agent",
+        filePath: "/ext/Docs/report.md",
+      }),
+    );
+
+    expect(result._unsafeUnwrap().filePath).toBe("/ext/Docs/report.md");
+    await expect(fs.readFile("/ext/Docs/report.md", "utf8")).resolves.toBe(
+      "written by the agent",
+    );
   });
 
   it("attributes a workspace skill write to the executing session", async () => {
@@ -116,7 +122,6 @@ describe("WriteFile - path policy", () => {
     const result = await runTool(WriteFile, {
       ...makeExecuteArgs({
         content: "---\ndescription: Brief\n---\n\nBody.\n",
-        explanation: "test",
         filePath: `${getWorkspaceSkillsDir()}/brief/SKILL.md`,
       }),
       sessionId,
@@ -126,27 +131,5 @@ describe("WriteFile - path policy", () => {
     await expect(consumeSetupChanges(turn)).resolves.toEqual([
       { change: "added", kind: "skill", name: "brief" },
     ]);
-  });
-
-  it("writes into a granted folder by its full path", async () => {
-    mockFs({
-      "/ext/Docs": {},
-      [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
-      [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} },
-    });
-    await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
-
-    const result = await runTool(WriteFile, {
-      ...makeExecuteArgs({
-        content: "written by the agent",
-        explanation: "test",
-        filePath: "/ext/Docs/report.md",
-      }),
-    });
-
-    expect(result.isOk()).toBe(true);
-    await expect(fs.readFile("/ext/Docs/report.md", "utf8")).resolves.toBe(
-      "written by the agent",
-    );
   });
 });

@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format } from "date-fns/format";
 
 /**
  * A local calendar date as the session's persisted context records it.

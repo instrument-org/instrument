@@ -27,323 +27,164 @@ const createMessage = (
   role: "assistant",
 });
 
+type MessageError = NonNullable<SessionMessage.Assistant["metadata"]["error"]>;
+
+const apiCall = (
+  fields: Partial<Extract<MessageError, { kind: "api-call" }>> = {},
+): MessageError => ({
+  kind: "api-call",
+  message: "API call failed",
+  name: "APIError",
+  url: "https://example.com",
+  ...fields,
+});
+
+const ours = OUR_PROVIDER_CONFIG.type;
+const claudeAccount = CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
+
 describe("getErrorAction", () => {
-  it("returns continue when no error", () => {
-    const message = createMessage();
-    expect(getErrorAction(message)).toEqual({ type: "continue" });
-  });
-
-  it("returns stop for aborted errors", () => {
-    const message = createMessage({ kind: "aborted", message: "Aborted" });
-    expect(getErrorAction(message)).toEqual({ type: "stop" });
-  });
-
-  it("returns stop for a full disk", () => {
-    const message = createMessage({
-      kind: "disk-full",
-      message: "database or disk is full",
-    });
-    expect(getErrorAction(message)).toEqual({ type: "stop" });
-  });
-
-  it("returns stop for a reply that fell into a loop", () => {
-    const message = createMessage({
-      kind: "repetition",
-      message: "The reply kept repeating itself and was stopped",
-    });
-    expect(getErrorAction(message)).toEqual({ type: "stop" });
-  });
-
-  it("returns error for unknown errors", () => {
-    const message = createMessage({ kind: "unknown", message: "Test error" });
-    const result = getErrorAction(message);
-    expect(result.type).toBe("error");
-    if (result.type === "error") {
-      expect(result.error.message).toBe("Test error");
-    }
-  });
-
-  it("returns retry for a throttle reported inside a 200 stream", () => {
-    const message = createMessage({
-      classification: "rate-limit",
-      kind: "unknown",
-      message:
-        '{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream."}',
-    });
-    expect(getErrorAction(message)).toEqual({ type: "retry" });
-  });
-
-  it("returns retry for a transient failure reported inside a 200 stream", () => {
-    const message = createMessage({
-      classification: "transient",
-      kind: "unknown",
-      message: '{"code":503,"message":"Provider overloaded"}',
-    });
-    expect(getErrorAction(message)).toEqual({ type: "retry" });
-  });
-
-  it("still errors on a streamed failure it cannot name", () => {
-    const message = createMessage({
-      classification: "unknown",
-      kind: "unknown",
-      message: "Test error",
-    });
-    expect(getErrorAction(message).type).toBe("error");
-  });
-
-  it("returns stop for content the provider refused, rather than resending it", () => {
-    const message = createMessage(
-      {
-        classification: "unsendable-content",
-        kind: "api-call",
-        message: "Invalid image",
-        name: "APIError",
-        statusCode: 400,
-        url: "https://example.com",
-      },
-      "openai",
-    );
-    expect(getErrorAction(message)).toEqual({ type: "stop" });
-  });
-
-  it("returns retry for refused content once the media it blames is named", () => {
-    const message = createMessage(
-      {
-        classification: "unsendable-content",
-        kind: "api-call",
-        message: "Invalid image",
-        name: "APIError",
-        statusCode: 400,
-        url: "claude-account://",
-      },
-      CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
-    );
-    message.metadata.refusedMedia = ["digest"];
-    expect(getErrorAction(message)).toEqual({ type: "retry" });
-  });
-
-  it("returns retry for a 400 nothing names once the media it blames is named", () => {
-    const message = createMessage(
-      {
-        classification: "unknown",
-        kind: "api-call",
-        message: "Bad Request",
-        name: "APIError",
+  it.each<{
+    case: string;
+    error?: MessageError;
+    expected: ReturnType<typeof getErrorAction>;
+    provider?: AIProviderType;
+    refusedMedia?: string[];
+  }>([
+    { case: "continues with no error", expected: { type: "continue" } },
+    {
+      case: "stops on an abort",
+      error: { kind: "aborted", message: "Aborted" },
+      expected: { type: "stop" },
+    },
+    {
+      case: "stops on a full disk",
+      error: { kind: "disk-full", message: "database or disk is full" },
+      expected: { type: "stop" },
+    },
+    {
+      case: "stops on a reply that fell into a loop",
+      error: { kind: "repetition", message: "Looped" },
+      expected: { type: "stop" },
+    },
+    {
+      case: "hands back an unknown error",
+      error: { kind: "unknown", message: "Test error" },
+      expected: { error: new Error("Test error"), type: "error" },
+    },
+    {
+      case: "hands back a streamed failure it cannot name",
+      error: { classification: "unknown", kind: "unknown", message: "Test error" },
+      expected: { error: new Error("Test error"), type: "error" },
+    },
+    {
+      case: "retries a throttle reported inside a 200 stream",
+      error: { classification: "rate-limit", kind: "unknown", message: "429" },
+      expected: { type: "retry" },
+    },
+    {
+      case: "retries a transient failure reported inside a 200 stream",
+      error: { classification: "transient", kind: "unknown", message: "503" },
+      expected: { type: "retry" },
+    },
+    {
+      case: "stops on content the provider refused, rather than resending it",
+      error: apiCall({ classification: "unsendable-content", statusCode: 400 }),
+      expected: { type: "stop" },
+      provider: "openai",
+    },
+    {
+      case: "retries refused content once the media it blames is named",
+      error: apiCall({ classification: "unsendable-content", statusCode: 400 }),
+      expected: { type: "retry" },
+      provider: claudeAccount,
+      refusedMedia: ["digest"],
+    },
+    {
+      case: "retries a call to a tool that does not exist",
+      error: { kind: "no-such-tool", message: "Tool not found", toolName: "x" },
+      expected: { type: "retry" },
+    },
+    {
+      case: "retries invalid tool input",
+      error: { input: "x", kind: "invalid-tool-input", message: "Invalid input" },
+      expected: { type: "retry" },
+    },
+    {
+      case: "waits when too many of the user's requests run at once on our provider",
+      error: apiCall({
+        classification: "rate-limit",
+        responseBody:
+          '{"error":{"code":"concurrency-limit","message":"Too many requests are running at once.","retryable":true}}',
+        statusCode: 429,
+      }),
+      expected: { type: "wait" },
+      provider: ours,
+    },
+    {
+      case: "retries another provider's concurrency code as a throttle",
+      error: apiCall({
+        classification: "rate-limit",
+        responseBody: '{"error":{"code":"concurrency-limit"}}',
+        statusCode: 429,
+      }),
+      expected: { type: "retry" },
+      provider: "openai",
+    },
+    {
+      case: "retries our provider with no response body",
+      error: apiCall(),
+      expected: { type: "retry" },
+      provider: ours,
+    },
+    {
+      case: "retries our provider with a body that is not JSON",
+      error: apiCall({ responseBody: "invalid json" }),
+      expected: { type: "retry" },
+      provider: ours,
+    },
+    {
+      case: "retries our provider when the body does not say retryable",
+      error: apiCall({ responseBody: "{}" }),
+      expected: { type: "retry" },
+      provider: ours,
+    },
+    {
+      case: "stops when our provider says not retryable",
+      error: apiCall({
         responseBody: JSON.stringify({
-          error: { message: "Bad Request", retryable: false },
+          error: { code: "insufficient-credits", retryable: false },
         }),
-        statusCode: 400,
-        url: "https://example.com",
-      },
-      OUR_PROVIDER_CONFIG.type,
-    );
-    expect(getErrorAction(message)).toEqual({ type: "stop" });
-    message.metadata.refusedMedia = ["digest"];
-    expect(getErrorAction(message)).toEqual({ type: "retry" });
-  });
-
-  it("returns retry for no-such-tool errors", () => {
-    const message = createMessage({
-      kind: "no-such-tool",
-      message: "Tool not found",
-      toolName: "test-tool",
-    });
-    expect(getErrorAction(message)).toEqual({ type: "retry" });
-  });
-
-  it("returns retry for invalid-tool-input errors", () => {
-    const message = createMessage({
-      input: "invalid input",
-      kind: "invalid-tool-input",
-      message: "Invalid input",
-    });
-    expect(getErrorAction(message)).toEqual({ type: "retry" });
-  });
-
-  describe("api-call errors", () => {
-    describe("our provider", () => {
-      // Too many of the user's own requests at once clears when one of them
-      // finishes, so the turn waits its place instead of spending retries.
-      it("waits when too many requests are running at once", () => {
-        const message = createMessage(
-          {
-            classification: "rate-limit",
-            kind: "api-call",
-            message: "Too many requests",
-            name: "APIError",
-            responseBody:
-              '{"error":{"code":"concurrency-limit","message":"Too many requests are running at once.","retryable":true}}',
-            statusCode: 429,
-            url: "https://example.com",
-          },
-          OUR_PROVIDER_CONFIG.type,
-        );
-        expect(getErrorAction(message)).toEqual({ type: "wait" });
-      });
-
-      it("retries another provider's concurrency code as a throttle", () => {
-        const message = createMessage(
-          {
-            classification: "rate-limit",
-            kind: "api-call",
-            message: "Too many requests",
-            name: "APIError",
-            responseBody: '{"error":{"code":"concurrency-limit"}}',
-            statusCode: 429,
-            url: "https://example.com",
-          },
-          "openai",
-        );
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-
-      it("returns retry when no response body", () => {
-        const message = createMessage(
-          {
-            kind: "api-call",
-            message: "API call failed",
-            name: "APIError",
-            url: "https://example.com",
-          },
-          OUR_PROVIDER_CONFIG.type,
-        );
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-
-      it("returns retry when response body is invalid JSON", () => {
-        const message = createMessage(
-          {
-            kind: "api-call",
-            message: "API call failed",
-            name: "APIError",
-            responseBody: "invalid json",
-            url: "https://example.com",
-          },
-          OUR_PROVIDER_CONFIG.type,
-        );
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-
-      it("returns retry when error.retryable is not present", () => {
-        const message = createMessage(
-          {
-            kind: "api-call",
-            message: "API call failed",
-            name: "APIError",
-            responseBody: JSON.stringify({}),
-            url: "https://example.com",
-          },
-          OUR_PROVIDER_CONFIG.type,
-        );
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-
-      it("returns stop when error.retryable is false", () => {
-        const message = createMessage(
-          {
-            kind: "api-call",
-            message: "API call failed",
-            name: "APIError",
-            responseBody: JSON.stringify({
-              error: {
-                code: "insufficient-credits",
-                message: "Insufficient credits",
-                retryable: false,
-              },
-            }),
-            url: "https://example.com",
-          },
-          OUR_PROVIDER_CONFIG.type,
-        );
-        expect(getErrorAction(message)).toEqual({ type: "stop" });
-      });
-
-      it("returns retry when error.retryable is true", () => {
-        const message = createMessage(
-          {
-            kind: "api-call",
-            message: "API call failed",
-            name: "APIError",
-            responseBody: JSON.stringify({
-              error: {
-                code: "internal-server-error",
-                message: "Internal server error",
-                retryable: true,
-              },
-            }),
-            url: "https://example.com",
-          },
-          OUR_PROVIDER_CONFIG.type,
-        );
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-    });
-
-    describe("non-our-provider", () => {
-      it("returns retry for api-call errors", () => {
-        const message = createMessage(
-          {
-            kind: "api-call",
-            message: "API call failed",
-            name: "APIError",
-            url: "https://example.com",
-          },
-          "openai",
-        );
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-
-      it("returns retry when no provider specified", () => {
-        const message = createMessage({
-          kind: "api-call",
-          message: "API call failed",
-          name: "APIError",
-          url: "https://example.com",
-        });
-        expect(getErrorAction(message)).toEqual({ type: "retry" });
-      });
-    });
-  });
-
-  describe("Claude account", () => {
-    const claudeAccountError = (
-      statusCode: number,
-      classification: "rate-limit" | "transient",
-    ) =>
-      createMessage(
-        {
-          classification,
-          kind: "api-call",
-          message: "Claude Code failed",
-          name: "AI_APICallError",
-          statusCode,
-          url: "claude-account://",
-        },
-        CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
-      );
-
-    it.each([
-      [429, "rate-limit"],
-      [502, "transient"],
-      [529, "transient"],
-    ] as const)(
-      "stops on a %i, which Claude Code already retried",
-      (statusCode, classification) => {
-        expect(
-          getErrorAction(claudeAccountError(statusCode, classification)),
-        ).toEqual({ type: "stop" });
-      },
-    );
-
-    it("retries Claude Code itself failing", () => {
-      expect(getErrorAction(claudeAccountError(500, "transient"))).toEqual({
-        type: "retry",
-      });
-    });
-  });
-
-  it("returns stop for unknown error kinds", () => {
-    const message = createMessage({ kind: "other" } as never);
-    expect(getErrorAction(message)).toEqual({ type: "stop" });
+      }),
+      expected: { type: "stop" },
+      provider: ours,
+    },
+    {
+      case: "retries another provider's API error",
+      error: apiCall(),
+      expected: { type: "retry" },
+      provider: "openai",
+    },
+    ...([429, 502, 529] as const).map((statusCode) => ({
+      case: `stops on a Claude account ${statusCode}, which Claude Code already retried`,
+      error: apiCall({ classification: "transient", statusCode }),
+      expected: { type: "stop" } as const,
+      provider: claudeAccount,
+    })),
+    {
+      case: "retries Claude Code itself failing",
+      error: apiCall({ classification: "transient", statusCode: 500 }),
+      expected: { type: "retry" },
+      provider: claudeAccount,
+    },
+    {
+      case: "stops on an error kind it does not know",
+      // Not a kind the schema has, which the fallback exists for.
+      error: { kind: "other" } as never,
+      expected: { type: "stop" },
+    },
+  ])("$case", ({ error, expected, provider, refusedMedia }) => {
+    const message = createMessage(error, provider);
+    message.metadata.refusedMedia = refusedMedia;
+    expect(getErrorAction(message)).toEqual(expected);
   });
 });

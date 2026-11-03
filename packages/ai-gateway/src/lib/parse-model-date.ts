@@ -1,4 +1,5 @@
-import { isValid, parseISO } from "date-fns";
+import { isValid } from "date-fns/isValid";
+import { parseISO } from "date-fns/parseISO";
 
 /**
  * Above this, a number is milliseconds since the epoch rather than seconds.

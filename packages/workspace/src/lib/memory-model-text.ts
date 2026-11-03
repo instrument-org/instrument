@@ -1,4 +1,4 @@
-import { formatDistanceStrict } from "date-fns";
+import { formatDistanceStrict } from "date-fns/formatDistanceStrict";
 
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { MEMORY_COMMAND } from "./shell-commands/memory-command";

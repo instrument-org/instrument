@@ -20,7 +20,8 @@ import { createBashEnv } from "./create-bash-env";
  * rather than `Uint8Array.from`, which ends the process past a few hundred MB.
  */
 const sessionId = StoreId.newSessionId();
-const LINES = 300_000;
+/** Past just-bash's 100,000 default by enough to fail without the raised limits. */
+const LINES = 120_000;
 
 let tmpDir: string;
 let chatRoot: string;
@@ -68,7 +69,7 @@ describe("large inputs", () => {
   );
 
   it("reads tens of megabytes of binary stdin byte for byte", async () => {
-    const bytes = Buffer.alloc(40 * 1024 * 1024);
+    const bytes = Buffer.alloc(20 * 1024 * 1024);
     for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 131 + 7) & 255;
     await fs.writeFile(path.join(chatRoot, "work", "big.bin"), bytes);
     const expected = createHash("sha256").update(bytes).digest("hex");

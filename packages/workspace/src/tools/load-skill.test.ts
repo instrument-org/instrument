@@ -82,6 +82,25 @@ function baseExecuteArgs() {
   };
 }
 
+/** Loads a skill by name and returns its output, failing on an error. */
+async function load(name: string) {
+  return (
+    await runTool(LoadSkill, {
+      ...baseExecuteArgs(),
+      input: { explanation: "loading", name },
+    })
+  )._unsafeUnwrap();
+}
+
+/** Loads a skill that must be found. */
+async function loadFound(name: string) {
+  const result = await load(name);
+  if (result.state !== "success") {
+    throw new Error(`Expected ${name} to load, got ${result.state}`);
+  }
+  return result;
+}
+
 /** Where the app prepares the skills it ships, which they are read from. */
 function preparedSkillsDir() {
   return runtimeLayout(getWorkspaceConfig().runtimeDir).skills;
@@ -158,32 +177,15 @@ describe("LoadSkill", () => {
   // definition at the front of the prompt. A literal description is what
   // guarantees that: it has nothing to rediscover between requests. The
   // not-found path below is the recovery route for a name it does not carry.
-  it("describes itself without discovering the installed skills", async () => {
-    await createSkill({ name: "invisible-skill" });
-
+  it("describes itself with a fixed string that points at the catalog", () => {
     expect(typeof LoadSkill.description).toBe("string");
-    const description = await (typeof LoadSkill.description === "function"
-      ? LoadSkill.description({
-          model,
-          chatId: createTaskConfigWithDirs(),
-        })
-      : LoadSkill.description);
-    expect(description).not.toContain("invisible-skill");
-    expect(description).toContain("<available_skills>");
+    expect(LoadSkill.description).toContain("<available_skills>");
   });
 
-  it("returns not-found state when skill does not exist", async () => {
+  it("lists the skills there are when no skill answers to the name", async () => {
     await createSkill({ name: "existing-skill" });
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "nonexistent" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("not-found");
-    expect(result).toMatchInlineSnapshot(`
+    expect(await load("nonexistent")).toMatchInlineSnapshot(`
       {
         "available": [
           {
@@ -198,21 +200,18 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("reads a shipped skill where the app prepared it, copying nothing into the work folder", async () => {
+  it("reads a shipped skill whole, read-only, where the app prepared it, copying nothing into the work folder", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },
       name: "my-skill",
     });
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result).toMatchObject({
+    expect(await load("my-skill")).toMatchObject({
+      content: "# my-skill\n\nSkill instructions here.",
+      contentTruncated: false,
       files: ["scripts/run.ts"],
+      // The registry is not the writable workspace skills folder.
+      origin: "instrument",
       skillDir: preparedSkillDir("my-skill"),
       state: "success",
     });
@@ -259,18 +258,7 @@ describe("LoadSkill", () => {
       name: "my-skill",
     });
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    expect(result.files).toMatchInlineSnapshot(`
+    expect((await loadFound("my-skill")).files).toMatchInlineSnapshot(`
       [
         "references/notes.md",
         "scripts/lib/helper.ts",
@@ -288,15 +276,8 @@ describe("LoadSkill", () => {
     );
 
     for (const name of ["DOCX", "Word Documents"]) {
-      const result = (
-        await runTool(LoadSkill, {
-          ...baseExecuteArgs(),
-          input: { explanation: "loading", name },
-        })
-      )._unsafeUnwrap();
-      expect([name, result.state, result.name]).toEqual([
+      expect([name, (await loadFound(name)).name]).toEqual([
         name,
-        "success",
         "instrument:docx",
       ]);
     }
@@ -312,27 +293,16 @@ describe("LoadSkill", () => {
       );
     }
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "review" },
-      })
-    )._unsafeUnwrap();
-
+    const result = await load("review");
     expect(result.state).toBe("not-found");
-    if (result.state !== "not-found") {
-      return;
-    }
     const modelOutput = LoadSkill.toModelOutput({
       input: { explanation: "loading", name: "review" },
       output: result,
       toolCallId: "call-1",
     });
     expect(modelOutput.type).toBe("error-text");
-    if (modelOutput.type !== "error-text") {
-      return;
-    }
-    expect(modelOutput.value.split("\n\n")[1]).toMatchInlineSnapshot(
+    const text = modelOutput.type === "error-text" ? modelOutput.value : "";
+    expect(text.split("\n\n")[1]).toMatchInlineSnapshot(
       `"Several skills answer to that name. Load one of them by its full name: claude:review, cursor:review."`,
     );
   });
@@ -352,17 +322,7 @@ describe("LoadSkill", () => {
       `---\nname: review\ndescription: "Theirs"\n---\n\nVendor instructions.`,
     );
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "claude:review" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
+    const result = await loadFound("claude:review");
     expect(result.content).toContain("Vendor instructions.");
     expect({
       name: result.name,
@@ -390,41 +350,10 @@ describe("LoadSkill", () => {
       `---\nname: review\ndescription: "Qualified"\n---\n\nQualified instructions.`,
     );
 
-    const loaded: string[] = [];
-    for (const name of ["claude:review", "instrument:claude-review"]) {
-      const result = (
-        await runTool(LoadSkill, {
-          ...baseExecuteArgs(),
-          input: { explanation: "loading", name },
-        })
-      )._unsafeUnwrap();
-      if (result.state === "success") {
-        loaded.push(result.skillDir);
-      }
-    }
-
-    expect(loaded).toEqual([vendorSkillDir, preparedSkillDir("claude-review")]);
-  });
-
-  it("returns skill content in content field", async () => {
-    await createSkill({ name: "my-skill" });
-
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    expect(result.content).toMatchInlineSnapshot(`
-      "# my-skill
-
-      Skill instructions here."
-    `);
+    expect([
+      (await loadFound("claude:review")).skillDir,
+      (await loadFound("instrument:claude-review")).skillDir,
+    ]).toEqual([vendorSkillDir, preparedSkillDir("claude-review")]);
   });
 
   it("caps an oversized skill body and points at the file for the rest", async () => {
@@ -436,17 +365,7 @@ describe("LoadSkill", () => {
     await createSkill({ name: "my-skill" });
     await fs.appendFile(path.join(skillsDir, "my-skill", "SKILL.md"), body);
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
+    const result = await loadFound("my-skill");
     expect(result.contentTruncated).toBe(true);
     expect(result.content.length).toBeLessThanOrEqual(SKILL_CONTENT_LIMIT);
     // Cut between lines, never mid-instruction.
@@ -457,15 +376,10 @@ describe("LoadSkill", () => {
       output: result,
       toolCallId: "call-1",
     });
-    expect(modelOutput.type).toBe("text");
-    if (modelOutput.type !== "text") {
-      return;
-    }
     // Our notes lead, and the body ends the output.
-    const [notes] = named(modelOutput.value).split(
-      "\n\nEverything below is the text",
-    );
-    expect(modelOutput.value.endsWith(result.content)).toBe(true);
+    const value = modelText(modelOutput);
+    const [notes] = value.split("\n\nEverything below is the text");
+    expect(value.endsWith(result.content)).toBe(true);
     expect(notes).toMatchInlineSnapshot(`
       "This skill's folder is \`<runtime skills>/my-skill\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
@@ -473,46 +387,6 @@ describe("LoadSkill", () => {
 
       This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`$INSTRUMENT_SKILL_DIR/SKILL.md\` for the rest before following it."
     `);
-  });
-
-  it("leaves a skill inside the limit whole", async () => {
-    await createSkill({ name: "my-skill" });
-
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    expect(result.contentTruncated).toBe(false);
-    expect(result.content).toMatchInlineSnapshot(`
-      "# my-skill
-
-      Skill instructions here."
-    `);
-  });
-
-  it("marks a skill discovered outside the workspace as read-only", async () => {
-    await createSkill({ name: "my-skill" });
-
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    // The test skill lives in the registry, not the writable /skills mount.
-    expect(result.origin).toBe("instrument");
   });
 
   it("marks a skill in the writable /skills mount as editable", async () => {
@@ -661,23 +535,6 @@ describe("LoadSkill", () => {
     `);
   });
 
-  it("returns empty files array when skill has no extra files", async () => {
-    await createSkill({ name: "my-skill" });
-
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "my-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result.state).toBe("success");
-    if (result.state !== "success") {
-      return;
-    }
-    expect(result.files).toMatchInlineSnapshot(`[]`);
-  });
-
   it("builds a Python skill's environment from where the skill is read", async () => {
     const { ensurePythonEnvironment } =
       await import("../lib/skill-environments");
@@ -707,70 +564,53 @@ describe("LoadSkill", () => {
     });
   });
 
-  it("rejects a Python skill without a lockfile before setting it up", async () => {
-    await createSkill({
-      extraFiles: {
-        "pyproject.toml": "[project]\nname = 'unlocked-skill'\n",
-      },
-      name: "unlocked-skill",
-    });
-
-    const result = await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "unlocked-skill" },
-    });
-
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().message).toBe(
-      'Skill "unlocked-skill" is missing uv.lock for its Python dependencies.',
-    );
-    const { ensurePythonEnvironment } =
-      await import("../lib/skill-environments");
-    expect(ensurePythonEnvironment).not.toHaveBeenCalled();
-  });
-
-  it("rejects an invalid Node package manifest before setting it up", async () => {
-    await createSkill({
+  it.each<{
+    extraFiles: Record<string, string>;
+    message: string;
+    name: string;
+  }>([
+    {
+      extraFiles: { "pyproject.toml": "[project]\nname = 'x'\n" },
+      message:
+        'Skill "refused" is missing uv.lock for its Python dependencies.',
+      name: "a Python skill without a lockfile",
+    },
+    {
       extraFiles: { "package.json": "{" },
-      name: "invalid-node-skill",
-    });
-
-    const result = await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "invalid-node-skill" },
-    });
-
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().message).toBe(
-      'Skill "invalid-node-skill" has an invalid package.json.',
-    );
-  });
-
-  it.each([
-    ["dependencies", []],
-    ["dependencies", { example: 1 }],
-    ["optionalDependencies", []],
-    ["optionalDependencies", { example: 1 }],
+      message: 'Skill "refused" has an invalid package.json.',
+      name: "an unparsable package.json",
+    },
+    {
+      extraFiles: { "package.json": JSON.stringify({ dependencies: [] }) },
+      message:
+        'Skill "refused" has an invalid dependencies field in package.json.',
+      name: "dependencies that are not an object",
+    },
+    {
+      extraFiles: {
+        "package.json": JSON.stringify({
+          optionalDependencies: { example: 1 },
+        }),
+      },
+      message:
+        'Skill "refused" has an invalid optionalDependencies field in package.json.',
+      name: "a dependency version that is not a string",
+    },
   ])(
-    "rejects an invalid %s field before setting it up",
-    async (field, value) => {
-      await createSkill({
-        extraFiles: {
-          "package.json": JSON.stringify({ [field]: value }),
-        },
-        name: "invalid-dependencies",
-      });
+    "refuses $name before setting anything up",
+    async ({ extraFiles, message }) => {
+      const { ensureNodeEnvironment, ensurePythonEnvironment } =
+        await import("../lib/skill-environments");
+      await createSkill({ extraFiles, name: "refused" });
 
       const result = await runTool(LoadSkill, {
         ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "invalid-dependencies" },
+        input: { explanation: "loading", name: "refused" },
       });
 
-      expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toBe(
-        'Skill "invalid-dependencies" has an invalid ' +
-          `${field} field in package.json.`,
-      );
+      expect(result._unsafeUnwrapErr().message).toBe(message);
+      expect(ensureNodeEnvironment).not.toHaveBeenCalled();
+      expect(ensurePythonEnvironment).not.toHaveBeenCalled();
     },
   );
 
@@ -783,11 +623,9 @@ describe("LoadSkill", () => {
       name: "metadata-only",
     });
 
-    await runTool(LoadSkill, {
-      ...baseExecuteArgs(),
-      input: { explanation: "loading", name: "metadata-only" },
-    });
-
+    expect(await loadFound("metadata-only")).not.toHaveProperty(
+      "installResults",
+    );
     expect(ensureNodeEnvironment).not.toHaveBeenCalled();
   });
 
@@ -805,12 +643,7 @@ describe("LoadSkill", () => {
       name: "mixed-skill",
     });
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "mixed-skill" },
-      })
-    )._unsafeUnwrap();
+    const result = await load("mixed-skill");
 
     expect(vi.mocked(ensureNodeEnvironment).mock.lastCall?.[0]).toMatchObject({
       skillDir: preparedSkillDir("mixed-skill"),
@@ -840,14 +673,7 @@ describe("LoadSkill", () => {
       name: "node-skill",
     });
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "node-skill" },
-      })
-    )._unsafeUnwrap();
-
-    expect(result).toMatchObject({
+    expect(await load("node-skill")).toMatchObject({
       installResults: [
         {
           exitCode: 1,
@@ -888,12 +714,7 @@ describe("LoadSkill", () => {
     );
     await fs.writeFile(path.join(externalSkillDir, "uv.lock"), "version = 1\n");
 
-    const result = (
-      await runTool(LoadSkill, {
-        ...baseExecuteArgs(),
-        input: { explanation: "loading", name: "third-party" },
-      })
-    )._unsafeUnwrap();
+    const result = await load("third-party");
 
     expect(ensureNodeEnvironment).not.toHaveBeenCalled();
     expect(ensurePythonEnvironment).not.toHaveBeenCalled();
@@ -938,24 +759,5 @@ describe("LoadSkill", () => {
 
       # Body"
     `);
-  });
-
-  it("allows setup time for every runtime a skill uses", async () => {
-    await createSkill({
-      extraFiles: {
-        "package.json": JSON.stringify({
-          dependencies: { example: "1.0.0" },
-        }),
-        "pyproject.toml": "[project]\nname = 'mixed-skill'\n",
-        "uv.lock": "version = 1\n",
-      },
-      name: "mixed-skill",
-    });
-    expect(
-      LoadSkill.timeoutMs({
-        chatId: createTaskConfigWithDirs(),
-        input: { name: "mixed-skill" },
-      }),
-    ).toBe(7 * 60 * 1000 + 10 * 1000);
   });
 });

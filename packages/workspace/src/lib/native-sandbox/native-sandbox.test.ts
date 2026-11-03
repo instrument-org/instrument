@@ -26,6 +26,7 @@ import {
   wrapNativeCommand,
   type WrappedCommand,
 } from "./index";
+import { bwrapCommand } from "./bwrap";
 import { inheritedEnv } from "../native-env";
 import { REACHABLE_APPS } from "../permissions/apps";
 import { reachOf, type Rule } from "../permissions/rules";
@@ -716,6 +717,21 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
       reject: false,
     });
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+  });
+});
+
+describe.skipIf(onWindows)("bwrapCommand", () => {
+  // bash sources ~/.bashrc for `-c` when stdin is a socket and SHLVL is
+  // unset, as under the app, and `-p` does not stop it: every git call on
+  // Linux printed "~/.bashrc: Permission denied", and a readable one would
+  // have run with the app's descriptors still open (e7c794529).
+  it("starts the descriptor-closing bash with no startup files", () => {
+    const { args } = bwrapCommand(reachOver(os.tmpdir(), []), "/bin/ls", []);
+    expect(args.slice(args.indexOf("--") + 1, args.indexOf("-c"))).toEqual([
+      "/bin/bash",
+      "--norc",
+      "-p",
+    ]);
   });
 });
 

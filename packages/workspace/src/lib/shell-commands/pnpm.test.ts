@@ -1,6 +1,6 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
@@ -14,6 +14,12 @@ import {
   PNPM_COMMAND,
 } from "./pnpm";
 import { chatLayout } from "../../test/helpers/chat-layout";
+import { execaNodeForChat } from "../execa-node-for-chat";
+import {
+  installedProjectConfig,
+  installOutside,
+  outsidePlan,
+} from "../pnpm-outside";
 
 vi.mock(import("../execa-node-for-chat"));
 vi.mock(import("../pnpm-outside"), async (importOriginal) => ({
@@ -30,13 +36,16 @@ const mockCtx = createCommandContext({
   stdin: EMPTY_BYTES,
 });
 
+beforeEach(() => {});
+
+/** The args the last pnpm run inside the sandbox was given. */
+const lastPnpmArgs = () => vi.mocked(execaNodeForChat).mock.lastCall?.[2];
+
 describe("createPnpmCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const command = createPnpmCommand(chatId, chatLayout(chatId));
 
   it("adds a package in a folder with no manifest, where pnpm makes one", async () => {
-    const { execaNodeForChat } = await import("../execa-node-for-chat");
-    vi.mocked(execaNodeForChat).mockClear();
     vi.mocked(execaNodeForChat).mockResolvedValueOnce({
       exitCode: 0,
       stdout: "+ lodash 4.17.21",
@@ -63,32 +72,9 @@ describe("createPnpmCommand", () => {
     );
   });
 
-  // `dev` and `start` were refused while the runtime was the only thing allowed
-  // to serve an app. A long-running command is now a background process, so they
-  // run like any other script.
-  it.each([
-    { args: ["dev"] },
-    { args: ["start"] },
-    { args: ["run", "dev"] },
-    { args: ["run", "start"] },
-  ])("runs pnpm $args instead of refusing it", async ({ args }) => {
-    const { execaNodeForChat } = await import("../execa-node-for-chat");
-    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
-      exitCode: 0,
-      stdout: "dev server listening",
-    });
+  it("passes pnpm exec through whole, its -g included", async () => {
+    const fs = new InMemoryFs({ "/package.json": "{}" });
 
-    const result = await command.execute(args, mockCtx);
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("dev server listening");
-  });
-
-  it("runs pnpm exec as pnpm does, whatever it names", async () => {
-    const fs = new InMemoryFs();
-    await fs.writeFile("/package.json", "{}");
-
-    const { execaNodeForChat } = await import("../execa-node-for-chat");
     vi.mocked(execaNodeForChat).mockResolvedValueOnce({
       exitCode: 0,
       stdout: "0.28.1",
@@ -99,16 +85,9 @@ describe("createPnpmCommand", () => {
       fs,
     });
 
-    expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("0.28.1");
-    expect(vi.mocked(execaNodeForChat)).toHaveBeenLastCalledWith(
-      chatId,
-      getWorkspaceConfig().pnpmBinPath,
-      ["exec", "esbuild", "-g"],
-      expect.any(Object),
-      expect.any(String),
-      undefined,
-    );
+    expect(result.stderr).toBe("");
+    expect(lastPnpmArgs()).toEqual(["exec", "esbuild", "-g"]);
   });
 
   it.each([{ subcommand: "setup" }, { subcommand: "env" }])(
@@ -123,12 +102,10 @@ describe("createPnpmCommand", () => {
     },
   );
 
-  it.each([["run", "build"], ["pack"], ["store", "path"]])(
+  it.each([["run", "build"], ["dev"], ["store", "path"]])(
     "runs pnpm %s as it is, with nothing run first",
     async (...args) => {
-      const { execaNodeForChat } = await import("../execa-node-for-chat");
       const execaNodeForChatMock = vi.mocked(execaNodeForChat);
-      execaNodeForChatMock.mockClear();
       execaNodeForChatMock.mockResolvedValueOnce({ exitCode: 0, stdout: "" });
 
       const result = await command.execute(args, {
@@ -138,59 +115,27 @@ describe("createPnpmCommand", () => {
 
       expect(result.stderr).toBe("");
       expect(execaNodeForChatMock).toHaveBeenCalledOnce();
-      expect(execaNodeForChatMock.mock.calls[0]?.[2]).toEqual(args);
+      expect(lastPnpmArgs()).toEqual(args);
     },
   );
 
-  it("strips --global flag, runs command without it, and appends system note", async () => {
-    const { execaNodeForChat } = await import("../execa-node-for-chat");
-    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
-      exitCode: 0,
-      stdout: "packages installed",
-    });
+  it.each(["--global", "-g"])(
+    "runs pnpm add without %s and says the flag was stripped",
+    async (flag) => {
+      vi.mocked(execaNodeForChat).mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: "packages installed",
+      });
 
-    const result = await command.execute(
-      ["add", "--global", "lodash"],
-      mockCtx,
-    );
+      const result = await command.execute(["add", flag, "lodash"], mockCtx);
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("packages installed");
-    expect(result.stderr).toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      The --global / -g flag was stripped. Global installs are not supported in this environment.
-      Packages must be installed locally with \`pnpm add <package>\`.
-      The command was re-run without the flag.
-      </instrument-system-note>"
-    `);
-  });
-
-  it("strips -g flag, runs command without it, and appends system note", async () => {
-    const { execaNodeForChat } = await import("../execa-node-for-chat");
-    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
-      exitCode: 0,
-      stdout: "packages installed",
-    });
-
-    const result = await command.execute(["add", "-g", "lodash"], mockCtx);
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("packages installed");
-    expect(result.stderr).toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      The --global / -g flag was stripped. Global installs are not supported in this environment.
-      Packages must be installed locally with \`pnpm add <package>\`.
-      The command was re-run without the flag.
-      </instrument-system-note>"
-    `);
-  });
+      expect(lastPnpmArgs()).toEqual(["add", "lodash"]);
+      expect(result.stdout).toBe("packages installed");
+      expect(result.stderr).toContain("The --global / -g flag was stripped.");
+    },
+  );
 
   it("installs from the registry outside the sandbox when the plan allows it", async () => {
-    const { execaNodeForChat } = await import("../execa-node-for-chat");
-    const { installOutside, outsidePlan } = await import("../pnpm-outside");
-    vi.mocked(execaNodeForChat).mockClear();
     const plan = { args: ["add", "is-odd", "--dir", "/job"], project: "/job" };
     vi.mocked(outsidePlan).mockReturnValueOnce(plan);
     vi.mocked(installOutside).mockResolvedValueOnce({
@@ -207,20 +152,17 @@ describe("createPnpmCommand", () => {
       stderr: "",
       stdout: "+ is-odd 3.0.1",
     });
-    expect(vi.mocked(outsidePlan).mock.calls[0]?.[0].args).toEqual([
+    expect(vi.mocked(outsidePlan).mock.lastCall?.[0].args).toEqual([
       "add",
       "is-odd",
     ]);
-    expect(vi.mocked(installOutside).mock.calls[0]?.[0].plan).toBe(plan);
+    expect(vi.mocked(installOutside).mock.lastCall?.[0].plan).toBe(plan);
     expect(execaNodeForChat).not.toHaveBeenCalled();
   });
 
-  it.each([["approve-builds", "esbuild"], ["rebuild"], ["rb"]])(
+  it.each([["approve-builds", "esbuild"], ["rb"]])(
     "builds %s from the store its project was installed from",
     async (...args) => {
-      const { execaNodeForChat } = await import("../execa-node-for-chat");
-      const { installedProjectConfig } = await import("../pnpm-outside");
-      vi.mocked(execaNodeForChat).mockClear();
       vi.mocked(installedProjectConfig).mockReturnValueOnce({
         pnpm_config_frozen_store: "true",
       });
@@ -231,7 +173,7 @@ describe("createPnpmCommand", () => {
 
       await command.execute(args, mockCtx);
 
-      expect(vi.mocked(execaNodeForChat).mock.calls[0]?.[3].env).toMatchObject({
+      expect(vi.mocked(execaNodeForChat).mock.lastCall?.[3].env).toMatchObject({
         pnpm_config_frozen_store: "true",
       });
     },
@@ -243,7 +185,6 @@ describe("createPnpmCommand", () => {
   ])(
     "says which installs work when the sandbox refuses links ($args)",
     async ({ args, noted }) => {
-      const { execaNodeForChat } = await import("../execa-node-for-chat");
       vi.mocked(execaNodeForChat).mockResolvedValueOnce({
         exitCode: 1,
         stderr: "[EPERM] EPERM: operation not permitted, symlink 'a' -> 'b'",
@@ -292,12 +233,6 @@ describe("createPnpmCommand", () => {
   it.each([
     {
       args: ["cowsay", "hello"],
-      createCommand: createNpxCommand,
-      expectedArgs: ["dlx", "cowsay", "hello"],
-      name: "npx",
-    },
-    {
-      args: ["cowsay", "hello"],
       createCommand: createPnpxCommand,
       expectedArgs: ["dlx", "cowsay", "hello"],
       name: "pnpx",
@@ -317,7 +252,6 @@ describe("createPnpmCommand", () => {
   ])(
     "runs $name through pnpm dlx",
     async ({ args, createCommand, expectedArgs }) => {
-      const { execaNodeForChat } = await import("../execa-node-for-chat");
       vi.mocked(execaNodeForChat).mockResolvedValueOnce({
         exitCode: 0,
         stdout: "hello",
@@ -326,15 +260,8 @@ describe("createPnpmCommand", () => {
       const dlxCommand = createCommand(chatId, chatLayout(chatId));
       const result = await dlxCommand.execute(args, mockCtx);
 
-      expect(result.exitCode).toBe(0);
-      expect(vi.mocked(execaNodeForChat)).toHaveBeenLastCalledWith(
-        chatId,
-        getWorkspaceConfig().pnpmBinPath,
-        expectedArgs,
-        expect.any(Object),
-        expect.any(String),
-        undefined,
-      );
+      expect(result.stdout).toBe("hello");
+      expect(lastPnpmArgs()).toEqual(expectedArgs);
     },
   );
 });

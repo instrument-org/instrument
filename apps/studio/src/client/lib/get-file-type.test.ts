@@ -86,22 +86,8 @@ describe("getFileType", () => {
     expect(getFileKindLabel({ filename, mimeType })).toBe("Photoshop document");
   });
 
-  it("is case insensitive", () => {
-    expect(getFileType({ filename: "REPORT.DOCX" })).toBe("docx");
-  });
-
   it("does not treat a document extension mid-filename as the type", () => {
     expect(getFileType({ filename: "notes.docx.txt" })).toBe("text");
-  });
-
-  it("leaves existing detection intact", () => {
-    expect(getFileType({ filename: "a.png", mimeType: "image/png" })).toBe(
-      "image",
-    );
-    expect(getFileType({ filename: "README.md" })).toBe("markdown");
-    expect(getFileType({ filename: "main.ts", mimeType: "text/plain" })).toBe(
-      "code",
-    );
   });
 });
 
@@ -121,6 +107,8 @@ describe("resolving from the extension alone", () => {
     ["demo-2019.AVI", "video"],
     ["take.aiff", "audio"],
     ["book.m4b", "audio"],
+    // `.ts` is a registered video extension (MPEG transport stream) and a
+    // TypeScript file everywhere it turns up here.
     ["main.ts", "code"],
     ["main.tsx", "code"],
     ["script.py", "code"],
@@ -145,16 +133,13 @@ describe("resolving from the extension alone", () => {
   // which is what `.json` did for want of an entry in the extension table.
   // `.wasm` is the exception: its language reads the text disassembly, not the
   // binary a task stores.
-  it.each(
-    Object.keys(EXTENSION_MAP).filter((extension) => extension !== "wasm"),
-  )("previews .%s rather than leaving it unknown", (extension) => {
-    expect(getFileType({ filename: `file.${extension}` })).not.toBe("unknown");
-  });
-
-  // `.ts` is a registered video extension (MPEG transport stream) and a
-  // TypeScript file everywhere it turns up here.
-  it("reads .ts as TypeScript rather than a transport stream", () => {
-    expect(getFileType({ filename: "main.ts" })).toBe("code");
+  it("previews every extension the highlighter has a language for", () => {
+    const unknown = Object.keys(EXTENSION_MAP).filter(
+      (extension) =>
+        extension !== "wasm" &&
+        getFileType({ filename: `file.${extension}` }) === "unknown",
+    );
+    expect(unknown).toEqual([]);
   });
 
   // A name with no extension in it, or one whose "extension" is the whole name.
@@ -200,16 +185,9 @@ describe("resolving from the extension alone", () => {
 
 // Extension alone has to be enough for the formats with a viewer: these files
 // reach the panel from agent output and downloads, which do not always carry a
-// mime type. `.doc` stays unknown, which is what leaves it on the fallback card
-// instead of a viewer that cannot read it.
+// mime type. The Office, PDF and notebook formats are in `getFileType` above.
 describe("types a viewer exists for", () => {
   it.each([
-    ["report.docx", "docx"],
-    ["deck.pptx", "pptx"],
-    ["model.xlsx", "xlsx"],
-    ["data.csv", "csv"],
-    ["scan.pdf", "pdf"],
-    ["analysis.ipynb", "notebook"],
     ["archive.zip", "archive"],
     ["notes.db", "sqlite"],
     ["notes.sqlite", "sqlite"],
@@ -217,7 +195,6 @@ describe("types a viewer exists for", () => {
     ["budget.numbers", "iwork"],
     ["letter.pages", "iwork"],
     ["talk.key", "iwork"],
-    ["report.doc", "unknown"],
   ] as const)("resolves %s to %s without a mime type", (filename, expected) => {
     expect(getFileType({ filename })).toBe(expected);
   });

@@ -336,6 +336,12 @@ describe("deleting", () => {
     ]);
   });
 
+  // A home folder that is not there, under the temporary folder: these paths
+  // are resolved against the disk, and on a Mac anything under /home goes
+  // through the automounter, which takes tens of milliseconds a look.
+  const home = path.join(os.tmpdir(), "workspace-mgmt-home");
+  const userData = path.join(home, ".config", "Instrument");
+
   it.each([
     [{ isDefault: true, isResolved: false, openElsewhereBy: null }, true],
     [{ isDefault: false, isResolved: true, openElsewhereBy: null }, true],
@@ -344,27 +350,25 @@ describe("deleting", () => {
   ])("blocks %o: %s", (listing, blocked) => {
     expect(
       whyNotDeletable(
-        { ...listing, path: "/home/me/Projects/notes" },
-        "/home/me/.config/Instrument",
+        { ...listing, path: path.join(home, "Projects", "notes") },
+        userData,
       ) !== null,
     ).toBe(blocked);
   });
 
   it.each([
-    ["/home/me", true],
-    ["/home/me/.config/Instrument", true],
-    ["/home/me/.config/Instrument/workspaces/side", false],
-    ["/home/me/.config/Instrument-other", false],
+    ["~", true],
+    ["~/.config/Instrument", true],
+    ["~/.config/Instrument/workspaces/side", false],
+    ["~/.config/Instrument-other", false],
   ])("blocks deleting %s while userData is inside it: %s", (dir, blocked) => {
     const listing = {
       isDefault: false,
       isResolved: false,
       openElsewhereBy: null,
-      path: dir,
+      path: path.join(home, dir.slice(1)),
     };
-    expect(
-      whyNotDeletable(listing, "/home/me/.config/Instrument") !== null,
-    ).toBe(blocked);
+    expect(whyNotDeletable(listing, userData) !== null).toBe(blocked);
   });
 
   it.each([

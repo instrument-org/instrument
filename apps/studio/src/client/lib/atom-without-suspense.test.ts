@@ -25,18 +25,24 @@ describe("atomWithoutSuspense", () => {
     expect(store.get(value)).toBe("fallback");
 
     first.resolve("first");
-    await vi.waitFor(() => {
-      expect(store.get(value)).toBe("first");
-    });
+    await vi.waitFor(
+      () => {
+        expect(store.get(value)).toBe("first");
+      },
+      { interval: 1 },
+    );
 
     current = second.promise;
     store.set(source);
     expect(store.get(value)).toBe("first");
 
     second.resolve("second");
-    await vi.waitFor(() => {
-      expect(store.get(value)).toBe("second");
-    });
+    await vi.waitFor(
+      () => {
+        expect(store.get(value)).toBe("second");
+      },
+      { interval: 1 },
+    );
 
     unsubscribe();
   });

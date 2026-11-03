@@ -30,6 +30,19 @@ import {
 } from "./wake";
 import { hasWakeOnItsWay } from "./wake-queue";
 
+// A wake waits out the app's debounce for more news; here a shorter one.
+vi.mock(import("./wake-queue"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    enqueueWake: (wake) =>
+      original.enqueueWake({
+        ...wake,
+        debounceMs: wake.debounceMs && Math.min(wake.debounceMs, 20),
+      }),
+  };
+});
+
 // What a task has running lives in this process's process table, which a
 // test has none of; a case names it.
 vi.mock(import("./activity"), async (importOriginal) => {

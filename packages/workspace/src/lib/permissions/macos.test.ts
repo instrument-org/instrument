@@ -34,10 +34,13 @@ const within = <T>(promise: Promise<T>, ms: number) =>
 
 describe("watchMacosPrompt", () => {
   it("raises nothing for a slow look while no prompt is on screen", async () => {
-    macConfig({ macosPromptOnScreen: () => Promise.resolve(false) });
+    const onScreen = vi.fn(() => Promise.resolve(false));
+    macConfig({ macosPromptOnScreen: onScreen });
     const onAsking = vi.fn(() => Promise.resolve());
 
-    expect(await watchMacosPrompt(sleep(700), onAsking)).toBe(false);
+    // Past the first look at the window list, 250ms in.
+    expect(await watchMacosPrompt(sleep(400), onAsking)).toBe(false);
+    expect(onScreen).toHaveBeenCalled();
     expect(onAsking).not.toHaveBeenCalled();
   });
 
@@ -72,17 +75,19 @@ describe("macAppStanding", () => {
   });
 
   it("does not read a slow check as asking with no prompt on screen", async () => {
+    const onScreen = vi.fn(() => Promise.resolve(false));
     macConfig({
       macAppAccess: () => new Promise(() => {}),
-      macosPromptOnScreen: () => Promise.resolve(false),
+      macosPromptOnScreen: onScreen,
     });
 
     expect(
       await within(
         macAppStanding({ bundleId: "com.apple.Notes", name: "Notes" }),
-        700,
+        400,
       ),
     ).toBe("pending");
+    expect(onScreen).toHaveBeenCalled();
   });
 });
 

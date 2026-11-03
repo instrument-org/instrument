@@ -200,9 +200,12 @@ describe.skipIf(process.platform === "win32")("videoStoryboard", () => {
       { ...deps, ffmpeg: slow },
       controller.signal,
     );
-    await vi.waitFor(async () => {
-      expect(await runCount()).toBe(1);
-    });
+    await vi.waitFor(
+      async () => {
+        expect(await runCount()).toBe(1);
+      },
+      { interval: 1 },
+    );
     controller.abort();
     expect(await asked).toBeNull();
     expect(Date.now() - started).toBeLessThan(10_000);

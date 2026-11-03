@@ -384,6 +384,51 @@ describe("migrateLegacyTasks", () => {
     expect(sessionOf("2026-06-23-by-hand").unreadByUser).toBe(true);
   });
 
+  // A 1.x task the user never named still lists by what they said, and one
+  // with nothing to go by by a word, never by an empty title.
+  it.each([
+    [
+      "its first words",
+      ONE_ASK,
+      "Use FFmpeg to make me a short video of a rotating red square.",
+    ],
+    [
+      "a word, when all they sent was a file",
+      [
+        {
+          messages: [
+            {
+              parts: [
+                {
+                  data: {
+                    files: [
+                      {
+                        filePath: "photo.png",
+                        filename: "photo.png",
+                        mimeType: "image/png",
+                        size: 1,
+                      },
+                    ],
+                  },
+                  type: "data-attachments",
+                },
+              ],
+              role: "user",
+            },
+          ],
+        },
+      ] satisfies { messages: FixtureMessage[] }[],
+      "Chat",
+    ],
+  ])("titles an unnamed task by %s", (_, sessions, title) => {
+    legacyTask("2026-06-23-untitled", { sessions, settings: { name: "  " } });
+
+    expect(migrateLegacyTasks(root, machineDir).adoptedCount).toBe(1);
+
+    const [chat = ""] = fs.readdirSync(path.join(root, ".instrument", "chats"));
+    expect(sessionOf(chat).title).toBe(title);
+  });
+
   it("grants the chat the task's folders", () => {
     legacyTask("2026-06-23-make-me-a-bike", {
       sessions: [

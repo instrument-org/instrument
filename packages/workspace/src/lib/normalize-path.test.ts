@@ -4,37 +4,15 @@ import { normalizePath } from "./normalize-path";
 
 describe("normalizePath", () => {
   it.each([
-    {
-      expected: "path/to/file.txt",
-      input: "path\\to\\file.txt",
-      label: "should convert backslashes to forward slashes",
-    },
-    {
-      expected: "path/to/file.txt",
-      input: "path\\to/file.txt",
-      label: "should handle mixed separators",
-    },
-    {
-      expected: "path/to/file.txt",
-      input: "path/to/file.txt",
-      label: "should leave forward slashes unchanged",
-    },
-    {
-      expected: "",
-      input: "",
-      label: "should handle empty string",
-    },
-    {
-      expected: "path/to/file.txt",
-      input: ".\\path\\to\\file.txt",
-      label: "should normalize relative paths with dot notation",
-    },
-    {
-      expected: "path/to/file.txt",
-      input: "path\\\\to\\\\file.txt",
-      label: "should normalize multiple consecutive backslashes",
-    },
-  ])("$label", ({ expected, input }) => {
+    ["turns backslashes into slashes", "path\\to/file.txt", "path/to/file.txt"],
+    [
+      "collapses doubled backslashes",
+      "path\\\\to\\\\file.txt",
+      "path/to/file.txt",
+    ],
+    ["drops a leading ./", ".\\path\\to\\file.txt", "path/to/file.txt"],
+    ["keeps an empty path empty", "", ""],
+  ])("%s", (_label, input, expected) => {
     expect(normalizePath(input)).toBe(expected);
   });
 });

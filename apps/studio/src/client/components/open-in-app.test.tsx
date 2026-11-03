@@ -78,11 +78,14 @@ describe("OpenInAppButton", () => {
       "instrument-icon://safari.png",
     );
     fireEvent.click(button);
-    await waitFor(() => {
-      expect(openExternalLink.mock.calls[0]?.[0]).toEqual({
-        url: "https://example.com/a",
-      });
-    });
+    await waitFor(
+      () => {
+        expect(openExternalLink.mock.calls[0]?.[0]).toEqual({
+          url: "https://example.com/a",
+        });
+      },
+      { interval: 1 },
+    );
   });
 
   it("names the file's app and opens the file there", async () => {
@@ -97,11 +100,14 @@ describe("OpenInAppButton", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Open in Preview" }),
     );
-    await waitFor(() => {
-      expect(openPath.mock.calls[0]?.[0]).toEqual({
-        filepath: "/Users/casey/report.pdf",
-      });
-    });
+    await waitFor(
+      () => {
+        expect(openPath.mock.calls[0]?.[0]).toEqual({
+          filepath: "/Users/casey/report.pdf",
+        });
+      },
+      { interval: 1 },
+    );
   });
 
   it("falls back to a generic way out when no browser can be named", async () => {

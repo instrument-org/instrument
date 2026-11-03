@@ -1,7 +1,7 @@
 import { renderWithProviders } from "@/tests/render";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Chat } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
@@ -58,6 +58,13 @@ beforeEach(() => {
   trash.mockResolvedValue(undefined);
 });
 
+// Unmounting the dialog's focus scope dispatches an event on a zero timeout.
+// Let it fire while this file's jsdom is still up, or it lands in the next
+// file's window and throws there as an uncaught error.
+afterAll(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+});
+
 describe("deleting a chat", () => {
   it("leaves the chat's folder alone unless the person asks for it", async () => {
     openDialog();
@@ -88,7 +95,7 @@ describe("deleting a chat", () => {
     expect(
       screen.getByText(
         "The transcript and anything the agent made for you are in there.",
-      ).textContent,
-    ).toBe("The transcript and anything the agent made for you are in there.");
+      ),
+    ).toBeTruthy();
   });
 });

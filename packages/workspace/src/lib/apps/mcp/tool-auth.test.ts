@@ -1,3 +1,4 @@
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { getWorkspaceConfig, setWorkspaceConfig } from "../../workspace-config";
@@ -101,5 +102,11 @@ describe("mcpAuthProviderForCommand", () => {
     ).toThrowErrorMatchingInlineSnapshot(
       `[Error: This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`instrument app new linear --web https://linear.app --force\`, then connect_app.]`,
     );
+    // The SDK's own type is what reads the app as needing sign-in; a plain
+    // Error read as a failed connect and kept it looking connected
+    // (511b62b64).
+    expect(() =>
+      provider?.redirectToAuthorization(new URL("https://linear.app/oauth")),
+    ).toThrow(UnauthorizedError);
   });
 });

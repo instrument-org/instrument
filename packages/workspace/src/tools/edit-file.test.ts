@@ -1,7 +1,7 @@
 import mockFs from "mock-fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -70,160 +70,131 @@ function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   });
 }
 
+const readBack = (name: string) =>
+  fs.readFile(path.join(MOCK_WORKSPACE_DIRS.work, chatId, name), "utf8");
+
 describe("EditFile", () => {
   afterEach(() => {
     mockFs.restore();
   });
 
-  describe("execute - not found cases", () => {
-    beforeEach(() => {
-      setupMockFs();
-    });
-
-    it("should return error when file does not exist", async () => {
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./non-existent-file.txt",
-          newString: "new text",
-          oldString: "old text",
-        }),
-      );
-
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "File ./non-existent-file.txt not found",
-          "type": "execute-error",
-        }
-      `);
-    });
-
-    it("should return error when path is a directory", async () => {
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./",
-          newString: "new text",
-          oldString: "old text",
-        }),
-      );
-
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "Path is a directory, not a file: ./",
-          "type": "execute-error",
-        }
-      `);
-    });
-
-    it("should return error when oldString is not found in file content", async () => {
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./grep-test.txt",
-          newString: "new text",
-          oldString: "this text does not exist in the file",
-        }),
-      );
-
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "Failed to edit file ./grep-test.txt: oldString not found in content",
-          "type": "execute-error",
-        }
-      `);
-    });
-
-    it("should return error when oldString has multiple matches and needs more context", async () => {
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./grep-test.txt",
-          newString: "new text",
-          oldString: "grep",
-        }),
-      );
-
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "Failed to edit file ./grep-test.txt: Found multiple matches for oldString. Include more surrounding code lines in oldString to uniquely identify which occurrence to replace.",
-          "type": "execute-error",
-        }
-      `);
-    });
-  });
-
-  describe("toModelOutput", () => {
-    it("returns a bare success line", async () => {
-      setupMockFs({ "index.ts": "const x = 1;" });
-
-      const input = {
-        filePath: "./index.ts",
-        newString: "const x = 2;",
-        oldString: "const x = 1;",
-      };
-      const result = await runTool(TOOLS.EditFile, makeExecuteArgs(input));
-      const output = result._unsafeUnwrap();
-      const modelOutput = TOOLS.EditFile.toModelOutput({
-        input,
-        output,
-        toolCallId: "test",
-      });
-      expect(modelOutput).toMatchInlineSnapshot(`
-        {
-          "type": "text",
-          "value": "Successfully edited file ./index.ts",
-        }
-      `);
-    });
-  });
-
-  describe("execute - unicode normalization", () => {
-    it.each([
-      {
-        description: "smart double quotes",
-        fileContent: 'const msg = "Hello world";',
-        newString: 'const msg = "Goodbye world";',
-        oldString: "const msg = \u201CHello world\u201D;",
-      },
-      {
-        description: "smart single quotes",
-        fileContent: "const msg = 'Hello world';",
-        newString: "const msg = 'Goodbye world';",
-        oldString: "const msg = \u2018Hello world\u2019;",
-      },
-      {
-        description: "em dash",
-        fileContent: "// range: 1-10",
-        newString: "// range: 1-100",
-        oldString: "// range: 1\u201410",
-      },
-      {
-        description: "non-breaking space",
-        fileContent: "const x = 1;",
-        newString: "const x = 2;",
-        oldString: "const\u00A0x = 1;",
-      },
-    ])(
-      "should match via unicode normalization: $description",
-      async ({ fileContent, newString, oldString }) => {
-        setupMockFs({ "unicode-test.ts": fileContent });
-
-        const result = await runTool(
+  it("refuses a missing file, a directory, and an oldString it finds no times or twice, leaving the file as it was", async () => {
+    setupMockFs();
+    const refusal = async (filePath: string, oldString: string) =>
+      (
+        await runTool(
           TOOLS.EditFile,
-          makeExecuteArgs({
-            filePath: "./unicode-test.ts",
-            newString,
-            oldString,
-          }),
-        );
+          makeExecuteArgs({ filePath, newString: "new text", oldString }),
+        )
+      )._unsafeUnwrapErr().message;
 
-        expect(result.isOk()).toBe(true);
-      },
-    );
+    expect({
+      directory: await refusal("./", "old text"),
+      missingFile: await refusal("./non-existent-file.txt", "old text"),
+      notFound: await refusal(
+        "./grep-test.txt",
+        "this text does not exist in the file",
+      ),
+      twice: await refusal("./grep-test.txt", "grep"),
+    }).toMatchInlineSnapshot(`
+        {
+          "directory": "Path is a directory, not a file: ./",
+          "missingFile": "File ./non-existent-file.txt not found",
+          "notFound": "Failed to edit file ./grep-test.txt: oldString not found in content",
+          "twice": "Failed to edit file ./grep-test.txt: Found multiple matches for oldString. Include more surrounding code lines in oldString to uniquely identify which occurrence to replace.",
+        }
+      `);
+    await expect(readBack("grep-test.txt")).resolves.toBe(GREP_FILE_CONTENT);
   });
 
-  describe("execute - empty oldString", () => {
+  it("replaces the one match and tells the model only that it succeeded", async () => {
+    setupMockFs({ "index.ts": "const x = 1;\nconst y = 1;\n" });
+
+    const input = {
+      filePath: "./index.ts",
+      newString: "const x = 2;",
+      oldString: "const x = 1;",
+    };
+    const output = (
+      await runTool(TOOLS.EditFile, makeExecuteArgs(input))
+    )._unsafeUnwrap();
+
+    await expect(readBack("index.ts")).resolves.toBe(
+      "const x = 2;\nconst y = 1;\n",
+    );
+    expect(TOOLS.EditFile.toModelOutput({ input, output, toolCallId: "test" }))
+      .toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "Successfully edited file ./index.ts",
+      }
+    `);
+  });
+
+  it("replaces every match with replaceAll", async () => {
+    setupMockFs();
+
+    const result = await runTool(
+      TOOLS.EditFile,
+      makeExecuteArgs({
+        filePath: "./grep-test.txt",
+        newString: "GREP",
+        oldString: "grep",
+        replaceAll: true,
+      }),
+    );
+
+    expect(result.isOk()).toBe(true);
+    const edited = await readBack("grep-test.txt");
+    expect(edited).not.toContain("grep");
+    expect(edited.match(/GREP/g)).toHaveLength(4);
+  });
+
+  it.each([
+    {
+      description: "smart double quotes",
+      fileContent: 'const msg = "Hello world";',
+      newString: 'const msg = "Goodbye world";',
+      oldString: "const msg = \u201CHello world\u201D;",
+    },
+    {
+      description: "smart single quotes",
+      fileContent: "const msg = 'Hello world';",
+      newString: "const msg = 'Goodbye world';",
+      oldString: "const msg = \u2018Hello world\u2019;",
+    },
+    {
+      description: "an em dash",
+      fileContent: "// range: 1-10",
+      newString: "// range: 1-100",
+      oldString: "// range: 1\u201410",
+    },
+    {
+      description: "a non-breaking space",
+      fileContent: "const x = 1;",
+      newString: "const x = 2;",
+      oldString: "const\u00A0x = 1;",
+    },
+  ])(
+    "matches plain text an oldString wrote with $description",
+    async ({ fileContent, newString, oldString }) => {
+      setupMockFs({ "unicode-test.ts": fileContent });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./unicode-test.ts",
+          newString,
+          oldString,
+        }),
+      );
+
+      expect(result.isOk()).toBe(true);
+      await expect(readBack("unicode-test.ts")).resolves.toBe(newString);
+    },
+  );
+
+  describe("empty oldString", () => {
     it("refuses to replace an existing file and leaves it untouched", async () => {
       const original = "const x = 1;\nconst y = 2;\n";
       setupMockFs({ "index.ts": original });
@@ -237,21 +208,13 @@ describe("EditFile", () => {
         }),
       );
 
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use write_file for an intentional full-file replacement.",
-          "type": "execute-error",
-        }
-      `);
-      await expect(
-        fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "index.ts"),
-          "utf8",
-        ),
-      ).resolves.toBe(original);
+      expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+        `"oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use write_file for an intentional full-file replacement."`,
+      );
+      await expect(readBack("index.ts")).resolves.toBe(original);
     });
 
-    it("creates the file when it does not exist", async () => {
+    it("creates the file when it does not exist, with a diff from nothing", async () => {
       setupMockFs({});
 
       const result = await runTool(
@@ -263,37 +226,33 @@ describe("EditFile", () => {
         }),
       );
 
-      const { modifiedAt, ...output } = result._unsafeUnwrap();
-      expect(modifiedAt).toEqual(expect.any(Number));
-      expect(output).toMatchInlineSnapshot(`
-        {
-          "diff": "Index: ./created.ts
+      expect(result._unsafeUnwrap().diff).toMatchInlineSnapshot(`
+        "Index: ./created.ts
         ===================================================================
         --- ./created.ts
         +++ ./created.ts
         @@ -0,0 +1,1 @@
         +const z = 3;
-        ",
-          "filePath": "./created.ts",
-        }
+        "
       `);
+      await expect(readBack("created.ts")).resolves.toBe("const z = 3;\n");
     });
   });
 
-  describe("execute - block anchor guard rails", () => {
+  describe("block anchor guard rails", () => {
     // Every real source file has a blank line in it, and the block anchors
     // are what answers when the model's oldString is close but not exact,
     // which is the only reason they exist.
-    it("replaces a block with blank lines above it", async () => {
+    it("replaces a near-miss block with blank lines around it", async () => {
+      const around = ["const first = 1;", ""];
+      const after = ["", "const last = 2;"];
       setupMockFs({
         "blanks.ts": [
-          "const first = 1;",
-          "",
+          ...around,
           "function keep() {",
           "  doWork(1);",
           "}",
-          "",
-          "const last = 2;",
+          ...after,
         ].join("\n"),
       });
 
@@ -309,180 +268,116 @@ describe("EditFile", () => {
       );
 
       expect(result.isOk()).toBe(true);
-      expect(
-        await fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "blanks.ts"),
-          "utf8",
-        ),
-      ).toBe(
-        [
-          "const first = 1;",
-          "",
-          "function keep() {",
-          "  done();",
-          "}",
-          "",
-          "const last = 2;",
-        ].join("\n"),
+      await expect(readBack("blanks.ts")).resolves.toBe(
+        [...around, "function keep() {", "  done();", "}", ...after].join("\n"),
       );
     });
 
-    // Two anchors with one line between them: a search block of two lines is
-    // all anchors and no middle, so nothing checks what sits between.
-    it("refuses a two-line oldString rather than eat the line between", async () => {
-      setupMockFs({ "pair.ts": "foo();\n  const keep = 1;\nbar();\n" });
-
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./pair.ts",
-          newString: "REPLACED\n",
-          oldString: "foo();\nbar();\n",
-        }),
-      );
-
-      expect(result.isErr()).toBe(true);
-      expect(
-        await fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.work, chatId, "pair.ts"),
-          "utf8",
-        ),
-      ).toContain("const keep = 1;");
-    });
-
-    it("refuses a block anchored on matching first and last lines with an unrelated middle", async () => {
-      setupMockFs({
-        "anchors.ts": [
+    it.each([
+      {
+        // Two anchors with one line between them: a search block of two lines
+        // is all anchors and no middle, so nothing checks what sits between.
+        content: "foo();\n  const keep = 1;\nbar();\n",
+        name: "a two-line oldString rather than eat the line between",
+        oldString: "foo();\nbar();\n",
+      },
+      {
+        content: [
           "function run() {",
           "  const a = 1;",
           "  const b = 2;",
           "  const c = 3;",
           "}",
         ].join("\n"),
-      });
+        name: "a block whose first and last lines match around an unrelated middle",
+        oldString: [
+          "function run() {",
+          "  totally different content here;",
+          "  nothing like the real body;",
+          "  not even close;",
+          "}",
+        ].join("\n"),
+      },
+      {
+        content: [
+          "start",
+          ...Array.from({ length: 40 }, (_, i) => `  line ${i};`),
+          "end",
+        ].join("\n"),
+        name: "to stretch a small search block across a much larger span",
+        oldString: ["start", "  line 0;", "end"].join("\n"),
+      },
+    ])("refuses $name", async ({ content, oldString }) => {
+      setupMockFs({ "anchors.ts": content });
 
       const result = await runTool(
         TOOLS.EditFile,
         makeExecuteArgs({
           filePath: "./anchors.ts",
-          newString: "replaced",
+          newString: "REPLACED",
+          oldString,
+        }),
+      );
+
+      expect(result.isErr()).toBe(true);
+      await expect(readBack("anchors.ts")).resolves.toBe(content);
+    });
+
+    // The context matcher takes a block of the same lines when half the
+    // middle matches, whatever the other half holds: here 900 bytes of data
+    // the model never sent. Only the size check stands between that and a
+    // replacement that deletes it.
+    it("refuses a match many times longer than oldString", async () => {
+      const content = [
+        "function run() {",
+        "  const a = 1;",
+        `  const data = [${"1, ".repeat(300)}];`,
+        "}",
+      ].join("\n");
+      setupMockFs({ "context.ts": content });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./context.ts",
+          newString: "REPLACED",
           oldString: [
             "function run() {",
-            "  totally different content here;",
-            "  nothing like the real body;",
-            "  not even close;",
+            "  const a = 1;",
+            "  const data = [];",
             "}",
           ].join("\n"),
         }),
       );
 
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "Failed to edit file ./anchors.ts: oldString not found in content",
-          "type": "execute-error",
-        }
-      `);
-    });
-
-    it("refuses to stretch a small search block across a much larger span", async () => {
-      setupMockFs({
-        "wide.ts": [
-          "start",
-          ...Array.from({ length: 40 }, (_, i) => `  line ${i};`),
-          "end",
-        ].join("\n"),
-      });
-
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./wide.ts",
-          newString: "collapsed",
-          oldString: ["start", "  line 0;", "end"].join("\n"),
-        }),
+      expect(result._unsafeUnwrapErr().message).toContain(
+        "matched span is much larger than oldString",
       );
-
-      expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(`
-        {
-          "message": "Failed to edit file ./wide.ts: oldString not found in content",
-          "type": "execute-error",
-        }
-      `);
-    });
-  });
-
-  describe("execute - replaceAll", () => {
-    beforeEach(() => {
-      setupMockFs();
+      await expect(readBack("context.ts")).resolves.toBe(content);
     });
 
-    it("should replace all occurrences when replaceAll is true", async () => {
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./grep-test.txt",
-          newString: "GREP",
-          oldString: "grep",
-          replaceAll: true,
-        }),
-      );
+    // A model that escapes its arguments twice sends `\n` as two characters
+    // in newString too, so replacing on an unescaped match would write
+    // backslashes into the file. Not found sends it back to read the file.
+    it.each([2, 4])(
+      "refuses a %i-line oldString sent with its newlines escaped",
+      async (count) => {
+        const content = ["a();", "b();", "c();", "d();"].join("\n") + "\n";
+        setupMockFs({ "escaped.ts": content });
+        const lines = content.split("\n").slice(0, count);
 
-      const { modifiedAt, ...output } = result._unsafeUnwrap();
-      expect(modifiedAt).toEqual(expect.any(Number));
-      expect(output).toMatchInlineSnapshot(`
-          {
-            "diff": "Index: ./grep-test.txt
-          ===================================================================
-          --- ./grep-test.txt
-          +++ ./grep-test.txt
-          @@ -1,26 +1,26 @@
-          -This is a test file for grep functionality.
-          +This is a test file for GREP functionality.
-           
-           It contains multiple lines with various patterns to test:
-           - async functions
-           - regular expressions
-           - file system operations
-           - error handling
-           
-          -The grep tests will look for:
-          +The GREP tests will look for:
-           1. Specific keywords like "async" and "function"
-           2. Regular expressions like "test.*file"
-           3. Error messages and patterns
-           
-          -This file should help verify that the grep implementation:
-          +This file should help verify that the GREP implementation:
-           - Finds all matches in a file
-           - Handles multiple matches correctly
-           - Returns empty array when no matches found
-           - Properly handles special characters
-           
-           Some example patterns to search for:
-           async function testGrep() {
-          -  console.log("Testing grep functionality");
-          +  console.log("Testing GREP functionality");
-             throw new Error("Test error message");
-           }
-           
-           // Some JSX
-          ",
-            "filePath": "./grep-test.txt",
-          }
-        `);
-    });
+        const result = await runTool(
+          TOOLS.EditFile,
+          makeExecuteArgs({
+            filePath: "./escaped.ts",
+            newString: lines.map((line) => `// ${line}`).join(String.raw`\n`),
+            oldString: lines.join(String.raw`\n`),
+          }),
+        );
 
-    it("should error on multiple matches without replaceAll", async () => {
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./grep-test.txt",
-          newString: "GREP",
-          oldString: "grep",
-        }),
-      );
-
-      expect(result._unsafeUnwrapErr()).toBeDefined();
-    });
+        expect(result._unsafeUnwrapErr().message).toContain("not found");
+        await expect(readBack("escaped.ts")).resolves.toBe(content);
+      },
+    );
   });
 });

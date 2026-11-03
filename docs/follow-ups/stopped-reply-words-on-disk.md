@@ -18,7 +18,7 @@ The test's failure message in a CI log:
 
 ## Where to look
 
-CI runs on main, the "Check and Test" job's workspace `test:ci` output.
+CI runs on main, the workspace `test:ci` output in the "Tests (Linux …)" jobs.
 
 ## What each answer means
 

@@ -1,5 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  renderHook,
+  waitFor as waitForTesting,
+} from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -106,6 +110,14 @@ vi.mock(import("@/client/lib/dictation-capture"), () => ({
   // `as`: the hook only checks `instanceof`.
   MicrophoneError: class extends Error {} as never,
 }));
+
+/**
+ * Polls every millisecond: a hook's state changes touch no DOM, so the default
+ * 50ms interval is the only thing that wakes a wait, and each one costs that.
+ */
+function waitFor(check: () => void) {
+  return waitForTesting(check, { interval: 1 });
+}
 
 /** A toast call's options, which carry the action the test presses. */
 function toastOptions(call: unknown[] | undefined) {

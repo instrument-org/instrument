@@ -3,12 +3,60 @@ env:
   DO_NOT_TRACK: "1"
   NODE_OPTIONS: "--max_old_space_size=4096"
 jobs:
+  # Types, lint, knip and the other checks that say the same thing on every
+  # platform. The tests run in the jobs below, so this one never waits on them.
   check:
-    name: Check and Test
+    name: Check
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # FIXME rename "registry"
+          submodules: recursive
+      - uses: ./.github/actions/setup-binary-caches
+      - uses: ./.github/actions/prepare
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      # Reported, not enforced, and ahead of the gate so the annotation lands
+      # even when something below it fails. Every correction typos makes is one
+      # `pnpm fix:spelling` applies unattended, and nothing downstream of a
+      # misspelled comment breaks, so holding types, lint, build, and tests red
+      # behind one British spelling costs more than the word does.
+      - continue-on-error: true
+        name: Spelling
+        run: pnpm check:spelling
+      - run: pnpm check:ci
+
+  # The unit suites, split into shards that each get a whole runner. Every
+  # package's suite runs on Linux. On Windows only the workspace package's
+  # runs: it is the one platform whose filesystem answers differently
+  # everywhere the agent meets it (a drive letter where a mount would be, a
+  # second short name beside every folder name, a file a delete cannot take
+  # while something holds it open), and what the suite found there included a
+  # way around the folder rules.
+  #
+  # The suites' own scripts cap Vitest at 40% of the cores, which is right
+  # when several suites share a machine and leaves half of a runner idle.
+  # VITEST_MAX_WORKERS overrides it, and the suites run one after another so
+  # the workers never outnumber the cores. Each shard's arguments are part of
+  # its Turbo hash, so an unchanged package still comes from the cache.
+  test:
+    env:
+      VITEST_MAX_WORKERS: "3"
+    name: Tests (${{ matrix.platform }} ${{ matrix.shard }}/${{ matrix.shards }})
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.runner }}
+    steps:
+      # Defender scans every file pnpm unpacks and every file a test writes,
+      # and the workspace suite writes a great many. The runner is thrown away
+      # after the job, so the scan protects nothing here.
+      - if: runner.os == 'Windows'
+        name: Stop Defender scanning files as they are written
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+        shell: pwsh
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # FIXME rename "registry"
@@ -21,43 +69,55 @@ jobs:
       # the tests that run them need it to work here. The runner's Ubuntu
       # ships without bubblewrap and with AppArmor closing the unprivileged
       # user namespaces it makes its sandbox from.
-      - name: Let bubblewrap make its sandbox
+      - if: runner.os == 'Linux'
+        name: Let bubblewrap make its sandbox
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      # Reported, not enforced, and ahead of the gate so the annotation lands
-      # even when something below it fails. Every correction typos makes is one
-      # `pnpm fix:spelling` applies unattended, and nothing downstream of a
-      # misspelled comment breaks, so holding types, lint, build, and tests red
-      # behind one British spelling costs more than the word does.
-      - continue-on-error: true
-        name: Spelling
-        run: pnpm check:spelling
-      - run: pnpm check-and-test:ci
-
-  # The workspace package's own tests, on the one platform whose filesystem
-  # answers differently everywhere the agent meets it: a drive letter where a
-  # mount would be, a second short name beside every folder name, a file a
-  # delete cannot take while something holds it open. Nothing ran here until
-  # these tests did, and what they found included a way around the folder
-  # rules, so the suite runs on Windows from now on. Types, lint and the build
-  # say the same thing on every platform and stay on the job above.
-  workspace-windows:
-    name: Workspace Tests (Windows)
-    permissions:
-      contents: read
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          # FIXME rename "registry"
-          submodules: recursive # Some tests use the registry
-      - uses: ./.github/actions/setup-binary-caches
-      - uses: ./.github/actions/prepare
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - run: pnpm --filter @instrument-org/workspace run test:ci
+      - run: pnpm exec turbo run test:ci ${{ matrix.filter }} --concurrency=1 --continue=dependencies-successful --output-logs errors-only --summarize -- --passWithNoTests --shard=${{ matrix.shard }}/${{ matrix.shards }}
+      # What each suite took, so balancing the shards never needs a failed
+      # run's output to read it from.
+      - if: ${{ !cancelled() }}
+        name: Time each suite
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            for (const file of fs.readdirSync(".turbo/runs")) {
+              const run = JSON.parse(fs.readFileSync(".turbo/runs/" + file, "utf8"));
+              for (const { cache, execution, taskId } of run.tasks)
+                if (execution) console.log(Math.round((execution.endTime - execution.startTime) / 1000) + "s", cache.status, taskId);
+            }'
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        filter: [""]
+        platform: [Linux]
+        runner: [ubuntu-latest]
+        shard: [1, 2, 3, 4]
+        shards: [4]
+        include:
+          - filter: --filter=@instrument-org/workspace
+            platform: Windows
+            runner: windows-latest
+            shard: 1
+            shards: 4
+          - filter: --filter=@instrument-org/workspace
+            platform: Windows
+            runner: windows-latest
+            shard: 2
+            shards: 4
+          - filter: --filter=@instrument-org/workspace
+            platform: Windows
+            runner: windows-latest
+            shard: 3
+            shards: 4
+          - filter: --filter=@instrument-org/workspace
+            platform: Windows
+            runner: windows-latest
+            shard: 4
+            shards: 4
 
   # Its own job so the Chromium download never sits in front of everything else,
   # and so a flake here reads as a browser failure rather than as the whole
@@ -112,7 +172,7 @@ jobs:
       SLACK_CHANNEL: C07R4FUL073
     if: ${{ !cancelled() && github.event_name == 'push' }}
     name: Report
-    needs: [check, workspace-windows, browser]
+    needs: [check, test, browser]
     permissions:
       actions: read
       contents: read

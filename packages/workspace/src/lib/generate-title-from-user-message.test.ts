@@ -139,48 +139,31 @@ function setupTestWithModel(
 }
 
 describe("generateTitleFromUserMessage", () => {
-  it("should limit a generated title to the word cap", async () => {
-    const { generate } = setupTest(
+  it.each([
+    [
       "Very Long Task Title That Exceeds The Word Limit By Some Margin",
-    );
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title.split(" ")).toHaveLength(MAX_TITLE_WORDS);
-    expect(title).toBe("Very Long Task Title That Exceeds The Word");
-  });
-
-  it("should preserve titles within the word cap", async () => {
-    const { generate } = setupTest("Todo List Manager");
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title.split(" ")).toHaveLength(3);
-    expect(title).toBe("Todo List Manager");
-  });
-
-  it("should handle exactly the word cap", async () => {
-    const { generate } = setupTest(
+      "Very Long Task Title That Exceeds The Word",
+    ],
+    ["Todo List Manager", "Todo List Manager"],
+    [
       "Chat With File Upload System For Everyone Here",
-    );
+      "Chat With File Upload System For Everyone Here",
+    ],
+    ["Todos", "Todos"],
+    ["  Todo Manager  ", "Todo Manager"],
+    ["تطبيق المهام اليومية", "تطبيق المهام اليومية"],
+    [
+      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧 更新",
+      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧",
+    ],
+    ["Chat アプリ with ファイル upload", "Chat アプリ with ファイル upload"],
+  ])("titles %j as %j, trimmed to the word cap", async (answer, expected) => {
+    const { generate } = setupTest(answer);
 
-    const result = await generate();
-    const title = result._unsafeUnwrap();
+    const title = (await generate())._unsafeUnwrap();
 
-    expect(title.split(" ")).toHaveLength(MAX_TITLE_WORDS);
-    expect(title).toBe("Chat With File Upload System For Everyone Here");
-  });
-
-  it("should handle single word titles", async () => {
-    const { generate } = setupTest("Todos");
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title.split(" ")).toHaveLength(1);
-    expect(title).toBe("Todos");
+    expect(title).toBe(expected);
+    expect(title.split(" ").length).toBeLessThanOrEqual(MAX_TITLE_WORDS);
   });
 
   it("should cap max output tokens for task-name generation", async () => {
@@ -348,48 +331,6 @@ describe("generateTitleFromUserMessage", () => {
     const result = await generate();
 
     expect(result._unsafeUnwrap()).toBe(expected);
-  });
-
-  it("should trim whitespace from generated title", async () => {
-    const { generate } = setupTest("  Todo Manager  ");
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title).toBe("Todo Manager");
-  });
-
-  it("should handle non-English characters", async () => {
-    const { generate } = setupTest("تطبيق المهام اليومية");
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title).toBe("تطبيق المهام اليومية");
-  });
-
-  it("should limit non-English titles to the word cap", async () => {
-    const { generate } = setupTest(
-      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧 更新",
-    );
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title.split(" ")).toHaveLength(MAX_TITLE_WORDS);
-    expect(title).toBe(
-      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧",
-    );
-  });
-
-  it("should handle mixed language titles", async () => {
-    const { generate } = setupTest("Chat アプリ with ファイル upload");
-
-    const result = await generate();
-    const title = result._unsafeUnwrap();
-
-    expect(title.split(" ")).toHaveLength(5);
-    expect(title).toBe("Chat アプリ with ファイル upload");
   });
 
   describe("captureException behavior", () => {

@@ -130,9 +130,12 @@ describe("SetupHost", () => {
     loadedWith("free-account");
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await vi.waitFor(() => {
-      expect(rpc.answer.mock.calls[0]?.[0]).toEqual({ step: "free-account" });
-    });
+    await vi.waitFor(
+      () => {
+        expect(rpc.answer.mock.calls[0]?.[0]).toEqual({ step: "free-account" });
+      },
+      { interval: 1 },
+    );
   });
 
   it("offers Back only where there is a step to go back to", async () => {
@@ -143,9 +146,12 @@ describe("SetupHost", () => {
     loadedWith("free-account", "welcome-back");
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await vi.waitFor(() => {
-      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "free-account" });
-    });
+    await vi.waitFor(
+      () => {
+        expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "free-account" });
+      },
+      { interval: 1 },
+    );
   });
 
   it("finishes from All set after the last step, never only answering it", async () => {
@@ -153,9 +159,12 @@ describe("SetupHost", () => {
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Open Instrument" }));
-    await vi.waitFor(() => {
-      expect(rpc.finish).toHaveBeenCalled();
-    });
+    await vi.waitFor(
+      () => {
+        expect(rpc.finish).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     expect(rpc.answer).not.toHaveBeenCalled();
   });
 
@@ -168,9 +177,12 @@ describe("SetupHost", () => {
     window.api.initialSetupState = { ...loaded, isNewStepOnly: true };
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
-    await vi.waitFor(() => {
-      expect(rpc.finish).toHaveBeenCalled();
-    });
+    await vi.waitFor(
+      () => {
+        expect(rpc.finish).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
   });
 
   it("draws nothing and holds nothing when setup is down", () => {

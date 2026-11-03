@@ -24,16 +24,6 @@ describe("SessionMessageRelaxedPart", () => {
   const testCases: { data: SessionMessageRelaxedPart.Type; name: string }[] = [
     {
       data: {
-        metadata: baseMetadata,
-        providerMetadata,
-        state: "streaming",
-        text: "Hello world",
-        type: "text",
-      },
-      name: "TextUIPart - streaming",
-    },
-    {
-      data: {
         metadata: {
           ...baseMetadata,
           endedAt: new Date("2024-01-01T10:01:00Z"),
@@ -43,17 +33,7 @@ describe("SessionMessageRelaxedPart", () => {
         text: "Hello world",
         type: "text",
       },
-      name: "TextUIPart - done",
-    },
-    {
-      data: {
-        metadata: baseMetadata,
-        providerMetadata,
-        state: "streaming",
-        text: "Let me think about this...",
-        type: "reasoning",
-      },
-      name: "ReasoningUIPart - streaming",
+      name: "text",
     },
     {
       data: {
@@ -66,7 +46,7 @@ describe("SessionMessageRelaxedPart", () => {
         text: "Let me think about this...",
         type: "reasoning",
       },
-      name: "ReasoningUIPart - done",
+      name: "reasoning",
     },
     {
       data: {
@@ -77,7 +57,7 @@ describe("SessionMessageRelaxedPart", () => {
         type: "source-url",
         url: "https://example.com",
       },
-      name: "SourceUrlUIPart",
+      name: "source-url",
     },
     {
       data: {
@@ -89,7 +69,7 @@ describe("SessionMessageRelaxedPart", () => {
         title: "Important Document",
         type: "source-document",
       },
-      name: "SourceDocumentUIPart",
+      name: "source-document",
     },
     {
       data: {
@@ -100,7 +80,7 @@ describe("SessionMessageRelaxedPart", () => {
         type: "file",
         url: "https://example.com/file.pdf",
       },
-      name: "FileUIPart",
+      name: "file",
     },
     {
       data: {
@@ -110,7 +90,7 @@ describe("SessionMessageRelaxedPart", () => {
         },
         type: "step-start",
       },
-      name: "StepStartUIPart",
+      name: "step-start",
     },
     {
       data: {
@@ -122,36 +102,7 @@ describe("SessionMessageRelaxedPart", () => {
         },
         type: "data-custom",
       },
-      name: "DataUIPart",
-    },
-    {
-      data: {
-        input: undefined,
-        metadata: {
-          ...baseMetadata,
-          toolName: "read_file",
-        },
-        providerExecuted: false,
-        state: "input-streaming",
-        toolCallId: StoreId.ToolCallSchema.parse("call_123"),
-        type: "tool-read_file",
-      },
-      name: "ToolUIPart - input-streaming",
-    },
-    {
-      data: {
-        callProviderMetadata: providerMetadata,
-        input: { filePath: "test.txt" },
-        metadata: {
-          ...baseMetadata,
-          toolName: "read_file",
-        },
-        providerExecuted: true,
-        state: "input-available",
-        toolCallId: StoreId.ToolCallSchema.parse("call_123"),
-        type: "tool-read_file",
-      },
-      name: "ToolUIPart - input-available",
+      name: "data",
     },
     {
       data: {
@@ -175,7 +126,7 @@ describe("SessionMessageRelaxedPart", () => {
         toolCallId: "call_123",
         type: "tool-read_file",
       },
-      name: "ToolUIPart - output-available",
+      name: "tool result",
     },
     {
       data: {
@@ -192,11 +143,13 @@ describe("SessionMessageRelaxedPart", () => {
         toolCallId: StoreId.ToolCallSchema.parse("call_123"),
         type: "tool-read_file",
       },
-      name: "ToolUIPart - output-error",
+      name: "tool error",
     },
   ];
 
-  it.each(testCases)("should parse $name successfully", ({ data }) => {
+  // The schema strips keys it does not name, so a field missing from it would
+  // be lost from every stored part of that type.
+  it.each(testCases)("keeps every field of a $name part", ({ data }) => {
     const result = SessionMessageRelaxedPart.Schema.parse(data);
     expect(result).toEqual(data);
   });

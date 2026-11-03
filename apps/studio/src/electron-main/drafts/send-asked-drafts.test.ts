@@ -80,9 +80,12 @@ describe("startSendingAskedDrafts", () => {
   it("sends a fresh reply asked of this computer once, claimed first and marked sent after", async () => {
     const send = vi.fn(() => Promise.resolve());
     const applied = run([reply()], send);
-    await vi.waitFor(() => {
-      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
-    });
+    await vi.waitFor(
+      () => {
+        expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+      },
+      { interval: 1 },
+    );
     expect(send).toHaveBeenCalledExactlyOnceWith({
       chatId: CHAT,
       draftId: "01KFDRAFT0000000000000001",
@@ -93,16 +96,19 @@ describe("startSendingAskedDrafts", () => {
   it("leaves a reply asked too long ago in its box, unsent", async () => {
     const send = vi.fn(() => Promise.resolve());
     const applied = run([reply({ updatedAt: NOW - ASK_FRESH_MS - 1 })], send);
-    await vi.waitFor(() => {
-      expect(applied).toEqual([
-        {
-          id: "01KFDRAFT0000000000000001",
-          set: {},
-          type: "update",
-          unset: ["sendOn"],
-        },
-      ]);
-    });
+    await vi.waitFor(
+      () => {
+        expect(applied).toEqual([
+          {
+            id: "01KFDRAFT0000000000000001",
+            set: {},
+            type: "update",
+            unset: ["sendOn"],
+          },
+        ]);
+      },
+      { interval: 1 },
+    );
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -111,13 +117,16 @@ describe("startSendingAskedDrafts", () => {
       Promise.reject(new Error("No model is chosen to send with")),
     );
     const applied = run([reply()], send);
-    await vi.waitFor(() => {
-      expect(applied.map((op) => op.type)).toEqual([
-        "claim",
-        "release",
-        "update",
-      ]);
-    });
+    await vi.waitFor(
+      () => {
+        expect(applied.map((op) => op.type)).toEqual([
+          "claim",
+          "release",
+          "update",
+        ]);
+      },
+      { interval: 1 },
+    );
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(send).toHaveBeenCalledTimes(1);
   });
@@ -141,9 +150,12 @@ describe("startSendingAskedDrafts", () => {
     const startChat = vi.fn(() => Promise.resolve(CHAT));
     const { chatId: _reply, ...newChat } = reply({ projectId: "top_weather" });
     const applied = run([newChat], send, startChat);
-    await vi.waitFor(() => {
-      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
-    });
+    await vi.waitFor(
+      () => {
+        expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+      },
+      { interval: 1 },
+    );
     expect(startChat).toHaveBeenCalledExactlyOnceWith(
       "Will it rain on Saturday?",
     );

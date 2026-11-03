@@ -44,10 +44,7 @@ vi.mock("./permissions/macos", async (importOriginal) => ({
 
 describe("a source whose listing waits", () => {
   async function heldSource() {
-    const dir = AbsolutePathSchema.parse(
-      await fs.mkdtemp(path.join(os.tmpdir(), "skills-held-")),
-    );
-    temporaryDirs.push(dir);
+    const dir = AbsolutePathSchema.parse(await tempDir("skills-held-"));
     return { dir, id: "claude", source: "claude" } as const;
   }
 
@@ -143,21 +140,9 @@ describe("parseFrontmatter", () => {
 
   it("gives the same reason every time it reads the same broken file", () => {
     const raw = make("description: [");
-    expect([parseFrontmatter(raw), parseFrontmatter(raw)])
-      .toMatchInlineSnapshot(`
-        [
-          {
-            "detail": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 15",
-            "ok": false,
-            "reason": "unparsable",
-          },
-          {
-            "detail": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 15",
-            "ok": false,
-            "reason": "unparsable",
-          },
-        ]
-      `);
+    const first = parseFrontmatter(raw);
+    expect(first).toMatchObject({ ok: false, reason: "unparsable" });
+    expect(parseFrontmatter(raw)).toEqual(first);
   });
 
   // A CRLF checkout is what a Windows build packages, and the closing fence
@@ -205,32 +190,21 @@ describe("parseFrontmatter", () => {
   });
 
   it.each([
-    { expected: false, frontmatter: "disable-model-invocation: true" },
-    { expected: true, frontmatter: "disable-model-invocation: false" },
-    { expected: true, frontmatter: "" },
-  ])(
-    "reads modelInvocable=$expected from `$frontmatter`",
-    ({ expected, frontmatter }) => {
-      const raw = make(
-        ["description: Does a thing", frontmatter].filter(Boolean).join("\n"),
-      );
-      const result = parseFrontmatter(raw);
-      expect(result.ok && result.modelInvocable).toBe(expected);
+    {
+      expected: false,
+      field: "modelInvocable",
+      line: "disable-model-invocation: true",
     },
-  );
-
-  it.each([
-    { expected: false, frontmatter: "user-invocable: false" },
-    { expected: true, frontmatter: "user-invocable: true" },
-    { expected: true, frontmatter: "" },
-  ])(
-    "reads userInvocable=$expected from `$frontmatter`",
-    ({ expected, frontmatter }) => {
-      const raw = make(
-        ["description: Does a thing", frontmatter].filter(Boolean).join("\n"),
+    { expected: true, field: "modelInvocable", line: "" },
+    { expected: false, field: "userInvocable", line: "user-invocable: false" },
+    { expected: true, field: "userInvocable", line: "" },
+  ] as const)(
+    "reads $field=$expected from `$line`",
+    ({ expected, field, line }) => {
+      const result = parseFrontmatter(
+        make(["description: Does a thing", line].filter(Boolean).join("\n")),
       );
-      const result = parseFrontmatter(raw);
-      expect(result.ok && result.userInvocable).toBe(expected);
+      expect(result.ok && result[field]).toBe(expected);
     },
   );
 
@@ -275,8 +249,7 @@ describe("parseFrontmatter", () => {
 
 describe("listSkillFiles", () => {
   it("skips dependency trees and tool caches", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skill-files-"));
-    temporaryDirs.push(root);
+    const root = await tempDir("skill-files-");
     await fs.mkdir(path.join(root, "node_modules", "cac"), {
       recursive: true,
     });
@@ -305,28 +278,16 @@ describe("skill discovery", () => {
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "skips a source it can't read and keeps the others",
     async () => {
-      const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-refused-"));
-      temporaryDirs.push(root);
-      const home = path.join(root, "home");
-      const refused = path.join(home, ".claude", "skills");
+      const root = await tempDir("skills-refused-");
+      const refused = path.join(root, "home", ".claude", "skills");
       await writeSkill(path.join(refused, "review"), "Claude");
-      await writeSkill(path.join(home, ".codex", "skills", "notes"), "Codex");
+      await writeSkill(
+        path.join(root, "home", ".codex", "skills", "notes"),
+        "Codex",
+      );
       await fs.chmod(refused, 0o000);
       try {
-        const skills = await findSkills(
-          getSkillSources(
-            {
-              registryDir: AbsolutePathSchema.parse(
-                path.join(root, "registry"),
-              ),
-              rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-              systemSkillsDir: AbsolutePathSchema.parse(
-                path.join(root, "system"),
-              ),
-            },
-            AbsolutePathSchema.parse(home),
-          ),
-        );
+        const skills = await findSkills(sourcesIn(root));
         expect(skills.map((skill) => skill.id)).toEqual(["codex:notes"]);
       } finally {
         await fs.chmod(refused, 0o755);
@@ -335,19 +296,12 @@ describe("skill discovery", () => {
   );
 
   it("keeps a skill ID stable when a higher-ranked namesake appears", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-identity-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const workspace = path.join(root, "workspace");
-    await writeSkill(path.join(home, ".claude", "skills", "review"), "Claude");
-    const sources = getSkillSources(
-      {
-        registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-        rootDir: WorkspaceDirSchema.parse(workspace),
-        systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-      },
-      AbsolutePathSchema.parse(home),
+    const root = await tempDir("skills-identity-");
+    await writeSkill(
+      path.join(root, "home", ".claude", "skills", "review"),
+      "Claude",
     );
+    const sources = sourcesIn(root);
 
     const [before] = await findSkills(sources);
     expect(before).toMatchObject({
@@ -356,7 +310,7 @@ describe("skill discovery", () => {
     });
 
     await writeSkill(
-      path.join(workspace, SKILLS_FOLDER_NAME, "review"),
+      path.join(root, "workspace", SKILLS_FOLDER_NAME, "review"),
       "Workspace",
     );
     const after = await findSkills(sources);
@@ -369,37 +323,30 @@ describe("skill discovery", () => {
   });
 
   it("keeps every copy of a shared name and qualifies the ones that lose it", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-test-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const workspace = path.join(root, "workspace");
-    const registry = path.join(root, "registry");
-    const systemSkills = path.join(root, "system-skills");
+    const root = await tempDir("skills-test-");
     const sharedSkill = path.join(root, "shared", "review");
 
-    await writeSkill(path.join(systemSkills, "creator"), "System");
-    await writeSkill(path.join(registry, "skills", "bundled"), "Bundled");
+    await writeSkill(path.join(root, "system", "creator"), "System");
+    await writeSkill(
+      path.join(root, "registry", "skills", "bundled"),
+      "Bundled",
+    );
     await writeSkill(sharedSkill, "Shared");
     for (const vendor of [".claude", ".codex"]) {
-      await fs.mkdir(path.join(home, vendor, "skills"), { recursive: true });
+      await fs.mkdir(path.join(root, "home", vendor, "skills"), {
+        recursive: true,
+      });
       await fs.symlink(
         sharedSkill,
-        path.join(home, vendor, "skills", "review"),
+        path.join(root, "home", vendor, "skills", "review"),
       );
     }
     await writeSkill(
-      path.join(workspace, SKILLS_FOLDER_NAME, "review"),
+      path.join(root, "workspace", SKILLS_FOLDER_NAME, "review"),
       "Workspace",
     );
 
-    const sources = getSkillSources(
-      {
-        registryDir: AbsolutePathSchema.parse(registry),
-        rootDir: WorkspaceDirSchema.parse(workspace),
-        systemSkillsDir: AbsolutePathSchema.parse(systemSkills),
-      },
-      AbsolutePathSchema.parse(home),
-    );
+    const sources = sourcesIn(root);
     const skills = await findSkills(sources);
 
     expect(
@@ -449,34 +396,25 @@ describe("skill discovery", () => {
   });
 
   it("collapses copies of one skill that agree on SKILL.md", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-copies-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const workspace = path.join(root, "workspace");
+    const root = await tempDir("skills-copies-");
 
     // What a tool that copies rather than symlinks leaves behind.
     for (const vendor of [".claude", ".cursor", ".gemini"]) {
-      await writeSkill(path.join(home, vendor, "skills", "review"), "Shared");
+      await writeSkill(
+        path.join(root, "home", vendor, "skills", "review"),
+        "Shared",
+      );
     }
     await writeSkill(
-      path.join(workspace, SKILLS_FOLDER_NAME, "review"),
+      path.join(root, "workspace", SKILLS_FOLDER_NAME, "review"),
       "Shared",
     );
     await writeSkill(
-      path.join(home, ".codex", "skills", "review"),
+      path.join(root, "home", ".codex", "skills", "review"),
       "Different",
     );
 
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-          rootDir: WorkspaceDirSchema.parse(workspace),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
-    );
+    const skills = await findSkills(sourcesIn(root));
 
     // One entry for the four identical copies, attributed to the source that
     // outranks the rest, and the genuinely different one beside it.
@@ -516,26 +454,15 @@ describe("skill discovery", () => {
   });
 
   it("keeps same-instruction packages with different authored files", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-packages-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const claude = path.join(home, ".claude", "skills", "review");
-    const cursor = path.join(home, ".cursor", "skills", "review");
+    const root = await tempDir("skills-packages-");
+    const claude = path.join(root, "home", ".claude", "skills", "review");
+    const cursor = path.join(root, "home", ".cursor", "skills", "review");
     await writeSkill(claude, "Shared");
     await writeSkill(cursor, "Shared");
     await writePackageFile(claude, "scripts/run.ts", "claude");
     await writePackageFile(cursor, "scripts/run.ts", "cursor");
 
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
-    );
+    const skills = await findSkills(sourcesIn(root));
 
     expect(skills.map(({ id }) => id)).toEqual([
       "claude:review",
@@ -544,11 +471,9 @@ describe("skill discovery", () => {
   });
 
   it("keeps copies with different invocation metadata", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-metadata-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const claude = path.join(home, ".claude", "skills", "review");
-    const cursor = path.join(home, ".cursor", "skills", "review");
+    const root = await tempDir("skills-metadata-");
+    const claude = path.join(root, "home", ".claude", "skills", "review");
+    const cursor = path.join(root, "home", ".cursor", "skills", "review");
     await writeSkill(claude, "Shared");
     await fs.mkdir(cursor, { recursive: true });
     await fs.writeFile(
@@ -556,16 +481,7 @@ describe("skill discovery", () => {
       make("description: Shared\nuser-invocable: false"),
     );
 
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
-    );
+    const skills = await findSkills(sourcesIn(root));
 
     expect(
       skills.map(({ id, userInvocable }) => ({ id, userInvocable })),
@@ -576,26 +492,16 @@ describe("skill discovery", () => {
   });
 
   it("keeps the skills we ship out of user invocation", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-bundled-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const system = path.join(root, "system");
-    const registry = path.join(root, "registry");
+    const root = await tempDir("skills-bundled-");
 
-    await writeSkill(path.join(system, "creator"), "System");
-    await writeSkill(path.join(registry, "skills", "pdf"), "Ours");
-    await writeSkill(path.join(home, ".claude", "skills", "review"), "Theirs");
-
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(registry),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(system),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
+    await writeSkill(path.join(root, "system", "creator"), "System");
+    await writeSkill(path.join(root, "registry", "skills", "pdf"), "Ours");
+    await writeSkill(
+      path.join(root, "home", ".claude", "skills", "review"),
+      "Theirs",
     );
+
+    const skills = await findSkills(sourcesIn(root));
 
     // Neither shipped skill says so in its frontmatter, since the same packages
     // install into agents that do offer them by name.
@@ -608,25 +514,16 @@ describe("skill discovery", () => {
     ]);
   });
 
-  it("keeps a separately installed copy of a shipped skill automatic", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-installed-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const registry = path.join(root, "registry");
+  it("collapses a copy of a shipped skill installed in another agent into the one we ship", async () => {
+    const root = await tempDir("skills-installed-");
 
-    await writeSkill(path.join(registry, "skills", "pdf"), "Ours");
-    await writeSkill(path.join(home, ".claude", "skills", "pdf"), "Ours");
-
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(registry),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
+    await writeSkill(path.join(root, "registry", "skills", "pdf"), "Ours");
+    await writeSkill(
+      path.join(root, "home", ".claude", "skills", "pdf"),
+      "Ours",
     );
+
+    const skills = await findSkills(sourcesIn(root));
 
     // Installing our package into another agent's folder is the same skill, so
     // it collapses into the one we ship rather than reappearing as a slash
@@ -647,23 +544,14 @@ describe("skill discovery", () => {
   });
 
   it("invalidates a cached package fingerprint when an authored file changes", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-cache-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
-    const claude = path.join(home, ".claude", "skills", "review");
-    const cursor = path.join(home, ".cursor", "skills", "review");
+    const root = await tempDir("skills-cache-");
+    const claude = path.join(root, "home", ".claude", "skills", "review");
+    const cursor = path.join(root, "home", ".cursor", "skills", "review");
     for (const skillDir of [claude, cursor]) {
       await writeSkill(skillDir, "Shared");
       await writePackageFile(skillDir, "scripts/run.ts", "same");
     }
-    const sources = getSkillSources(
-      {
-        registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-        rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-        systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-      },
-      AbsolutePathSchema.parse(home),
-    );
+    const sources = sourcesIn(root);
 
     await expect(findSkills(sources)).resolves.toHaveLength(1);
     await fs.writeFile(
@@ -674,23 +562,15 @@ describe("skill discovery", () => {
   });
 
   it("treats names that differ only in case as the same name", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-case-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
+    const root = await tempDir("skills-case-");
 
     await writeSkill(path.join(root, "registry", "skills", "pdf"), "Ours");
-    await writeSkill(path.join(home, ".claude", "skills", "PDF"), "Theirs");
-
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
+    await writeSkill(
+      path.join(root, "home", ".claude", "skills", "PDF"),
+      "Theirs",
     );
+
+    const skills = await findSkills(sourcesIn(root));
 
     // macOS and Windows would give both of these the same folder inside a task,
     // so the lower-ranked one has to be qualified even though the names differ.
@@ -704,23 +584,18 @@ describe("skill discovery", () => {
   });
 
   it("qualifies every claimant when the top-ranked source is a tie", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-tie-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
+    const root = await tempDir("skills-tie-");
 
-    await writeSkill(path.join(home, ".claude", "skills", "review"), "Claude");
-    await writeSkill(path.join(home, ".cursor", "skills", "review"), "Cursor");
-
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
+    await writeSkill(
+      path.join(root, "home", ".claude", "skills", "review"),
+      "Claude",
     );
+    await writeSkill(
+      path.join(root, "home", ".cursor", "skills", "review"),
+      "Cursor",
+    );
+
+    const skills = await findSkills(sourcesIn(root));
 
     // Neither vendor directory outranks the other, so "review" alone addresses
     // nothing and both have to be asked for by source.
@@ -734,40 +609,49 @@ describe("skill discovery", () => {
   });
 
   it("collapses one real skill reached through several symlinked sources", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-dedupe-"));
-    temporaryDirs.push(root);
-    const home = path.join(root, "home");
+    const root = await tempDir("skills-dedupe-");
     const shared = path.join(root, "dotfiles", "skills");
 
     await writeSkill(path.join(shared, "review"), "Shared");
     // ~/.agents/skills is the symlink farm itself; the other vendors symlink
     // the individual skill, which is how these directories look in practice.
-    await fs.mkdir(path.join(home, ".agents"), { recursive: true });
-    await fs.symlink(shared, path.join(home, ".agents", "skills"));
+    await fs.mkdir(path.join(root, "home", ".agents"), { recursive: true });
+    await fs.symlink(shared, path.join(root, "home", ".agents", "skills"));
     for (const vendor of [".claude", ".cursor", ".gemini"]) {
-      await fs.mkdir(path.join(home, vendor, "skills"), { recursive: true });
+      await fs.mkdir(path.join(root, "home", vendor, "skills"), {
+        recursive: true,
+      });
       await fs.symlink(
         path.join(shared, "review"),
-        path.join(home, vendor, "skills", "review"),
+        path.join(root, "home", vendor, "skills", "review"),
       );
     }
 
-    const skills = await findSkills(
-      getSkillSources(
-        {
-          registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
-          rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
-          systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
-        },
-        AbsolutePathSchema.parse(home),
-      ),
-    );
+    const skills = await findSkills(sourcesIn(root));
 
     expect(skills.map(({ name, source }) => ({ name, source }))).toEqual([
       { name: "review", source: "agents" },
     ]);
   });
 });
+
+async function tempDir(prefix: string) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  temporaryDirs.push(dir);
+  return dir;
+}
+
+/** Every skill source, laid out under one folder: `home`, `workspace`, `registry` and `system`. */
+function sourcesIn(root: string) {
+  return getSkillSources(
+    {
+      registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+      systemSkillsDir: AbsolutePathSchema.parse(path.join(root, "system")),
+    },
+    AbsolutePathSchema.parse(path.join(root, "home")),
+  );
+}
 
 async function writePackageFile(
   dir: string,

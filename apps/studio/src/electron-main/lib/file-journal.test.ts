@@ -143,6 +143,144 @@ describe("undoing what was made", () => {
   });
 });
 
+// A drop or paste is taken back whole or not at all: every piece is checked
+// first, and a rename that fails partway puts back the ones before it.
+describe("undoing a drop or paste", () => {
+  /** Renames as the undo does, failing once `fails` matches where to. */
+  const renameFailing =
+    (fails: (to: string) => boolean) => async (from: string, to: string) => {
+      if (fails(to)) {
+        throw new Error("EBUSY");
+      }
+      await fs.rename(from, to);
+    };
+
+  async function twoMoved() {
+    await fs.mkdir(at("from"));
+    await fs.mkdir(at("into"));
+    await fs.writeFile(at("into/a.txt"), "a");
+    await fs.writeFile(at("into/b.txt"), "b");
+    return {
+      kind: "move" as const,
+      made: [],
+      moved: [
+        {
+          from: at("from/a.txt"),
+          identity: await identity("into/a.txt"),
+          to: at("into/a.txt"),
+        },
+        {
+          from: at("from/b.txt"),
+          identity: await identity("into/b.txt"),
+          to: at("into/b.txt"),
+        },
+      ],
+    };
+  }
+
+  it("puts everything back as it was when a step fails partway", async () => {
+    const entry = await twoMoved();
+
+    await expect(
+      undoEntry(
+        { ...entry, at: 0, id: "entry" },
+        { rename: renameFailing((to) => to === at("from/b.txt")), trash },
+      ),
+    ).rejects.toMatchObject({
+      message:
+        "Undo stopped partway, so everything was put back as it was: EBUSY",
+      permanent: false,
+    });
+    expect(await fs.readdir(at("into"))).toEqual(["a.txt", "b.txt"]);
+    expect(await fs.readdir(at("from"))).toEqual([]);
+  });
+
+  it("names what it could not put back, and keeps its set-aside copy on record", async () => {
+    await fs.writeFile(at("copy.txt"), "copy");
+    await fs.writeFile(at("copy 2.txt"), "copy");
+    const added: string[] = [];
+    const removed: string[] = [];
+    let renames = 0;
+
+    await expect(
+      undoEntry(
+        {
+          at: 0,
+          id: "entry",
+          kind: "copy",
+          made: [
+            { identity: await identity("copy.txt"), path: at("copy.txt") },
+            { identity: await identity("copy 2.txt"), path: at("copy 2.txt") },
+          ],
+        },
+        {
+          leftovers: {
+            add: (leftover) => added.push(leftover.path),
+            remove: (leftover) => removed.push(leftover),
+          },
+          // The first copy is set aside; the second step and the way back fail.
+          rename: async (from, to) => {
+            renames += 1;
+            if (renames > 1) {
+              throw new Error("EIO");
+            }
+            await fs.rename(from, to);
+          },
+          trash,
+        },
+      ),
+    ).rejects.toThrow(
+      /Undo stopped partway, and “\.instrument-undone-.*-copy\.txt” couldn’t be put back: EIO/,
+    );
+    expect(trash).not.toHaveBeenCalled();
+    // The stuck copy stays recorded for the next launch; the one never set aside does not.
+    expect(removed).toEqual([added[1]]);
+  });
+
+  it.each([
+    [
+      "a copy changed since",
+      async () => {
+        await fs.writeFile(at("copy.txt"), "copy");
+        await fs.writeFile(at("kept.txt"), "kept");
+        const entry = {
+          kind: "copy" as const,
+          made: [
+            { identity: await identity("kept.txt"), path: at("kept.txt") },
+            { identity: await identity("copy.txt"), path: at("copy.txt") },
+          ],
+        };
+        // Made beside it and moved over it, so the new file never takes
+        // the freed inode, as ext4 hands it straight back.
+        await fs.writeFile(at("copy.txt.new"), "the person's own now");
+        await fs.rename(at("copy.txt.new"), at("copy.txt"));
+        return entry;
+      },
+      "“copy.txt” has been moved or replaced since it was copied.",
+      true,
+    ],
+    [
+      "a moved item's old place taken since",
+      async () => {
+        const entry = await twoMoved();
+        await fs.writeFile(at("from/b.txt"), "new");
+        return entry;
+      },
+      "Something named “b.txt” is already there.",
+      false,
+    ],
+  ])("touches nothing when %s", async (_, make, message, permanent) => {
+    const entry = await make();
+    const before = await fs.readdir(dir, { recursive: true });
+
+    await expect(
+      undoEntry({ ...entry, at: 0, id: "entry" }, { trash }),
+    ).rejects.toMatchObject({ message, permanent });
+    expect(await fs.readdir(dir, { recursive: true })).toEqual(before);
+    expect(trash).not.toHaveBeenCalled();
+  });
+});
+
 describe("undoing a move to the Trash", () => {
   it("finds what was trashed by its identity and puts it back", async () => {
     await fs.writeFile(at("notes.txt"), "trashed");

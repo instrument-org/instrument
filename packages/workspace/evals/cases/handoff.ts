@@ -2786,12 +2786,12 @@ const SCENARIOS: Scenario[] = [
     slug: "memory",
   },
   {
-    // A preference stated in passing, early, that a job started later in the
-    // background has to carry.
+    // A preference stated in passing, early, that a job asked for later has
+    // to carry, wherever it runs.
     assertions: [madeThirtyNotes, namedDateFirst],
     followUps: [
       {
-        prompt: `In the background, make me ${IDEAS.length} small notes files in a folder called Ideas in the workspace folder, one per idea on this list, each a few sentences fleshing it out:\n${IDEAS.map((idea) => `- ${idea}`).join("\n")}`,
+        prompt: `Can you make me ${IDEAS.length} small notes files in a folder called Ideas in the workspace folder, one per idea on this list, each a few sentences fleshing it out:\n${IDEAS.map((idea) => `- ${idea}`).join("\n")}`,
         settled: true,
       },
     ],
@@ -2851,19 +2851,19 @@ const SCENARIOS: Scenario[] = [
   },
   {
     allowsFolders: 1,
-    // Two background jobs, the second built on the first's result.
+    // Two slow jobs, the second built on the first's result.
     assertions: [totaledEachMonth, chartedTheTotals],
     followUps: [
       {
         prompt:
-          "Now, also in the background, chart the totals you just computed as a bar chart PNG in the same folder.",
+          "Now chart the totals you just computed as a bar chart PNG in the same folder.",
         settled: true,
       },
     ],
     prompt:
-      "In the background, total up each of the monthly files in my Sales folder in Documents and save the totals as totals.csv in that folder, one row per month.",
+      "Total up each of the monthly files in my Sales folder in Documents and save the totals as totals.csv in that folder, one row per month.",
     setup: seedSales,
-    slug: "two-backgrounds",
+    slug: "chained-jobs",
   },
   {
     // A question about files, with nothing to make.
@@ -2930,8 +2930,8 @@ const SCENARIOS: Scenario[] = [
     // passed 1M at 1.1M to 1.2M with the last four turns still to send.
     maxRunTokens: 2_000_000,
     // Sixteen turns of work on one folder of many files: quick answers, two
-    // jobs slow enough for the background, and late turns that only make
-    // sense against earlier answers and the background jobs' files. Measures
+    // jobs slow enough for a task, and late turns that only make sense
+    // against earlier answers and those jobs' files. Measures
     // what a long working conversation costs each turn.
     assertions: [
       answeredLateTurns,
@@ -2949,13 +2949,13 @@ const SCENARIOS: Scenario[] = [
       },
       {
         prompt:
-          "In the background, go through every report and make a table of all the sites with region, inspector, visit date, pH, turbidity and flags. Save it as sites.csv in a Field Summary folder in my workspace folder.",
+          "Go through every report and make a table of all the sites with region, inspector, visit date, pH, turbidity and flags. Save it as sites.csv in a Field Summary folder in my workspace folder.",
         settled: true,
       },
-      "While that runs: what's the average nitrate across all the samples in samples.csv?",
+      "Also, what's the average nitrate across all the samples in samples.csv?",
       "Which region spent the most, going by budget.csv?",
       "Which sites were flagged for erosion?",
-      "Also in the background: write a one-page briefing.md for the North region in that same Field Summary folder, covering its sites, any flags, and its nitrate readings.",
+      "Can you also write a one-page briefing.md for the North region in that same Field Summary folder, covering its sites, any flags, and its nitrate readings.",
       {
         prompt: "What's the phone number for that inspector you named earlier?",
         settled: true,
@@ -2993,15 +2993,15 @@ const SCENARIOS: Scenario[] = [
   },
   {
     allowsFolders: 2,
-    // Two background jobs at once whose scratch would naturally share a
-    // name (a totals script, a totals.json), both forks working in the
-    // chat's one folder: both have to come out right.
+    // Two jobs at once whose scratch would naturally share a name (a totals
+    // script, a totals.json), in the one folder the chat and its tasks share:
+    // both have to come out right.
     assertions: [totaledTheSalesFiles, totaledTheWarehouses],
     followUps: [
-      "And another one in the background: in Documents/Stock Counts, add up the units per warehouse across all the CSVs and save totals.json in that folder, mapping each warehouse to its units.",
+      "And another one: in Documents/Stock Counts, add up the units per warehouse across all the CSVs and save totals.json in that folder, mapping each warehouse to its units.",
     ],
     prompt:
-      "In the background, total the amount column of each CSV in my Documents/Sales Data folder and save totals.json in that folder, mapping each file name to its total.",
+      "Total the amount column of each CSV in my Documents/Sales Data folder and save totals.json in that folder, mapping each file name to its total.",
     setup: seedParallel,
     slug: "parallel-scratch",
   },

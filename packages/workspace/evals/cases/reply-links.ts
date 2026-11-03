@@ -20,6 +20,7 @@ import { type ChatId } from "../../src/schemas/chat-id";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessage } from "../../src/schemas/session/message";
 import { type Assertion, defineEval } from "../harness";
+import { seedScript, SENT_SCRIPTS } from "./task-sessions";
 
 export function textOf(message: SessionMessage.WithParts): string {
   return message.parts
@@ -249,12 +250,18 @@ export const REPLY_LINKS_EVALS = [
       "Write a small Python script that makes a CSV of the numbers 1 to 20 and their squares, run it, and give me both the script and the CSV.",
   }),
   defineEval({
-    // A file a task made, which the chat names when the task reports.
+    // A file a task made, which the chat names when the task reports: the
+    // rate comes from a script that runs for minutes, which makes the job a
+    // task's by the chat's own rule.
     assertions: [...LINK_ASSERTIONS, assertHandedOverAFile],
+    folders: SENT_SCRIPTS,
     kind: "chat",
     name: "reply-links-task-deliverable",
     prompt:
-      "In the background, make me a loan amortization schedule as a spreadsheet: $25,000 at 6.5% over 5 years, monthly payments. Let me know when it's ready.",
+      "Run rate.sh in this folder to get the rate my bank is offering today (it takes a couple of minutes), then make me a loan amortization schedule as a spreadsheet: $25,000 at that rate over 5 years, monthly payments. Let me know when it's ready.",
+    setup: () => {
+      seedScript("rate.sh", 120, 'echo "rate: 6.5% APR"');
+    },
   }),
   defineEval({
     // What the reply links is the memory and the skill it just saved, by

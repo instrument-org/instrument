@@ -311,10 +311,11 @@ export const APP_SCRIPTING_EVALS = [
   defineEval({
     apps: [BEACON],
     assertions: [linksTheFiledIssue],
-    // A task's shell has no `instrument task`, so only the chat can fork.
+    // Three issues to file, which the chat may hand a task; a task's shell
+    // has no `instrument task`, so only the chat can fork.
     kind: "chat",
     name: "app-links-what-a-fork-changed",
     prompt:
-      "In the background, go through these and file each as a bug in Beacon, on Aiko: the export button does nothing in Safari; dark mode loses the sidebar icons; CSV import drops the last row.",
+      "Go through these and file each as a bug in Beacon, on Aiko: the export button does nothing in Safari; dark mode loses the sidebar icons; CSV import drops the last row.",
   }),
 ];

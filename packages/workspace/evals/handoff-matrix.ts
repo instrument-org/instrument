@@ -53,7 +53,7 @@ const CASES: Record<string, string> = {
   "browser-form": "deliverable",
   correction: "background",
   responsiveness: "background",
-  "two-backgrounds": "background",
+  "chained-jobs": "background",
   dictation: "ambiguity",
   "ambiguous-cleanup": "ambiguity",
   "vague-cleanup": "ambiguity",

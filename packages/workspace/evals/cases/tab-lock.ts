@@ -495,8 +495,6 @@ const answeredDelivery = replied(
 
 const LONG_JOB =
   "Go through all four pages of this catalog and add every item that costs under $3 to my cart.";
-/** The same job, with the user asking for it in the background, as people who know tasks do. */
-const LONG_JOB_IN_BACKGROUND = `Start a task for this, I might ask you other things meanwhile: ${LONG_JOB.charAt(0).toLowerCase()}${LONG_JOB.slice(1)}`;
 const RETURNS_FOLLOW_UP =
   "Oh, and what's their returns policy? There's a link at the bottom of the page.";
 
@@ -510,7 +508,7 @@ export const TAB_LOCK_EVALS = [
     ],
     kind: "chat",
     name: "tab-lock-two-tasks",
-    prompt: `I need two things done here, and both take a while, so run them side by side as two tasks: go through all four pages of the catalog and add every item under $3 to my cart, and fill in the checkout form on this page with my details (${DETAILS}). Don't place the order.`,
+    prompt: `I need two things done here, and both take a while: go through all four pages of the catalog and add every item under $3 to my cart, and fill in the checkout form on this page with my details (${DETAILS}). Don't place the order.`,
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,
@@ -521,7 +519,7 @@ export const TAB_LOCK_EVALS = [
     followUps: [RETURNS_FOLLOW_UP],
     kind: "chat",
     name: "tab-lock-follow-up",
-    prompt: LONG_JOB_IN_BACKGROUND,
+    prompt: LONG_JOB,
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,
@@ -534,7 +532,7 @@ export const TAB_LOCK_EVALS = [
     ],
     kind: "chat",
     name: "tab-lock-quick-check",
-    prompt: LONG_JOB_IN_BACKGROUND,
+    prompt: LONG_JOB,
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,

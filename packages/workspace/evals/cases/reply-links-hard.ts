@@ -278,12 +278,13 @@ export const REPLY_LINKS_HARD_EVALS = [
       "In my Documents, make a folder called 'Résumé drafts (2026)' with three short text files in it named exactly 'Lettre à Zoë.txt', 'Q3 plan [v2].txt' and 'notes #1 & 2.txt'. Put a line or two in each. Then give me links to the folder and the three files.",
   }),
   defineEval({
-    // Two files a task made, which the chat names when the task reports.
+    // Two files from a multi-step job, which is a task's by the chat's own
+    // rule, named by the chat when the task reports.
     assertions: [...LINK_ASSERTIONS, assertHandedOverAFile],
     kind: "chat",
     name: "reply-links-task-two-files",
     prompt:
-      "In the background, plan a 4-day trip to Lisbon for me: a day-by-day itinerary as a Markdown file and a budget spreadsheet as a CSV. Tell me when both are ready.",
+      "Plan a 4-day trip to Lisbon for me: a day-by-day itinerary as a Markdown file and a budget spreadsheet as a CSV. Tell me when both are ready.",
   }),
   defineEval({
     // A file from an earlier turn, asked for again by a description.

@@ -21,13 +21,12 @@ interface TruncateMiddleResult {
   totalBytes: number;
   totalLines: number;
   truncated: boolean;
-  truncatedBy: "bytes" | "lines" | null;
 }
 
 /**
  * Keep the first `headBytes` and last `tailBytes` of content, dropping the
- * middle. Also respects a total line cap — if the full content fits within
- * both the byte budgets and `maxLines`, it is returned unchanged.
+ * middle, with at most `maxLines` lines in each. Content within both byte
+ * budgets and `maxLines` lines is returned unchanged.
  *
  * Each window keeps whole lines. When the line that does not fit is long and
  * the window is at most half full (one line of minified JSON, a progress bar
@@ -57,7 +56,6 @@ export function truncateMiddle(
     totalBytes,
     totalLines,
     truncated: false,
-    truncatedBy: null,
   } satisfies TruncateMiddleResult;
 
   if (totalLines <= maxLines && totalBytes <= headBytes + tailBytesOpt) {
@@ -168,7 +166,6 @@ export function truncateMiddle(
     totalBytes,
     totalLines,
     truncated: true,
-    truncatedBy: "bytes",
   };
 }
 

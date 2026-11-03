@@ -38,7 +38,6 @@ describe("truncateMiddle", () => {
         "totalBytes": 129,
         "totalLines": 20,
         "truncated": true,
-        "truncatedBy": "bytes",
       }
     `);
   });
@@ -63,12 +62,6 @@ describe("truncateMiddle", () => {
         "truncated": true,
       }
     `);
-  });
-
-  // Nothing reads `truncatedBy` today, so the wrong value has no effect yet.
-  it.fails("says the line cap cut it when the bytes fit", () => {
-    const text = Array.from({ length: 10 }, (_, i) => `l${i}`).join("\n");
-    expect(truncateMiddle(text, { maxLines: 3 }).truncatedBy).toBe("lines");
   });
 });
 

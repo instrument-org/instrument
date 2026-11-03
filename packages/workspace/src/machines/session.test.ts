@@ -818,8 +818,10 @@ describe("sessionMachine", () => {
       sessionId: secondSessionId,
     });
 
-    const sessionResult1 = await runTestMachine(result1);
-    const sessionResult2 = await runTestMachine(result2);
+    const [sessionResult1, sessionResult2] = await Promise.all([
+      runTestMachine(result1),
+      runTestMachine(result2),
+    ]);
     expect(sessionToShorthand(sessionResult1)).toMatchInlineSnapshot(`
       "<session title="Test session" count="4">
         <user>
@@ -1661,7 +1663,7 @@ describe("sessionMachine", () => {
   });
 
   it("should retry and fail on timeout", async () => {
-    const chunkTimeoutMs = 500;
+    const chunkTimeoutMs = 200;
     const session = await createAndRunTestMachine({
       baseLLMRetryDelayMs: 0,
       chunkSets: [readFileChunks, readFileChunks, readFileChunks, finishChunks],
@@ -2000,8 +2002,8 @@ describe("sessionMachine", () => {
   describe("with write file delay", () => {
     beforeEach(() => {
       vi.spyOn(TOOLS.WriteFile, "execute").mockImplementation(async () => {
-        // Forces the function to be async which will hit WaitingForToolCallExecutions
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Long enough for a case to act while the call is in flight.
+        await new Promise((resolve) => setTimeout(resolve, 100));
         return ok({
           content: "console.log('Hello, world!');",
           filePath: "test.js" as RelativePath,

@@ -25,6 +25,19 @@ import {
 import { noteTasksInterruptedByQuit, startChatWake, wakeAskers } from "./wake";
 import { hasWakeOnItsWay } from "./wake-queue";
 
+// A wake waits out the app's debounce for more news; here a shorter one.
+vi.mock(import("./wake-queue"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    enqueueWake: (wake) =>
+      original.enqueueWake({
+        ...wake,
+        debounceMs: wake.debounceMs && Math.min(wake.debounceMs, 20),
+      }),
+  };
+});
+
 // A wake gives up on the chat's model after about two minutes of retries;
 // here the waits between them pass at once.
 vi.mock(import("node:timers/promises"), async (importOriginal) => {

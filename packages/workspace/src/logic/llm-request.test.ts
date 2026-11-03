@@ -327,7 +327,7 @@ describe("llmRequestLogic", () => {
     return runTestMachine(testMachine);
   }
 
-  function messagesToSnapshot(messages: SessionMessage.Type[]) {
+  function messagesToSnapshot(messages: SessionMessage.WithParts[]) {
     return messages.map((message) => {
       if ("metadata" in message && "aiGatewayModel" in message.metadata) {
         const {
@@ -345,6 +345,18 @@ describe("llmRequestLogic", () => {
           ...message,
           metadata,
         };
+      }
+      // The context every case starts from, written as it was given: one
+      // line, so each snapshot shows what the case changed.
+      if (
+        message.role === "session-context" &&
+        "contextVersion" in message.metadata &&
+        message.metadata.contextVersion === SESSION_CONTEXT_VERSION &&
+        message.parts.length === 1 &&
+        message.parts[0]?.type === "text" &&
+        message.parts[0].text === "You are a helpful assistant."
+      ) {
+        return "session-context: You are a helpful assistant.";
       }
       // The current shape reads as such, so bumping it leaves these alone.
       if (
@@ -376,29 +388,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000Z88888888888888888",
           "metadata": {
@@ -459,29 +449,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000Z98888888888888888",
           "metadata": {
@@ -543,29 +511,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZA8888888888888888",
           "metadata": {
@@ -630,29 +576,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZB8888888888888888",
           "metadata": {
@@ -721,29 +645,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZC8888888888888888",
           "metadata": {
@@ -813,29 +715,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZD8888888888888888",
           "metadata": {
@@ -950,29 +830,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZG8888888888888888",
           "metadata": {
@@ -1036,29 +894,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZH8888888888888888",
           "metadata": {
@@ -1115,29 +951,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZJ8888888888888888",
           "metadata": {
@@ -1197,29 +1011,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZK8888888888888888",
           "metadata": {
@@ -1274,29 +1066,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZM8888888888888888",
           "metadata": {
@@ -1367,29 +1137,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZN8888888888888888",
           "metadata": {
@@ -1454,29 +1202,7 @@ describe("llmRequestLogic", () => {
       });
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
-          {
-            "id": "msg_00000000018888888888888889",
-            "metadata": {
-              "agentName": "main",
-              "contextVersion": "current",
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "realRole": "assistant",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:00.000Z,
-                  "id": "prt_0000000001888888888888888A",
-                  "messageId": "msg_00000000018888888888888889",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "text": "You are a helpful assistant.",
-                "type": "text",
-              },
-            ],
-            "role": "session-context",
-          },
+          "session-context: You are a helpful assistant.",
           {
             "id": "msg_00000000ZP8888888888888888",
             "metadata": {
@@ -1599,29 +1325,7 @@ describe("llmRequestLogic", () => {
       const messages = sessionResult._unsafeUnwrap().messages;
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
-          {
-            "id": "msg_00000000018888888888888889",
-            "metadata": {
-              "agentName": "main",
-              "contextVersion": "current",
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "realRole": "assistant",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:00.000Z,
-                  "id": "prt_0000000001888888888888888A",
-                  "messageId": "msg_00000000018888888888888889",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "text": "You are a helpful assistant.",
-                "type": "text",
-              },
-            ],
-            "role": "session-context",
-          },
+          "session-context: You are a helpful assistant.",
           {
             "id": "msg_00000000ZS8888888888888888",
             "metadata": {
@@ -1667,29 +1371,7 @@ describe("llmRequestLogic", () => {
       });
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
         [
-          {
-            "id": "msg_00000000018888888888888889",
-            "metadata": {
-              "agentName": "main",
-              "contextVersion": "current",
-              "createdAt": 2013-08-31T12:00:00.000Z,
-              "realRole": "assistant",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:00.000Z,
-                  "id": "prt_0000000001888888888888888A",
-                  "messageId": "msg_00000000018888888888888889",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "text": "You are a helpful assistant.",
-                "type": "text",
-              },
-            ],
-            "role": "session-context",
-          },
+          "session-context: You are a helpful assistant.",
           {
             "id": "msg_00000000ZT8888888888888888",
             "metadata": {
@@ -2593,29 +2275,7 @@ describe("llmRequestLogic", () => {
     });
     expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
       [
-        {
-          "id": "msg_00000000018888888888888889",
-          "metadata": {
-            "agentName": "main",
-            "contextVersion": "current",
-            "createdAt": 2013-08-31T12:00:00.000Z,
-            "realRole": "assistant",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:00.000Z,
-                "id": "prt_0000000001888888888888888A",
-                "messageId": "msg_00000000018888888888888889",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "text": "You are a helpful assistant.",
-              "type": "text",
-            },
-          ],
-          "role": "session-context",
-        },
+        "session-context: You are a helpful assistant.",
         {
           "id": "msg_00000000ZX888888888888888H",
           "metadata": {

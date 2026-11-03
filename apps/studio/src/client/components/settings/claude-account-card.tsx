@@ -25,7 +25,7 @@ import {
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format } from "date-fns/format";
 import { capitalize } from "radashi";
 import { useClaudeConnect } from "@/client/hooks/use-connect";
 import { showConnectToast } from "@/client/lib/connect-toast";

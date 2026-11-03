@@ -129,6 +129,10 @@
                 "allowTypeImports": true,
                 "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
                 "regex": "^@phosphor-icons/react$"
+              },
+              {
+                "message": "Import the function from its own module -- `date-fns/format`, not the package root. The root evaluates every function there is.",
+                "regex": "^date-fns$"
               }
             ]
           }
@@ -161,6 +165,10 @@
                 "allowTypeImports": true,
                 "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
                 "regex": "^@phosphor-icons/react$"
+              },
+              {
+                "message": "Import the function from its own module -- `date-fns/format`, not the package root. The root evaluates every function there is.",
+                "regex": "^date-fns$"
               }
             ]
           }
@@ -187,6 +195,10 @@
             "allowTypeImports": true,
             "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
             "regex": "^@phosphor-icons/react$"
+          },
+          {
+            "message": "Import the function from its own module -- `date-fns/format`, not the package root. The root evaluates every function there is.",
+            "regex": "^date-fns$"
           }
         ]
       }

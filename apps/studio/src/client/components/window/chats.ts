@@ -4,7 +4,8 @@ import { type RPCOutput } from "@/client/rpc/client";
 import { placeholderTitle } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
-import { format, isSameYear } from "date-fns";
+import { format } from "date-fns/format";
+import { isSameYear } from "date-fns/isSameYear";
 
 import { nameOf } from "./host-path";
 import { matchScreen } from "./window-href";

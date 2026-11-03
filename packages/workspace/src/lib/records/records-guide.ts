@@ -45,7 +45,8 @@ const SETTING_FIELDS = {
   starred: "whether it is starred",
   title:
     "its title, in `value.text`; `value.auto` is true while the app may still rename it",
-  topic: "its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none",
+  project:
+    "its project id, the `id` in the project's `AGENTS.md`, or `null` for none",
   unread:
     "`new` or `marked` (the user marked it) while unread, `null` once read",
 } satisfies Record<SettingField, string>;

@@ -19,11 +19,11 @@ import {
   markChatUnread,
   renameChat,
   setChatStarred,
-  setChatTopic,
+  setChatProject,
   settleChatTitle,
 } from "./chat/chats";
 import { addChildTask, touchTask } from "./chat/children";
-import { createTopic } from "./chat/topics";
+import { createProject } from "./chat/projects";
 import { createSession } from "./create-session";
 import { recordVisitedHosts } from "./browser-state";
 import {
@@ -512,13 +512,13 @@ describe("a chat written through its records", () => {
 
   it("says each mark the person made, with the moment they made it", async () => {
     const { chatId } = await startChat();
-    const topic = await createTopic({ name: "Travel" });
+    const project = await createProject({ name: "Travel" });
 
     expect(await renameChat(chatId, "Plans for the trip")).toBe(true);
     expect(await setChatStarred(chatId, true)).toBe(true);
     expect(await archiveChat(chatId)).toBe(true);
     expect(await markChatUnread(chatId, { byUser: true })).toBe(true);
-    expect(await setChatTopic(chatId, topic.id)).toBe(true);
+    expect(await setChatProject(chatId, project.id)).toBe(true);
     expect(await markChatStopped(chatId, new Date())).toBe(true);
     expect(await settleChatTitle(chatId)).toBe(true);
 
@@ -528,7 +528,7 @@ describe("a chat written through its records", () => {
       stoppedBy: "person",
       title: "Plans for the trip",
       titleSettledAt: NOW,
-      topic: topic.id,
+      project: project.id,
       unreadAt: NOW,
       unreadByUser: true,
     });

@@ -45,7 +45,7 @@ describe("moveAppFoldersIntoDataDir", () => {
       ["chats", "2026-10-01-chat", "attachments", "a.png"],
     ],
     ["a draft's words", ["drafts", "01M4H5NJW7PF0CWW7J3T51Q1MT", "draft.md"]],
-    ["a topic's instructions", ["topics", "Home", "instructions.md"]],
+    ["a project's instructions", ["topics", "Home", "instructions.md"]],
     ["a workspace skill", ["skills", "brief", "SKILL.md"]],
     ["an app's setup", ["apps", "linear", "app.json"]],
     ["a memory", ["memory", "no-stevia.md"]],
@@ -175,14 +175,14 @@ describe("moveAppFoldersIntoDataDir", () => {
     });
   });
 
-  it("leaves the person's Skills/ and Topics/ where the old lowercase names would find them", () => {
+  it("leaves the person's Skills/ and Projects/ where the old lowercase names would find them", () => {
     write(at("Skills", "tdd", "SKILL.md"));
-    write(at("Topics", "Work", "TOPIC.md"));
+    write(at("Projects", "Work", "AGENTS.md"));
 
     expect(move().done).toEqual([]);
     expect(listing(workspace.path)).toEqual([
+      path.join("Projects", "Work", "AGENTS.md"),
       path.join("Skills", "tdd", "SKILL.md"),
-      path.join("Topics", "Work", "TOPIC.md"),
     ]);
   });
 });

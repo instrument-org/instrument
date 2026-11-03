@@ -1081,7 +1081,7 @@ export async function createLocalBashEnv({
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();
-    // What the person's skills, apps, topics and memories are before the
+    // What the person's skills, apps, projects and memories are before the
     // call, so what a program it runs changes there is seen: a program writes
     // to the disk directly, where the shell's own commands are recorded as
     // they write (`setup-changes.ts`).

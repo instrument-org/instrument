@@ -14,7 +14,7 @@ const modelTrigger = (
 const modelProblem = (text, { action = "Add a provider" } = {}) =>
   `<span class="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg bg-yellow-50 py-1 pr-1 pl-2.5 text-[12px] text-yellow-900 ring-1 ring-yellow-200"><i class="ph ph-warning text-[16px] text-yellow-700"></i><span class="min-w-0 flex-1 truncate">${text}</span>${action ? `<span class="flex h-6 shrink-0 items-center rounded-md bg-white px-2 font-medium text-foreground shadow-xs ring-1 ring-border">${action}</span>` : ""}</span>`;
 
-/** The draft (compose-window.tsx): a compose window docked at the window's bottom right, its head the title, + Topic, the model, the mic and the arrow, then discard, minimize, expand and ×; the words; the band with the ways in. Pass it as appWindow's `over`. `model` is the head's model control; `over` draws on top of the compose window (a picker hanging from its head). */
+/** The draft (compose-window.tsx): a compose window docked at the window's bottom right, its head the title, + Project, the model, the mic and the arrow, then discard, minimize, expand and ×; the words; the band with the ways in. Pass it as appWindow's `over`. `model` is the head's model control; `over` draws on top of the compose window (a picker hanging from its head). */
 const composeWin = ({
   title = "New chat",
   model = modelTrigger("Auto"),
@@ -26,7 +26,7 @@ const composeWin = ({
   <div class="absolute bottom-0 z-40 flex w-[600px] flex-col rounded-t-2xl border border-b-0 border-border bg-card shadow-2xl" style="right:20px;height:${h}px">
     <div class="flex h-12 shrink-0 items-center gap-1.5 px-3">
       <span class="flex h-7 items-center px-1.5 text-[13px] font-medium">${title}</span>
-      <span class="flex h-6 items-center gap-1 rounded-full border border-dashed border-border px-2 text-[11px] text-muted-foreground"><i class="ph ph-plus text-[12px]"></i>Topic</span>
+      <span class="flex h-6 items-center gap-1 rounded-full border border-dashed border-border px-2 text-[11px] text-muted-foreground"><i class="ph ph-plus text-[12px]"></i>Project</span>
       <div class="ml-auto flex min-w-0 items-center gap-2 pl-2">${model}<span class="grid size-8 shrink-0 place-items-center text-foreground/60"><i class="ph ph-microphone text-[17px]"></i></span><span class="grid size-8 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span></div>
       <div class="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2 text-muted-foreground">${["trash", "minus", "arrows-out-simple", "x"].map((i) => `<span class="grid size-7 place-items-center ${i === "trash" ? "text-muted-foreground/60" : ""}"><i class="ph ph-${i} text-[16px]"></i></span>`).join("")}</div>
     </div>

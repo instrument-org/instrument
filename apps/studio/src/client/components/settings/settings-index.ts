@@ -209,7 +209,8 @@ export const SETTINGS_INDEX = [
     title: "New skill",
   },
   {
-    detail: "Where your chats, topics, and memories are kept, and moving them",
+    detail:
+      "Where your chats, projects, and memories are kept, and moving them",
     id: "instrument-folder",
     tab: "Storage",
     title: "Instrument folder",

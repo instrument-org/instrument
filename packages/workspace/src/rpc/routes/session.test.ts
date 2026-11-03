@@ -310,7 +310,7 @@ describe("session.stop", () => {
     // a wake would wait out.
     expect(
       published.mock.calls.filter(
-        ([topic]) => topic === "backgroundProcess.settled",
+        ([project]) => project === "backgroundProcess.settled",
       ),
     ).toEqual([]);
     expect(hasWakeOnItsWay(chatId)).toBe(false);

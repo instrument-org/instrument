@@ -194,12 +194,14 @@ function draftOf({
   settings: Record<string, unknown>;
   words: string;
 }): DraftFile {
-  const { createdAt, topicId, updatedAt } = settings;
+  const { createdAt, projectId, updatedAt } = settings;
   const created = momentOf(createdAt) ?? new Date();
   return {
     created,
     id,
-    ...(typeof topicId === "string" && topicId ? { topic: topicId } : {}),
+    ...(typeof projectId === "string" && projectId
+      ? { project: projectId }
+      : {}),
     updated: momentOf(updatedAt) ?? created,
     words,
   };

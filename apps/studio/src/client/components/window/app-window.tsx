@@ -34,7 +34,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
-import { useRefreshTopicsOnChange } from "@/client/hooks/use-refresh-topics-on-change";
+import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
@@ -99,7 +99,7 @@ import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
-import { TopicDialog } from "./topic-dialog";
+import { ProjectDialog } from "./project-dialog";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -112,8 +112,8 @@ import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useWindowSteps } from "./use-tab-steps";
-import { useSetChatTopic } from "./use-set-chat-topic";
-import { backfillCandidates } from "./use-topic-backfill";
+import { useSetChatProject } from "./use-set-chat-project";
+import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
@@ -318,7 +318,7 @@ function WindowShell({
 }) {
   const appTabs = useAppTabs();
   useRefreshSkillsOnChange();
-  useRefreshTopicsOnChange();
+  useRefreshProjectsOnChange();
   useEffect(() => installKeyboardHome(), []);
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it.
@@ -595,25 +595,27 @@ function WindowShell({
   usePageThumbnailHousekeeping();
   useSignInLanding(openScreen);
 
-  const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
-  const topics = topicsQuery.data ?? [];
-  const createTopic = useMutation(
-    rpcClient.workspace.topics.create.mutationOptions({
+  const projectsQuery = useQuery(
+    rpcClient.workspace.projects.list.queryOptions(),
+  );
+  const projects = projectsQuery.data ?? [];
+  const createProject = useMutation(
+    rpcClient.workspace.projects.create.mutationOptions({
       onError: (error) => {
-        // A name a topic can't take comes back in words written for people.
-        toast.error("Couldn't make the topic", {
+        // A name a project can't take comes back in words written for people.
+        toast.error("Couldn't make the project", {
           cause: error,
           description: spokenMessage(error, ["BAD_REQUEST"]),
         });
       },
-      onSuccess: () => void topicsQuery.refetch(),
+      onSuccess: () => void projectsQuery.refetch(),
     }),
   );
-  const setChatTopic = useSetChatTopic();
-  // The new-topic dialog, asked for from a chat's head or a draft's, with
-  // what was typed in the picker: the topic it makes files that chat or
+  const setChatProject = useSetChatProject();
+  // The new-project dialog, asked for from a chat's head or a draft's, with
+  // what was typed in the picker: the project it makes files that chat or
   // that draft.
-  const [newTopic, setNewTopic] = useState<{
+  const [newProject, setNewProject] = useState<{
     /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
     chatId?: ChatId;
     draftId?: string;
@@ -684,7 +686,7 @@ function WindowShell({
       }
     },
     saveDefaultModelURI,
-    topics,
+    projects,
     windowTabs,
   });
   /**
@@ -894,24 +896,24 @@ function WindowShell({
     onListed: (listed) => {
       listedChats.current = listed;
     },
-    onNewTopic: (name) => {
-      setNewTopic(name ? { name } : {});
+    onNewProject: (name) => {
+      setNewProject(name ? { name } : {});
     },
-    // A topic is a view of the inbox, so going to one is the inbox standing
+    // A project is a view of the inbox, so going to one is the inbox standing
     // in it and nothing else: a search or a place left over from before
     // would hide the chats it was asked for.
-    openTopic: (topicId) => {
-      setChatFilters({ ...NO_FILTERS, topics: [topicId] });
+    openProject: (projectId) => {
+      setChatFilters({ ...NO_FILTERS, projects: [projectId] });
       choosePlace("chat");
     },
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
     sentWords,
-    setChatTopic,
+    setChatProject,
     setPaneOpen,
     showDraft,
-    topics,
+    projects,
   };
 
   return (
@@ -964,17 +966,17 @@ function WindowShell({
                 onExpandChat={expandChat}
                 onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
-                onNewChatTopic={(chatId, name) => {
-                  setNewTopic({ chatId, ...(name ? { name } : {}) });
+                onNewChatProject={(chatId, name) => {
+                  setNewProject({ chatId, ...(name ? { name } : {}) });
                 }}
-                onNewTopic={(draftId, name) => {
-                  setNewTopic({ draftId, ...(name ? { name } : {}) });
+                onNewProject={(draftId, name) => {
+                  setNewProject({ draftId, ...(name ? { name } : {}) });
                 }}
-                onSetChatTopic={setChatTopic}
+                onSetChatProject={setChatProject}
                 onStart={startChat}
                 sendContext={(options) => sendContextRef.current(options)}
                 sentWords={sentWords}
-                topics={topics}
+                projects={projects}
               />
             }
             rail={
@@ -1087,58 +1089,58 @@ function WindowShell({
               </ActiveTabProvider>,
               stage,
             )}
-            {/* Asked for from a chat's head or a draft's, so the topic it
+            {/* Asked for from a chat's head or a draft's, so the project it
               makes is filed on that chat or draft as it lands. */}
-            <TopicDialog
+            <ProjectDialog
               candidates={backfillCandidates(
                 (chats.data ?? []).filter(
-                  (chat) => chat.id !== (newTopic?.chatId ?? chatUp),
+                  (chat) => chat.id !== (newProject?.chatId ?? chatUp),
                 ),
               )}
               mode="create"
-              {...(newTopic?.name ? { name: newTopic.name } : {})}
-              onCreate={(topic, alsoFile) => {
-                const forDraft = newTopic?.draftId;
+              {...(newProject?.name ? { name: newProject.name } : {})}
+              onCreate={(project, alsoFile) => {
+                const forDraft = newProject?.draftId;
                 const filedOn =
                   forDraft === undefined
                     ? chats.data?.find(
-                        (chat) => chat.id === (newTopic?.chatId ?? chatUp),
+                        (chat) => chat.id === (newProject?.chatId ?? chatUp),
                       )
                     : undefined;
-                createTopic.mutate(topic, {
+                createProject.mutate(project, {
                   onSuccess: (created) => {
                     for (const id of alsoFile) {
-                      setChatTopic(id, created.id);
+                      setChatProject(id, created.id);
                     }
                     if (forDraft !== undefined) {
                       updateDraft({
                         id: forDraft,
                         update: (draft) => ({
                           ...draft,
-                          topicId: created.id,
-                          topicSource: "chosen",
+                          projectId: created.id,
+                          projectSource: "chosen",
                         }),
                       });
                     }
                     if (filedOn) {
-                      setChatTopic(filedOn.id, created.id);
+                      setChatProject(filedOn.id, created.id);
                     }
                   },
                 });
               }}
               onOpenChange={(open) => {
                 if (!open) {
-                  setNewTopic(undefined);
+                  setNewProject(undefined);
                 }
               }}
-              open={newTopic !== undefined}
-              // A retired topic's name brings it back, so only the ones in
-              // use are names a new topic cannot take.
-              otherNames={topics.flatMap((topic) =>
-                topic.retired ? [] : [topic.name],
+              open={newProject !== undefined}
+              // A retired project's name brings it back, so only the ones in
+              // use are names a new project cannot take.
+              otherNames={projects.flatMap((project) =>
+                project.retired ? [] : [project.name],
               )}
-              taken={topics.flatMap((topic) =>
-                topic.emoji ? [topic.emoji] : [],
+              taken={projects.flatMap((project) =>
+                project.emoji ? [project.emoji] : [],
               )}
             />
           </WindowFrame>

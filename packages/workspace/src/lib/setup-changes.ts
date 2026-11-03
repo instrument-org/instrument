@@ -4,8 +4,8 @@ import path from "node:path";
 
 import {
   APPS_FOLDER_NAME,
-  TOPIC_FILE_NAME,
-  TOPICS_FOLDER_NAME,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
 } from "../constants";
 import { APP_FILE_NAME } from "./apps/app-file";
 import { memoryDir } from "./memory/store";
@@ -22,11 +22,11 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
  * The parts of a person's setup a turn can change that outlast the chat: a
- * skill (a folder in `Skills/`), an app (a folder in `Apps/`), a topic (a
- * folder in `Topics/`), a memory (a file in `Memory/`). Each is named the way
+ * skill (a folder in `Skills/`), an app (a folder in `Apps/`), a project (a
+ * folder in `Projects/`), a memory (a file in `Memory/`). Each is named the way
  * its folder or file is.
  */
-export type SetupKind = "app" | "memory" | "skill" | "topic";
+export type SetupKind = "app" | "memory" | "skill" | "project";
 
 /**
  * Where each kind lives, how a name in its folder is an item, and the file
@@ -58,10 +58,10 @@ export const SETUP_KINDS: Record<
     itemOf: (entry) => entry,
     marker: (name) => `${name}/SKILL.md`,
   },
-  topic: {
-    folder: () => path.join(getWorkspaceConfig().rootDir, TOPICS_FOLDER_NAME),
+  project: {
+    folder: () => path.join(getWorkspaceConfig().rootDir, PROJECTS_FOLDER_NAME),
     itemOf: (entry) => entry,
-    marker: (name) => `${name}/${TOPIC_FILE_NAME}`,
+    marker: (name) => `${name}/${PROJECT_FILE_NAME}`,
   },
 };
 

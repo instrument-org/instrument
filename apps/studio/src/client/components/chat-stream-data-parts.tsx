@@ -108,7 +108,7 @@ export function renderDataPart({
       );
     }
     case "data-browserStatus":
-    case "data-topic":
+    case "data-project":
     case "data-viewContext":
     case "data-workspaceInstructions": {
       return stateNote === undefined ? null : (

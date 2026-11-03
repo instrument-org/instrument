@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { byActivity, type Chat } from "./chats";
 
-/** A chat a new topic could be filed on at once: which, and what it is called and asks. */
+/** A chat a new project could be filed on at once: which, and what it is called and asks. */
 export interface BackfillCandidate {
   asked: string;
   id: Chat["id"];
@@ -13,7 +13,7 @@ export interface BackfillCandidate {
 
 /**
  * How sure the decision model has to be that a chat belongs. On 10 labeled
- * topics over 200 real chats, Clef-flash and Jev at 0.7 find 34 and 33 of
+ * projects over 200 real chats, Clef-flash and Jev at 0.7 find 34 and 33 of
  * the 43 that belong, with 7 and 2 wrong; Clef scores lower and at 0.55 finds
  * 35 with 1 wrong.
  */
@@ -25,12 +25,12 @@ const ASK_MAX = 200;
 const DEBOUNCE_MS = 600;
 
 /**
- * The chats a new topic is offered to be filed on as it is made: the newest
+ * The chats a new project is offered to be filed on as it is made: the newest
  * ones filed under nothing, still in the inbox. Only these, so filing them
- * never takes a topic a chat already has or adds a second one to it.
+ * never takes a project a chat already has or adds a second one to it.
  */
 export function backfillCandidates(chats: Chat[]): BackfillCandidate[] {
-  return byActivity(chats.filter((chat) => !chat.topic && !chat.archived))
+  return byActivity(chats.filter((chat) => !chat.project && !chat.archived))
     .slice(0, MOST_READ)
     .map((chat) => ({
       asked: chat.firstAsk.slice(0, ASK_MAX),
@@ -40,13 +40,13 @@ export function backfillCandidates(chats: Chat[]): BackfillCandidate[] {
 }
 
 /**
- * Which of `candidates` belong under a topic called `name`, by the decision
+ * Which of `candidates` belong under a project called `name`, by the decision
  * model: one yes-or-no per chat, all in one request, asked when typing the
- * name pauses. It runs only while the new-topic dialog is open, which is
+ * name pauses. It runs only while the new-project dialog is open, which is
  * rare, and finds nothing without the model, so the dialog is the one it
  * always was.
  */
-export function useTopicBackfill({
+export function useProjectBackfill({
   candidates,
   name,
   open,
@@ -80,12 +80,12 @@ export function useTopicBackfill({
               {
                 // A sentence rather than an object: one decision model reads
                 // a structured question poorly and scores every chat alike.
-                instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the topic in the state?`,
+                instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the project in the state?`,
                 type: "noul",
               },
             ]),
           ),
-          state: { topic: { name: settled } },
+          state: { project: { name: settled } },
         }
       : undefined,
     // While the name is still being typed, the last answer stays up until the
@@ -95,11 +95,11 @@ export function useTopicBackfill({
       typeof previousName === "string" &&
       previousName !== "" &&
       (settled.startsWith(previousName) || previousName.startsWith(settled)),
-    activity: { purpose: "topic-backfill", surface: "topics" },
-    // The person's chats and the topic's name.
+    activity: { purpose: "project-backfill", surface: "projects" },
+    // The person's chats and the project's name.
     personal: true,
     key: [
-      "topic-backfill",
+      "project-backfill",
       settled,
       candidates.map((chat) => chat.id).join("\n"),
     ],

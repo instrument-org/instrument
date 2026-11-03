@@ -206,27 +206,27 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
 
 /**
  * The file's front matter: what the chat is called, which chat it is, when it
- * began, and the topic it is filed under. Nothing lists its files, its pages
+ * began, and the project it is filed under. Nothing lists its files, its pages
  * or its apps, which the folder beside it and the app already say.
  *
  * `chat` is the chat's id, what ties a folder back to its chat, and the link
  * in the first line of the body says it again as something to click. It is
  * no `id`: this file is a render the app rewrites whole, where a draft or a
- * topic carries an `id` because the app has to find it again after the
+ * project carries an `id` because the app has to find it again after the
  * person moves it.
  *
  * `title` is here so a Markdown viewer's properties panel and the file's
  * thumbnail name the conversation, and so the name survives the person
- * moving the folder. `topic` is singular: a chat is filed under one.
+ * moving the folder. `project` is singular: a chat is filed under one.
  */
 function frontMatter(own: FoldedSession, id: ChatId): string {
-  const topic = own.settings.topic?.value;
+  const project = own.settings.project?.value;
   return [
     "---",
     `title: ${yamlScalar(titleOf(own))}`,
     `chat: ${chatAddressOf(id)}`,
     `created: ${utcStamp(own.createdAt)}`,
-    ...(topic ? [`topic: ${yamlScalar(topic)}`] : []),
+    ...(project ? [`project: ${yamlScalar(project)}`] : []),
     "---",
   ].join("\n");
 }

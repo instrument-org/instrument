@@ -11,8 +11,8 @@ import { type SetupSnapshot, snapshotSetup } from "./setup-snapshot";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * The kinds the agent is told about here. Memories, topics and apps have
- * notes of their own (`create-memory-part.ts`, the topic's standing part,
+ * The kinds the agent is told about here. Memories, projects and apps have
+ * notes of their own (`create-memory-part.ts`, the project's standing part,
  * `chat-app-changes.ts`).
  */
 const NEWS_KINDS = new Set(["skill"]);

@@ -19,34 +19,34 @@ const PLACES = {
   archived: ["Archived", "ph-archive"],
 };
 
-const topicByName = (name) => TOPICS.find((t) => t.name === name) ?? { name, emoji: "", color: "#007fc3" };
+const projectByName = (name) => PROJECTS.find((t) => t.name === name) ?? { name, emoji: "", color: "#007fc3" };
 
-/** A topic's mark (topic-mark.tsx): its emoji on its tint in a rounded square. `size` sm (14), md (16) or lg (44). */
-const topicMark = (topic, size = "md") => {
-  const t = typeof topic === "string" ? topicByName(topic) : topic;
+/** A project's mark (project-mark.tsx): its emoji on its tint in a rounded square. `size` sm (14), md (16) or lg (44). */
+const projectMark = (project, size = "md") => {
+  const t = typeof project === "string" ? projectByName(project) : project;
   const box = { lg: "size-11 rounded-xl text-[22px]", sm: "size-3.5 rounded-sm text-[9px]", md: "size-4 rounded text-[10px]" }[size];
-  return `<span class="inline-grid shrink-0 place-items-center leading-none ${box} bg-(--topic-tint-surface)" style="${topicTint(t.color)}">${t.emoji}</span>`;
+  return `<span class="inline-grid shrink-0 place-items-center leading-none ${box} bg-(--project-tint-surface)" style="${projectTint(t.color)}">${t.emoji}</span>`;
 };
 
-/** A topic as a pill no taller than its line (TopicPill): `quiet` is the faint wash a row's corner wears, with the name in the topic's ink. */
-const topicPill = (topic, { quiet = true } = {}) => {
-  const t = typeof topic === "string" ? topicByName(topic) : topic;
-  return `<span class="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-md text-[11px] leading-4 ${quiet ? "bg-(--topic-tint-surface)/40 pr-2 pl-1.5 font-medium text-(--topic-tint-ink)" : "bg-(--topic-tint-surface) pr-1.5 pl-1 text-foreground/90"}" style="${topicTint(t.color)}"><span class="text-[10px]">${t.emoji}</span><span class="truncate">${t.name}</span></span>`;
+/** A project as a pill no taller than its line (ProjectPill): `quiet` is the faint wash a row's corner wears, with the name in the project's ink. */
+const projectPill = (project, { quiet = true } = {}) => {
+  const t = typeof project === "string" ? projectByName(project) : project;
+  return `<span class="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-md text-[11px] leading-4 ${quiet ? "bg-(--project-tint-surface)/40 pr-2 pl-1.5 font-medium text-(--project-tint-ink)" : "bg-(--project-tint-surface) pr-1.5 pl-1 text-foreground/90"}" style="${projectTint(t.color)}"><span class="text-[10px]">${t.emoji}</span><span class="truncate">${t.name}</span></span>`;
 };
 
 /**
  * The line over the inbox (filter-head.tsx), 8px in from the card: the picker naming the
  * view the list stands in, bare on the card (a grey fill only under the pointer or while
  * its menu is up, `open`): Chats alone, or a `place` (unread | starred | drafts |
- * archived) or `topic` (a name in TOPICS) led by its face; then the search, a faint grey
+ * archived) or `project` (a name in PROJECTS) led by its face; then the search, a faint grey
  * well. Typing into it (`search`: the words) folds the picker to its face alone and
- * raises the field white and ringed, with its clear button. Under a topic the head
- * wears the topic's tint and its instructions follow on a banner, with Edit topic.
+ * raises the field white and ringed, with its clear button. Under a project the head
+ * wears the project's tint and its instructions follow on a banner, with Edit project.
  */
-const inboxHead = ({ place = "", topic = "", search = "", open = false } = {}) => {
-  const t = topic ? topicByName(topic) : null;
+const inboxHead = ({ place = "", project = "", search = "", open = false } = {}) => {
+  const t = project ? projectByName(project) : null;
   const [label, icon] = t ? [t.name, ""] : (PLACES[place] ?? ["Chats", "ph-chat-circle"]);
-  const face = t ? topicMark(t, "md").replace("size-4", "size-5").replace("text-[10px]", "text-[13px]") : `<i class="ph ${icon} text-[20px]"></i>`;
+  const face = t ? projectMark(t, "md").replace("size-4", "size-5").replace("text-[10px]", "text-[13px]") : `<i class="ph ${icon} text-[20px]"></i>`;
   const hasFace = Boolean(t || place || search);
   const picker = search
     ? `<span class="grid size-9 shrink-0 place-items-center rounded-lg text-foreground/80">${face}</span>`
@@ -56,10 +56,10 @@ const inboxHead = ({ place = "", topic = "", search = "", open = false } = {}) =
     : `<div class="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg bg-foreground/4 pr-3 pl-3 text-sm text-muted-foreground"><i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i><span class="min-w-0 flex-1 truncate">${t || place ? `Search ${label}` : "Search"}</span></div>`;
   const banner =
     t && !search
-      ? `<div class="flex shrink-0 flex-col items-start gap-1 px-4 pb-3 text-sm leading-5">${t.instructions ? `<p class="line-clamp-2 text-foreground/75">${t.instructions}</p>` : ""}<span class="text-[13px] text-foreground/45">Edit topic</span></div>`
+      ? `<div class="flex shrink-0 flex-col items-start gap-1 px-4 pb-3 text-sm leading-5">${t.instructions ? `<p class="line-clamp-2 text-foreground/75">${t.instructions}</p>` : ""}<span class="text-[13px] text-foreground/45">Edit project</span></div>`
       : "";
   return `
-  <div class="${t ? "bg-(--topic-tint-surface)/60" : ""}" ${t ? `style="${topicTint(t.color)}"` : ""}>
+  <div class="${t ? "bg-(--project-tint-surface)/60" : ""}" ${t ? `style="${projectTint(t.color)}"` : ""}>
     <div class="flex items-center gap-1.5 p-2">${picker}${field}</div>
     ${banner}
   </div>`;
@@ -68,10 +68,10 @@ const inboxHead = ({ place = "", topic = "", search = "", open = false } = {}) =
 /**
  * The picker's menu (filter-head.tsx): 256px with 12px corners, 36px rows 2px apart (the
  * view the list stands in on a soft grey, its name in medium), the views with their
- * muted counts (Drafts only with `counts.drafts`), then the topics (TOPICS by default,
- * `[]` for none) and New topic. Place it with `left`/`top` in the window's pixels.
+ * muted counts (Drafts only with `counts.drafts`), then the projects (PROJECTS by default,
+ * `[]` for none) and New project. Place it with `left`/`top` in the window's pixels.
  */
-const viewMenu = ({ on = "", counts = {}, topics = TOPICS, left = 84, top = 88 } = {}) => {
+const viewMenu = ({ on = "", counts = {}, projects = PROJECTS, left = 84, top = 88 } = {}) => {
   const line = `<div class="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5"></div>`;
   const item = (face, label, { isOn = false, count, muted = false } = {}) => `
     <div class="flex h-9 shrink-0 items-center gap-3 rounded-lg pr-2 pl-2.5 text-sm ${isOn ? "bg-foreground/6 font-medium" : muted ? "text-muted-foreground/70" : ""}">
@@ -87,8 +87,8 @@ const viewMenu = ({ on = "", counts = {}, topics = TOPICS, left = 84, top = 88 }
   return `
   <div class="absolute z-30 flex w-64 flex-col gap-0.5 rounded-xl border border-border bg-popover p-1.5 shadow-lg" style="left:${left}px;top:${top}px">
     ${views.map(([k, l, i]) => item(`<i class="ph ${i} text-[20px]"></i>`, l, { isOn: k === on, count: counts[k] })).join("")}
-    ${topics.length ? line + topics.map((t) => item(topicMark(t, "md").replace("size-4", "size-6").replace("text-[10px]", "text-[15px]"), t.name, { isOn: on === t.name, count: t.count })).join("") : ""}
-    ${line}${item(`<i class="ph ph-plus-square text-[20px]"></i>`, "New topic", { muted: true })}
+    ${projects.length ? line + projects.map((t) => item(projectMark(t, "md").replace("size-4", "size-6").replace("text-[10px]", "text-[15px]"), t.name, { isOn: on === t.name, count: t.count })).join("") : ""}
+    ${line}${item(`<i class="ph ph-plus-square text-[20px]"></i>`, "New project", { muted: true })}
   </div>`;
 };
 
@@ -111,13 +111,13 @@ const matched = (text, q) => {
   return at < 0 ? text : `${text.slice(0, at)}<b class="font-semibold text-foreground">${text.slice(at, at + q.length)}</b>${text.slice(at + q.length)}`;
 };
 
-/** The controls a row shows at its title's end under the pointer (row-action-bar.tsx): file under a topic, pop out, archive, mark unread, star. */
+/** The controls a row shows at its title's end under the pointer (row-action-bar.tsx): file under a project, pop out, archive, mark unread, star. */
 const ROW_ACTIONS = ["ph-tag", "ph-picture-in-picture", "ph-archive", "ph-notification", "ph-star"];
 
 /**
  * An inbox row (chat-row.tsx), three lines every row keeps: the title (semibold only
  * while something in it is unseen), "Draft" in red after it while a reply waits unsent
- * (`draft`), and the topic pill (`topic`) and the starred chat's star in the corner; the
+ * (`draft`), and the project pill (`project`) and the starred chat's star in the corner; the
  * agent's latest line (the `step` in the brand's shimmer while it works, `ask` behind a
  * question mark while it waits on you, otherwise the `preview`); then what it holds,
  * with the time in the corner. A hairline above every row, under the last one too. `on`
@@ -137,7 +137,7 @@ const row = (r, { on = false, last = false, hover = false, search = "" } = {}) =
       ${
         hover
           ? `<span class="-my-0.5 flex shrink-0 items-center text-foreground/50">${ROW_ACTIONS.map((i) => `<span class="grid size-6 place-items-center"><i class="ph ${i} text-[16px] ${i === "ph-star" && r.starred ? "text-warning-500" : ""}"></i></span>`).join("")}</span>`
-          : `${r.topic ? topicPill(r.topic) : ""}${r.starred ? `<span class="-my-0.5 grid size-6 shrink-0 place-items-center"><i class="ph ph-star text-[16px] text-warning-500"></i></span>` : ""}`
+          : `${r.project ? projectPill(r.project) : ""}${r.starred ? `<span class="-my-0.5 grid size-6 shrink-0 place-items-center"><i class="ph ph-star text-[16px] text-warning-500"></i></span>` : ""}`
       }
     </div>
     <div class="flex h-5 min-w-0 items-center gap-1.5 text-[12px]">${
@@ -171,8 +171,8 @@ const draftRow = (d, { last = false } = {}) => `
 /**
  * The inbox column: head, rows, on the card's grey with a faint line at its right edge.
  * `on` is the open row's index (-1 for none), `hover` the row under the pointer. `place`
- * stands it in another view (unread | starred | drafts | archived) and `topic` in a
- * topic (a TOPICS name); `drafts` ([{ title, time, holds }]) stands it in Drafts and lists
+ * stands it in another view (unread | starred | drafts | archived) and `project` in a
+ * project (a PROJECTS name); `drafts` ([{ title, time, holds }]) stands it in Drafts and lists
  * those instead. `search` types words into the search and marks them in the rows;
  * `empty` is the line an empty list says (with `rows: []`); `picking` draws the picker
  * pressed, under its `viewMenu`. `rows` may mix row objects and finished HTML, and
@@ -184,7 +184,7 @@ const inboxCol = ({
   w = 320,
   rows = ROWS,
   place = "",
-  topic = "",
+  project = "",
   drafts,
   search = "",
   empty = "Press New to start a chat",
@@ -192,7 +192,7 @@ const inboxCol = ({
   before = "",
 } = {}) => `
   <div class="relative flex shrink-0 flex-col bg-background pr-px after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border/70" style="width:${w}px">
-    ${inboxHead({ place: drafts ? "drafts" : place, topic, search, open: picking })}
+    ${inboxHead({ place: drafts ? "drafts" : place, project, search, open: picking })}
     ${
       (drafts ?? rows).length === 0 && !before
         ? `<div class="grid flex-1 place-items-center px-8 pb-16"><div class="flex flex-col items-center text-center text-[13px]"><span class="mb-3 grid size-11 place-items-center rounded-xl text-muted-foreground/30 inset-ring inset-ring-current/60"><i class="ph ph-chat-circle text-[24px]"></i></span><p class="max-w-56 leading-5 text-balance text-muted-foreground/60">${empty}</p></div></div>`
@@ -216,7 +216,7 @@ const chatMenu = ({ left = 120, top = 140, starred = false, unread = false } = {
       { icon: "star", label: starred ? "Unstar" : "Star" },
       "rule",
       { icon: "pencil-simple", label: "Rename" },
-      { icon: "tag", label: "Topic", sub: true },
+      { icon: "tag", label: "Project", sub: true },
       "rule",
       { icon: "folder-simple", label: "Show in Finder" },
       "rule",

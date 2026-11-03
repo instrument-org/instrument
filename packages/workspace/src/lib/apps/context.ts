@@ -50,7 +50,7 @@ export async function buildAppsContextText(): Promise<string> {
 
 /**
  * One connected app's instructions, the body of its `APP.md`, inlined by the
- * same rule as a topic's: the whole of them up to the budget, and past it
+ * same rule as a project's: the whole of them up to the budget, and past it
  * what fits with the file named for the rest. Nothing for an app whose file
  * holds a manifest and no words.
  */

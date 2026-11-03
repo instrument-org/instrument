@@ -2,15 +2,15 @@
  * Does the agent know the parts of the person's Instrument folder for what
  * they are?
  *
- * Topics, memories, skills and apps are folders the app keeps for the
+ * Projects, memories, skills and apps are folders the app keeps for the
  * person, and the prompt names each and where it lives. Without that, "my
- * Travel topic" named nothing the agent knew, and it went looking in Notes
+ * Travel project" named nothing the agent knew, and it went looking in Notes
  * on the Mac, asking for access to search it. And a skill published for
  * other agents comes with install steps naming their folders, which here all
  * mean the workspace's skills folder. What these measure:
  *
- * - **A topic is edited where it lives.** Asked to add to "my Travel topic",
- *   the agent changes `Topics/Travel/TOPIC.md` and reaches for no app.
+ * - **A project is edited where it lives.** Asked to add to "my Travel project",
+ *   the agent changes `Projects/Travel/AGENTS.md` and reaches for no app.
  * - **A skill from a link is installed into the workspace's skills.** Given
  *   a skills.sh page, the skill lands in the workspace's skills folder, and
  *   in no other agent's.
@@ -23,8 +23,8 @@ import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { TOPIC_FILE_NAME } from "../../src/constants";
-import { createTopic, topicsDir } from "../../src/lib/chat/topics";
+import { PROJECT_FILE_NAME } from "../../src/constants";
+import { createProject, projectsDir } from "../../src/lib/chat/projects";
 import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
@@ -54,19 +54,19 @@ function result(
   return { evidence, passed, text };
 }
 
-const editedTheTopicFile: Assertion = {
+const editedTheProjectFile: Assertion = {
   check: () => {
-    const text = "added the preference to Topics/Travel/TOPIC.md";
-    const file = path.join(topicsDir(), "Travel", TOPIC_FILE_NAME);
+    const text = "added the preference to Projects/Travel/AGENTS.md";
+    const file = path.join(projectsDir(), "Travel", PROJECT_FILE_NAME);
     const body = existsSync(file) ? readFileSync(file, "utf8") : "";
     return result(/train/i.test(body), text, body.slice(-200));
   },
-  text: "added the preference to Topics/Travel/TOPIC.md",
+  text: "added the preference to Projects/Travel/AGENTS.md",
 };
 
 const reachedForNoApp: Assertion = {
   check: ({ sessions }) => {
-    const text = "looked for the topic in no app";
+    const text = "looked for the project in no app";
     const reached = commands(sessions).filter((command) =>
       /instrument (?:notes|reminders|calendar)\b|ask_permission .*"kind":"app"/.test(
         command,
@@ -78,7 +78,7 @@ const reachedForNoApp: Assertion = {
       reached.length === 0 ? "none" : reached.join(" | "),
     );
   },
-  text: "looked for the topic in no app",
+  text: "looked for the project in no app",
 };
 
 const installedIntoWorkspaceSkills: Assertion = {
@@ -107,13 +107,13 @@ const installedNowhereElse: Assertion = {
 
 export const WORKSPACE_PARTS_EVALS = [
   defineEval({
-    assertions: [editedTheTopicFile, reachedForNoApp],
+    assertions: [editedTheProjectFile, reachedForNoApp],
     kind: "chat",
-    name: "workspace-parts-edits-a-topic",
+    name: "workspace-parts-edits-a-project",
     prompt:
-      "Add to my Travel topic that I prefer trains over flights for trips under four hours.",
+      "Add to my Travel project that I prefer trains over flights for trips under four hours.",
     setup: async () => {
-      await createTopic({
+      await createProject({
         instructions: "Plan trips with a day of slack.",
         name: "Travel",
       });

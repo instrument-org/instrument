@@ -138,8 +138,8 @@ describe("Settings › Permissions", () => {
   });
 });
 
-describe("a topic's granted folders", () => {
-  const topicFile = () => at("Topics", "Home", "TOPIC.md");
+describe("a project's granted folders", () => {
+  const projectFile = () => at("Projects", "Home", "AGENTS.md");
 
   it("writes them where they went, in this computer's permission settings", () => {
     const now = path.join(machine.path, "work", "c", "notes");
@@ -147,7 +147,7 @@ describe("a topic's granted folders", () => {
     write(
       permissionsFile(),
       JSON.stringify({
-        topics: {
+        projects: {
           top_1: {
             folders: [
               {
@@ -167,7 +167,7 @@ describe("a topic's granted folders", () => {
     const done = rewrite();
 
     expect(permissions()).toMatchObject({
-      topics: {
+      projects: {
         top_1: {
           folders: [{ path: now }, { path: "/Users/someone/Deals" }],
         },
@@ -178,9 +178,9 @@ describe("a topic's granted folders", () => {
     ]);
   });
 
-  // The folders a topic's file lists are read once per computer, by the
+  // The folders a project's file lists are read once per computer, by the
   // launch that moves them into the settings, and never rewritten here.
-  it("leaves a topic's file as it is", () => {
+  it("leaves a project's file as it is", () => {
     const listed = [
       "---",
       "id: top_1",
@@ -192,10 +192,10 @@ describe("a topic's granted folders", () => {
     fs.mkdirSync(path.join(machine.path, "work", "c", "notes"), {
       recursive: true,
     });
-    write(topicFile(), listed);
+    write(projectFile(), listed);
 
     expect(rewrite()).toEqual([]);
-    expect(fs.readFileSync(topicFile(), "utf8")).toBe(listed);
+    expect(fs.readFileSync(projectFile(), "utf8")).toBe(listed);
   });
 });
 

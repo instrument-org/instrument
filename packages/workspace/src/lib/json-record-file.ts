@@ -8,7 +8,7 @@ import { TypedError } from "./errors";
 
 /**
  * The one way the workspace writes a JSON file it keeps: a task's or a chat's
- * settings, the window's state, a topic's settings, and what the migrations
+ * settings, the window's state, a project's settings, and what the migrations
  * rewrite of them.
  *
  * - **Atomic.** Written to a temporary file and renamed into place, so a

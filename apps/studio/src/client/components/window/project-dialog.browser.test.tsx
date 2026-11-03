@@ -1,7 +1,7 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { expect, it, vi } from "vitest";
 
-import { TopicDialog } from "./topic-dialog";
+import { ProjectDialog } from "./project-dialog";
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
@@ -33,9 +33,9 @@ vi.mock(import("@/client/hooks/use-dictation"), async (importOriginal) => ({
 vi.mock("@/client/hooks/use-billing-status", () => ({
   useBillingStatus: () => ({ isSignedOut: false }),
 }));
-vi.mock(import("./use-topic-backfill"), async (importOriginal) => ({
+vi.mock(import("./use-project-backfill"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useTopicBackfill: () => [],
+  useProjectBackfill: () => [],
 }));
 // A folder's icon asks the computer what kind of place it is.
 vi.mock("@/client/components/window/folder-mark", () => ({
@@ -46,14 +46,14 @@ const DEEP = `/Users/me/${"a-folder-with-a-long-name/".repeat(8)}Garden`;
 
 it("keeps a folder with a long path inside the dialog", async () => {
   await renderInBrowser(
-    <TopicDialog
+    <ProjectDialog
       mode="edit"
       onChange={vi.fn()}
       onDelete={vi.fn()}
       onOpenChange={vi.fn()}
       open
       otherNames={[]}
-      topic={{ folders: [{ path: DEEP }], id: "top_1", name: "Garden" }}
+      project={{ folders: [{ path: DEEP }], id: "top_1", name: "Garden" }}
     />,
   );
 

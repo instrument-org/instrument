@@ -14,7 +14,7 @@ import { rulesFor } from "../permissions/rules";
 const settings = {
   apps: [],
   chats: {},
-  topics: {},
+  projects: {},
   folders: [],
   places: {},
   dangerouslyAllowEveryFolder: false,

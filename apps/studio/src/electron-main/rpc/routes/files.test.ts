@@ -190,14 +190,14 @@ it("leaves the home folder and the workspace's folder where they are", async () 
 it("leaves the workspace's key folders and records where they are, and what is in them editable", async () => {
   const real = path.join(dir, "Instrument");
   for (const folder of [
-    "Topics/Travel",
+    "Projects/Travel",
     "Chats",
     ".instrument",
-    "Projects/Skills",
+    "Work/Skills",
   ]) {
     await fs.mkdir(path.join(real, folder), { recursive: true });
   }
-  // The workspace named through a link, and Topics reached through another.
+  // The workspace named through a link, and Projects reached through another.
   await fs.symlink(real, path.join(dir, "linked"));
   workspace.folder = path.join(dir, "linked");
   const elsewhere = path.join(dir, "elsewhere");
@@ -216,7 +216,7 @@ it("leaves the workspace's key folders and records where they are, and what is i
       refusal(
         call(
           files.rename,
-          { name: "Subjects", path: path.join(real, "Topics") },
+          { name: "Subjects", path: path.join(real, "Projects") },
           options,
         ),
       ),
@@ -233,39 +233,39 @@ it("leaves the workspace's key folders and records where they are, and what is i
       refusal(
         call(
           files.moveInto,
-          { folder: elsewhere, paths: [path.join(real, "Topics")] },
+          { folder: elsewhere, paths: [path.join(real, "Projects")] },
           options,
         ),
       ),
     ]),
   ).toMatchInlineSnapshot(`
     [
-      "PROTECTED: Instrument saves your topics in this folder, so you can’t rename or delete it.",
+      "PROTECTED: Instrument saves your projects in this folder, so you can’t rename or delete it.",
       "PROTECTED: Instrument saves your chats in this folder, so you can’t rename or delete it.",
       "PROTECTED: Instrument saves its own data in this folder, so you can’t rename or delete it.",
-      "PROTECTED: Instrument saves your topics in this folder, so you can’t rename or delete it.",
+      "PROTECTED: Instrument saves your projects in this folder, so you can’t rename or delete it.",
     ]
   `);
   expect((await fs.readdir(real)).toSorted()).toEqual([
     ".instrument",
     "Chats",
     "Projects",
-    "Topics",
+    "Work",
   ]);
 
   // Inside a key folder, and a key folder's name deeper down, are the person's.
   await call(
     files.rename,
-    { name: "Trips", path: path.join(real, "Topics", "Travel") },
+    { name: "Trips", path: path.join(real, "Projects", "Travel") },
     options,
   );
   await call(
     files.rename,
-    { name: "Tools", path: path.join(real, "Projects", "Skills") },
+    { name: "Tools", path: path.join(real, "Work", "Skills") },
     options,
   );
-  expect(await fs.readdir(path.join(real, "Topics"))).toEqual(["Trips"]);
-  expect(await fs.readdir(path.join(real, "Projects"))).toEqual(["Tools"]);
+  expect(await fs.readdir(path.join(real, "Projects"))).toEqual(["Trips"]);
+  expect(await fs.readdir(path.join(real, "Work"))).toEqual(["Tools"]);
   // Taken back, so the journal the tests share is as this one found it.
   await call(files.undo, undefined, options);
   await call(files.undo, undefined, options);
@@ -277,16 +277,16 @@ it("leaves a folder renamed into a key folder's name there when asked to undo", 
   await fs.mkdir(old, { recursive: true });
   const { path: renamed } = await call(
     files.rename,
-    { name: "Topics", path: old },
+    { name: "Projects", path: old },
     options,
   );
   await expect(call(files.undo, undefined, options)).rejects.toMatchObject({
     code: "CANNOT_UNDO",
     message:
-      "Instrument saves your topics in this folder, so you can’t rename or delete it.",
+      "Instrument saves your projects in this folder, so you can’t rename or delete it.",
   });
-  expect(await fs.readdir(workspace.folder)).toEqual(["Topics"]);
-  expect(renamed).toBe(path.join(workspace.folder, "Topics"));
+  expect(await fs.readdir(workspace.folder)).toEqual(["Projects"]);
+  expect(renamed).toBe(path.join(workspace.folder, "Projects"));
   // Its entry is gone, so the next ⌘Z does not meet it again.
   await expect(call(files.undo, undefined, options)).rejects.toMatchObject({
     code: "NOTHING_TO_UNDO",

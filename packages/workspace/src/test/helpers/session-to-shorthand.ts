@@ -147,8 +147,8 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-workspaceInstructions": {
       return `<data-workspaceInstructions>${part.data.instructions ?? ""}</data-workspaceInstructions>`;
     }
-    case "data-topic": {
-      return `<data-topic>${part.data.topic?.name ?? ""}</data-topic>`;
+    case "data-project": {
+      return `<data-project>${part.data.project?.name ?? ""}</data-project>`;
     }
     case "data-contextRollover": {
       const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;

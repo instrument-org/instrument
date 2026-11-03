@@ -168,16 +168,24 @@ async function copyStore(file: string, copy: string): Promise<void> {
 }
 
 /**
- * A session row as the store read it. A row from a build that filed a chat
- * under a list of topics reads as filed under the first of them.
+ * A session row as the store read it, where a project was called a topic: a
+ * row's `topic` is its project, and a row from a build that filed a chat
+ * under a list of `topics` reads as filed under the first of them.
  */
 const ChatDbSessionSchema = z.preprocess((row) => {
-  if (typeof row !== "object" || row === null || !("topics" in row)) {
+  if (typeof row !== "object" || row === null) {
+    return row;
+  }
+  if ("topic" in row) {
+    const { topic, ...rest } = row;
+    return typeof topic === "string" ? { ...rest, project: topic } : rest;
+  }
+  if (!("topics" in row)) {
     return row;
   }
   const { topics, ...rest } = row;
   const first: unknown = Array.isArray(topics) ? topics[0] : undefined;
-  return typeof first === "string" ? { ...rest, topic: first } : rest;
+  return typeof first === "string" ? { ...rest, project: first } : rest;
 }, ChatDbSessionRowSchema);
 
 async function readStorage(storage: WrappedStorage): Promise<ChatDbRead> {

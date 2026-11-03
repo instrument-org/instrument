@@ -84,11 +84,15 @@ describe("useWindowCommands", () => {
 
   it("starts a new chat's draft with the words a link brought", async () => {
     renderWithDefaultStore(<Window />);
-    stream.push({ topic: "01JTOPIC", type: "newChat", words: "Plan my week" });
+    stream.push({
+      project: "01JPROJECT",
+      type: "newChat",
+      words: "Plan my week",
+    });
     await vi.waitFor(() => {
       expect(handlers.newChatFromLink).toHaveBeenCalledWith(
         "Plan my week",
-        "01JTOPIC",
+        "01JPROJECT",
       );
     });
   });

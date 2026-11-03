@@ -303,7 +303,7 @@ function emojiQuestions(options: Emoji[], maxOptions: number) {
     questions[`emoji-${start / chunk}`] = {
       criteria,
       instructions:
-        "Which emoji best represents the topic named in the state? Pick none if nothing fits.",
+        "Which emoji best represents the project named in the state? Pick none if nothing fits.",
       type: "choice",
     };
   }
@@ -365,18 +365,18 @@ function emojiShape(): Shape {
 }
 
 // ---------------------------------------------------------------------------
-// Draft topic: apps/studio/src/client/components/window/use-draft-topic-suggestion.ts
+// Draft project: apps/studio/src/client/components/window/use-draft-project-suggestion.ts
 // ---------------------------------------------------------------------------
 
 const DRAFT_CONFIDENT = 0.7;
 
-function draftTopic(): Shape {
+function draftProject(): Shape {
   const cases = Object.values(draftSets).flatMap((set) =>
-    set.cases.map((labeled) => ({ labeled, topics: set.topics })),
+    set.cases.map((labeled) => ({ labeled, projects: set.projects })),
   );
   return {
-    about: `${cases.length} opening messages, one choice over the user's topics plus none`,
-    cases: cases.map(({ labeled, topics }) => {
+    about: `${cases.length} opening messages, one choice over the user's projects plus none`,
+    cases: cases.map(({ labeled, projects }) => {
       const [text, expected, alternates] = labeled as [
         string,
         string,
@@ -386,19 +386,21 @@ function draftTopic(): Shape {
         text.slice(0, 60),
         () => ({
           questions: {
-            topic: {
+            project: {
               criteria: {
-                [NONE]: "No topic clearly fits",
-                ...Object.fromEntries(topics.map((topic) => [topic, null])),
+                [NONE]: "No project clearly fits",
+                ...Object.fromEntries(
+                  projects.map((project) => [project, null]),
+                ),
               },
-              instructions: `Which of the user's topics should a new chat be filed under when it opens with "${text.replaceAll(/\s+/gu, " ")}"? Pick none unless one clearly fits.`,
+              instructions: `Which of the user's projects should a new chat be filed under when it opens with "${text.replaceAll(/\s+/gu, " ")}"? Pick none unless one clearly fits.`,
               type: "choice",
             },
           },
           state: {},
         }),
         (answers) => {
-          const answer = answers.topic;
+          const answer = answers.project;
           const pick =
             answer?.choice && answer.choice !== NONE
               ? answer.choice
@@ -423,35 +425,35 @@ function draftTopic(): Shape {
       { header: "filed right", value: ratio("right", "filable") },
       { header: "wrong", value: count("wrong") },
     ],
-    name: "draft-topic",
+    name: "draft-project",
   };
 }
 
 // ---------------------------------------------------------------------------
-// Topic backfill: apps/studio/src/client/components/window/use-topic-backfill.ts
+// Project backfill: apps/studio/src/client/components/window/use-project-backfill.ts
 // ---------------------------------------------------------------------------
 
 const BACKFILL_READ = 200;
 const BELONGS = { clef: 0.55, clefFlash: 0.7, other: 0.7 };
 
-function topicBackfill(): Shape {
+function projectBackfill(): Shape {
   const candidates = realChats.slice(0, BACKFILL_READ);
   return {
-    about: `a new topic's name against the newest ${candidates.length} chats, one yes-or-no each`,
+    about: `a new project's name against the newest ${candidates.length} chats, one yes-or-no each`,
     cases: backfillCases.map((labeled) =>
       single(
-        labeled.topic,
+        labeled.project,
         () => ({
           questions: Object.fromEntries(
             candidates.map((chat, index) => [
               String(index),
               {
-                instructions: `Does the chat titled "${chat.title}", which opened with "${chat.ask.replaceAll(/\s+/gu, " ")}", belong under the topic in the state?`,
+                instructions: `Does the chat titled "${chat.title}", which opened with "${chat.ask.replaceAll(/\s+/gu, " ")}", belong under the project in the state?`,
                 type: "noul",
               },
             ]),
           ),
-          state: { topic: { name: labeled.topic } },
+          state: { project: { name: labeled.project } },
         }),
         (answers, model) => {
           const chance = (index: number) => answers[String(index)]?.noul ?? 0;
@@ -479,7 +481,7 @@ function topicBackfill(): Shape {
       { header: "found", value: ratio("found", "belong") },
       { header: "wrong", value: count("wrong") },
     ],
-    name: "topic-backfill",
+    name: "project-backfill",
   };
 }
 
@@ -499,7 +501,7 @@ export function allShapes(): Shape[] {
     appSearch(),
     settingsSearch(),
     emojiShape(),
-    draftTopic(),
-    topicBackfill(),
+    draftProject(),
+    projectBackfill(),
   ];
 }

@@ -419,8 +419,8 @@ export class ChatFold {
       case "unread":
         settings.unread = newer(settings.unread, record, place);
         break;
-      case "topic":
-        settings.topic = newer(settings.topic, record, place);
+      case "project":
+        settings.project = newer(settings.project, record, place);
         break;
       case "model":
         settings.model = newer(settings.model, record, place);
@@ -605,7 +605,7 @@ function foldedSettings(settings: SettingState): FoldedSettings {
     ...(settings.model && { model: made(settings.model.value) }),
     ...(settings.starred && { starred: made(settings.starred.value) }),
     ...(settings.title && { title: made(settings.title.value) }),
-    ...(settings.topic && { topic: made(settings.topic.value) }),
+    ...(settings.project && { project: made(settings.project.value) }),
     ...(settings.unread && { unread: made(settings.unread.value) }),
   };
 }

@@ -51,7 +51,7 @@ export function startWorkspace(): Promise<void> {
     startSendingAskedDrafts({
       apply: applyDraftOpsInMain,
       deviceId,
-      send: async ({ chatId, draftId, topicId, words }) => {
+      send: async ({ chatId, draftId, projectId, words }) => {
         const modelURI = (await chatModelURI(chatId)) ?? getDefaultModelURI();
         if (!modelURI) {
           throw new Error("No model is chosen to send with");
@@ -63,7 +63,7 @@ export function startWorkspace(): Promise<void> {
             id: chatId,
             modelURI,
             prompt: words,
-            ...(topicId ? { topic: topicId } : {}),
+            ...(projectId ? { project: projectId } : {}),
           },
           { context },
         );

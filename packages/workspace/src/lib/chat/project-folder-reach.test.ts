@@ -8,7 +8,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatReach } from "../permissions/chat-rules";
-import { moveTopicFolders } from "../permissions/move-topic-folders";
+import { moveProjectFolders } from "../permissions/move-project-folders";
 import {
   permissionsFileIn,
   readPermissionSettings,
@@ -16,15 +16,15 @@ import {
 } from "../permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
-  createTopic,
-  listTopics,
-  TOPIC_FILE_NAME,
-  topicsDir,
-  updateTopic,
-} from "./topics";
+  createProject,
+  listProjects,
+  PROJECT_FILE_NAME,
+  projectsDir,
+  updateProject,
+} from "./projects";
 
-// Which topic the chat is filed under, as its session says.
-const filed = vi.hoisted(() => ({ topic: undefined as string | undefined }));
+// Which project the chat is filed under, as its session says.
+const filed = vi.hoisted(() => ({ project: undefined as string | undefined }));
 
 vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -32,28 +32,28 @@ vi.mock(import("../record-folders"), async (importOriginal) => ({
 }));
 vi.mock(import("../chat-reads"), () => ({
   ChatReads: {
-    session: () => okAsync({ topic: filed.topic } as never),
+    session: () => okAsync({ project: filed.project } as never),
   } as never,
 }));
 
-const chatId = ChatIdSchema.parse("chat-topic-reach");
+const chatId = ChatIdSchema.parse("chat-project-reach");
 let root: string;
 let machineDir: string;
 let outside: string;
 
 beforeEach(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "topic-reach-"));
-  machineDir = fs.mkdtempSync(path.join(os.tmpdir(), "topic-reach-machine-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "project-reach-"));
+  machineDir = fs.mkdtempSync(path.join(os.tmpdir(), "project-reach-machine-"));
   // A folder of the person's, outside the workspace and the home folder,
   // which nothing but a grant opens to a change.
-  outside = fs.mkdtempSync(path.join(os.tmpdir(), "topic-reach-outside-"));
+  outside = fs.mkdtempSync(path.join(os.tmpdir(), "project-reach-outside-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
     workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
   });
-  filed.topic = undefined;
+  filed.project = undefined;
 });
 
 afterEach(() => {
@@ -62,9 +62,9 @@ afterEach(() => {
   }
 });
 
-/** Writes a `folders:` key into a topic's file, as the agent could. */
-function listInTopicFile(name: string, folder: string) {
-  const file = path.join(topicsDir(), name, TOPIC_FILE_NAME);
+/** Writes a `folders:` key into a project's file, as the agent could. */
+function listInProjectFile(name: string, folder: string) {
+  const file = path.join(projectsDir(), name, PROJECT_FILE_NAME);
   const text = fs.readFileSync(file, "utf8");
   fs.writeFileSync(
     file,
@@ -86,36 +86,39 @@ async function reachOfChat(folder: string) {
   };
 }
 
-describe("a topic's folders", () => {
+describe("a project's folders", () => {
   it("are reached from this computer's permission settings", async () => {
-    const topic = await createTopic({ name: "Taxes" });
-    filed.topic = topic.id;
+    const project = await createProject({ name: "Taxes" });
+    filed.project = project.id;
 
-    await updateTopic(topic.id, { folders: [{ path: outside }] });
+    await updateProject(project.id, { folders: [{ path: outside }] });
 
     expect(await reachOfChat(outside)).toEqual({
       reached: true,
       write: "allow",
     });
     expect(
-      fs.readFileSync(path.join(topicsDir(), "Taxes", TOPIC_FILE_NAME), "utf8"),
+      fs.readFileSync(
+        path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME),
+        "utf8",
+      ),
     ).not.toContain(outside);
-    expect((await listTopics())[0]?.folders).toEqual([{ path: outside }]);
+    expect((await listProjects())[0]?.folders).toEqual([{ path: outside }]);
   });
 
-  it("are never widened by a `folders:` key written into the topic's file", async () => {
-    const topic = await createTopic({ name: "Taxes" });
-    filed.topic = topic.id;
-    moveTopicFolders({ machineDir, rootDir: root });
+  it("are never widened by a `folders:` key written into the project's file", async () => {
+    const project = await createProject({ name: "Taxes" });
+    filed.project = project.id;
+    moveProjectFolders({ machineDir, rootDir: root });
 
-    listInTopicFile("Taxes", outside);
+    listInProjectFile("Taxes", outside);
 
     expect(await reachOfChat(outside)).toEqual({
       reached: false,
       write: "ask",
     });
     // Nor by the launch after, which has moved what the file listed once.
-    expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
+    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
       moved: 0,
     });
     expect(await reachOfChat(outside)).toEqual({
@@ -125,28 +128,28 @@ describe("a topic's folders", () => {
   });
 });
 
-describe("moveTopicFolders", () => {
-  it("takes what a topic's file listed onto this computer once, and out of the file", async () => {
-    const topic = await createTopic({ name: "Taxes" });
-    filed.topic = topic.id;
-    listInTopicFile("Taxes", outside);
+describe("moveProjectFolders", () => {
+  it("takes what a project's file listed onto this computer once, and out of the file", async () => {
+    const project = await createProject({ name: "Taxes" });
+    filed.project = project.id;
+    listInProjectFile("Taxes", outside);
     ranHereBefore();
 
-    expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
+    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
       moved: 1,
     });
 
-    expect((await readPermissionSettings()).topics).toEqual({
-      [topic.id]: {
+    expect((await readPermissionSettings()).projects).toEqual({
+      [project.id]: {
         folders: [{ addedAt: expect.any(Date), path: outside }],
       },
     });
     const file = fs.readFileSync(
-      path.join(topicsDir(), "Taxes", TOPIC_FILE_NAME),
+      path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME),
       "utf8",
     );
     expect(file).not.toContain("folders");
-    expect(file).toContain(`id: ${topic.id}`);
+    expect(file).toContain(`id: ${project.id}`);
     expect(await reachOfChat(outside)).toEqual({
       reached: true,
       write: "allow",
@@ -154,29 +157,29 @@ describe("moveTopicFolders", () => {
   });
 
   it("keeps what this computer already granted, with the file's after it", async () => {
-    const topic = await createTopic({ name: "Taxes" });
+    const project = await createProject({ name: "Taxes" });
     const held = fs.mkdtempSync(path.join(outside, "held-"));
-    await updateTopic(topic.id, { folders: [{ path: held }] });
-    listInTopicFile("Taxes", outside);
+    await updateProject(project.id, { folders: [{ path: held }] });
+    listInProjectFile("Taxes", outside);
 
-    moveTopicFolders({ machineDir, rootDir: root });
+    moveProjectFolders({ machineDir, rootDir: root });
 
-    expect((await listTopics())[0]?.folders).toEqual([
+    expect((await listProjects())[0]?.folders).toEqual([
       { path: held },
       { path: outside },
     ]);
   });
 
   it("takes in nothing on a computer opening the workspace for the first time", async () => {
-    const topic = await createTopic({ name: "Taxes" });
-    filed.topic = topic.id;
-    listInTopicFile("Taxes", outside);
+    const project = await createProject({ name: "Taxes" });
+    filed.project = project.id;
+    listInProjectFile("Taxes", outside);
 
-    expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
+    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
       moved: 0,
     });
 
-    expect((await readPermissionSettings()).topics).toEqual({});
+    expect((await readPermissionSettings()).projects).toEqual({});
     expect(await reachOfChat(outside)).toEqual({
       reached: false,
       write: "ask",
@@ -184,9 +187,12 @@ describe("moveTopicFolders", () => {
     // The file is left for the computer that granted it, and no launch of
     // this one reads it after.
     expect(
-      fs.readFileSync(path.join(topicsDir(), "Taxes", TOPIC_FILE_NAME), "utf8"),
+      fs.readFileSync(
+        path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME),
+        "utf8",
+      ),
     ).toContain(outside);
-    expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
+    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
       moved: 0,
     });
     expect(await reachOfChat(outside)).toEqual({

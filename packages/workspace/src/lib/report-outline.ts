@@ -686,7 +686,7 @@ const NOTES_KEPT = new Set([
   "data-setupChanges",
   "data-skillMentions",
   "data-taskEvent",
-  "data-topic",
+  "data-project",
   "data-workspaceInstructions",
 ]);
 

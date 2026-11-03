@@ -13,7 +13,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { appTabsAtom } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { ChatBar, ChatWindow } from "./chat-window";
-import { type Chat, type Topic } from "./chats";
+import { type Chat, type Project } from "./chats";
 import { COMPOSE_MOTION } from "./compose-layout";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
 import { type useCompose } from "./use-compose";
@@ -44,13 +44,13 @@ export function ComposeLayer({
   onDiscardDraft,
   onExpandChat,
   onModelChange,
-  onNewChatTopic,
-  onNewTopic,
-  onSetChatTopic,
+  onNewChatProject,
+  onNewProject,
+  onSetChatProject,
   onStart,
   sendContext,
   sentWords,
-  topics,
+  projects,
 }: {
   browser: BrowserTabsHandle | null;
   chats: Chat[];
@@ -69,11 +69,11 @@ export function ComposeLayer({
   /** A popped-out chat expanded: the window goes and the chat comes up in a tab of the window's own, its pane open when asked. */
   onExpandChat: (chatId: ChatId, options: { showsPane: boolean }) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
-  /** Makes a topic from a popped-out chat's head, filing that chat under it. */
-  onNewChatTopic: (chatId: ChatId, name?: string) => void;
-  onNewTopic: (draftId: string, name: string) => void;
-  onSetChatTopic: (chatId: ChatId, topic: null | string) => void;
+  /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
+  /** Makes a project from a popped-out chat's head, filing that chat under it. */
+  onNewChatProject: (chatId: ChatId, name?: string) => void;
+  onNewProject: (draftId: string, name: string) => void;
+  onSetChatProject: (chatId: ChatId, project: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;
   /** What goes with a reply sent from a chat's small view: what the window has up behind it. */
   sendContext: (options: {
@@ -84,7 +84,7 @@ export function ComposeLayer({
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** What each chat being started from a draft sent, by the chat: its window shows the words until its transcript has them. */
   sentWords: ReadonlyMap<ChatId, string>;
-  topics: Topic[];
+  projects: Project[];
 }) {
   // A window whose draft is gone (thrown away from the Drafts place, or a
   // record that did not survive) has nothing to write in. A chat's window
@@ -212,11 +212,11 @@ export function ComposeLayer({
                 onMinimize={() => {
                   compose.setPlacement(chatId, "bar");
                 }}
-                onNewTopic={(name) => {
-                  onNewChatTopic(chatId, name);
+                onNewProject={(name) => {
+                  onNewChatProject(chatId, name);
                 }}
-                onSetTopic={(next) => {
-                  onSetChatTopic(chatId, next);
+                onSetProject={(next) => {
+                  onSetChatProject(chatId, next);
                 }}
                 right={entry.right}
                 sendContext={(options) =>
@@ -224,7 +224,7 @@ export function ComposeLayer({
                 }
                 sentWords={sentWords.get(chatId)}
                 chatId={chatId}
-                topics={topics}
+                projects={projects}
                 width={entry.width}
               />
             );
@@ -267,8 +267,8 @@ export function ComposeLayer({
                 onDiscardDraft(draft.id);
               }}
               onModelChange={onModelChange}
-              onNewTopic={(name) => {
-                onNewTopic(draft.id, name);
+              onNewProject={(name) => {
+                onNewProject(draft.id, name);
               }}
               onPlacementChange={(placement) => {
                 compose.setPlacement(key, placement);
@@ -278,7 +278,7 @@ export function ComposeLayer({
               }}
               placement={entry.placement}
               right={entry.right}
-              topics={topics}
+              projects={projects}
               width={entry.width}
             />
           );

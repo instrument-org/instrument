@@ -89,10 +89,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // user typed has a visible cause.
   "data-taskEvent": "always",
   // What the agent is told about the chats around this one: the other
-  // chats at the moment this one opened, and the topic this one is filed
+  // chats at the moment this one opened, and the project this one is filed
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
-  "data-topic": "dev",
+  "data-project": "dev",
   "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",

@@ -1,6 +1,6 @@
 /**
  * A Markdown file's front matter, wherever the app reads one: a skill, a
- * memory, a topic, a draft, an app, and every file the editor and the viewer
+ * memory, a project, a draft, an app, and every file the editor and the viewer
  * draw.
  *
  * The block opens with `---` on the file's first line and closes at the

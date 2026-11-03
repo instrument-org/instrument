@@ -2,11 +2,11 @@ import { type Draft } from "@/shared/drafts";
 import { useDecision } from "@/client/hooks/use-decision";
 import { useEffect, useState } from "react";
 
-import { type Topic } from "./chats";
+import { type Project } from "./chats";
 
 /**
  * How sure the decision model has to be before it files a draft. Clef-flash
- * picks the right topic but scores plain fits 0.7-0.9 where Jev gives near 1.
+ * picks the right project but scores plain fits 0.7-0.9 where Jev gives near 1.
  * Over 91 hand-labeled drafts and 247 real opening messages it filed nothing
  * clearly wrong at 0.7 or more; below that, pasted agent prompts and near-misses
  * ("download speed" as Downloads) start to be filed. A suggestion is cheap to
@@ -20,25 +20,26 @@ const DEBOUNCE_MS = 800;
 const NONE = "none";
 
 /**
- * Files a draft under one of the topics from what it says, once: only while
- * the draft has no topic and the person has not picked or cleared one, and
+ * Files a draft under one of the projects from what it says, once: only while
+ * the draft has no project and the person has not picked or cleared one, and
  * only when the decision model is sure. What it files is marked as its own
- * (`topicSource: "suggested"`), so a person who takes it off is not second-
+ * (`projectSource: "suggested"`), so a person who takes it off is not second-
  * guessed, and nothing happens at all without the model: the draft stays as
  * the person left it.
  */
-export function useDraftTopicSuggestion({
+export function useDraftProjectSuggestion({
   draft,
   onChange,
-  topics,
+  projects,
   words,
 }: {
   draft: Draft;
   onChange: (update: (draft: Draft) => Draft) => void;
-  topics: Topic[];
+  projects: Project[];
   words: string;
 }) {
-  const open = draft.topicId === undefined && draft.topicSource === undefined;
+  const open =
+    draft.projectId === undefined && draft.projectSource === undefined;
 
   const [settled, setSettled] = useState(words.trim());
   useEffect(() => {
@@ -51,39 +52,39 @@ export function useDraftTopicSuggestion({
   }, [words]);
 
   const asking =
-    open && topics.length > 0 && settled.split(/\s+/).length >= MIN_WORDS;
-  // Topics are offered by name, which the model reads, rather than by id,
+    open && projects.length > 0 && settled.split(/\s+/).length >= MIN_WORDS;
+  // Projects are offered by name, which the model reads, rather than by id,
   // which it would only guess at; names are unique, each a folder of its own.
   const criteria = Object.fromEntries(
-    topics.map((topic) => [topic.name, topic.about ?? null]),
+    projects.map((project) => [project.name, project.about ?? null]),
   );
   const { answer: decision } = useDecision({
     ask: asking
       ? {
           questions: {
-            topic: {
-              criteria: { [NONE]: "No topic clearly fits", ...criteria },
+            project: {
+              criteria: { [NONE]: "No project clearly fits", ...criteria },
               // A sentence holding the message rather than the message as
               // the state: read as the state, a long pasted message drew a
               // fit under the bar and pasted agent prompts were filed under
-              // unrelated topics.
-              instructions: `Which of the user's topics should a new chat be filed under when it opens with "${settled.replace(/\s+/g, " ")}"? Pick none unless one clearly fits.`,
+              // unrelated projects.
+              instructions: `Which of the user's projects should a new chat be filed under when it opens with "${settled.replace(/\s+/g, " ")}"? Pick none unless one clearly fits.`,
               type: "choice",
             },
           },
           state: {},
         }
       : undefined,
-    activity: { purpose: "topic-suggestion", surface: "draft" },
-    // The draft's words and the person's topics.
+    activity: { purpose: "project-suggestion", surface: "draft" },
+    // The draft's words and the person's projects.
     personal: true,
-    key: ["draft-topic", settled, criteria],
+    key: ["draft-project", settled, criteria],
   });
 
-  const answer = decision?.answers.topic;
+  const answer = decision?.answers.project;
   const pick =
     answer?.choice && answer.choice !== NONE
-      ? topics.find((topic) => topic.name === answer.choice)
+      ? projects.find((project) => project.name === answer.choice)
       : undefined;
   const probability = pick ? (answer?.probabilities?.[pick.name] ?? 0) : 0;
 
@@ -93,8 +94,8 @@ export function useDraftTopicSuggestion({
     }
     onChange((current) =>
       // Read again at write time: the person may have picked one meanwhile.
-      current.topicId === undefined && current.topicSource === undefined
-        ? { ...current, topicId: pick.id, topicSource: "suggested" }
+      current.projectId === undefined && current.projectSource === undefined
+        ? { ...current, projectId: pick.id, projectSource: "suggested" }
         : current,
     );
   }, [onChange, open, pick, probability]);

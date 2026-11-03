@@ -35,20 +35,20 @@ import {
 
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ChatStatusLine } from "./chat-status-line";
-import { TopicPill } from "./chat-row";
+import { ProjectPill } from "./chat-row";
 import { ChatTitleButton, ChatTitleField } from "./chat-title";
-import { type Chat, type Topic } from "./chats";
+import { type Chat, type Project } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { type RowAction } from "./row-shell";
-import { TopicMark } from "./topic-mark";
-import { TopicPicker } from "./topic-picker";
+import { ProjectMark } from "./project-mark";
+import { ProjectPicker } from "./project-picker";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
 
 /**
  * The head over a chat's conversation, wherever the chat is shown: beside
  * the inbox and popped out into its small window alike. Its title in the
- * middle, which opens the chat's menu, with the topic it is filed under
+ * middle, which opens the chat's menu, with the project it is filed under
  * after it, and under the title the one line saying where its work stands
  * (`ChatStatusLine`), which is the chat's loading state and lists its
  * tasks. At the right, whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
@@ -64,12 +64,12 @@ export function ChatHeader({
   leading,
   onArchived,
   onDeleted,
-  onNewTopic,
+  onNewProject,
   onOpenTask,
-  onSetTopic,
+  onSetProject,
   onViewTasks,
   popOut,
-  topics,
+  projects,
   trailing,
 }: {
   chat: Chat | undefined;
@@ -81,16 +81,16 @@ export function ChatHeader({
   onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
   onDeleted: () => void;
-  /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
-  onNewTopic: (name?: string) => void;
+  /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
+  onNewProject: (name?: string) => void;
   /** Opens one of the chat's tasks beside it, from the list under its title. */
   onOpenTask: (sessionId: StoreId.Session) => void;
-  onSetTopic: (topic: null | string) => void;
+  onSetProject: (project: null | string) => void;
   /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
   onViewTasks?: () => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
-  topics: Topic[];
+  projects: Project[];
   /** What sits at the head's right: the pane toggle while the pane is closed, or the popped-out window's buttons. */
   trailing?: ReactNode;
 }) {
@@ -138,10 +138,10 @@ export function ChatHeader({
                 onDelete={() => {
                   setDeleting(true);
                 }}
-                onNewTopic={onNewTopic}
-                onSetTopic={onSetTopic}
+                onNewProject={onNewProject}
+                onSetProject={onSetProject}
                 titleClassName="text-sm font-medium"
-                topics={topics}
+                projects={projects}
               />
             ) : (
               <h2 className="mx-auto min-w-0 truncate text-sm font-medium">
@@ -216,11 +216,11 @@ function useWiderSide() {
 }
 
 /**
- * A chat's title and the topic it is filed under, as the chat's head and
+ * A chat's title and the project it is filed under, as the chat's head and
  * its popped-out window both draw them: the title, with its caret, opens the
  * chat's menu, whose Rename puts a field in the title's place, and the
- * topic follows it the way mail puts a label after a subject. The title
- * gives way first, truncating; on a narrow head the topic stands as its
+ * project follows it the way mail puts a label after a subject. The title
+ * gives way first, truncating; on a narrow head the project stands as its
  * mark alone.
  */
 function ChatHeading({
@@ -228,25 +228,25 @@ function ChatHeading({
   chat,
   menu,
   onDelete,
-  onNewTopic,
-  onSetTopic,
+  onNewProject,
+  onSetProject,
   titleClassName,
-  topics,
+  projects,
 }: {
-  /** Whether the title and its topic stand in the middle of the room, as the chat's head has them. */
+  /** Whether the title and its project stand in the middle of the room, as the chat's head has them. */
   centered?: boolean;
   chat: Chat;
   /** What the menu offers beyond what every head's does. */
   menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived" | "onViewTasks">;
   onDelete: () => void;
-  /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
-  onNewTopic: (name?: string) => void;
-  onSetTopic: (topic: null | string) => void;
+  /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
+  onNewProject: (name?: string) => void;
+  onSetProject: (project: null | string) => void;
   /** The type the title is set in, which its rename field takes too. */
   titleClassName: string;
-  topics: Topic[];
+  projects: Project[];
 }) {
-  const filed = topics.find((entry) => entry.id === chat.topic);
+  const filed = projects.find((entry) => entry.id === chat.project);
   const chatRename = useChatRename(chat);
   const titleArrival = useTitleArrival(chat);
   // The title's width as renaming begins, which the field opens at, read
@@ -262,9 +262,9 @@ function ChatHeading({
       chatRename.start();
     },
   };
-  // Picking the topic the chat is under takes it off; any other moves it.
-  const pickTopic = (id: string) => {
-    onSetTopic(chat.topic === id ? null : id);
+  // Picking the project the chat is under takes it off; any other moves it.
+  const pickProject = (id: string) => {
+    onSetProject(chat.project === id ? null : id);
   };
   return (
     <div
@@ -288,7 +288,7 @@ function ChatHeading({
             chat={chat}
             onDelete={onDelete}
             rename={rename}
-            topicMenu={{ onNew: onNewTopic, onPick: pickTopic, topics }}
+            projectMenu={{ onNew: onNewProject, onPick: pickProject, projects }}
             trigger={
               <ChatTitleButton
                 arrival={titleArrival}
@@ -300,24 +300,24 @@ function ChatHeading({
           />
         )}
       </h2>
-      {/* Pressing it opens the topic picker every filing shares. No
-          dashed slot in the head: a chat with no topic is filed from the
+      {/* Pressing it opens the project picker every filing shares. No
+          dashed slot in the head: a chat with no project is filed from the
           menu. */}
       {filed && (
-        <TopicPicker
+        <ProjectPicker
           chosen={new Set([filed.id])}
-          onNew={onNewTopic}
-          onToggle={pickTopic}
-          topics={topics}
+          onNew={onNewProject}
+          onToggle={pickProject}
+          projects={projects}
         >
           <button
-            aria-label="Topic"
+            aria-label="Project"
             className="flex shrink-0 items-center gap-1"
             type="button"
           >
-            <TopicPill compact="narrow" topic={filed} />
+            <ProjectPill compact="narrow" project={filed} />
           </button>
-        </TopicPicker>
+        </ProjectPicker>
       )}
     </div>
   );
@@ -328,7 +328,7 @@ function ChatHeading({
  * which ends its turn and every task's; then the inbox row's menu in the
  * same groups and order (see `chatMenuGroups`), with renaming it, which
  * opens the title's field, and its tasks among the ways to organize it, and
- * deleting it at the foot. Its topic is the pill beside the title.
+ * deleting it at the foot. Its project is the pill beside the title.
  */
 function ChatMenu({
   chat,
@@ -336,7 +336,7 @@ function ChatMenu({
   onDelete,
   onViewTasks,
   rename,
-  topicMenu,
+  projectMenu,
   trigger,
 }: {
   chat: Chat;
@@ -346,11 +346,11 @@ function ChatMenu({
   /** Opens the chat's tasks, when the head can reach them. */
   onViewTasks?: () => void;
   rename: ChatRename;
-  /** The topics to file the chat under, as a submenu, when the head that owns the menu files it. */
-  topicMenu?: {
+  /** The projects to file the chat under, as a submenu, when the head that owns the menu files it. */
+  projectMenu?: {
     onNew: (name?: string) => void;
     onPick: (id: string) => void;
-    topics: Topic[];
+    projects: Project[];
   };
   /** What opens it: the chat's title. */
   trigger: ReactNode;
@@ -407,25 +407,25 @@ function ChatMenu({
           <PencilSimpleIcon className="size-3.5" />
           Rename
         </DropdownMenuItem>
-        {topicMenu && (
+        {projectMenu && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <TagIcon className="size-3.5" />
-              Topic
+              Project
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="flex w-56 flex-col p-0">
               <MenuScrollArea className="max-h-80">
-                {topicMenu.topics
+                {projectMenu.projects
                   .filter((entry) => !entry.retired)
                   .map((entry) => (
                     <DropdownMenuCheckboxItem
-                      checked={chat.topic === entry.id}
+                      checked={chat.project === entry.id}
                       key={entry.id}
                       onSelect={() => {
-                        topicMenu.onPick(entry.id);
+                        projectMenu.onPick(entry.id);
                       }}
                     >
-                      <TopicMark topic={entry} />
+                      <ProjectMark project={entry} />
                       <span className="truncate">{entry.name}</span>
                     </DropdownMenuCheckboxItem>
                   ))}
@@ -433,11 +433,11 @@ function ChatMenu({
               <div className="shrink-0 border-t border-border p-1">
                 <DropdownMenuItem
                   onSelect={() => {
-                    topicMenu.onNew();
+                    projectMenu.onNew();
                   }}
                 >
                   <PlusIcon className="size-3.5" />
-                  New topic…
+                  New project…
                 </DropdownMenuItem>
               </div>
             </DropdownMenuSubContent>

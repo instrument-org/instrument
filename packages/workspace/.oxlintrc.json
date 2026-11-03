@@ -31,14 +31,14 @@
         "src/lib/fold-task-work-dir.ts",
         "src/lib/migrate-legacy-tasks.ts",
         "src/lib/migrate-workspace-layout.ts",
-        "src/lib/permissions/move-topic-folders.ts",
+        "src/lib/permissions/move-project-folders.ts",
         "src/lib/rewrite-stored-paths.ts",
         // Local disk: the machine folder, the runtime folder, userData, the
         // app's own files and the system's.
         "src/lib/login-shell-path.ts",
         "src/lib/native-sandbox/bwrap.ts",
         "src/lib/native-sandbox/mxc-canary.ts",
-        "src/lib/permissions/topic-folders.ts",
+        "src/lib/permissions/project-folders.ts",
         "src/lib/python-base.ts",
         "src/lib/shell-commands/unsandboxed-uutils-integrity.ts",
         "src/lib/subprocess-tree.ts",
@@ -48,7 +48,7 @@
         // Where the sync wrappers are defined; the rule reports their callers.
         "src/lib/json-record-file.ts",
         // Synchronous on purpose: a read, render and rename that relies on
-        // running in one go (its temp name is per process), for topics and
+        // running in one go (its temp name is per process), for projects and
         // memory.
         "src/lib/rewrite-file.ts"
       ],

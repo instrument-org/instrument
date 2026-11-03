@@ -6,7 +6,7 @@ import {
   type ChatRecordsSplit,
   convertAppsToAppFiles,
   convertChatSettingsFiles,
-  convertTopicsToTopicFiles,
+  convertProjectsToProjectFiles,
   type DeviceId,
   type FolderMoved,
   giveChatsTheirFolders,
@@ -14,8 +14,9 @@ import {
   moveAppsToFolder,
   moveMemoriesToFolder,
   moveSkillsToFolder,
-  moveTopicFolders,
-  moveTopicsToFolder,
+  moveProjectFolders,
+  moveProjectsToFolder,
+  moveTopicsToProjects,
   renameChatDatabases,
   settleDrafts,
   settleKeyFolderCase,
@@ -104,22 +105,27 @@ export async function sweepWorkspaceFolder({
   // reads one of them.
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
-  await moveFolderOut("Topics", () => moveTopicsToFolder(rootDir));
-  await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
-  // And once the topics and the apps are out, each one's files become the one
-  // file a person reads, which is its own step: the folder moves whatever is
-  // inside it, and one already converted is left alone.
-  await timeBootStep("sweep.convertTopicFiles", () =>
-    convertTopicFiles(rootDir),
+  await moveFolderOut("Projects", () => moveProjectsToFolder(rootDir));
+  // A build that called projects topics kept them in `Topics/`, each in a
+  // `TOPIC.md`, and they come into `Projects/` before anything reads one.
+  await timeBootStep("sweep.moveTopicsToProjects", () =>
+    moveTopicsToProjectsFolder(rootDir),
   );
-  // Once every topic is its `TOPIC.md`, the folders an earlier build granted
-  // in one come onto this computer's permission settings, before the moves
-  // below rewrite the paths those settings hold.
-  carryTopicFolders(rootDir);
+  await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
+  // And once the projects and the apps are out, each one's files become the
+  // one file a person reads, which is its own step: the folder moves whatever
+  // is inside it, and one already converted is left alone.
+  await timeBootStep("sweep.convertProjectFiles", () =>
+    convertProjectFiles(rootDir),
+  );
+  // Once every project is its `AGENTS.md`, the folders an earlier build
+  // granted in one come onto this computer's permission settings, before the
+  // moves below rewrite the paths those settings hold.
+  carryProjectFolders(rootDir);
   await timeBootStep("sweep.convertAppFiles", () => convertAppFiles(rootDir));
   // Then each chat the converter just brought onto its records gets the
-  // folder a person opens, written once. After the topics, because a
-  // transcript names the topic its chat is filed under. No other chat is
+  // folder a person opens, written once. After the projects, because a
+  // transcript names the project its chat is filed under. No other chat is
   // read here: a chat's folder is written when its turn ends or the person
   // sends it a message.
   await timeBootStep("sweep.writeConvertedChatFolders", () =>
@@ -194,19 +200,20 @@ function logDone(sweep: string, done: readonly string[]) {
 }
 
 /**
- * Bring the folders granted under each topic out of its `TOPIC.md` and into
- * this computer's permission settings, once per computer. A failure must not
- * block boot; one before the settings are written is tried again next launch.
+ * Bring the folders granted under each project out of its `AGENTS.md` and
+ * into this computer's permission settings, once per computer. A failure must
+ * not block boot; one before the settings are written is tried again next
+ * launch.
  */
-function carryTopicFolders(rootDir: string) {
+function carryProjectFolders(rootDir: string) {
   try {
-    const { moved } = moveTopicFolders({
+    const { moved } = moveProjectFolders({
       machineDir: workspaceMachineDir(),
       rootDir,
     });
     if (moved > 0) {
       logger.info(
-        `Topic folders: moved ${moved} topic${moved === 1 ? "" : "s"}' folders onto this computer's settings`,
+        `Project folders: moved ${moved} project${moved === 1 ? "" : "s"}' folders onto this computer's settings`,
       );
     }
   } catch (error) {
@@ -372,25 +379,47 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
 }
 
 /**
- * Turn each topic's hidden settings and instructions into the one `TOPIC.md`
- * a person reads and edits. Runs after the folder itself is out, for every
- * workspace, since every build so far wrote the two files. Idempotent, and a
- * topic that already has its file is left alone; a failure must not block
- * boot.
+ * Turn each project's hidden settings and instructions into the one
+ * `AGENTS.md` a person reads and edits. Runs after the folder itself is out,
+ * for every workspace, since every build so far wrote the two files.
+ * Idempotent, and a project that already has its file is left alone; a
+ * failure must not block boot.
  */
-async function convertTopicFiles(rootDir: string) {
+async function convertProjectFiles(rootDir: string) {
   try {
-    const converted = await convertTopicsToTopicFiles(rootDir);
-    for (const line of converted.done) {
-      logger.info(`Topics: ${line}`);
-    }
-    for (const left of converted.left) {
-      logger.warn(
-        `Topics: left ${left.where} as it was, and the next launch tries again: ${left.reason}`,
-      );
-    }
+    logProjectSteps(await convertProjectsToProjectFiles(rootDir));
   } catch (error) {
     captureServerException(error);
+  }
+}
+
+/**
+ * Bring a build's `Topics/` into `Projects/`, each `TOPIC.md` becoming the
+ * project's `AGENTS.md`. Every launch, every workspace; a failure must not
+ * block boot, and the next launch tries again.
+ */
+async function moveTopicsToProjectsFolder(rootDir: string) {
+  try {
+    logProjectSteps(await moveTopicsToProjects(rootDir));
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+function logProjectSteps({
+  done,
+  left,
+}: {
+  done: string[];
+  left: { reason: string; where: string }[];
+}) {
+  for (const line of done) {
+    logger.info(`Projects: ${line}`);
+  }
+  for (const each of left) {
+    logger.warn(
+      `Projects: left ${each.where} as it was, and the next launch tries again: ${each.reason}`,
+    );
   }
 }
 
@@ -450,7 +479,7 @@ function sweepWorkspaceLayout(rootDir: string) {
     }
     if (migration.legacyTasks.adoptedCount > 0) {
       logger.info(
-        `Made ${migration.legacyTasks.adoptedCount} earlier task(s) into chats, set aside ${migration.legacyTasks.emptyCount} empty one(s), and wrote ${migration.legacyTasks.topicCount} topic(s) from projects`,
+        `Made ${migration.legacyTasks.adoptedCount} earlier task(s) into chats, set aside ${migration.legacyTasks.emptyCount} empty one(s), and wrote ${migration.legacyTasks.projectCount} project(s) from 1.x projects`,
       );
     }
     if (migration.legacyTasks.leftOver > 0) {

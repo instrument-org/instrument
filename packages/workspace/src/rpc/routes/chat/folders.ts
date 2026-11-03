@@ -21,7 +21,7 @@ import { publisher } from "../../publisher";
  * it holds grants for (folder-reach.ts). Each carries the access its mount
  * gets, so a folder holding the app's own data (the home folder) reads as
  * read-only, the way the agent meets it. Read again when the chat's settings
- * move (a grant) or its session row does (a topic it is filed under, whose
+ * move (a grant) or its session row does (a project it is filed under, whose
  * folders it reaches).
  */
 export const liveChatFolders = base

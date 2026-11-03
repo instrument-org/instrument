@@ -102,7 +102,7 @@ export function wakeChatWithTaskEvent(
 /**
  * Wakes a chat when a task it created finishes a turn.
  *
- * One subscriber over the session-done topic for the life of the process. A
+ * One subscriber over the session-done project for the life of the process. A
  * finished session that belongs to a child of a chat becomes a
  * `data-taskEvent` part on a text-less user message in the chat's
  * session, which starts a turn there if it is idle and queues behind the

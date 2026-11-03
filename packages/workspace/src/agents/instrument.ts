@@ -15,8 +15,8 @@ import {
   SKILLS_FOLDER_NAME,
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
-  TOPIC_FILE_NAME,
-  TOPICS_FOLDER_NAME,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
 } from "../constants";
 import { APP_FILE_NAME } from "../lib/apps/app-file";
 import { buildAppsContextText } from "../lib/apps/context";
@@ -124,7 +124,7 @@ export const instrumentAgent = setupAgent({
         ? buildFoldersText({
             folders: reached.map((folder) => ({ path: folder.path })),
             intro:
-              "These are the user's folders this conversation reaches: their home folder, the Instrument folder this conversation's own folder is in, and any folder they sent, allowed, or filed the conversation's topic with:",
+              "These are the user's folders this conversation reaches: their home folder, the Instrument folder this conversation's own folder is in, and any folder they sent, allowed, or filed the conversation's project with:",
           })
         : `You reach none of the user's folders yet. Reaching for one shows the person a card; folders allowed later are announced on the message they arrive with.`;
 
@@ -268,7 +268,7 @@ function systemPrompt(): string {
 
     # Their ${APP_NAME} folder
     The ${APP_NAME} folder your context names is the user's, and these parts of it are what ${APP_NAME} keeps for them. Each shows in the app, and when your work adds, changes, or removes one, a line under your reply says so and opens it, so your reply need not.
-    - \`${TOPICS_FOLDER_NAME}/<Name>/${TOPIC_FILE_NAME}\`: a topic, how the user files chats. The folder is its name; the file is front matter, kept as you found it, over the instructions every chat filed under the topic is given. "My travel topic" is one of these, and changing it changes every chat under it.
+    - \`${PROJECTS_FOLDER_NAME}/<Name>/\`: a project, how the user files chats, and the folder its lasting files are kept in. Every folder there is one, named for it. Its \`${PROJECT_FILE_NAME}\` holds the instructions every chat filed under it is given, under front matter you keep as you found it; other agents opened in the folder read it too. "My travel project" is one of these, and changing its instructions changes every chat under it.
     - \`${MEMORY_FOLDER_NAME}/<name>.md\`: a memory, one fact each, kept with \`${MEMORY_COMMAND.name}\`.
     - \`${SKILLS_FOLDER_NAME}/<name>/SKILL.md\`: a skill of the workspace's own.
     - \`${APPS_FOLDER_NAME}/<Name>/${APP_FILE_NAME}\`: an app, set up and changed with \`${APP_COMMAND.name}\`.
@@ -315,7 +315,7 @@ function systemPrompt(): string {
 
     # Your folders
     Every command starts in your work folder, \`$${V.work}\`, which every task shares: scratch, scripts, and what you build go there, each job in a folder named for it, and what the browser downloads lands in \`${F.downloads}/\`. Use relative paths inside it and full paths for everything else. A file the user sent stays where they keep it and the message gives you its full path: read and change it there, so your work and the file they are looking at are the same file. Throwaway files go in \`$TMPDIR\`.
-    - A finished file goes where the user said, or else in this conversation's own folder (\`$${V.output}\`), placed in one \`cp\` or \`mv\` once you have checked it. That folder is named for the conversation and the user reads it in their files: a finished file goes straight in it by its own name, and a folder the user names is made inside it. In the shell, reach it through \`$${V.output}\`; a file tool takes its full path exactly as your context gives it, never retyped from its name. When it sits in \`Chats/\`, every folder beside it is another of the user's conversations, so nothing of yours goes there. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
+    - A finished file goes where the user said; or else, while this conversation is filed under a project, in the project's folder, among its lasting files; or else in this conversation's own folder (\`$${V.output}\`). Place it in one \`cp\` or \`mv\` once you have checked it. The conversation's own folder is named for the conversation and the user reads it in their files: a finished file goes straight in it by its own name, and a folder the user names is made inside it. In the shell, reach it through \`$${V.output}\`; a file tool takes its full path exactly as your context gives it, never retyped from its name. When it sits in \`Chats/\`, every folder beside it is another of the user's conversations, so nothing of yours goes there. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
     - The user's folders may be synced to their other devices or shared, so what only serves the work stays in your work folder: installed packages (\`node_modules\`, \`.venv\`), builds, caches, clones, intermediate files. For a project they want in their folder, write its source there and install, build, and run it from a copy in your work folder, copying back what they asked for (a \`dist/\`, an output). Their files are still read and changed in place, and finished work still goes where they will look.
     - Every program you run sees these variables, so a script reads them from its environment.
     - A file the user already has is not a result: it is shown where it sits, and moves only where they said.

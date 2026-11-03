@@ -89,21 +89,21 @@ export const DRAFTS_FOLDER_NAME = "Drafts";
 export const DRAFT_FILE_NAME = "DRAFT.md";
 
 /**
- * Where the person's topics are, at the workspace's top level: a folder per
- * topic named for it, each with the `TOPIC.md` that says what it is. One of
- * the six folders a person opens. Here rather than beside the file's own
- * reader (`lib/chat/topic-file.ts`, which re-exports it) because the note
- * naming the file to the model is drawn in the app too, and depends on
- * nothing else.
+ * Where the person's projects are, at the workspace's top level: every folder
+ * in it is a project named for it. One of the six folders a person opens.
+ * Here rather than beside the file's own reader (`lib/chat/project-file.ts`,
+ * which re-exports it) because the note naming the file to the model is drawn
+ * in the app too, and depends on nothing else.
  */
-export const TOPICS_FOLDER_NAME = "Topics";
+export const PROJECTS_FOLDER_NAME = "Projects";
 /**
- * A topic in its folder, its front matter over the standing instructions
- * every chat under it is read with. Capitalized like the one file that says
- * what a folder is in each of the six: a folder in `Topics/` without it is
- * not a topic's.
+ * A project's file in its folder: the standing instructions every chat under
+ * it is read with, under optional front matter. Named as coding agents name
+ * the instructions for a folder, so another agent opened in a project's
+ * folder reads the same instructions. A project folder without one is a
+ * project with no instructions yet.
  */
-export const TOPIC_FILE_NAME = "TOPIC.md";
+export const PROJECT_FILE_NAME = "AGENTS.md";
 
 /**
  * Where the person's memories are, at the workspace's top level: one
@@ -139,7 +139,7 @@ export const APPS_FOLDER_NAME = "Apps";
 export const KEY_FOLDER_NAMES = [
   CHATS_FOLDER_NAME,
   DRAFTS_FOLDER_NAME,
-  TOPICS_FOLDER_NAME,
+  PROJECTS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
   APPS_FOLDER_NAME,

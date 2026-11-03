@@ -24,7 +24,7 @@ import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
 import { pathExists } from "./path-exists";
 import { folderReach } from "./chat/folder-reach";
-import { listTopics, type TopicFolder } from "./chat/topics";
+import { listProjects, type ProjectFolder } from "./chat/projects";
 import { tabHolders } from "./chat/window-tab";
 import { chatDir, resolveChat } from "./record-folders";
 import { chatModelURI, setChatModel } from "./chat-settings";
@@ -289,16 +289,16 @@ export async function newMessage({
       parts.push(messageGap.value);
     }
 
-    // The chat's topic, or none once it has had one, rides on every message
+    // The chat's project, or none once it has had one, rides on every message
     // sent in it; see the `state` cadence for what the model hears of it.
-    const topicPart = await createTopicPart({
+    const projectPart = await createProjectPart({
       createdAt,
       messageId,
       sessionId,
       chatId,
     });
-    if (topicPart) {
-      parts.push(topicPart);
+    if (projectPart) {
+      parts.push(projectPart);
     }
 
     // What the agent remembers about the user, told once and again only when
@@ -401,8 +401,8 @@ async function grantAttachedFolder(chatId: ChatId, folderPath: string) {
   }
 }
 
-/** The topic the chat is filed under, named for the model, or null for none. */
-async function createTopicPart({
+/** The project the chat is filed under, named for the model, or null for none. */
+async function createProjectPart({
   createdAt,
   messageId,
   sessionId,
@@ -417,14 +417,14 @@ async function createTopicPart({
   if (session.isErr()) {
     return undefined;
   }
-  const known = await listTopics();
-  const filed = known.find((entry) => entry.id === session.value.topic);
+  const known = await listProjects();
+  const filed = known.find((entry) => entry.id === session.value.project);
   const folders = filed
-    ? topicFolderPaths(await folderReach(chatId), filed.folders ?? [])
+    ? projectFolderPaths(await folderReach(chatId), filed.folders ?? [])
     : [];
   return {
     data: {
-      topic: filed
+      project: filed
         ? {
             ...(filed.about ? { about: filed.about } : {}),
             ...(filed.emoji ? { emoji: filed.emoji } : {}),
@@ -435,18 +435,18 @@ async function createTopicPart({
         : null,
     },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
-    type: "data-topic",
+    type: "data-project",
   };
 }
 
 /**
- * The path of each of a topic's folders the chat reaches. A folder no longer
+ * The path of each of a project's folders the chat reaches. A folder no longer
  * on disk is not reached, and is left out so the agent is not pointed at
  * nothing.
  */
-function topicFolderPaths(
+function projectFolderPaths(
   reach: Record<string, MountedFolder.Type>,
-  folders: TopicFolder[],
+  folders: ProjectFolder[],
 ): string[] {
   return folders.flatMap((folder) => {
     const reached = Object.values(reach).find(

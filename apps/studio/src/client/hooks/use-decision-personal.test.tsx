@@ -1,9 +1,9 @@
 import { featuresAtom } from "@/client/atoms/features";
-import { type Chat, type Topic } from "@/client/components/window/chats";
+import { type Chat, type Project } from "@/client/components/window/chats";
 import { useEmojiSuggestions } from "@/client/components/window/emoji-suggestions";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
-import { useDraftTopicSuggestion } from "@/client/components/window/use-draft-topic-suggestion";
-import { useTopicBackfill } from "@/client/components/window/use-topic-backfill";
+import { useDraftProjectSuggestion } from "@/client/components/window/use-draft-project-suggestion";
+import { useProjectBackfill } from "@/client/components/window/use-project-backfill";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createStore, Provider as JotaiProvider } from "jotai";
@@ -39,7 +39,7 @@ vi.mock("@/client/rpc/client", () => ({
 
 // Fixtures carry only what the hooks read; the full RPC shapes are far wider.
 const CHAT = { id: "c1", title: "1099 forms" } as unknown as Chat;
-const TOPIC = { about: null, id: "t1", name: "Garden" } as unknown as Topic;
+const PROJECT = { about: null, id: "t1", name: "Garden" } as unknown as Project;
 const EMOJI = [{ group: 0, label: "seedling", unicode: "🌱" }];
 
 /** Every ask that sends the person's own content, each as its caller makes it. */
@@ -54,27 +54,27 @@ const PERSONAL: [string, () => unknown][] = [
       }),
   ],
   [
-    "draft topic filing",
+    "draft project filing",
     () => {
-      useDraftTopicSuggestion({
+      useDraftProjectSuggestion({
         draft: { createdAt: 0, id: "d1", updatedAt: 0, words: "" },
         onChange: () => {},
-        topics: [TOPIC],
+        projects: [PROJECT],
         words: "help me plan the raised beds",
       });
     },
   ],
   [
-    "new topic backfill",
+    "new project backfill",
     () =>
-      useTopicBackfill({
+      useProjectBackfill({
         candidates: [{ asked: "When do I plant?", id: CHAT.id, title: "Beds" }],
         name: "Garden",
         open: true,
       }),
   ],
   [
-    "emoji for a topic's name",
+    "emoji for a project's name",
     () => useEmojiSuggestions("Garden", EMOJI, { personal: true }),
   ],
 ];
@@ -144,7 +144,7 @@ it("the emoji picker's own search is asked with the flag off", async () => {
   });
 });
 
-it("a topic's name settling behind a search typed over it is never sent", async () => {
+it("a project's name settling behind a search typed over it is never sent", async () => {
   const store = createStore();
   const queryClient = new QueryClient();
   queryClient.setQueryData(["decision-available"], true);

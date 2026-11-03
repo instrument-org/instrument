@@ -211,7 +211,7 @@ function wholeChat() {
         seq: 1,
         at: at(300),
         device: DEVICE_A,
-        field: "topic",
+        field: "project",
         session: chatSession,
         value: "top_1",
       },
@@ -225,7 +225,7 @@ it("renders a chat whole", () => {
     title: "Quiet dishwashers under $900"
     chat: instrument://chat/records-test
     created: 2026-10-14T12:00:00Z
-    topic: top_1
+    project: top_1
     ---
 
     [Open this chat in Instrument](instrument://chat/records-test). This file is a copy of the chat that Instrument keeps up to date, so changes you make here won't last.

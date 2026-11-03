@@ -2,7 +2,7 @@ import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TopicDialog } from "./topic-dialog";
+import { ProjectDialog } from "./project-dialog";
 
 const { showFolderPicker } = vi.hoisted(() => ({
   showFolderPicker: vi.fn<() => Promise<{ path: string } | null>>(),
@@ -42,9 +42,9 @@ vi.mock(import("@/client/hooks/use-dictation"), async (importOriginal) => ({
 vi.mock("@/client/hooks/use-billing-status", () => ({
   useBillingStatus: () => ({ isSignedOut: false }),
 }));
-vi.mock(import("./use-topic-backfill"), async (importOriginal) => ({
+vi.mock(import("./use-project-backfill"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useTopicBackfill: () => [],
+  useProjectBackfill: () => [],
 }));
 
 const GARDEN = "/Users/me/Garden";
@@ -67,11 +67,11 @@ async function addFolder() {
   await screen.findByLabelText("Users › me › Garden");
 }
 
-describe("TopicDialog", () => {
-  it("makes a topic with its instructions and folders", async () => {
+describe("ProjectDialog", () => {
+  it("makes a project with its instructions and folders", async () => {
     const onCreate = vi.fn();
     renderWithProviders(
-      <TopicDialog
+      <ProjectDialog
         mode="create"
         onCreate={onCreate}
         onOpenChange={vi.fn()}
@@ -98,9 +98,9 @@ describe("TopicDialog", () => {
     ]);
   });
 
-  it("refuses a new topic the name of one in use", () => {
+  it("refuses a new project the name of one in use", () => {
     renderWithProviders(
-      <TopicDialog
+      <ProjectDialog
         mode="create"
         onCreate={vi.fn()}
         onOpenChange={vi.fn()}
@@ -112,24 +112,24 @@ describe("TopicDialog", () => {
     fireEvent.change(nameField(), { target: { value: "garden" } });
 
     expect(
-      screen.getByText("There is already a topic called “Garden”"),
+      screen.getByText("There is already a project called “Garden”"),
     ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Create" }).hasAttribute("disabled"),
     ).toBe(true);
   });
 
-  it("shows a topic's fields as they stand and hands back only what changed", async () => {
+  it("shows a project's fields as they stand and hands back only what changed", async () => {
     const onChange = vi.fn();
     renderWithProviders(
-      <TopicDialog
+      <ProjectDialog
         mode="edit"
         onChange={onChange}
         onDelete={vi.fn()}
         onOpenChange={vi.fn()}
         open
         otherNames={[]}
-        topic={{
+        project={{
           color: "#3b6ef6",
           emoji: "🌱",
           id: "top_1",
@@ -148,6 +148,6 @@ describe("TopicDialog", () => {
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith({ folders: [{ path: GARDEN }] });
     });
-    expect(screen.getByRole("button", { name: "Delete topic" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete project" })).toBeTruthy();
   });
 });

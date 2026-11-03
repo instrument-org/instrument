@@ -28,8 +28,8 @@ const SURFACES = {
     await h.app.click({ selector: "input[placeholder^=Search]" });
     await h.app.type("squares");
   },
-  "inbox-topic": async (h) => {
-    await h.topic();
+  "inbox-project": async (h) => {
+    await h.project();
     await h.go("/chats/red-and-blue-squares");
     await h.app.click({ text: "View: Chats" });
     await h.app.click({ text: "💼 Pricing", selector: "[role=menuitemradio]" });
@@ -162,10 +162,10 @@ export default async (app, args) => {
         await wait(250);
       }
     },
-    // Files the fixture's chat under the scenario's Pricing topic, as the kit's rows are.
-    topic: async () => {
-      const t = await app.rpc("workspace.topics.create", { name: "Pricing", emoji: "💼", color: "#ebaf86" });
-      await app.rpc("workspace.chats.setTopic", { id: "red-and-blue-squares", topic: t.id });
+    // Files the fixture's chat under the scenario's Pricing project, as the kit's rows are.
+    project: async () => {
+      const t = await app.rpc("workspace.projects.create", { name: "Pricing", emoji: "💼", color: "#ebaf86" });
+      await app.rpc("workspace.chats.setProject", { id: "red-and-blue-squares", project: t.id });
     },
     go: async (href, ms = 900) => {
       await app.goto(href);
@@ -205,7 +205,7 @@ export default async (app, args) => {
     })()`);
 
   const before = await app.rpc("preferences.get");
-  await h.topic();
+  await h.project();
   await h.oneTab();
   await app.rpc("preferences.setTheme", { theme: "light" });
   await app.cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });

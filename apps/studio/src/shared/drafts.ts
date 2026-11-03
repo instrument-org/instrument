@@ -56,7 +56,7 @@ export type DraftAttachment =
  * `context`; what is on screen goes too, worked out at the moment, and is
  * never kept with the draft.
  *
- * `topicSource` is kept while the app runs and never written to the draft's
+ * `projectSource` is kept while the app runs and never written to the draft's
  * file.
  */
 export interface Draft {
@@ -98,13 +98,13 @@ export interface Draft {
    * the message and another device leaves the draft alone meanwhile.
    */
   sendingTo?: ChatId;
-  topicId?: string;
+  projectId?: string;
   /**
-   * Who settled the topic: the person, by picking or clearing one, or the
+   * Who settled the project: the person, by picking or clearing one, or the
    * decision model, from what the draft says. Absent while neither has. A
-   * topic the model suggested is not written to the file.
+   * project the model suggested is not written to the file.
    */
-  topicSource?: "chosen" | "suggested";
+  projectSource?: "chosen" | "suggested";
   updatedAt: number;
   words: string;
 }

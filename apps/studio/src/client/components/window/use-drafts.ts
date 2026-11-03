@@ -37,7 +37,7 @@ import { useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
-import { NO_FILTERS, type Topic } from "./chats";
+import { NO_FILTERS, type Project } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
@@ -63,7 +63,7 @@ export function useDrafts({
   openChat,
   openDrafts,
   saveDefaultModelURI,
-  topics,
+  projects,
   windowTabs,
 }: {
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
@@ -74,7 +74,7 @@ export function useDrafts({
   draftContext: (
     draftId: string,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under, and where a draft sent from there opens. */
+  /** Whether the tab up is the chat, whose inbox's project a new draft is filed under, and where a draft sent from there opens. */
   isChat: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
@@ -84,8 +84,8 @@ export function useDrafts({
   openDrafts: () => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
-  /** The topics, for the one the inbox stands in. */
-  topics: Topic[];
+  /** The projects, for the one the inbox stands in. */
+  projects: Project[];
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const drafts = useAtomValue(draftsAtom);
@@ -141,14 +141,14 @@ export function useDrafts({
     compose.open(id);
   };
   /**
-   * Makes a draft, filed under a topic when the pane stands in one and with
+   * Makes a draft, filed under a project when the pane stands in one and with
    * words already in it when a button handed some over, and brings it up in
    * a window of its own with the new-tab page as its first tab: the place to
    * find a site, a folder, a file, or an app to gather. Every ask is a new
    * draft, beside the ones already open.
    */
   const startDraft = (
-    topicId: string | undefined,
+    projectId: string | undefined,
     words = "",
     chosen: ChosenItem[] = [],
   ) => {
@@ -160,7 +160,7 @@ export function useDrafts({
       ...(context.length > 0 ? { context } : {}),
       createdAt: now,
       id: ulid(),
-      ...(topicId ? { topicId } : {}),
+      ...(projectId ? { projectId } : {}),
       updatedAt: now,
       words,
     };
@@ -174,13 +174,13 @@ export function useDrafts({
   };
   /**
    * New, from the rail or its chord, or a button handing over a line: a
-   * draft filed under the topic the inbox stands in while it stands in one,
+   * draft filed under the project the inbox stands in while it stands in one,
    * with the window put on the chat, which is where a draft is written.
    */
   const newDraft = (words?: string, chosen?: ChosenItem[]) =>
     startDraft(
-      isChat && chatFilters.topics.length === 1
-        ? topics.find((topic) => topic.id === chatFilters.topics[0])?.id
+      isChat && chatFilters.projects.length === 1
+        ? projects.find((project) => project.id === chatFilters.projects[0])?.id
         : undefined,
       typeof words === "string" ? words : "",
       chosen,
@@ -188,12 +188,12 @@ export function useDrafts({
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,
-   * filed under the topic it names only when there is one by that id, and
+   * filed under the project it names only when there is one by that id, and
    * taking nothing of what was on screen when it opened.
    */
-  const draftFromLink = (words: string, topicId?: string) => {
+  const draftFromLink = (words: string, projectId?: string) => {
     const id = startDraft(
-      topics.find((topic) => topic.id === topicId)?.id,
+      projects.find((project) => project.id === projectId)?.id,
       words,
     );
     setLinkDrafts((current) => new Set(current).add(id));
@@ -295,7 +295,7 @@ export function useDrafts({
   };
   /**
    * Starts the chat the draft is for: what its composer sends (the words,
-   * the files, the folders, the model) and its topic as the first message,
+   * the files, the folders, the model) and its project as the first message,
    * with what its band shows as the context; then what the draft gathered
    * becomes the chat's tabs exactly as they are. Sent from the chat, the
    * window goes and the tab up opens the chat whole; sent from anywhere
@@ -386,7 +386,7 @@ export function useDrafts({
           id: chatId,
           modelURI: send.modelURI,
           prompt: send.prompt,
-          ...(draft.topicId ? { topic: draft.topicId } : {}),
+          ...(draft.projectId ? { project: draft.projectId } : {}),
           // A context that cannot be gathered is a chat told less, not a
           // chat that never starts: the send goes on without it.
           viewing: await viewing,

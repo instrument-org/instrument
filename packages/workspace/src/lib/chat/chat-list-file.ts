@@ -64,7 +64,7 @@ const ROW_FIELDS = [
   "state",
   "title",
   "titled",
-  "topic",
+  "project",
   "unread",
   "unreadByUser",
   "updatedAt",

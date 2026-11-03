@@ -49,9 +49,9 @@ export function setupChangeSentence(
         label: label ?? skillMentionLabel(name),
       };
     }
-    case "topic": {
+    case "project": {
       return {
-        after: " topic.",
+        after: " project.",
         before:
           change === "added"
             ? "Created the "

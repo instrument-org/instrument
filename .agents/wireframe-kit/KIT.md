@@ -46,11 +46,11 @@ The kit is `kit/`, one file per surface, pasted in the order `KIT_FILES` in [`ki
 | File | Draws |
 | --- | --- |
 | `brands.js` | `BRAND_URI`: brand marks as data URIs (`openai`, `claude`, `anthropic`, `googlegemini`, `grok`, `gmail`, `notion`, `figma`, `instrumentglyph`, …) |
-| `marks.js` | The small pieces: `brand`, `letterMark`, `fileMark`, `tabMark`, `tabTitle`, `planningDot`, `pulse`, `bars2`, `openIn`, `askButton`, `kbd`, `topicTint` |
+| `marks.js` | The small pieces: `brand`, `letterMark`, `fileMark`, `tabMark`, `tabTitle`, `planningDot`, `pulse`, `bars2`, `openIn`, `askButton`, `kbd`, `projectTint` |
 | `controls.js` | Buttons and form controls as `components/ui` draws them |
-| `scenario.js` | The shared, invented data: `SITES`, `FILES`, `ROWS`, `TOPICS`, `FOLDER_ROWS`, `PAGES`, `APP_ROWS`, `RELEASES`, `PRICING_TITLE` and `pricing()` |
+| `scenario.js` | The shared, invented data: `SITES`, `FILES`, `ROWS`, `PROJECTS`, `FOLDER_ROWS`, `PAGES`, `APP_ROWS`, `RELEASES`, `PRICING_TITLE` and `pricing()` |
 | `window.js` | The frame: ground, bar, window tabs, status pills, bell, rail, `appWindow`, `tooltip` |
-| `inbox.js` | The chat list: its head, view menu, topics, rows, drafts, a chat's menu, and Chat with nothing open |
+| `inbox.js` | The chat list: its head, view menu, projects, rows, drafts, a chat's menu, and Chat with nothing open |
 | `chat.js` | A chat: head, status line, transcript pieces, reply box, tiles, pane, and the permission and question cards |
 | `omnibar.js` | The omnibar field, its suggestions, and the location row it stands in |
 | `files.js` | Files: its row, places, the four views, sort and kind menus, a file beside its folder |
@@ -64,7 +64,7 @@ The kit is `kit/`, one file per surface, pasted in the order `KIT_FILES` in [`ki
 | `setup.js` | Setup at its own 1080x720, and the plan cards |
 | `mac.js` | Outside the window: the Mac and the web |
 
-Tabs, rows and holds are small objects. A tab is `{ chats: true, title }`, `{ site }` (a `SITES` key), `{ file }` (a `FILES` key), `{ folder: name }`, `{ browser: true }`, `{ apps: true }`, `{ newtab: true }`, `{ notes: true }` or `{ title, icon }`, with `agent: true` on one a task is driving. A row is `{ title, preview, step, ask, working, unread, starred, draft, topic, time, holds }`, a hold `{ file }`, `{ site }` or `{ app }`.
+Tabs, rows and holds are small objects. A tab is `{ chats: true, title }`, `{ site }` (a `SITES` key), `{ file }` (a `FILES` key), `{ folder: name }`, `{ browser: true }`, `{ apps: true }`, `{ newtab: true }`, `{ notes: true }` or `{ title, icon }`, with `agent: true` on one a task is driving. A row is `{ title, preview, step, ask, working, unread, starred, draft, project, time, holds }`, a hold `{ file }`, `{ site }` or `{ app }`.
 
 ### The window (`window.js`)
 
@@ -82,12 +82,12 @@ Tabs, rows and holds are small objects. A tab is `{ chats: true, title }`, `{ si
 
 | Function | Draws |
 | --- | --- |
-| `inboxCol({ on, hover, w, rows, place, topic, drafts, search, empty, picking, before })` | The 320px list: its head, then rows. `place` (unread, starred, drafts, archived) or `topic` stands it in another view; `search` types into it and bolds what matched; `rows: []` with `empty` draws the empty list; `before` puts a proposal's own rows first |
-| `inboxHead({ place, topic, search, open })` | The picker and the search. Typing folds the picker to its mark; a topic tints the head and puts its instructions and Edit topic under it |
-| `row(r, { on, hover, last, search })`, `draftRow(d)` | A row's three lines: title (semibold while unseen, red Draft after it while a reply waits), topic pill and star in the corner, the latest line, the holds and time. `hover` swaps the corner for the row's controls |
-| `viewMenu({ on, counts, topics, left, top })` | The picker's menu: the views with their counts (Drafts only with `counts.drafts`), the topics, New topic |
+| `inboxCol({ on, hover, w, rows, place, project, drafts, search, empty, picking, before })` | The 320px list: its head, then rows. `place` (unread, starred, drafts, archived) or `project` stands it in another view; `search` types into it and bolds what matched; `rows: []` with `empty` draws the empty list; `before` puts a proposal's own rows first |
+| `inboxHead({ place, project, search, open })` | The picker and the search. Typing folds the picker to its mark; a project tints the head and puts its instructions and Edit project under it |
+| `row(r, { on, hover, last, search })`, `draftRow(d)` | A row's three lines: title (semibold while unseen, red Draft after it while a reply waits), project pill and star in the corner, the latest line, the holds and time. `hover` swaps the corner for the row's controls |
+| `viewMenu({ on, counts, projects, left, top })` | The picker's menu: the views with their counts (Drafts only with `counts.drafts`), the projects, New project |
 | `chatMenu({ left, top, starred, unread })` | A chat's menu as built (right click on a row) |
-| `topicMark(topic, size)`, `topicPill(topic, { quiet })`, `holdMarks(holds)` | A topic's emoji on its tint, its pill, a row's holds |
+| `projectMark(project, size)`, `projectPill(project, { quiet })`, `holdMarks(holds)` | A project's emoji on its tint, its pill, a row's holds |
 | `noChatOpen()` | What Chat shows beside the list with nothing open. There is no Home page |
 
 ### A chat (`chat.js`)
@@ -96,8 +96,8 @@ The transcript's look is under active redesign, so these stay deliberately plain
 
 | Function | Draws |
 | --- | --- |
-| `thread({ title, body, working, topic, tiles, head, foot, reply, replyEl, stick })` | A chat column: head, transcript (`stick: "bottom"` sits a long one on the box), tiles, `foot` (a card over the box) and the reply box |
-| `threadHead(title, { line, right, left, side, align, topic, popOut })` | The 56px head. `side` widens its equal outer columns when `right` needs room; `align: "left"` puts the title at the left |
+| `thread({ title, body, working, project, tiles, head, foot, reply, replyEl, stick })` | A chat column: head, transcript (`stick: "bottom"` sits a long one on the box), tiles, `foot` (a card over the box) and the reply box |
+| `threadHead(title, { line, right, left, side, align, project, popOut })` | The 56px head. `side` widens its equal outer columns when `right` needs room; `align: "left"` puts the title at the left |
 | `statusLine(text, { tone })` | The line under the title: run, done, wait or failed |
 | `turnMeta`, `you`, `agent`, `fileRow`, `pageRow`, `stepRow` | The transcript's pieces |
 | `replyBox({ ph, text })` | The reply box: plus, words, mic, send |
@@ -182,7 +182,7 @@ These frames are the desktop's size, so a state that uses them spreads `DESKTOP`
 
 ## The scenario
 
-The shared scenario is the chat "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans, filed under the Pricing topic. The other `ROWS`, the `TOPICS`, the Instrument folder's `FOLDER_ROWS`, the competitors' `PAGES` and the `RELEASES` all come from it. Keep to it so a round's files compare, keep new scenario data to work people do for a business, and add to it rather than renaming what is there. It is invented, prices included, rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so. The home folder is `mac-user`, never a real one.
+The shared scenario is the chat "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans, filed under the Pricing project. The other `ROWS`, the `PROJECTS`, the Instrument folder's `FOLDER_ROWS`, the competitors' `PAGES` and the `RELEASES` all come from it. Keep to it so a round's files compare, keep new scenario data to work people do for a business, and add to it rather than renaming what is there. It is invented, prices included, rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so. The home folder is `mac-user`, never a real one.
 
 ## The baseline
 

@@ -22,7 +22,7 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `model`: the model the chat runs on, as a model URI, set on the chat's own session
   - `starred`: whether it is starred
   - `title`: its title, in `value.text`; `value.auto` is true while the app may still rename it
-  - `topic`: its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none
+  - `project`: its project id, the `id` in the project's `AGENTS.md`, or `null` for none
   - `unread`: `new` or `marked` (the user marked it) while unread, `null` once read
 - `blobs/`: bytes a tool returned, which its part names in a `blob` field (`sha256-<hex>.<ext>`).
   - `derived-sha256-<hex>-<how>`: an image as a request sends it, made once from the bytes `<hex>` names, so every later request sends the same bytes.

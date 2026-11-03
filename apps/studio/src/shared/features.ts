@@ -28,7 +28,7 @@ export const FEATURE_METADATA: Record<
   suggestions_from_your_chats: {
     code: "s",
     description:
-      "The decision model reads your chat titles, drafts, and topic names to find chats by meaning, file drafts and chats under topics, and suggest an emoji for a topic's name.",
+      "The decision model reads your chat titles, drafts, and project names to find chats by meaning, file drafts and chats under projects, and suggest an emoji for a project's name.",
     title: "Suggestions From Your Chats",
   },
 };

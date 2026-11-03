@@ -80,13 +80,13 @@ describe("a window's drafts", () => {
       typing,
       {
         acks: { me: 0 },
-        drafts: [draft("a", { topicId: "travel", words: "Plan" })],
+        drafts: [draft("a", { projectId: "travel", words: "Plan" })],
       },
       "me",
     );
 
     expect(shownDrafts(fromPhone)).toEqual([
-      draft("a", { topicId: "travel", updatedAt: 2, words: "Plan the trip" }),
+      draft("a", { projectId: "travel", updatedAt: 2, words: "Plan the trip" }),
     ]);
   });
 

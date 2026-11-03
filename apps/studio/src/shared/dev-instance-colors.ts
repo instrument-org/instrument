@@ -1,8 +1,8 @@
 /**
  * The colors a development instance is marked with, as a dot in its Dock
  * icon's corner and on the dev panel's pill, so several running at once tell
- * apart at a glance. The deep tier of the topic palette
- * (client/components/window/topic-colors.ts) without gray, which the
+ * apart at a glance. The deep tier of the project palette
+ * (client/components/window/project-colors.ts) without gray, which the
  * development icon already is, and purple, which a preview build wears.
  * studio-drive hands them out, so an instance a person started by hand has
  * none.

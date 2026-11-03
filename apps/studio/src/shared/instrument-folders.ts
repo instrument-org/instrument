@@ -67,7 +67,7 @@ const KEY_FOLDER_WORDS = {
   Drafts: "drafts",
   Memory: "memories",
   Skills: "skills",
-  Topics: "topics",
+  Projects: "projects",
 } satisfies Record<KeyFolderName, string>;
 
 /** Why Files leaves one of Instrument's folders where it is, as the person reads it. */

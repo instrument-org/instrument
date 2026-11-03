@@ -19,7 +19,7 @@ import { APPS_FOLDER_NAME, CHAT_FOLDER_NAMES } from "../constants";
  *
  * The first group is what the app reads and writes. The second is what only
  * the migrations read: where earlier builds kept what is at the workspace's
- * top level today (`Apps/`, `Drafts/`, `Memory/`, `Skills/`, `Topics/`), and
+ * top level today (`Apps/`, `Drafts/`, `Memory/`, `Skills/`, `Projects/`), and
  * the window's record folder that launch removes.
  */
 export const WORKSPACE_DATA_ENTRIES = {
@@ -76,11 +76,11 @@ export const WORKSPACE_DATA_ENTRIES = {
    */
   skills: "skills",
   /**
-   * Where earlier builds kept the topics, a folder each named for the topic:
-   * its settings in `.instrument/settings.json` and its instructions in
-   * `instructions.md`. A topic is a `TOPIC.md` in `Topics/` at the
-   * workspace's top level, and this is only what the migration reads
-   * (`lib/topics-move.ts`).
+   * Where earlier builds kept the projects, then called topics, a folder each
+   * named for one: its settings in `.instrument/settings.json` and its
+   * instructions in `instructions.md`. A project is a folder in `Projects/` at
+   * the workspace's top level, and this is only what the migration reads
+   * (`lib/projects-move.ts`).
    */
   topics: "topics",
   /**
@@ -150,4 +150,14 @@ export function homeDataLayout(home: string, folder = HOME_FOLDERS.data) {
     dataDir,
     workDir: path.join(dataDir, HOME_DATA_ENTRIES.work),
   };
+}
+
+/**
+ * Where what 1.x left in the workspace's top-level `projects/` waits for the
+ * 1.x migration: the layout sweep moves it into `.instrument/` first, since
+ * `Projects/` at the top level is the person's projects, and a file system
+ * that reads names without case takes the two for one folder.
+ */
+export function legacyProjectsDir(workspaceDir: string): string {
+  return path.join(workspaceLayout(workspaceDir).dataDir, "1x-projects");
 }

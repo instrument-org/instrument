@@ -46,7 +46,7 @@ const SKIPPED = new Set([...SKILL_ARTIFACT_IGNORE, ".git"]);
  * with its contents' hash. Past {@link FILES_PER_FOLDER} it stops reading,
  * keeping what was reached: every file of a folder comes before any folder
  * below it, so a capped folder still counts its top level, where a skill's
- * `SKILL.md` or a topic's `TOPIC.md` is. `depth` stops it that many folders
+ * `SKILL.md` or a project's `AGENTS.md` is. `depth` stops it that many folders
  * down (0 for the folder's own files).
  */
 export async function filesUnder(

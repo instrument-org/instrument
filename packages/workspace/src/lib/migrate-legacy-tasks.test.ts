@@ -7,9 +7,10 @@ import { ulid } from "ulid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
-import { readTopicsSync, writeTopicSync } from "./chat/topics";
+import { legacyProjectsDir } from "./workspace-layout";
+import { readProjectsSync, writeProjectSync } from "./chat/projects";
 import { permissionSettingsOf } from "./permissions/rules";
-import { addTopicFoldersSync } from "./permissions/topic-folders";
+import { addProjectFoldersSync } from "./permissions/project-folders";
 
 let root: string;
 let machineDir: string;
@@ -25,17 +26,17 @@ afterEach(() => {
   fs.rmSync(machineDir, { force: true, recursive: true });
 });
 
-/** The folders granted under each topic in this computer's permission settings, by id. */
-function topicFolders(): Record<string, string[]> {
-  const { topics } = permissionSettingsOf(
+/** The folders granted under each project in this computer's permission settings, by id. */
+function projectFolders(): Record<string, string[]> {
+  const { projects } = permissionSettingsOf(
     JSON.parse(
       fs.readFileSync(path.join(machineDir, "permissions.json"), "utf8"),
     ),
   );
   return Object.fromEntries(
-    Object.entries(topics).map(([id, topic]) => [
+    Object.entries(projects).map(([id, project]) => [
       id,
-      topic.folders.map((folder) => folder.path),
+      project.folders.map((folder) => folder.path),
     ]),
   );
 }
@@ -202,7 +203,8 @@ function writeProject(
     instructions = "",
   }: { folders?: unknown[]; id: string; instructions?: string },
 ) {
-  const dir = path.join(root, "projects", name);
+  // Where the layout sweep moves 1.x's `projects/` before this migration runs.
+  const dir = path.join(legacyProjectsDir(root), name);
   writeJson(path.join(dir, ".instrument", "settings.json"), {
     createdAt: "2026-06-26T11:23:50.372Z",
     folders,
@@ -278,7 +280,7 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 1,
       emptyCount: 0,
       leftOver: 0,
-      topicCount: 0,
+      projectCount: 0,
       unreadable: [],
     });
 
@@ -538,18 +540,18 @@ describe("migrateLegacyTasks", () => {
     );
   });
 
-  it("makes projects into topics, joining one of the same name, and files their tasks' chats under them", () => {
-    writeTopicSync(root, {
+  it("makes 1.x projects into projects, joining one of the same name, and files their tasks' chats under them", () => {
+    writeProjectSync(root, {
       created: new Date("2026-09-17T17:07:55.000Z"),
       emoji: "🛒",
       id: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
       instructions: "Prefer Target.",
       name: "Shopping",
     });
-    addTopicFoldersSync({
+    addProjectFoldersSync({
       machineDir,
       paths: ["/Users/someone/Lists"],
-      topicId: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
+      projectId: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
     });
     writeProject("Shopping", {
       // 1.x stored a folder as its path, or as its path and access.
@@ -576,11 +578,11 @@ describe("migrateLegacyTasks", () => {
       settings: { name: "A bug", projectId: "prj_01M00Q67JH4P7FHH53ZBHH2XWZ" },
     });
 
-    expect(migrateLegacyTasks(root, machineDir).topicCount).toBe(1);
+    expect(migrateLegacyTasks(root, machineDir).projectCount).toBe(1);
 
-    const topics = readTopicsSync(root);
+    const projects = readProjectsSync(root);
     expect(
-      topics.map(({ emoji, instructions, name }) => ({
+      projects.map(({ emoji, instructions, name }) => ({
         emoji,
         instructions,
         name,
@@ -597,9 +599,9 @@ describe("migrateLegacyTasks", () => {
         name: "Shopping",
       },
     ]);
-    // The project's folders join the ones granted under the topic on this
-    // computer, and none goes into the topic's file.
-    expect(topicFolders()).toEqual({
+    // The 1.x project's folders join the ones granted under the project on
+    // this computer, and none goes into the project's file.
+    expect(projectFolders()).toEqual({
       top_01M2R5DNCH9PJ09F2CV1VEMM77: [
         "/Users/someone/Lists",
         "/Users/someone/Receipts",
@@ -607,15 +609,20 @@ describe("migrateLegacyTasks", () => {
     });
     expect(
       fs.readFileSync(
-        path.join(root, "Topics", "Shopping", "TOPIC.md"),
+        path.join(root, "Projects", "Shopping", "AGENTS.md"),
         "utf8",
       ),
     ).not.toContain("folders");
-    const made = topics.find((topic) => topic.name === "Bug tasks")?.id;
-    expect(sessionOf("2026-06-23-buy-socks").topic).toBe(
+    // A project made from a 1.x project keeps its id.
+    expect(projects.find((project) => project.name === "Bug tasks")?.id).toBe(
+      "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
+    );
+    expect(sessionOf("2026-06-23-buy-socks").project).toBe(
       "top_01M2R5DNCH9PJ09F2CV1VEMM77",
     );
-    expect(sessionOf("2026-06-23-a-bug").topic).toBe(made);
+    expect(sessionOf("2026-06-23-a-bug").project).toBe(
+      "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
+    );
     expect(
       readJson(
         ".instrument",
@@ -625,7 +632,7 @@ describe("migrateLegacyTasks", () => {
         "settings.json",
       ).projectId,
     ).toBeUndefined();
-    expect(fs.existsSync(path.join(root, "projects"))).toBe(false);
+    expect(fs.existsSync(legacyProjectsDir(root))).toBe(false);
     expect(
       fs
         .readdirSync(path.join(root, ".instrument", ".pre-chats", "projects"))
@@ -633,7 +640,7 @@ describe("migrateLegacyTasks", () => {
     ).toEqual(["Shopping", "🐛 Bug tasks"]);
   });
 
-  it("keeps two projects whose names meet at a topic's length apart, on every boot", () => {
+  it("keeps two 1.x projects whose names meet at a project's length apart, on every boot", () => {
     writeProject("Marketing campaign spring 2025", {
       folders: ["/Users/someone/2025"],
       id: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
@@ -647,16 +654,16 @@ describe("migrateLegacyTasks", () => {
       settings: { name: "Plan", projectId: "prj_01M00Q67JH4P7FHH53ZBHH2XWZ" },
     });
 
-    expect(migrateLegacyTasks(root, machineDir).topicCount).toBe(2);
+    expect(migrateLegacyTasks(root, machineDir).projectCount).toBe(2);
     legacyTask("2026-06-24-later", { sessions: ONE_ASK });
     migrateLegacyTasks(root, machineDir);
 
-    const folders = topicFolders();
+    const folders = projectFolders();
     expect(
-      readTopicsSync(root).map(({ id, name, projectId }) => ({
+      readProjectsSync(root).map(({ id, name }) => ({
         folders: folders[id],
+        id,
         name,
-        projectId,
       })),
     ).toMatchInlineSnapshot(`
       [
@@ -664,15 +671,15 @@ describe("migrateLegacyTasks", () => {
           "folders": [
             "/Users/someone/2025",
           ],
+          "id": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
           "name": "Marketing campaign sprin",
-          "projectId": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
         },
         {
           "folders": [
             "/Users/someone/2026",
           ],
+          "id": "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
           "name": "Marketing campaign spr 2",
-          "projectId": "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
         },
       ]
     `);
@@ -680,12 +687,12 @@ describe("migrateLegacyTasks", () => {
 
   it("keeps a file the user left beside the projects, and the folder holding it", () => {
     writeProject("Shopping", { id: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1" });
-    fs.writeFileSync(path.join(root, "projects", "notes.txt"), "mine");
+    fs.writeFileSync(path.join(legacyProjectsDir(root), "notes.txt"), "mine");
 
     migrateLegacyTasks(root, machineDir);
 
     expect(
-      fs.readFileSync(path.join(root, "projects", "notes.txt"), "utf8"),
+      fs.readFileSync(path.join(legacyProjectsDir(root), "notes.txt"), "utf8"),
     ).toBe("mine");
   });
 
@@ -732,7 +739,7 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 0,
       emptyCount: 0,
       leftOver: 0,
-      topicCount: 0,
+      projectCount: 0,
       unreadable: [],
     });
     expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(

@@ -519,7 +519,7 @@ describe("Studio Smoke Test", () => {
           "memory",
           "skills",
           "tasks",
-          "topics",
+          "projects",
         ].includes(name),
       ),
       "workspace: no app folder at the top level",

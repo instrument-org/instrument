@@ -160,8 +160,8 @@ describe("a window's ops", () => {
           { kind: "folder", path: plans },
           { kind: "link", url: "https://example.com/" },
         ],
-        topicId: "top_1",
-        topicSource: "suggested",
+        projectId: "top_1",
+        projectSource: "suggested",
         words: "Plan",
       }),
       type: "create",
@@ -189,7 +189,7 @@ describe("a window's ops", () => {
       type: "update",
     });
 
-    // A topic the model suggested is the window's alone.
+    // A project the model suggested is the window's alone.
     expect(read()).toMatchInlineSnapshot(`
       "---
       id: "a"
@@ -440,11 +440,11 @@ describe("what the folder has that the store has not read yet", () => {
   it("is taken in before a window's change is written over it", async () => {
     const { apply, store } = await open();
     apply({ draft: draft("a", { words: "Plan" }), type: "create" });
-    // Another device files the draft under a topic, and its file arrives
+    // Another device files the draft under a project, and its file arrives
     // before the watcher has said so.
     fs.writeFileSync(
       fileOf(),
-      read().replace("---\n\nPlan", 'topic: "travel"\n---\n\nPlan'),
+      read().replace("---\n\nPlan", 'project: "travel"\n---\n\nPlan'),
     );
 
     apply({
@@ -455,10 +455,10 @@ describe("what the folder has that the store has not read yet", () => {
     });
 
     expect(store.snapshot().drafts[0]).toMatchObject({
-      topicId: "travel",
+      projectId: "travel",
       words: "Plan the trip",
     });
-    expect(read()).toContain('topic: "travel"');
+    expect(read()).toContain('project: "travel"');
   });
 
   it("leaves a draft whose file cannot be read for the moment as it was", async () => {

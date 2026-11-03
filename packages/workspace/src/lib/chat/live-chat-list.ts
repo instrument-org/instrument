@@ -32,7 +32,7 @@ function chatsMoved(changes: RecordChanged[]): ChatId[] {
  * first read, so nothing lands unheard between the two. An answer the same
  * as the last is not sent again, except to a request to change a row
  * (`chatRowAsked`): a window paints that request before it lands, and a
- * request that changed nothing (a topic just removed, a chat already gone)
+ * request that changed nothing (a project just removed, a chat already gone)
  * leaves the list as it was, so the same answer is what takes the paint back.
  */
 export async function* liveChatList(

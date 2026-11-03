@@ -42,7 +42,7 @@ export namespace SessionMessageDataPart {
     "taskEvent",
     "toolResultsCleared",
     "chatContext",
-    "topic",
+    "project",
     "unknown",
     "viewContext",
     "workspaceInstructions",
@@ -107,7 +107,7 @@ export namespace SessionMessageDataPart {
     skillMentions: "event",
     taskEvent: "event",
     toolResultsCleared: "event",
-    topic: "state",
+    project: "state",
     unknown: "unwritten",
     viewContext: "state",
     workspaceInstructions: "state",
@@ -439,7 +439,7 @@ export namespace SessionMessageDataPart {
       .array(
         z.object({
           change: z.enum(["added", "changed", "removed"]),
-          kind: z.enum(["app", "memory", "skill", "topic"]),
+          kind: z.enum(["app", "memory", "skill", "project"]),
           name: z.string(),
         }),
       )
@@ -1171,7 +1171,7 @@ export namespace SessionMessageDataPart {
 
   /**
    * The user's other chats at the moment a new chat opened, newest first:
-   * each one's title, topics, latest line, and when it last moved, on the
+   * each one's title, projects, latest line, and when it last moved, on the
    * root message of a chat an earlier build opened. Nothing writes it and
    * the model is not shown it; the agent reads earlier chats' records itself
    * when the user refers to earlier work.
@@ -1186,7 +1186,7 @@ export namespace SessionMessageDataPart {
         id: z.string().optional(),
         latest: z.string().optional(),
         title: z.string(),
-        /** Topic names, since the agent reads names and never ids. */
+        /** Project names, since the agent reads names and never ids, under the key the builds that wrote this part called them by. */
         topics: z.array(z.string()),
       }),
     ),
@@ -1232,25 +1232,25 @@ export namespace SessionMessageDataPart {
   export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;
 
   /**
-   * The topic the chat is filed under, on every user message sent in a chat:
+   * The project the chat is filed under, on every user message sent in a chat:
    * its name, mark, and the line saying what goes there, or `null` for none.
    * State cadence, so a chat filed once is told once.
    */
-  const TopicDataPartSchema = z.object({
-    topic: z
+  const ProjectDataPartSchema = z.object({
+    project: z
       .object({
         about: z.string().optional(),
         emoji: z.string().optional(),
-        /** The paths of the topic's folders in the chat. */
+        /** The paths of the project's folders in the chat. */
         folders: z.array(z.string()).optional(),
-        /** The topic's instructions as they stood when the message was sent. */
+        /** The project's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),
         name: z.string(),
       })
       .nullable(),
   });
 
-  export type TopicDataPart = z.output<typeof TopicDataPartSchema>;
+  export type ProjectDataPart = z.output<typeof ProjectDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -1337,7 +1337,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
-    [NameSchema.enum.topic]: TopicDataPartSchema,
+    [NameSchema.enum.project]: ProjectDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,

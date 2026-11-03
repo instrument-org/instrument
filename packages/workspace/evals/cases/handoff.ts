@@ -3,7 +3,7 @@
  * itself and forks what can run on its own (`src/agents/instrument.ts`).
  * Every scenario here is a failure seen in real use, or an ask real use is
  * full of: tiny asks timed end to end, context only the chat heard (a
- * memory, a topic's instructions, a preference stated earlier), dictation,
+ * memory, a project's instructions, a preference stated earlier), dictation,
  * background jobs, and messages sent while work is under way.
  *
  * Every assertion reads the outcome (a file on disk, a figure the user was
@@ -1344,11 +1344,11 @@ const repliedToEveryNote: Assertion = {
   text: `wrote all ${FEEDBACK_COUNT} replies into a Replies folder`,
 };
 
-/** A report in the folder only the topic's instructions name. */
+/** A report in the folder only the project's instructions name. */
 const filedUnderQuarterly: Assertion = {
   check: async (ctx) => {
     const text =
-      "put the report in a Quarterly folder, as the topic instructions say";
+      "put the report in a Quarterly folder, as the project instructions say";
     const folders = await folderNamed(ctx, /^quarterly$/i);
     const report = folders
       .flatMap(({ files }) => files)
@@ -1368,7 +1368,7 @@ const filedUnderQuarterly: Assertion = {
         : `no Quarterly folder; the run wrote: ${elsewhere.join(", ") || "nothing"}`,
     );
   },
-  text: "put the report in a Quarterly folder, as the topic instructions say",
+  text: "put the report in a Quarterly folder, as the project instructions say",
 };
 
 const GARDEN_FILES: Record<string, string> = {
@@ -2626,7 +2626,7 @@ export interface Scenario {
   setup?: EvalCase["setup"];
   slug: string;
   teardown?: EvalCase["teardown"];
-  topic?: EvalCase["topic"];
+  project?: EvalCase["project"];
 }
 
 export function toEval(scenario: Scenario): EvalCase {
@@ -2654,7 +2654,7 @@ export function toEval(scenario: Scenario): EvalCase {
         prompt: "",
         setup: scenario.setup,
         teardown: scenario.teardown,
-        topic: scenario.topic,
+        project: scenario.project,
       },
       "prompt",
       { enumerable: true, get: () => scenario.prompt },
@@ -2813,7 +2813,7 @@ const SCENARIOS: Scenario[] = [
     slug: "responsiveness",
   },
   {
-    // The fact lives only in the topic's instructions.
+    // The fact lives only in the project's instructions.
     assertions: [filedUnderQuarterly],
     files: [
       {
@@ -2824,10 +2824,10 @@ const SCENARIOS: Scenario[] = [
       },
     ],
     prompt: "Can you write up a short report on these Q3 expenses?",
-    slug: "topic-instruction",
-    topic: {
+    slug: "project-instruction",
+    project: {
       instructions:
-        "Reports for this topic go in a folder called Quarterly in the workspace folder.",
+        "Reports for this project go in a folder called Quarterly in the workspace folder.",
       name: "Finance",
     },
   },

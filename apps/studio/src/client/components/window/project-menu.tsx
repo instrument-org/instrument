@@ -16,29 +16,29 @@ import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ReactNode } from "react";
 
-import { type Topic } from "./chats";
+import { type Project } from "./chats";
 import { PickList, PickListAction } from "./pick-list";
-import { TopicMark } from "./topic-mark";
+import { ProjectMark } from "./project-mark";
 
 /**
- * The dots at the edge of a row that stands for a topic, opening the topic's
+ * The dots at the edge of a row that stands for a project, opening the project's
  * own menu. Invisible until the caller's hover class, focus, or the open menu
- * shows them, so a list of topics is not a list of dots.
+ * shows them, so a list of projects is not a list of dots.
  */
-export function TopicActionsButton({
+export function ProjectActionsButton({
   className,
   onDetails,
-  topic,
+  project,
 }: {
   className?: string;
-  onDetails: (topic: Topic) => void;
-  topic: Topic;
+  onDetails: (project: Project) => void;
+  project: Project;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          aria-label={`Actions for ${topic.name}`}
+          aria-label={`Actions for ${project.name}`}
           className={cn(
             "grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground opacity-0 hover:bg-foreground/8 hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100",
             className,
@@ -51,26 +51,26 @@ export function TopicActionsButton({
       <DropdownMenuContent align="start" side="right">
         <DropdownMenuItem
           onSelect={() => {
-            onDetails(topic);
+            onDetails(project);
           }}
         >
           <InfoIcon className="size-4" />
-          View topic details
+          View project details
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** A topic's own menu on right click, around whatever row stands for the topic. */
-export function TopicContextMenu({
+/** A project's own menu on right click, around whatever row stands for the project. */
+export function ProjectContextMenu({
   children,
   onDetails,
-  topic,
+  project,
 }: {
   children: ReactNode;
-  onDetails: (topic: Topic) => void;
-  topic: Topic;
+  onDetails: (project: Project) => void;
+  project: Project;
 }) {
   return (
     <ContextMenu>
@@ -78,11 +78,11 @@ export function TopicContextMenu({
       <ContextMenuContent>
         <ContextMenuItem
           onSelect={() => {
-            onDetails(topic);
+            onDetails(project);
           }}
         >
           <InfoIcon className="size-4" />
-          View topic details
+          View project details
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -90,33 +90,33 @@ export function TopicContextMenu({
 }
 
 /**
- * Every topic, a check on the one that is on, and a new one at the foot: the
- * list behind a row's tag control, a draft's topic and a chat's head alike,
+ * Every project, a check on the one that is on, and a new one at the foot: the
+ * list behind a row's tag control, a draft's project and a chat's head alike,
  * so filing is learned once. It opens on a find field whose words the foot
- * offers to make into a topic.
+ * offers to make into a project.
  */
-export function TopicPickList({
+export function ProjectPickList({
   chosen,
   onNew,
   onToggle,
-  topics,
+  projects,
 }: {
   chosen: ReadonlySet<string>;
-  /** Makes a topic, named for what was typed in the find field when anything was. */
+  /** Makes a project, named for what was typed in the find field when anything was. */
   onNew: (name: string) => void;
   onToggle: (id: string) => void;
-  topics: Topic[];
+  projects: Project[];
 }) {
-  const live = topics.filter((topic) => !topic.retired);
+  const live = projects.filter((project) => !project.retired);
   return (
     <PickList
       chosen={chosen}
-      entries={live.map((topic) => ({
-        icon: <TopicMark topic={topic} />,
-        id: topic.id,
-        label: topic.name,
+      entries={live.map((project) => ({
+        icon: <ProjectMark project={project} />,
+        id: project.id,
+        label: project.name,
       }))}
-      findPlaceholder="Find or make a topic"
+      findPlaceholder="Find or make a project"
       foot={(find) => (
         <PickListAction
           onSelect={() => {
@@ -125,7 +125,7 @@ export function TopicPickList({
         >
           <PlusIcon className="size-3.5 text-muted-foreground" />
           <span className="min-w-0 truncate">
-            {find ? `New topic “${find}”…` : "New topic…"}
+            {find ? `New project “${find}”…` : "New project…"}
           </span>
         </PickListAction>
       )}

@@ -11,11 +11,11 @@
  * caret (the chat's menu) and, under it, the one line saying where the chat's work
  * stands (`line`, from statusLine), which also opens its tasks; at the right the pop-out,
  * then `right`. `align: "left"` stands the title at the left after the toggle instead.
- * `topic` (a TOPICS name) puts the chat's topic pill after its title.
+ * `project` (a PROJECTS name) puts the chat's project pill after its title.
  */
-const threadHead = (title, { right = "", line = "", left, side = 96, align = "center", popOut = true, topic = "" } = {}) => {
+const threadHead = (title, { right = "", line = "", left, side = 96, align = "center", popOut = true, project = "" } = {}) => {
   const toggle = left ?? `<span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-sidebar-simple text-[16px]"></i></span>`;
-  const name = `<span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i>${topic ? `<span class="ml-1">${topicPill(topic, { quiet: false })}</span>` : ""}</span>`;
+  const name = `<span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i>${project ? `<span class="ml-1">${projectPill(project, { quiet: false })}</span>` : ""}</span>`;
   const ends = `${popOut ? `<span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-picture-in-picture text-[16px]"></i></span>` : ""}${right}`;
   if (align === "left")
     return `
@@ -96,10 +96,10 @@ const thread = ({
   reply = {},
   replyEl = "",
   stick = "top",
-  topic = "",
+  project = "",
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
-    ${head || threadHead(title, { line: working ? statusLine(working) : "", topic })}
+    ${head || threadHead(title, { line: working ? statusLine(working) : "", project })}
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden ${stick === "bottom" ? "justify-end" : ""}"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
     <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${foot}${replyEl || replyBox(reply)}</div>
   </div>`;

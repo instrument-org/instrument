@@ -26,7 +26,7 @@ import {
   chatMarkShown,
   draftTitle,
   railMarkOf,
-  type Topic,
+  type Project,
 } from "./chats";
 import {
   CHAT_WINDOW_WIDTH,
@@ -126,7 +126,7 @@ export function ChatBar({
  * bottom-right corner, over whatever place the window stands in, the way a
  * video keeps playing in its small window over the page that owns it, with
  * what the chat holds in a row of tiles over its composer. Its head carries
- * the chat's title, topics and menu as the chat's own head draws them, and
+ * the chat's title, projects and menu as the chat's own head draws them, and
  * the window's buttons.
  *
  * Pressing a tile peeks at that thing in a card over the conversation.
@@ -142,13 +142,13 @@ export function ChatWindow({
   onCloseTab,
   onMinimize,
   onExpand,
-  onNewTopic,
-  onSetTopic,
+  onNewProject,
+  onSetProject,
   right,
   sendContext,
   sentWords,
   chatId,
-  topics,
+  projects,
   width,
 }: {
   /** Whether the window arrives with a motion: a draft becoming the chat is the same window, so it does not. */
@@ -160,9 +160,9 @@ export function ChatWindow({
   onMinimize: () => void;
   /** Takes the chat into a tab of the window's own, its pane open when the window asked for something to be shown. */
   onExpand: (options: { showsPane: boolean }) => void;
-  /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
-  onNewTopic: (name?: string) => void;
-  onSetTopic: (topic: null | string) => void;
+  /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
+  onNewProject: (name?: string) => void;
+  onSetProject: (project: null | string) => void;
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
   /** What goes with a reply: what is behind the window. */
@@ -173,7 +173,7 @@ export function ChatWindow({
   /** The words the draft this window was sent, while the chat they start is on its way. */
   sentWords?: string;
   chatId: ChatId;
-  topics: Topic[];
+  projects: Project[];
   /** The window's width, narrower than its own on a row with less room. */
   width?: number;
 }) {
@@ -359,15 +359,15 @@ export function ChatWindow({
         // An archived chat is put away, so its window goes with it.
         onArchived={onClose}
         onDeleted={onClose}
-        onNewTopic={onNewTopic}
+        onNewProject={onNewProject}
         onOpenTask={(id) => {
           openTasksHere(taskHref(id, chatId));
         }}
-        onSetTopic={onSetTopic}
+        onSetProject={onSetProject}
         onViewTasks={() => {
           openTasksHere(tasksHref(chatId));
         }}
-        topics={topics}
+        projects={projects}
         trailing={
           <div className="flex shrink-0 items-center gap-0.5">
             <WindowButton label="Minimize" onClick={onMinimize}>

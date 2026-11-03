@@ -7,7 +7,7 @@ const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
   z.object({ href: z.string(), type: z.literal("openScreen") }),
   z.object({
-    topic: z.string().optional(),
+    project: z.string().optional(),
     type: z.literal("newChat"),
     words: z.string(),
   }),

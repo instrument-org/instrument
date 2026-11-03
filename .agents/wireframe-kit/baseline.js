@@ -9,14 +9,14 @@ const META = {
   title: "Kit baseline: every surface as built",
   line: "Everything the wireframe kit draws as the app ships today: the chat list, window tabs, Files and its omnibar, Browser, Settings and the overlays, then the chat, setup, and the Mac and web around the app.",
   source:
-    "We drew the window frames with the kit in kit/, measured from the running app on the documents fixture at 1280x800 (2026-10-31). The chats, files, pages, prices, topics and release notes are the kit's invented pricing scenario. The desktop, menu bar, notification, Finder and website frames come from mac.js, drawn from macOS and a generic browser without measuring.",
+    "We drew the window frames with the kit in kit/, measured from the running app on the documents fixture at 1280x800 (2026-10-31). The chats, files, pages, prices, projects and release notes are the kit's invented pricing scenario. The desktop, menu bar, notification, Finder and website frames come from mac.js, drawn from macOS and a generic browser without measuring.",
   slotH: 300,
 };
 
 const D = { w: DESKTOP.w, h: DESKTOP.h };
 const chatBar = winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] });
-const waitingHead = threadHead(PRICING_TITLE, { line: statusLine("Waiting on you", { tone: "wait" }), topic: "Pricing" });
-const running = () => inboxCol({ on: 0 }) + thread({ working: "Reading plans on zendesk.com", topic: "Pricing" });
+const waitingHead = threadHead(PRICING_TITLE, { line: statusLine("Waiting on you", { tone: "wait" }), project: "Pricing" });
+const running = () => inboxCol({ on: 0 }) + thread({ working: "Reading plans on zendesk.com", project: "Pricing" });
 
 const states = [
   // ---- the chat list -------------------------------------------------------------
@@ -28,13 +28,13 @@ const states = [
   },
   {
     title: "Chat running",
-    note: "While the pricing chat runs, its newest step shimmers under its title and on its row, and a row shows its topic and star in the corner.",
+    note: "While the pricing chat runs, its newest step shimmers under its title and on its row, and a row shows its project and star in the corner.",
     measure: "chat",
     body: appWindow({ bar: chatBar, body: running() }),
   },
   {
     title: "Chats picker",
-    note: "The picker sits bare on the card until it's pressed, then lists the views with their counts, the topics with their marks, and New topic.",
+    note: "The picker sits bare on the card until it's pressed, then lists the views with their counts, the projects with their marks, and New project.",
     measure: "inbox-view-menu",
     body: appWindow({
       bar: chatBar,
@@ -50,19 +50,19 @@ const states = [
   },
   {
     title: "Row under the pointer",
-    note: "Under the pointer a row trades its topic and star for its controls: file under a topic, pop out, archive, mark unread and star. A reply waiting unsent marks the title Draft in red.",
+    note: "Under the pointer a row trades its project and star for its controls: file under a project, pop out, archive, mark unread and star. A reply waiting unsent marks the title Draft in red.",
     body: appWindow({
       bar: chatBar,
       body: inboxCol({ on: 0, hover: 2, rows: [ROWS[0], { ...ROWS[1], draft: true }, ROWS[2], ROWS[3], ROWS[4]] }) + thread({ working: "Reading plans on zendesk.com" }),
     }),
   },
   {
-    title: "Topic",
-    note: "Standing in a topic tints the list's head in the topic's color, and its instructions sit under the picker with Edit topic.",
-    measure: "inbox-topic",
+    title: "Project",
+    note: "Standing in a project tints the list's head in the project's color, and its instructions sit under the picker with Edit project.",
+    measure: "inbox-project",
     body: appWindow({
       bar: chatBar,
-      body: inboxCol({ on: 0, topic: "Pricing", rows: [ROWS[0], { title: "Intercom's AI agent pricing per resolution", preview: "Fin bills $0.99 per resolution on every plan, on top of the seat price.", time: "Tue", holds: [{ site: "intercom" }] }, { title: "Freshdesk plan limits for 10 agents", preview: "Pro covers 10 agents with custom roles; Growth stops at 5 collaborators.", time: "Oct 22", holds: [{ site: "freshdesk" }] }] }) + thread({ working: "Reading plans on zendesk.com" }),
+      body: inboxCol({ on: 0, project: "Pricing", rows: [ROWS[0], { title: "Intercom's AI agent pricing per resolution", preview: "Fin bills $0.99 per resolution on every plan, on top of the seat price.", time: "Tue", holds: [{ site: "intercom" }] }, { title: "Freshdesk plan limits for 10 agents", preview: "Pro covers 10 agents with custom roles; Growth stops at 5 collaborators.", time: "Oct 22", holds: [{ site: "freshdesk" }] }] }) + thread({ working: "Reading plans on zendesk.com" }),
     }),
   },
   {

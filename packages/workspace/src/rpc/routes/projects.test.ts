@@ -5,29 +5,29 @@ import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { readPermissionSettings } from "../../lib/permissions/rules";
-import { TOPIC_FILE_NAME, topicsDir } from "../../lib/chat/topics";
+import { PROJECT_FILE_NAME, projectsDir } from "../../lib/chat/projects";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type WorkspaceRPCContext } from "../base";
-import { topics } from "./topics";
+import { projects } from "./projects";
 
-// Whether granting a topic's folders fails, which a test sets.
+// Whether granting a project's folders fails, which a test sets.
 const grant = vi.hoisted(() => ({ fails: false }));
 vi.mock(
-  import("../../lib/permissions/topic-folders"),
+  import("../../lib/permissions/project-folders"),
   async (importOriginal) => {
     const original = await importOriginal();
     return {
       ...original,
-      setTopicFolders: (
-        ...args: Parameters<typeof original.setTopicFolders>
+      setProjectFolders: (
+        ...args: Parameters<typeof original.setProjectFolders>
       ) =>
         grant.fails
           ? Promise.reject(new Error("permissions.json is not writable"))
-          : original.setTopicFolders(...args),
+          : original.setProjectFolders(...args),
     };
   },
 );
@@ -45,8 +45,8 @@ let root: string;
 let folder: string;
 
 beforeEach(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "topics-route-"));
-  folder = fs.mkdtempSync(path.join(os.tmpdir(), "topics-route-folder-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "projects-route-"));
+  folder = fs.mkdtempSync(path.join(os.tmpdir(), "projects-route-folder-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),
@@ -62,12 +62,12 @@ afterEach(() => {
 });
 
 function list() {
-  return call(topics.list, undefined, { context: createContext() });
+  return call(projects.list, undefined, { context: createContext() });
 }
 
-it("makes a topic with its instructions and folders in one call", async () => {
+it("makes a project with its instructions and folders in one call", async () => {
   const created = await call(
-    topics.create,
+    projects.create,
     {
       color: "#3b6ef6",
       emoji: "🌱",
@@ -86,37 +86,40 @@ it("makes a topic with its instructions and folders in one call", async () => {
     name: "Garden",
   });
   expect(
-    fs.readFileSync(path.join(topicsDir(), "Garden", TOPIC_FILE_NAME), "utf8"),
+    fs.readFileSync(
+      path.join(projectsDir(), "Garden", PROJECT_FILE_NAME),
+      "utf8",
+    ),
   ).toContain("Answer in metric.");
   const settings = await readPermissionSettings();
-  expect(settings.topics[created.id]?.folders.map((each) => each.path)).toEqual(
-    [folder],
-  );
+  expect(
+    settings.projects[created.id]?.folders.map((each) => each.path),
+  ).toEqual([folder]);
 });
 
-it("leaves no topic behind when its folders cannot be granted", async () => {
+it("leaves no project behind when its folders cannot be granted", async () => {
   grant.fails = true;
   await expect(
     call(
-      topics.create,
+      projects.create,
       { folders: [{ path: folder }], instructions: "Notes", name: "Garden" },
       { context: createContext() },
     ),
   ).rejects.toThrow();
 
   expect(await list()).toEqual([]);
-  expect(fs.existsSync(path.join(topicsDir(), "Garden"))).toBe(false);
+  expect(fs.existsSync(path.join(projectsDir(), "Garden"))).toBe(false);
 });
 
-it("keeps a folder of the person's that stood where a failed topic was made", async () => {
-  const theirs = path.join(topicsDir(), "Garden");
+it("keeps a folder of the person's that stood where a failed project was made", async () => {
+  const theirs = path.join(projectsDir(), "Garden");
   fs.mkdirSync(theirs, { recursive: true });
   fs.writeFileSync(path.join(theirs, "seeds.txt"), "tomatoes");
   grant.fails = true;
 
   await expect(
     call(
-      topics.create,
+      projects.create,
       { folders: [{ path: folder }], name: "Garden" },
       { context: createContext() },
     ),
@@ -125,22 +128,22 @@ it("keeps a folder of the person's that stood where a failed topic was made", as
   expect(fs.readdirSync(theirs)).toEqual(["seeds.txt"]);
 });
 
-it("puts a retired topic back as it was when its folders cannot be granted", async () => {
+it("puts a retired project back as it was when its folders cannot be granted", async () => {
   const first = await call(
-    topics.create,
+    projects.create,
     { instructions: "Old words", name: "Garden" },
     { context: createContext() },
   );
   await call(
-    topics.retire,
-    { topicId: first.id },
+    projects.retire,
+    { projectId: first.id },
     { context: createContext() },
   );
   grant.fails = true;
 
   await expect(
     call(
-      topics.create,
+      projects.create,
       {
         folders: [{ path: folder }],
         instructions: "New words",
@@ -158,15 +161,15 @@ it("puts a retired topic back as it was when its folders cannot be granted", asy
   });
 });
 
-it("returns a topic in use under the name as it is, given only the name", async () => {
+it("returns a project in use under the name as it is, given only the name", async () => {
   const first = await call(
-    topics.create,
+    projects.create,
     { instructions: "Keep these", name: "Garden" },
     { context: createContext() },
   );
 
   const again = await call(
-    topics.create,
+    projects.create,
     { name: "garden" },
     { context: createContext() },
   );
@@ -174,16 +177,16 @@ it("returns a topic in use under the name as it is, given only the name", async 
   expect(again.id).toBe(first.id);
 });
 
-it("refuses a name in use given instructions or folders, leaving that topic alone", async () => {
+it("refuses a name in use given instructions or folders, leaving that project alone", async () => {
   await call(
-    topics.create,
+    projects.create,
     { instructions: "Keep these", name: "Garden" },
     { context: createContext() },
   );
 
   await expect(
     call(
-      topics.create,
+      projects.create,
       {
         folders: [{ path: folder }],
         instructions: "Not these",
@@ -193,7 +196,7 @@ it("refuses a name in use given instructions or folders, leaving that topic alon
     ),
   ).rejects.toMatchObject({
     code: "BAD_REQUEST",
-    message: "There is already a topic called “Garden”",
+    message: "There is already a project called “Garden”",
   });
   const [listed] = await list();
   expect(listed?.instructions).toBe("Keep these");

@@ -10,7 +10,7 @@ export const DictationSurfaceSchema = z.enum([
   "composer",
   "question-note",
   "report",
-  "topic-instructions",
+  "project-instructions",
 ]);
 export type DictationSurface = z.output<typeof DictationSurfaceSchema>;
 

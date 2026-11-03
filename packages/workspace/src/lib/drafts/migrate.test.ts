@@ -76,7 +76,7 @@ function migrate() {
 
 describe("bringing the hidden drafts out", () => {
   it("makes a folder named for the day, with the words and the record in one file", async () => {
-    hiddenDraft("01KFD1", { record: { topicId: "tpc_01KF" } });
+    hiddenDraft("01KFD1", { record: { projectId: "tpc_01KF" } });
 
     const migration = await migrate();
 
@@ -92,7 +92,7 @@ describe("bringing the hidden drafts out", () => {
         id: "01KFD1"
         created: 2026-10-14T18:22:04Z
         updated: 2026-10-14T18:25:00Z
-        topic: "tpc_01KF"
+        project: "tpc_01KF"
         ---
 
         Find a quiet dishwasher.

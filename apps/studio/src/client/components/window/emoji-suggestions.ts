@@ -38,7 +38,7 @@ export function useEmojiSuggestions(
     /** How long typing has to pause before the text is asked about. */
     debounceMs?: number;
     /**
-     * Whether `text` is the person's own (a topic's name) rather than words
+     * Whether `text` is the person's own (a project's name) rather than words
      * typed into the picker's search; see `useDecision`.
      */
     personal: boolean;
@@ -79,7 +79,7 @@ export function useEmojiSuggestions(
       typeof previousText === "string" &&
       previousText !== "" &&
       (settled.startsWith(previousText) || previousText.startsWith(settled)),
-    activity: { purpose: "emoji-suggestion", surface: "topics" },
+    activity: { purpose: "emoji-suggestion", surface: "projects" },
     // Personal while either the text asked about or the text on screen is,
     // so a name settling behind a search typed over it is never sent.
     personal: personal || settledPersonal,
@@ -134,7 +134,7 @@ function questionsFor(all: Emoji[]) {
     questions[`emoji-${start / CHUNK}`] = {
       criteria,
       instructions:
-        "Which emoji best represents the topic named in the state? Pick none if nothing fits.",
+        "Which emoji best represents the project named in the state? Pick none if nothing fits.",
       type: "choice",
     };
   }

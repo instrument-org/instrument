@@ -547,7 +547,7 @@ function Tab({
     isSelected
       ? "text-foreground shadow-xs-soft"
       : // An opacity of the ink rather than a grey: the strip sits on the
-        // topic's tint in the window bar, and a fixed grey reads as dirt on
+        // project's tint in the window bar, and a fixed grey reads as dirt on
         // a colored ground.
         cn(
           "text-foreground/55",

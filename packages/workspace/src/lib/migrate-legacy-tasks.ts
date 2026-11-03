@@ -22,26 +22,25 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { chatFolderName } from "./chat-folder-name";
-import { toTheSecond } from "./chat/topic-file";
+import { toTheSecond } from "./chat/project-file";
 import {
-  newTopicId,
-  readTopicsSync,
-  type Topic,
-  type TopicFolder,
-  topicName,
-  unusedTopicName,
-  writeTopicSync,
-} from "./chat/topics";
-import { addTopicFoldersSync } from "./permissions/topic-folders";
+  type Project,
+  type ProjectFolder,
+  projectName,
+  readProjectsSync,
+  unusedProjectName,
+  writeProjectSync,
+} from "./chat/projects";
+import { addProjectFoldersSync } from "./permissions/project-folders";
 import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
-import { workspaceLayout } from "./workspace-layout";
+import { legacyProjectsDir, workspaceLayout } from "./workspace-layout";
 
 // What the move leaves behind is kept in the workspace's set-aside folder, so a
-// migration that went wrong can be undone by hand: the projects, once their
-// topics are written, the tasks with nothing the user said in them, each
+// migration that went wrong can be undone by hand: the 1.x projects, once
+// the projects they become are written, the tasks with nothing the user said in them, each
 // chat's 1.x settings and database as the task had them, and anything found
 // holding the name a chat is staged under.
 const LEGACY_PROJECTS_DIR_NAME = "projects";
@@ -62,8 +61,8 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // The model the tutorial's replay ran on, which marks a task as the tutorial.
 const TUTORIAL_MODEL = "tutorial-task-replay";
 
-// A leading emoji in a project's folder name, with the space after it: the
-// mark 1.x users gave their projects, which a topic keeps as its own mark.
+// A leading emoji in a 1.x project's folder name, with the space after it:
+// the mark 1.x users gave their projects, which a project keeps as its mark.
 const LEADING_EMOJI =
   /^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\p{Emoji_Modifier}|\uFE0F|\u200D(?:\p{Extended_Pictographic}|\p{Regional_Indicator}))*)\s*/u;
 
@@ -77,8 +76,8 @@ export interface LegacyTasksMigration {
   emptyCount: number;
   /** Tasks and projects that could not be moved this time, and are tried again next boot. */
   leftOver: number;
-  /** Topics written for projects that matched none. */
-  topicCount: number;
+  /** Projects written for 1.x projects that matched none. */
+  projectCount: number;
   /**
    * Tasks left where they are, named, because the database holding their
    * conversation could not be read: a person can look at one, and no later
@@ -101,12 +100,12 @@ interface ConversationMessage {
 interface LegacyProject {
   createdAt: number;
   emoji?: string;
-  /** The folders its tasks worked in, which the topic's chats are given. */
-  folders: TopicFolder[];
+  /** The folders its tasks worked in, which the project's chats are given. */
+  folders: ProjectFolder[];
   id: string;
   instructions: string;
   name: string;
-  /** Its folder, under `projects/` or already set aside. */
+  /** Its folder, waiting in the staged `projects/` or already set aside. */
   source: string;
 }
 
@@ -117,19 +116,20 @@ interface StoreRow {
 
 /**
  * Makes every task an earlier version ran on its own into a chat, and every
- * project into a topic. The task's folder becomes the chat's, files and all,
+ * 1.x project into a project. The task's folder becomes the chat's, files and all,
  * so a path its replies named is the same path in the chat; its database is
  * rewritten as the chat's one conversation, holding what the user saw (their
- * words and files, and the replies) under the ids they had. A project becomes
- * a topic of the same name, or joins the topic already called that, and its
- * instructions become the topic's; the chats of its tasks carry that topic.
+ * words and files, and the replies) under the ids they had. A 1.x project
+ * becomes a project of the same name and id, or joins the project already
+ * called that, and its instructions become the project's; the chats of its
+ * tasks are filed under that project.
  *
  * Runs with the layout sweep in `migrateWorkspaceLayout`, once per layout
  * version, and decides from the data: a task under `tasks/` that no chat
- * started is one to adopt, and `projects/` holding a project is one to turn
- * into a topic.
+ * started is one to adopt, and 1.x's `projects/` holding a project is one
+ * to turn into a project.
  * Synchronous and file-level, with no store open and no workspace config.
- * A project's folders are granted under its topic in this computer's
+ * A 1.x project's folders are granted under its project in this computer's
  * permission settings, in `machineDir`, since each names a path here.
  *
  * The chat's database and settings are written beside the task's own, the
@@ -146,7 +146,7 @@ export function migrateLegacyTasks(
     adoptedCount: 0,
     emptyCount: 0,
     leftOver: 0,
-    topicCount: 0,
+    projectCount: 0,
     unreadable: [],
   };
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
@@ -155,29 +155,35 @@ export function migrateLegacyTasks(
   const legacy = readDirs(tasksDir).filter((name) =>
     isLegacyTask(path.join(tasksDir, name)),
   );
-  const projectsDir = path.join(rootDir, LEGACY_PROJECTS_DIR_NAME);
-  const waitingProjects = readDirs(projectsDir).filter((name) =>
-    isProjectFolder(path.join(projectsDir, name)),
+  const waitingDir = legacyProjectsDir(rootDir);
+  const waitingProjects = readDirs(waitingDir).filter((name) =>
+    isLegacyProjectFolder(path.join(waitingDir, name)),
   );
   if (legacy.length === 0 && waitingProjects.length === 0 && !staged) {
     return migration;
   }
 
-  const projects = readProjects(rootDir);
-  const topicOf = new Map<string, string>();
-  const topics = readTopicsSync(rootDir);
-  for (const project of projects) {
+  const legacyProjects = readLegacyProjects(rootDir);
+  const projectOf = new Map<string, string>();
+  const projects = readProjectsSync(rootDir);
+  const legacyIds = new Set(legacyProjects.map((each) => each.id));
+  for (const legacyProject of legacyProjects) {
     try {
-      const topic = topicForProject(rootDir, project, topics);
-      addTopicFoldersSync({
-        machineDir,
-        paths: project.folders.map((folder) => folder.path),
-        topicId: topic.id,
+      const project = projectForLegacy({
+        legacy: legacyProject,
+        legacyIds,
+        projects,
+        rootDir,
       });
-      if (topic.made) {
-        migration.topicCount += 1;
+      addProjectFoldersSync({
+        machineDir,
+        paths: legacyProject.folders.map((folder) => folder.path),
+        projectId: project.id,
+      });
+      if (project.made) {
+        migration.projectCount += 1;
       }
-      topicOf.set(project.id, topic.id);
+      projectOf.set(legacyProject.id, project.id);
     } catch {
       migration.leftOver += 1;
     }
@@ -203,7 +209,7 @@ export function migrateLegacyTasks(
         rootDir,
         taken,
         chatDir: path.join(tasksDir, name),
-        topicOf,
+        projectOf,
       });
       if (adopted.kind === "empty") {
         migration.emptyCount += 1;
@@ -227,18 +233,18 @@ export function migrateLegacyTasks(
     }
   }
 
-  // A project is set aside once its topic is written; one whose topic could
-  // not be is left for the next boot.
+  // A 1.x project is set aside once its project is written; one whose
+  // project could not be is left for the next boot.
   for (const name of waitingProjects) {
-    const project = projects.find(
-      (candidate) => candidate.source === path.join(projectsDir, name),
+    const legacyProject = legacyProjects.find(
+      (candidate) => candidate.source === path.join(waitingDir, name),
     );
-    if (!project || !topicOf.has(project.id)) {
+    if (!legacyProject || !projectOf.has(legacyProject.id)) {
       continue;
     }
     try {
       moveAside(
-        project.source,
+        legacyProject.source,
         path.join(
           workspaceLayout(rootDir).setAsideDir,
           LEGACY_PROJECTS_DIR_NAME,
@@ -251,8 +257,8 @@ export function migrateLegacyTasks(
   }
   // Only an empty folder goes: what else is in it, a file beside the
   // projects, the layout sweep sets aside after this.
-  if (fs.existsSync(projectsDir) && fs.readdirSync(projectsDir).length === 0) {
-    fs.rmdirSync(projectsDir);
+  if (fs.existsSync(waitingDir) && fs.readdirSync(waitingDir).length === 0) {
+    fs.rmdirSync(waitingDir);
   }
 
   forgetChatFolders();
@@ -271,13 +277,13 @@ function adoptTask({
   rootDir,
   taken,
   chatDir,
-  topicOf,
+  projectOf,
 }: {
   chatsDir: string;
   rootDir: string;
   taken: Set<string>;
   chatDir: string;
-  topicOf: Map<string, string>;
+  projectOf: Map<string, string>;
 }):
   | {
       /** The chat's id, the folder it lands in once staged. */
@@ -335,9 +341,9 @@ function adoptTask({
   const sessionId = StoreId.SessionSchema.parse(
     `ses_${ulid(createdAt.getTime())}`,
   );
-  const topicId =
+  const projectId =
     typeof settings.projectId === "string"
-      ? topicOf.get(settings.projectId)
+      ? projectOf.get(settings.projectId)
       : undefined;
   const pinnedAt = validDate(settings.pinnedAt);
   // A task left unread is a chat left unread, a mark the user put on it
@@ -357,7 +363,7 @@ function adoptTask({
       : {}),
     title,
     titleSettledAt: createdAt,
-    ...(topicId ? { topic: topicId } : {}),
+    ...(projectId ? { project: projectId } : {}),
     updatedAt: lastActivityAt,
   };
 
@@ -510,7 +516,7 @@ function isLegacyTask(chatDir: string): boolean {
   );
 }
 
-function isProjectFolder(folder: string): boolean {
+function isLegacyProjectFolder(folder: string): boolean {
   const settings = readJson(
     path.join(folder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
   );
@@ -551,9 +557,9 @@ function setAside(source: string, to: string) {
   moveAside(source, to);
 }
 
-/** A name without its leading emoji, as a topic's name is compared. */
+/** A name without its leading emoji, as a project's name is compared. */
 function nameKey(name: string): string {
-  return topicName(name.replace(LEADING_EMOJI, "")).toLowerCase();
+  return projectName(name.replace(LEADING_EMOJI, "")).toLowerCase();
 }
 
 function present(target: string): boolean {
@@ -566,12 +572,12 @@ function present(target: string): boolean {
 }
 
 /**
- * A project's folders as a topic holds them: by path, a 1.x project having
- * stored either the bare path or the path with its access, which a topic's
- * folders no longer carry.
+ * A 1.x project's folders as a project holds them: by path, a 1.x project
+ * having stored either the bare path or the path with its access, which a
+ * project's folders no longer carry.
  */
-function projectFolders(raw: unknown): TopicFolder[] {
-  return (Array.isArray(raw) ? raw : []).flatMap((folder): TopicFolder[] => {
+function legacyProjectFolders(raw: unknown): ProjectFolder[] {
+  return (Array.isArray(raw) ? raw : []).flatMap((folder): ProjectFolder[] => {
     const folderPath =
       typeof folder === "string"
         ? folder
@@ -770,12 +776,12 @@ function readJson(file: string): Record<string, unknown> | undefined {
 }
 
 /**
- * Every project, waiting under `projects/` or already set aside by an earlier
- * boot, so a task a later boot adopts still finds its project's topic.
+ * Every 1.x project, waiting in the staged `projects/` or already set aside
+ * by an earlier boot, so a task a later boot adopts still finds its project.
  */
-function readProjects(rootDir: string): LegacyProject[] {
+function readLegacyProjects(rootDir: string): LegacyProject[] {
   const dirs = [
-    path.join(rootDir, LEGACY_PROJECTS_DIR_NAME),
+    legacyProjectsDir(rootDir),
     path.join(workspaceLayout(rootDir).setAsideDir, LEGACY_PROJECTS_DIR_NAME),
   ];
   return dirs.flatMap((dir) =>
@@ -800,14 +806,14 @@ function readProjects(rootDir: string): LegacyProject[] {
         // No instructions: most projects had none.
       }
       const emoji = LEADING_EMOJI.exec(name)?.[1];
-      const bare = topicName(name.replace(LEADING_EMOJI, "")) || name;
+      const bare = projectName(name.replace(LEADING_EMOJI, "")) || name;
       return [
         {
           createdAt:
             validDate(settings?.createdAt)?.getTime() ??
             fs.statSync(source).birthtimeMs,
           ...(emoji ? { emoji } : {}),
-          folders: projectFolders(settings?.folders),
+          folders: legacyProjectFolders(settings?.folders),
           id: id.data,
           instructions,
           name: bare,
@@ -843,64 +849,88 @@ function storedValue(blob: null | Uint8Array): unknown {
 }
 
 /**
- * The topic a project's chats carry: the one already called by its name, with
- * the project's instructions added after its own, or a new one made from it. Asking again for the same project changes
- * nothing, since what it would add is already there.
+ * The project a 1.x project's chats are filed under: its own, from an earlier
+ * boot, or the one already called by its name, with the 1.x project's
+ * instructions added after its own, or a new one made from it under the 1.x
+ * project's id. Asking again for the same 1.x project changes nothing, since
+ * what it would add is already there.
  */
-function topicForProject(
-  rootDir: string,
-  project: LegacyProject,
-  topics: Topic[],
-): { id: string; made: boolean } {
-  // Its own topic first, from an earlier boot. Otherwise one of the user's of
-  // the same name, never another project's: names are cut to a topic's
-  // length, so two long project names can meet.
-  const own = topics.findIndex((topic) => topic.projectId === project.id);
+function projectForLegacy({
+  legacy,
+  legacyIds,
+  projects,
+  rootDir,
+}: {
+  legacy: LegacyProject;
+  /** Every 1.x project's id, each of which names a project made from it. */
+  legacyIds: Set<string>;
+  projects: Project[];
+  rootDir: string;
+}): { id: string; made: boolean } {
+  // Its own project first, from an earlier boot: one made under its id, or
+  // one a build that called projects topics made from it or joined to it,
+  // naming it in `projectId`. Otherwise one of the user's of the same name,
+  // never another 1.x project's: names are cut to a project's length, so two
+  // long names can meet.
+  const own = projects.findIndex(
+    (project) => project.id === legacy.id || legacyIdOf(project) === legacy.id,
+  );
   const index =
     own === -1
-      ? topics.findIndex(
-          (topic) =>
-            topic.projectId === undefined &&
-            !topic.retired &&
-            nameKey(topic.name) === nameKey(project.name),
+      ? projects.findIndex(
+          (project) =>
+            !legacyIds.has(project.id) &&
+            legacyIdOf(project) === undefined &&
+            !project.retired &&
+            nameKey(project.name) === nameKey(legacy.name),
         )
       : own;
-  const existing = topics[index];
+  const existing = projects[index];
   if (existing) {
     const body = existing.instructions?.trim() ?? "";
     const addsInstructions =
-      project.instructions !== "" && !body.includes(project.instructions);
+      legacy.instructions !== "" && !body.includes(legacy.instructions);
     if (addsInstructions || own === -1) {
-      const next: Topic = {
+      const next: Project = {
         ...existing,
-        projectId: existing.projectId ?? project.id,
+        ...(existing.id === legacy.id || legacyIdOf(existing) !== undefined
+          ? {}
+          : { others: { ...existing.others, projectId: legacy.id } }),
         ...(addsInstructions
           ? {
               instructions: body
-                ? `${body}\n\n${project.instructions}`
-                : project.instructions,
+                ? `${body}\n\n${legacy.instructions}`
+                : legacy.instructions,
             }
           : {}),
       };
-      writeTopicSync(rootDir, next);
-      topics[index] = next;
+      writeProjectSync(rootDir, next);
+      projects[index] = next;
     }
     return { id: existing.id, made: false };
   }
-  const topic: Topic = {
-    created: toTheSecond(new Date(project.createdAt)),
-    ...(project.emoji ? { emoji: project.emoji } : {}),
-    id: newTopicId(project.createdAt),
-    ...(project.instructions ? { instructions: project.instructions } : {}),
-    name: unusedTopicName(
-      project.name,
-      topics.map((known) => known.name),
+  const project: Project = {
+    created: toTheSecond(new Date(legacy.createdAt)),
+    ...(legacy.emoji ? { emoji: legacy.emoji } : {}),
+    id: legacy.id,
+    ...(legacy.instructions ? { instructions: legacy.instructions } : {}),
+    name: unusedProjectName(
+      legacy.name,
+      projects.map((known) => known.name),
     ),
-    projectId: project.id,
   };
-  writeTopicSync(rootDir, topic);
-  topics.push(topic);
-  return { id: topic.id, made: true };
+  writeProjectSync(rootDir, project);
+  projects.push(project);
+  return { id: project.id, made: true };
+}
+
+/**
+ * The 1.x project a project was joined to, which a build that called
+ * projects topics kept as `projectId` in its front matter.
+ */
+function legacyIdOf(project: Project): string | undefined {
+  const id = project.others?.projectId;
+  return typeof id === "string" ? id : undefined;
 }
 
 function validDate(value: unknown): Date | undefined {

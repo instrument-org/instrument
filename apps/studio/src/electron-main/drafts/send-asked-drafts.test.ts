@@ -136,10 +136,10 @@ describe("startSendingAskedDrafts", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("starts the chat a draft of its own opens, then sends it there under its topic", async () => {
+  it("starts the chat a draft of its own opens, then sends it there under its project", async () => {
     const send = vi.fn(() => Promise.resolve());
     const startChat = vi.fn(() => Promise.resolve(CHAT));
-    const { chatId: _reply, ...newChat } = reply({ topicId: "top_weather" });
+    const { chatId: _reply, ...newChat } = reply({ projectId: "top_weather" });
     const applied = run([newChat], send, startChat);
     await vi.waitFor(() => {
       expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
@@ -151,7 +151,7 @@ describe("startSendingAskedDrafts", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({
       chatId: CHAT,
       draftId: "01KFDRAFT0000000000000001",
-      topicId: "top_weather",
+      projectId: "top_weather",
       words: "Will it rain on Saturday?",
     });
   });

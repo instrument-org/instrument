@@ -48,7 +48,7 @@ export function sessionOf(session: FoldedSession): Session.Type {
         titleByApp: true,
       }),
     ...(title && !title.value.auto && { titleSettledAt: title.at }),
-    ...(settings.topic?.value && { topic: settings.topic.value }),
+    ...(settings.project?.value && { project: settings.project.value }),
     ...(unread?.value && {
       unreadAt: unread.at,
       ...(unread.value === "marked" && { unreadByUser: true }),

@@ -34,7 +34,7 @@ vi.mock("@/client/components/window/shell-context", () => ({
     chats: [],
     goToPlace: () => undefined,
     newDraft: () => undefined,
-    topics: [],
+    projects: [],
   }),
 }));
 

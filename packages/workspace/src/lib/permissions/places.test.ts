@@ -124,7 +124,7 @@ describe.runIf(process.platform === "darwin")("App files on a Mac", () => {
       settings: {
         apps: [],
         chats: {},
-        topics: {},
+        projects: {},
         dangerouslyAllowEveryFolder: false,
         folders: [],
         places: level ? { appFiles: level } : {},
@@ -285,7 +285,7 @@ describe("what runs code later stays closed with folders open unasked", () => {
     settings: {
       apps: [],
       chats: {},
-      topics: {},
+      projects: {},
       folders: [],
       places: {},
       dangerouslyAllowEveryFolder: true,

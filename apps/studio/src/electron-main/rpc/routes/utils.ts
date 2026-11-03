@@ -557,7 +557,7 @@ const live = {
     }),
 };
 
-// The asking window's own state: the topic is one every window publishes on,
+// The asking window's own state: the project is one every window publishes on,
 // and each subscriber wants the answer for itself.
 function readWindowState(webContentsId: number) {
   const window = getCallingWindow(webContentsId);

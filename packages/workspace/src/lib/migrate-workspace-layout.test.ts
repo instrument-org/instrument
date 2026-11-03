@@ -21,7 +21,7 @@ const NOTHING_ADOPTED = {
   adoptedCount: 0,
   emptyCount: 0,
   leftOver: 0,
-  topicCount: 0,
+  projectCount: 0,
   unreadable: [],
 };
 
@@ -144,7 +144,7 @@ describe("migrateWorkspaceLayout", () => {
         adoptedCount: 0,
         emptyCount: 0,
         leftOver: 0,
-        topicCount: 0,
+        projectCount: 0,
         unreadable: [],
       },
       movedTaskCount: 0,
@@ -527,13 +527,16 @@ describe("migrateWorkspaceLayout", () => {
     writeLegacyTask("abc", { "sessions.db": "db" });
     migrate();
 
-    // projects/ is now the live feature dir; the mark must block a re-run.
+    // The mark must block a re-run: what turns up in projects/ later waits
+    // off the top level, where `Projects/` is the person's projects.
     writeLegacyTask("def", { "sessions.db": "db2" });
     const result = migrate();
 
     expect(result.movedTaskCount).toBe(0);
     expect(exists("tasks", "def")).toBe(false);
-    expect(read("projects", "def", ".instrument", "sessions.db")).toBe("db2");
+    expect(
+      read(".instrument", "1x-projects", "def", ".instrument", "sessions.db"),
+    ).toBe("db2");
   });
 
   it("never moves a real project folder, even with the mark absent", () => {
@@ -545,7 +548,9 @@ describe("migrateWorkspaceLayout", () => {
 
     expect(result.movedTaskCount).toBe(0);
     expect(result.conflictedTaskIds).toEqual([]);
-    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
+    expect(
+      exists(".instrument", "1x-projects", "My Project", "AGENTS.md"),
+    ).toBe(true);
     expect(exists("tasks", "My Project")).toBe(false);
     expect(marks.legacyProjectsMigrated).toBe(true);
   });
@@ -558,7 +563,9 @@ describe("migrateWorkspaceLayout", () => {
 
     expect(result.movedTaskCount).toBe(1);
     expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
-    expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
+    expect(
+      exists(".instrument", "1x-projects", "My Project", "AGENTS.md"),
+    ).toBe(true);
     expect(exists("tasks", "My Project")).toBe(false);
   });
 
@@ -578,8 +585,12 @@ describe("migrateWorkspaceLayout", () => {
     const result = migrate();
 
     expect(result.appFolders.failed).toBe(0);
-    // A project waiting for its topic stays for the 1.x migration.
-    expect(fs.readdirSync(path.join(rootDir, "projects"))).toEqual(["Waiting"]);
+    // A 1.x project waiting to become a project stays for the 1.x migration,
+    // off the top level.
+    expect(exists("projects")).toBe(false);
+    expect(
+      fs.readdirSync(path.join(rootDir, ".instrument", "1x-projects")),
+    ).toEqual(["Waiting"]);
     expect(
       fs
         .readdirSync(
@@ -592,11 +603,27 @@ describe("migrateWorkspaceLayout", () => {
     );
     expect(marks.layoutVersion).toBeDefined();
 
-    // Once the project is a topic, the folder empties and goes.
-    fs.rmSync(path.join(rootDir, "projects", "Waiting"), { recursive: true });
+    // Once the 1.x project is a project, the folder empties and goes.
+    fs.rmSync(path.join(rootDir, ".instrument", "1x-projects", "Waiting"), {
+      recursive: true,
+    });
     marks = { ...marks, layoutVersion: 0 };
     migrate();
-    expect(exists("projects")).toBe(false);
+    expect(exists(".instrument", "1x-projects")).toBe(false);
+  });
+
+  it("leaves the person's Projects/ where it is, taking only 1.x's lowercase projects/", () => {
+    fs.mkdirSync(path.join(rootDir, "Projects", "Garden"), { recursive: true });
+    fs.writeFileSync(
+      path.join(rootDir, "Projects", "Garden", "AGENTS.md"),
+      "Water on Sundays.\n",
+    );
+
+    migrate();
+
+    expect(read("Projects", "Garden", "AGENTS.md")).toBe("Water on Sundays.\n");
+    expect(exists(".instrument", "1x-projects")).toBe(false);
+    expect(exists(".instrument", ".pre-chats", "projects")).toBe(false);
   });
 
   it("leaves the runnable package at the task root", () => {
@@ -1193,7 +1220,7 @@ describe("migrateWorkspaceLayout", () => {
   // Builds before kept the app's folders at the workspace's top level; the
   // sweep moves them into its `.instrument/` before anything reads them.
   describe("the app's folders", () => {
-    it("moves them in before the 1.x migration, which finds every topic there", () => {
+    it("moves them in before the 1.x migration, which finds every project there", () => {
       fs.mkdirSync(path.join(rootDir, "topics", "Home", ".instrument"), {
         recursive: true,
       });

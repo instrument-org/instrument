@@ -6,7 +6,7 @@ import { filesUnder, fingerprintOf } from "./folder-fingerprint";
 
 /**
  * What each item of the person's setup is right now: whether it is there (its
- * `SKILL.md`, `APP.md`, `TOPIC.md` or memory file exists) and a fingerprint of
+ * `SKILL.md`, `APP.md` or memory file exists, or a project's folder does) and a fingerprint of
  * the files it holds. Keyed `kind:name`.
  *
  * Read from the disk rather than from anyone's account of a write, so it sees
@@ -31,7 +31,7 @@ export async function snapshotSetup(): Promise<SetupSnapshot> {
     snapshot.set(`${item.kind}:${item.name}`, item);
   };
   await Promise.all([
-    ...(["app", "skill", "topic"] as const).map(async (kind) => {
+    ...(["app", "skill", "project"] as const).map(async (kind) => {
       const dir = SETUP_KINDS[kind].folder();
       // The marker's place inside an item's folder.
       const marker = SETUP_KINDS[kind].marker("").slice(1);
@@ -44,7 +44,9 @@ export async function snapshotSetup(): Promise<SetupSnapshot> {
           fingerprint: fingerprintOf(files),
           kind,
           name: entry.name,
-          present: files.some((file) => file.path === marker),
+          // Every folder in `Projects/` is a project, with its file or without.
+          present:
+            kind === "project" || files.some((file) => file.path === marker),
         });
       }
     }),

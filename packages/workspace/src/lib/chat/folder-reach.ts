@@ -11,22 +11,22 @@ import { chatGrants } from "./grants";
 import { type PlaceId, placePaths } from "../permissions/places";
 import { readPermissionSettings } from "../permissions/rules";
 import { outputFolderPath } from "./output-folder";
-import { listTopics } from "./topics";
+import { listProjects } from "./projects";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
  * The folders a chat reaches: the home
  * folder and the workspace folder always, the folders granted in the chat,
- * the folders of the topic it is filed under while it is, and the folders
+ * the folders of the project it is filed under while it is, and the folders
  * Settings › Permissions allows everywhere. Only the
- * grants are written to the chat. Worked out on every read, so a topic's
- * folder comes and goes with the topic and a folder granted in one chat
+ * grants are written to the chat. Worked out on every read, so a project's
+ * folder comes and goes with the project and a folder granted in one chat
  * stays in that chat. Every session of the chat reaches the same folders.
  *
  * The window, which no chat is, reaches the two standing folders alone.
  *
  * Keyed by path, in a fixed order: the two standing folders, then the
- * grants by when each was granted, then the topic's folders, then the
+ * grants by when each was granted, then the project's folders, then the
  * folders allowed everywhere.
  */
 export async function folderReach(
@@ -55,7 +55,7 @@ export async function folderReach(
         path: grant.path,
       });
     }
-    for (const folderPath of await topicFolderPaths(chatId)) {
+    for (const folderPath of await projectFolderPaths(chatId)) {
       add(standingFolder(folderPath));
     }
     // Folders allowed in Settings › Permissions, for every chat, after the
@@ -114,22 +114,22 @@ function standingFolder(folderPath: string): MountedFolder.Type {
 }
 
 /**
- * The folders of the topic the chat is filed under, leaving out any no
+ * The folders of the project the chat is filed under, leaving out any no
  * longer on disk so the agent is not pointed at nothing.
  */
-async function topicFolderPaths(chatId: ChatId): Promise<string[]> {
+async function projectFolderPaths(chatId: ChatId): Promise<string[]> {
   const sessionId = sessionOfChat(chatId);
   if (!sessionId) {
     return [];
   }
   const session = await ChatReads.session({ chatId, sessionId });
-  const filed = session.isOk() ? session.value.topic : undefined;
+  const filed = session.isOk() ? session.value.project : undefined;
   if (filed === undefined) {
     return [];
   }
-  const topic = (await listTopics()).find((entry) => entry.id === filed);
+  const project = (await listProjects()).find((entry) => entry.id === filed);
   const paths: string[] = [];
-  for (const folder of topic?.folders ?? []) {
+  for (const folder of project?.folders ?? []) {
     const onDisk = AbsolutePathSchema.safeParse(folder.path);
     if (onDisk.success && (await pathExists(onDisk.data))) {
       paths.push(onDisk.data);

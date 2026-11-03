@@ -17,7 +17,7 @@ export {
 } from "./tools/connect-app-output";
 export { isChatTranscript } from "./lib/chat-folders/chat-transcript";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
-export { topicModelNote } from "./lib/topic-model-text";
+export { projectModelNote } from "./lib/project-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
 export { environmentChangeModelNote } from "./lib/environment-model-text";
 export { describeMessageError } from "./lib/describe-message-error";

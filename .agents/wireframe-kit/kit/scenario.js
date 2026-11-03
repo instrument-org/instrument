@@ -1,7 +1,7 @@
 // ---- the scenario ---------------------------------------------------------------
 // The shared, invented scenario every round draws: someone at a help desk company lining
 // up competitors' list prices against their own plans ("Help desk pricing against
-// competitors"), with the chats, files, pages and topics around it. Keep to it so rounds
+// competitors"), with the chats, files, pages and projects around it. Keep to it so rounds
 // compare, add to it rather than renaming what is here, and keep new data to work people
 // do for a business. The home folder is `mac-user`.
 
@@ -58,7 +58,7 @@ const ROWS = [
     working: true,
     time: "9:41 AM",
     holds: [{ site: "zendesk" }, { site: "intercom" }, { site: "freshdesk" }],
-    topic: "Pricing",
+    project: "Pricing",
   },
   {
     title: "SOC 2 audit quotes from four firms",
@@ -67,7 +67,7 @@ const ROWS = [
     starred: true,
     time: "Yesterday",
     holds: [{ file: "quotes" }],
-    topic: "Security reviews",
+    project: "Security reviews",
   },
   {
     title: "Q3 board update in the Instrument folder",
@@ -281,8 +281,8 @@ const APP_ROWS = [
   ],
 ];
 
-/** The topics the scenario files chats under, as the picker lists them (topics.list). */
-const TOPICS = [
+/** The projects the scenario files chats under, as the picker lists them (projects.list). */
+const PROJECTS = [
   { emoji: "💼", name: "Pricing", color: "#ebaf86", count: 3, instructions: "Compare list prices per agent per month, billed annually, for a 10-agent team. Name the plan and the tier, and link the page each price came from." },
   { emoji: "🛡️", name: "Security reviews", color: "#82c7f0", count: 1, instructions: "" },
 ];

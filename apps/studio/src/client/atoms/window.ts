@@ -303,19 +303,8 @@ export interface ComputerFolderView {
 }
 
 /**
- * Whether a file tab shows the tree beside its document. One answer for
- * every file tab: the tree is a way of working, not a property of a file.
- */
-export const fileTreeOpenAtom = keptAtom<boolean>(
-  "view",
-  "file-tree-open.v1",
-  true,
-);
-
-/**
  * Whether the Finder shows its sidebar of places beside the folder, where the
- * tab is wide enough to hold both. One answer for every Finder, the way the
- * tree beside a file is. A narrow tab lays the places over the folder only
+ * tab is wide enough to hold both. One answer for every Finder. A narrow tab lays the places over the folder only
  * while asked for, whatever this says.
  */
 export const finderPlacesOpenAtom = keptAtom<boolean>(
@@ -329,13 +318,6 @@ export const finderPlacesWidthAtom = keptAtom<number>(
   "view",
   "finder-places-width.v1",
   176,
-);
-
-/** How wide the tree beside a file is, in CSS px, dragged at its right edge. One width for every file tab, as the tree is one way of working. */
-export const fileTreeWidthAtom = keptAtom<number>(
-  "view",
-  "file-tree-width.v1",
-  240,
 );
 
 /** How wide a folder is beside a file open in it, in CSS px, dragged at its right edge. One width for every view. */

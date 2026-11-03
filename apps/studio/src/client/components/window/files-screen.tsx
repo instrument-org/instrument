@@ -1,17 +1,9 @@
 import { type ChosenItem } from "@/shared/drafts";
-import {
-  type FileTab,
-  finderBesideWidthAtom,
-  fileTreeOpenAtom,
-  fileTreeWidthAtom,
-} from "@/client/atoms/window";
+import { type FileTab, finderBesideWidthAtom } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
 import { ResizeHandle } from "@/client/components/resize-handle";
-import {
-  type RailBounds,
-  StudioSidebarRail,
-} from "@/client/components/studio-sidebar-rail";
+import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
@@ -43,7 +35,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom } from "jotai";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   type ReactNode,
@@ -67,7 +59,6 @@ import {
 import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
-import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
 import { useFilesStep } from "./use-files-step";
@@ -87,19 +78,10 @@ import { useWindowTabs } from "./window-tabs";
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
 const FULL_BLEED = "h-full rounded-none shadow-none";
 /**
- * How narrow and how wide the tree beside a file can be dragged, in CSS px,
+ * How narrow and how wide the folder beside a file can be dragged, in CSS px,
  * where it opens and goes back to on a double-click at its edge, and how far
- * under its minimum a drag closes it rather than stopping there.
- */
-const TREE_BOUNDS: RailBounds = {
-  collapse: 110,
-  initial: 240,
-  max: 480,
-  min: 180,
-};
-/**
- * The same for the folder itself beside a file, no narrower than its section
- * of the row needs to name it beside its controls.
+ * under its minimum a drag closes it rather than stopping there. No narrower
+ * than its section of the row needs to name it beside its controls.
  */
 const BESIDE_BOUNDS: RailBounds = {
   collapse: 150,
@@ -108,8 +90,8 @@ const BESIDE_BOUNDS: RailBounds = {
   min: 260,
 };
 /**
- * The least room a file opening needs beside the folder or the tree, in CSS
- * px. A tab narrower than that opens the file with them folded away.
+ * The least room a file opening needs beside the folder, in CSS px. A tab
+ * narrower than that opens the file with the folder folded away.
  */
 const FILE_ROOM = 420;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
@@ -130,13 +112,12 @@ const PILE_POSES = [
  * This Mac shows a folder or file in the current tab. Back returns to the
  * folder after opening a file; Space previews the selection in Quick Look.
  *
- * In a tab of the window's own, a file opened from the Finder slides in
- * beside the folder, which narrows to make room and stays as it was, so the
- * files of a folder can be leafed through with a click or an arrow, and a
- * link between two documents followed, without going back to the Finder. In
- * a chat's own tab the file takes the Finder's place instead, with the
- * Finder's folder as a tree at its left. Either way a row or a link in the
- * document swaps the file in the same tab.
+ * A file opened from the Finder slides in beside the folder, which narrows
+ * to make room and stays as it was, so the files of a folder can be leafed
+ * through with a click or an arrow, and a link between two documents
+ * followed, without going back to the Finder. The same in a tab of the
+ * window's own and one beside a chat. A file reached from anywhere else
+ * takes the whole tab.
  *
  * A page's file (HTML) is what a browser is for. It is drawn as its page
  * inside the file's viewer, by a guest at its `file://` address that the
@@ -150,7 +131,8 @@ export function FilesScreen({
   /**
    * The step the tab's address holds: the file it shows (the folder when
    * there is none), the folder and how it is laid out, what is selected and
-   * searched for in it, and the folder the file's own tree is rooted at.
+   * searched for in it, and the folder the file was opened from, which it
+   * shows beside.
    */
   step: SettledStep;
 }) {
@@ -159,18 +141,12 @@ export function FilesScreen({
   const { arrivals, go, step: here } = useFilesStep(routed);
   const { file, path, query, root, select, tree, view } = here;
   const source = here.source ?? false;
-  const { openScreen, rowField, rowHoldsTools, rowLead, rowReload, rowTail } =
-    useWindow();
+  const { openScreen, rowField, rowReload, rowTail } = useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
   const isActiveTab = useIsActiveTab();
-  const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
-  const treeWidth = useAtomValue(fileTreeWidthAtom);
-  // Folded for want of room as a file opened, which leaves the tree as the
-  // person last set it for a tab wide enough.
-  const [isTreeFolded, setTreeFolded] = useState(false);
   const router = useRouter();
   // The tab of a chat's or a draft's group this screen is in, when it is
   // not one of the window's own.
@@ -194,9 +170,9 @@ export function FilesScreen({
   );
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   // A file opened from the Finder carries the folder the Finder stood in,
-  // which is where its tab's tree is rooted; the recents stand in no folder,
-  // so a file opened there is rooted at its own. The folder's own step stays
-  // in the address, so a layout that narrows beside a file shows it there.
+  // which it opens beside; the recents stand in no folder, so a file opened
+  // there carries its own. The folder's own step stays in the address, so a
+  // layout that narrows beside a file shows it there.
   const openFile = (tab: FileTab) => {
     go({
       file: tab.hostPath,
@@ -207,7 +183,7 @@ export function FilesScreen({
   };
   const quickLook = useQuickLook({ openFile });
   /**
-   * Another file in this tab's place: the tree and the crumbs follow it.
+   * Another file in this tab's place: the folder and the crumbs follow it.
    * `replace` for a file the hosted page itself went to, whose step is in the
    * page's own history and not a second time in the tab's.
    */
@@ -218,12 +194,11 @@ export function FilesScreen({
       type: replace ? "followFile" : "openFile",
     });
   };
-  // In a tab of the window's own a file opened from the folder opens beside
-  // it: the folder narrows as the file slides in from the right, and widens
-  // again as it slides away. The folder stays mounted throughout, so what it
-  // had selected, open and scrolled to is all still there either way.
-  const isBesideLayout =
-    rowHoldsTools === true && (file === undefined || tree !== undefined);
+  // A file opened from the folder opens beside it: the folder narrows as the
+  // file slides in from the right, and widens again as it slides away. The
+  // folder stays mounted throughout, so what it had selected, open and
+  // scrolled to is all still there either way.
+  const isBesideLayout = file === undefined || tree !== undefined;
   const isFileOpen = isBesideLayout && file !== undefined;
   const [isFolderShown, setFolderShown] = useState(true);
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
@@ -270,9 +245,8 @@ export function FilesScreen({
       ? Number.POSITIVE_INFINITY
       : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
   );
-  // A file opening, from the folder or straight into the tab, leaves the
-  // folder or the tree beside it only when the tab has room for both,
-  // measured once the tab has a width.
+  // A file opening from the folder leaves the folder beside it only when the
+  // tab has room for both, measured once the tab has a width.
   const isFileShown = file !== undefined;
   const [wasFileShown, setWasFileShown] = useState(isFileShown);
   const [isFitPending, setFitPending] = useState(isFileShown);
@@ -284,8 +258,6 @@ export function FilesScreen({
     setFitPending(false);
     if (isBesideLayout) {
       setFolderShown(layoutWidth - besideWidth >= FILE_ROOM);
-    } else {
-      setTreeFolded(layoutWidth - treeWidth < FILE_ROOM);
     }
   }
   const clampBesideWidth = (width: number) =>
@@ -471,7 +443,7 @@ export function FilesScreen({
         },
   );
   // Edit belongs to the file it was switched on for: leafing to another file
-  // in the tree, or leaving, shows the next one as its page.
+  // in the folder, or leaving, shows the next one as its page.
   useEffect(() => {
     if (hostedTabId === undefined) {
       return;
@@ -769,13 +741,8 @@ export function FilesScreen({
                         : { page: browserTargetOf(hostedTabId) }),
                       pickedInto: pickedSlot,
                       toggle: (
-                        <TreeToggle
+                        <FolderToggle
                           isOpen={isFolderShown}
-                          label={
-                            isFolderShown
-                              ? "Hide the folder"
-                              : "Show the folder"
-                          }
                           onToggle={() => {
                             setFolderShown((shown) => !shown);
                           }}
@@ -931,75 +898,6 @@ export function FilesScreen({
     );
   }
 
-  if (activeFile && viewerFile && tree !== undefined) {
-    return (
-      <FileOpenContext value={openLinkedFile}>
-        <LinkSurface
-          base={folderOf(activeFile.hostPath)}
-          openFile={openLinkedFile}
-        >
-          <div className="flex h-full min-h-0" ref={setLayout}>
-            {/* Beside the document the way the window's own rail is: its edge
-              drags, an over-drag closes it, and it slides at its width. It
-              stays mounted while closed, so what it had open is still open
-              when it returns. The Finder's own ground rather than a tinted
-              panel, so the tree reads as the list it was opened from. */}
-            <StudioSidebarRail
-              bounds={TREE_BOUNDS}
-              isAtOnce={isTreeFolded}
-              isOpen={isTreeOpen && !isTreeFolded}
-              label="Resize the tree"
-              onCollapse={() => {
-                setTreeOpen(false);
-              }}
-              panelClassName="bg-background"
-              widthAtom={fileTreeWidthAtom}
-            >
-              <FileTree
-                onOpen={showFile}
-                root={tree}
-                selected={activeFile.hostPath}
-              />
-            </StudioSidebarRail>
-            {/* At the row's far left, over the tree it puts away. */}
-            {rowLead &&
-              createPortal(
-                <TreeToggle
-                  isOpen={isTreeOpen && !isTreeFolded}
-                  onToggle={() => {
-                    if (isTreeFolded) {
-                      setTreeFolded(false);
-                      setTreeOpen(true);
-                    } else {
-                      setTreeOpen((open) => !open);
-                    }
-                  }}
-                />,
-                rowLead,
-              )}
-            <div className="relative min-h-0 min-w-0 flex-1">
-              {refusedView ?? (
-                <FileViewer
-                  actionsInto={rowTail}
-                  actionsLead={actionsLead}
-                  className={FULL_BLEED}
-                  editable
-                  file={viewerFile}
-                  key={activeFile.hostPath}
-                  {...pageInSlot(isTreeOpen && !isTreeFolded)}
-                />
-              )}
-              {/* A page in Edit keeps its asks in its own dock instead. */}
-              {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
-                <AskTray path={activeFile.hostPath} />
-              )}
-            </div>
-          </div>
-        </LinkSurface>
-      </FileOpenContext>
-    );
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col" ref={setLayout}>
       <div className="relative min-h-0 flex-1">
@@ -1106,16 +1004,15 @@ function SeveralPicked({ items }: { items: ChosenItem[] }) {
   );
 }
 
-/** Puts the tree away and brings it back, at the far left of the tab's row, over the tree. */
-function TreeToggle({
+/** Puts the folder beside a file away and brings it back, at the far left of the tab's row. */
+function FolderToggle({
   isOpen,
-  label = isOpen ? "Hide the tree" : "Show the tree",
   onToggle,
 }: {
   isOpen: boolean;
-  label?: string;
   onToggle: () => void;
 }) {
+  const label = isOpen ? "Hide the folder" : "Show the folder";
   return (
     <ToolbarTooltip label={label}>
       <Button

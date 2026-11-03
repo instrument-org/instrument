@@ -47,7 +47,7 @@ export function arrivalView(
  * An address as it comes in from outside the tab (a place, a new tab, a
  * typed or linked address, a step an earlier build wrote) made a step: one
  * with no layout takes the one its folder arrives in, and a file with no
- * layout stands beside the folder its tree names, selected there. Walking
+ * layout stands beside the folder its `tree` names, selected there. Walking
  * never needs this, since every walk keeps the step's layout.
  */
 export function settleArrival(

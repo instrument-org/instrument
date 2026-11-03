@@ -19,7 +19,7 @@ import { type PageHost, usePageHost } from "./page-hosts";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * What a page drawn inside a file tab (beside its tree) moving means for the
+ * What a page drawn in a file tab's viewer moving means for the
  * tab around it:
  *
  * - `back`: the mouse's back button pressed over the page, or the back
@@ -73,7 +73,7 @@ export function liveFileAddress(target: BrowserTargetId, path: string) {
     : undefined;
 }
 
-/** {@link liveFileAddress} for the page a file tab draws beside its tree, by the tab's id. */
+/** {@link liveFileAddress} for the page a file tab draws in its viewer, by the tab's id. */
 export function liveHostedFileAddress(
   tabs: readonly WindowTab[],
   tabId: string,
@@ -86,7 +86,7 @@ export function liveHostedFileAddress(
 }
 
 /**
- * The group of the page a file tab draws beside its tree, by the tab's id: a
+ * The group of the page a file tab draws in its viewer, by the tab's id: a
  * group no strip lists, holding that one page.
  */
 export function hostGroupOf(tabId: string) {

@@ -96,7 +96,7 @@ export function useTabSteps(
 export function useWindowSteps(): TabSteps {
   const router = useRouter();
   const { allTabs, selectedTabIn } = useWindowTabs();
-  // The page a file screen in the tab draws beside its tree.
+  // The page a file screen in the tab draws in its viewer.
   const { selectedId } = useAtomValue(appTabsAtom);
   const hosted = usePageGuest(
     selectedId === null ? undefined : hostedPageOf(allTabs, selectedId),
@@ -158,7 +158,7 @@ export function useWindowSteps(): TabSteps {
   };
 }
 
-/** The page a file screen in the tab with that id draws beside its tree, if any. */
+/** The page a file screen in the tab with that id draws in its viewer, if any. */
 function hostedPageOf(
   tabs: readonly WindowTab[],
   tabId: string,

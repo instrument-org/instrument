@@ -2,8 +2,8 @@ import { useState } from "react";
 
 /**
  * The places in a tab's location row that whatever is up draws into: the
- * head, ahead of the arrows (a file's tree toggle, a folder's sidebar
- * toggle); beside the arrows (a page's reload); the end of the field (a
+ * head, ahead of the arrows (the toggle for the folder beside a file, a
+ * folder's sidebar toggle); beside the arrows (a page's reload); the end of the field (a
  * page's zoom, "Updated"); and the tail (a page's controls, a file's
  * actions). Null until the row is up.
  */

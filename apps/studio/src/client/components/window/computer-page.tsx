@@ -1937,8 +1937,8 @@ export function ComputerPage({
   };
   // Several opened at once cannot all stand in this tab, so each comes up in
   // a tab of its own: the first in front when they were opened, every one
-  // behind this when they were opened in new tabs. A file comes up with the
-  // folder it was chosen in as its tree, the way one opened in place does.
+  // behind this when they were opened in new tabs. A file comes up beside the
+  // folder it was chosen in, the way one opened in place does.
   const openInTabs = (
     picked: FileSystemItem[],
     { behind }: { behind: boolean },
@@ -2859,7 +2859,7 @@ type FolderMenuActions = {
  * itself makes the menu as wide as whatever app that file happens to belong
  * to.
  */
-export function FolderMenu({
+function FolderMenu({
   isRecents = false,
   onClosed,
   onSortKey,
@@ -3489,7 +3489,7 @@ function keptInPlaceOf(
  * Why Files leaves an item where it is, by the workspace the window runs on
  * (`keptInPlaceOf`).
  */
-export function useKeptInPlace() {
+function useKeptInPlace() {
   const workspace = useWorkspaceFolder();
   return (item: FileSystemItem | string) => keptInPlaceOf(item, workspace);
 }
@@ -3565,7 +3565,7 @@ export function filesToPaste(
 }
 
 /** A refusal in a line, under a folder opened in place in the list. */
-export function refusalLine(reason: ComputerRefusal["reason"]) {
+function refusalLine(reason: ComputerRefusal["reason"]) {
   switch (reason) {
     case "account":
       return "Your account can’t read this folder";

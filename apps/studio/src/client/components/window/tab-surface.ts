@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
 import { useGroupTab } from "./group-tab";
+import { type TabLocation } from "./tab-location";
 
 /**
  * Where a tab wants the window's page drawn: the element the page lies
@@ -54,6 +55,36 @@ export interface TabSurface {
    * conversation is told where it really is.
    */
   walked?: { hostPath: string; walked: string };
+}
+
+/**
+ * Where a tab's row says it stands, given what its address says and what its
+ * screen says about itself: the folder as it was walked to, and several
+ * picked beside a file in the file's place.
+ */
+export function surfaceLocation(
+  fromHref: TabLocation,
+  { picked, view, walked }: TabSurface = {},
+): TabLocation {
+  if (fromHref.kind === "file" && picked !== undefined) {
+    return picked.folder
+      ? {
+          hostPath: picked.folder.hostPath,
+          kind: "folder",
+          path: picked.folder.walked,
+          picked: picked.count,
+        }
+      : { kind: "folder", path: "", picked: picked.count };
+  }
+  if (fromHref.kind === "folder" && view?.folder) {
+    return {
+      ...fromHref,
+      ...(walked
+        ? { hostPath: walked.hostPath, path: walked.walked }
+        : { path: view.folder.display }),
+    };
+  }
+  return fromHref;
 }
 
 /** Every tab's surface, by the tab's id; a tab with nothing to say is not named. In memory only, with the elements. */

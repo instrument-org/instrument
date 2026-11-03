@@ -47,7 +47,7 @@ export const Route = createFileRoute("/_app/files")({
       .catch(undefined),
     /** A page's file shown as its text rather than as the page: view source. */
     source: z.boolean().optional().catch(undefined),
-    /** The folder a file tab's own tree is rooted at: where the Finder stood when the file was opened. */
+    /** The folder a file opened from the Finder shows beside it: where the Finder stood when it was opened. */
     tree: z.string().optional(),
     /**
      * The layout this step of the tab's history shows the folder in, so back

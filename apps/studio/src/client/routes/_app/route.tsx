@@ -33,7 +33,6 @@ import { GroupItem } from "@/client/components/window/group-item";
 import { liveHostedFileAddress } from "@/client/components/window/hosted-page";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { isPaneOpen } from "@/client/components/window/draft-context";
-import { computerTabOf } from "@/client/components/window/file-tabs";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
@@ -43,12 +42,9 @@ import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
+import { taskHref, tasksHref } from "@/client/components/window/tab-location";
 import {
-  type TabLocation,
-  taskHref,
-  tasksHref,
-} from "@/client/components/window/tab-location";
-import {
+  surfaceLocation,
   tabSurfaceAtom,
   useTabSurface,
 } from "@/client/components/window/tab-surface";
@@ -499,38 +495,17 @@ function RouteScreen({ href }: { href: string }) {
   const appsBySlug = useAppsBySlug();
   const tabId = useTabId();
   const { allTabs } = useWindowTabs();
-  const {
-    picked,
-    view: screenView,
-    walked: walkedFolder,
-  } = useAtomValue(tabSurfaceAtom)[tabId] ?? {};
+  const surface = useAtomValue(tabSurfaceAtom)[tabId];
   usePageSlot(null, undefined, false);
   const { rowProps, slots } = useRowSlots();
-  const computerTab = computerTabOf(href);
-  const fromHref = screenLocation(href, {
-    appsBySlug,
-    chatTitles: shell.chatTitles,
-    taskTitles: shell.childTitles,
-  });
-  const location: TabLocation =
-    // Several picked beside a file stand where it stood.
-    fromHref.kind === "file" && picked !== undefined
-      ? picked.folder
-        ? {
-            hostPath: picked.folder.hostPath,
-            kind: "folder",
-            path: picked.folder.walked,
-            picked: picked.count,
-          }
-        : { kind: "folder", path: "", picked: picked.count }
-      : fromHref.kind === "folder" && screenView?.folder
-        ? {
-            ...fromHref,
-            ...(walkedFolder
-              ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
-              : { path: screenView.folder.display }),
-          }
-        : fromHref;
+  const location = surfaceLocation(
+    screenLocation(href, {
+      appsBySlug,
+      chatTitles: shell.chatTitles,
+      taskTitles: shell.childTitles,
+    }),
+    surface,
+  );
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
   // there would only offer to leave for the web. A new tab's own menu takes
@@ -560,7 +535,6 @@ function RouteScreen({ href }: { href: string }) {
         value={{
           ...appWindow,
           rowField: slots.field,
-          rowHoldsTools: computerTab !== undefined,
           rowLead: slots.lead,
           rowReload: slots.reload,
           rowTail: slots.tail,

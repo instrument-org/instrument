@@ -37,7 +37,7 @@ export function stepOf(
 
 /**
  * What a tab can step through: its page's history as the guest reports it
- * (the tab's own page, or the one a screen draws beside its tree, whose
+ * (the tab's own page, or the one a screen draws in a file's viewer, whose
  * links leave the screen where it stands), its screen's history, its
  * visits, and the window tab's history behind a site. A site of the window's own has nothing of its own before its page (the new
  * tab a page opens with is no stop there), so its visits never step back.

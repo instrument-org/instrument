@@ -515,7 +515,7 @@ export function reorderGroup(
 }
 
 /**
- * A page drawn inside another tab (a file tab's page beside its tree) taking
+ * A page drawn inside another tab (a page's file drawn in a file tab's viewer) taking
  * that tab over: the page, guest and all, stands where the tab stood, in its
  * place in the strip and its group, and back from it returns to what the tab
  * showed. The page's own entry, in the group of pages drawn inside tabs, goes.

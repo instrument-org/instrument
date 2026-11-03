@@ -7,7 +7,7 @@ import { type PageChromeSlots } from "./browser-tabs";
  * A second place a group's page is drawn, besides the tab up in the window:
  * a draft window's band, which shows the draft's group's tabs itself; a
  * floating chat grown to show its tab, or peeking at one; a file tab drawing
- * a page's file beside its tree; or Quick Look. The panel for that group's
+ * a page's file in its viewer; or Quick Look. The panel for that group's
  * page is portaled into `into`, and shown while `isActive`.
  */
 export interface PageHost {

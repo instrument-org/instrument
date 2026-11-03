@@ -3,9 +3,8 @@ import { defaultStringifySearch } from "@tanstack/react-router";
 /**
  * The address of a file's tab: the folder view with the file open in it, by
  * where the file is on the computer. A page's file is shown as the page, and
- * `source` asks for its text instead. `tree` is the folder the tab's own
- * tree is rooted at, for a file opened from the Finder: the folder the
- * Finder was standing in.
+ * `source` asks for its text instead. `tree` is the folder a file opened
+ * from the Finder shows beside it: the folder the Finder was standing in.
  */
 export function fileHref(
   hostPath: string,

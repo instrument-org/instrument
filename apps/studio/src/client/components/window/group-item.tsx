@@ -28,7 +28,7 @@ import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
-import { tabSurfaceAtom } from "./tab-surface";
+import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
 import { chatOfGroup } from "./window-href";
@@ -76,13 +76,12 @@ export function GroupItem({
   const appWindow = useWindow();
   const { browser } = appWindow;
   // What is up draws its own controls into the row: a page its reload, zoom
-  // and controls, a file screen its tree toggle and actions.
+  // and controls, a file screen its folder toggle and actions.
   const { rowProps, slots } = useRowSlots();
   const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
-  const { view: filesView, walked: walkedFolder } =
-    useAtomValue(tabSurfaceAtom)[up.id] ?? {};
+  const surface = useAtomValue(tabSurfaceAtom)[up.id];
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.
@@ -237,18 +236,12 @@ export function GroupItem({
   }
   // Every other screen is a route of the window's own tree, under a router
   // of the tab's own; the folder says where it stands as its Finder reads it.
-  const location = screenLocation(up.href, { appsBySlug, taskTitles });
-  const shown =
-    location.kind === "folder" && filesView?.folder
-      ? {
-          ...location,
-          ...(walkedFolder
-            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
-            : { path: filesView.folder.display }),
-        }
-      : location;
+  const location = surfaceLocation(
+    screenLocation(up.href, { appsBySlug, taskTitles }),
+    surface,
+  );
   return (
-    <Frame anchorRef={anchorRef} head={row(shown)}>
+    <Frame anchorRef={anchorRef} head={row(location)}>
       <GroupTabContext
         key={up.id}
         value={{

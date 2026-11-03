@@ -4882,12 +4882,12 @@ const LIST_COLUMN_WIDTH_MIN = 64;
 const LIST_COLUMN_WIDTH_MAX = 480;
 // The selection: the app's accent, solid, with the row's text in white over
 // it, the way the Finder fills one with the system's.
-export const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
+const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
 // What reads as secondary on a row (dates, sizes, the chevron), over the
 // selection or off it.
 const SELECTED_ROW_SECONDARY_CLASSNAME = "text-white/80";
 // What a context menu is open on: outlined, not selected.
-export const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
+const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
 const LIST_COLUMNS: Array<{
   align: "end" | "start";
   /** Cut to fit beside a file: its short label and short dates, as wide as `shortWidth`, with no edge to drag. */

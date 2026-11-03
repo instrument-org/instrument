@@ -46,6 +46,11 @@ const { openExternalLinkSpy } = vi.hoisted(() => ({
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    files: {
+      probeMedia: {
+        queryOptions: () => ({ enabled: false, queryKey: ["probeMedia"] }),
+      },
+    },
     utils: {
       openExternalLink: {
         mutationOptions: (options: object) => ({
@@ -156,6 +161,50 @@ describe("FileViewer markdown preview", () => {
       "instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
     ]);
   });
+});
+
+describe("FileViewer starting a sound as it opens", () => {
+  it.each([
+    { asked: true, focused: true, active: true, plays: true },
+    { asked: false, focused: true, active: true, plays: false },
+    { asked: true, focused: false, active: true, plays: false },
+    { asked: true, focused: true, active: false, plays: false },
+  ])(
+    "plays: $plays when asked: $asked, focused: $focused, clicked in: $active",
+    async ({ active, asked, focused, plays }) => {
+      vi.spyOn(document, "hasFocus").mockReturnValue(focused);
+      Object.defineProperty(navigator, "userActivation", {
+        configurable: true,
+        value: { hasBeenActive: active },
+      });
+      const play = vi
+        .spyOn(HTMLMediaElement.prototype, "play")
+        .mockResolvedValue(undefined);
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(
+        () => undefined,
+      );
+      vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(
+        () => undefined,
+      );
+      const view = renderWithProviders(
+        <FileViewer
+          autoPlay={asked}
+          file={{
+            filename: "song.mp3",
+            hostPath: "/Users/casey/Music/song.mp3",
+            mimeType: "audio/mpeg",
+            url: "instrument://computer-test/Users/casey/Music/song.mp3",
+          }}
+        />,
+      );
+      await waitFor(() => {
+        expect(view.container.querySelector("audio")).not.toBeNull();
+      });
+      expect(play.mock.calls.length > 0).toBe(plays);
+      vi.restoreAllMocks();
+      Reflect.deleteProperty(navigator, "userActivation");
+    },
+  );
 });
 
 describe("FileViewer Photoshop preview", () => {

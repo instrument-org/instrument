@@ -870,6 +870,8 @@ export function FilesScreen({
                                     actionsInto={isPresent ? rowTail : null}
                                     actionsLead={actionsLead}
                                     actionsTrail={closeButton}
+                                    // A tab opened behind waits to be looked at.
+                                    autoPlay={isActiveTab}
                                     className={FULL_BLEED}
                                     editable
                                     file={viewerFile}

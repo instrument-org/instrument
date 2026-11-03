@@ -5,6 +5,7 @@
 // screen from the skill's prototype.html. WIREFRAME_SKILL_DIR points at the wireframe skill
 // when it is not installed at ~/.claude/skills/wireframe.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import vm from "node:vm";
@@ -37,7 +38,7 @@ const cut = (s, from, to, insert) => {
 };
 
 // Evaluate kit + marks + part in node, so a broken frame fails here rather than on screen.
-const { META, states } = evaluatePart(part);
+const { META, states } = evaluatePart(part, partPath);
 
 // A class naming one of Studio's colors that the skill's skin does not define draws
 // nothing: Tailwind skips it and the element falls back to inherited ink. That is
@@ -126,13 +127,20 @@ for (const [, src] of html.matchAll(
   }
 }
 fs.writeFileSync(outPath, html);
-// RAW=<n> also writes <out>.raw.html: frame n alone at true size, for a kit check;
-// RAW=all writes every frame there, one under another.
+// RAW=<n> also writes frame n alone at true size, for a kit check, and RAW=all every
+// frame, one under another. That page is looked at once and kept by no one, so it goes
+// to the temp folder under the page's name rather than beside the page, and the build
+// says where.
+let raw;
 if (process.env.RAW) {
   const frames =
     process.env.RAW === "all" ? states : [states[Number(process.env.RAW) - 1]];
-  fs.writeFileSync(outPath.replace(/\.html$/, ".raw.html"), rawPage(frames));
+  raw = path.join(
+    os.tmpdir(),
+    path.basename(outPath).replace(/\.html$/, ".raw.html"),
+  );
+  fs.writeFileSync(raw, rawPage(frames));
 }
 console.log(
-  `${outPath}: ${PROTOTYPE ? "a prototype" : `${states.length} frames`}, ${Math.round(html.length / 1024)} KB`,
+  `${outPath}: ${PROTOTYPE ? "a prototype" : `${states.length} frames`}, ${Math.round(html.length / 1024)} KB${raw ? `; frames at true size: ${raw}` : ""}`,
 );

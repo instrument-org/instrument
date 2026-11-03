@@ -126,6 +126,26 @@ describe("a project's folders", () => {
       write: "ask",
     });
   });
+
+  // A computer a build that called projects topics already moved them on,
+  // marked as that build marked it.
+  it("are never widened after an upgrade from a build that marked the move as topics", async () => {
+    const project = await createProject({ name: "Taxes" });
+    filed.project = project.id;
+    fs.writeFileSync(
+      permissionsFileIn(machineDir),
+      JSON.stringify({ topicFoldersMoved: true, topics: {} }),
+    );
+    listInProjectFile("Taxes", outside);
+
+    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+      moved: 0,
+    });
+    expect(await reachOfChat(outside)).toEqual({
+      reached: false,
+      write: "ask",
+    });
+  });
 });
 
 describe("moveProjectFolders", () => {

@@ -76,7 +76,7 @@ function migrate() {
 
 describe("bringing the hidden drafts out", () => {
   it("makes a folder named for the day, with the words and the record in one file", async () => {
-    hiddenDraft("01KFD1", { record: { projectId: "tpc_01KF" } });
+    hiddenDraft("01KFD1", { record: { topicId: "tpc_01KF" } });
 
     const migration = await migrate();
 

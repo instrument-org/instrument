@@ -1,5 +1,8 @@
 import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
-import { type ChatId } from "@instrument-org/workspace/electron";
+import {
+  type ChatId,
+  folderProjectId,
+} from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -113,6 +116,41 @@ describe("a window's ops", () => {
       acks: { window: 2 },
       drafts: store.snapshot().drafts,
     });
+  });
+
+  // A folder the person made in Projects/ goes by an id drawn from its name
+  // until something keeps that id, so a draft filed under it writes it down,
+  // and renaming the folder before the draft is sent keeps the draft in it.
+  it("write down the id of a project a draft is filed under", async () => {
+    fs.mkdirSync(path.join(root, "Projects", "Travel"), { recursive: true });
+    const id = folderProjectId("Travel");
+    const { apply } = await open();
+
+    apply({
+      draft: draft("a", {
+        projectId: id,
+        projectSource: "chosen",
+        words: "Plan the trip",
+      }),
+      type: "create",
+    });
+    await vi.waitFor(() => {
+      expect(
+        fs.existsSync(path.join(root, "Projects", "Travel", "AGENTS.md")),
+      ).toBe(true);
+    });
+    fs.renameSync(
+      path.join(root, "Projects", "Travel"),
+      path.join(root, "Projects", "Trips"),
+    );
+
+    expect(read()).toContain(`project: "${id}"`);
+    expect(
+      fs.readFileSync(
+        path.join(root, "Projects", "Trips", "AGENTS.md"),
+        "utf8",
+      ),
+    ).toContain(`id: ${id}\n`);
   });
 
   it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {

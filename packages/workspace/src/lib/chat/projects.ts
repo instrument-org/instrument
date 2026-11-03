@@ -168,16 +168,20 @@ export function folderProjectId(name: string): string {
 /**
  * Writes a project's id into its file if it is not there yet, before anything
  * keeps that id, so the project keeps it when its folder is renamed. Answers
- * whether the workspace has a project by that id.
+ * whether the workspace has a project by that id. `rootDir` is the
+ * workspace's, for a caller that holds it rather than the workspace config.
  */
-export function saveProjectId(projectId: string): Promise<boolean> {
+export function saveProjectId(
+  projectId: string,
+  rootDir?: string,
+): Promise<boolean> {
   return Promise.resolve().then(() => {
-    const rootDir = getWorkspaceConfig().rootDir;
-    const project = readProjectsSync(rootDir).find(
+    const root = rootDir ?? getWorkspaceConfig().rootDir;
+    const project = readProjectsSync(root).find(
       (entry) => entry.id === projectId,
     );
     if (project?.unsaved) {
-      rewriteProjectSync(rootDir, project, (current) => current);
+      rewriteProjectSync(root, project, (current) => current);
     }
     return project !== undefined;
   });

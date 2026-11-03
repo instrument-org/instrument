@@ -11,9 +11,12 @@ import { addedProjectFolders } from "./project-folders";
 /**
  * The mark in this computer's permission settings that the folders a project's
  * `AGENTS.md` listed were taken in here. Outside the settings' schema, so no
- * write of the settings, a reset included, drops it.
+ * write of the settings, a reset included, drops it. Spelled as the build
+ * that called projects topics wrote it: every computer that ran one holds
+ * it under this name, and one that missed it would take in whatever a
+ * project's file lists again.
  */
-const MOVED_MARK = "projectFoldersMoved";
+const MOVED_MARK = "topicFoldersMoved";
 
 /**
  * Brings the folders granted under each project out of its `AGENTS.md` and into

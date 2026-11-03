@@ -30,7 +30,7 @@ import { openAsksUntil } from "./open-asks";
  * The instruction the suggestion is asked with, after the chat's own
  * conversation: the person's likely next message, or nothing.
  */
-export const NEXT_MESSAGE_INSTRUCTION = `This message is from ${APP_NAME}, not the person, and they will not see it. Don't reply to them or use any tool.
+const NEXT_MESSAGE_INSTRUCTION = `This message is from ${APP_NAME}, not the person, and they will not see it. Don't reply to them or use any tool.
 
 Suggest the next message the person might send. It appears grayed out in their empty message box, and they can take it with one key.
 

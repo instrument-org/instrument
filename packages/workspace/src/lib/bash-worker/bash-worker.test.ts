@@ -447,7 +447,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     const run = remoteBash().exec("sleep 30", { signal: controller.signal });
     setTimeout(() => {
       controller.abort();
-    }, 200);
+    }, 50);
     await run.catch(noop);
     expect(performance.now() - started).toBeLessThan(10_000);
   });

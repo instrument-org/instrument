@@ -425,10 +425,11 @@ describe("CODE_EDITOR_SHORTCUTS", () => {
           : [];
       });
       // Find is the editor's own search either way: the window hands the
-      // press to the find target holding the keyboard.
-      expect(new Set(taken.filter((id) => id !== "findInPage"))).toEqual(
-        CODE_EDITOR_SHORTCUTS,
-      );
+      // press to the find target holding the keyboard. Info is answered from
+      // the menu alone, which an editor's own key never reaches.
+      expect(
+        new Set(taken.filter((id) => id !== "findInPage" && id !== "fileInfo")),
+      ).toEqual(CODE_EDITOR_SHORTCUTS);
     },
   );
 });

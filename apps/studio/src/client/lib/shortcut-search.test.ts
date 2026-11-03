@@ -61,6 +61,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Files: Back in Page  ←",
         "Files: Close Page Viewer or File  Esc",
         "Files: Forward in Page  →",
+        "Files: Info  ⌘I",
         "Files: Scroll Page  Space",
         "Tabs: Close Tab  ⌘W",
         "Tabs: Last Tab  ⌘9",

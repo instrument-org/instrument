@@ -110,6 +110,7 @@ describe("formatAcceleratorFor", () => {
         "pageClose: Esc  /  Esc  /  Esc",
         "back: ⌘ [  /  Alt ←  /  Alt ←",
         "closeTab: ⌘ W  /  Ctrl W  /  Ctrl W",
+        "fileInfo: ⌘ I  /  Alt Enter  /  Alt Enter",
         "commandMenu: ⌘ K  /  Ctrl K  /  Ctrl K",
         "editPage: ⌘ E  /  Ctrl E  /  Ctrl E",
         "findInPage: ⌘ F  /  Ctrl F  /  Ctrl F",

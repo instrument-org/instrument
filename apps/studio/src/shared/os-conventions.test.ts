@@ -25,6 +25,7 @@ describe("OS_CONVENTIONS", () => {
           "files": {
             "copyPathKey": null,
             "duplicateKey": null,
+            "infoLabel": "Properties",
             "parentFolderKey": "altKey",
             "renameKey": "F2",
             "trashKey": {
@@ -65,6 +66,7 @@ describe("OS_CONVENTIONS", () => {
               "key": "d",
               "shift": false,
             },
+            "infoLabel": "Info",
             "parentFolderKey": "metaKey",
             "renameKey": "Enter",
             "trashKey": {
@@ -101,6 +103,7 @@ describe("OS_CONVENTIONS", () => {
               "shift": true,
             },
             "duplicateKey": null,
+            "infoLabel": "Properties",
             "parentFolderKey": "altKey",
             "renameKey": "F2",
             "trashKey": {

@@ -35,6 +35,7 @@ import {
   openInAppTargetOfUrl,
 } from "@/client/hooks/use-open-in-app";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { pageConnection } from "@/client/lib/page-connection";
@@ -177,7 +178,8 @@ export function TabLocationRow({
           if (
             event.button !== 0 ||
             (event.ctrlKey && isMacOS()) ||
-            (event.target instanceof Element && event.target.closest("button"))
+            (event.target instanceof Element &&
+              event.target.closest("button, [data-drags-out]"))
           ) {
             return;
           }
@@ -395,7 +397,7 @@ function Field({ location }: { location: TabLocation }) {
   };
   return (
     <>
-      {locationMark(location)}
+      <LocationMark location={location} />
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
       <FoldingTrail
@@ -509,6 +511,45 @@ function ConnectionBadge({ url }: { url: string }) {
       </PopoverContent>
     </Popover>
   );
+}
+
+/**
+ * The mark of a file or folder, which drags it out of the window the way a
+ * Mac window's title bar icon does.
+ */
+function LocationMark({ location }: { location: TabLocation }) {
+  const hostPath = draggedHostPath(location);
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
+  if (!hostPath) {
+    return locationMark(location);
+  }
+  return (
+    <span
+      {...dragProps}
+      className="flex shrink-0 cursor-default items-center"
+      data-drags-out=""
+    >
+      {locationMark(location)}
+    </span>
+  );
+}
+
+/** The file or folder on disk a location's mark stands for, if it is one. */
+function draggedHostPath(location: TabLocation) {
+  if (location.kind === "file") {
+    return location.path;
+  }
+  // The recents and the disks are no one folder, and a folder with several
+  // picked in it stands for them.
+  if (
+    location.kind === "folder" &&
+    location.path !== "" &&
+    location.path !== COMPUTER_ROOT &&
+    location.picked === undefined
+  ) {
+    return location.hostPath ?? location.path;
+  }
+  return undefined;
 }
 
 /** What the place is drawn with, ahead of its name. */

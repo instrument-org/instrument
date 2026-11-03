@@ -1,6 +1,7 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { type AppPlace } from "@/client/atoms/window";
+import { RailMegaphoneIcon } from "@/client/components/icons/rail-megaphone-icon";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { type RailChatMark } from "@/client/components/window/chats";
@@ -19,7 +20,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
-import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { type ReactNode } from "react";
 
@@ -216,7 +216,7 @@ function RailFeedback({ chatId }: { chatId?: ChatId }) {
       type="button"
     >
       <span className="grid h-6 place-items-center">
-        <MegaphoneSimpleIcon className="size-6" />
+        <RailMegaphoneIcon className="size-6" />
       </span>
       <span className="text-[11px] leading-4">Feedback</span>
     </button>

@@ -1,0 +1,10 @@
+{
+  "name": "household",
+  "chats": [
+    "Help me compare three quotes for kitchen cabinets: oak shaker at $8,400, white flat-panel at $6,900, and walnut slab at $11,200. Keep it to a short table and a one-line pick. No files, no tools.",
+    "Suggest five backsplash tile ideas for a white kitchen with oak cabinets, one line each. No files, no tools.",
+    "Make a short packing list for a three-day weekend trip to the coast in spring. No files, no tools.",
+    "Give me a simple spring planting schedule for tomatoes, basil and lettuce, as a short table. No files, no tools."
+  ],
+  "newChatModel": "Claude Haiku"
+}

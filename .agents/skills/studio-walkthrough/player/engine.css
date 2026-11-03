@@ -1,0 +1,17 @@
+.wt-frame { position: relative; overflow: hidden; background: #0b0b0b; }
+.wt-fit { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; border-radius: 10px; }
+.wt-camera { position: absolute; inset: 0; transform-origin: 0 0; }
+.wt-replay, .wt-replay .replayer-wrapper { position: absolute; inset: 0; }
+.wt-replay iframe { border: 0; display: block; pointer-events: none; }
+.wt-replay .replayer-mouse, .wt-replay .replayer-mouse-tail { display: none !important; }
+.wt-overlay { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.wt-ring { fill: none; stroke: #fff; stroke-width: 2.2; }
+.wt-cursor { position: absolute; left: 0; top: 0; width: 28px; height: 28px; pointer-events: none; transition: opacity .5s ease; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+.wt-cursor svg { display: block; }
+.wt-hud { position: absolute; inset: 0; pointer-events: none; font: 500 15px/1.35 Inter, -apple-system, system-ui, sans-serif; color: #fff; }
+.wt-caption { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); max-width: 78%; padding: 9px 16px; border-radius: 10px; background: rgba(0,0,0,.84); box-shadow: 0 0 0 1px rgba(255,255,255,.12); font-size: 19px; text-align: center; }
+.wt-keys { position: absolute; right: 28px; bottom: 30px; display: flex; gap: 6px; }
+.wt-keys kbd { font: 600 17px/1 Inter, system-ui, sans-serif; color: #111; background: linear-gradient(#fff, #e9e9e9); border-radius: 8px; padding: 9px 12px 10px; box-shadow: 0 2px 0 #9a9a9a, 0 6px 20px rgba(0,0,0,.4); }
+.wt-warp { position: absolute; right: 22px; top: 18px; padding: 6px 12px; border-radius: 999px; background: rgba(0,0,0,.78); font-size: 13px; color: #cfe9de; box-shadow: 0 0 0 1px rgba(255,255,255,.14); }
+.wt-warp::before { content: "▸▸ "; letter-spacing: -2px; margin-right: 4px; }
+[hidden] { display: none !important; }

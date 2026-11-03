@@ -135,6 +135,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statfsSync,
   statSync,
@@ -443,21 +444,102 @@ function readIdentity(workspaceDir) {
 }
 
 /**
- * Where a workspace's sign-ins are: in its machine folder once the app moved
- * them there (format 1), and in its settings folder before.
+ * Where a workspace's sign-ins are: in its machine folder from format 1 on,
+ * registered or about to be, and in its settings folder before.
  */
 function keysDirOf(userDataDir, workspaceDir) {
-  const machineDir = movedMachineDir(userDataDir, workspaceDir);
-  return machineDir
-    ? path.join(machineDir, "keys")
-    : path.join(workspaceDir, ".instrument", "settings");
+  if (!(readIdentity(workspaceDir).formatVersion >= 1)) {
+    return path.join(workspaceDir, ".instrument", "settings");
+  }
+  return path.join(
+    workspaceMachineDir(userDataDir, workspaceDir) ??
+      unclaimedMachineDir(userDataDir, workspaceDir),
+    "keys",
+  );
 }
 
-/** The workspace's machine folder, once the app has moved its data there. */
-function movedMachineDir(userDataDir, workspaceDir) {
-  return readIdentity(workspaceDir).formatVersion >= 1
-    ? workspaceMachineDir(userDataDir, workspaceDir)
-    : undefined;
+/**
+ * The machine folder the app will give a workspace it has not registered
+ * yet, cleared for it: a folder left there by a workspace since removed from
+ * the registry still names its owner, and the app would set it aside at boot
+ * along with any keys put in it, so it is set aside now the way the app does
+ * it (settleWorkspace in Studio's workspaces.ts).
+ */
+function unclaimedMachineDir(userDataDir, workspaceDir) {
+  const machineDir = path.join(
+    userDataDir,
+    "machine",
+    unregisteredWorkspaceId(userDataDir, workspaceDir),
+  );
+  let owner;
+  try {
+    owner = JSON.parse(
+      readFileSync(path.join(machineDir, "owner.json"), "utf8"),
+    ).workspaceId;
+  } catch {
+    return machineDir;
+  }
+  const aside = `${machineDir}.${owner}`;
+  renameSync(machineDir, existsSync(aside) ? `${aside}.${Date.now()}` : aside);
+  return machineDir;
+}
+
+/**
+ * The local id Studio gives a workspace folder it has not registered yet,
+ * which names its machine folder: the folder's name, made unique (idForPath
+ * in Studio's workspaces.ts). The app adopts a machine folder no workspace
+ * owns yet, so keys put there before a first boot are the ones it reads.
+ */
+function unregisteredWorkspaceId(userDataDir, workspaceDir) {
+  let registry;
+  try {
+    registry = JSON.parse(
+      readFileSync(path.join(userDataDir, "workspaces.json"), "utf8"),
+    );
+  } catch {
+    registry = {};
+  }
+  // The default workspace's id is taken whether or not it is listed yet,
+  // as the app's registry reader has it.
+  const taken = new Set([
+    "default",
+    ...(registry.workspaces ?? []).map((entry) => entry?.id),
+  ]);
+  const base =
+    path
+      .basename(workspaceDir)
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .slice(0, 32)
+      .replaceAll(/^-|-$/g, "") || "workspace";
+  let id = base;
+  for (let n = 2; taken.has(id); n++) {
+    id = `${base}-${n}`;
+  }
+  return id;
+}
+
+/**
+ * The developer's own workspace, as a plain dev run opens it: the registry's
+ * active entry, else its default one, else the folder in the application data
+ * a first launch makes (chooseWorkspace in Studio's workspaces.ts).
+ */
+function devWorkspaceDir(userDataDir) {
+  let registry;
+  try {
+    registry = JSON.parse(
+      readFileSync(path.join(userDataDir, "workspaces.json"), "utf8"),
+    );
+  } catch {
+    registry = {};
+  }
+  const entries = registry.workspaces ?? [];
+  const entry =
+    entries.find((candidate) => candidate?.id === registry.active) ??
+    entries.find((candidate) => candidate?.id === "default");
+  return typeof entry?.path === "string"
+    ? path.resolve(userDataDir, entry.path)
+    : path.join(userDataDir, "workspace");
 }
 
 /**
@@ -522,17 +604,22 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
   mkdirSync(home, { recursive: true });
 
   if (withSignIns) {
-    // Into the settings folder until the app has opened the clean room once,
-    // and moves them on into its machine folder itself.
-    const from = keysDirOf(
-      devUserDataDir(),
-      path.join(devUserDataDir(), "workspace"),
-    );
+    // Into the clean room's machine folder, which the app adopts at its
+    // first boot when it is not registered yet.
+    const from = keysDirOf(devUserDataDir(), devWorkspaceDir(devUserDataDir()));
     const keysDir = keysDirOf(devUserDataDir(), dir);
     mkdirSync(keysDir, { recursive: true });
-    for (const file of SIGN_IN_FILES) {
+    const found = SIGN_IN_FILES.filter((file) =>
+      existsSync(path.join(from, file)),
+    );
+    if (found.length === 0) {
+      console.error(
+        `studio-drive: --with-sign-ins found no sign-ins in ${from}, so the clean room starts signed out.`,
+      );
+    }
+    for (const file of found) {
       const target = path.join(keysDir, file);
-      if (existsSync(path.join(from, file)) && !existsSync(target)) {
+      if (!existsSync(target)) {
         copyFileSync(path.join(from, file), target);
       }
     }

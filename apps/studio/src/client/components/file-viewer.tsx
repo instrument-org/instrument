@@ -30,7 +30,8 @@ import {
   showInFolder,
   showInFolderLabel,
 } from "@/client/lib/show-in-files";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { rpcClient } from "@/client/rpc/client";
 import {
   isMessageDocument,
@@ -912,6 +913,7 @@ export function FileViewer({
   file,
   onClose,
   onExpand,
+  onInfo,
   onLeaveSource,
   page,
   silent = false,
@@ -947,6 +949,8 @@ export function FileViewer({
   file: ViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
+  /** The file's info card, where the screen holding the viewer has one. */
+  onInfo?: () => void;
   /**
    * Set by a surface showing a page's file as its source because it was
    * asked to, where the page is shown elsewhere: the menu's way back from
@@ -1035,6 +1039,7 @@ export function FileViewer({
   const canCopy = fileActions.showCopy && !imageLoadError;
   const hasHeaderMenuActions =
     onExpand != null ||
+    onInfo != null ||
     canCopy ||
     fileActions.showDownload ||
     fileActions.showReveal;
@@ -1205,6 +1210,13 @@ export function FileViewer({
               <DropdownMenuItem onClick={handleRevealInFolder}>
                 <ShowInFolderIcon className="size-4" kind="file" />
                 <span>{showInFolderLabel("file")}</span>
+              </DropdownMenuItem>
+            )}
+            {/* No key here: while the file is being typed in, the key is the editor's. */}
+            {onInfo && (
+              <DropdownMenuItem onClick={onInfo}>
+                <InfoIcon className="size-4" />
+                <span>{osConventions().files.infoLabel}</span>
               </DropdownMenuItem>
             )}
             {hasHeaderMenuActions &&

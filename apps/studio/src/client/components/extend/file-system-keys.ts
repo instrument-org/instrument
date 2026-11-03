@@ -11,6 +11,8 @@ import {
   OS_CONVENTIONS,
   type OsConventions,
 } from "@/shared/os-conventions";
+import { resolveAccelerator } from "@/shared/shortcuts";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 
 export type ListingDirection = "down" | "left" | "right" | "up";
 
@@ -212,6 +214,11 @@ export function listingKeys(os: Os) {
     copy: chord("CmdOrCtrl+C"),
     copyPath: commandChord(copyPathKey),
     duplicate: commandChord(duplicateKey),
+    info: chord(
+      resolveAccelerator(WINDOW_SHORTCUTS.fileInfo.accelerator, {
+        isMac: os === "mac",
+      }),
+    ),
     newFolder: chord("CmdOrCtrl+Shift+N"),
     open: chord(renameKey === "Enter" ? "CmdOrCtrl+O" : "Enter"),
     paste: chord("CmdOrCtrl+V"),

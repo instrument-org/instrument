@@ -132,6 +132,42 @@ describe("a window chord that is also a code editor's key", () => {
   );
 });
 
+describe("Info", () => {
+  // Taken ahead of the page, ⌘I would stop being italic in every editor.
+  it.each([
+    ["darwin", press("i", "KeyI", "meta")],
+    ["win32", press("Enter", "Enter", "alt")],
+    ["linux", press("Enter", "Enter", "alt")],
+  ] as const)("is left to the page first on %s", async (platform, chord) => {
+    const window = await windowOn(platform);
+    expect(window.press(chord)).toBeNull();
+  });
+
+  it.each([
+    ["darwin", "Info", "CmdOrCtrl+I"],
+    ["win32", "Properties", "Alt+Enter"],
+    ["linux", "Properties", "Alt+Enter"],
+  ] as const)(
+    "is the File menu's row on %s, under the system's name and key",
+    async (platform, label, accelerator) => {
+      Object.defineProperty(process, "platform", { value: platform });
+      vi.resetModules();
+      const { createAppWindowMenu } = await import("./app-window");
+      const file = createAppWindowMenu().find((menu) => menu.label === "File");
+      const row = (Array.isArray(file?.submenu) ? file.submenu : []).find(
+        (item) => item.label === label,
+      );
+      expect(row?.accelerator).toBe(accelerator);
+      publish.mockClear();
+      const click = row?.click as
+        | ((item: unknown, window: unknown, event: unknown) => void)
+        | undefined;
+      click?.({}, {}, {});
+      expect(publish).toHaveBeenCalledWith("window.command", "fileInfo");
+    },
+  );
+});
+
 describe("a window chord from the menu", () => {
   it("does nothing with no window focused, as with the window held off screen", async () => {
     vi.resetModules();

@@ -42,6 +42,7 @@ import {
   videoStoryboard,
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
+import { folderSize } from "@/electron-main/lib/folder-size";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -1052,13 +1053,38 @@ const storyboard = base
  */
 const probeMediaRoute = base
   .input(z.object({ path: HostPathSchema }))
-  .output(z.object({ picture: z.boolean() }).nullable())
+  .output(
+    z
+      .object({
+        durationSeconds: z.number().optional(),
+        height: z.number().optional(),
+        picture: z.boolean(),
+        width: z.number().optional(),
+      })
+      .nullable(),
+  )
   .handler(async ({ input, signal }) => {
     const filePath = await followAliases(input.path);
     if (await isClosed(input.path, filePath)) {
       return null;
     }
     return probeMedia(filePath, signal).catch(() => null);
+  });
+
+/**
+ * How many bytes a folder's files come to, or null where it cannot be read.
+ * Runs for as long as the card asking is on the folder: the query going away
+ * aborts the walk.
+ */
+const folderSizeRoute = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.object({ bytes: z.number(), complete: z.boolean() }).nullable())
+  .handler(async ({ input, signal }) => {
+    const folderPath = await followAliases(input.path);
+    if (await isClosed(input.path, folderPath)) {
+      return null;
+    }
+    return folderSize(folderPath, { signal });
   });
 
 /**
@@ -1135,6 +1161,7 @@ export const files = {
   read,
   rename,
   showInTrash,
+  folderSize: folderSizeRoute,
   probeMedia: probeMediaRoute,
   storyboard,
   trash,

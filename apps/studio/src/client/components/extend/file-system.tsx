@@ -637,6 +637,8 @@ const FOLDER_KIND = "Folder";
 function shortKind(kind: string) {
   return kind.replace(/ (?:Document|Source)$/, "");
 }
+/** A file's kind as the Kind column names it, for what shows it outside the browser. */
+export const itemKindLabel = fileKindLabel;
 /** A row's kind as the Kind column names it, which search narrows by. */
 function kindOf(entry: FileSystemEntry) {
   return entry.kind === "folder" ? FOLDER_KIND : fileKindLabel(entry);
@@ -644,7 +646,9 @@ function kindOf(entry: FileSystemEntry) {
 // A file's kind in words, never its MIME type: by the system's name for it,
 // then its extension, then its type, which names a file with no extension
 // (`2024`, read as text) the way a file of that type with one is named.
-function fileKindLabel(file: FileEntry) {
+function fileKindLabel(
+  file: Pick<FileEntry, "contentType" | "name" | "typeName">,
+) {
   if (file.typeName) return file.typeName;
   const byExtension = FILE_KIND_LABELS[fileExtension(file.name)];
   if (byExtension) return byExtension;
@@ -7042,7 +7046,7 @@ function FileSystemSelectionStack({
  * The days a set of timestamps falls on, as one span: `Sep 10 – 22, 2026`,
  * or the one day when they share it. Null when none of them says.
  */
-function formatDateSpan(values: Array<string | undefined>) {
+export function formatDateSpan(values: Array<string | undefined>) {
   const times = values.flatMap((value) => {
     const time = value ? new Date(value).getTime() : Number.NaN;
     return Number.isNaN(time) ? [] : [time];

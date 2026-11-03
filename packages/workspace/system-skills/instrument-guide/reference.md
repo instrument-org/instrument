@@ -115,6 +115,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Back in Page: ← / ←
 - Close Page Viewer or File: Esc / Esc
 - Forward in Page: → / →
+- Info: ⌘I / Alt+Enter
 - Scroll Page: Space / Space
 
 ### Tabs

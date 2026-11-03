@@ -13,6 +13,7 @@ import {
 } from "@/client/atoms/tab-navigation-block";
 import { type AppPlace } from "@/client/atoms/window";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
+import { requestFileInfo } from "@/client/components/window/file-info";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import {
   findAgainForKeyboard,
@@ -250,6 +251,11 @@ export function useWindowCommands(
               // The page tab on screen, when it shows a page's file; nothing
               // otherwise.
               requestPageEditToggle();
+              break;
+            }
+            case "fileInfo": {
+              // The file or folder selected in the tab up; nothing elsewhere.
+              requestFileInfo();
               break;
             }
             case "findInPage": {

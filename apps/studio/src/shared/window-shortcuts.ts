@@ -49,6 +49,12 @@ const historyChord = (bracket: "[" | "]", arrow: "Left" | "Right") => ({
 export const WINDOW_SHORTCUTS = {
   back: { accelerator: historyChord("[", "Left"), label: "Back" },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
+  // The system's file manager's own key: Get Info's on a Mac, and Properties'
+  // in File Explorer, GNOME's Files and Dolphin.
+  fileInfo: {
+    accelerator: { darwin: "CmdOrCtrl+I", default: "Alt+Enter" },
+    label: "Info",
+  },
   commandMenu: { accelerator: "CmdOrCtrl+K", label: "Command Menu" },
   editPage: { accelerator: "CmdOrCtrl+E", label: "Edit Page" },
   findInPage: { accelerator: "CmdOrCtrl+F", label: "Find in Page" },

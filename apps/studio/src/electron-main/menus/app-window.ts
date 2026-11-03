@@ -3,6 +3,7 @@ import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
+import { OS_CONVENTIONS, osOf } from "@/shared/os-conventions";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import {
   CODE_EDITOR_SHORTCUTS,
@@ -87,6 +88,18 @@ const FILE_CHORDS: WindowChord[] = [
   chord("findPrevious"),
   // The page the person is looking at; nothing when none is.
   chord("printPage"),
+];
+
+/**
+ * Info in the menu alone, left out of `WINDOW_CHORDS`: the menu is offered only
+ * the keys web content left unhandled, so ⌘I stays italic in an editor, and it
+ * is what a focused page guest reaches.
+ */
+const FILE_INFO_CHORDS: WindowChord[] = [
+  {
+    ...chord("fileInfo"),
+    label: OS_CONVENTIONS[osOf(process.platform)].files.infoLabel,
+  },
 ];
 
 /**
@@ -241,6 +254,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
       { type: "separator" },
       ...menuItems(FILE_CHORDS.slice(1)),
       ...menuItems(FILE_ALIAS_CHORDS),
+      ...menuItems(FILE_INFO_CHORDS),
       { type: "separator" },
       ...menuItems(TAB_CHORDS),
       ...menuItems(TAB_ALIAS_CHORDS),

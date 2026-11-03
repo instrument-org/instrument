@@ -58,6 +58,8 @@ export interface OsConventions {
     copyPathKey: CommandChord | null;
     /** The chord that duplicates what is selected, or null where the file manager has none. */
     duplicateKey: CommandChord | null;
+    /** The menu row that shows what is known about a file: the Finder's Get Info, shortened as Quick Look is to Preview, and the others' Properties. */
+    infoLabel: string;
     /** The modifier held with ↑ to go to the folder above: ⌘ in the Finder, Alt elsewhere. */
     parentFolderKey: "altKey" | "metaKey";
     /**
@@ -108,6 +110,7 @@ export const OS_CONVENTIONS = {
     files: {
       copyPathKey: null,
       duplicateKey: null,
+      infoLabel: "Properties",
       parentFolderKey: "altKey",
       renameKey: "F2",
       trashKey: { key: "Delete", withCommandKey: false },
@@ -142,6 +145,7 @@ export const OS_CONVENTIONS = {
     files: {
       copyPathKey: { alt: true, key: "c", shift: false },
       duplicateKey: { alt: false, key: "d", shift: false },
+      infoLabel: "Info",
       parentFolderKey: "metaKey",
       renameKey: "Enter",
       trashKey: { key: "Backspace", withCommandKey: true },
@@ -168,6 +172,7 @@ export const OS_CONVENTIONS = {
     files: {
       copyPathKey: { alt: false, key: "c", shift: true },
       duplicateKey: null,
+      infoLabel: "Properties",
       parentFolderKey: "altKey",
       renameKey: "F2",
       trashKey: { key: "Delete", withCommandKey: false },

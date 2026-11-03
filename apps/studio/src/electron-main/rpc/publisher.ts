@@ -97,6 +97,7 @@ interface PublisherEvents {
     | "editPage"
     | "findInPage"
     | "findNext"
+    | "fileInfo"
     | "findPrevious"
     | "forward"
     | "goToApps"

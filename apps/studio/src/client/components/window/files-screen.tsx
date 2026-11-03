@@ -72,6 +72,7 @@ import {
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
+import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
@@ -634,6 +635,10 @@ export function FilesScreen({
         }}
       />
     ) : null;
+  const fileInfo = useFileInfo({
+    belowRow: isBesideLayout,
+    file: activeFile?.hostPath,
+  });
   // Watched, so the viewer shows the file as it is rather than as it was
   // opened: a write lands in the open tab.
   const activeFileUrl = useWatchedFileUrl(activeFile?.hostPath);
@@ -727,6 +732,10 @@ export function FilesScreen({
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               isArrowHeld.current = event.repeat;
             }
+            // The card goes before the file does.
+            if (fileInfo.closeOnEscape(event)) {
+              return;
+            }
             if (
               event.key !== "Escape" ||
               !isFileOpen ||
@@ -803,6 +812,7 @@ export function FilesScreen({
               toolsInRow
               view={view}
               {...(isFileOpen ? {} : quickLook.props)}
+              {...fileInfo.props}
             />
           </div>
           {isFileOpen && isFolderShown && (
@@ -910,6 +920,7 @@ export function FilesScreen({
                                     editable
                                     file={viewerFile}
                                     key={activeFile.hostPath}
+                                    onInfo={fileInfo.openOnFile}
                                     {...pageInSlot(isFolderShown)}
                                   />
                                 )}
@@ -928,6 +939,7 @@ export function FilesScreen({
                 )}
             </AnimatePresence>
           </div>
+          {fileInfo.card}
         </div>
         {quickLook.dialog}
       </div>
@@ -949,6 +961,7 @@ export function FilesScreen({
                 editable
                 file={viewerFile}
                 key={activeFile.hostPath}
+                onInfo={fileInfo.openOnFile}
                 {...pageInSlot(false)}
                 {...(source
                   ? {
@@ -974,6 +987,7 @@ export function FilesScreen({
             select={select}
             view={view}
             {...quickLook.props}
+            {...fileInfo.props}
           />
         )}
         {/* A page in Edit keeps its asks in its own dock instead. */}
@@ -981,6 +995,7 @@ export function FilesScreen({
           !(hostedTabId !== undefined && editTabs[hostedTabId]) && (
             <AskTray path={activeFile.hostPath} />
           )}
+        {fileInfo.card}
       </div>
       {quickLook.dialog}
     </div>

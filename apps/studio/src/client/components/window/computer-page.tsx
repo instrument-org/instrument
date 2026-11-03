@@ -16,6 +16,7 @@ import {
   FileSystem,
   type FileSystemFileItem,
   FileSystemFolderGlyph,
+  itemKindLabel,
   type FileSystemHandle,
   type FileSystemItem,
   type FileSystemGroupKey,
@@ -114,6 +115,7 @@ import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import {
   keepPreviousData,
   useMutation,
@@ -151,6 +153,7 @@ import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
 import { soundTypeIfNoPicture } from "./file-mark";
 import { FolderMark } from "./folder-mark";
+import { type FileInfoItem, TITLED_NAME } from "./file-info";
 import { lookPathOf, type LookTarget } from "./look-at";
 import { FolderNameMenu } from "./folder-name-menu";
 import { GlyphButton } from "./glyph-button";
@@ -295,6 +298,8 @@ export function ComputerPage({
   go,
   onFolderChange,
   onOpenFile,
+  onInfoSelection,
+  onInfoShow,
   onQuickLook,
   onQuickLookFollow,
   path,
@@ -339,6 +344,10 @@ export function ComputerPage({
   onFolderChange?: (folder: FolderOnScreen | null) => void;
   /** A file the user opened, when a granted folder covers it. */
   onOpenFile: (file: FileTab) => void;
+  /** What is selected, for the info card to follow. */
+  onInfoSelection?: (items: FileInfoItem[]) => void;
+  /** The info card up over what a menu was opened on. */
+  onInfoShow?: (items: FileInfoItem[]) => void;
   /** The selected file, on Space. Left out, Space is not watched for at all. */
   onQuickLook?: (target: LookTarget, from?: () => Element | null) => void;
   /** The file the selection moved to while Quick Look is up, for it to show. */
@@ -1688,6 +1697,21 @@ export function ComputerPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickLookKey, onQuickLook, isActiveTab]);
 
+  // The info card follows the selection, by what it says about each item:
+  // the rows are rebuilt on every re-read.
+  const infoItems = selectedItems.flatMap(infoItemOf);
+  const infoKey = JSON.stringify(infoItems);
+  useEffect(() => {
+    onInfoSelection?.(infoItems);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [infoKey, onInfoSelection]);
+  useEffect(
+    () => () => {
+      onInfoSelection?.([]);
+    },
+    [onInfoSelection],
+  );
+
   // What was put back is selected, when it is under the root on screen now:
   // a toast's Undo can come after a move to another root.
   const rootHostPathRef = useRef(rootHostPath);
@@ -1911,6 +1935,12 @@ export function ComputerPage({
       kept: picked.map(keptInPlace).find(Boolean),
       onCopy: () => void copyFiles(picked),
       onDuplicate: () => void duplicate(picked),
+      onInfo:
+        onInfoShow && picked.length > 0
+          ? () => {
+              onInfoShow(picked.flatMap(infoItemOf));
+            }
+          : undefined,
       onNewDraft:
         askAbout && (item || folderOnScreenPath !== undefined)
           ? () => {
@@ -2817,6 +2847,8 @@ type FolderMenuActions = {
   onCopy: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
+  /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
+  onInfo: (() => void) | undefined;
   /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
   onNewDraft?: (() => void) | undefined;
   /** Left out where there is no folder to make one in. */
@@ -2982,6 +3014,7 @@ function FolderMenuItems({
   onCopy,
   onCopyPath,
   onDuplicate,
+  onInfo,
   onNewDraft,
   onNewFolder,
   onOpen,
@@ -3154,6 +3187,13 @@ function FolderMenuItems({
               <EyeIcon className="size-4" />
               <span>Preview</span>
               <Shortcut>{keys.preview}</Shortcut>
+            </Item>
+          ) : null}
+          {onInfo ? (
+            <Item onClick={onInfo}>
+              <InfoIcon className="size-4" />
+              <span>{osConventions().files.infoLabel}</span>
+              <Shortcut>{keys.info}</Shortcut>
             </Item>
           ) : null}
           {/* Where one thing is has no answer for several. */}
@@ -3432,9 +3472,6 @@ function withGlyph(glyphSrc: string | undefined) {
 }
 
 /** Where an item the browser is showing sits on the Mac. */
-/** The files that give themselves a title: pages and Markdown. */
-const TITLED_NAME = /\.(?:x?html?|markdown|mdx?)$/i;
-
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
@@ -3899,6 +3936,49 @@ function selectedRowIn(browser: HTMLElement | null) {
     browser?.querySelector<HTMLElement>('[role="option"][tabindex="0"]') ??
     null
   );
+}
+
+/** What the info card says about a row, read from what the row already has. */
+function infoItemOf(item: FileSystemItem): FileInfoItem[] {
+  const hostPath = hostPathOfItem(item);
+  if (!hostPath) {
+    return [];
+  }
+  const dates = {
+    ...(item.createdAt ? { createdAt: item.createdAt } : {}),
+    ...(item.updatedAt ? { modifiedAt: item.updatedAt } : {}),
+  };
+  if (item.kind === "folder") {
+    return [
+      {
+        ...dates,
+        ...(item.glyphSrc ? { glyphSrc: item.glyphSrc } : {}),
+        hostPath,
+        kind: "folder",
+        kindLabel: "Folder",
+        name: item.name ?? folderNameFromPath(hostPath),
+      },
+    ];
+  }
+  const name = folderNameFromPath(hostPath);
+  return [
+    {
+      ...dates,
+      ...(item.contentType ? { contentType: item.contentType } : {}),
+      hostPath,
+      kind: "file",
+      kindLabel: itemKindLabel({
+        name,
+        ...(item.contentType ? { contentType: item.contentType } : {}),
+        ...(item.typeName ? { typeName: item.typeName } : {}),
+      }),
+      name: item.displayName ?? name,
+      ...(item.previewImageUrl && !item.previewIsIcon
+        ? { previewImageUrl: item.previewImageUrl }
+        : {}),
+      ...(item.size === undefined ? {} : { size: item.size }),
+    },
+  ];
 }
 
 /** What Quick Look shows for an item: a file as its tab, a folder as its card. */

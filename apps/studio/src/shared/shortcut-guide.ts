@@ -57,6 +57,7 @@ const WINDOW_GROUPS: Record<
   closeWindow: "General",
   commandMenu: "General",
   editPage: "Pages",
+  fileInfo: "Files",
   findInPage: "Pages",
   findNext: "Pages",
   findPrevious: "Pages",

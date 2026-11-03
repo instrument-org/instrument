@@ -6576,9 +6576,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                 with the pane up to a 24rem height cap; past that the whole
                 column stands centered, top-aligned, as the Finder's does.
                 Double-clicking it opens the file, as double-clicking its row
-                does. */}
+                does. Dragging it drags the file out, as its row does. */}
               <div
                 className="mx-auto w-full shrink-0"
+                data-file-system-item={selectedFile.path}
+                draggable={draggable}
                 onDoubleClick={() => onOpen(selectedFile)}
                 style={{
                   maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? selectedFileAspectRatio) * 24}rem)`,
@@ -6607,6 +6609,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
           </InlineScrollArea2>
         ) : deferredIsSeveral ? (
           <FileSystemSelectionStack
+            draggable={draggable}
             entries={[...selection].flatMap((path) => {
               const entry = index.files.get(path) ?? index.folders.get(path);
               return entry ? [entry] : [];
@@ -6946,9 +6949,11 @@ const STACK_POSES = [
  * span of their dates where one file's dates go.
  */
 function FileSystemSelectionStack({
+  draggable,
   entries,
   renderFileStage,
 }: {
+  draggable: boolean;
   entries: FileSystemEntry[];
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
 }) {
@@ -6986,8 +6991,12 @@ function FileSystemSelectionStack({
           {shown.map((entry, at) => {
             const pose = poses[at];
             return (
+              // Each card drags the whole selection out, as a selected row
+              // does.
               <div
                 className="absolute inset-0 flex items-center justify-center drop-shadow-md"
+                data-file-system-item={entry.path}
+                draggable={draggable}
                 key={entry.path}
                 style={
                   pose
@@ -7393,7 +7402,12 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
             orientation="vertical"
             viewportClassName="flex flex-col gap-3 p-4"
           >
-            <div className="flex items-center gap-3">
+            {/* Drags what it names out, as its tile in the strip does. */}
+            <div
+              className="flex items-center gap-3"
+              data-file-system-item={activeEntry.path}
+              draggable={draggable}
+            >
               {activeFile ? (
                 <FittedFileVisual
                   // A page's height beside the name, and a landscape

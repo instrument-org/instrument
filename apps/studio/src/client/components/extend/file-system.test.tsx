@@ -724,6 +724,40 @@ describe("FileSystem", () => {
       ]);
     });
 
+    it("drags a file out from the columns' preview of it", async () => {
+      const startFileDrag = vi.fn();
+      Object.defineProperty(window, "api", {
+        configurable: true,
+        value: { ...window.api, startFileDrag },
+      });
+      renderWithProviders(
+        <FileSystem
+          defaultView="columns"
+          getHostPath={(item) => `/Users/sam/${item.path}`}
+          items={FILES}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("option", { name: "a.txt" }));
+      const preview = await vi.waitFor(() => {
+        const found = document.querySelector<HTMLElement>(
+          '[data-file-system-item="a.txt"]:not([role="option"])',
+        );
+        expect(found).toBeTruthy();
+        return found as HTMLElement;
+      });
+      fireEvent.pointerDown(preview, {
+        button: 0,
+        clientX: 0,
+        clientY: 0,
+        pointerType: "mouse",
+      });
+      fireEvent.dragStart(preview);
+      fireEvent.pointerMove(window, { clientX: 40, clientY: 0 });
+
+      expect(startFileDrag).toHaveBeenCalledWith(["/Users/sam/a.txt"]);
+    });
+
     it("says what several are where one file's preview stands", () => {
       renderWithProviders(
         <FileSystem

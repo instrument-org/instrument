@@ -66,10 +66,16 @@ export function ownFolder({
   folder: string;
   make?: boolean;
 }): void {
-  const within = path.relative(path.dirname(folder), dir);
-  if (within === "" || within.startsWith("..") || path.isAbsolute(within)) {
+  const inFolder = path.relative(folder, dir);
+  if (
+    inFolder === ".." ||
+    inFolder.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(inFolder)
+  ) {
     throw new Error(`${dir} is not in ${folder}`);
   }
+  // From the folder's parent, so the folder's own name is looked at too.
+  const within = path.relative(path.dirname(folder), dir);
   let current = path.dirname(folder);
   if (make) {
     // The app's own, which no program the agent runs can change.

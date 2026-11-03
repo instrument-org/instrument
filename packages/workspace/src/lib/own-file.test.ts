@@ -26,9 +26,8 @@ describe("own-file", () => {
     }).toThrow(/is not in/);
   });
 
-  // Wrong: the check measures `dir` from the folder's parent, so a sibling
-  // such as `.instrument` beside `Apps` passes as if it were inside.
-  it.fails("refuses a sibling of the folder", () => {
+  // Such as `.instrument` beside `Apps`.
+  it("refuses a sibling of the folder", () => {
     fs.mkdirSync(path.join(root, "keys"));
     expect(() => {
       ownFolder({ dir: path.join(root, "keys"), folder });

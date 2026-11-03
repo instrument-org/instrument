@@ -11,6 +11,15 @@ interface DeviceEmulation {
 }
 
 /**
+ * How many frames a slot's position holds before it counts as settled. A guest
+ * shown as a slide begins sees a few still frames first, since a CSS transition
+ * starts moving only some frames after it is set off, and one that stops looking
+ * then stays where the slide started. In frames rather than time so that a busy
+ * renderer, drawing few of them, cannot run the wait out.
+ */
+const SETTLED_FRAMES = 20;
+
+/**
  * Measures a host slot and drives the pooled guest to paint over it while the
  * panel's task page is on screen (parking it in paint-host otherwise, or while
  * a load error covers the slot). Returns the ref to attach to the slot element.
@@ -125,20 +134,23 @@ export function useBrowserSlot({
       return rect;
     };
 
-    // The artifact panel slides in and out via a transform, which
-    // getBoundingClientRect folds into `rect.x` (ResizeObserver can't catch it
-    // -- the size is unchanged). Track the slot each frame so the guest follows
-    // the panel, and stop once the position holds for two frames, i.e. the slot
-    // has settled.
+    // A panel sliding in or out moves the slot without resizing it, which
+    // ResizeObserver can't catch, and getBoundingClientRect folds the move into
+    // `rect.x`. Track the slot each frame so the guest follows it, and stop once
+    // the position holds for SETTLED_FRAMES, i.e. the slot has settled. Measured
+    // again only when it moves, since each measure tells main.
     let raf = 0;
     let stableFrames = 0;
     let last = measure();
     const track = () => {
-      const rect = measure();
-      stableFrames =
-        rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
-      last = rect;
-      if (stableFrames < 2) {
+      const rect = slot.getBoundingClientRect();
+      if (rect.x === last.x && rect.y === last.y) {
+        stableFrames += 1;
+      } else {
+        stableFrames = 0;
+        last = measure();
+      }
+      if (stableFrames < SETTLED_FRAMES) {
         raf = requestAnimationFrame(track);
       }
     };

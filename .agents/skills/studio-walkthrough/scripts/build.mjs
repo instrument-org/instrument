@@ -20,7 +20,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import path from "node:path";
+import path, { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { launch, REPO_ROOT } from "./browser.mjs";
@@ -36,15 +36,36 @@ const AVATAR =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" fill="#4f7a68"/><circle cx="48" cy="38" r="17" fill="#d9e8df"/><path d="M16 92c4-20 18-30 32-30s28 10 32 30" fill="#d9e8df"/></svg>',
   );
 
-/** What a shared file must not carry: this machine's paths and the account's photo. */
-export const scrub = (text) =>
-  text
+/** This machine's drives, by the names Files shows for them (macOS). */
+const DRIVES = (() => {
+  try {
+    return readdirSync("/Volumes").filter((name) => name !== "Macintosh HD");
+  } catch {
+    return [];
+  }
+})();
+
+/**
+ * What a shared file must not carry, shown or not: this machine's paths, its
+ * home folder's and drives' names, and the account's photo. A clean room's
+ * folder reads as a workspace in the home folder.
+ */
+export const scrub = (text) => {
+  let out = text
     .replaceAll(
       /https:\/\/lh3\.googleusercontent\.com\/[^"'\s)\\]+/g,
       AVATAR,
     )
     .replaceAll(REPO_ROOT, "/app")
-    .replaceAll(homedir(), "/Users/you");
+    .replaceAll(homedir(), "/Users/you")
+    .replaceAll(
+      /\/Users\/you\/(?:Library\/Caches|\.cache)\/instrument-studio-drive\/[0-9a-f]+\/clean-rooms\/[^/"\\]+/g,
+      "/Users/you/Instrument",
+    )
+    .replaceAll(new RegExp(`\\b${basename(homedir())}\\b`, "g"), "you");
+  for (const drive of DRIVES) out = out.replaceAll(drive, "Drive");
+  return out;
+};
 
 const esc = (s) =>
   String(s)
@@ -99,9 +120,19 @@ export async function buildTake(take) {
   // --- events ---------------------------------------------------------------
   const rrweb = recorded.filter((e) => e.src === "rrweb").map((e) => e.e);
   const t0 = rrweb[0].timestamp;
+  // Fonts go inside the styles that name them, once each. A picture can be
+  // named many times over a take, so it is kept once and named by a token
+  // the player swaps for it.
   let eventsJson = JSON.stringify(rrweb);
+  const pictures = [];
   for (const [url, dataUrl] of Object.entries(assets)) {
-    eventsJson = eventsJson.replaceAll(url, dataUrl);
+    if (/^data:font\/|\.(woff2?|ttf|otf)(\?|$)/.test(dataUrl.slice(0, 20)) || /\.(woff2?|ttf|otf)(\?|$)/.test(url)) {
+      eventsJson = eventsJson.replaceAll(url, dataUrl);
+    } else {
+      const token = `wt-asset:${pictures.length}`;
+      pictures.push(dataUrl);
+      eventsJson = eventsJson.replaceAll(JSON.stringify(url).slice(1, -1), token);
+    }
   }
   eventsJson = scrub(eventsJson);
 
@@ -148,7 +179,7 @@ export async function buildTake(take) {
     viewport: begin?.viewport ?? { h: 840, w: 1240 },
     warps,
   };
-  const dataJs = `window.WALKTHROUGH = ${JSON.stringify({ ...data, script })};\nwindow.WALKTHROUGH.events = ${eventsJson};\n`;
+  const dataJs = `window.WALKTHROUGH = ${JSON.stringify({ ...data, script })};\nwindow.WALKTHROUGH.pictures = ${JSON.stringify(pictures)};\nwindow.WALKTHROUGH.events = ${eventsJson};\n`;
   writeFileSync(path.join(take, "data.js"), dataJs);
   writeFileSync(
     path.join(take, "walkthrough.json"),

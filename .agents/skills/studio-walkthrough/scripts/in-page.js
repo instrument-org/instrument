@@ -96,14 +96,29 @@
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" fill="#4f7a68"/><circle cx="48" cy="38" r="17" fill="#d9e8df"/><path d="M16 92c4-20 18-30 32-30s28 10 32 30" fill="#d9e8df"/></svg>',
     );
 
-  const present = () => {
+  const present = ({ rootCrumb } = {}) => {
     if (!document.getElementById("walkthrough-present")) {
       const style = document.createElement("style");
       style.id = "walkthrough-present";
-      style.textContent = "[data-walkthrough-hidden]{visibility:hidden!important}";
+      style.textContent =
+        "[data-walkthrough-hidden]{visibility:hidden!important}[data-walkthrough-gone]{display:none!important}";
       document.head.append(style);
     }
     const dress = () => {
+      // The address bar's folders above the workspace: this machine's own.
+      if (rootCrumb) {
+        // The bar is a row of crumbs and the chevrons between them; the
+        // workspace's own crumb is a button, or plain text when it is open.
+        for (const crumb of document.querySelectorAll("button[data-slot=context-menu-trigger]")) {
+          const row = crumb.parentElement;
+          const own = [...(row?.children ?? [])].find((child) => squash(child.textContent) === rootCrumb);
+          let before = own?.previousElementSibling;
+          while (before) {
+            before.setAttribute("data-walkthrough-gone", "");
+            before = before.previousElementSibling;
+          }
+        }
+      }
       // The development pills (server, workspace, instance) beside the bell.
       for (const span of document.querySelectorAll("span.truncate")) {
         if (squash(span.textContent) !== "Staging") continue;
@@ -238,11 +253,11 @@
       const src = img.getAttribute("src");
       if (src.startsWith("data:")) continue;
       const abs = new URL(src, location.href).href;
-      if (abs.startsWith(location.origin)) {
-        try {
-          img.setAttribute("src", await toDataUrl(abs));
-        } catch {}
-      } else img.setAttribute("src", abs);
+      try {
+        img.setAttribute("src", (await pictures.get(abs)) ?? (await toDataUrl(abs)));
+      } catch {
+        img.setAttribute("src", abs);
+      }
     }
 
     const sheets = [];
@@ -280,20 +295,57 @@
     );
   };
 
-  /** The fonts and same-origin images a replay of the page needs, as data. */
+  /**
+   * Every picture the page shows while it is watched, kept as data the moment
+   * it appears: a replay elsewhere cannot reach the app's own protocol, and a
+   * blob's address may be gone by the end of the take.
+   */
+  const pictures = new Map();
+  const keepPicture = (src) => {
+    if (!src || src.startsWith("data:") || pictures.has(src)) return;
+    pictures.set(
+      src,
+      toDataUrl(src).catch(() => null),
+    );
+  };
+  const watchPictures = () => {
+    if (window.__walkthroughPictures) return;
+    for (const img of document.querySelectorAll("img[src]")) keepPicture(img.src);
+    window.__walkthroughPictures = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type === "attributes" && record.target instanceof HTMLImageElement) {
+          keepPicture(record.target.src);
+        }
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node instanceof HTMLImageElement) keepPicture(node.src);
+          for (const img of node.querySelectorAll("img[src]")) keepPicture(img.src);
+        }
+      }
+    });
+    window.__walkthroughPictures.observe(document.documentElement, {
+      attributeFilter: ["src"],
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  };
+
+  /** The fonts and pictures a replay of the page needs, as data. */
   const assets = async () => {
     const out = {};
-    const urls = new Set(loadedFontUrls());
-    for (const img of document.querySelectorAll("img[src]")) {
-      if (img.src.startsWith(location.origin)) urls.add(img.src);
-    }
-    for (const url of urls) {
+    for (const url of loadedFontUrls()) {
       try {
         out[url] = await toDataUrl(url);
       } catch {}
     }
+    for (const img of document.querySelectorAll("img[src]")) keepPicture(img.src);
+    for (const [src, pending] of pictures) {
+      const data = await pending;
+      if (data) out[src] = data;
+    }
     return out;
   };
 
-  window.__walkthroughPage = { assets, locate, present, still, surfaceOf };
+  window.__walkthroughPage = { assets, locate, present, still, surfaceOf, watchPictures };
 })();

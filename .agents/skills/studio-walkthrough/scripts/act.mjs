@@ -96,10 +96,14 @@ export async function createAct(app, { out, viewport }) {
     evaluate,
 
     /** Loads the capture and the page helpers, and dresses the app for showing. */
-    async prepare({ presentation = true } = {}) {
+    /** `rootCrumb`: the workspace folder's name, above which the address bar is hidden. */
+    async prepare({ presentation = true, rootCrumb } = {}) {
       await evaluate(IN_PAGE);
       await evaluate(CAPTURE);
-      if (presentation) await evaluate("window.__walkthroughPage.present()");
+      await evaluate("window.__walkthroughPage.watchPictures()");
+      if (presentation) {
+        await evaluate(`window.__walkthroughPage.present(${JSON.stringify({ rootCrumb })})`);
+      }
       await mouse("mouseMoved", pos.x, pos.y);
     },
 

@@ -2,11 +2,12 @@
 // Studio walkthroughs, each step one command:
 //
 //   node walkthrough.mjs seed <seed.json>                  a clean room to start takes from
+//   node walkthrough.mjs open <seed>                       the seed's clean room, booted, to look around in
 //   node walkthrough.mjs take <name.walk.mjs> --seed <name> --out <take dir>
 //   node walkthrough.mjs build <take dir>                  pages from a recording
 //   node walkthrough.mjs film <take dir>                   the contact sheet
 //   node walkthrough.mjs render <take dir> [--chapter <n>] [--plain] [--gif]
-//   node walkthrough.mjs share <take dir> [--page snippets|chapters]
+//   node walkthrough.mjs share <take dir> [--page snippets|chapters] [--title <t> --lede <line>]
 //
 // `seed` boots a fresh clean room with the developer's sign-ins, writes the
 // seed's files, starts its chats with real agent turns, picks the model New
@@ -166,10 +167,13 @@ async function seed(file) {
   const room = spec.room ?? PURPOSE;
   await stop(room);
   const booted = boot(room, "--fresh", "--with-sign-ins");
+  // A file's text, or "@<path>" to copy one beside the seed file (a picture).
   for (const [relative, content] of Object.entries(spec.files ?? {})) {
     const target = path.join(booted.cleanRoom, relative);
     mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, content);
+    if (content.startsWith("@")) {
+      cpSync(path.resolve(path.dirname(file), content.slice(1)), target);
+    } else writeFileSync(target, content);
   }
   const { models } = JSON.parse(drive("rpc", "gateway.models.list", "{}", "--clean-room", room));
   const chatModel = models.find((m) => m.name === (spec.chatModel ?? "Claude"));
@@ -195,7 +199,8 @@ async function seed(file) {
   return { chats: turns.map((t) => t.chat), room, seed: name };
 }
 
-async function take(walk, { out, seedName }) {
+/** Puts a seed back in its clean room and boots it. */
+async function open(seedName) {
   const keep = seedDir(seedName);
   if (!existsSync(keep)) throw new Error(`No seed ${seedName}: make it with walkthrough.mjs seed`);
   const { room } = JSON.parse(readFileSync(path.join(keep, "seed.json"), "utf8"));
@@ -210,7 +215,12 @@ async function take(walk, { out, seedName }) {
     rmSync(to, { force: true, recursive: true });
     cpSync(path.join(keep, from), to, { recursive: true });
   }
-  boot(room);
+  const booted = boot(room);
+  return { cleanRoom: booted.cleanRoom, drive: `node ${DRIVE} <command> --clean-room ${room}`, room };
+}
+
+async function take(walk, { out, seedName }) {
+  const { cleanRoom, room } = await open(seedName);
   const dir = path.resolve(out);
   rmSync(path.join(dir, "recording"), { force: true, recursive: true });
   mkdirSync(path.join(dir, "recording"), { recursive: true });
@@ -219,6 +229,7 @@ async function take(walk, { out, seedName }) {
     recorded = await runScript(room, path.resolve(walk), {
       build: execFileSync("git", ["-C", REPO_ROOT, "rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim(),
       out: path.join(dir, "recording"),
+      workspace: cleanRoom,
     });
   } finally {
     await stop(room);
@@ -228,7 +239,7 @@ async function take(walk, { out, seedName }) {
   return { ...recorded, built, filmed, take: dir };
 }
 
-function share(takeDir, page) {
+function share(takeDir, page, { lede, title } = {}) {
   const dir = path.resolve(takeDir);
   const data = readFileSync(path.join(dir, "data.js"), "utf8");
   const parsed = JSON.parse(readFileSync(path.join(dir, "walkthrough.json"), "utf8"));
@@ -252,8 +263,11 @@ function share(takeDir, page) {
     file,
     playerPage({
       data: inline,
-      mount: `Walkthrough.mount${page === "chapters" ? "Chapters" : "Snippets"}(document.getElementById("app"), window.WALKTHROUGH)`,
-      title: `${parsed.title}, ${page === "chapters" ? "in chapters" : "as snippets"}`,
+      mount:
+        page === "chapters"
+          ? 'Walkthrough.mountChapters(document.getElementById("app"), window.WALKTHROUGH)'
+          : `Walkthrough.mountSnippets(document.getElementById("app"), window.WALKTHROUGH, ${JSON.stringify({ alone: true, lede, title })})`,
+      title: title ?? `${parsed.title}, ${page === "chapters" ? "in chapters" : "as snippets"}`,
     }),
   );
   const bytes = readFileSync(file).byteLength;
@@ -267,6 +281,7 @@ function share(takeDir, page) {
 const commands = {
   build: () => buildTake(path.resolve(subject)),
   film: () => filmTake(path.resolve(subject)),
+  open: () => open(subject),
   render: () =>
     renderClip(path.resolve(subject), {
       chapter: flag("--chapter") ? Number(flag("--chapter")) : undefined,
@@ -274,7 +289,11 @@ const commands = {
       plain: args.includes("--plain"),
     }),
   seed: () => seed(path.resolve(subject)),
-  share: () => share(subject, flag("--page", "snippets")),
+  share: () =>
+    share(subject, flag("--page", "snippets"), {
+      lede: flag("--lede"),
+      title: flag("--title"),
+    }),
   take: () =>
     take(subject, { out: flag("--out", "take"), seedName: flag("--seed") }),
 };

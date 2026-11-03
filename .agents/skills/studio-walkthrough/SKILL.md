@@ -34,9 +34,11 @@ A seed file names the chats to start, with real agent turns, files to put in the
 }
 ```
 
-`seed` boots the `walkthrough` clean room fresh with the developer's sign-ins, makes all that, and keeps a copy; every `take` puts the copy back first. Keep sample data generic: no real names, paths or chats. A seed lives in studio-drive's cache for this checkout and is reaped with it; seeding again takes a minute.
+A file's value is its text, or `"@<path>"` to copy a file from beside the seed file, for pictures. `seed` boots the `walkthrough` clean room fresh with the developer's sign-ins, makes all that, and keeps a copy; every `take` puts the copy back first. Keep sample data generic: no real names, paths or chats. A seed lives in studio-drive's cache for this checkout and is reaped with it; seeding again takes a minute.
 
 ## Write the walk
+
+`node $W open <seed>` boots the seed's clean room and leaves it running, to find names and try a step with `studio-drive` (`snapshot`, `click`, `shot`, each with `--clean-room walkthrough`) before writing it down.
 
 A walk script is a `studio-drive run` script that drives Studio through `createAct` ([examples/projects.walk.mjs](examples/projects.walk.mjs) is a whole one). Address things by the name a person sees, the way `studio-drive snapshot` prints them:
 
@@ -51,6 +53,8 @@ A walk script is a `studio-drive run` script that drives Studio through `createA
 | `act.camera(target, { zoom })`, `act.camera(null)` | pushes in by hand and back out |
 | `act.still(name, caption, { poster })` | the page as HTML and PNG; `poster` makes it its chapter's picture |
 | `act.waitFor(expression)`, `act.hold(ms)` | waits on the page, or for a beat |
+
+The script gets `args.out` (hand it to `createAct`) and `args.workspace`, the clean room's folder, for Files addresses (`/files?path=<folder in it>&root=<args.workspace>&view=list`). `act.prepare({ rootCrumb: path.basename(args.workspace) })` hides the address bar's folders above the workspace, which name this machine's own.
 
 A target is `{ text }` (the exact name), `{ contains }`, `{ label }` (aria-label), `{ placeholder }`, or `{ selector }`, alone or together. A target covered by something else is refused rather than clicked through.
 

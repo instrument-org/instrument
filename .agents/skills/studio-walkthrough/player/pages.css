@@ -28,3 +28,6 @@ body { margin: 0; background: #101211; color: #e8ece9; font: 15px/1.45 Inter, -a
 .pb-card figcaption b { display: block; font-size: 17px; }
 .pb-card figcaption span { display: block; color: #9aa39e; }
 .pb-card figcaption a { color: #8fd1b6; font-size: 13px; }
+.pb-head { max-width: 1500px; margin: 0 auto; padding: 34px 22px 4px; }
+.pb-head h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 6px; }
+.pb-head p { margin: 0; color: #9aa39e; font-size: 16px; max-width: 46rem; }

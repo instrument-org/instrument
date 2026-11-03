@@ -41,7 +41,7 @@ const HAND = `<svg viewBox="0 0 28 28" width="28" height="28"><path d="M11 13V5.
 /** Where each glyph's hotspot sits, in its 28px box. */
 const HOTSPOT = { arrow: [6, 3.5], ibeam: [14, 14], hand: [12.5, 4] };
 
-const KEY_GLYPHS = { Enter: "⏎ Return", Escape: "Esc", Meta: "⌘", Shift: "⇧", Alt: "⌥", Control: "⌃", Backspace: "⌫", Tab: "⇥" };
+const KEY_GLYPHS = { Alt: "⌥", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", Backspace: "⌫", Control: "⌃", Enter: "⏎ Return", Escape: "Esc", Meta: "⌘", Shift: "⇧", Tab: "⇥" };
 
 /**
  * Where the camera goes, as keyframes ({ t, box or null, zoom, ms }): the
@@ -182,7 +182,22 @@ export function createEngine(root, data, options = {}) {
   resize();
 
   // --- the replay -----------------------------------------------------------
-  const replayer = new Replayer(data.events, {
+  // The take's pictures, kept once each, are put back where it names them.
+  let events = data.events;
+  if (data.pictures?.length) {
+    data.pictureUrls ??= data.pictures.map((uri) => {
+      const [head, body] = uri.split(",");
+      const mime = head.slice(5).split(";")[0];
+      const bytes = head.includes(";base64")
+        ? Uint8Array.from(atob(body), (c) => c.charCodeAt(0))
+        : new TextEncoder().encode(decodeURIComponent(body));
+      return URL.createObjectURL(new Blob([bytes], { type: mime }));
+    });
+    events = JSON.parse(
+      JSON.stringify(events).replace(/wt-asset:(\d+)/g, (_, n) => data.pictureUrls[Number(n)] ?? ""),
+    );
+  }
+  const replayer = new Replayer(events, {
     mouseTail: false,
     pauseAnimation: false,
     root: replayRoot,

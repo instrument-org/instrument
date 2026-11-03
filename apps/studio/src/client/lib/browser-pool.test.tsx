@@ -103,9 +103,12 @@ const element = () => document.querySelector("webview");
 let stop: () => void;
 beforeAll(async () => {
   stop = initBrowserPool();
-  await vi.waitFor(() => {
-    expect(element()).not.toBeNull();
-  });
+  await vi.waitFor(
+    () => {
+      expect(element()).not.toBeNull();
+    },
+    { interval: 1 },
+  );
 });
 afterAll(() => {
   stop();
@@ -271,9 +274,12 @@ it("hides a parked page while main has it asleep, and shows it in a slot at once
   expect(visibility()).toBe("visible");
 
   targets.next(true);
-  await vi.waitFor(() => {
-    expect(visibility()).toBe("hidden");
-  });
+  await vi.waitFor(
+    () => {
+      expect(visibility()).toBe("hidden");
+    },
+    { interval: 1 },
+  );
 
   // The slot does not wait for main to wake it.
   const slot = Symbol("slot");
@@ -284,7 +290,10 @@ it("hides a parked page while main has it asleep, and shows it in a slot at once
   setPaintHost(target, slot);
   expect(visibility()).toBe("hidden");
   targets.next(false);
-  await vi.waitFor(() => {
-    expect(visibility()).toBe("visible");
-  });
+  await vi.waitFor(
+    () => {
+      expect(visibility()).toBe("visible");
+    },
+    { interval: 1 },
+  );
 });

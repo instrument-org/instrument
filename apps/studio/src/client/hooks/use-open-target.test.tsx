@@ -55,9 +55,12 @@ async function copied(
     .current(target)
     .destinations.find((destination) => destination.id === "copy");
   copy?.run();
-  await waitFor(() => {
-    expect(writeText).toHaveBeenCalled();
-  });
+  await waitFor(
+    () => {
+      expect(writeText).toHaveBeenCalled();
+    },
+    { interval: 1 },
+  );
   return writeText.mock.calls[0];
 }
 
@@ -98,9 +101,12 @@ describe("Copy Path", () => {
       .current({ chatId, kind: "path", path: "workspace:/Gone/plan.md" })
       .destinations.find((destination) => destination.id === "copy")
       ?.run();
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalled();
-    });
+    await waitFor(
+      () => {
+        expect(toastError).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     expect(writeText).not.toHaveBeenCalled();
   });
 });

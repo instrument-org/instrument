@@ -20,6 +20,13 @@ const GROK_RELEASE = /^grok-(?:4\.[5-9]|[5-9](?:\.\d+)?)$/;
 const GPT_SOL = /^gpt-\d+(?:\.\d+)?-sol$/;
 
 /**
+ * An OpenRouter key reaches every maker, so it leads with the middle tiers
+ * of the two whose models are the state of the art: each numbered Claude
+ * Sonnet and GPT Sol, never the `-latest` aliases beside them.
+ */
+const OPENROUTER_DEFAULT = /^(?:claude-sonnet-\d|gpt-\d+(?:\.\d+)?-sol$)/;
+
+/**
  * The model each kind of provider leads its list with. A pattern rather than
  * an id where the line is what matters: every Sonnet matches, and
  * `demoteSupersededModels` leaves the tag on the newest one only.
@@ -35,6 +42,7 @@ const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   "grok-account": GROK_RELEASE,
   groq: /^gpt-oss-120b$/,
   openai: GPT_SOL,
+  openrouter: OPENROUTER_DEFAULT,
   "x-ai": GROK_RELEASE,
   "z-ai": /^glm-5\.3$/,
 };

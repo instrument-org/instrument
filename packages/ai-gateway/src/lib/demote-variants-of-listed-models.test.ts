@@ -109,6 +109,7 @@ describe("demoteVariantsOfListedModels", () => {
     ["openai/gpt-5.1-codex", "openai/gpt-5.1-codex-max"],
     ["qwen/qwen3-max", "qwen/qwen3-max-thinking"],
     ["x-ai/grok-4.20", "x-ai/grok-4.20-multi-agent"],
+    ["z-ai/glm-5.3-flashx", "z-ai/glm-5.3-flashx-legal"],
   ])("demotes %s's variant %s", (base, variant) => {
     const result = demoteVariantsOfListedModels([
       createModel(base, ["coding", "recommended"]),

@@ -2,7 +2,8 @@ import { type AIGatewayModel } from "../schemas/model";
 
 /**
  * Suffixes that name a step up from a base model rather than a tier of its own:
- * a reasoning mode, a priority lane, an extended-thinking build. The cheaper
+ * a reasoning mode, a priority lane, an extended-thinking build, or a build of
+ * it tuned for one field (`glm-5.3-flashx-legal`). The cheaper
  * tiers (mini, nano, lite, flash, air) are deliberately absent, because those
  * are a different choice rather than the same one at a markup.
  */
@@ -10,6 +11,7 @@ const VARIANT_SUFFIXES = [
   "customtools",
   "fast",
   "high",
+  "legal",
   "max",
   "multi-agent",
   "pro",

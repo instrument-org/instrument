@@ -16,7 +16,8 @@ const mockConfig: AIGatewayProviderConfig.Type = {
   apiKey: "NOT_NEEDED",
   cacheIdentifier: OUR_MODELS.cacheIdentifier,
   id: OUR_PROVIDER_CONFIG.id,
-  type: "openrouter",
+  // A provider no default pattern names, so only the id's own tags show.
+  type: "vercel",
 };
 
 function createMockModel(
@@ -432,5 +433,36 @@ describe("the default a provider's list leads with", () => {
         .filter((model) => model.tags.includes("default"))
         .map((model) => model.canonicalId),
     ).toEqual([expected]);
+  });
+
+  it("on openrouter is the newest Sonnet and the newest GPT Sol", () => {
+    const config: AIGatewayProviderConfig.Type = {
+      apiKey: "NOT_NEEDED",
+      cacheIdentifier: "openrouter",
+      id: AIProviderConfigIdSchema.parse("openrouter"),
+      type: "openrouter",
+    };
+    const ids = [
+      "glm-5.3-flashx-legal",
+      "glm-5.3-flashx",
+      "gpt-6.1-terra",
+      "gpt-6.1-sol-pro",
+      "gpt-6.1-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-sol",
+      "claude-sonnet-5",
+      "claude-sonnet-latest",
+      "gpt-sol-latest",
+    ];
+    const models = demoteSupersededModels(
+      demoteVariantsOfListedModels(
+        ids.map((id) => addHeuristicTags(createMockModel(id), config)),
+      ),
+    );
+    expect(
+      models
+        .filter((model) => model.tags.includes("default"))
+        .map((model) => model.canonicalId),
+    ).toEqual(["gpt-6.1-sol", "claude-sonnet-5.5"]);
   });
 });

@@ -197,9 +197,14 @@ describe("FileViewer starting a sound as it opens", () => {
           }}
         />,
       );
-      await waitFor(() => {
-        expect(view.container.querySelector("audio")).not.toBeNull();
-      });
+      // The first case here also loads the player's chunk, which takes longer
+      // than the default wait when the whole suite is running.
+      await waitFor(
+        () => {
+          expect(view.container.querySelector("audio")).not.toBeNull();
+        },
+        { timeout: 10_000 },
+      );
       expect(play.mock.calls.length > 0).toBe(plays);
       vi.restoreAllMocks();
       Reflect.deleteProperty(navigator, "userActivation");

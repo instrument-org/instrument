@@ -93,11 +93,12 @@ export async function checkAccount({
 }
 
 /**
- * Checks the account, then makes its model the default when it is worth
- * running on: always once it is ready (as each provider's own rule says),
- * and only when nothing is chosen yet for an answer that may still turn out
- * fine (out of usage, timed out, failed). An account with no usable plan, or
- * one signed out, never becomes the default.
+ * Checks the account, then makes its model the default when nothing is
+ * chosen yet and the account is worth running on: ready (as each provider's
+ * own rule says), or an answer that may still turn out fine (out of usage,
+ * timed out, failed). A default already chosen is the person's to change,
+ * through the model step that follows a connection. An account with no
+ * usable plan, or one signed out, never becomes the default.
  */
 export async function connectAccount(input: {
   accountId?: string;
@@ -106,11 +107,11 @@ export async function connectAccount(input: {
 }): Promise<{ modelName?: string; outcome: ConnectOutcome }> {
   const outcome = await checkAccount(input);
   const worthDefault =
-    outcome.kind === "ready" ||
-    ((outcome.kind === "out-of-usage" ||
+    getDefaultModelURI() === undefined &&
+    (outcome.kind === "ready" ||
+      outcome.kind === "out-of-usage" ||
       outcome.kind === "timed-out" ||
-      outcome.kind === "failed") &&
-      getDefaultModelURI() === undefined);
+      outcome.kind === "failed");
   if (!worthDefault) {
     return { outcome };
   }

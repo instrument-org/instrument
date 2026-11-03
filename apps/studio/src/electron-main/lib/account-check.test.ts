@@ -196,12 +196,19 @@ describe("checkAccount", () => {
 });
 
 describe("connectAccount", () => {
-  it("makes a ready account's model the default", async () => {
-    mocks.defaultModel = "someone/else";
+  it("makes a ready account's model the default when none is chosen", async () => {
     await expect(connectAccount({ provider: "claude" })).resolves.toEqual({
       modelName: "Opus",
       outcome: { kind: "ready", plan: "max" },
     });
+  });
+
+  it("leaves a chosen default alone for a ready account", async () => {
+    mocks.defaultModel = "someone/else";
+    await expect(connectAccount({ provider: "claude" })).resolves.toEqual({
+      outcome: { kind: "ready", plan: "max" },
+    });
+    expect(mocks.setClaude).not.toHaveBeenCalled();
   });
 
   it.each([

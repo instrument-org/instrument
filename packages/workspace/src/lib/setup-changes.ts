@@ -29,9 +29,10 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 export type SetupKind = "app" | "memory" | "skill" | "project";
 
 /**
- * Where each kind lives, how a name in its folder is an item, and the file
- * whose presence makes the item one: a skill folder without its `SKILL.md`
- * is not a skill.
+ * Where each kind lives, how a name in its folder is an item, the file that
+ * says what it is, and what makes the item there: a skill folder without its
+ * `SKILL.md` is not a skill, while every folder in `Projects/` is a project,
+ * its `AGENTS.md` only what it says.
  */
 export const SETUP_KINDS: Record<
   SetupKind,
@@ -41,27 +42,33 @@ export const SETUP_KINDS: Record<
     itemOf: (entry: string) => string | undefined;
     /** The marker's path inside the folder. */
     marker: (name: string) => string;
+    /** The path inside the folder whose presence makes the item there. */
+    presence: (name: string) => string;
   }
 > = {
   app: {
     folder: () => path.join(getWorkspaceConfig().rootDir, APPS_FOLDER_NAME),
     itemOf: (entry) => entry,
     marker: (name) => `${name}/${APP_FILE_NAME}`,
+    presence: (name) => `${name}/${APP_FILE_NAME}`,
   },
   memory: {
     folder: () => memoryDir(),
     itemOf: (entry) => (entry.endsWith(".md") ? entry.slice(0, -3) : undefined),
     marker: (name) => `${name}.md`,
+    presence: (name) => `${name}.md`,
   },
   skill: {
     folder: () => getWorkspaceSkillsDir(),
     itemOf: (entry) => entry,
     marker: (name) => `${name}/SKILL.md`,
+    presence: (name) => `${name}/SKILL.md`,
   },
   project: {
     folder: () => path.join(getWorkspaceConfig().rootDir, PROJECTS_FOLDER_NAME),
     itemOf: (entry) => entry,
     marker: (name) => `${name}/${PROJECT_FILE_NAME}`,
+    presence: (name) => name,
   },
 };
 
@@ -160,9 +167,9 @@ export async function consumeSetupChanges(
 
 /** Whether an item of that kind and name is there now. */
 async function setupItemExists(kind: SetupKind, name: string) {
-  const { folder, marker } = SETUP_KINDS[kind];
-  return fs.stat(path.join(folder(), marker(name))).then(
-    (stats) => stats.isFile(),
+  const { folder, presence } = SETUP_KINDS[kind];
+  return fs.stat(path.join(folder(), presence(name))).then(
+    (stats) => (kind === "project" ? stats.isDirectory() : stats.isFile()),
     () => false,
   );
 }
@@ -206,8 +213,8 @@ export function setupTrackingFs(
   delegate: IFileSystem,
   folders: readonly SetupFolder[],
 ): IFileSystem {
-  const markerOf = (folder: SetupFolder, name: string) =>
-    `${folder.root}/${SETUP_KINDS[folder.kind].marker(name)}`;
+  const presenceOf = (folder: SetupFolder, name: string) =>
+    `${folder.root}/${SETUP_KINDS[folder.kind].presence(name)}`;
 
   /** The folder a path is in, and the item it names there ("" for the folder itself). */
   const locate = (given: string) => {
@@ -241,7 +248,7 @@ export function setupTrackingFs(
     name === undefined || name === "" || name === "."
       ? undefined
       : {
-          existedBefore: await delegate.exists(markerOf(folder, name)),
+          existedBefore: await delegate.exists(presenceOf(folder, name)),
           kind: folder.kind,
           name,
         };

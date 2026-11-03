@@ -1,4 +1,4 @@
-import { AIGatewayModel, AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { describe, expect, it } from "vitest";
 
 import { RelativePathSchema } from "../schemas/paths";
@@ -54,6 +54,20 @@ function createAssistantMessage({
         type: "reasoning",
       },
       {
+        metadata: {
+          createdAt: mockDate,
+          id: StoreId.newPartId(),
+          messageId,
+          sessionId,
+        },
+        providerMetadata: {
+          openai: { itemId: "msg_source", phase: "final_answer" },
+        },
+        state: "done",
+        text: "The answer",
+        type: "text",
+      },
+      {
         callProviderMetadata: {
           openrouter: {
             reasoning_details: [
@@ -97,147 +111,56 @@ function createAssistantMessage({
 }
 
 describe("removeCrossModelReasoningDetails", () => {
-  it("removes encrypted reasoning when the previous assistant turn has no exact model identity", async () => {
-    const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
-    const sourceMessage = createAssistantMessage({
-      modelId: "auto",
-      providerId: "instrument",
-    });
+  const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
 
-    const result = removeCrossModelReasoningDetails({
-      messages: [sourceMessage],
-      model: targetModel,
-    });
+  it.each([
+    { aiGatewayModel: undefined, case: "records no model" },
+    {
+      aiGatewayModel: createMockAIGatewayModel({
+        provider: "openrouter",
+        providerConfigId: "different-provider-config-id",
+      }),
+      case: "ran on the same model through another provider config",
+    },
+  ])(
+    "strips only OpenAI's encrypted reasoning from a turn that $case",
+    async ({ aiGatewayModel }) => {
+      const sourceMessage = createAssistantMessage({
+        aiGatewayModel,
+        modelId: "auto",
+        providerId: "instrument",
+      });
 
-    expect(result.redactedMessageCount).toBe(1);
-    expect(result.redactedReasoningDetailsCount).toBe(1);
-    expect(result.sourceModelIds).toEqual(["auto"]);
-    expect(result.sourceProviderIds).toEqual(["instrument"]);
+      const result = removeCrossModelReasoningDetails({
+        messages: [sourceMessage],
+        model: targetModel,
+      });
 
-    const [message] = result.messages;
-    if (!message) {
-      throw new Error("Expected sanitized message");
-    }
+      expect(result).toMatchObject({
+        redactedMessageCount: 1,
+        redactedReasoningDetailsCount: 1,
+        sourceModelIds: ["auto"],
+        sourceProviderIds: ["instrument"],
+      });
+      const [reasoning, text, tool] = result.messages[0]?.parts ?? [];
+      expect(reasoning).toMatchObject({ type: "reasoning" });
+      expect(reasoning).not.toHaveProperty("providerMetadata.openai");
+      // A reply's phase and OpenRouter's reasoning details, which accepts
+      // another model's, stay.
+      expect(text).toBe(sourceMessage.parts[1]);
+      expect(tool).toBe(sourceMessage.parts[2]);
 
-    const [reasoningPart, toolPart] = message.parts;
-    if (!reasoningPart || !toolPart || !("providerMetadata" in reasoningPart)) {
-      throw new Error("Expected reasoning and tool parts");
-    }
+      const modelMessages = await SessionMessage.toModelMessages(
+        result.messages,
+        TOOLS_FOR_MODEL_OUTPUT,
+      );
+      expect(JSON.stringify(modelMessages)).not.toContain(
+        "reasoningEncryptedContent",
+      );
+    },
+  );
 
-    expect(reasoningPart.providerMetadata).toBeUndefined();
-
-    // OpenRouter accepts another model's reasoning details, so they stay.
-    if (!("callProviderMetadata" in toolPart)) {
-      throw new Error("Expected tool part");
-    }
-    expect(toolPart.callProviderMetadata).toEqual(
-      sourceMessage.parts[1] && "callProviderMetadata" in sourceMessage.parts[1]
-        ? sourceMessage.parts[1].callProviderMetadata
-        : undefined,
-    );
-
-    const modelMessages = await SessionMessage.toModelMessages(
-      result.messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(hasEncryptedReasoning(modelMessages)).toBe(false);
-  });
-
-  it("removes encrypted reasoning when the canonical model matches but the model URI differs", async () => {
-    const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
-    const sourceModel = AIGatewayModel.Schema.parse({
-      ...targetModel,
-      uri: AIGatewayModelURI.Schema.parse(
-        `${targetModel.author}/${targetModel.canonicalId}?provider=openrouter&providerConfigId=different-provider-config-id`,
-      ),
-    });
-
-    const sourceMessage = createAssistantMessage({
-      aiGatewayModel: sourceModel,
-      modelId: targetModel.canonicalId,
-      providerId: targetModel.params.provider,
-    });
-
-    const result = removeCrossModelReasoningDetails({
-      messages: [sourceMessage],
-      model: targetModel,
-    });
-
-    expect(result.redactedMessageCount).toBe(1);
-    expect(result.redactedReasoningDetailsCount).toBe(1);
-    expect(result.sourceModelIds).toEqual([targetModel.canonicalId]);
-    expect(result.sourceProviderIds).toEqual([targetModel.params.provider]);
-
-    const [message] = result.messages;
-    expect(message).not.toBe(sourceMessage);
-
-    const modelMessages = await SessionMessage.toModelMessages(
-      result.messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(hasEncryptedReasoning(modelMessages)).toBe(false);
-  });
-
-  it("removes OpenAI encrypted reasoning, and keeps a reply's phase, when the model URI differs", () => {
-    const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
-    const sourceMessage = createAssistantMessage({
-      modelId: "auto",
-      providerId: "instrument",
-    });
-    const [reasoningPart] = sourceMessage.parts;
-    if (reasoningPart?.type !== "reasoning") {
-      throw new Error("Expected a reasoning part");
-    }
-    const message: SessionMessage.AssistantWithParts = {
-      ...sourceMessage,
-      parts: [
-        {
-          ...reasoningPart,
-          providerMetadata: {
-            openai: {
-              itemId: "rs_source",
-              reasoningEncryptedContent: "encrypted-payload",
-            },
-          },
-        },
-        {
-          metadata: reasoningPart.metadata,
-          providerMetadata: {
-            openai: { itemId: "msg_source", phase: "final_answer" },
-          },
-          state: "done",
-          text: "The answer",
-          type: "text",
-        },
-      ],
-    };
-
-    const result = removeCrossModelReasoningDetails({
-      messages: [message],
-      model: targetModel,
-    });
-
-    expect(result.redactedMessageCount).toBe(1);
-    expect(result.redactedReasoningDetailsCount).toBe(1);
-
-    const [sanitized] = result.messages;
-    const [sanitizedReasoning, sanitizedText] = sanitized?.parts ?? [];
-    if (
-      sanitizedReasoning?.type !== "reasoning" ||
-      sanitizedText?.type !== "text"
-    ) {
-      throw new Error("Expected reasoning and text parts");
-    }
-    expect(sanitizedReasoning.providerMetadata).toBeUndefined();
-    expect(sanitizedText.providerMetadata).toEqual({
-      openai: { itemId: "msg_source", phase: "final_answer" },
-    });
-  });
-
-  it("keeps reasoning details when the previous assistant turn has the exact target model URI", () => {
-    const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
+  it("keeps a turn from the exact target model URI as it is", () => {
     const sourceMessage = createAssistantMessage({
       aiGatewayModel: targetModel,
       modelId: targetModel.canonicalId,
@@ -249,13 +172,13 @@ describe("removeCrossModelReasoningDetails", () => {
       model: targetModel,
     });
 
-    expect(result.redactedMessageCount).toBe(0);
-    expect(result.redactedReasoningDetailsCount).toBe(0);
-    expect(result.sourceModelIds).toEqual([]);
-    expect(result.sourceProviderIds).toEqual([]);
-
-    const [message] = result.messages;
-    expect(message).toBe(sourceMessage);
+    expect(result).toMatchObject({
+      redactedMessageCount: 0,
+      redactedReasoningDetailsCount: 0,
+      sourceModelIds: [],
+      sourceProviderIds: [],
+    });
+    expect(result.messages[0]).toBe(sourceMessage);
   });
 
   describe("on a model that stands for another", () => {
@@ -295,13 +218,13 @@ describe("removeCrossModelReasoningDetails", () => {
         sourceModelId: "anthropic/claude-sonnet-5",
       },
       {
-        case: "keeps reasoning when the gateway reports no resolution, as before",
+        case: "keeps reasoning when the gateway reports no resolution",
         modelIdServed: "openai/gpt-6-luna",
         redacted: 0,
         sourceModelId: undefined,
       },
       {
-        case: "keeps reasoning when the turn does not record who answered, as before",
+        case: "keeps reasoning when the turn does not record who answered",
         modelIdServed: undefined,
         redacted: 0,
         sourceModelId: "anthropic/claude-sonnet-5",
@@ -316,7 +239,3 @@ describe("removeCrossModelReasoningDetails", () => {
     });
   });
 });
-
-function hasEncryptedReasoning(value: unknown) {
-  return JSON.stringify(value).includes("reasoningEncryptedContent");
-}

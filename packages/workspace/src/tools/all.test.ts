@@ -1,70 +1,39 @@
-import { err, ok, type Result } from "neverthrow";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { TOOLS } from "./all";
 
-// Recursively check parameterSchema for descriptions and throw an error if
-// any are missing
-function hasDescription(
+// The path of the first field the model would see without a description, or
+// undefined when every leaf has one.
+function missingDescription(
   schema: z.ZodType,
-  currentPath: string[] = [],
-): Result<null, { key: string; path: string }> {
-  // Check if the current schema has a description
+  path: string[] = [],
+): string | undefined {
   if (schema.meta()?.description) {
-    return ok(null);
+    return undefined;
   }
-
-  // Handle ZodObject schemas
   if (schema instanceof z.ZodObject) {
-    const shape = schema.shape;
-
-    for (const [key, value] of Object.entries(shape)) {
-      if (value instanceof z.ZodType) {
-        const result = hasDescription(value, [...currentPath, key]);
-        if (result.isErr()) {
-          return err(result.error);
-        }
-      }
-    }
-    return ok(null);
+    return Object.entries(schema.shape)
+      .filter(
+        (entry): entry is [string, z.ZodType] => entry[1] instanceof z.ZodType,
+      )
+      .map(([key, value]) => missingDescription(value, [...path, key]))
+      .find(Boolean);
   }
-
-  // Handle ZodDiscriminatedUnion schemas
   if (schema instanceof z.ZodDiscriminatedUnion) {
-    const options = schema.options;
-    for (const option of options) {
-      const result = hasDescription(option as z.ZodType, [
-        ...currentPath,
-        "option",
-      ]);
-      if (result.isErr()) {
-        return err(result.error);
-      }
-    }
-    return ok(null);
+    return schema.options
+      .map((option) =>
+        missingDescription(option as z.ZodType, [...path, "option"]),
+      )
+      .find(Boolean);
   }
-
-  // If we get here, the schema doesn't have a description and isn't a container type
-  return err({
-    key: schema.constructor.name,
-    path: currentPath.join(".") || "root",
-  });
+  return path.join(".") || "root";
 }
 
-describe("all", () => {
-  describe("parameterSchema", () => {
-    it.each(
-      Object.entries(TOOLS).filter(([_, tool]) => tool.name !== "unavailable"),
-    )("should have descriptions for all types in %s", (toolName, tool) => {
-      const result = hasDescription(tool.inputSchema);
-      // oxlint-disable-next-line vitest/valid-expect
-      expect(
-        result.isOk(),
-        result.isErr()
-          ? `Missing description in ${toolName} at ${result.error.path} for ${result.error.key}`
-          : "Expected schema to have descriptions",
-      ).toBe(true);
-    });
+describe("TOOLS", () => {
+  it.each(
+    Object.entries(TOOLS).filter(([_, tool]) => tool.name !== "unavailable"),
+  )("describes every input field of %s", (_, tool) => {
+    expect(missingDescription(tool.inputSchema)).toBeUndefined();
   });
 });

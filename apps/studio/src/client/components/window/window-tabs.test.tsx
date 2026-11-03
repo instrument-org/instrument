@@ -4,9 +4,10 @@ import {
   getGroupTabRouter,
   setGroupTabRouter,
 } from "@/client/lib/group-tab-router-registry";
-import { createTabRouter } from "@/client/lib/tab-router";
+import { type TabRouter } from "@/client/lib/tab-router";
 import { TabIdSchema } from "@/shared/tabs";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
+import { createMemoryHistory } from "@tanstack/react-router";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
@@ -90,7 +91,12 @@ describe("opening into a group", () => {
     if (id === undefined) {
       throw new Error("no screen tab opened");
     }
-    const router = createTabRouter({ pathname: BROWSER_HREF });
+    // The tabs walk a screen tab by its router's history alone, so a router
+    // with just that stands in for one over the app's whole route tree, which
+    // would cost this file most of its import time.
+    const router = {
+      history: createMemoryHistory({ initialEntries: [BROWSER_HREF] }),
+    } as TabRouter;
     setGroupTabRouter(id, router);
     act(() => {
       result.current.navigateScreen("/apps");

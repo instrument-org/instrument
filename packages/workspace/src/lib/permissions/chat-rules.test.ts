@@ -9,9 +9,15 @@ import os from "node:os";
 import path from "node:path";
 
 import { execa } from "execa";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { ChatDirSchema, WorkDirSchema } from "../../schemas/paths";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkDirSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
 import {
   bwrapArgs,
   launchNative,
@@ -19,10 +25,13 @@ import {
   wrapNativeCommand,
 } from "../native-sandbox";
 import { runtimeLayout } from "../runtime-dir";
-import { getWorkspaceConfig } from "../workspace-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
-import { nativeReachFor } from "./chat-rules";
+import { chatRules, nativeReachFor } from "./chat-rules";
+import { setDenied } from "./denials";
+import { reachOf } from "./rules";
+import { closedNote } from "./rules-fs";
 
 const chatRoot = WorkDirSchema.parse(
   realpathSync(mkdtempSync(path.join(os.tmpdir(), "chat-rules-"))),
@@ -164,3 +173,46 @@ describe.runIf(seatbeltAvailable())(
     });
   },
 );
+
+// A chat's "Not now" to a folder is a rule of that chat's: every command and
+// file tool in it is refused the folder, and told why, while another chat
+// still asks.
+describe("chatRules", () => {
+  const config = getWorkspaceConfig();
+  afterEach(() => {
+    setWorkspaceConfig(config);
+  });
+
+  it("closes a folder the person said Not now to, in that chat only", async () => {
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "chat-rules-denied-"));
+    setWorkspaceConfig({
+      ...config,
+      rootDir: WorkspaceDirSchema.parse(rootDir),
+      workspaceMachineDir: AbsolutePathSchema.parse(`${rootDir}-machine`),
+    });
+    const pantry = path.join(os.homedir(), "Pantry");
+    const here = ChatIdSchema.parse("chat-here");
+    await setDenied(here, "folder", pantry, true);
+
+    const file = path.join(pantry, "list.md");
+    const pantryReach = reachOf(
+      await chatRules({ chatId: here }),
+      file,
+      "read",
+    );
+    expect(pantryReach).toMatchObject({
+      level: "never",
+      rule: { denied: true },
+    });
+    expect(closedNote(pantryReach, "list.md")).toContain(
+      "the person said not now to this folder in this chat",
+    );
+    expect(
+      reachOf(
+        await chatRules({ chatId: ChatIdSchema.parse("chat-elsewhere") }),
+        file,
+        "read",
+      ).level,
+    ).not.toBe("never");
+  });
+});

@@ -748,9 +748,9 @@ const readFileCapability = defineCapability({
         }
         contentBody += numberedContent;
         if (output.truncatedByBytes && remainingLines > 0) {
-          contentBody += `\n... ${remainingLines} lines not shown (output capped at 50KB) ...\n\n(Use ${INPUT_PARAMS.offset} parameter to read beyond line ${endLine})`;
+          contentBody += `\n... ${remainingLines} lines not shown (output capped at 50KB) ...\n\n(Use ${INPUT_PARAMS.offset}=${endLine + 1} to continue)`;
         } else if (output.hasMoreLines && remainingLines > 0) {
-          contentBody += `\n... ${remainingLines} lines not shown ...\n\n(Use ${INPUT_PARAMS.offset} parameter to read beyond line ${endLine + 1})`;
+          contentBody += `\n... ${remainingLines} lines not shown ...\n\n(Use ${INPUT_PARAMS.offset}=${endLine + 1} to continue)`;
         }
 
         const result = `<path>${output.filePath}</path>\n<content${isPartial ? ` lines="${header}"` : ""}>\n${contentBody}\n</content>`;

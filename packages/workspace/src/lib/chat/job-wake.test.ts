@@ -57,7 +57,7 @@ const workspaceRef = {
 const sessions: StoreId.Session[] = [];
 
 /** Shorter than the app's, so a case waits less for a wake that is coming. */
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 50;
 
 beforeAll(() => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "job-wake-"));
@@ -324,14 +324,14 @@ describe("a chat with a command's wake on its way", () => {
     vi.mocked(isWorking).mockReturnValue(true);
     const job = promote(owner, "pnpm build");
     job.exit(0);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await pastTheDebounce();
 
     vi.mocked(isWorking).mockReturnValue(false);
     publisher.publish("session.done", {
       id: owner.chatId,
       sessionId: owner.sessionId,
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(hasWakeOnItsWay(owner.chatId)).toBe(true);
 
     await vi.waitFor(() => {
@@ -365,7 +365,7 @@ describe("a chat with a command's wake on its way", () => {
     });
     vi.mocked(isWorking).mockReturnValue(true);
     promote(owner, "pnpm build").exit(0);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await pastTheDebounce();
     vi.mocked(isWorking).mockReturnValue(false);
     publisher.publish("session.done", {
       id: owner.chatId,
@@ -398,7 +398,7 @@ describe("a chat with a command's wake on its way", () => {
     const halted = await chat();
     vi.mocked(isWorking).mockReturnValue(true);
     promote(halted, "sleep 40").exit(0);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await pastTheDebounce();
     vi.mocked(isWorking).mockReturnValue(false);
     publisher.publish("session.done", {
       id: halted.chatId,

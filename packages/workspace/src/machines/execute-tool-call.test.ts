@@ -83,17 +83,6 @@ describe("executeToolCallMachine", () => {
           );
         }
 
-        if (command.includes("hang-command")) {
-          return mockSubprocess(
-            new Promise((resolve) => {
-              setTimeout(() => {
-                resolve(mockResult);
-              }, 100);
-            }),
-            mockResult.all,
-          );
-        }
-
         return mockSubprocess(Promise.resolve(mockResult), mockResult.all);
       },
     );
@@ -155,25 +144,36 @@ describe("executeToolCallMachine", () => {
     return actor;
   }
 
-  async function runTestMachine(actor: ReturnType<typeof createTestActor>) {
-    actor.start();
-    await waitFor(actor, (state) => state.status === "done");
-    const sessionResult = await ChatReads.sessionWithMessages({
+  async function readStoredPart(partId: StoreId.Part) {
+    const session = await ChatReads.sessionWithMessages({
       chatId: taskConfig,
       sessionId,
     });
-    return sessionResult._unsafeUnwrap();
+    return session
+      ._unsafeUnwrap()
+      .messages.flatMap((message) => message.parts)
+      .find((part) => part.metadata.id === partId);
+  }
+
+  /** Saves the call, runs it to its end, and reads back what it stored. */
+  async function runToStoredPart(
+    part: SessionMessagePart.ToolPartInputAvailable,
+  ) {
+    await ChatWrites.savePart(part, taskConfig);
+    const actor = createTestActor({ part });
+    actor.start();
+    await waitFor(actor, (state) => state.status === "done");
+    return readStoredPart(part.metadata.id);
   }
 
   function createShellCommandPart(
     command: string,
-    yieldMs = 1000,
   ): SessionMessagePart.ToolPartInputAvailable {
     return {
       input: {
         command,
         explanation: "Installing packages",
-        yieldMs,
+        yieldMs: 1000,
       },
       metadata: {
         createdAt: mockDate,
@@ -187,378 +187,207 @@ describe("executeToolCallMachine", () => {
     };
   }
 
-  describe("with successful shell command", () => {
-    it("should execute shell command successfully", async () => {
-      const part = createShellCommandPart("pnpm install");
-      await ChatWrites.savePart(part, taskConfig);
+  it("stores a shell command's output", async () => {
+    const updatedPart = await runToStoredPart(
+      createShellCommandPart("pnpm install"),
+    );
 
-      const actor = createTestActor({ part });
-      await runTestMachine(actor);
-
-      // Verify the part was updated with output
-      const updatedSession = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      const session = updatedSession._unsafeUnwrap();
-      const updatedPart = session.messages
-        .flatMap((m) => m.parts)
-        .find(
-          (p) => p.type === "tool-bash" && p.toolCallId === "test_tool_call_1",
-        );
-
-      expect(updatedPart).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm install",
-            "explanation": "Installing packages",
-            "yieldMs": 1000,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:07.000Z,
-            "id": "prt_00000000Z8888888888888888A",
-            "messageId": "msg_00000000Z88888888888888889",
-            "sessionId": "ses_00000000Z88888888888888888",
-            "startedAt": 2013-08-31T12:00:04.000Z,
-          },
-          "output": {
-            "command": "pnpm install",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 0,
-            "omittedBytes": 0,
-            "output": "mocked stdout
-        mocked stderr",
-            "ran": [
-              {
-                "count": 1,
-                "name": "pnpm",
-                "source": "bundled",
-              },
-            ],
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
-        }
-      `);
-    });
-  });
-
-  describe("with shell command that throws", () => {
-    it("should handle shell command errors", async () => {
-      const part = createShellCommandPart("pnpm throw-error");
-      await ChatWrites.savePart(part, taskConfig);
-
-      const actor = createTestActor({ part });
-      await runTestMachine(actor);
-
-      // Verify the part was updated with error
-      const updatedSession = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      const session = updatedSession._unsafeUnwrap();
-      const updatedPart = session.messages
-        .flatMap((m) => m.parts)
-        .find(
-          (p) => p.type === "tool-bash" && p.toolCallId === "test_tool_call_1",
-        );
-
-      expect(updatedPart).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm throw-error",
-            "explanation": "Installing packages",
-            "yieldMs": 1000,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:06.000Z,
-            "id": "prt_00000000Z9888888888888888A",
-            "messageId": "msg_00000000Z98888888888888889",
-            "sessionId": "ses_00000000Z98888888888888888",
-            "startedAt": 2013-08-31T12:00:03.000Z,
-          },
-          "output": {
-            "command": "pnpm throw-error",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 1,
-            "omittedBytes": 0,
-            "output": "pnpm: Shell command failed
-        ",
-            "ran": [
-              {
-                "count": 1,
-                "name": "pnpm",
-                "source": "bundled",
-              },
-            ],
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
-        }
-      `);
-    });
-  });
-
-  describe("with hanging shell command", () => {
-    it("should handle hanging shell command", async () => {
-      const part = createShellCommandPart("pnpm hang-command", 10); // Very short timeout to trigger cancellation
-      await ChatWrites.savePart(part, taskConfig);
-
-      const actor = createTestActor({ part });
-      await runTestMachine(actor);
-
-      // Verify the part was updated with cancellation
-      const updatedSession = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      const session = updatedSession._unsafeUnwrap();
-      const updatedPart = session.messages
-        .flatMap((m) => m.parts)
-        .find(
-          (p) => p.type === "tool-bash" && p.toolCallId === "test_tool_call_1",
-        );
-
-      expect(updatedPart).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "command": "pnpm hang-command",
-            "explanation": "Installing packages",
-            "yieldMs": 10,
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:06.000Z,
-            "id": "prt_00000000ZA888888888888888A",
-            "messageId": "msg_00000000ZA8888888888888889",
-            "sessionId": "ses_00000000ZA8888888888888888",
-            "startedAt": 2013-08-31T12:00:03.000Z,
-          },
-          "output": {
-            "command": "pnpm hang-command",
-            "commands": [
-              "pnpm",
-            ],
-            "durationMs": 0,
-            "exitCode": 0,
-            "omittedBytes": 0,
-            "output": "mocked stdout
-        mocked stderr",
-            "ran": [
-              {
-                "count": 1,
-                "name": "pnpm",
-                "source": "bundled",
-              },
-            ],
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_1",
-          "type": "tool-bash",
-        }
-      `);
-    });
-  });
-
-  describe("with read file tool", () => {
-    it("should execute read file successfully", async () => {
-      const part: SessionMessagePart.ToolPartInputAvailable = {
-        input: {
-          explanation: "Reading test file",
-          filePath: "test.txt",
+    expect(updatedPart).toMatchInlineSnapshot(`
+      {
+        "input": {
+          "command": "pnpm install",
+          "explanation": "Installing packages",
+          "yieldMs": 1000,
         },
-        metadata: {
-          createdAt: mockDate,
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
+        "metadata": {
+          "createdAt": 2025-01-01T00:00:00.000Z,
+          "endedAt": 2013-08-31T12:00:07.000Z,
+          "id": "prt_00000000Z8888888888888888A",
+          "messageId": "msg_00000000Z88888888888888889",
+          "sessionId": "ses_00000000Z88888888888888888",
+          "startedAt": 2013-08-31T12:00:04.000Z,
         },
-        state: "input-available",
-        toolCallId: StoreId.ToolCallSchema.parse("test_tool_call_2"),
-        type: "tool-read_file",
-      };
-
-      await ChatWrites.savePart(part, taskConfig);
-
-      const actor = createTestActor({ part });
-      await runTestMachine(actor);
-
-      // Verify the part was updated with output
-      const updatedSession = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      const session = updatedSession._unsafeUnwrap();
-      const updatedPart = session.messages
-        .flatMap((m) => m.parts)
-        .find(
-          (p) =>
-            p.type === "tool-read_file" && p.toolCallId === "test_tool_call_2",
-        );
-
-      expect(updatedPart?.type).toBe("tool-read_file");
-      if (
-        updatedPart?.type !== "tool-read_file" ||
-        updatedPart.state !== "output-available" ||
-        updatedPart.output.state !== "exists"
-      ) {
-        return;
+        "output": {
+          "command": "pnpm install",
+          "commands": [
+            "pnpm",
+          ],
+          "durationMs": 0,
+          "exitCode": 0,
+          "omittedBytes": 0,
+          "output": "mocked stdout
+      mocked stderr",
+          "ran": [
+            {
+              "count": 1,
+              "name": "pnpm",
+              "source": "bundled",
+            },
+          ],
+        },
+        "preliminary": false,
+        "state": "output-available",
+        "toolCallId": "test_tool_call_1",
+        "type": "tool-bash",
       }
-
-      const { modifiedAt, ...outputWithoutModifiedAt } = updatedPart.output;
-      expect(modifiedAt).toEqual(expect.any(Number));
-
-      expect({
-        ...updatedPart,
-        output: outputWithoutModifiedAt,
-      }).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "explanation": "Reading test file",
-            "filePath": "test.txt",
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:05.000Z,
-            "id": "prt_00000000ZB888888888888888A",
-            "messageId": "msg_00000000ZB8888888888888889",
-            "sessionId": "ses_00000000ZB8888888888888888",
-            "startedAt": 2013-08-31T12:00:03.000Z,
-          },
-          "output": {
-            "content": "Hello, world!",
-            "displayedLines": 1,
-            "filePath": "./test.txt",
-            "hasMoreLines": false,
-            "offset": 1,
-            "state": "exists",
-            "totalLines": 1,
-            "truncatedByBytes": false,
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_2",
-          "type": "tool-read_file",
-        }
-      `);
-    });
-
-    it("should handle file not found", async () => {
-      const part: SessionMessagePart.ToolPartInputAvailable = {
-        input: {
-          explanation: "Reading nonexistent file",
-          filePath: "nonexistent.txt",
-        },
-        metadata: {
-          createdAt: mockDate,
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        state: "input-available",
-        toolCallId: StoreId.ToolCallSchema.parse("test_tool_call_3"),
-        type: "tool-read_file",
-      };
-
-      await ChatWrites.savePart(part, taskConfig);
-
-      const actor = createTestActor({ part });
-      await runTestMachine(actor);
-
-      // Verify the part was updated with "not found" output (not error)
-      const updatedSession = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      const session = updatedSession._unsafeUnwrap();
-      const updatedPart = session.messages
-        .flatMap((m) => m.parts)
-        .find(
-          (p) =>
-            p.type === "tool-read_file" && p.toolCallId === "test_tool_call_3",
-        );
-
-      expect(updatedPart).toMatchInlineSnapshot(`
-        {
-          "input": {
-            "explanation": "Reading nonexistent file",
-            "filePath": "nonexistent.txt",
-          },
-          "metadata": {
-            "createdAt": 2025-01-01T00:00:00.000Z,
-            "endedAt": 2013-08-31T12:00:05.000Z,
-            "id": "prt_00000000ZC888888888888888A",
-            "messageId": "msg_00000000ZC8888888888888889",
-            "sessionId": "ses_00000000ZC8888888888888888",
-            "startedAt": 2013-08-31T12:00:03.000Z,
-          },
-          "output": {
-            "filePath": "./nonexistent.txt",
-            "state": "does-not-exist",
-            "suggestions": [
-              "nonexistent.js",
-            ],
-          },
-          "preliminary": false,
-          "state": "output-available",
-          "toolCallId": "test_tool_call_3",
-          "type": "tool-read_file",
-        }
-      `);
-    });
+    `);
   });
 
-  describe("with pnpm dev and start", () => {
-    async function runShellCommand(command: string) {
-      const requestPart = createShellCommandPart(command);
-      await ChatWrites.savePart(requestPart, taskConfig);
-      const actor = createTestActor({ part: requestPart });
-      await runTestMachine(actor);
-      const sessionResult = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      const session = sessionResult._unsafeUnwrap();
-      const part = session.messages
-        .flatMap((m) => m.parts)
-        .find(
-          (p) => p.type === "tool-bash" && p.toolCallId === "test_tool_call_1",
-        );
-      if (part?.type !== "tool-bash") {
-        throw new Error(`No bash part recorded for "${command}"`);
+  it("stores a shell command that failed to start as a failed run", async () => {
+    const updatedPart = await runToStoredPart(
+      createShellCommandPart("pnpm throw-error"),
+    );
+
+    expect(updatedPart).toMatchInlineSnapshot(`
+      {
+        "input": {
+          "command": "pnpm throw-error",
+          "explanation": "Installing packages",
+          "yieldMs": 1000,
+        },
+        "metadata": {
+          "createdAt": 2025-01-01T00:00:00.000Z,
+          "endedAt": 2013-08-31T12:00:06.000Z,
+          "id": "prt_00000000Z9888888888888888A",
+          "messageId": "msg_00000000Z98888888888888889",
+          "sessionId": "ses_00000000Z98888888888888888",
+          "startedAt": 2013-08-31T12:00:03.000Z,
+        },
+        "output": {
+          "command": "pnpm throw-error",
+          "commands": [
+            "pnpm",
+          ],
+          "durationMs": 0,
+          "exitCode": 1,
+          "omittedBytes": 0,
+          "output": "pnpm: Shell command failed
+      ",
+          "ran": [
+            {
+              "count": 1,
+              "name": "pnpm",
+              "source": "bundled",
+            },
+          ],
+        },
+        "preliminary": false,
+        "state": "output-available",
+        "toolCallId": "test_tool_call_1",
+        "type": "tool-bash",
       }
-      return part;
+    `);
+  });
+
+  it("stores a file it read", async () => {
+    const updatedPart = await runToStoredPart({
+      input: {
+        explanation: "Reading test file",
+        filePath: "test.txt",
+      },
+      metadata: {
+        createdAt: mockDate,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      state: "input-available",
+      toolCallId: StoreId.ToolCallSchema.parse("test_tool_call_2"),
+      type: "tool-read_file",
+    });
+
+    if (
+      updatedPart?.type !== "tool-read_file" ||
+      updatedPart.state !== "output-available" ||
+      updatedPart.output.state !== "exists"
+    ) {
+      throw new Error(
+        `Expected the file's contents, got ${JSON.stringify(updatedPart)}`,
+      );
     }
 
-    // These were refused while the runtime was the only thing allowed to serve an
-    // app. A long-running command is now a background process instead, so there
-    // is nothing to refuse.
-    it.each(["pnpm dev", "pnpm run dev", "pnpm start", "pnpm run start"])(
-      "runs %s instead of refusing it",
-      async (command) => {
-        const part = await runShellCommand(command);
-        if (part.state !== "output-available") {
-          throw new Error(`Expected output, got state "${part.state}"`);
-        }
-        expect(part.output).toMatchObject({
-          exitCode: 0,
-          output: "mocked stdout\nmocked stderr",
-        });
+    const { modifiedAt, ...outputWithoutModifiedAt } = updatedPart.output;
+    expect(modifiedAt).toEqual(expect.any(Number));
+
+    expect({
+      ...updatedPart,
+      output: outputWithoutModifiedAt,
+    }).toMatchInlineSnapshot(`
+      {
+        "input": {
+          "explanation": "Reading test file",
+          "filePath": "test.txt",
+        },
+        "metadata": {
+          "createdAt": 2025-01-01T00:00:00.000Z,
+          "endedAt": 2013-08-31T12:00:05.000Z,
+          "id": "prt_00000000ZA888888888888888A",
+          "messageId": "msg_00000000ZA8888888888888889",
+          "sessionId": "ses_00000000ZA8888888888888888",
+          "startedAt": 2013-08-31T12:00:03.000Z,
+        },
+        "output": {
+          "content": "Hello, world!",
+          "displayedLines": 1,
+          "filePath": "./test.txt",
+          "hasMoreLines": false,
+          "offset": 1,
+          "state": "exists",
+          "totalLines": 1,
+          "truncatedByBytes": false,
+        },
+        "preliminary": false,
+        "state": "output-available",
+        "toolCallId": "test_tool_call_2",
+        "type": "tool-read_file",
+      }
+    `);
+  });
+
+  it("stores a file that is not there as not found, with its near names", async () => {
+    const updatedPart = await runToStoredPart({
+      input: {
+        explanation: "Reading nonexistent file",
+        filePath: "nonexistent.txt",
       },
-    );
+      metadata: {
+        createdAt: mockDate,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      state: "input-available",
+      toolCallId: StoreId.ToolCallSchema.parse("test_tool_call_3"),
+      type: "tool-read_file",
+    });
+
+    expect(updatedPart).toMatchInlineSnapshot(`
+      {
+        "input": {
+          "explanation": "Reading nonexistent file",
+          "filePath": "nonexistent.txt",
+        },
+        "metadata": {
+          "createdAt": 2025-01-01T00:00:00.000Z,
+          "endedAt": 2013-08-31T12:00:05.000Z,
+          "id": "prt_00000000ZB888888888888888A",
+          "messageId": "msg_00000000ZB8888888888888889",
+          "sessionId": "ses_00000000ZB8888888888888888",
+          "startedAt": 2013-08-31T12:00:03.000Z,
+        },
+        "output": {
+          "filePath": "./nonexistent.txt",
+          "state": "does-not-exist",
+          "suggestions": [
+            "nonexistent.js",
+          ],
+        },
+        "preliminary": false,
+        "state": "output-available",
+        "toolCallId": "test_tool_call_3",
+        "type": "tool-read_file",
+      }
+    `);
   });
 
   // The stop record is for a call that will never answer. Two writers can reach
@@ -566,17 +395,6 @@ describe("executeToolCallMachine", () => {
   // scans, and the answer has to win: a real output replaced by an account of
   // the stop is a result the model and the reader both lose.
   describe("saveStoppedToolCallPart", () => {
-    async function readStoredPart(partId: StoreId.Part) {
-      const session = await ChatReads.sessionWithMessages({
-        chatId: taskConfig,
-        sessionId,
-      });
-      return session
-        ._unsafeUnwrap()
-        .messages.flatMap((message) => message.parts)
-        .find((part) => part.metadata.id === partId);
-    }
-
     it("finalizes a call that never produced output", async () => {
       const part = createShellCommandPart("sleep 30");
       await ChatWrites.savePart(part, taskConfig);

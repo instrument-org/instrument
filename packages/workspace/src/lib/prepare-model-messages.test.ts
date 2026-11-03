@@ -1,6 +1,6 @@
 import type { ModelMessage } from "ai";
 
-import { subMinutes } from "date-fns";
+import { subMinutes } from "date-fns/subMinutes";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { errAsync } from "neverthrow";
@@ -530,7 +530,7 @@ describe("prepareModelMessages", () => {
       });
     });
 
-    it("keeps a baseline older than the former staleness threshold", async () => {
+    it("keeps a baseline however old it is", async () => {
       const stored = contextMessage(
         subMinutes(new Date(), 61),
         "The standing instructions.",

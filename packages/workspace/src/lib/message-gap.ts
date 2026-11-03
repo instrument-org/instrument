@@ -1,4 +1,4 @@
-import { differenceInMinutes } from "date-fns";
+import { differenceInMinutes } from "date-fns/differenceInMinutes";
 import ms from "ms";
 import { ok, safeTry } from "neverthrow";
 import { alphabetical } from "radashi";

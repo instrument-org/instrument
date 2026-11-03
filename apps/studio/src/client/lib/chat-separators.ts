@@ -3,7 +3,8 @@ import {
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
-import { format, isSameDay } from "date-fns";
+import { format } from "date-fns/format";
+import { isSameDay } from "date-fns/isSameDay";
 
 import { modelsAnswering, type ModelUsage } from "./models-answered";
 

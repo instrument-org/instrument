@@ -30,9 +30,12 @@ beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "folder-appears-"));
   deaf.on = true;
   deaf.watchers = [];
+  // The look every second, run on demand.
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   deaf.on = false;
   await fs.rm(root, { force: true, recursive: true });
 });
@@ -43,10 +46,9 @@ it("finds a folder its parent's watcher never reported", async () => {
   const stop = afterFolderAppears(dir, appeared);
   try {
     await fs.mkdir(dir);
-    await vi.waitFor(() => expect(appeared).toHaveBeenCalledOnce(), {
-      interval: 100,
-      timeout: 5000,
-    });
+    expect(appeared).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    expect(appeared).toHaveBeenCalledOnce();
   } finally {
     stop();
   }
@@ -59,10 +61,9 @@ it("keeps looking once its parent's watcher fails", async () => {
   try {
     deaf.watchers[0]?.emit("error", new Error("watcher failed"));
     await fs.mkdir(dir);
-    await vi.waitFor(() => expect(appeared).toHaveBeenCalledOnce(), {
-      interval: 100,
-      timeout: 5000,
-    });
+    expect(appeared).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    expect(appeared).toHaveBeenCalledOnce();
   } finally {
     stop();
   }

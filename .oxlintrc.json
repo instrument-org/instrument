@@ -70,6 +70,21 @@
   "rules": {
     "import/no-cycle": ["error"],
     "import/no-named-as-default": ["error"],
+    // The date-fns root re-exports every function module, and importing it
+    // evaluates all of them: ~300ms per test file, since each gets its own
+    // module registry. Studio repeats this beside its own restricted imports,
+    // which replace these.
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "message": "Import the function from its own module -- `date-fns/format`, not the package root. The root evaluates every function there is.",
+            "regex": "^date-fns$"
+          }
+        ]
+      }
+    ],
 
     // Rules that catch code that is wrong rather than code spelled another
     // way. Ordering, naming and idiom preferences are deliberately absent.

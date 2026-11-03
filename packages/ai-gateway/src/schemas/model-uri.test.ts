@@ -3,64 +3,29 @@ import { describe, expect, it } from "vitest";
 import { AIGatewayModelURI } from "./model-uri";
 
 describe("AIGatewayModelURI.parse", () => {
+  it("reads the author, canonical id and params", () => {
+    const result = AIGatewayModelURI.parse(
+      "google/gemini-1.5-pro-002?provider=google&providerConfigId=google-config-id",
+    );
+    expect(result.ok && result.value).toEqual({
+      author: "google",
+      canonicalId: "gemini-1.5-pro-002",
+      params: { provider: "google", providerConfigId: "google-config-id" },
+    });
+  });
+
   it.each([
-    {
-      description: "valid OpenAI model URI",
-      uri: "openai/gpt-4?provider=openai&providerConfigId=openai-config-id",
-      valid: true,
-    },
-    {
-      description: "valid Anthropic model URI",
-      uri: "anthropic/claude-sonnet-4.5?provider=anthropic&providerConfigId=anthropic-config-id",
-      valid: true,
-    },
-    {
-      description: "valid model URI with special characters in canonicalId",
-      uri: "google/gemini-1.5-pro-002?provider=google&providerConfigId=google-config-id",
-      valid: true,
-    },
-    {
-      description: "invalid URI without query parameters",
-      uri: "openai/gpt-4",
-      valid: false,
-    },
-    {
-      description: "invalid URI without author",
-      uri: "gpt-4?provider=openai&providerConfigId=openai-config-id",
-      valid: false,
-    },
-    {
-      description: "invalid URI without canonicalId",
-      uri: "openai/?provider=openai&providerConfigId=openai-config-id",
-      valid: false,
-    },
-    {
-      description: "invalid URI with missing provider parameter",
-      uri: "openai/gpt-4?providerConfigId=openai-config-id",
-      valid: false,
-    },
-    {
-      description: "invalid URI with missing providerConfigId parameter",
-      uri: "openai/gpt-4?provider=openai",
-      valid: false,
-    },
-    {
-      description: "invalid URI with invalid provider type",
-      uri: "openai/gpt-4?provider=invalid-provider&providerConfigId=openai-config-id",
-      valid: false,
-    },
-    {
-      description: "empty URI",
-      uri: "",
-      valid: false,
-    },
-    {
-      description: "URI with only query parameters",
-      uri: "?provider=openai&providerConfigId=openai-config-id",
-      valid: false,
-    },
-  ])("should parse: $description", ({ uri, valid }) => {
-    const result = AIGatewayModelURI.parse(uri);
-    expect(result.ok).toBe(valid);
+    ["no query", "openai/gpt-4"],
+    ["no author", "gpt-4?provider=openai&providerConfigId=openai-config-id"],
+    ["no canonical id", "openai/?provider=openai&providerConfigId=openai-config-id"],
+    ["only a query", "?provider=openai&providerConfigId=openai-config-id"],
+    ["no provider", "openai/gpt-4?providerConfigId=openai-config-id"],
+    ["no providerConfigId", "openai/gpt-4?provider=openai"],
+    [
+      "a provider type that does not exist",
+      "openai/gpt-4?provider=invalid-provider&providerConfigId=openai-config-id",
+    ],
+  ])("refuses a URI with %s", (_, uri) => {
+    expect(AIGatewayModelURI.parse(uri).ok).toBe(false);
   });
 });

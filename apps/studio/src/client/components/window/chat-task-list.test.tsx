@@ -63,9 +63,12 @@ describe("ChatTaskList", () => {
       screen.getByRole("button", { name: "Stop all working tasks" }),
     );
 
-    await waitFor(() => {
-      expect(stopSessions).toHaveBeenCalledTimes(2);
-    });
+    await waitFor(
+      () => {
+        expect(stopSessions).toHaveBeenCalledTimes(2);
+      },
+      { interval: 1 },
+    );
     const stopped = stopSessions.mock.calls.map(([input]) => input);
     expect(stopped).toEqual(
       expect.arrayContaining([
@@ -123,9 +126,12 @@ describe("ChatTaskList", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Stop this task" }));
 
-    await waitFor(() => {
-      expect(stopSessions).toHaveBeenCalledTimes(1);
-    });
+    await waitFor(
+      () => {
+        expect(stopSessions).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
     expect(stopSessions.mock.calls[0]?.[0]).toEqual({
       id: CHAT_ID,
       sessionId: WORKING.id,

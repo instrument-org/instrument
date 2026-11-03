@@ -103,17 +103,26 @@ function makeEntry({
 
 type SendCommandOptions = Parameters<typeof sendCommand>[0];
 
+type Defaulted =
+  | "describeHost"
+  | "ensureDebuggerAttached"
+  | "requestGuestFocus"
+  | "targetId";
+
 /**
- * `sendCommand` with a host described as nothing and a focus request that
- * does nothing, for the cases that do not exercise either.
+ * `sendCommand` to `TARGET_ID`, with a host described as nothing, a debugger
+ * taken as attached and a focus request that does nothing, for the cases that
+ * do not exercise those.
  */
 function dispatch(
-  options: Omit<SendCommandOptions, "describeHost" | "requestGuestFocus"> &
-    Partial<Pick<SendCommandOptions, "describeHost" | "requestGuestFocus">>,
+  options: Omit<SendCommandOptions, Defaulted> &
+    Partial<Pick<SendCommandOptions, Defaulted>>,
 ) {
   return sendCommand({
     describeHost: () => Promise.resolve(""),
+    ensureDebuggerAttached: noop,
     requestGuestFocus: noop,
+    targetId: TARGET_ID,
     ...options,
   });
 }
@@ -123,7 +132,6 @@ describe("sendCommand", () => {
     const entries = new Map<BrowserTargetId, BrowserEntry>();
     await expect(
       dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.enable",
         params: undefined,
@@ -138,11 +146,9 @@ describe("sendCommand", () => {
     const entries = new Map([[TARGET_ID, entry]]);
 
     const result = await dispatch({
-      ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.screencastFrameAck",
       params: undefined,
-      targetId: TARGET_ID,
     });
 
     expect(result).toEqual({});
@@ -154,21 +160,17 @@ describe("sendCommand", () => {
     const entries = new Map([[TARGET_ID, entry]]);
 
     await dispatch({
-      ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Browser.setDownloadBehavior",
       params: { behavior: "allowAndName", downloadPath: "/tmp/dl" },
-      targetId: TARGET_ID,
     });
 
     expect(entry.authorizedDownloadPath).toBe("/tmp/dl");
 
     await dispatch({
-      ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Browser.setDownloadBehavior",
       params: { behavior: "allowAndName", downloadPath: "dl" },
-      targetId: TARGET_ID,
     });
 
     expect(entry.authorizedDownloadPath).toBeNull();
@@ -180,7 +182,6 @@ describe("sendCommand", () => {
     const entries = new Map([[TARGET_ID, entry]]);
 
     const result = await dispatch({
-      ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.printToPDF",
       // What agent-browser's CLI sends on every print.
@@ -189,7 +190,6 @@ describe("sendCommand", () => {
         preferCSSPageSize: false,
         printBackground: false,
       },
-      targetId: TARGET_ID,
     });
 
     expect(printToPDF).toHaveBeenCalledWith({
@@ -210,11 +210,9 @@ describe("sendCommand", () => {
     const entries = new Map([[TARGET_ID, entry]]);
 
     const result = await dispatch({
-      ensureDebuggerAttached: vi.fn(),
       entries,
       method: "Page.navigate",
       params: { url: "https://example.com" },
-      targetId: TARGET_ID,
     });
 
     expect(wcSendCommand).toHaveBeenCalledWith("Page.navigate", {
@@ -230,11 +228,9 @@ describe("sendCommand", () => {
 
     await expect(
       dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.navigate",
         params: { url: "https://example.com" },
-        targetId: TARGET_ID,
       }),
     ).rejects.toThrow("CDP boom");
   });
@@ -250,11 +246,9 @@ describe("sendCommand", () => {
         sendCommand: vi.fn().mockReturnValue(new Promise(noop)),
       });
       const sent = dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "Page.navigate",
         params: { url: "https://example.com" },
-        targetId: TARGET_ID,
       });
       const settled = vi.fn();
       void sent.then(settled, settled);
@@ -274,11 +268,9 @@ describe("sendCommand", () => {
       });
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "Page.navigate",
         params: { url: "https://example.com" },
-        targetId: TARGET_ID,
       });
 
       expect(vi.getTimerCount()).toBe(0);
@@ -292,11 +284,9 @@ describe("sendCommand", () => {
         sendCommand: wcSendCommand,
       });
       const sent = dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "Input.dispatchKeyEvent",
         params: { type: "keyDown" },
-        targetId: TARGET_ID,
       });
       const settled = sent.catch((error: unknown) => error);
 
@@ -312,11 +302,9 @@ describe("sendCommand", () => {
         sendCommand: vi.fn().mockResolvedValue({ model: { content: [] } }),
       });
       const sent = dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "DOM.scrollIntoViewIfNeeded",
         params: { nodeId: 1 },
-        targetId: TARGET_ID,
       });
 
       await vi.advanceTimersByTimeAsync(1000);
@@ -330,11 +318,9 @@ describe("sendCommand", () => {
 
     await expect(
       dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.navigate",
         params: undefined,
-        targetId: TARGET_ID,
       }),
     ).rejects.toThrow("webContents unavailable");
   });
@@ -360,11 +346,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: { format: "png" },
-        targetId: TARGET_ID,
       });
 
       expect(capturePage).toHaveBeenCalledWith();
@@ -378,11 +362,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: {},
-        targetId: TARGET_ID,
       });
 
       expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });
@@ -394,11 +376,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: { format: "jpeg", quality: 42 },
-        targetId: TARGET_ID,
       });
 
       expect(result).toEqual({
@@ -421,11 +401,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       const result = await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: {},
-        targetId: TARGET_ID,
       });
 
       expect(hostCapturePage).toHaveBeenCalledWith(
@@ -443,11 +421,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       const pending = dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Page.captureScreenshot",
         params: {},
-        targetId: TARGET_ID,
       });
       const failure = pending.catch((error: unknown) => error);
       await vi.advanceTimersByTimeAsync(5000);
@@ -471,11 +447,9 @@ describe("sendCommand", () => {
 
       await expect(
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Page.captureScreenshot",
           params: {},
-          targetId: TARGET_ID,
         }),
       ).rejects.toThrow("empty frame");
       expect(wcSendCommand).not.toHaveBeenCalled();
@@ -491,14 +465,12 @@ describe("sendCommand", () => {
 
       await expect(
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Page.captureScreenshot",
           params: {
             captureBeyondViewport: true,
             clip: { height: 999, scale: 1, width: 999, x: 0, y: 0 },
           },
-          targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/pdf/i);
       // Never emits a tiled/viewport image or touches the debugger for full page.
@@ -520,11 +492,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, makeEntry({})]]);
 
       const result = (await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Browser.getWindowForTarget",
         params: {},
-        targetId: TARGET_ID,
       })) as { bounds: { height: number; width: number } };
 
       // A constant here goes stale the moment an agent asks for a viewport or
@@ -537,11 +507,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, makeEntry({})]]);
 
       const result = (await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Browser.getWindowForTarget",
         params: {},
-        targetId: TARGET_ID,
       })) as { bounds: { height: number; width: number } };
 
       expect(result.bounds).toMatchObject({ height: 800, width: 1280 });
@@ -568,7 +536,6 @@ describe("sendCommand", () => {
 
       await expect(
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Emulation.setDeviceMetricsOverride",
           params: {
@@ -577,7 +544,6 @@ describe("sendCommand", () => {
             mobile: false,
             width: 1600,
           },
-          targetId: TARGET_ID,
         }),
       ).resolves.toEqual({});
 
@@ -597,7 +563,6 @@ describe("sendCommand", () => {
 
       await expect(
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Emulation.setDeviceMetricsOverride",
           params: {
@@ -606,7 +571,6 @@ describe("sendCommand", () => {
             mobile: false,
             width: 1920,
           },
-          targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/1872x1644/);
 
@@ -627,11 +591,9 @@ describe("sendCommand", () => {
         params?: unknown,
       ) =>
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method,
           params,
-          targetId: TARGET_ID,
         });
 
       await call("Emulation.setDeviceMetricsOverride", {
@@ -665,7 +627,6 @@ describe("sendCommand", () => {
         const entries = new Map([[TARGET_ID, entry]]);
 
         const startResult = await dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Page.startScreencast",
           params: {
@@ -674,18 +635,15 @@ describe("sendCommand", () => {
             maxWidth: 1280,
             quality: 80,
           },
-          targetId: TARGET_ID,
         });
         expect(startResult).toEqual({});
         expect(entry.screencastInterval).not.toBeNull();
         expect(entry.screencastSessionId).toBe(1);
 
         const stopResult = await dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Page.stopScreencast",
           params: undefined,
-          targetId: TARGET_ID,
         });
         expect(stopResult).toEqual({});
         expect(entry.screencastInterval).toBeNull();
@@ -694,12 +652,7 @@ describe("sendCommand", () => {
       }
     });
   });
-  // Chromium delivers keyboard input to whichever widget holds keyboard focus,
-  // not to the WebContents whose debugger carried the command. A guest without
-  // focus therefore types into Studio's own window, so these are refused.
-  // Chromium delivers keyboard input to whichever widget holds keyboard focus,
-  // not to the WebContents whose debugger carried the command. A guest without
-  // focus types into Studio's own window, so it must reclaim focus first.
+
   // Pages reflow a frame or two after a scroll, so a point measured straight
   // after one can be stale by the time the press lands.
   describe("settling after a scroll", () => {
@@ -717,11 +670,9 @@ describe("sendCommand", () => {
       const entry = makeEntry({ sendCommand: wcSendCommand });
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "DOM.scrollIntoViewIfNeeded",
         params: { backendNodeId: 7 },
-        targetId: TARGET_ID,
       });
 
       expect(
@@ -743,14 +694,12 @@ describe("sendCommand", () => {
       const entry = makeEntry({ sendCommand: wcSendCommand });
 
       const result = await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "Runtime.evaluate",
         params: {
           expression:
             "(() => { el.scrollIntoView({ block: 'center' }); const blockerAt = 0; return { x, y }; })()",
         },
-        targetId: TARGET_ID,
       });
 
       expect(result).toEqual({ result: { value: { x: 1, y: 390 } } });
@@ -800,11 +749,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
       const send = (method: string, params: unknown) =>
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method,
           params,
-          targetId: TARGET_ID,
         });
       const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
@@ -845,11 +792,9 @@ describe("sendCommand", () => {
       const entry = makeEntry({ sendCommand: wcSendCommand });
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries: new Map([[TARGET_ID, entry]]),
         method: "Runtime.evaluate",
         params: { expression: "location.href" },
-        targetId: TARGET_ID,
       });
 
       expect(wcSendCommand).toHaveBeenCalledTimes(1);
@@ -865,11 +810,9 @@ describe("sendCommand", () => {
 
     await dispatch({
       describeHost: () => Promise.resolve("window=focused tab=shown"),
-      ensureDebuggerAttached: vi.fn(),
       entries: new Map([[TARGET_ID, entry]]),
       method: "Input.dispatchMouseEvent",
       params: { type: "mousePressed", x: 5, y: 398 },
-      targetId: TARGET_ID,
     });
 
     expect(info).toHaveBeenCalledWith(
@@ -895,12 +838,10 @@ describe("sendCommand", () => {
 
       await expect(
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method,
           params: {},
           requestGuestFocus: vi.fn(),
-          targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/hidden, minimized, or covered by other windows/);
 
@@ -932,12 +873,10 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Input.dispatchKeyEvent",
         params: { type: "keyDown" },
         requestGuestFocus: vi.fn(),
-        targetId: TARGET_ID,
       });
 
       expect(hostCapturePage).toHaveBeenCalledWith(
@@ -955,11 +894,9 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Runtime.evaluate",
         params: { expression: "1" },
-        targetId: TARGET_ID,
       });
 
       expect(wcSendCommand).toHaveBeenCalled();
@@ -974,17 +911,18 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Input.dispatchMouseEvent",
         params: { type: "mouseMoved", x: 1, y: 1 },
-        targetId: TARGET_ID,
       });
 
       expect(wcSendCommand).toHaveBeenCalled();
     });
   });
 
+  // Chromium delivers keyboard input to whichever widget holds keyboard focus,
+  // not to the WebContents whose debugger carried the command. A guest without
+  // focus types into Studio's own window, so it must reclaim focus first.
   describe("keyboard focus gate", () => {
     // A repair channel that only reports focus once the renderer has been asked
     // for it, the way the real `<webview>` focus round trip behaves.
@@ -1015,12 +953,10 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method,
         params: { text: "hello" },
         requestGuestFocus,
-        targetId: TARGET_ID,
       });
 
       expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
@@ -1034,12 +970,10 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Input.insertText",
         params: { text: "hello" },
         requestGuestFocus,
-        targetId: TARGET_ID,
       });
 
       expect(requestGuestFocus).not.toHaveBeenCalled();
@@ -1057,12 +991,10 @@ describe("sendCommand", () => {
       vi.useFakeTimers();
       try {
         const sent = dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Input.insertText",
           params: { text: "hello" },
           requestGuestFocus,
-          targetId: TARGET_ID,
         });
         void sent.catch(noop);
         await vi.advanceTimersByTimeAsync(5000);
@@ -1089,12 +1021,10 @@ describe("sendCommand", () => {
       const entries = new Map([[TARGET_ID, entry]]);
 
       await dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method,
         params: {},
         requestGuestFocus,
-        targetId: TARGET_ID,
       });
 
       expect(requestGuestFocus).not.toHaveBeenCalled();
@@ -1112,12 +1042,10 @@ describe("sendCommand", () => {
       vi.useFakeTimers();
       try {
         const sent = dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Input.insertText",
           params: { text: "hello" },
           requestGuestFocus: vi.fn(),
-          targetId: TARGET_ID,
         });
         void sent.catch(noop);
         await vi.advanceTimersByTimeAsync(5000);
@@ -1142,12 +1070,10 @@ describe("a frame in a process of its own", () => {
     const entry = makeEntry({ sendCommand: wcSendCommand });
 
     await dispatch({
-      ensureDebuggerAttached: vi.fn(),
       entries: new Map([[TARGET_ID, entry]]),
       frameSession: FRAME,
       method: "Accessibility.getFullAXTree",
       params: {},
-      targetId: TARGET_ID,
     });
 
     expect(wcSendCommand).toHaveBeenCalledWith(
@@ -1165,12 +1091,10 @@ describe("a frame in a process of its own", () => {
 
       await expect(
         dispatch({
-          ensureDebuggerAttached: vi.fn(),
           entries: new Map([[TARGET_ID, entry]]),
           frameSession: FRAME,
           method,
           params: {},
-          targetId: TARGET_ID,
         }),
       ).rejects.toThrow(/works on the whole tab, not inside a frame/);
       expect(wcSendCommand).not.toHaveBeenCalled();
@@ -1201,12 +1125,10 @@ describe("a frame in a process of its own", () => {
     const entries = new Map([[TARGET_ID, entry]]);
     const send = (method: string, params: unknown, frameSession?: string) =>
       dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         frameSession,
         method,
         params,
-        targetId: TARGET_ID,
       });
     const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
@@ -1259,11 +1181,9 @@ describe("the table of CDP methods", () => {
     const entries = new Map([[TARGET_ID, entry]]);
     const send = () =>
       dispatch({
-        ensureDebuggerAttached: vi.fn(),
         entries,
         method: "Animation.enable",
         params: {},
-        targetId: TARGET_ID,
       });
 
     await send();

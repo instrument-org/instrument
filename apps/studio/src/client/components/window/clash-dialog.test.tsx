@@ -57,14 +57,20 @@ describe("asking about names already taken", () => {
     expect(screen.getByRole("alertdialog").textContent).toMatchInlineSnapshot(
       `"“notes.txt” already exists in “Reports”Do you want to replace it with the one you’re moving?StopReplaceKeep Both"`,
     );
-    await waitFor(() => {
-      expect(document.activeElement?.textContent).toBe("Keep Both");
-    });
+    await waitFor(
+      () => {
+        expect(document.activeElement?.textContent).toBe("Keep Both");
+      },
+      { interval: 1 },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Keep Both" }));
 
-    await waitFor(() => {
-      expect(settled()).toEqual({ "/a/notes.txt": "keepBoth" });
-    });
+    await waitFor(
+      () => {
+        expect(settled()).toEqual({ "/a/notes.txt": "keepBoth" });
+      },
+      { interval: 1 },
+    );
   });
 
   it("stops on Escape, so nothing happens", async () => {
@@ -72,9 +78,12 @@ describe("asking about names already taken", () => {
 
     fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
 
-    await waitFor(() => {
-      expect(settled()).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(settled()).toBeNull();
+      },
+      { interval: 1 },
+    );
   });
 
   // Replace for all goes only to the ones that can be replaced; one that
@@ -85,21 +94,27 @@ describe("asking about names already taken", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Apply to all (3)" }));
     fireEvent.click(screen.getByRole("button", { name: "Replace" }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("alertdialog").textContent).toContain(
-        "You’re moving two items named “notes.txt”",
-      );
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole("alertdialog").textContent).toContain(
+          "You’re moving two items named “notes.txt”",
+        );
+      },
+      { interval: 1 },
+    );
     expect(screen.queryByRole("button", { name: "Replace" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Keep Both" }));
 
-    await waitFor(() => {
-      expect(settled()).toEqual({
-        "/a/notes.txt": "replace",
-        "/a/pics": "replace",
-        "/b/notes.txt": "keepBoth",
-      });
-    });
+    await waitFor(
+      () => {
+        expect(settled()).toEqual({
+          "/a/notes.txt": "replace",
+          "/a/pics": "replace",
+          "/b/notes.txt": "keepBoth",
+        });
+      },
+      { interval: 1 },
+    );
   });
 
   it("says when a folder would replace a folder, and a file a folder", () => {

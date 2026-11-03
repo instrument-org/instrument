@@ -33,191 +33,100 @@ const priority = [
   "fireworks",
 ] as const;
 
+const ours = createConfig({
+  id: OUR_PROVIDER_CONFIG.id,
+  type: OUR_PROVIDER_CONFIG.type,
+});
+
+// The ids of the configs picked, in the order they are tried.
+const select = (
+  configs: AIGatewayProviderConfig.Type[],
+  preferred: { id: string; type: AIProviderType },
+  providerTypePriority: AIProviderType[] = [...priority],
+) =>
+  selectProviderConfigs({
+    configs,
+    preferredProviderConfig: createConfig(preferred),
+    providerTypePriority,
+  }).map((config) => config.id);
+
 describe("selectProviderConfigs", () => {
-  it("prefers exact config by ID over type", () => {
+  it("prefers the exact config by ID over another of its type", () => {
     const configs = [
       createConfig({ id: "openai-1", type: "openai" }),
       createConfig({ id: "openai-2", type: "openai" }),
       createConfig({ id: "google-1", type: "google" }),
     ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "openai-2",
-        type: "openai",
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result[0]?.id).toBe("openai-2");
+    expect(select(configs, { id: "openai-2", type: "openai" })).toEqual([
+      "openai-2",
+      "google-1",
+    ]);
   });
 
-  it("falls back to type when ID not found", () => {
+  it("falls back to a config of the preferred type when its ID is gone", () => {
     const configs = [
       createConfig({ id: "openai-1", type: "openai" }),
       createConfig({ id: "google-1", type: "google" }),
-      createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
+      ours,
     ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "google-999",
-        type: "google",
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result[0]?.id).toBe("google-1");
+    expect(select(configs, { id: "google-999", type: "google" })).toEqual([
+      "google-1",
+      OUR_PROVIDER_CONFIG.id,
+    ]);
   });
 
-  it("uses priority ordering when preferred not available", () => {
+  it("orders by priority when nothing of the preferred type is there", () => {
     const configs = [
       createConfig({ id: "openai-1", type: "openai" }),
       createConfig({ id: "google-1", type: "google" }),
     ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
+    expect(
+      select(configs, {
         id: `${OUR_PROVIDER_CONFIG.id}-999`,
         type: OUR_PROVIDER_CONFIG.type,
       }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result[0]?.id).toBe("google-1");
+    ).toEqual(["google-1", "openai-1"]);
   });
 
-  it("prioritizes our provider in automatic ordering", () => {
+  it("returns the preferred config and one fallback, never the preferred twice", () => {
     const configs = [
-      createConfig({ id: "fireworks-1", type: "fireworks" }),
-      createConfig({ id: "openai-1", type: "openai" }),
-      createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
-    ];
-
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "vercel-999",
-        type: "vercel",
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result[0]?.id).toBe(OUR_PROVIDER_CONFIG.id);
-  });
-
-  it("uses exact ID when multiple configs of same type exist", () => {
-    const configs = [
-      createConfig({ id: "openrouter-1", type: "openrouter" }),
-      createConfig({ id: "openrouter-2", type: "openrouter" }),
-    ];
-
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "openrouter-2",
-        type: "openrouter",
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result[0]?.id).toBe("openrouter-2");
-  });
-
-  it("returns up to two configs", () => {
-    const configs = [
-      createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
+      ours,
       createConfig({ id: "openrouter-1", type: "openrouter" }),
       createConfig({ id: "google-1", type: "google" }),
     ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result[0]?.id).toBe(OUR_PROVIDER_CONFIG.id);
-    expect(result[1]?.id).toBe("openrouter-1");
+    expect(select(configs, ours)).toEqual([
+      OUR_PROVIDER_CONFIG.id,
+      "openrouter-1",
+    ]);
   });
 
-  it("returns empty array when no configs match supported types", () => {
+  it("returns nothing when no config is of a supported type", () => {
     const configs = [
       createConfig({ id: "anthropic-1", type: "anthropic" }),
       createConfig({ id: "deepseek-1", type: "deepseek" }),
     ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "anthropic-1",
-        type: "anthropic",
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result).toHaveLength(0);
+    expect(select(configs, { id: "anthropic-1", type: "anthropic" })).toEqual(
+      [],
+    );
   });
 
-  it("ignores preferred config type that is not in supported types", () => {
+  it("skips a preferred config whose type is not supported", () => {
     const configs = [
       createConfig({ id: "anthropic-1", type: "anthropic" }),
       createConfig({ id: "openai-1", type: "openai" }),
     ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "anthropic-1",
-        type: "anthropic",
-      }),
-      providerTypePriority: ["openai", OUR_PROVIDER_CONFIG.type],
-    });
-
-    expect(result[0]?.id).toBe("openai-1");
-  });
-
-  it("does not duplicate the preferred config in fallbacks", () => {
-    const configs = [
-      createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
-      createConfig({ id: "openrouter-1", type: "openrouter" }),
-    ];
-
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result).toHaveLength(2);
-    expect(result.map((c) => c.id)).toMatchInlineSnapshot(`
-      [
-        "instrument",
-        "openrouter-1",
-      ]
-    `);
+    expect(
+      select(configs, { id: "anthropic-1", type: "anthropic" }, [
+        "openai",
+        OUR_PROVIDER_CONFIG.type,
+      ]),
+    ).toEqual(["openai-1"]);
   });
 
   it.each(["chatgpt-account", "grok-account"] as const)(
@@ -229,13 +138,10 @@ describe("selectProviderConfigs", () => {
         createConfig({ id: "openai-1", type: "openai" }),
       ];
 
-      const result = selectProviderConfigs({
-        configs,
-        preferredProviderConfig: createConfig({ id: "work", type }),
-        providerTypePriority: [type, "openai"],
-      });
-
-      expect(result.map((c) => c.id)).toEqual(["work", "openai-1"]);
+      expect(select(configs, { id: "work", type }, [type, "openai"])).toEqual([
+        "work",
+        "openai-1",
+      ]);
     },
   );
 });

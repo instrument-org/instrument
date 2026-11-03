@@ -140,11 +140,14 @@ describe("FileViewer markdown preview", () => {
       screen.getByRole("button", { name: /raw\.githubusercontent\.com/ }),
     );
 
-    await waitFor(() => {
-      expect(openExternalLinkSpy.mock.calls[0]?.[0]).toEqual({
-        url: "https://raw.githubusercontent.com/o/r/main/p.png",
-      });
-    });
+    await waitFor(
+      () => {
+        expect(openExternalLinkSpy.mock.calls[0]?.[0]).toEqual({
+          url: "https://raw.githubusercontent.com/o/r/main/p.png",
+        });
+      },
+      { interval: 1 },
+    );
     const sources = [...container.querySelectorAll("img")].map((image) =>
       image.getAttribute("src"),
     );

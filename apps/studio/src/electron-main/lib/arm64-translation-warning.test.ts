@@ -2,70 +2,33 @@ import { describe, expect, it } from "vitest";
 
 import { shouldShowARM64TranslationWarning } from "./arm64-translation-warning";
 
+// A packaged x64 Mac build running under Rosetta, which shows the warning.
+const translated = {
+  arch: "x64",
+  isPackaged: true,
+  platform: "darwin",
+  runningUnderARM64Translation: true,
+} as const;
+
 describe("shouldShowARM64TranslationWarning", () => {
-  it("shows only for packaged x64 macOS apps running under ARM64 translation", () => {
+  it.each([
+    ["a translated x64 Mac build", {}, true],
+    ["a translated x64 Windows build", { platform: "win32" }, true],
+    ["a development build", { isPackaged: false }, false],
+    [
+      "an x64 build that is not translated",
+      { runningUnderARM64Translation: false },
+      false,
+    ],
+    ["an arm64 build", { arch: "arm64" }, false],
+    [
+      "Linux, where Electron does not report translation",
+      { platform: "linux" },
+      false,
+    ],
+  ] as const)("warns for %s: %s", (_, change, expected) => {
     expect(
-      shouldShowARM64TranslationWarning({
-        arch: "x64",
-        isPackaged: true,
-        platform: "darwin",
-        runningUnderARM64Translation: true,
-      }),
-    ).toBe(true);
-  });
-
-  it("skips development builds", () => {
-    expect(
-      shouldShowARM64TranslationWarning({
-        arch: "x64",
-        isPackaged: false,
-        platform: "darwin",
-        runningUnderARM64Translation: true,
-      }),
-    ).toBe(false);
-  });
-
-  it("skips native Apple Silicon builds", () => {
-    expect(
-      shouldShowARM64TranslationWarning({
-        arch: "arm64",
-        isPackaged: true,
-        platform: "darwin",
-        runningUnderARM64Translation: false,
-      }),
-    ).toBe(false);
-  });
-
-  it("shows for packaged x64 Windows apps running under ARM64 translation", () => {
-    expect(
-      shouldShowARM64TranslationWarning({
-        arch: "x64",
-        isPackaged: true,
-        platform: "win32",
-        runningUnderARM64Translation: true,
-      }),
-    ).toBe(true);
-  });
-
-  it("skips x64 macOS apps that are not translated", () => {
-    expect(
-      shouldShowARM64TranslationWarning({
-        arch: "x64",
-        isPackaged: true,
-        platform: "darwin",
-        runningUnderARM64Translation: false,
-      }),
-    ).toBe(false);
-  });
-
-  it("skips platforms where Electron does not expose ARM64 translation", () => {
-    expect(
-      shouldShowARM64TranslationWarning({
-        arch: "x64",
-        isPackaged: true,
-        platform: "linux",
-        runningUnderARM64Translation: false,
-      }),
-    ).toBe(false);
+      shouldShowARM64TranslationWarning({ ...translated, ...change }),
+    ).toBe(expected);
   });
 });

@@ -343,6 +343,98 @@ describe("performAppRequest", () => {
     },
   );
 
+  // The credential is the user's, approved for the manifest's origin only:
+  // a redirect elsewhere must arrive without it, wherever the auth put it.
+  it.each([
+    {
+      auth: { kind: "bearer" } as const,
+      label: "a bearer header",
+    },
+    {
+      auth: { kind: "query", param: "api_key" } as const,
+      label: "a query param, the upstream reflecting it into Location",
+      location: "https://cdn.example.net/file?api_key=s3cret&x=1",
+    },
+  ])(
+    "drops $label on a redirect to another origin",
+    async ({ auth, location }) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            headers: {
+              location: location ?? "https://cdn.example.net/file?x=1",
+            },
+            status: 302,
+          }),
+        )
+        .mockResolvedValueOnce(Response.json({ ok: true }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await performAppRequest({
+        body: undefined,
+        credential: "s3cret",
+        manifest: { ...publicManifest(), auth, headers: { "X-Static": "1" } },
+        method: "GET",
+        params: {},
+        path: "/items",
+        signal: AbortSignal.timeout(1000),
+      });
+
+      const [firstUrl, first] = fetchMock.mock.calls[0] as [URL, RequestInit];
+      const [secondUrl, second] = fetchMock.mock.calls[1] as [URL, RequestInit];
+      expect(
+        `${firstUrl.toString()} ${JSON.stringify([...new Headers(first.headers)])}`,
+      ).toContain("s3cret");
+      expect(secondUrl.toString()).toBe("https://cdn.example.net/file?x=1");
+      expect([...new Headers(second.headers).keys()]).toEqual(["accept"]);
+    },
+  );
+
+  it("refuses a redirect to plain http before sending anything there", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(null, {
+        headers: { location: "http://api.example.com/items" },
+        status: 301,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await performAppRequest({
+      body: undefined,
+      credential: "s3cret",
+      manifest: { ...publicManifest(), auth: { kind: "bearer" } },
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    expect(result._unsafeUnwrapErr().reason).toBe("unsafe-url");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("gives up on a redirect loop", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(null, { headers: { location: "/again" }, status: 302 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await performAppRequest({
+      body: undefined,
+      credential: null,
+      manifest: publicManifest(),
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    expect(result._unsafeUnwrapErr().reason).toBe("too-many-redirects");
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
   it("allows a hostname that resolves to a public address", async () => {
     vi.stubGlobal(
       "fetch",

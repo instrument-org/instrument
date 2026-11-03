@@ -50,22 +50,40 @@ const finishPart: LanguageModelV4StreamPart = {
   },
 };
 
+/**
+ * Every result of one search, its waits (the retry after a rate limit) run
+ * on a fake clock so none takes real time.
+ */
 async function collect(callingModel: AIGatewayModel.Type) {
   const workspaceConfig = getWorkspaceConfig();
-  const results = [];
-  for await (const result of webSearch({
-    callingModel,
-    chatId: ChatIdSchema.parse("search"),
-    configs: workspaceConfig.getAIProviderConfigs(),
-    prompt: "what changed recently",
-    sessionId: StoreId.newSessionId(),
-    signal: new AbortController().signal,
-    workspaceConfig,
-    workspaceServerURL: getWorkspaceServerURL(),
-  })) {
-    results.push(result);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let done = false;
+    const searched = (async () => {
+      const results = [];
+      for await (const result of webSearch({
+        callingModel,
+        chatId: ChatIdSchema.parse("search"),
+        configs: workspaceConfig.getAIProviderConfigs(),
+        prompt: "what changed recently",
+        sessionId: StoreId.newSessionId(),
+        signal: new AbortController().signal,
+        workspaceConfig,
+        workspaceServerURL: getWorkspaceServerURL(),
+      })) {
+        results.push(result);
+      }
+      return results;
+    })().finally(() => {
+      done = true;
+    });
+    while (!done) {
+      await vi.advanceTimersByTimeAsync(50);
+    }
+    return await searched;
+  } finally {
+    vi.useRealTimers();
   }
-  return results;
 }
 
 const rejectingWebSearchClient: WebSearchClient = () => {

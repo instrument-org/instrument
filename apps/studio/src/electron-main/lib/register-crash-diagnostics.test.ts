@@ -662,9 +662,12 @@ describe("registerCrashDiagnostics", () => {
     // decrypted, so the report's redaction would miss them.
     expect(recordEndedSession).not.toHaveBeenCalled();
     ready();
-    await vi.waitFor(() => {
-      expect(recordEndedSession).toHaveBeenCalled();
-    });
+    await vi.waitFor(
+      () => {
+        expect(recordEndedSession).toHaveBeenCalled();
+      },
+      { interval: 1 },
+    );
     expect(recordEndedSession).toHaveBeenCalledWith(
       expect.objectContaining({
         crashRecord: event,

@@ -76,21 +76,27 @@ describe("useWindowCommands", () => {
     renderWithDefaultStore(<Window />);
     stream.push({ hostPath: "/Users/mac-user/a.pdf", type: "openFile" });
     stream.push({ href: "/chats/abc", type: "openScreen" });
-    await vi.waitFor(() => {
-      expect(handlers.openScreen).toHaveBeenCalledWith("/chats/abc");
-    });
+    await vi.waitFor(
+      () => {
+        expect(handlers.openScreen).toHaveBeenCalledWith("/chats/abc");
+      },
+      { interval: 1 },
+    );
     expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
   });
 
   it("starts a new chat's draft with the words a link brought", async () => {
     renderWithDefaultStore(<Window />);
     stream.push({ topic: "01JTOPIC", type: "newChat", words: "Plan my week" });
-    await vi.waitFor(() => {
-      expect(handlers.newChatFromLink).toHaveBeenCalledWith(
-        "Plan my week",
-        "01JTOPIC",
-      );
-    });
+    await vi.waitFor(
+      () => {
+        expect(handlers.newChatFromLink).toHaveBeenCalledWith(
+          "Plan my week",
+          "01JTOPIC",
+        );
+      },
+      { interval: 1 },
+    );
   });
 
   it("leaves the search chord to what holds the window", () => {

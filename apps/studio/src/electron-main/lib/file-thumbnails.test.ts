@@ -220,9 +220,12 @@ describe("fileThumbnail", () => {
     const asks = files
       .slice(0, 4)
       .map((each) => fileThumbnail(each, 64, { dir }));
-    await vi.waitFor(() => {
-      expect(held).toHaveLength(4);
-    });
+    await vi.waitFor(
+      () => {
+        expect(held).toHaveLength(4);
+      },
+      { interval: 1 },
+    );
     // One after the other, each in line before the next is asked for: an ask
     // looks in the store before it waits for a turn.
     const settle = () => new Promise((resolve) => setTimeout(resolve, 50));

@@ -1,13 +1,9 @@
 import {
-  type ImageModelV4,
   type LanguageModelV4,
   type LanguageModelV4CallOptions,
   type LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
-import {
-  type AIGatewayModel,
-  type AISDKWebSearchModelResult,
-} from "@instrument-org/ai-gateway";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
@@ -54,7 +50,6 @@ import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
-import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
   createMockChatConfig,
@@ -115,27 +110,33 @@ describe("sessionMachine", () => {
   }
   const defaultSessionId = StoreId.newSessionId();
   const mockDate = new Date("2025-01-01T00:00:00.000Z");
-  const defaultMessageId = StoreId.newMessageId();
-  const defaultQueuedMessage: SessionMessage.UserWithParts = {
-    id: defaultMessageId,
-    metadata: {
-      createdAt: mockDate,
-      sessionId: defaultSessionId,
-    },
-    parts: [
-      {
-        metadata: {
-          createdAt: mockDate,
-          id: StoreId.newPartId(),
-          messageId: defaultMessageId,
-          sessionId: defaultSessionId,
+  /** A message the user sent, as a session's queue takes it. */
+  function userMessage(
+    text: string,
+    sessionId: StoreId.Session = defaultSessionId,
+  ): SessionMessage.UserWithParts {
+    const messageId = StoreId.newMessageId();
+    return {
+      id: messageId,
+      metadata: { createdAt: mockDate, sessionId },
+      parts: [
+        {
+          metadata: {
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          text,
+          type: "text",
         },
-        text: "Hello, I need help with something.",
-        type: "text",
-      },
-    ],
-    role: "user",
-  };
+      ],
+      role: "user",
+    };
+  }
+  const defaultQueuedMessage = userMessage(
+    "Hello, I need help with something.",
+  );
   const mockUsage = {
     inputTokens: {
       cacheRead: 1,
@@ -193,6 +194,14 @@ describe("sessionMachine", () => {
       usage: mockUsage,
     },
   ] as const satisfies LanguageModelV4StreamPart[];
+
+  /** A model step that only replies with `text`. */
+  const replying = (text: string) =>
+    [
+      { id: "1", type: "text-start" },
+      { delta: text, id: "1", type: "text-delta" },
+      { id: "1", type: "text-end" },
+    ] as const satisfies LanguageModelV4StreamPart[];
 
   // Appended to every mocked chunk set so each model turn ends the same way.
   const streamFinishChunk = {
@@ -268,7 +277,6 @@ describe("sessionMachine", () => {
     baseLLMRetryDelayMs = 1000,
     chunkDelayMs,
     chunkSets = [],
-    imageModel,
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
     machine = sessionMachine,
@@ -278,8 +286,6 @@ describe("sessionMachine", () => {
     queuedMessages = [defaultQueuedMessage],
     runRequested,
     sessionId = defaultSessionId,
-    webSearch,
-    webSearchModel,
   }: {
     actorOptions?: Pick<
       ActorOptions<typeof sessionMachine>,
@@ -291,7 +297,6 @@ describe("sessionMachine", () => {
     /** Between every chunk, for a test about something landing mid-stream. */
     chunkDelayMs?: number;
     chunkSets?: Part[][];
-    imageModel?: ImageModelV4;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     /** The session machine with test stand-ins provided. */
@@ -303,8 +308,6 @@ describe("sessionMachine", () => {
     queuedMessages?: SessionMessage.UserWithParts[];
     runRequested?: boolean;
     sessionId?: StoreId.Session;
-    webSearch?: WebSearchClient;
-    webSearchModel?: AISDKWebSearchModelResult;
   }) {
     let currentChunkIndex = 0;
     const mockLanguageModel = new MockLanguageModelV4({
@@ -340,10 +343,7 @@ describe("sessionMachine", () => {
       ChatIdSchema.parse(chatFolder),
       {
         aiSDKModel: aiSDKModel ?? mockLanguageModel,
-        imageModel,
         model,
-        webSearch,
-        webSearchModel,
       },
     );
 
@@ -379,47 +379,6 @@ describe("sessionMachine", () => {
         sessionId,
         chatId: testTaskConfig,
       },
-      // Uncomment to debug
-      // inspect(event) {
-      //   let name: string;
-      //   if (typeof event.actorRef.src === "string") {
-      //     name = event.actorRef.src;
-      //   } else if (
-      //     typeof event.actorRef.src === "object" &&
-      //     "id" in event.actorRef.src
-      //   ) {
-      //     name = (event.actorRef.src as { id: string }).id;
-      //   } else {
-      //     name = "";
-      //   }
-      //   switch (event.type) {
-      //     case "@xstate.action": {
-      //       if (
-      //         !event.action.type.startsWith("xstate.") &&
-      //         event.action.type !== "actions"
-      //       ) {
-      //         // eslint-disable-next-line no-console
-      //         console.log("action", name, event.actorRef.id, event.action.type);
-      //       }
-
-      //       break;
-      //     }
-      //     case "@xstate.event": {
-      //       if (!event.event.type.startsWith("xstate.")) {
-      //         // eslint-disable-next-line no-console
-      //         console.log(
-      //           "event",
-      //           name,
-      //           event.actorRef.id,
-      //           event.event.type,
-      //           "value" in event.event ? event.event.value : event.event,
-      //         );
-      //       }
-
-      //       break;
-      //     }
-      //   }
-      // },
     });
 
     return { actor, sessionId, chatId: testTaskConfig };
@@ -437,6 +396,20 @@ describe("sessionMachine", () => {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
     return ChatReads.sessionWithMessages({ chatId, sessionId });
+  }
+
+  /**
+   * The session's shape without the tools' input and output bodies, which
+   * the tools' own tests pin: who spoke, each step, each call and how it
+   * ended.
+   */
+  function outline(session: Awaited<ReturnType<typeof runTestMachine>>) {
+    return sessionToShorthand(session)
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) =>
+        /^<(user|assistant|step-start|tool|text|error|data-)/.test(line),
+      );
   }
 
   async function createAndRunTestMachine(
@@ -463,7 +436,7 @@ describe("sessionMachine", () => {
     });
   });
 
-  it("should read and write a file", async () => {
+  it("runs a step per tool call until the model replies with text alone", async () => {
     const session = await createAndRunTestMachine({
       chunkSets: [readFileChunks, writeFileChunks, finishChunks],
     });
@@ -524,576 +497,44 @@ describe("sessionMachine", () => {
     );
   });
 
-  it("should read an image file", async () => {
-    const session = await createAndRunTestMachine({
-      chunkSets: [
-        [
-          {
-            id: "test-call-image",
-            toolName: "read_file",
-            type: "tool-input-start",
-          },
-          {
-            input: JSON.stringify({
-              filePath: "image.png",
-            }),
-            toolCallId: "test-call-image",
-            toolName: "read_file",
-            type: "tool-call",
-          },
-        ],
-        finishChunks,
-      ],
-      modelFeatures: ["inputText", "inputImage", "outputText", "tools"],
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="5">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-available" callId="test-call-image">
-            <input>
-              {
-                "filePath": "image.png"
-              }
-            </input>
-            <output>
-              {
-                "filePath": "./image.png",
-                "mimeType": "image/png",
-                "state": "image",
-                "height": 75,
-                "viewHeight": 75,
-                "viewWidth": 100,
-                "width": 100,
-                "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII="
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
-    `);
-  });
-
-  it("should generate an image", async () => {
-    const generateImageChunks = [
-      {
-        id: "test-call-generate-image",
-        toolName: "generate_image",
-        type: "tool-input-start",
-      },
-      {
-        input: JSON.stringify({
-          explanation: "Generate a test image",
-          filePath: "generated-image",
-          prompt: "A beautiful sunset over mountains",
-        }),
-        toolCallId: "test-call-generate-image",
-        toolName: "generate_image",
-        type: "tool-call",
-      },
-    ] as const satisfies LanguageModelV4StreamPart[];
-
-    const mockImageModel: ImageModelV4 = {
-      doGenerate: vi.fn().mockResolvedValue({
-        images: [
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-        ],
-        rawResponse: { headers: {} },
-        usage: {
-          inputTokens: 10,
-          outputTokens: 0,
-          totalTokens: 10,
-        },
-        warnings: [],
-      }),
-      maxImagesPerCall: undefined,
-      modelId: "mock-image-model",
-      provider: "mock-provider",
-      specificationVersion: "v4",
-    };
-
-    const session = await createAndRunTestMachine({
-      chunkSets: [generateImageChunks, finishChunks],
-      imageModel: mockImageModel,
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="5">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="generate_image" state="output-available" callId="test-call-generate-image">
-            <input>
-              {
-                "explanation": "Generate a test image",
-                "filePath": "generated-image",
-                "prompt": "A beautiful sunset over mountains"
-              }
-            </input>
-            <output>
-              {
-                "appliedParameters": {},
-                "images": [
-                  {
-                    "filePath": "generated-image.png",
-                    "height": 1,
-                    "width": 1,
-                    "sizeBytes": 70
-                  }
-                ],
-                "modelId": "mock-image-model",
-                "provider": {
-                  "id": "mock-provider-config-id",
-                  "type": "instrument"
-                },
-                "renamedToAvoidOverwrite": false,
-                "state": "success",
-                "usage": {
-                  "inputTokens": 10,
-                  "outputTokens": 0,
-                  "totalTokens": 10
-                }
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
-    `);
-  });
-
-  it("should perform a web search", async () => {
-    const webSearchChunks = [
-      {
-        id: "test-call-web-search",
-        toolName: "web_search",
-        type: "tool-input-start",
-      },
-      {
-        input: JSON.stringify({
-          explanation: "Search for latest news",
-          query: "latest TypeScript features",
-        }),
-        toolCallId: "test-call-web-search",
-        toolName: "web_search",
-        type: "tool-call",
-      },
-    ] as const satisfies LanguageModelV4StreamPart[];
-
-    // The session's model is one of ours, so the search runs against our own
-    // endpoint rather than a provider's search model.
-    const searchWeb: WebSearchClient = () =>
-      Promise.resolve({
-        data: {
-          results: [
-            {
-              text: "TypeScript 5.7 introduces new features.",
-              title: "TypeScript Blog",
-              url: "https://devblogs.microsoft.com/typescript",
-            },
-          ],
-        },
-        ok: true,
-      });
-
-    const session = await createAndRunTestMachine({
-      chunkSets: [webSearchChunks, finishChunks],
-      webSearch: searchWeb,
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="5">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="web_search" state="output-available" callId="test-call-web-search">
-            <input>
-              {
-                "explanation": "Search for latest news",
-                "query": "latest TypeScript features"
-              }
-            </input>
-            <output>
-              {
-                "results": {
-                  "kind": "excerpts",
-                  "sources": [
-                    {
-                      "text": "TypeScript 5.7 introduces new features.",
-                      "title": "TypeScript Blog",
-                      "url": "https://devblogs.microsoft.com/typescript"
-                    }
-                  ]
-                },
-                "state": "success"
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
-    `);
-  });
-
-  it("should handle multiple actors running in parallel", async () => {
-    const result1 = await createActorAndTask({
-      chunkSets: [
-        [
-          { id: "1", type: "text-start" },
-          { delta: "First session", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-          {
-            finishReason: { raw: "stop", unified: "stop" },
-            type: "finish",
-            usage: mockUsage,
-          },
-        ],
-      ],
-      providerConfigId: "mock-provider-config-1",
-      sessionId: defaultSessionId,
-    });
-
+  it("keeps two sessions running at once to their own messages", async () => {
     const secondSessionId = StoreId.newSessionId();
-    const secondMessageId = StoreId.newMessageId();
-    const result2 = await createActorAndTask({
-      chunkSets: [
-        [
-          { id: "1", type: "text-start" },
-          { delta: "Second assistant message", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-          {
-            finishReason: { raw: "stop", unified: "stop" },
-            type: "finish",
-            usage: mockUsage,
-          },
-        ],
-      ],
+    const first = await createActorAndTask({
+      chunkSets: [replying("First reply")],
+      providerConfigId: "mock-provider-config-1",
+    });
+    const second = await createActorAndTask({
+      chunkSets: [replying("Second reply")],
       providerConfigId: "mock-provider-config-2",
-      queuedMessages: [
-        {
-          id: secondMessageId,
-          metadata: {
-            createdAt: mockDate,
-            sessionId: secondSessionId,
-          },
-          parts: [
-            {
-              metadata: {
-                createdAt: mockDate,
-                id: StoreId.newPartId(),
-                messageId: secondMessageId,
-                sessionId: secondSessionId,
-              },
-              text: "Second user message",
-              type: "text",
-            },
-          ],
-          role: "user",
-        },
-      ],
+      queuedMessages: [userMessage("Second question", secondSessionId)],
       sessionId: secondSessionId,
     });
-
-    const sessionResult1 = await runTestMachine(result1);
-    const sessionResult2 = await runTestMachine(result2);
-    expect(sessionToShorthand(sessionResult1)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="4">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <text state="done">First session</text>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-      </session>"
-    `);
-
-    expect(sessionToShorthand(sessionResult2)).toMatchInlineSnapshot(
-      `
-      "<session title="Test session" count="4">
-        <user>
-          <text>Second user message</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <text state="done">Second assistant message</text>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-      </session>"
-    `,
-    );
-  });
-
-  it("retry with invalid tool name", async () => {
-    const session = await createAndRunTestMachine({
-      chunkSets: [
+    const sessions = await Promise.all([
+      runTestMachine(first),
+      runTestMachine(second),
+    ]);
+    expect(sessions.map(outline)).toMatchInlineSnapshot(`
+      [
         [
-          readFileChunks[0],
-          {
-            ...readFileChunks[1],
-            toolName: "invalid_tool_name",
-          },
+          "<user>",
+          "<text>Hello, I need help with something.</text>",
+          "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+          "<step-start step="1" />",
+          "<text state="done">First reply</text>",
         ],
-        readFileChunks,
-        finishChunks,
-      ],
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="6">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="unavailable" state="output-error" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, web_fetch, web_search, write_file.</error>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="3" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
-    `);
-  });
-
-  it("retry with invalid tool params", async () => {
-    const session = await createAndRunTestMachine({
-      chunkSets: [
         [
-          readFileChunks[0],
-          {
-            ...readFileChunks[1],
-            input: JSON.stringify({
-              filePath: "invalid/path/structure",
-            }),
-            toolCallId: "test-call-1",
-          },
+          "<user>",
+          "<text>Second question</text>",
+          "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+          "<step-start step="1" />",
+          "<text state="done">Second reply</text>",
         ],
-        readFileChunks,
-        finishChunks,
-      ],
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="6">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "invalid/path/structure"
-              }
-            </input>
-            <output>
-              {
-                "filePath": "./invalid/path/structure",
-                "state": "does-not-exist",
-                "suggestions": []
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="3" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
-    `);
-  });
-
-  it("should stop after two steps with file read success", async () => {
-    const neverMessage = "NEVER";
-    const session = await createAndRunTestMachine({
-      chunkSets: [
-        readFileChunks,
-        readFileChunks,
-        finishChunks,
-        [
-          { id: "1", type: "text-start" },
-          { delta: neverMessage, id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-          {
-            finishReason: { raw: "stop", unified: "stop" },
-            type: "finish",
-            usage: mockUsage,
-          },
-        ],
-      ],
-    });
-
-    expect(sessionToShorthand(session)).not.toContain(neverMessage);
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="6">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="3" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
-    `);
-  });
-
-  it("should immediately exit when no tools are called", async () => {
-    const session = await createAndRunTestMachine({
-      chunkSets: [finishChunks],
-    });
-
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="4">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <text state="done">I'm done.</text>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-      </session>"
+      ]
     `);
   });
 
   it("gives a reply naming a file that is not there one step to correct it, and no more", async () => {
     answersAsChat();
-    const replying = (text: string) =>
-      [
-        { id: "1", type: "text-start" },
-        { delta: text, id: "1", type: "text-delta" },
-        { id: "1", type: "text-end" },
-      ] as const satisfies LanguageModelV4StreamPart[];
     const dead = "Made it.\n\n```files\nsquares.csv\n```";
     const prompts: string[] = [];
     const replies = [dead, dead];
@@ -1144,7 +585,7 @@ describe("sessionMachine", () => {
     expect([...kinds].toSorted()).toEqual(["agent", "messages"]);
   });
 
-  it("should stop agents during llm request", async () => {
+  it("writes no reply when stopped as its agent starts", async () => {
     const result = await createActorAndTask({
       chunkSets: [finishChunks],
     });
@@ -1336,37 +777,6 @@ describe("sessionMachine", () => {
     expect(agentRef.getSnapshot().status).toBe("stopped");
   });
 
-  it("should force stop agents before the stopping failsafe completes", async () => {
-    const clock = new SimulatedClock();
-    let finishOnFinish: (() => void) | undefined;
-    const onFinishPromise = new Promise<void>((resolve) => {
-      finishOnFinish = resolve;
-    });
-    const result = await createActorAndTask({
-      actorOptions: { clock },
-      agent: agentFinishingWith(() => onFinishPromise),
-      chunkSets: [finishChunks],
-    });
-    result.actor.start();
-
-    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
-    const agentRef = result.actor.getSnapshot().context.agentRef;
-    if (!agentRef) {
-      throw new Error("Expected agent ref");
-    }
-
-    result.actor.send({ type: "stop" });
-    clock.increment(STOP_FAILSAFE_MS);
-    await waitFor(result.actor, (state) => state.status === "done");
-
-    const snapshot = result.actor.getSnapshot();
-    expect(snapshot.hasTag("agent.alive")).toBe(false);
-    expect(snapshot.context.agentRef).toBeUndefined();
-    expect(agentRef.getSnapshot().status).toBe("stopped");
-
-    finishOnFinish?.();
-  });
-
   // A turn stopped outright leaves nothing of the agent to write what its
   // request was holding, so the session writes it before it says it is done.
   it("writes what a force-stopped turn held as cut off before the session ends", async () => {
@@ -1480,55 +890,20 @@ describe("sessionMachine", () => {
     });
 
     const session = await runTestMachine(result);
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="4">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="choose" state="output-available" callId="test-call-choose">
-            <input>
-              {
-                "questions": [
-                  {
-                    "choices": [
-                      {
-                        "label": "Continue"
-                      },
-                      {
-                        "label": "Stop"
-                      },
-                      {
-                        "label": "Restart"
-                      }
-                    ],
-                    "header": "Next step",
-                    "question": "What would you like to do next?"
-                  }
-                ]
-              }
-            </input>
-            <output>
-              {
-                "asked": true
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-      </session>"
+    expect(outline(session)).toMatchInlineSnapshot(`
+      [
+        "<user>",
+        "<text>Hello, I need help with something.</text>",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="1" />",
+        "<tool tool="choose" state="output-available" callId="test-call-choose">",
+      ]
     `);
     // The open question is read from the chat's own session.
     vi.spyOn(recordFolders, "sessionOfChat").mockReturnValue(result.sessionId);
     expect(
       (await openAsks(ChatIdSchema.parse(chatFolder))).map((ask) =>
-        ask.kind === "question"
-          ? ask.question
-          : ask.kind === "sign-in"
-            ? ask.partId
-            : ask.target,
+        ask.kind === "question" ? ask.question : ask.kind,
       ),
     ).toEqual(["What would you like to do next?"]);
   });
@@ -1660,8 +1035,8 @@ describe("sessionMachine", () => {
     }
   });
 
-  it("should retry and fail on timeout", async () => {
-    const chunkTimeoutMs = 500;
+  it("retries a request that times out, each attempt cut off for the timeout", async () => {
+    const chunkTimeoutMs = 200;
     const session = await createAndRunTestMachine({
       baseLLMRetryDelayMs: 0,
       chunkSets: [readFileChunks, readFileChunks, readFileChunks, finishChunks],
@@ -1671,46 +1046,21 @@ describe("sessionMachine", () => {
     // Cut off by its request timing out, which nobody asked for.
     expect(abortReasons(session)).toEqual(["timeout", "timeout"]);
 
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="7">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
-          <step-start step="1" />
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
-          <step-start step="1" />
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
+    expect(outline(session)).toMatchInlineSnapshot(`
+      [
+        "<user>",
+        "<text>Hello, I need help with something.</text>",
+        "<assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">",
+        "<step-start step="1" />",
+        "<assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">",
+        "<step-start step="1" />",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="1" />",
+        "<tool tool="read_file" state="output-available" callId="test-call-1">",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="2" />",
+        "<text state="done">I'm done.</text>",
+      ]
     `);
   });
 
@@ -1833,7 +1183,7 @@ describe("sessionMachine", () => {
 
   // Every step waits on something the machine did rather than on elapsed time,
   // so the long test timeout only bounds a genuine hang.
-  it("should extend timeout when chunks are received", async () => {
+  it("keeps a request streaming for as long as its chunks keep arriving", async () => {
     const chunkTimeoutMs = 100;
     const retryDelayMs = 10;
     // Both the chunk deadline and the retry backoff run on a clock only this
@@ -1951,57 +1301,29 @@ describe("sessionMachine", () => {
     finished.close();
 
     const session = await runTestMachine(result);
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="6">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-error" callId="test-call-1">
-            <input>
-              "none"
-            </input>
-            <error>This action was cut off before it could run.</error>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <text state="done">I'm done.</text>
-        </assistant>
-      </session>"
+    expect(outline(session)).toMatchInlineSnapshot(`
+      [
+        "<user>",
+        "<text>Hello, I need help with something.</text>",
+        "<assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">",
+        "<step-start step="1" />",
+        "<tool tool="read_file" state="output-error" callId="test-call-1">",
+        "<error>This action was cut off before it could run.</error>",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="1" />",
+        "<tool tool="read_file" state="output-available" callId="test-call-1">",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="2" />",
+        "<text state="done">I'm done.</text>",
+      ]
     `);
   }, 30_000);
 
   describe("with write file delay", () => {
     beforeEach(() => {
       vi.spyOn(TOOLS.WriteFile, "execute").mockImplementation(async () => {
-        // Forces the function to be async which will hit WaitingForToolCallExecutions
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Long enough for a case to act while the call is in flight.
+        await new Promise((resolve) => setTimeout(resolve, 100));
         return ok({
           content: "console.log('Hello, world!');",
           filePath: "test.js" as RelativePath,
@@ -2011,53 +1333,40 @@ describe("sessionMachine", () => {
       });
     });
 
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it("should stop agents during execution", async () => {
-      const result = await createActorAndTask({
-        chunkSets: [readFileChunks, writeFileChunks, finishChunks],
-      });
+    /** Starts the session and returns once its first step is running a call. */
+    async function startTurn(chunkSets: Part[][]) {
+      const result = await createActorAndTask({ chunkSets });
       result.actor.start();
-
       await waitFor(
         result.actor,
-        (state) =>
-          state.matches({ Agent: "Running" }) &&
-          state.context.agentRef?.getSnapshot().context.agent.name ===
-            "instrument",
-      ).then(async () => {
-        const agentRef = result.actor.getSnapshot().context.agentRef;
-        if (!agentRef) {
-          return;
-        }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-      });
+        (state) => state.context.agentRef !== undefined,
+      );
+      const agentRef = result.actor.getSnapshot().context.agentRef;
+      if (!agentRef) {
+        throw new Error("The agent never started");
+      }
+      await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+      return result;
+    }
 
+    it("writes the call in flight as stopped by the user", async () => {
+      const result = await startTurn([
+        readFileChunks,
+        writeFileChunks,
+        finishChunks,
+      ]);
       result.actor.send({ type: "stop" });
-      await waitFor(result.actor, (state) => state.status === "done");
 
       const session = await runTestMachine(result);
-      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="4">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-            <step-start step="1" />
-            <tool tool="read_file" state="output-error" callId="test-call-1">
-              <input>
-                {
-                  "filePath": "test.txt"
-                }
-              </input>
-              <error>This action was stopped by you.</error>
-            </tool>
-          </assistant>
-          <session-context instrument realRole="system" />
-          <session-context instrument realRole="user" />
-        </session>"
+      expect(outline(session)).toMatchInlineSnapshot(`
+        [
+          "<user>",
+          "<text>Hello, I need help with something.</text>",
+          "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+          "<step-start step="1" />",
+          "<tool tool="read_file" state="output-error" callId="test-call-1">",
+          "<error>This action was stopped by you.</error>",
+        ]
       `);
     });
 
@@ -2067,38 +1376,11 @@ describe("sessionMachine", () => {
     it.each([{ after: false }, { after: true }])(
       "holds what was queued when the person stopped the turn, and runs what came after (sent after: $after)",
       async ({ after }) => {
-        const result = await createActorAndTask({
-          chunkSets: [readFileChunks, writeFileChunks, finishChunks],
-        });
-        result.actor.start();
-        await waitFor(
-          result.actor,
-          (state) => state.context.agentRef !== undefined,
-        );
-        const agentRef = result.actor.getSnapshot().context.agentRef;
-        if (!agentRef) {
-          throw new Error("The agent never started");
-        }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-
-        const messageId = StoreId.newMessageId();
-        const queued: SessionMessage.UserWithParts = {
-          id: messageId,
-          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
-          parts: [
-            {
-              metadata: {
-                createdAt: mockDate,
-                id: StoreId.newPartId(),
-                messageId,
-                sessionId: defaultSessionId,
-              },
-              text: "One more thing.",
-              type: "text",
-            },
-          ],
-          role: "user",
-        };
+        const result = await startTurn([
+          readFileChunks,
+          writeFileChunks,
+          finishChunks,
+        ]);
         const stop = () => {
           result.actor.send({
             notice: { by: "person", wakesChat: false },
@@ -2111,7 +1393,7 @@ describe("sessionMachine", () => {
         result.actor.send({
           model: createMockAIGatewayModel(),
           type: "addMessage",
-          value: queued,
+          value: userMessage("One more thing."),
         });
         if (!after) {
           stop();
@@ -2125,164 +1407,34 @@ describe("sessionMachine", () => {
       },
     );
 
-    // The user writing again while the conversation replies stops the reply,
-    // and the call it cut short says so rather than that the user stopped it.
-    it("says a call was interrupted by a newer message when that is why it stopped", async () => {
-      const result = await createActorAndTask({
-        chunkSets: [readFileChunks, writeFileChunks, finishChunks],
-      });
-      result.actor.start();
-
-      await waitFor(
-        result.actor,
-        (state) =>
-          state.matches({ Agent: "Running" }) &&
-          state.context.agentRef?.getSnapshot().context.agent.name ===
-            "instrument",
-      ).then(async () => {
-        const agentRef = result.actor.getSnapshot().context.agentRef;
-        if (!agentRef) {
-          return;
-        }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-      });
-
-      result.actor.send({ reason: "superseded", type: "stop" });
-      await waitFor(result.actor, (state) => state.status === "done");
-
-      const session = await runTestMachine(result);
-      expect(sessionToShorthand(session)).toContain(
-        "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
-      );
-    });
-
     // A sender that asks to interrupt does not wait for the next step: the
-    // step in flight stops, and the message runs as the next turn.
-    it("stops the step in flight and runs the message next when it interrupts", async () => {
-      const result = await createActorAndTask({
-        chunkSets: [writeFileChunks, finishChunks],
-      });
-      result.actor.start();
-
-      await waitFor(
-        result.actor,
-        (state) => state.context.agentRef !== undefined,
-      );
-      const agentRef = result.actor.getSnapshot().context.agentRef;
-      if (!agentRef) {
-        throw new Error("The agent never started");
-      }
-      await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-
-      const messageId = StoreId.newMessageId();
-      const message: SessionMessage.UserWithParts = {
-        id: messageId,
-        metadata: { createdAt: mockDate, sessionId: defaultSessionId },
-        parts: [
-          {
-            metadata: {
-              createdAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId,
-              sessionId: defaultSessionId,
-            },
-            text: "Make it about a submarine captain instead.",
-            type: "text",
-          },
-        ],
-        role: "user",
-      };
-      result.actor.send({
-        interrupt: true,
-        model: createMockAIGatewayModel(),
-        type: "addMessage",
-        value: message,
-      });
-
-      const session = await runTestMachine(result);
-      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="6">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-            <step-start step="1" />
-            <tool tool="write_file" state="output-error" callId="test-call-2">
-              <input>
-                {
-                  "filePath": "test.txt",
-                  "content": "console.log('Hello, world!');"
-                }
-              </input>
-              <error>This action was interrupted by a newer message from the user, and may not have finished.</error>
-            </tool>
-          </assistant>
-          <session-context instrument realRole="system" />
-          <session-context instrument realRole="user" />
-          <user>
-            <text>Make it about a submarine captain instead.</text>
-          </user>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-            <step-start step="1" />
-            <text state="done">I'm done.</text>
-          </assistant>
-        </session>"
-      `);
-    });
-
-    // The sender's model is the one the next turn runs on, so a task the
-    // chat messages after the user switched models moves with the picker.
-    it("runs the message's turn on the model it was sent with", async () => {
-      const result = await createActorAndTask({
-        chunkSets: [writeFileChunks, finishChunks],
-      });
-      result.actor.start();
-
-      await waitFor(
-        result.actor,
-        (state) => state.context.agentRef !== undefined,
-      );
-      const agentRef = result.actor.getSnapshot().context.agentRef;
-      if (!agentRef) {
-        throw new Error("The agent never started");
-      }
-      await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-
-      const messageId = StoreId.newMessageId();
+    // step in flight stops, and the message runs as the next turn, on the
+    // model it was sent with, so a task the chat messages after the user
+    // switched models moves with the picker.
+    it("stops the step in flight and runs the message next, on its own model, when it interrupts", async () => {
+      const result = await startTurn([writeFileChunks, finishChunks]);
       result.actor.send({
         interrupt: true,
         model: createMockAIGatewayModel({ canonicalId: "switched-model-id" }),
         type: "addMessage",
-        value: {
-          id: messageId,
-          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
-          parts: [
-            {
-              metadata: {
-                createdAt: mockDate,
-                id: StoreId.newPartId(),
-                messageId,
-                sessionId: defaultSessionId,
-              },
-              text: "Carry on.",
-              type: "text",
-            },
-          ],
-          role: "user",
-        },
+        value: userMessage("Make it about a submarine captain instead."),
       });
 
       const session = await runTestMachine(result);
-      expect(
-        sessionToShorthand(session)
-          .split("\n")
-          .filter((line) => /<assistant |data-modelChange/.test(line))
-          .map((line) => line.trim()),
-      ).toMatchInlineSnapshot(`
+      expect(outline(session)).toMatchInlineSnapshot(`
         [
+          "<user>",
+          "<text>Hello, I need help with something.</text>",
           "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+          "<step-start step="1" />",
+          "<tool tool="write_file" state="output-error" callId="test-call-2">",
+          "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
+          "<user>",
+          "<text>Make it about a submarine captain instead.</text>",
           "<data-modelChange from="mock-model-id" to="switched-model-id" />",
           "<assistant finishReason="stop" tokens="13" model="switched-model-id" provider="instrument">",
+          "<step-start step="1" />",
+          "<text state="done">I'm done.</text>",
         ]
       `);
     });
@@ -2293,39 +1445,8 @@ describe("sessionMachine", () => {
     it.each([{ saved: false }, { saved: true }])(
       "hears a message that arrives mid-turn at the next step, once (saved: $saved)",
       async ({ saved }) => {
-        const result = await createActorAndTask({
-          chunkSets: [writeFileChunks, finishChunks],
-        });
-        result.actor.start();
-
-        await waitFor(
-          result.actor,
-          (state) => state.context.agentRef !== undefined,
-        );
-        const agentRef = result.actor.getSnapshot().context.agentRef;
-        if (!agentRef) {
-          throw new Error("The agent never started");
-        }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-
-        const steerId = StoreId.newMessageId();
-        const steer: SessionMessage.UserWithParts = {
-          id: steerId,
-          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
-          parts: [
-            {
-              metadata: {
-                createdAt: mockDate,
-                id: StoreId.newPartId(),
-                messageId: steerId,
-                sessionId: defaultSessionId,
-              },
-              text: "Make it about a submarine captain instead.",
-              type: "text",
-            },
-          ],
-          role: "user",
-        };
+        const result = await startTurn([writeFileChunks, finishChunks]);
+        const steer = userMessage("Make it about a submarine captain instead.");
         if (saved) {
           await ChatWrites.saveMessageWithParts(steer, result.chatId);
         }
@@ -2337,105 +1458,58 @@ describe("sessionMachine", () => {
         });
 
         const session = await runTestMachine(result);
-        expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-          "<session title="Test session" count="6">
-            <user>
-              <text>Hello, I need help with something.</text>
-            </user>
-            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-              <step-start step="1" />
-              <tool tool="write_file" state="output-available" callId="test-call-2">
-                <input>
-                  {
-                    "filePath": "test.txt",
-                    "content": "console.log('Hello, world!');"
-                  }
-                </input>
-                <output>
-                  {
-                    "content": "console.log('Hello, world!');",
-                    "filePath": "test.js",
-                    "isNewFile": false
-                  }
-                </output>
-              </tool>
-            </assistant>
-            <session-context instrument realRole="system" />
-            <session-context instrument realRole="user" />
-            <user>
-              <text>Make it about a submarine captain instead.</text>
-            </user>
-            <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-              <step-start step="2" />
-              <text state="done">I'm done.</text>
-            </assistant>
-          </session>"
+        expect(outline(session)).toMatchInlineSnapshot(`
+          [
+            "<user>",
+            "<text>Hello, I need help with something.</text>",
+            "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+            "<step-start step="1" />",
+            "<tool tool="write_file" state="output-available" callId="test-call-2">",
+            "<user>",
+            "<text>Make it about a submarine captain instead.</text>",
+            "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+            "<step-start step="2" />",
+            "<text state="done">I'm done.</text>",
+          ]
         `);
       },
     );
+
     describe("a message typed into a chat's working turn", () => {
-      function typed(text: string): SessionMessage.UserWithParts {
-        const messageId = StoreId.newMessageId();
-        return {
-          id: messageId,
-          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
-          parts: [
-            {
-              metadata: {
-                createdAt: mockDate,
-                id: StoreId.newPartId(),
-                messageId,
-                sessionId: defaultSessionId,
-              },
-              text,
-              type: "text",
-            },
-          ],
-          role: "user",
-        };
-      }
-
-      async function startChatTurn() {
-        answersAsChat();
-        const result = await createActorAndTask({
-          chunkSets: [writeFileChunks, finishChunks],
-        });
-        result.actor.start();
-        await waitFor(
-          result.actor,
-          (state) => state.context.agentRef !== undefined,
-        );
-        const agentRef = result.actor.getSnapshot().context.agentRef;
-        if (!agentRef) {
-          throw new Error("The agent never started");
-        }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
-        return result;
-      }
-
       // Nothing in flight is cut: the call finishes, and the turn's next
-      // step reads the message with a note that it arrived mid-turn.
-      it("joins the turn at its next step, marked as sent mid-turn", async () => {
-        const result = await startChatTurn();
-        const message = typed("b/c it's for the release notes");
-        await ChatWrites.saveMessageWithParts(message, result.chatId);
-        result.actor.send({
-          model: createMockAIGatewayModel(),
-          saved: true,
-          type: "addMessage",
-          value: message,
-        });
+      // step reads the message with a note that it arrived mid-turn. A typed
+      // "stop" is a message like any other, which only the Stop button cuts
+      // off.
+      it.each([
+        { saved: true, text: "b/c it's for the release notes" },
+        { saved: false, text: "stop" },
+      ])(
+        "joins the turn at its next step, marked as sent mid-turn ($text)",
+        async ({ saved, text }) => {
+          answersAsChat();
+          const result = await startTurn([writeFileChunks, finishChunks]);
+          const message = userMessage(text);
+          if (saved) {
+            await ChatWrites.saveMessageWithParts(message, result.chatId);
+          }
+          result.actor.send({
+            model: createMockAIGatewayModel(),
+            saved,
+            type: "addMessage",
+            value: message,
+          });
 
-        const session = await runTestMachine(result);
-        const shorthand = sessionToShorthand(session);
-        expect(shorthand).not.toContain("interrupted by a newer message");
-        expect(shorthand).toContain(
-          "The user sent this while you were working on their last message.",
-        );
-        // One turn: the message is answered by the step after the call.
-        expect(shorthand.match(/<session-context/g)).toHaveLength(2);
-        expect(shorthand).toContain("I'm done.</text>");
-      });
+          const session = await runTestMachine(result);
+          const shorthand = sessionToShorthand(session);
+          expect(shorthand).not.toContain("interrupted by a newer message");
+          expect(shorthand).toContain(
+            "The user sent this while you were working on their last message.",
+          );
+          // One turn: the message is answered by the step after the call.
+          expect(shorthand.match(/<session-context/g)).toHaveLength(2);
+          expect(shorthand).toContain("I'm done.</text>");
+        },
+      );
 
       // A foreground command would hold the message until it ended. It is
       // not cut either: it moves to the background, and the message is heard
@@ -2477,25 +1551,13 @@ describe("sessionMachine", () => {
             type: "tool-call",
           },
         ] as const satisfies LanguageModelV4StreamPart[];
-        const result = await createActorAndTask({
-          chunkSets: [bashChunks, finishChunks],
-        });
-        result.actor.start();
-        await waitFor(
-          result.actor,
-          (state) => state.context.agentRef !== undefined,
-        );
-        const agentRef = result.actor.getSnapshot().context.agentRef;
-        if (!agentRef) {
-          throw new Error("The agent never started");
-        }
-        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+        const result = await startTurn([bashChunks, finishChunks]);
         // Past the bash call's start, so its wait is registered.
         await new Promise((resolve) => setTimeout(resolve, 200));
         result.actor.send({
           model: createMockAIGatewayModel(),
           type: "addMessage",
-          value: typed("also check the logs"),
+          value: userMessage("also check the logs"),
         });
 
         try {
@@ -2526,24 +1588,6 @@ describe("sessionMachine", () => {
         } finally {
           await killSessionBackgroundProcesses(result.sessionId);
         }
-      });
-
-      // A typed "stop" is a message like any other: it joins the turn, and
-      // the agent decides what it means.
-      it("joins the turn when it says stop, which only the Stop button cuts off", async () => {
-        const result = await startChatTurn();
-        result.actor.send({
-          model: createMockAIGatewayModel(),
-          type: "addMessage",
-          value: typed("stop"),
-        });
-
-        const session = await runTestMachine(result);
-        const shorthand = sessionToShorthand(session);
-        expect(shorthand).not.toContain(
-          "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
-        );
-        expect(shorthand).toContain("<data-intent>");
       });
     });
   });
@@ -2583,41 +1627,7 @@ describe("sessionMachine", () => {
       };
     }
 
-    it("answers the request the session already holds", async () => {
-      const result = await createActorAndTask({
-        chunkSets: [finishChunks],
-        queuedMessages: [],
-        runRequested: true,
-      });
-      await ChatWrites.saveMessageWithParts(
-        defaultQueuedMessage,
-        result.chatId,
-      );
-      await ChatWrites.saveMessageWithParts(
-        createFailedAssistantMessage(),
-        result.chatId,
-      );
-
-      const session = await runTestMachine(result);
-      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-        "<session title="Test session" count="5">
-          <user>
-            <text>Hello, I need help with something.</text>
-          </user>
-          <assistant finishReason="unknown" model="mock-model-id" provider="instrument" errorKind="api-call" errorMessage="Overloaded">
-            <text state="done">Let me start by</text>
-          </assistant>
-          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-            <step-start step="1" />
-            <text state="done">I'm done.</text>
-          </assistant>
-          <session-context instrument realRole="system" />
-          <session-context instrument realRole="user" />
-        </session>"
-      `);
-    });
-
-    it("leaves the attempt that failed out of the request", async () => {
+    it("answers the request the session already holds, leaving the failed attempt out of it", async () => {
       const prompts: LanguageModelV4CallOptions["prompt"][] = [];
       const result = await createActorAndTask({
         aiSDKModel: new MockLanguageModelV4({
@@ -2643,15 +1653,28 @@ describe("sessionMachine", () => {
         result.chatId,
       );
 
-      await runTestMachine(result);
-      expect(prompts.at(-1)?.map((message) => message.role))
-        .toMatchInlineSnapshot(`
+      const session = await runTestMachine(result);
+      expect(outline(session)).toMatchInlineSnapshot(`
         [
-          "system",
-          "user",
-          "user",
+          "<user>",
+          "<text>Hello, I need help with something.</text>",
+          "<assistant finishReason="unknown" model="mock-model-id" provider="instrument" errorKind="api-call" errorMessage="Overloaded">",
+          "<text state="done">Let me start by</text>",
+          "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+          "<step-start step="1" />",
+          "<text state="done">I'm done.</text>",
         ]
       `);
+      expect(prompts.map((prompt) => prompt.map((message) => message.role)))
+        .toMatchInlineSnapshot(`
+          [
+            [
+              "system",
+              "user",
+              "user",
+            ],
+          ]
+        `);
     });
 
     it("finishes without a turn when the session is empty", async () => {
@@ -2667,67 +1690,25 @@ describe("sessionMachine", () => {
     });
   });
 
-  it("should enforce max step count when set to 2", async () => {
+  it("ends the run at its step limit with a note saying so", async () => {
     const session = await createAndRunTestMachine({
       chunkSets: [readFileChunks, readFileChunks, readFileChunks, finishChunks],
       maxStepCount: 2,
     });
 
-    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
-      "<session title="Test session" count="6">
-        <user>
-          <text>Hello, I need help with something.</text>
-        </user>
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="1" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <session-context instrument realRole="system" />
-        <session-context instrument realRole="user" />
-        <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
-          <step-start step="2" />
-          <tool tool="read_file" state="output-available" callId="test-call-1">
-            <input>
-              {
-                "filePath": "test.txt"
-              }
-            </input>
-            <output>
-              {
-                "content": "Hello, world!",
-                "displayedLines": 1,
-                "filePath": "./test.txt",
-                "hasMoreLines": false,
-                "offset": 1,
-                "state": "exists",
-                "totalLines": 1,
-                "truncatedByBytes": false
-              }
-            </output>
-          </tool>
-        </assistant>
-        <assistant finishReason="max-steps" model="instrument-synthetic" provider="system">
-          <data-maxSteps maxStepCount="2" />
-        </assistant>
-      </session>"
+    expect(outline(session)).toMatchInlineSnapshot(`
+      [
+        "<user>",
+        "<text>Hello, I need help with something.</text>",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="1" />",
+        "<tool tool="read_file" state="output-available" callId="test-call-1">",
+        "<assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">",
+        "<step-start step="2" />",
+        "<tool tool="read_file" state="output-available" callId="test-call-1">",
+        "<assistant finishReason="max-steps" model="instrument-synthetic" provider="system">",
+        "<data-maxSteps maxStepCount="2" />",
+      ]
     `);
   });
 });

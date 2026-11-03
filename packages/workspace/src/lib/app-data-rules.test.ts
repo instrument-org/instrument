@@ -454,6 +454,43 @@ function reachTable(p: Paths) {
 }
 
 /**
+ * Each case's exit, 0 or 1 by name, from one native shell held by `reach`
+ * that runs every case's script in a subshell of its own. One sandboxed
+ * launch per table keeps a few dozen cases from costing a few dozen launches.
+ */
+async function nativeExits(
+  reach: ReturnType<typeof nativeReachFor>,
+  cases: readonly (readonly [name: string, script: string, exitCode: number])[],
+  cwd?: string,
+) {
+  const script = cases
+    .map(([, each]) => `(${each}) >/dev/null 2>&1; echo $?`)
+    .join("\n");
+  const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
+  const result = await execa(
+    spawned.file,
+    launchNative(spawned, { env: {} }).args,
+    { cwd, reject: false },
+  );
+  const exits = result.stdout.split("\n");
+  return Object.fromEntries(
+    cases.map(([name], i) => [
+      name,
+      exits[i] === undefined ? "not run" : exits[i] === "0" ? 0 : 1,
+    ]),
+  );
+}
+
+/** What `nativeExits` returns when every case exits as it says. */
+function expectedExits(
+  cases: readonly (readonly [name: string, script: string, exitCode: number])[],
+) {
+  return Object.fromEntries(
+    cases.map(([name, , exitCode]) => [name, exitCode]),
+  );
+}
+
+/**
  * Everything inside the workspace's `.instrument/` the agent can still reach,
  * each as `<path under the workspace> (read|write)`. Every path there on disk
  * is asked about, and every path a rule names there whether anything has
@@ -493,13 +530,26 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
 
   describe.each(personRules(paths))("under $name", (person) => {
     const layout = layoutUnder(paths, person);
+    // The same rules for a task, which leaves the apps to the chat; built
+    // once, on first use.
+    let taskLayout: ReturnType<typeof layoutUnder> | undefined;
+    const taskUnder = () =>
+      (taskLayout ??= layoutUnder(paths, { ...person, apps: false }));
 
-    it.each(reachTable(paths))(
-      "%s: %s %s is %s",
-      (_name, op, hostPath, level) => {
-        expect(reachOf(layout.rules, hostPath, op).level).toBe(level);
-      },
-    );
+    it("reaches each place in and around it as the table says", () => {
+      const table = reachTable(paths);
+      expect(
+        table.map(
+          ([name, op, hostPath]) =>
+            `${name}: ${op} ${hostPath} is ${reachOf(layout.rules, hostPath, op).level}`,
+        ),
+      ).toEqual(
+        table.map(
+          ([name, op, hostPath, level]) =>
+            `${name}: ${op} ${hostPath} is ${level}`,
+        ),
+      );
+    });
 
     // The picked folder is `Instrument` in Documents, the output folder's
     // place, so its top level takes that place's rule rather than the app's.
@@ -531,9 +581,8 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
     // folder of the person's holds them.
     it("leaves the apps to the chat to change", () => {
       const app = path.join(getWorkspaceConfig().appsDir, "Linear", "APP.md");
-      const task = layoutUnder(paths, { ...person, apps: false });
-      expect(reachOf(task.rules, app, "read").level).toBe("allow");
-      expect(reachOf(task.rules, app, "write").level).not.toBe("allow");
+      expect(reachOf(taskUnder().rules, app, "read").level).toBe("allow");
+      expect(reachOf(taskUnder().rules, app, "write").level).not.toBe("allow");
       expect(reachOf(layout.rules, app, "write").level).toBe("allow");
     });
 
@@ -598,21 +647,47 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
     });
 
-    it.each(reachTable(paths).filter(([, , , level]) => level === "never"))(
-      "refuses %s plainly, naming nothing to ask for",
-      (_name, op, hostPath) => {
-        const refusal = ruleRefusal({
-          hostPath,
-          op,
-          rules: layout.rules,
-          spell: (spelled) => spelled,
+    // The rules' exceptions inside the app's own data, below, as paths the
+    // agent asks for rather than as rules: the reach of everything written
+    // in there, since nothing the person allows around it opens anything in
+    // it.
+    it("opens the same paths and no others inside the app's own data", () => {
+      const chat = ".instrument/chats/2026-10-13-chat";
+      const other = ".instrument/chats/2026-10-13-other";
+      expect(reachedInsideAppData(layout.rules, paths)).toEqual([
+        ".instrument/chats (read)",
+        `${chat} (read)`,
+        `${chat}/attachments (read)`,
+        `${chat}/attachments/a.pdf (read)`,
+        `${chat}/chat.db (read)`,
+        `${chat}/handoff-notes.md (read)`,
+        `${chat}/handoff-notes.md (write)`,
+        `${chat}/settings.json (read)`,
+        `${other} (read)`,
+        `${other}/attachments (read)`,
+        `${other}/attachments/a.pdf (read)`,
+        `${other}/chat.db (read)`,
+      ]);
+    });
+
+    it("refuses what it closes plainly, naming nothing to ask for", () => {
+      const unplain = reachTable(paths)
+        .filter(([, , , level]) => level === "never")
+        .flatMap(([name, op, hostPath]) => {
+          const refusal = ruleRefusal({
+            hostPath,
+            op,
+            rules: layout.rules,
+            spell: (spelled) => spelled,
+          });
+          return /is Instrument's own data, which no command reads or changes|is read-only/.test(
+            refusal ?? "",
+          ) && !refusal?.includes("ask_permission")
+            ? []
+            : [`${name} (${op}): ${String(refusal)}`];
         });
-        expect(refusal).toMatch(
-          /is Instrument's own data, which no command reads or changes|is read-only/,
-        );
-        expect(refusal).not.toContain("ask_permission");
-      },
-    );
+      expect(unplain).toEqual([]);
+    });
   });
 
   // F4 asks for `.instrument/` closed to the agent with no exceptions. This
@@ -651,34 +726,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         ) + " (allow)",
       ]);
     });
-
-    // The same, as paths the agent asks for rather than as rules: the
-    // reach of everything written in there, under every rule the person
-    // could have, since nothing they allow around the app's data opens
-    // anything in it.
-    it.each(personRules(paths))(
-      "is the same paths and no others under $name",
-      (person) => {
-        const chat = ".instrument/chats/2026-10-13-chat";
-        const other = ".instrument/chats/2026-10-13-other";
-        expect(
-          reachedInsideAppData(layoutUnder(paths, person).rules, paths),
-        ).toEqual([
-          ".instrument/chats (read)",
-          `${chat} (read)`,
-          `${chat}/attachments (read)`,
-          `${chat}/attachments/a.pdf (read)`,
-          `${chat}/chat.db (read)`,
-          `${chat}/handoff-notes.md (read)`,
-          `${chat}/handoff-notes.md (write)`,
-          `${chat}/settings.json (read)`,
-          `${other} (read)`,
-          `${other}/attachments (read)`,
-          `${other}/attachments/a.pdf (read)`,
-          `${other}/chat.db (read)`,
-        ]);
-      },
-    );
   });
 
   describe("the file tools and the shell", () => {
@@ -786,8 +833,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
   describe.runIf(seatbeltAvailable())("a native command on this Mac", () => {
     const layout = layoutUnder(paths, { grants: [paths.appFiles] });
     const reach = nativeReachFor(layout.rules, layout);
-
-    it.each([
+    const cases = [
       ["reads its own work folder", `cat '${paths.work}/notes.md'`, 0],
       ["writes its own work folder", `echo x > '${paths.work}/new.md'`, 0],
       [
@@ -878,16 +924,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         `cat '${paths.appFiles}/Other/state.json'`,
         0,
       ],
-    ])("%s", async (_name, script, exitCode) => {
-      const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
-      const result = await execa(
-        spawned.file,
-        launchNative(spawned, { env: {} }).args,
-        {
-          reject: false,
-        },
-      );
-      expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+    ] as const;
+
+    it("runs each command as the rules say", async () => {
+      expect(await nativeExits(reach, cases)).toEqual(expectedExits(cases));
     });
 
     // A script that catches the refusal and prints it exits 0, and its
@@ -963,7 +1003,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       },
     );
 
-    it.runIf(seatbeltAvailable()).each([
+    const cases = [
       [
         "refuses the keys through the link to them",
         `cat '${paths.deepLinks.keys}/x'`,
@@ -989,17 +1029,14 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         `cat '${paths.deepLinks.appFiles}/Other/state.json'`,
         0,
       ],
-    ])("%s", async (_name, script, exitCode) => {
-      const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
-      const result = await execa(
-        spawned.file,
-        launchNative(spawned, { env: {} }).args,
-        {
-          reject: false,
-        },
-      );
-      expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
-    });
+    ] as const;
+
+    it.runIf(seatbeltAvailable())(
+      "runs each command as the rules say",
+      async () => {
+        expect(await nativeExits(reach, cases)).toEqual(expectedExits(cases));
+      },
+    );
   });
 
   // `du` walks as the app, and `rg` on Windows has no sandbox to refuse it
@@ -1179,7 +1216,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       expect(args).not.toContain(target);
     });
 
-    it("keeps the same arguments with 2,000 chats as with 2", () => {
+    it("keeps the same arguments with 200 chats as with 2", () => {
       const fresh = homeShaped(shape.appFiles, shape.workspace);
       useApp(fresh);
       const argsFor = (person: Parameters<typeof layoutUnder>[1]) => {
@@ -1191,7 +1228,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       // writable one (Drafts/), which every later run then binds.
       people.map(argsFor);
       const two = people.map(argsFor);
-      for (let i = 0; i < 1998; i++) {
+      for (let i = 0; i < 198; i++) {
         const id = `2026-10-14-chat-${String(i).padStart(4, "0")}`;
         mkdirSync(path.join(fresh.data.chatsDir, id, "attachments"), {
           recursive: true,

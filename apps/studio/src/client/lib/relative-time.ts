@@ -1,4 +1,6 @@
-import { format, formatDistance, isSameYear } from "date-fns";
+import { format } from "date-fns/format";
+import { formatDistance } from "date-fns/formatDistance";
+import { isSameYear } from "date-fns/isSameYear";
 
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;

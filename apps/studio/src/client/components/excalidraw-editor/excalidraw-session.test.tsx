@@ -204,9 +204,12 @@ describe("createExcalidrawSession", () => {
       .mockResolvedValue({ ok: true, version: "v3" });
     edit(moved("a", 10));
     const first = session.flush();
-    await vi.waitFor(() => {
-      expect(files.write.call).toHaveBeenCalledTimes(1);
-    });
+    await vi.waitFor(
+      () => {
+        expect(files.write.call).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
     canvas.state.appState = {
       ...canvas.state.appState,
       viewBackgroundColor: "#000000",
@@ -236,13 +239,19 @@ describe("createExcalidrawSession", () => {
       },
     });
     const { canvas, onExternalChange, session } = open(file([text("t")]));
-    await vi.waitFor(() => {
-      expect(fontsIn).toBeDefined();
-    });
+    await vi.waitFor(
+      () => {
+        expect(fontsIn).toBeDefined();
+      },
+      { interval: 1 },
+    );
     fontsIn();
-    await vi.waitFor(() => {
-      expect(canvas.state.elements[0]?.width).toBe(12);
-    });
+    await vi.waitFor(
+      () => {
+        expect(canvas.state.elements[0]?.width).toBe(12);
+      },
+      { interval: 1 },
+    );
     files.read.call.mockResolvedValue({ content: file([]), version: "v2" });
     files.write.call.mockResolvedValue({ ok: true, version: "v3" });
 

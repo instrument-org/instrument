@@ -43,7 +43,7 @@ describe("process.env while a command runs", () => {
     process.env[KEY] = "before";
     const realEnv = process.env;
     const bash = await createBashEnv({ sessionId, chatId });
-    const running = bash.exec("sleep 2", {
+    const running = bash.exec("sleep 0.5", {
       signal: AbortSignal.timeout(30_000),
     });
     // The defense layer is up once `process.env` is its proxy.

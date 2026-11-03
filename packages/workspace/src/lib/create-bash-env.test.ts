@@ -41,164 +41,47 @@ describe("createBashDescription", () => {
       .slice(1)
       // A command's own line is indented; a description's further lines are not.
       .flatMap((line) => /^ {2}(\S.*?) - /.exec(line)?.[1] ?? []);
-    expect({ builtins: builtins?.split(", "), specialized })
-      .toMatchInlineSnapshot(`
-        {
-          "builtins": [
-            "alias",
-            "arch",
-            "awk",
-            "b2sum",
-            "base32",
-            "base64",
-            "basename",
-            "basenc",
-            "bash",
-            "cat",
-            "chmod",
-            "cksum",
-            "clear",
-            "cmp",
-            "column",
-            "comm",
-            "cp",
-            "cut",
-            "date",
-            "dd",
-            "df",
-            "diff",
-            "dirname",
-            "du",
-            "echo",
-            "egrep",
-            "env",
-            "expand",
-            "expr",
-            "factor",
-            "false",
-            "fgrep",
-            "file",
-            "find",
-            "fmt",
-            "fold",
-            "grep",
-            "gunzip",
-            "gzip",
-            "head",
-            "help",
-            "history",
-            "hostname",
-            "html-to-markdown",
-            "join",
-            "ln",
-            "ls",
-            "md5sum",
-            "mkdir",
-            "mktemp",
-            "mv",
-            "nl",
-            "nproc",
-            "numfmt",
-            "od",
-            "paste",
-            "pr",
-            "printenv",
-            "printf",
-            "pwd",
-            "readlink",
-            "realpath",
-            "rev",
-            "rm",
-            "rmdir",
-            "sed",
-            "seq",
-            "sh",
-            "sha1sum",
-            "sha224sum",
-            "sha256sum",
-            "sha384sum",
-            "sha512sum",
-            "shuf",
-            "sleep",
-            "sort",
-            "split",
-            "stat",
-            "strings",
-            "tac",
-            "tail",
-            "tar",
-            "tee",
-            "time",
-            "timeout",
-            "touch",
-            "tr",
-            "tree",
-            "true",
-            "tsort",
-            "unalias",
-            "uname",
-            "unexpand",
-            "uniq",
-            "wc",
-            "whoami",
-            "xargs",
-            "yes",
-            "zcat",
-          ],
-          "specialized": [
-            "jq",
-            "rg",
-            "sqlite3",
-            "xan",
-            "yq",
-            "agent-browser",
-            "ffmpeg",
-            "ffprobe",
-            "git",
-            "node",
-            "pnpm",
-            "pnx",
-            "uv",
-            "python",
-            "pip",
-            "validate-skill",
-            "jobs",
-            "fg",
-            "kill",
-            "instrument x",
-            "instrument task",
-            "instrument memory",
-            "instrument window",
-          ],
-        }
-      `);
+    // Representative builtins rather than the whole set, which follows
+    // just-bash; the specialized ones are ours, so all of them.
+    expect(builtins?.split(", ")).toEqual(
+      expect.arrayContaining(["awk", "find", "grep", "sed", "tar", "xargs"]),
+    );
+    expect(specialized).toMatchInlineSnapshot(`
+      [
+        "jq",
+        "rg",
+        "sqlite3",
+        "xan",
+        "yq",
+        "agent-browser",
+        "ffmpeg",
+        "ffprobe",
+        "git",
+        "node",
+        "pnpm",
+        "pnx",
+        "uv",
+        "python",
+        "pip",
+        "validate-skill",
+        "jobs",
+        "fg",
+        "kill",
+        "instrument x",
+        "instrument task",
+        "instrument memory",
+        "instrument window",
+      ]
+    `);
   });
 
-  it("includes just-bash built-in tools", () => {
-    const description = createBashDescription();
-    expect(description).toContain("grep");
-    expect(description).toContain("sed");
-    expect(description).toContain("awk");
-    expect(description).toContain("jq");
-    expect(description).toContain("diff");
-  });
-
-  it("includes all commands in a single list", () => {
-    const description = createBashDescription();
-    expect(description).toContain("pnpm");
-    expect(description).toContain("grep");
-    expect(description).toContain("jq");
-  });
-
-  it("does not advertise npx", () => {
-    expect(createBashDescription()).not.toContain("npx");
-  });
-
-  it("names one Python and one Node", () => {
-    const description = createBashDescription();
-    expect(description).not.toContain("python-native");
-    expect(description).not.toContain("js-exec");
-  });
+  // One Python, one Node, no npx, and none of the Mac's own commands.
+  it.each(["npx", "python-native", "js-exec", "osascript"])(
+    "does not advertise %s",
+    (name) => {
+      expect(createBashDescription()).not.toContain(name);
+    },
+  );
 });
 
 describe("osascript", () => {

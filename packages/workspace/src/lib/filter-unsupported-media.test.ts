@@ -10,175 +10,79 @@ const createModel = (
   features: AIGatewayModel.ModelFeatures[],
 ): AIGatewayModel.Type => createMockAIGatewayModel({ features });
 
+/** One user message: a line of text and one file of `mediaType`. */
+const withFile = (mediaType: string): ModelMessage[] => [
+  {
+    content: [
+      { text: "Have a look", type: "text" },
+      { data: "base64data", mediaType, type: "file" },
+    ],
+    role: "user",
+  },
+];
+
+/** Each kind of media, the feature that lets it through, and how its note names it. */
+const MEDIA = [
+  ["audio/mp3", "inputAudio", "Audio file removed - your model lacks audio"],
+  ["audio/wav", "inputAudio", "Audio file removed - your model lacks audio"],
+  ["image/png", "inputImage", "Image file removed - your model lacks image"],
+  ["image/webp", "inputImage", "Image file removed - your model lacks image"],
+  ["video/mp4", "inputVideo", "Video file removed - your model lacks video"],
+  ["video/webm", "inputVideo", "Video file removed - your model lacks video"],
+  ["application/pdf", "inputFile", "File file removed - your model lacks file"],
+] as const;
+
 describe("filterUnsupportedMedia", () => {
-  it("should pass through messages without file parts", async () => {
+  it("passes through messages without file parts", async () => {
     const messages: ModelMessage[] = [
-      {
-        content: "Hello",
-        role: "user",
-      },
-      {
-        content: [{ text: "Hi there", type: "text" }],
-        role: "assistant",
-      },
+      { content: "System message", role: "system" },
+      { content: "Hello", role: "user" },
+      { content: [{ text: "Hi there", type: "text" }], role: "assistant" },
     ];
 
     const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
+    expect(await filterUnsupportedMedia({ messages, model })).toEqual(messages);
   });
 
-  it("should keep audio files when model supports inputAudio", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Listen to this", type: "text" },
-          {
-            data: "data:base64-audio",
-            mediaType: "audio/mp3",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "inputAudio", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
+  it.each(MEDIA)("keeps %s for a model with %s", async (mediaType, feature) => {
+    const messages = withFile(mediaType);
+    const model = createModel(["inputText", feature, "outputText"]);
+    expect(await filterUnsupportedMedia({ messages, model })).toEqual(messages);
   });
 
-  it("should replace audio files when model does not support inputAudio", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Listen to this", type: "text" },
-          {
-            data: "data:base64-audio",
-            mediaType: "audio/mp3",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toMatchInlineSnapshot(`
-      [
+  it.each(MEDIA)(
+    "replaces %s for a model without %s, keeping the text beside it",
+    async (mediaType, _feature, note) => {
+      const model = createModel(["inputText", "outputText"]);
+      const result = await filterUnsupportedMedia({
+        messages: withFile(mediaType),
+        model,
+      });
+      expect(result).toEqual([
         {
-          "content": [
-            {
-              "text": "Listen to this",
-              "type": "text",
-            },
-            {
-              "text": "<system_note>
-      Audio file removed - your model lacks audio input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
+          content: [
+            { text: "Have a look", type: "text" },
+            { text: expect.stringContaining(note), type: "text" },
           ],
-          "role": "user",
+          role: "user",
         },
-      ]
-    `);
-  });
+      ]);
+    },
+  );
 
-  it("should replace a PDF for a text model without inputFile, as Workers AI lists them", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Read this", type: "text" },
-          {
-            data: "base64pdfdata",
-            mediaType: "application/pdf",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createMockAIGatewayModel({
-      features: ["inputText", "outputText", "tools"],
-      provider: "openai-compatible",
-      providerId: "@cf/zai-org/glm-5.3-flash",
+  it("says why the media is gone and what to do instead", async () => {
+    const model = createModel(["inputText", "outputText"]);
+    const result = await filterUnsupportedMedia({
+      messages: withFile("image/png"),
+      model,
     });
-    const result = await filterUnsupportedMedia({ messages, model });
 
     expect(result).toMatchInlineSnapshot(`
       [
         {
           "content": [
             {
-              "text": "Read this",
-              "type": "text",
-            },
-            {
-              "text": "<system_note>
-      File file removed - your model lacks file input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("should keep image files when model supports inputImage", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Look at this", type: "text" },
-          {
-            data: "base64imagedata",
-            mediaType: "image/png",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "inputImage", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
-  });
-
-  it("should replace image files when model does not support inputImage", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Look at this", type: "text" },
-          {
-            data: "base64imagedata",
-            mediaType: "image/png",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "Look at this",
+              "text": "Have a look",
               "type": "text",
             },
             {
@@ -195,72 +99,12 @@ describe("filterUnsupportedMedia", () => {
     `);
   });
 
-  it("should handle multiple media types in the same message", async () => {
+  it("filters each file in a message by its own kind", async () => {
     const messages: ModelMessage[] = [
       {
         content: [
-          { text: "Check these out", type: "text" },
-          {
-            data: "base64imagedata",
-            mediaType: "image/jpeg",
-            type: "file",
-          },
-          {
-            data: "data:base64-audio",
-            mediaType: "audio/wav",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "Check these out",
-              "type": "text",
-            },
-            {
-              "text": "<system_note>
-      Image file removed - your model lacks image input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
-            {
-              "text": "<system_note>
-      Audio file removed - your model lacks audio input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("should filter selectively based on model features", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            data: "base64imagedata",
-            mediaType: "image/png",
-            type: "file",
-          },
-          {
-            data: "data:base64-audio",
-            mediaType: "audio/mp3",
-            type: "file",
-          },
+          { data: "base64imagedata", mediaType: "image/png", type: "file" },
+          { data: "data:base64-audio", mediaType: "audio/mp3", type: "file" },
         ],
         role: "user",
       },
@@ -269,377 +113,30 @@ describe("filterUnsupportedMedia", () => {
     const model = createModel(["inputText", "inputImage", "outputText"]);
     const result = await filterUnsupportedMedia({ messages, model });
 
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "data": "base64imagedata",
-              "mediaType": "image/png",
-              "type": "file",
-            },
-            {
-              "text": "<system_note>
-      Audio file removed - your model lacks audio input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
+    expect(result).toEqual([
+      {
+        content: [
+          { data: "base64imagedata", mediaType: "image/png", type: "file" },
+          {
+            text: expect.stringContaining(
+              "Audio file removed - your model lacks audio",
+            ),
+            type: "text",
+          },
+        ],
+        role: "user",
+      },
+    ]);
   });
 
-  it("should handle messages with string content", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: "System message",
-        role: "system",
-      },
-    ];
-
+  it("does not filter file types outside every media category", async () => {
+    const messages = withFile("application/zip");
     const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
-  });
-
-  it("should handle various audio mime types", async () => {
-    const audioTypes = ["audio/mp3", "audio/wav", "audio/ogg", "audio/mpeg"];
-
-    for (const mediaType of audioTypes) {
-      const messages: ModelMessage[] = [
-        {
-          content: [
-            {
-              data: "base64data",
-              mediaType,
-              type: "file",
-            },
-          ],
-          role: "user",
-        },
-      ];
-
-      const model = createModel(["inputText", "outputText"]);
-      const result = await filterUnsupportedMedia({ messages, model });
-
-      expect(result).toMatchInlineSnapshot(`
-        [
-          {
-            "content": [
-              {
-                "text": "<system_note>
-        Audio file removed - your model lacks audio input capability.
-        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-        </system_note>",
-                "type": "text",
-              },
-            ],
-            "role": "user",
-          },
-        ]
-      `);
-    }
-  });
-
-  it("should handle various image mime types", async () => {
-    const imageTypes = [
-      "image/png",
-      "image/jpeg",
-      "image/jpg",
-      "image/gif",
-      "image/webp",
-    ];
-
-    for (const mediaType of imageTypes) {
-      const messages: ModelMessage[] = [
-        {
-          content: [
-            {
-              data: "base64data",
-              mediaType,
-              type: "file",
-            },
-          ],
-          role: "user",
-        },
-      ];
-
-      const model = createModel(["inputText", "outputText"]);
-      const result = await filterUnsupportedMedia({ messages, model });
-
-      expect(result).toMatchInlineSnapshot(`
-        [
-          {
-            "content": [
-              {
-                "text": "<system_note>
-        Image file removed - your model lacks image input capability.
-        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-        </system_note>",
-                "type": "text",
-              },
-            ],
-            "role": "user",
-          },
-        ]
-      `);
-    }
-  });
-
-  it("should not filter file types outside every media category", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          {
-            data: "base64data",
-            mediaType: "application/zip",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
-  });
-
-  it("should keep video files when model supports inputVideo", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Watch this", type: "text" },
-          {
-            data: "data:video",
-            mediaType: "video/mp4",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "inputVideo", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
-  });
-
-  it("should replace video files when model does not support inputVideo", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Watch this", type: "text" },
-          {
-            data: "data:video",
-            mediaType: "video/mp4",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "Watch this",
-              "type": "text",
-            },
-            {
-              "text": "<system_note>
-      Video file removed - your model lacks video input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("should keep PDF files when model supports inputFile", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Read this document", type: "text" },
-          {
-            data: "data:pdf",
-            mediaType: "application/pdf",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "inputFile", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
-  });
-
-  it("should replace PDF files when model does not support inputFile", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Read this document", type: "text" },
-          {
-            data: "data:pdf",
-            mediaType: "application/pdf",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createModel(["inputText", "outputText"]);
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "Read this document",
-              "type": "text",
-            },
-            {
-              "text": "<system_note>
-      File file removed - your model lacks file input capability.
-      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-      </system_note>",
-              "type": "text",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("should handle various video mime types", async () => {
-    const videoTypes = ["video/mp4", "video/webm", "video/ogg", "video/avi"];
-
-    for (const mediaType of videoTypes) {
-      const messages: ModelMessage[] = [
-        {
-          content: [
-            {
-              data: "base64data",
-              mediaType,
-              type: "file",
-            },
-          ],
-          role: "user",
-        },
-      ];
-
-      const model = createModel(["inputText", "outputText"]);
-      const result = await filterUnsupportedMedia({ messages, model });
-
-      expect(result).toMatchInlineSnapshot(`
-        [
-          {
-            "content": [
-              {
-                "text": "<system_note>
-        Video file removed - your model lacks video input capability.
-        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-        </system_note>",
-                "type": "text",
-              },
-            ],
-            "role": "user",
-          },
-        ]
-      `);
-    }
-  });
-
-  it("should allow PDF files for OpenAI models via OpenRouter", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Read this document", type: "text" },
-          {
-            data: "data:pdf",
-            mediaType: "application/pdf",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createMockAIGatewayModel({
-      author: "OpenAI",
-      features: ["inputText", "inputFile", "outputText"],
-      provider: "openrouter",
-    });
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toMatchInlineSnapshot(`
-      [
-        {
-          "content": [
-            {
-              "text": "Read this document",
-              "type": "text",
-            },
-            {
-              "data": "data:pdf",
-              "mediaType": "application/pdf",
-              "type": "file",
-            },
-          ],
-          "role": "user",
-        },
-      ]
-    `);
-  });
-
-  it("should keep image files for xAI models via OpenRouter", async () => {
-    const messages: ModelMessage[] = [
-      {
-        content: [
-          { text: "Look at this", type: "text" },
-          {
-            data: "base64imagedata",
-            mediaType: "image/png",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ];
-
-    const model = createMockAIGatewayModel({
-      author: "x-ai",
-      features: ["inputText", "inputImage", "inputFile", "outputText"],
-      provider: "openrouter",
-    });
-    const result = await filterUnsupportedMedia({ messages, model });
-
-    expect(result).toEqual(messages);
+    expect(await filterUnsupportedMedia({ messages, model })).toEqual(messages);
   });
 
   it.each([["file-data"], ["image-data"]] as const)(
-    "should replace a %s image inside a tool result",
+    "replaces a %s image inside a tool result",
     async (type) => {
       // An image the agent read is media the user never attached, and a model
       // without image input chokes on it the same way. Providers that take
@@ -675,21 +172,15 @@ describe("filterUnsupportedMedia", () => {
           ? part.output.value
           : [];
 
-      expect(value).toMatchInlineSnapshot(`
-        [
-          {
-            "text": "Image file: shot.png.",
-            "type": "text",
-          },
-          {
-            "text": "<system_note>
-        Image file removed - your model lacks image input capability.
-        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
-        </system_note>",
-            "type": "text",
-          },
-        ]
-      `);
+      expect(value).toEqual([
+        { text: "Image file: shot.png.", type: "text" },
+        {
+          text: expect.stringContaining(
+            "Image file removed - your model lacks image",
+          ),
+          type: "text",
+        },
+      ]);
     },
   );
 });

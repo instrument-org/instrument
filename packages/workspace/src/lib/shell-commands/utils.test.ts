@@ -3,9 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hostPathArgs, parseScriptRunnerArgs } from "./utils";
+import {
+  hostPathArgs,
+  parseScriptRunnerArgs,
+  resolveCommandContext,
+} from "./utils";
 
-createMockChatConfig(ChatIdSchema.parse("test"));
+const chatId = ChatIdSchema.parse("test");
+createMockChatConfig(chatId);
 
 describe("hostPathArgs", () => {
   it("respells drive paths on Windows and leaves its switches alone", () => {
@@ -19,6 +24,32 @@ describe("hostPathArgs", () => {
       Object.defineProperty(process, "platform", { value: platform });
     }
   });
+});
+
+describe("resolveCommandContext", () => {
+  // Windows' C runtime reads TZ only as `CST6CDT`, so the shell's IANA name
+  // put every local time a Python script printed hours off (06d1409db).
+  it.each([
+    ["win32", "America/Chicago", undefined],
+    ["win32", "CST6CDT", "CST6CDT"],
+    ["darwin", "America/Chicago", "America/Chicago"],
+  ] as const)(
+    "on %s hands a native program TZ=%s as %s",
+    (os, tz, expected) => {
+      const platform = process.platform;
+      Object.defineProperty(process, "platform", { value: os });
+      try {
+        const { env } = resolveCommandContext(chatId, {
+          cwd: "/",
+          env: new Map([["TZ", tz]]),
+          fs: { resolvePath: () => "/" },
+        });
+        expect(env.TZ).toBe(expected);
+      } finally {
+        Object.defineProperty(process, "platform", { value: platform });
+      }
+    },
+  );
 });
 
 const KNOWN_OPTIONS = { v: { type: "boolean" } } as const;

@@ -25,9 +25,8 @@ describe("truncateMiddle", () => {
 
   it("keeps whole lines from both ends and counts the omitted ones", () => {
     const lines = Array.from({ length: 20 }, (_, i) => `line${i}`);
-    expect(
-      truncateMiddle(lines.join("\n"), { headBytes: 12, tailBytes: 12 }),
-    ).toMatchInlineSnapshot(`
+    expect(truncateMiddle(lines.join("\n"), { headBytes: 12, tailBytes: 12 }))
+      .toMatchInlineSnapshot(`
       {
         "content": "line0
       line1
@@ -42,6 +41,34 @@ describe("truncateMiddle", () => {
         "truncatedBy": "bytes",
       }
     `);
+  });
+
+  // bash output of thousands of short lines (a `find`, a log) fits the byte
+  // budgets, so the line cap alone is what keeps it from the model whole.
+  it("keeps at most maxLines lines from each end when the bytes fit", () => {
+    const text = Array.from({ length: 10 }, (_, i) => `l${i}`).join("\n");
+    const { content, omittedLines, truncated } = truncateMiddle(text, {
+      maxLines: 3,
+    });
+    expect({ content, omittedLines, truncated }).toMatchInlineSnapshot(`
+      {
+        "content": "l0
+      l1
+      l2
+      [... 4 lines omitted ...]
+      l7
+      l8
+      l9",
+        "omittedLines": 4,
+        "truncated": true,
+      }
+    `);
+  });
+
+  // Nothing reads `truncatedBy` today, so the wrong value has no effect yet.
+  it.fails("says the line cap cut it when the bytes fit", () => {
+    const text = Array.from({ length: 10 }, (_, i) => `l${i}`).join("\n");
+    expect(truncateMiddle(text, { maxLines: 3 }).truncatedBy).toBe("lines");
   });
 });
 

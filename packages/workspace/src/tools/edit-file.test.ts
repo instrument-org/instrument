@@ -322,5 +322,58 @@ describe("EditFile", () => {
       expect(result.isErr()).toBe(true);
       await expect(readBack("anchors.ts")).resolves.toBe(content);
     });
+
+    // The context matcher takes a block of the same lines when half the
+    // middle matches, whatever the other half holds: here 900 bytes of data
+    // the model never sent. Only the size check stands between that and a
+    // replacement that deletes it.
+    it("refuses a match many times longer than oldString", async () => {
+      const content = [
+        "function run() {",
+        "  const a = 1;",
+        `  const data = [${"1, ".repeat(300)}];`,
+        "}",
+      ].join("\n");
+      setupMockFs({ "context.ts": content });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./context.ts",
+          newString: "REPLACED",
+          oldString: [
+            "function run() {",
+            "  const a = 1;",
+            "  const data = [];",
+            "}",
+          ].join("\n"),
+        }),
+      );
+
+      expect(result._unsafeUnwrapErr().message).toContain(
+        "matched span is much larger than oldString",
+      );
+      await expect(readBack("context.ts")).resolves.toBe(content);
+    });
+
+    // The escape matcher exists for a model that sends `\n` as two
+    // characters, and finds exactly the lines it meant. The size check counts
+    // that one-line oldString against the four lines it matched and refuses,
+    // so an escaped edit works up to three lines and fails from four.
+    it.fails("replaces a four-line oldString sent with its newlines escaped", async () => {
+      setupMockFs({ "escaped.ts": "a();\nb();\nc();\nd();\n" });
+
+      const result = await runTool(
+        TOOLS.EditFile,
+        makeExecuteArgs({
+          filePath: "./escaped.ts",
+          newString: "done();",
+          oldString: String.raw`a();\nb();\nc();\nd();`,
+        }),
+      );
+
+      expect(result.isOk()).toBe(true);
+      await expect(readBack("escaped.ts")).resolves.toBe("done();\n");
+    });
   });
 });

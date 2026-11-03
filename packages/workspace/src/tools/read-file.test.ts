@@ -676,6 +676,22 @@ describe("toModelOutput", () => {
     `);
   });
 
+  // A model passes the line it is told as `offset`. After the same two lines
+  // the byte-cap note names line 2 and the limit note line 3, so one of them
+  // re-reads a line or skips one.
+  it.fails("names the same line to read beyond after a byte cap and after a limit", () => {
+    const beyond = (truncatedByBytes: boolean) => {
+      const output = textOutput({
+        content: "line1\nline2",
+        hasMoreLines: true,
+        totalLines: 500,
+        truncatedByBytes,
+      });
+      return /read beyond line (\d+)/.exec(JSON.stringify(output))?.[1];
+    };
+    expect(beyond(true)).toBe(beyond(false));
+  });
+
   it("reports an empty file as a note instead of a blank numbered line", () => {
     expect(textOutput({ content: "", displayedLines: 1, totalLines: 1 }))
       .toMatchInlineSnapshot(`

@@ -841,6 +841,42 @@ describe("agent-browser routing", () => {
     },
   );
 
+  // A daemon slower than one 250 ms wait to start (a loaded machine,
+  // antivirus on Windows) refused the single retry too (4b561b5d9).
+  it("retries a daemon race with backoff until the winner is up", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      let runs = 0;
+      await answerAgentBrowser(() =>
+        ++runs <= 3
+          ? {
+              exitCode: 1,
+              stderr:
+                "✗ A daemon for session 's' started concurrently with different daemon configuration. Retry the command.\n",
+              stdout: "",
+            }
+          : { exitCode: 0, stderr: "", stdout: "Jar\n" },
+      );
+      let done = false;
+      const result = command
+        .execute(["get", "title"], commandCtx)
+        .finally(() => {
+          done = true;
+        });
+      // The run reads the disk between its waits, so time moves in steps
+      // with a turn of the event loop between them.
+      while (!done) {
+        await vi.advanceTimersByTimeAsync(250);
+        await new Promise(setImmediate);
+      }
+
+      expect(await result).toMatchObject({ exitCode: 0, stdout: "Jar\n" });
+      expect(runs).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps a named wait's timeout a failure through a chain and says what to do next", async () => {
     await answerAgentBrowser((args) =>
       args.includes("wait")

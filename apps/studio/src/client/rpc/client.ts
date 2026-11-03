@@ -26,6 +26,9 @@ export const rpcClient = createTanstackQueryUtils(baseClient, {
     billing: {
       offer: {
         queryOptions: {
+          // Kept with no one reading it, so a sheet opened long after the
+          // window's prefetch draws from it while it asks again.
+          gcTime: Number.POSITIVE_INFINITY,
           retry: 3,
         },
       },

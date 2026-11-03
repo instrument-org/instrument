@@ -100,6 +100,19 @@ export function AddProviderSheet({
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
+  // What the free trial offers, which the window asks for as it comes up so
+  // the trial row draws in its own words at once (`AppWindow`).
+  const { data: offer, isError: offerFailed } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: hasToken === false,
+  });
+  // The rows wait for every answer they are drawn from, so they appear once
+  // rather than a row at a time, or as one way in and then another.
+  const rowsReady =
+    connected !== undefined &&
+    providerConfigs !== undefined &&
+    (hasToken === true ||
+      (hasToken === false && (offer !== undefined || offerFailed)));
   const [view, setView] = useState<View>({ kind: "list" });
   // The keys from before the key page, so the one the form adds is the new one.
   const [knownKeys, setKnownKeys] = useState<Set<AIProviderConfigId>>();
@@ -152,6 +165,7 @@ export function AddProviderSheet({
     <ConnectRow
       connected={provider !== "instrument" && (connected?.[provider] ?? false)}
       flow={flows[provider]}
+      instrument={instrumentWayCopy(offer)}
       key={provider}
       onCancel={flows[provider].cancel}
       onStart={() => {
@@ -279,14 +293,18 @@ export function AddProviderSheet({
       <p className="mt-1 text-sm text-muted-foreground">
         Use a plan you already pay for, or a key from an AI company.
       </p>
-      <ConnectedList />
-      <div className="mt-6 space-y-2">
-        {trialRow}
-        {PLAN_PROVIDERS.filter((provider) => !connected?.[provider]).map(
-          (provider) => rowFor(provider),
-        )}
-        <KeyRow onAdd={openKey} />
-      </div>
+      {rowsReady && (
+        <>
+          <ConnectedList />
+          <div className="mt-6 space-y-2">
+            {trialRow}
+            {PLAN_PROVIDERS.filter((provider) => !connected[provider]).map(
+              (provider) => rowFor(provider),
+            )}
+            <KeyRow onAdd={openKey} />
+          </div>
+        </>
+      )}
     </SheetFrame>
   );
 }
@@ -501,6 +519,7 @@ function ConnectRow({
   below,
   connected,
   flow,
+  instrument,
   onCancel,
   onStart,
   provider,
@@ -510,6 +529,8 @@ function ConnectRow({
   below?: ReactNode;
   connected: boolean;
   flow: ConnectFlow<void>;
+  /** The trial's words, for Instrument's own row. */
+  instrument: ReturnType<typeof instrumentWayCopy>;
   onCancel: () => void;
   onStart: () => void;
   provider: ConnectProvider;
@@ -518,11 +539,6 @@ function ConnectRow({
   waitingLine: ReactNode;
 }) {
   const isTrial = provider === "instrument";
-  const { data: offer } = useQuery({
-    ...rpcClient.billing.offer.queryOptions(),
-    enabled: isTrial,
-  });
-  const instrument = instrumentWayCopy(offer);
   return (
     <div
       className="rounded-xl border border-border bg-card px-4 py-3"

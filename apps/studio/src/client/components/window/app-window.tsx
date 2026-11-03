@@ -573,7 +573,8 @@ function WindowShell({
   // tab mounts, so the page lays out from the cache instead of growing a
   // section at a time as each answer lands. The new tab's own code is split
   // from the window's, so it is fetched now too, or the first Cmd+T waits on
-  // it.
+  // it. The free trial's offer is the Add a provider sheet's one remote
+  // answer, so it is in the cache before the sheet opens.
   const queryClient = useQueryClient();
   const { activeRouter } = appTabs;
   useEffect(() => {
@@ -584,6 +585,7 @@ function WindowShell({
       rpcClient.workspace.computer.places.queryOptions(),
     );
     void queryClient.prefetchQuery(storageLocationQueryOptions());
+    void queryClient.prefetchQuery(rpcClient.billing.offer.queryOptions());
     void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
   }, [activeRouter, opened, queryClient]);
 

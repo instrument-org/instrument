@@ -939,6 +939,107 @@ describe("FileSystem", () => {
   });
 });
 
+describe("a folder beside an open file", () => {
+  const NESTED: FileSystemItem[] = [
+    { hasChildren: true, kind: "folder", path: "docs/" },
+    { kind: "file", path: "docs/inner.txt" },
+    { kind: "file", path: "notes.txt" },
+    { kind: "file", path: "todo.txt" },
+  ];
+  const renderBeside = (
+    props: Partial<React.ComponentProps<typeof FileSystem>> = {},
+  ) =>
+    renderWithProviders(
+      <FileSystem
+        besideWidth={300}
+        defaultView="table"
+        items={NESTED}
+        title="The top"
+        {...props}
+      />,
+    );
+  const rowOf = (name: string) =>
+    screen
+      .getAllByRole("option")
+      .find((row) => row.textContent?.includes(name));
+  // Each click somewhere new, since one on the spot of the click before is its double.
+  let spot = 0;
+  const clickRow = (name: string) => {
+    const row = rowOf(name);
+    if (!row) throw new Error(`no row ${name}`);
+    spot += 50;
+    fireEvent.pointerDown(row, {
+      button: 0,
+      clientX: spot,
+      pointerType: "mouse",
+    });
+    fireEvent.click(row, { clientX: spot, detail: 1 });
+  };
+
+  it("goes in on one click and comes back by the row naming the folder above", () => {
+    renderBeside();
+    clickRow("docs");
+    expect(rowOf("inner.txt")).toBeTruthy();
+    expect(rowOf("notes.txt")).toBeUndefined();
+
+    spot += 50;
+    fireEvent.click(screen.getByRole("button", { name: "The top" }), {
+      clientX: spot,
+    });
+    expect(rowOf("notes.txt")).toBeTruthy();
+  });
+
+  it("swallows the rest of a double-click on whatever going in put under the pointer", () => {
+    const onFileOpen = vi.fn();
+    renderBeside({ onFileOpen });
+    clickRow("docs");
+
+    const row = rowOf("inner.txt");
+    if (!row) throw new Error("no row");
+    fireEvent.pointerDown(row, {
+      button: 0,
+      clientX: spot,
+      pointerType: "mouse",
+    });
+    fireEvent.click(row, { clientX: spot, detail: 2 });
+    fireEvent.doubleClick(row, { clientX: spot });
+    expect(onFileOpen).not.toHaveBeenCalled();
+    expect(row.getAttribute("aria-selected")).toBe("false");
+
+    // The double-click over, the next click is the person's.
+    clickRow("inner.txt");
+    expect(rowOf("inner.txt")?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("answers a press elsewhere straight after going in", () => {
+    renderBeside();
+    clickRow("docs");
+
+    const row = rowOf("inner.txt");
+    if (!row) throw new Error("no row");
+    fireEvent.pointerDown(row, {
+      button: 0,
+      clientX: spot,
+      clientY: 80,
+      pointerType: "mouse",
+    });
+    fireEvent.click(row, { clientX: spot, clientY: 80, detail: 1 });
+    expect(row.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("stays put on one click with no file open", () => {
+    renderBeside({ besideWidth: undefined });
+    clickRow("docs");
+    expect(rowOf("notes.txt")).toBeTruthy();
+  });
+
+  it("marks the open file's row while the selection is elsewhere", () => {
+    renderBeside({ besideOpenPath: "notes.txt", selectedPath: "todo.txt" });
+    expect(rowOf("notes.txt")?.className).toContain("bg-foreground/10");
+    expect(rowOf("todo.txt")?.className).not.toContain("bg-foreground/10");
+  });
+});
+
 describe("the file manager's keys for going up and making a folder", () => {
   const NESTED: FileSystemItem[] = [
     { hasChildren: true, kind: "folder", path: "docs/" },

@@ -36,8 +36,19 @@ function mousePress(
   };
 }
 
-function click(path: string, detail = 1): GestureEvent {
-  return { detail, isContextClick: false, mode: null, path, type: "click" };
+function click(
+  path: string,
+  detail = 1,
+): Extract<GestureEvent, { type: "click" }> {
+  return {
+    detail,
+    isContextClick: false,
+    mode: null,
+    path,
+    point: { x: 10, y: 10 },
+    type: "click",
+    walks: false,
+  };
 }
 
 function timeout(lead: null | string, selectionSize = 1): GestureEvent {
@@ -91,7 +102,7 @@ describe("pressing a row", () => {
   it("selects nothing on a Control-click, which is the Mac's right click", () => {
     const { effects } = run([
       mousePress("a", UNSELECTED, { isContextClick: true }),
-      { detail: 1, isContextClick: true, mode: null, path: "a", type: "click" },
+      { ...click("a"), isContextClick: true },
     ]);
     expect(effects).toEqual([]);
   });
@@ -260,5 +271,47 @@ describe("renaming on a second slow click", () => {
     expect(
       run(events).effects.filter((each) => each.type === "rename"),
     ).toEqual([]);
+  });
+});
+
+describe("a plain click on a folder beside a file", () => {
+  const walkClick = (path: string) => ({ ...click(path), walks: true });
+  const pressAndWalk = (path: string) => {
+    const pressed = step(GESTURE_IDLE, mousePress(path, UNSELECTED));
+    return step(pressed.state, walkClick(path));
+  };
+
+  it("goes in on the click, with no wait", () => {
+    const { effects, state } = pressAndWalk("docs/");
+    expect(effects).toEqual([
+      { path: "docs/", point: { x: 10, y: 10 }, type: "walk" },
+    ]);
+    expect(state).toBe(GESTURE_IDLE);
+  });
+
+  it("goes in from a folder the arrows already selected, rather than renaming it", () => {
+    const pressed = step(GESTURE_IDLE, mousePress("docs/", ALONE));
+    expect(step(pressed.state, walkClick("docs/")).effects).toEqual([
+      { path: "docs/", point: { x: 10, y: 10 }, type: "walk" },
+    ]);
+  });
+
+  it("leaves one of several to narrow", () => {
+    const pressed = step(GESTURE_IDLE, mousePress("docs/", ONE_OF_SEVERAL));
+    const clicked = step(pressed.state, walkClick("docs/"));
+    expect(clicked.effects).toEqual([]);
+    expect(clicked.state.phase).toBe("waiting");
+  });
+
+  it("selects with a modifier held instead of going in", () => {
+    const pressed = step(
+      GESTURE_IDLE,
+      mousePress("docs/", UNSELECTED, { mode: "toggle" }),
+    );
+    const clicked = step(pressed.state, {
+      ...walkClick("docs/"),
+      mode: "toggle",
+    });
+    expect(clicked.effects.map((effect) => effect.type)).not.toContain("walk");
   });
 });

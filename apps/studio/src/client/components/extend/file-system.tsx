@@ -92,6 +92,7 @@ import {
   type GestureEvent,
   type GestureState,
   step as gestureStep,
+  swallowSecondClick,
   waitFor,
 } from "./file-system-gestures";
 import {
@@ -388,6 +389,8 @@ export type FileSystemProps = {
   besideWidth?: number;
   /** Whether `besideWidth` is being dragged, when the folder follows it with no slide. */
   besideResizing?: boolean;
+  /** The file showing beside the folder, as a path under the root: its row keeps a quiet mark. */
+  besideOpenPath?: string;
   /**
    * Where the toolbar's controls go instead of a header of their own: `lead`
    * takes the views, sort and filter, and `tail` the host's primary action,
@@ -1878,6 +1881,7 @@ const VIEW_OPTIONS: Array<{
   { icon: ListRowsGlyph, label: "List", value: "list" },
 ];
 export function FileSystem({
+  besideOpenPath,
   besideResizing = false,
   besideWidth,
   canRenameItem,
@@ -2747,11 +2751,17 @@ export function FileSystem({
   // handed them are not drawn again.
   const effectsRef = React.useRef({
     entryOf,
+    navigateTo,
     onRenameCommit,
     selectAndPrefetchEntry,
   });
   React.useLayoutEffect(() => {
-    effectsRef.current = { entryOf, onRenameCommit, selectAndPrefetchEntry };
+    effectsRef.current = {
+      entryOf,
+      navigateTo,
+      onRenameCommit,
+      selectAndPrefetchEntry,
+    };
   });
   const sendRename = React.useCallback((event: RenameEvent) => {
     const { effects, state } = renameStep(renameRef.current, event);
@@ -2907,6 +2917,20 @@ export function FileSystem({
   React.useLayoutEffect(() => {
     canRenameRef.current = canRename;
   });
+  // Beside a file one click on a folder goes in, as one click on a file shows
+  // it. Columns already moves on the selection, and the gallery's stage is the
+  // selection.
+  const walksOnClick =
+    besideWidth !== undefined && view !== "columns" && view !== "gallery";
+  const walksOnClickRef = React.useRef(walksOnClick);
+  React.useLayoutEffect(() => {
+    walksOnClickRef.current = walksOnClick;
+  });
+  const movesOnClick = besideWidth !== undefined && view === "columns";
+  const movesOnClickRef = React.useRef(movesOnClick);
+  React.useLayoutEffect(() => {
+    movesOnClickRef.current = movesOnClick;
+  });
   const gestureRef = React.useRef<GestureState>(GESTURE_IDLE);
   const gestureTimerRef = React.useRef<number | undefined>(undefined);
   const gestureInterruptRef = React.useRef<(() => void) | null>(null);
@@ -2948,7 +2972,10 @@ export function FileSystem({
       for (const effect of effects) {
         const entry = lookUp(effect.path);
         if (!entry) continue;
-        if (effect.type === "rename") {
+        if (effect.type === "walk") {
+          swallowSecondClick(effect.point);
+          effectsRef.current.navigateTo(effect.path);
+        } else if (effect.type === "rename") {
           startRenameRef.current(effect.path);
         } else if (effect.type === "select" && effect.mode) {
           select(entry, { mode: effect.mode, order: order?.() ?? [] });
@@ -2982,10 +3009,23 @@ export function FileSystem({
             isContextClick: isMacContextClick(event),
             mode: selectionModeOf(event),
             path: entry.path,
+            point: { x: event.clientX, y: event.clientY },
             type: "click",
+            walks: walksOnClickRef.current && entry.kind === "folder",
           },
           order,
         );
+        // The columns move on the selection, with the same result under the
+        // pointer as going in.
+        if (
+          movesOnClickRef.current &&
+          entry.kind === "folder" &&
+          event.detail < 2 &&
+          selectionModeOf(event) === null &&
+          selectedPathsOf(selectionRef.current).length === 1
+        ) {
+          swallowSecondClick({ x: event.clientX, y: event.clientY });
+        }
       },
       doubleClick: () => {
         sendGesture({ type: "double-click" });
@@ -3146,6 +3186,7 @@ export function FileSystem({
   const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
+    besideOpenPath,
     besideResizing,
     besideWidth,
     columnWidth: columnWidthProp,
@@ -3476,6 +3517,14 @@ export function FileSystem({
           </div>
         </div>
       )}
+      {walksOnClick && currentPath !== "" ? (
+        <BesideBackRow
+          name={pathName(pathParent(currentPath)) || title}
+          onBack={() => {
+            navigateTo(pathParent(currentPath), currentPath);
+          }}
+        />
+      ) : null}
       <div className="relative min-h-0 flex-1">
         {currentUnreadable !== null ? (
           currentUnreadable
@@ -4065,7 +4114,29 @@ function FileSystemSortMenu({
     </DropdownMenu>
   );
 }
+/**
+ * The way back to the folder above, beside a file, named for where it goes, as
+ * a phone names its back button: the folder's own name is in its section of
+ * the row.
+ */
+function BesideBackRow({ name, onBack }: { name: string; onBack: () => void }) {
+  return (
+    <button
+      className="flex h-8 w-full shrink-0 items-center gap-1 border-b px-2 text-left text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      onClick={(event) => {
+        swallowSecondClick({ x: event.clientX, y: event.clientY });
+        onBack();
+      }}
+      type="button"
+    >
+      <ChevronLeft className="size-4 shrink-0" />
+      <span className="truncate">{name}</span>
+    </button>
+  );
+}
+
 type FileSystemViewProps = {
+  besideOpenPath: string | undefined;
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
   besideResizing: boolean;
@@ -4479,6 +4550,7 @@ function FileSystemIconsView({
   selectedEntry,
   selectedPath,
   selection,
+  besideOpenPath,
 }: FileSystemViewProps) {
   const itemRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
@@ -4666,7 +4738,9 @@ function FileSystemIconsView({
       <span
         className={cn(
           "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
-          isSelected && "bg-accent",
+          isSelected
+            ? "bg-accent"
+            : entry.path === besideOpenPath && OPEN_BESIDE_ROW_CLASSNAME,
           entry.path === menuTargetPath && "ring-2 ring-brand-500",
         )}
       >
@@ -4883,6 +4957,8 @@ const LIST_COLUMN_WIDTH_MAX = 480;
 // The selection: the app's accent, solid, with the row's text in white over
 // it, the way the Finder fills one with the system's.
 const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
+// The file showing beside the folder, when the selection has moved off it.
+const OPEN_BESIDE_ROW_CLASSNAME = "bg-foreground/10";
 // What reads as secondary on a row (dates, sizes, the chevron), over the
 // selection or off it.
 const SELECTED_ROW_SECONDARY_CLASSNAME = "text-white/80";
@@ -5230,6 +5306,7 @@ function FileSystemTableView({
   treeExpansionRef,
   openFolders,
   onOpenFolderChange,
+  besideOpenPath,
 }: FileSystemViewProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
@@ -5664,7 +5741,10 @@ function FileSystemTableView({
                       aria-selected={isSelected}
                       className={cn(
                         "mx-1.5 flex h-6 shrink-0 items-center rounded-md pr-1.5 pl-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                        isSelected && SELECTED_ROW_CLASSNAME,
+                        isSelected
+                          ? SELECTED_ROW_CLASSNAME
+                          : entry.path === besideOpenPath &&
+                              OPEN_BESIDE_ROW_CLASSNAME,
                         entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
                       )}
                       data-file-system-item={entry.path}
@@ -5853,6 +5933,7 @@ function FileSystemListView({
   selectedPath,
   selection,
   sort,
+  besideOpenPath,
 }: FileSystemViewProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
@@ -5987,7 +6068,9 @@ function FileSystemListView({
           "absolute inset-x-1.5 flex items-center gap-2.5 rounded-md pr-2 pl-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           isSelected
             ? SELECTED_ROW_CLASSNAME
-            : line.stripe && "bg-foreground/[0.035]",
+            : entry.path === besideOpenPath
+              ? OPEN_BESIDE_ROW_CLASSNAME
+              : line.stripe && "bg-foreground/[0.035]",
           entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
         )}
         data-file-system-item={entry.path}
@@ -6306,6 +6389,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     selectedEntry,
     selectedPath,
     selection,
+    besideOpenPath,
   } = props;
   const isSeveral = selection.size > 1;
   const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -6511,6 +6595,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   : null
               }
               marquee={marquee}
+              openBesideChildPath={
+                besideOpenPath && pathParent(besideOpenPath) === columnPath
+                  ? besideOpenPath
+                  : null
+              }
               renderNameField={renderNameField}
               rowGestures={rowGestures}
               rowRefs={rowRefs}
@@ -6536,9 +6625,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
           if (!isBeside || columnIndex === 0) {
             return column;
           }
-          // The way back to the column before, named for where it goes, as
-          // a phone names its back button: the folder's own name is in its
-          // section of the row.
+          // The way back to the column before.
           const backPath = listedColumnPaths[columnIndex - 1] ?? currentPath;
           const backFolder =
             columnIndex === 1 ? null : (index.folders.get(backPath) ?? null);
@@ -6547,20 +6634,16 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
               className="flex min-w-0 flex-1 flex-col"
               key={columnPath || "(root)"}
             >
-              <button
-                className="flex h-8 shrink-0 items-center gap-1 border-b px-2 text-left text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                onClick={() => {
+              <BesideBackRow
+                name={
+                  backFolder?.name ??
+                  index.folders.get(backPath)?.name ??
+                  rootTitle
+                }
+                onBack={() => {
                   onSelect(backFolder);
                 }}
-                type="button"
-              >
-                <ChevronLeft className="size-4 shrink-0" />
-                <span className="truncate">
-                  {backFolder?.name ??
-                    index.folders.get(backPath)?.name ??
-                    rootTitle}
-                </span>
-              </button>
+              />
               {column}
             </div>
           );
@@ -6649,6 +6732,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   onOpen,
   onResize,
   onSelect,
+  openBesideChildPath,
   ownFolder,
   renamingChildPath,
   renderNameField,
@@ -6677,6 +6761,8 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   /** The folder this column lists, selected by a press past its rows; null for the first column. */
   ownFolder: FolderEntry | null;
   renamingChildPath: null | string;
+  /** The file showing beside the folder, when it is in this column. */
+  openBesideChildPath: null | string;
   renderNameField: RenderNameField;
   rowGestures: RowGestures;
   rowRefs: React.RefObject<Map<string, HTMLButtonElement>>;
@@ -6850,7 +6936,9 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                         ? SELECTED_ROW_CLASSNAME
                         : isOnTrail
                           ? "bg-accent"
-                          : "hover:bg-accent/50",
+                          : entry.path === openBesideChildPath
+                            ? OPEN_BESIDE_ROW_CLASSNAME
+                            : "hover:bg-accent/50",
                       entry.path === menuTargetChildPath &&
                         MENU_TARGET_CLASSNAME,
                     )}

@@ -324,6 +324,8 @@ export function ComputerPage({
     isClosing: boolean;
     isFolderShown: boolean;
     isResizing: boolean;
+    /** The file showing beside the folder, as a path under the root, for its row's mark. */
+    openPath?: string;
     /** Everything picked, a folder the columns stand in included, whenever it changes. */
     onPick: (picked: ChosenItem[]) => void;
     /**
@@ -2761,6 +2763,9 @@ export function ComputerPage({
                     : {
                         besideResizing: beside.isResizing,
                         besideWidth: beside.width,
+                        ...(beside.openPath === undefined
+                          ? {}
+                          : { besideOpenPath: beside.openPath }),
                       })}
                   {...(toolsInRow
                     ? {

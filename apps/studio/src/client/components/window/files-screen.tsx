@@ -365,6 +365,9 @@ export function FilesScreen({
   /** A file under the folder's root, as the folder selects it. */
   const selectOf = (hostPath: string) =>
     relativeHostPath(rootHostPath, hostPath) ?? undefined;
+  // Several picked show as a pile in the file's place, so no row stands for it.
+  const besideOpenPath =
+    file !== undefined && besidePicked.length <= 1 ? selectOf(file) : undefined;
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
@@ -779,6 +782,9 @@ export function FilesScreen({
                       isFolderShown,
                       isResizing: draggedWidth !== null,
                       onPick: onBesidePick,
+                      ...(besideOpenPath === undefined
+                        ? {}
+                        : { openPath: besideOpenPath }),
                       ...(hostedTabId === undefined
                         ? {}
                         : { page: browserTargetOf(hostedTabId) }),

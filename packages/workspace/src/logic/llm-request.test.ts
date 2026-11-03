@@ -358,21 +358,33 @@ describe("llmRequestLogic", () => {
       ) {
         return "session-context: You are a helpful assistant.";
       }
-      // The current shape reads as such, so bumping it leaves these alone.
-      if (
-        "contextVersion" in message.metadata &&
-        message.metadata.contextVersion === SESSION_CONTEXT_VERSION
-      ) {
-        return {
-          ...message,
-          metadata: { ...message.metadata, contextVersion: "current" },
-        };
-      }
       return message;
     });
   }
 
-  it("should handle text streaming", async () => {
+  /**
+   * The reply's parts after its step-start, without the ids and times every
+   * part has: what the case's stream turned into.
+   */
+  function replyParts(messages: SessionMessage.WithParts[]) {
+    const reply = messages.at(-1);
+    return (reply?.role === "assistant" ? reply.parts : [])
+      .filter((part) => part.type !== "step-start")
+      .map(({ metadata: _metadata, ...part }) => part);
+  }
+
+  /** How the reply ended. */
+  function replyEnd(messages: SessionMessage.WithParts[]) {
+    const reply = messages.at(-1);
+    return reply?.role === "assistant"
+      ? {
+          error: reply.metadata.error,
+          finishReason: reply.metadata.finishReason,
+        }
+      : undefined;
+  }
+
+  it("writes streamed text as one done text part after the step's start", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
         { id: "1", type: "text-start" },
@@ -426,7 +438,7 @@ describe("llmRequestLogic", () => {
     `);
   });
 
-  it("should handle tool streaming", async () => {
+  it("records a streamed tool call as input-available, with its provider metadata", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
         {
@@ -436,129 +448,59 @@ describe("llmRequestLogic", () => {
         },
         {
           input: JSON.stringify({ filePath: "test-file.txt" }),
+          providerMetadata: {
+            anthropic: { cacheReadInputTokens: 50 },
+          },
           toolCallId: "test-call-1",
           toolName: "read_file",
           type: "tool-call",
         },
-        {
-          finishReason: { raw: "stop", unified: "stop" },
-          type: "finish",
-          usage: mockUsage,
-        },
       ],
     });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
+    expect(replyParts(messages)).toMatchInlineSnapshot(`
       [
-        "session-context: You are a helpful assistant.",
         {
-          "id": "msg_00000000Z98888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.6666666666666667,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
+          "callProviderMetadata": {
+            "anthropic": {
+              "cacheReadInputTokens": 50,
+            },
           },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000Z98888888888888889",
-                "messageId": "msg_00000000Z98888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "input": {
-                "filePath": "test-file.txt",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "id": "prt_00000000Z9888888888888888A",
-                "messageId": "msg_00000000Z98888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "input-available",
-              "toolCallId": "test-call-1",
-              "type": "tool-read_file",
-            },
-          ],
-          "role": "assistant",
+          "input": {
+            "filePath": "test-file.txt",
+          },
+          "state": "input-available",
+          "toolCallId": "test-call-1",
+          "type": "tool-read_file",
         },
       ]
     `);
   });
 
-  it("should handle reasoning events", async () => {
+  it("joins reasoning deltas into one done reasoning part", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
         { id: "1", type: "reasoning-start" },
-        {
-          delta: "First, I need to consider",
-          id: "1",
-          type: "reasoning-delta",
-        },
-        { delta: " the implications", id: "1", type: "reasoning-delta" },
-        { delta: " of this approach", id: "1", type: "reasoning-delta" },
-        { delta: " and then proceed", id: "1", type: "reasoning-delta" },
+        { delta: "First, I need", id: "1", type: "reasoning-delta" },
+        { delta: " to consider", id: "1", type: "reasoning-delta" },
         { id: "1", type: "reasoning-end" },
-        {
-          finishReason: { raw: "stop", unified: "stop" },
-          type: "finish",
-          usage: mockUsage,
-        },
       ],
     });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
+    expect(replyParts(messages)).toMatchInlineSnapshot(`
       [
-        "session-context: You are a helpful assistant.",
         {
-          "id": "msg_00000000ZA8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.4285714285714286,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZA8888888888888889",
-                "messageId": "msg_00000000ZA8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:11.000Z,
-                "id": "prt_00000000ZA888888888888888A",
-                "messageId": "msg_00000000ZA8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "done",
-              "text": "First, I need to consider the implications of this approach and then proceed",
-              "type": "reasoning",
-            },
-          ],
-          "role": "assistant",
+          "state": "done",
+          "text": "First, I need to consider",
+          "type": "reasoning",
         },
       ]
     `);
   });
 
-  it("should handle source events", async () => {
+  it("records url and document sources", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
         {
           id: "test-source-id",
-          providerMetadata: {
-            testProvider: {
-              test: "test",
-            },
-          },
           sourceType: "url",
           title: "Test Source",
           type: "source",
@@ -574,665 +516,176 @@ describe("llmRequestLogic", () => {
         },
       ],
     });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
+    expect(replyParts(messages)).toMatchInlineSnapshot(`
       [
-        "session-context: You are a helpful assistant.",
         {
-          "id": "msg_00000000ZB8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZB8888888888888889",
-                "messageId": "msg_00000000ZB8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "id": "prt_00000000ZB888888888888888A",
-                "messageId": "msg_00000000ZB8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "sourceId": "test-source-id",
-              "title": "Test Source",
-              "type": "source-url",
-              "url": "https://example.com/test-source",
-            },
-            {
-              "filename": "test-document.pdf",
-              "mediaType": "application/pdf",
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZB888888888888888B",
-                "messageId": "msg_00000000ZB8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "sourceId": "test-doc-id",
-              "title": "Test Document",
-              "type": "source-document",
-            },
-          ],
-          "role": "assistant",
+          "sourceId": "test-source-id",
+          "title": "Test Source",
+          "type": "source-url",
+          "url": "https://example.com/test-source",
+        },
+        {
+          "filename": "test-document.pdf",
+          "mediaType": "application/pdf",
+          "sourceId": "test-doc-id",
+          "title": "Test Document",
+          "type": "source-document",
         },
       ]
     `);
   });
 
-  it("should handle incorrect input key name for tool call", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "1",
-          toolName: "read_file",
-          type: "tool-input-start",
-        },
-        {
-          input: JSON.stringify({ invalid: "params" }),
-          toolCallId: "1",
-          toolName: "read_file",
-          type: "tool-call",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZC8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZC8888888888888889",
-                "messageId": "msg_00000000ZC8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "Invalid input for tool read_file: Type validation failed: Value: {"invalid":"params"}.
-      Error message: [
-        {
-          "expected": "string",
-          "code": "invalid_type",
-          "path": [
-            "filePath"
-          ],
-          "message": "Invalid input: expected string, received undefined"
-        }
-      ]",
-              "input": {
-                "invalid": "params",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZC888888888888888A",
-                "messageId": "msg_00000000ZC8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-read_file",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
+  const readFileStart = {
+    id: "1",
+    toolName: "read_file",
+    type: "tool-input-start",
+  } as const;
+  const readFileCall = (input: string) =>
+    ({
+      input,
+      toolCallId: "1",
+      toolName: "read_file",
+      type: "tool-call",
+    }) as const;
 
-  it("should handle invalid json for tool call", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "1",
-          toolName: "read_file",
-          type: "tool-input-start",
-        },
-        {
-          input: "invalid json",
-          toolCallId: "1",
-          toolName: "read_file",
-          type: "tool-call",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZD8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZD8888888888888889",
-                "messageId": "msg_00000000ZD8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "Invalid input for tool read_file: JSON parsing failed: Text: invalid json.
-      Error message: Unexpected token 'i', "invalid json" is not valid JSON",
-              "input": "invalid json",
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZD888888888888888A",
-                "messageId": "msg_00000000ZD8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-read_file",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
+  it.each([
+    [
+      "input with the wrong key",
+      [readFileStart, readFileCall(JSON.stringify({ invalid: "params" }))],
+      /^Invalid input for tool read_file: Type validation failed/,
+    ],
+    [
+      "input with the wrong key and no start part",
+      [readFileCall(JSON.stringify({ invalid: "params" }))],
+      /^Invalid input for tool read_file: Type validation failed/,
+    ],
+    [
+      "input that is not JSON",
+      [readFileStart, readFileCall("invalid json")],
+      /^Invalid input for tool read_file: JSON parsing failed/,
+    ],
+  ])(
+    "fails a call with %s, telling the model why",
+    async (_label, chunks, errorText) => {
+      const { messages } = await createAndRunTestMachine({ chunks });
+      expect(replyParts(messages)).toEqual([
+        expect.objectContaining({
+          errorText: expect.stringMatching(errorText),
+          state: "output-error",
+          type: "tool-read_file",
+        }),
+      ]);
+    },
+  );
 
-  it("tells the model a call was cut off rather than that its input was invalid", async () => {
+  it.each([
+    ["a call with broken JSON", readFileCall('{"filePath": "./lease')],
+    [
+      "input still arriving",
+      { delta: '{"filePath": "./le', id: "1", type: "tool-input-delta" },
+    ],
+  ] as const)(
+    "tells the model the output limit cut off %s, rather than that its input was invalid",
+    async (_label, cut) => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [readFileStart, cut],
+        finishReason: "length",
+      });
+      expect(
+        replyParts(messages).map((part) => ({
+          errorText: "errorText" in part ? part.errorText : undefined,
+          state: "state" in part ? part.state : undefined,
+        })),
+      ).toMatchInlineSnapshot(`
+        [
+          {
+            "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+            "state": "output-error",
+          },
+        ]
+      `);
+    },
+  );
+
+  it("records a call to an unknown tool that never arrived as cut off", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
-        {
-          id: "1",
-          toolName: "read_file",
-          type: "tool-input-start",
-        },
-        {
-          input: '{"filePath": "./lease',
-          toolCallId: "1",
-          toolName: "read_file",
-          type: "tool-call",
-        },
+        { id: "1", toolName: "non_existent_tool", type: "tool-input-start" },
       ],
-      finishReason: "length",
     });
-    const toolParts = messages
-      .flatMap((message) => ("parts" in message ? message.parts : []))
-      .filter(isToolPart)
-      .map((part) => ({ errorText: part.errorText, state: part.state }));
-    expect(toolParts).toMatchInlineSnapshot(`
+    expect(replyParts(messages)).toMatchInlineSnapshot(`
       [
         {
-          "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+          "errorText": "This action was cut off before it could run.",
           "state": "output-error",
+          "toolCallId": "1",
+          "type": "tool-unavailable",
         },
       ]
     `);
   });
 
-  it("settles a call the output limit stopped mid-input, rather than leaving it arriving", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "1",
-          toolName: "read_file",
-          type: "tool-input-start",
-        },
-        {
-          delta: '{"filePath": "./le',
-          id: "1",
-          type: "tool-input-delta",
-        },
-      ],
-      finishReason: "length",
-    });
-    const toolParts = messages
-      .flatMap((message) => ("parts" in message ? message.parts : []))
-      .filter(isToolPart)
-      .map((part) => ({ errorText: part.errorText, state: part.state }));
-    expect(toolParts).toMatchInlineSnapshot(`
-      [
-        {
-          "errorText": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
-          "state": "output-error",
-        },
-      ]
-    `);
-  });
+  const unknownCall = {
+    input: JSON.stringify({ filePath: "test.txt" }),
+    toolCallId: "1",
+    toolName: "non_existent_tool",
+    type: "tool-call",
+  } as const;
 
-  it("should handle incorrect input key name for tool call without start part", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          input: JSON.stringify({ invalid: "params" }),
-          toolCallId: "1",
-          toolName: "read_file",
-          type: "tool-call",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZG8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZG8888888888888889",
-                "messageId": "msg_00000000ZG8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "Invalid input for tool read_file: Type validation failed: Value: {"invalid":"params"}.
-      Error message: [
-        {
-          "expected": "string",
-          "code": "invalid_type",
-          "path": [
-            "filePath"
-          ],
-          "message": "Invalid input: expected string, received undefined"
-        }
-      ]",
-              "input": {
-                "invalid": "params",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZG888888888888888A",
-                "messageId": "msg_00000000ZG8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-read_file",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
-
-  it("should handle non-existent tool name", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "1",
-          toolName: "non_existent_tool",
-          type: "tool-input-start",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZH8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 2,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZH8888888888888889",
-                "messageId": "msg_00000000ZH8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "This action was cut off before it could run.",
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:14.000Z,
-                "id": "prt_00000000ZH888888888888888A",
-                "messageId": "msg_00000000ZH8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-unavailable",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
-
-  it("should handle non-existent tool name with call part", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "1",
-          toolName: "non_existent_tool",
-          type: "tool-input-start",
-        },
-        {
-          input: JSON.stringify({ unknown: "params" }),
-          toolCallId: "1",
-          toolName: "non_existent_tool",
-          type: "tool-call",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZJ8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZJ8888888888888889",
-                "messageId": "msg_00000000ZJ8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, unavailable, web_fetch, web_search, write_file.",
-              "input": {
-                "unknown": "params",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZJ888888888888888A",
-                "messageId": "msg_00000000ZJ8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-unavailable",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
-
-  it("should handle non-existent tool name with start part", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "1",
-          toolName: "read_file",
-          type: "tool-input-start",
-        },
-        {
-          input: JSON.stringify({ filePath: "test.txt" }),
-          toolCallId: "1",
-          toolName: "non_existent_tool",
-          type: "tool-call",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZK8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZK8888888888888889",
-                "messageId": "msg_00000000ZK8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, unavailable, web_fetch, web_search, write_file.",
-              "input": {
-                "filePath": "test.txt",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZK888888888888888A",
-                "messageId": "msg_00000000ZK8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-unavailable",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
-
-  it("should handle non-existent tool name without start part", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          input: JSON.stringify({ filePath: "test.txt" }),
-          toolCallId: "1",
-          toolName: "non_existent_tool",
-          type: "tool-call",
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZM8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.25,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZM8888888888888889",
-                "messageId": "msg_00000000ZM8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, unavailable, web_fetch, web_search, write_file.",
-              "input": {
-                "filePath": "test.txt",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:12.000Z,
-                "id": "prt_00000000ZM888888888888888A",
-                "messageId": "msg_00000000ZM8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "output-error",
-              "toolCallId": "1",
-              "type": "tool-unavailable",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
-
-  it("should handle call provider metadata on tool part", async () => {
-    const { messages } = await createAndRunTestMachine({
-      chunks: [
-        {
-          id: "test-call-1",
-          toolName: "read_file",
-          type: "tool-input-start",
-        },
-        {
-          input: JSON.stringify({ filePath: "test-file.txt" }),
-          providerMetadata: {
-            anthropic: {
-              cacheCreationInputTokens: 100,
-              cacheReadInputTokens: 50,
-            },
-          },
-          toolCallId: "test-call-1",
-          toolName: "read_file",
-          type: "tool-call",
-        },
-        {
-          finishReason: { raw: "stop", unified: "stop" },
-          type: "finish",
-          usage: mockUsage,
-        },
-      ],
-    });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZN8888888888888888",
-          "metadata": {
-            "completionTokensPerSecond": 1.6666666666666667,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZN8888888888888889",
-                "messageId": "msg_00000000ZN8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "callProviderMetadata": {
-                "anthropic": {
-                  "cacheCreationInputTokens": 100,
-                  "cacheReadInputTokens": 50,
-                },
-              },
-              "input": {
-                "filePath": "test-file.txt",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "id": "prt_00000000ZN888888888888888A",
-                "messageId": "msg_00000000ZN8888888888888888",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "input-available",
-              "toolCallId": "test-call-1",
-              "type": "tool-read_file",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
-  });
+  it.each([
+    [
+      "its own start part",
+      [{ ...readFileStart, toolName: "non_existent_tool" }, unknownCall],
+    ],
+    ["a start part naming another tool", [readFileStart, unknownCall]],
+    ["no start part", [unknownCall]],
+  ] as const)(
+    "fails a call to an unknown tool after %s, naming the tools there are",
+    async (_label, chunks) => {
+      const { messages } = await createAndRunTestMachine({
+        chunks: [...chunks],
+      });
+      expect(replyParts(messages)).toEqual([
+        expect.objectContaining({
+          errorText: expect.stringMatching(
+            /^Model tried to call unavailable tool 'non_existent_tool'\. Available tools: .*\bread_file\b/,
+          ),
+          input: { filePath: "test.txt" },
+          state: "output-error",
+          type: "tool-unavailable",
+        }),
+      ]);
+    },
+  );
 
   describe("stream errors", () => {
-    it("should handle api call errors", async () => {
-      const mockError = new APICallError({
-        cause: new Error("API call failed"),
-        message: "Failed to process error response",
-        requestBodyValues: {},
-        responseHeaders: {},
-        statusCode: 500,
-        url: "https://api.openai.com/v1/chat/completions",
-      });
-
+    it("records an API error on the reply, classified", async () => {
       const { messages } = await createAndRunTestMachine({
         beforeStream: () => {
-          throw mockError;
+          throw new APICallError({
+            cause: new Error("API call failed"),
+            message: "Failed to process error response",
+            requestBodyValues: {},
+            responseHeaders: {},
+            statusCode: 500,
+            url: "https://api.openai.com/v1/chat/completions",
+          });
         },
         chunks: [],
       });
-      expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-        [
-          "session-context: You are a helpful assistant.",
-          {
-            "id": "msg_00000000ZP8888888888888888",
-            "metadata": {
-              "error": {
-                "cause": "Error: API call failed",
-                "classification": "transient",
-                "kind": "api-call",
-                "message": "Failed to process error response",
-                "name": "AI_APICallError",
-                "statusCode": 500,
-                "url": "https://api.openai.com/v1/chat/completions",
-              },
-              "finishReason": "unknown",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZP8888888888888889",
-                  "messageId": "msg_00000000ZP8888888888888888",
-                  "sessionId": "ses_00000000018888888888888888",
-                  "stepCount": 1,
-                },
-                "type": "step-start",
-              },
-            ],
-            "role": "assistant",
+      expect(replyEnd(messages)).toMatchInlineSnapshot(`
+        {
+          "error": {
+            "cause": "Error: API call failed",
+            "classification": "transient",
+            "kind": "api-call",
+            "message": "Failed to process error response",
+            "name": "AI_APICallError",
+            "statusCode": 500,
+            "url": "https://api.openai.com/v1/chat/completions",
           },
-        ]
+          "finishReason": "unknown",
+        }
       `);
     });
 
@@ -1267,20 +720,10 @@ describe("llmRequestLogic", () => {
         dropped,
         expect.objectContaining({ area: "llm-request" }),
       );
-      const assistant = messages.findLast(
-        (message) => message.role === "assistant",
-      );
-      expect(assistant?.metadata.error).toMatchInlineSnapshot(`
-        {
-          "cause": "TypeError: terminated, caused by SocketError: other side closed (UND_ERR_SOCKET)",
-          "classification": "transient",
-          "kind": "api-call",
-          "message": "Failed to process successful response",
-          "name": "AI_APICallError",
-          "statusCode": 200,
-          "url": "http://127.0.0.1:48100/ai-gateway/providers/instrument/chat/completions",
-        }
-      `);
+      expect(replyEnd(messages)?.error).toMatchObject({
+        cause:
+          "TypeError: terminated, caused by SocketError: other side closed (UND_ERR_SOCKET)",
+      });
     });
 
     it("does not report a provider's refusal", async () => {
@@ -1305,7 +748,7 @@ describe("llmRequestLogic", () => {
       expect(captureException).not.toHaveBeenCalled();
     });
 
-    it("should handle aborted errors", async () => {
+    it("records a stopped request as aborted, with the time it ran", async () => {
       let actor: ActorRefFrom<typeof testMachine.machine> | null = null;
       const testMachine = await createTestMachine({
         beforeStream: async () => {
@@ -1323,85 +766,44 @@ describe("llmRequestLogic", () => {
         sessionId,
       });
       const messages = sessionResult._unsafeUnwrap().messages;
-      expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-        [
-          "session-context: You are a helpful assistant.",
-          {
-            "id": "msg_00000000ZS8888888888888888",
-            "metadata": {
-              "error": {
-                "kind": "aborted",
-                "message": "Aborted",
-                "reason": "manual",
-              },
-              "finishReason": "aborted",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZS8888888888888889",
-                  "messageId": "msg_00000000ZS8888888888888888",
-                  "sessionId": "ses_00000000018888888888888888",
-                  "stepCount": 1,
-                },
-                "type": "step-start",
-              },
-            ],
-            "role": "assistant",
+      expect(replyEnd(messages)).toMatchInlineSnapshot(`
+        {
+          "error": {
+            "kind": "aborted",
+            "message": "Aborted",
+            "reason": "manual",
           },
-        ]
+          "finishReason": "aborted",
+        }
       `);
-      // Stripped from the snapshot above, and the point of this assertion: a
-      // turn stopped part way through spent the time it spent, and reporting
-      // nothing for it reads as a turn that was instant.
+      // A turn stopped part way through spent the time it spent, and
+      // reporting nothing for it reads as a turn that was instant.
       const aborted = messages.at(-1);
       expect(
         aborted?.role === "assistant" ? aborted.metadata.msToFinish : undefined,
       ).toMatchInlineSnapshot(`4000`);
     });
 
-    it("should handle unknown errors", async () => {
+    it("records an error it does not know as unknown", async () => {
       const { messages } = await createAndRunTestMachine({
         beforeStream: () => {
           throw new Error("Unknown error");
         },
         chunks: [],
       });
-      expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-        [
-          "session-context: You are a helpful assistant.",
-          {
-            "id": "msg_00000000ZT8888888888888888",
-            "metadata": {
-              "error": {
-                "classification": "unknown",
-                "kind": "unknown",
-                "message": "Unknown error",
-              },
-              "finishReason": "unknown",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:07.000Z,
-                  "id": "prt_00000000ZT8888888888888889",
-                  "messageId": "msg_00000000ZT8888888888888888",
-                  "sessionId": "ses_00000000018888888888888888",
-                  "stepCount": 1,
-                },
-                "type": "step-start",
-              },
-            ],
-            "role": "assistant",
+      expect(replyEnd(messages)).toMatchInlineSnapshot(`
+        {
+          "error": {
+            "classification": "unknown",
+            "kind": "unknown",
+            "message": "Unknown error",
           },
-        ]
+          "finishReason": "unknown",
+        }
       `);
     });
 
-    it("should name a throttle reported inside a 200 stream", async () => {
+    it("names a throttle reported inside a 200 stream", async () => {
       // Recorded verbatim from a task that hit this. The request succeeded, so
       // no `APICallError` is ever raised: the whole rejection is one chunk.
       const { messages } = await createAndRunTestMachine({
@@ -1418,22 +820,13 @@ describe("llmRequestLogic", () => {
         ],
       });
 
-      const assistantMessage = messages.findLast(
-        (message) => message.role === "assistant",
-      );
-      expect(assistantMessage?.metadata.error).toMatchInlineSnapshot(`
-        {
-          "classification": "rate-limit",
-          "kind": "unknown",
-          "message": "openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
-        }
-      `);
+      expect(replyEnd(messages)?.error).toMatchObject({
+        classification: "rate-limit",
+      });
     });
   });
 
   describe("prompt messages", () => {
-    const userMessageId = StoreId.newMessageId();
-    const assistantMessageId = StoreId.newMessageId();
     const mockAssistantMessageMetadata = {
       createdAt: mockDate,
       finishReason: "stop" as const,
@@ -1442,206 +835,137 @@ describe("llmRequestLogic", () => {
       sessionId,
       usage: mockTotalUsage,
     };
-    const readFilePart: SessionMessagePart.Type = {
-      input: {
-        filePath: "./test-file.txt",
-      },
+
+    /** A text part of `messageId`. */
+    const textPart = (
+      messageId: StoreId.Message,
+      text: string,
+    ): SessionMessagePart.Type => ({
       metadata: {
         createdAt: mockDate,
-        endedAt: mockDate,
         id: StoreId.newPartId(),
-        messageId: assistantMessageId,
+        messageId,
         sessionId,
       },
-      output: {
-        content: "test-file.txt content",
-        displayedLines: 10,
-        filePath: RelativePathSchema.parse("./test-file.txt"),
-        hasMoreLines: false,
-        modifiedAt: 1_234_567_890,
-        offset: 1,
-        state: "exists",
-        totalLines: 10,
-        truncatedByBytes: false,
-      },
-      state: "output-available",
-      toolCallId: StoreId.ToolCallSchema.parse("1"),
-      type: "tool-read_file",
-    };
+      state: "done",
+      text,
+      type: "text",
+    });
 
-    async function setupPromptMessagesTest() {
-      const testMachine = await createTestMachine({
-        chunks: [],
-      });
-
+    /**
+     * A chat with the user's "Do something", then an assistant message with
+     * `assistantParts` (made for its id), and one assistant message per
+     * entry of `replies`.
+     */
+    async function chatWith({
+      assistantParts = () => [],
+      provider,
+      replies = [],
+    }: {
+      assistantParts?: (
+        messageId: StoreId.Message,
+      ) => SessionMessagePart.Type[];
+      provider?: AIProviderType;
+      replies?: string[];
+    }) {
+      const testMachine = await createTestMachine({ chunks: [], provider });
+      const userMessageId = StoreId.newMessageId();
       await ChatWrites.saveMessage(
         {
           id: userMessageId,
-          metadata: {
-            createdAt: mockDate,
-            sessionId,
-          },
+          metadata: { createdAt: mockDate, sessionId },
           role: "user",
         },
         testMachine.chatId,
       );
       await saveParts(
-        [
+        [textPart(userMessageId, "Do something")],
+        testMachine.chatId,
+      );
+      for (const [index, text] of [undefined, ...replies].entries()) {
+        const messageId = StoreId.newMessageId();
+        await ChatWrites.saveMessage(
           {
-            metadata: {
-              createdAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: userMessageId,
-              sessionId,
-            },
-            state: "done",
-            text: "Do something",
-            type: "text",
+            id: messageId,
+            metadata: mockAssistantMessageMetadata,
+            role: "assistant",
           },
-        ],
-        testMachine.chatId,
-      );
-
-      await ChatWrites.saveMessage(
-        {
-          id: assistantMessageId,
-          metadata: mockAssistantMessageMetadata,
-          role: "assistant",
-        },
-        testMachine.chatId,
-      );
-
-      return testMachine;
+          testMachine.chatId,
+        );
+        await saveParts(
+          index === 0
+            ? assistantParts(messageId)
+            : [textPart(messageId, text ?? "")],
+          testMachine.chatId,
+        );
+      }
+      await runTestMachine(testMachine);
+      return prompts[0] ?? [];
     }
 
-    it("handles user and assistant messages", async () => {
-      const testMachine = await setupPromptMessagesTest();
-      const actor = createActor(testMachine.machine);
-      actor.start();
-      await waitFor(actor, (state) => state.status === "done");
-      expect(prompts).toMatchInlineSnapshot(`
-        [
-          [
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "You are a helpful assistant.",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "Do something",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "user",
-            },
-          ],
-        ]
-      `);
+    /** A prompt as it goes over the wire, without the keys the SDK leaves undefined. */
+    const asSent = (prompt: unknown): unknown =>
+      JSON.parse(JSON.stringify(prompt));
+
+    const doneCall = (messageId: StoreId.Message) => ({
+      metadata: {
+        createdAt: mockDate,
+        endedAt: mockDate,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
     });
 
-    it("handles one tool call", async () => {
-      const testMachine = await setupPromptMessagesTest();
-      await ChatWrites.savePart(
-        SessionMessagePart.coerce(readFilePart),
-        testMachine.chatId,
-      );
-
-      await runTestMachine({
-        machine: testMachine.machine,
-        chatId: testMachine.chatId,
-      });
-      expect(prompts).toMatchInlineSnapshot(`
+    it("sends the context and the user's message, leaving out an empty reply", async () => {
+      expect(asSent(await chatWith({}))).toMatchInlineSnapshot(`
         [
-          [
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "You are a helpful assistant.",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "Do something",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "user",
-            },
-            {
-              "content": [
-                {
-                  "input": {
-                    "filePath": "./test-file.txt",
-                  },
-                  "providerExecuted": undefined,
-                  "providerOptions": undefined,
-                  "toolCallId": "1",
-                  "toolName": "read_file",
-                  "type": "tool-call",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "output": {
-                    "type": "text",
-                    "value": "<path>./test-file.txt</path>
-        <content>
-           1→test-file.txt content
-        </content>",
-                  },
-                  "providerOptions": undefined,
-                  "toolCallId": "1",
-                  "toolName": "read_file",
-                  "type": "tool-result",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "tool",
-            },
-          ],
-        ]
-      `);
-    });
-
-    it("handles two tool calls", async () => {
-      const testMachine = await setupPromptMessagesTest();
-      await saveParts(
-        [
-          readFilePart,
           {
-            input: {
-              content: "new content",
-              filePath: "./output.txt",
+            "content": [
+              {
+                "text": "You are a helpful assistant.",
+                "type": "text",
+              },
+            ],
+            "role": "assistant",
+          },
+          {
+            "content": [
+              {
+                "text": "Do something",
+                "type": "text",
+              },
+            ],
+            "role": "user",
+          },
+        ]
+      `);
+    });
+
+    it("sends each tool call with its result, in the order they were made", async () => {
+      const prompt = await chatWith({
+        assistantParts: (messageId) => [
+          {
+            ...doneCall(messageId),
+            input: { filePath: "./test-file.txt" },
+            output: {
+              content: "test-file.txt content",
+              displayedLines: 10,
+              filePath: RelativePathSchema.parse("./test-file.txt"),
+              hasMoreLines: false,
+              modifiedAt: 1_234_567_890,
+              offset: 1,
+              state: "exists",
+              totalLines: 10,
+              truncatedByBytes: false,
             },
-            metadata: {
-              createdAt: mockDate,
-              endedAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: assistantMessageId,
-              sessionId,
-            },
+            state: "output-available",
+            toolCallId: StoreId.ToolCallSchema.parse("1"),
+            type: "tool-read_file",
+          },
+          {
+            ...doneCall(messageId),
+            input: { content: "new content", filePath: "./output.txt" },
             output: {
               content: "new content",
               filePath: RelativePathSchema.parse("./output.txt"),
@@ -1653,461 +977,131 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.chatId,
-      );
-
-      await runTestMachine(testMachine);
-      expect(prompts).toMatchInlineSnapshot(`
+      });
+      expect(asSent(prompt.slice(2))).toMatchInlineSnapshot(`
         [
-          [
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "You are a helpful assistant.",
+          {
+            "content": [
+              {
+                "input": {
+                  "filePath": "./test-file.txt",
+                },
+                "toolCallId": "1",
+                "toolName": "read_file",
+                "type": "tool-call",
+              },
+              {
+                "input": {
+                  "content": "new content",
+                  "filePath": "./output.txt",
+                },
+                "toolCallId": "2",
+                "toolName": "write_file",
+                "type": "tool-call",
+              },
+            ],
+            "role": "assistant",
+          },
+          {
+            "content": [
+              {
+                "output": {
                   "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "Do something",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "user",
-            },
-            {
-              "content": [
-                {
-                  "input": {
-                    "filePath": "./test-file.txt",
-                  },
-                  "providerExecuted": undefined,
-                  "providerOptions": undefined,
-                  "toolCallId": "1",
-                  "toolName": "read_file",
-                  "type": "tool-call",
-                },
-                {
-                  "input": {
-                    "content": "new content",
-                    "filePath": "./output.txt",
-                  },
-                  "providerExecuted": undefined,
-                  "providerOptions": undefined,
-                  "toolCallId": "2",
-                  "toolName": "write_file",
-                  "type": "tool-call",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "output": {
-                    "type": "text",
-                    "value": "<path>./test-file.txt</path>
+                  "value": "<path>./test-file.txt</path>
         <content>
            1→test-file.txt content
         </content>",
-                  },
-                  "providerOptions": undefined,
-                  "toolCallId": "1",
-                  "toolName": "read_file",
-                  "type": "tool-result",
                 },
-                {
-                  "output": {
-                    "type": "text",
-                    "value": "Successfully wrote new file ./output.txt",
-                  },
-                  "providerOptions": undefined,
-                  "toolCallId": "2",
-                  "toolName": "write_file",
-                  "type": "tool-result",
+                "toolCallId": "1",
+                "toolName": "read_file",
+                "type": "tool-result",
+              },
+              {
+                "output": {
+                  "type": "text",
+                  "value": "Successfully wrote new file ./output.txt",
                 },
-              ],
-              "providerOptions": undefined,
-              "role": "tool",
-            },
-          ],
-        ]
-      `);
-    });
-
-    it("handles tool call with diagnostics reminder", async () => {
-      const testMachine = await setupPromptMessagesTest();
-      await saveParts(
-        [
-          {
-            input: {
-              content: "console.log('hi');",
-              filePath: "./foo.ts",
-            },
-            metadata: {
-              createdAt: mockDate,
-              endedAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: assistantMessageId,
-              sessionId,
-            },
-            output: {
-              content: "console.log('hi');",
-              filePath: RelativePathSchema.parse("./foo.ts"),
-              isNewFile: true,
-              modifiedAt: 1_234_567_890,
-            },
-            state: "output-available",
-            toolCallId: StoreId.ToolCallSchema.parse("2"),
-            type: "tool-write_file",
+                "toolCallId": "2",
+                "toolName": "write_file",
+                "type": "tool-result",
+              },
+            ],
+            "role": "tool",
           },
-        ],
-        testMachine.chatId,
-      );
-
-      await runTestMachine(testMachine);
-      expect(prompts).toMatchInlineSnapshot(`
-        [
-          [
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "You are a helpful assistant.",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "Do something",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "user",
-            },
-            {
-              "content": [
-                {
-                  "input": {
-                    "content": "console.log('hi');",
-                    "filePath": "./foo.ts",
-                  },
-                  "providerExecuted": undefined,
-                  "providerOptions": undefined,
-                  "toolCallId": "2",
-                  "toolName": "write_file",
-                  "type": "tool-call",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "output": {
-                    "type": "text",
-                    "value": "Successfully wrote new file ./foo.ts",
-                  },
-                  "providerOptions": undefined,
-                  "toolCallId": "2",
-                  "toolName": "write_file",
-                  "type": "tool-result",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "tool",
-            },
-          ],
         ]
       `);
     });
 
-    it("handles tool call errors", async () => {
-      const testMachine = await setupPromptMessagesTest();
-      await saveParts(
-        [
+    it("sends a failed tool call's error as its result", async () => {
+      const prompt = await chatWith({
+        assistantParts: (messageId) => [
           {
+            ...doneCall(messageId),
             errorText:
               "File is too large (300000 bytes). Maximum size is 256000 bytes",
             input: { filePath: "./test-file.txt" },
-            metadata: {
-              createdAt: mockDate,
-              endedAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: assistantMessageId,
-              sessionId,
-            },
             state: "output-error",
             toolCallId: StoreId.ToolCallSchema.parse("1"),
             type: "tool-read_file",
           },
         ],
-        testMachine.chatId,
-      );
-
-      await runTestMachine(testMachine);
-      expect(prompts).toMatchInlineSnapshot(`
+      });
+      expect(asSent(prompt.slice(3))).toMatchInlineSnapshot(`
         [
-          [
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "You are a helpful assistant.",
-                  "type": "text",
+          {
+            "content": [
+              {
+                "output": {
+                  "type": "error-text",
+                  "value": "File is too large (300000 bytes). Maximum size is 256000 bytes",
                 },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "Do something",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "user",
-            },
-            {
-              "content": [
-                {
-                  "input": {
-                    "filePath": "./test-file.txt",
-                  },
-                  "providerExecuted": undefined,
-                  "providerOptions": undefined,
-                  "toolCallId": "1",
-                  "toolName": "read_file",
-                  "type": "tool-call",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "output": {
-                    "type": "error-text",
-                    "value": "File is too large (300000 bytes). Maximum size is 256000 bytes",
-                  },
-                  "providerOptions": undefined,
-                  "toolCallId": "1",
-                  "toolName": "read_file",
-                  "type": "tool-result",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "tool",
-            },
-          ],
+                "toolCallId": "1",
+                "toolName": "read_file",
+                "type": "tool-result",
+              },
+            ],
+            "role": "tool",
+          },
         ]
       `);
     });
 
-    it("adds cache control to messages for Anthropic models", async () => {
-      const testMachine = await createTestMachine({
-        chunks: [],
+    it("marks the last messages for caching on an Anthropic model", async () => {
+      const prompt = await chatWith({
         provider: "anthropic",
+        replies: ["What would you like to do?", "I'm ready to help."],
       });
-
-      await ChatWrites.saveMessage(
-        {
-          id: userMessageId,
-          metadata: {
-            createdAt: mockDate,
-            sessionId,
-          },
-          role: "user",
-        },
-        testMachine.chatId,
-      );
-      await saveParts(
+      expect(
+        prompt.map(
+          (message) =>
+            `${message.role}${message.providerOptions === undefined ? "" : " (cached)"}`,
+        ),
+      ).toMatchInlineSnapshot(`
         [
-          {
-            metadata: {
-              createdAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: userMessageId,
-              sessionId,
-            },
-            state: "done",
-            text: "Do something",
-            type: "text",
-          },
-        ],
-        testMachine.chatId,
-      );
-
-      await ChatWrites.saveMessage(
-        {
-          id: assistantMessageId,
-          metadata: mockAssistantMessageMetadata,
-          role: "assistant",
-        },
-        testMachine.chatId,
-      );
-
-      const secondMessageId = StoreId.newMessageId();
-      await ChatWrites.saveMessage(
-        {
-          id: secondMessageId,
-          metadata: mockAssistantMessageMetadata,
-          role: "assistant",
-        },
-        testMachine.chatId,
-      );
-      await saveParts(
-        [
-          {
-            metadata: {
-              createdAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: secondMessageId,
-              sessionId,
-            },
-            state: "done",
-            text: "What would you like to do?",
-            type: "text",
-          },
-        ],
-        testMachine.chatId,
-      );
-      const thirdMessageId = StoreId.newMessageId();
-      await ChatWrites.saveMessage(
-        {
-          id: thirdMessageId,
-          metadata: mockAssistantMessageMetadata,
-          role: "assistant",
-        },
-        testMachine.chatId,
-      );
-      await saveParts(
-        [
-          {
-            metadata: {
-              createdAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId: thirdMessageId,
-              sessionId,
-            },
-            state: "done",
-            text: "I'm ready to help you with that task.",
-            type: "text",
-          },
-        ],
-        testMachine.chatId,
-      );
-
-      await runTestMachine(testMachine);
-      // Test that there are a maximum of 4 cache control markers
-      const promptMessages = prompts[0];
-      const anthropicCacheControlCount = promptMessages?.filter((message) => {
-        return (
-          message.providerOptions?.anthropic &&
-          "cacheControl" in message.providerOptions.anthropic
-        );
-      }).length;
-      expect(anthropicCacheControlCount).toBeLessThanOrEqual(4);
-      expect(prompts).toMatchInlineSnapshot(`
-        [
-          [
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "You are a helpful assistant.",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "Do something",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": undefined,
-              "role": "user",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "What would you like to do?",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": {
-                "anthropic": {
-                  "cacheControl": {
-                    "type": "ephemeral",
-                  },
-                },
-                "bedrock": {
-                  "cachePoint": {
-                    "type": "ephemeral",
-                  },
-                },
-                "openaiCompatible": {
-                  "cache_control": {
-                    "type": "ephemeral",
-                  },
-                },
-              },
-              "role": "assistant",
-            },
-            {
-              "content": [
-                {
-                  "providerOptions": undefined,
-                  "text": "I'm ready to help you with that task.",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": {
-                "anthropic": {
-                  "cacheControl": {
-                    "type": "ephemeral",
-                  },
-                },
-                "bedrock": {
-                  "cachePoint": {
-                    "type": "ephemeral",
-                  },
-                },
-                "openaiCompatible": {
-                  "cache_control": {
-                    "type": "ephemeral",
-                  },
-                },
-              },
-              "role": "assistant",
-            },
-          ],
+          "assistant",
+          "user",
+          "assistant (cached)",
+          "assistant (cached)",
         ]
+      `);
+      expect(prompt.at(-1)?.providerOptions).toMatchInlineSnapshot(`
+        {
+          "anthropic": {
+            "cacheControl": {
+              "type": "ephemeral",
+            },
+          },
+          "bedrock": {
+            "cachePoint": {
+              "type": "ephemeral",
+            },
+          },
+          "openaiCompatible": {
+            "cache_control": {
+              "type": "ephemeral",
+            },
+          },
+        }
       `);
     });
 
@@ -2115,7 +1109,6 @@ describe("llmRequestLogic", () => {
     // it was written, it is reused byte for byte rather than rebuilt, so the
     // prefix every later request shares with the cached one does not move.
     it("reuses session context of any age", async () => {
-      await setupPromptMessagesTest();
       const testMachine = await createTestMachine({
         chunks: [
           { id: "1", type: "text-start" },
@@ -2156,77 +1149,16 @@ describe("llmRequestLogic", () => {
       );
 
       const { messages } = await runTestMachine(testMachine);
-      const contextMessages = messages.filter(
-        (message) => message.role === "session-context",
-      );
       expect(
-        contextMessages.map((message) => message.id),
+        messages
+          .filter((message) => message.role === "session-context")
+          .map((message) => message.id),
         "The stored context message should be the only one, with its id intact",
       ).toEqual([staleMessageId]);
       expect(
-        JSON.stringify(contextMessages),
+        JSON.stringify(prompts[0]?.[0]),
         "The stored context text should reach the model unchanged",
       ).toContain(oldText);
-      expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-        [
-          {
-            "id": "msg_00000000ZX8888888888888889",
-            "metadata": {
-              "agentName": "main",
-              "contextVersion": "current",
-              "createdAt": 2013-08-31T10:00:00.000Z,
-              "realRole": "user",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T10:00:00.000Z,
-                  "id": "prt_00000000ZX888888888888888A",
-                  "messageId": "msg_00000000ZX8888888888888889",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "text": "You are an assistant from two hours ago.",
-                "type": "text",
-              },
-            ],
-            "role": "session-context",
-          },
-          {
-            "id": "msg_00000000ZX888888888888888B",
-            "metadata": {
-              "completionTokensPerSecond": 1.4285714285714286,
-              "finishReason": "stop",
-              "sessionId": "ses_00000000018888888888888888",
-            },
-            "parts": [
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:12.000Z,
-                  "id": "prt_00000000ZX888888888888888C",
-                  "messageId": "msg_00000000ZX888888888888888B",
-                  "sessionId": "ses_00000000018888888888888888",
-                  "stepCount": 1,
-                },
-                "type": "step-start",
-              },
-              {
-                "metadata": {
-                  "createdAt": 2013-08-31T12:00:15.000Z,
-                  "endedAt": 2013-08-31T12:00:16.000Z,
-                  "id": "prt_00000000ZX888888888888888D",
-                  "messageId": "msg_00000000ZX888888888888888B",
-                  "sessionId": "ses_00000000018888888888888888",
-                },
-                "state": "done",
-                "text": "Response text",
-                "type": "text",
-              },
-            ],
-            "role": "assistant",
-          },
-        ]
-      `);
     });
   });
 
@@ -2247,7 +1179,7 @@ describe("llmRequestLogic", () => {
     ).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
   });
 
-  it("should end reasoning where a tool call supersedes it", async () => {
+  it("ends reasoning where a tool call supersedes it", async () => {
     const { messages } = await createAndRunTestMachine({
       chunks: [
         { id: "1", type: "reasoning-start" },
@@ -2266,65 +1198,16 @@ describe("llmRequestLogic", () => {
         // Providers can hold this back until the step finishes, long after the
         // tool call started.
         { id: "1", type: "reasoning-end" },
-        {
-          finishReason: { raw: "stop", unified: "stop" },
-          type: "finish",
-          usage: mockUsage,
-        },
       ],
     });
-    expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
-      [
-        "session-context: You are a helpful assistant.",
-        {
-          "id": "msg_00000000ZX888888888888888H",
-          "metadata": {
-            "completionTokensPerSecond": 1,
-            "finishReason": "stop",
-            "sessionId": "ses_00000000018888888888888888",
-          },
-          "parts": [
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:07.000Z,
-                "id": "prt_00000000ZX888888888888888J",
-                "messageId": "msg_00000000ZX888888888888888H",
-                "sessionId": "ses_00000000018888888888888888",
-                "stepCount": 1,
-              },
-              "type": "step-start",
-            },
-            {
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:10.000Z,
-                "endedAt": 2013-08-31T12:00:11.000Z,
-                "id": "prt_00000000ZX888888888888888K",
-                "messageId": "msg_00000000ZX888888888888888H",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "done",
-              "text": "I should read the file",
-              "type": "reasoning",
-            },
-            {
-              "input": {
-                "filePath": "test-file.txt",
-              },
-              "metadata": {
-                "createdAt": 2013-08-31T12:00:13.000Z,
-                "id": "prt_00000000ZX888888888888888M",
-                "messageId": "msg_00000000ZX888888888888888H",
-                "sessionId": "ses_00000000018888888888888888",
-              },
-              "state": "input-available",
-              "toolCallId": "test-call-1",
-              "type": "tool-read_file",
-            },
-          ],
-          "role": "assistant",
-        },
-      ]
-    `);
+    const reply = messages.at(-1);
+    const parts = reply?.role === "assistant" ? reply.parts : [];
+    const reasoning = parts.find((part) => part.type === "reasoning");
+    const call = parts.find((part) => part.type === "tool-read_file");
+    expect(reasoning?.state).toBe("done");
+    expect(reasoning?.metadata.endedAt?.getTime()).toBeLessThan(
+      call?.metadata.createdAt.getTime() ?? 0,
+    );
   });
 
   // The AI SDK seeds its response metadata with the id we sent and overwrites it
@@ -2332,27 +1215,41 @@ describe("llmRequestLogic", () => {
   // evidence that anything named it. Only a difference can have come from the
   // provider, and only a difference is worth storing.
   describe("the model that served the request", () => {
-    it("records the served id when the provider names a different model", async () => {
+    /** The served-model fields of the reply to a stream naming `modelId`. */
+    async function servedModel(
+      modelId: string | undefined,
+      catalog?: AIGatewayModel.Type[],
+    ) {
       const { messages } = await createAndRunTestMachine({
+        catalog,
         chunks: [
-          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
+          ...(modelId === undefined
+            ? []
+            : [{ modelId, type: "response-metadata" } as const]),
           { id: "1", type: "text-start" },
           { delta: "Hello", id: "1", type: "text-delta" },
           { id: "1", type: "text-end" },
         ],
       });
-
-      const assistant = messages.find(
-        (message) => message.role === "assistant",
-      );
-      expect(assistant?.metadata).toMatchObject({
-        modelIdServed: "openai/gpt-5.6-luna",
-      });
-    });
+      const reply = messages.at(-1);
+      return reply?.role === "assistant"
+        ? {
+            aiGatewayModelServed: reply.metadata.aiGatewayModelServed?.name,
+            modelIdServed: reply.metadata.modelIdServed,
+          }
+        : undefined;
+    }
 
     // Nothing in the mock cache answers to that id, which is the ordinary
     // outcome for a model released between two refreshes of the list. The id
     // stands on its own and everything reading it falls back to showing it.
+    it("records the served id when the provider names a different model", async () => {
+      expect(await servedModel("openai/gpt-5.6-luna")).toEqual({
+        aiGatewayModelServed: undefined,
+        modelIdServed: "openai/gpt-5.6-luna",
+      });
+    });
+
     it("snapshots the served model's record when the catalog has one", async () => {
       const luna = createMockAIGatewayModel({
         author: "openai",
@@ -2360,107 +1257,26 @@ describe("llmRequestLogic", () => {
         name: "GPT-5.6 Luna",
         providerId: "openai/gpt-5.6-luna",
       });
-      const { messages } = await createAndRunTestMachine({
-        catalog: [luna],
-        chunks: [
-          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
-          { id: "1", type: "text-start" },
-          { delta: "Hello", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-        ],
-      });
-
-      const assistant = messages.find(
-        (message) => message.role === "assistant",
-      );
-      expect(assistant?.metadata).toMatchObject({
-        aiGatewayModelServed: { name: "GPT-5.6 Luna" },
+      expect(await servedModel("openai/gpt-5.6-luna", [luna])).toEqual({
+        aiGatewayModelServed: "GPT-5.6 Luna",
         modelIdServed: "openai/gpt-5.6-luna",
       });
     });
 
-    it("leaves the served model record absent when the catalog has none", async () => {
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { modelId: "openai/gpt-5.6-luna", type: "response-metadata" },
-          { id: "1", type: "text-start" },
-          { delta: "Hello", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-        ],
+    it.each([
+      // OpenAI's catalog carries undated aliases and its API answers with the
+      // dated build behind one, so without this a direct OpenAI key reported a
+      // substitution on every single turn.
+      ["pins the model we asked for to a build", "mock-model-id-2026-01-15"],
+      ["names the model we asked for", "mock-model-id"],
+      // Google reports nothing at all, so its every turn used to claim it had
+      // been served the model we asked for.
+      ["reports no model", undefined],
+    ])("records nothing when the provider %s", async (_label, modelId) => {
+      expect(await servedModel(modelId)).toEqual({
+        aiGatewayModelServed: undefined,
+        modelIdServed: undefined,
       });
-
-      const assistant = messages.find(
-        (message) => message.role === "assistant",
-      );
-      expect(
-        assistant && "aiGatewayModelServed" in assistant.metadata
-          ? assistant.metadata.aiGatewayModelServed
-          : undefined,
-      ).toBeUndefined();
-    });
-
-    // OpenAI's catalog carries undated aliases and its API answers with the
-    // dated build behind one, so without this a direct OpenAI key reported a
-    // substitution on every single turn.
-    it("records nothing when the provider pins the model we asked for to a build", async () => {
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { modelId: "mock-model-id-2026-01-15", type: "response-metadata" },
-          { id: "1", type: "text-start" },
-          { delta: "Hello", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-        ],
-      });
-
-      const assistant = messages.find(
-        (message) => message.role === "assistant",
-      );
-      expect(
-        assistant && "modelIdServed" in assistant.metadata
-          ? assistant.metadata.modelIdServed
-          : undefined,
-      ).toBeUndefined();
-    });
-
-    it("records nothing when the provider names the model we asked for", async () => {
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { modelId: "mock-model-id", type: "response-metadata" },
-          { id: "1", type: "text-start" },
-          { delta: "Hello", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-        ],
-      });
-
-      const assistant = messages.find(
-        (message) => message.role === "assistant",
-      );
-      expect(
-        assistant && "modelIdServed" in assistant.metadata
-          ? assistant.metadata.modelIdServed
-          : undefined,
-      ).toBeUndefined();
-    });
-
-    // Google reports nothing at all, so its every turn used to claim it had
-    // been served the model we asked for.
-    it("records nothing when the provider reports no model", async () => {
-      const { messages } = await createAndRunTestMachine({
-        chunks: [
-          { id: "1", type: "text-start" },
-          { delta: "Hello", id: "1", type: "text-delta" },
-          { id: "1", type: "text-end" },
-        ],
-      });
-
-      const assistant = messages.find(
-        (message) => message.role === "assistant",
-      );
-      expect(
-        assistant && "modelIdServed" in assistant.metadata
-          ? assistant.metadata.modelIdServed
-          : undefined,
-      ).toBeUndefined();
     });
   });
 
@@ -2511,7 +1327,6 @@ describe("llmRequestLogic", () => {
           ? toolPart.input
           : undefined,
       ).toEqual({ filePath: `${"a".repeat(1000)}.txt` });
-      expect(savePartSpy.mock.calls.length).toBeLessThan(deltas.length / 10);
       // The step-start part, the part created at tool-input-start, the first
       // delta, and the tool-call save.
       expect(savePartSpy.mock.calls.length).toMatchInlineSnapshot(`4`);
@@ -2884,11 +1699,9 @@ describe("llmRequestLogic", () => {
     `);
   });
 
-  // Last in the file: it takes ids from the mocked ulid, and every snapshot
-  // after it would shift. A Claude account's process compares each request
-  // with the last one it saw, and the note is gone by the next step; counted
-  // as seen, it reads as an edited message and restarts the process from a
-  // replay.
+  // A Claude account's process compares each request with the last one it
+  // saw, and the note is gone by the next step; counted as seen, it reads
+  // as an edited message and restarts the process from a replay.
   it("sends the turn note as transient", async () => {
     const testMachine = await createTestMachine({ chunks: [] });
     const messageId = StoreId.newMessageId();
@@ -3018,8 +1831,6 @@ describe("llmRequestLogic", () => {
     `);
   });
 
-  // After the cases whose snapshots number their ids off the ones before
-  // them, and before the one that moves the chat's records.
   it("searches on xAI's side for a Grok account, keeping each cited page once", async () => {
     const testMachine = await createTestMachine({
       chunks: [

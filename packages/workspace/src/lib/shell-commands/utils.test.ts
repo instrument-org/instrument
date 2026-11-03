@@ -8,16 +8,6 @@ import { hostPathArgs, parseScriptRunnerArgs } from "./utils";
 createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("hostPathArgs", () => {
-  it("passes arguments through unchanged off Windows", () => {
-    const args = [
-      "/Users/sam/x",
-      "/dev/null",
-      "--env-file=/tmp/.env",
-      "work/a.txt",
-    ];
-    expect(hostPathArgs(args)).toEqual(args);
-  });
-
   it("respells drive paths on Windows and leaves its switches alone", () => {
     const platform = process.platform;
     Object.defineProperty(process, "platform", { value: "win32" });

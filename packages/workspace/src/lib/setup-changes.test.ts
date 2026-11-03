@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
-  TOPIC_FILE_NAME,
-  TOPICS_FOLDER_NAME,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
 } from "../constants";
 import {
   AbsolutePathSchema,
@@ -260,7 +260,7 @@ describe("consumeSetupChanges", () => {
 
 describe("the workspace's top level as a folder of the chat's", () => {
   // As it is when the output folder is the workspace itself.
-  it("reads topics and memories the agent's shell wrote there", async () => {
+  it("reads projects and memories the agent's shell wrote there", async () => {
     try {
       const agent = await agentFs({ folders: [rootDir] });
       const at = (...segments: string[]) =>
@@ -268,11 +268,11 @@ describe("the workspace's top level as a folder of the chat's", () => {
       beginSetupChangeTracking(turn);
 
       await withTurnContext(turn, async () => {
-        await agent.fs.mkdir(at(TOPICS_FOLDER_NAME, "Travel"), {
+        await agent.fs.mkdir(at(PROJECTS_FOLDER_NAME, "Travel"), {
           recursive: true,
         });
         await agent.fs.writeFile(
-          at(TOPICS_FOLDER_NAME, "Travel", TOPIC_FILE_NAME),
+          at(PROJECTS_FOLDER_NAME, "Travel", PROJECT_FILE_NAME),
           "---\nid: travel\n---\n",
         );
         await agent.fs.mkdir(at(MEMORY_FOLDER_NAME), { recursive: true });
@@ -284,10 +284,82 @@ describe("the workspace's top level as a folder of the chat's", () => {
 
       await expect(consumeSetupChanges(turn)).resolves.toEqual([
         { change: "added", kind: "memory", name: "mornings" },
-        { change: "added", kind: "topic", name: "Travel" },
+        { change: "added", kind: "project", name: "Travel" },
       ]);
     } finally {
-      await fs.rm(path.join(rootDir, TOPICS_FOLDER_NAME), {
+      await fs.rm(path.join(rootDir, PROJECTS_FOLDER_NAME), {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
+  // A project's folder is where its lasting files go, so a file saved there
+  // changes nothing about the project, with its AGENTS.md or without.
+  it("says nothing of files saved into a project's folder", async () => {
+    try {
+      await fs.mkdir(path.join(rootDir, PROJECTS_FOLDER_NAME, "Trip"), {
+        recursive: true,
+      });
+      await fs.mkdir(path.join(rootDir, PROJECTS_FOLDER_NAME, "Travel"));
+      await fs.writeFile(
+        path.join(rootDir, PROJECTS_FOLDER_NAME, "Travel", PROJECT_FILE_NAME),
+        "Aisle seats.\n",
+      );
+      const agent = await agentFs({ folders: [rootDir] });
+      const at = (...segments: string[]) =>
+        shellPath(path.join(rootDir, ...segments));
+      beginSetupChangeTracking(turn);
+
+      await withTurnContext(turn, async () => {
+        await agent.fs.writeFile(
+          at(PROJECTS_FOLDER_NAME, "Trip", "itinerary.pdf"),
+          "pdf",
+        );
+        await agent.fs.mkdir(at(PROJECTS_FOLDER_NAME, "Travel", "receipts"));
+        await agent.fs.writeFile(
+          at(PROJECTS_FOLDER_NAME, "Travel", "receipts", "hotel.pdf"),
+          "pdf",
+        );
+      });
+
+      await expect(consumeSetupChanges(turn)).resolves.toEqual([]);
+    } finally {
+      await fs.rm(path.join(rootDir, PROJECTS_FOLDER_NAME), {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
+  // The folder is the project, and its AGENTS.md only what it says.
+  it("reads a project made as a bare folder as added, and its instructions taken away as a change", async () => {
+    try {
+      await fs.mkdir(path.join(rootDir, PROJECTS_FOLDER_NAME, "Travel"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(rootDir, PROJECTS_FOLDER_NAME, "Travel", PROJECT_FILE_NAME),
+        "Aisle seats.\n",
+      );
+      const agent = await agentFs({ folders: [rootDir] });
+      const at = (...segments: string[]) =>
+        shellPath(path.join(rootDir, ...segments));
+      beginSetupChangeTracking(turn);
+
+      await withTurnContext(turn, async () => {
+        await agent.fs.mkdir(at(PROJECTS_FOLDER_NAME, "Garden"));
+        await agent.fs.rm(
+          at(PROJECTS_FOLDER_NAME, "Travel", PROJECT_FILE_NAME),
+        );
+      });
+
+      await expect(consumeSetupChanges(turn)).resolves.toEqual([
+        { change: "added", kind: "project", name: "Garden" },
+        { change: "changed", kind: "project", name: "Travel" },
+      ]);
+    } finally {
+      await fs.rm(path.join(rootDir, PROJECTS_FOLDER_NAME), {
         force: true,
         recursive: true,
       });

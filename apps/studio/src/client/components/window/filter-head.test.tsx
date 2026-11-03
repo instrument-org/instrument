@@ -1,4 +1,4 @@
-// The line over the inbox: one picker over the views and the topics, and the
+// The line over the inbox: one picker over the views and the projects, and the
 // search beside it, one view at a time.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
@@ -8,11 +8,11 @@ import {
   type ChatFilters,
   type Filterable,
   NO_FILTERS,
-  type Topic,
+  type Project,
 } from "./chats";
 import { FilterHead } from "./filter-head";
 
-const HOUSE: Topic = {
+const HOUSE: Project = {
   color: "#0f9d6e",
   created: new Date(1),
   emoji: "🏠",
@@ -20,7 +20,7 @@ const HOUSE: Topic = {
   name: "House",
 };
 
-const MONEY: Topic = {
+const MONEY: Project = {
   color: "#d4a017",
   created: new Date(2),
   emoji: "💸",
@@ -47,8 +47,8 @@ function chat({
 }
 
 const CHATS = [
-  chat({ holds: { apps: ["gmail"] }, topic: "house", unread: true }),
-  chat({ topic: "house" }),
+  chat({ holds: { apps: ["gmail"] }, project: "house", unread: true }),
+  chat({ project: "house" }),
 ];
 
 /** The picker is a popover, which Radix opens on click. */
@@ -60,30 +60,30 @@ function renderHead({
   chats = CHATS,
   drafts = 0,
   filters = NO_FILTERS,
-  topics = [HOUSE, MONEY],
+  projects = [HOUSE, MONEY],
 }: {
   chats?: Filterable[];
   drafts?: number;
   filters?: ChatFilters;
-  topics?: Topic[];
+  projects?: Project[];
 } = {}) {
   const onFiltersChange = vi.fn();
-  const onNewTopic = vi.fn();
+  const onNewProject = vi.fn();
   renderWithProviders(
     <FilterHead
       chats={chats}
       drafts={drafts}
       filters={filters}
       onFiltersChange={onFiltersChange}
-      onNewTopic={onNewTopic}
-      onTopicDetails={vi.fn()}
-      topics={topics}
+      onNewProject={onNewProject}
+      onProjectDetails={vi.fn()}
+      projects={projects}
     />,
   );
   return {
     head: within(screen.getByRole("group", { name: "Filters" })),
     onFiltersChange,
-    onNewTopic,
+    onNewProject,
   };
 }
 
@@ -95,11 +95,11 @@ function pickerRows() {
 }
 
 describe("FilterHead", () => {
-  it("lists the views, then the topics, each with how many chats it holds", () => {
+  it("lists the views, then the projects, each with how many chats it holds", () => {
     const { head } = renderHead({
       chats: [
-        chat({ starred: true, topic: "house", unread: true }),
-        chat({ archived: true, topic: "house", unread: true }),
+        chat({ starred: true, project: "house", unread: true }),
+        chat({ archived: true, project: "house", unread: true }),
         chat({ state: "waiting" }),
       ],
     });
@@ -113,7 +113,7 @@ describe("FilterHead", () => {
       "Archived",
       "🏠House2",
       "💸Money",
-      "New topic",
+      "New project",
     ]);
   });
 
@@ -126,9 +126,9 @@ describe("FilterHead", () => {
     ).toBe("Drafts2");
   });
 
-  it("stands in one view at a time, leaving the topic and keeping the search", () => {
+  it("stands in one view at a time, leaving the project and keeping the search", () => {
     const { head, onFiltersChange } = renderHead({
-      filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
+      filters: { ...NO_FILTERS, search: "fence", projects: ["house"] },
     });
     openPicker(head.getByRole("button", { name: "View: House" }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Starred" }));
@@ -161,7 +161,7 @@ describe("FilterHead", () => {
     expect(picker.dataset.compact).toBe("true");
   });
 
-  it("picks a topic from the picker, keeping the search", () => {
+  it("picks a project from the picker, keeping the search", () => {
     const { head, onFiltersChange } = renderHead({
       filters: { ...NO_FILTERS, search: "fence" },
     });
@@ -170,14 +170,14 @@ describe("FilterHead", () => {
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
       search: "fence",
-      topics: ["money"],
+      projects: ["money"],
     });
   });
 
-  it("makes a topic from the picker's foot, through the caller's dialog", () => {
-    const { head, onNewTopic } = renderHead();
+  it("makes a project from the picker's foot, through the caller's dialog", () => {
+    const { head, onNewProject } = renderHead();
     openPicker(head.getByRole("button", { name: "View: Chats" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "New topic" }));
-    expect(onNewTopic).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "New project" }));
+    expect(onNewProject).toHaveBeenCalledOnce();
   });
 });

@@ -75,7 +75,7 @@ const SHAPES = [
 const settings = {
   apps: [],
   chats: {},
-  topics: {},
+  projects: {},
   folders: [],
   places: {},
   dangerouslyAllowEveryFolder: false,

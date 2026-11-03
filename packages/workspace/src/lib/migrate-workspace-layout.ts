@@ -34,10 +34,11 @@ import {
 import { rewriteStoredPaths } from "./rewrite-stored-paths";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
 import { STORE_TABLE } from "./store-table";
-import { workspaceLayout } from "./workspace-layout";
+import { legacyProjectsDir, workspaceLayout } from "./workspace-layout";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
+
 const LEGACY_DB_FILE_NAME = "sessions.db";
 const LEGACY_STATE_FILE_NAME = "project-state.json";
 const LEGACY_SETTINGS_FILE_NAME = "instrument.json";
@@ -64,7 +65,7 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 
 // The layoutVersion mark holding this value = a sweep at this version has
 // visited every task under tasks/ and made every 1.x task into a chat and
-// every project into a topic, so boot skips both walks (their cost grows with
+// every 1.x project into a project, so boot skips both walks (their cost grows with
 // the task count, and they are a no-op for every task a current build
 // touched). Bump the version when a normalization step is added, so existing
 // workspaces run the sweep once more. Between bumps, tasks must enter the
@@ -124,7 +125,7 @@ export interface WorkspaceLayoutMigration {
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
   // Tasks an earlier version ran on their own, each made into a chat that
-  // owns it, and projects made into topics.
+  // owns it, and 1.x projects made into projects.
   legacyTasks: LegacyTasksMigration;
   movedTaskCount: number;
   // Chrome profile clones deleted, each a recursive delete of a few hundred MB
@@ -139,10 +140,10 @@ export interface WorkspaceLayoutMigration {
 //    skips any real project folder (load-bearing: it survives a lost mark).
 // 2. Move the app's folders into the workspace's `.instrument/`, normalize
 //    tasks under tasks/ to current layout, then make 1.x tasks into chats and
-//    projects into topics, then split every chat's records from its work,
+//    1.x projects into projects, then split every chat's records from its work,
 //    which the 1.x tasks just made into chats need as much as the chats an
 //    earlier build made. The folders move first, so the steps after it
-//    (and a later sweep finishing what one left) find every chat and topic
+//    (and a later sweep finishing what one left) find every chat and project
 //    where it now lives. Idempotent. Guard: the layoutVersion
 //    mark skips it once a sweep at the current version has completed, and
 //    is written only after one completes with nothing left over, so a sweep a
@@ -173,6 +174,11 @@ export function migrateWorkspaceLayout({
   };
   const { layoutVersion, legacyProjectsMigrated } = marks.read();
   const legacyMigrationRan = legacyProjectsMigrated !== true;
+  // Only for a sweep that runs: a `projects` folder in a workspace already
+  // swept is one the person or the agent made since, and is theirs.
+  if (legacyMigrationRan || layoutVersion !== WORKSPACE_LAYOUT_VERSION) {
+    stageLegacyProjectsDir(rootDir);
+  }
   if (legacyMigrationRan) {
     migration = migrateLegacyProjectsDir(rootDir);
     marks.write({ legacyProjectsMigrated: true });
@@ -187,7 +193,7 @@ export function migrateWorkspaceLayout({
         adoptedCount: 0,
         emptyCount: 0,
         leftOver: 0,
-        topicCount: 0,
+        projectCount: 0,
         unreadable: [],
       },
     };
@@ -201,7 +207,7 @@ export function migrateWorkspaceLayout({
   // current shape when it is made into a chat.
   const legacyTasks = migrateLegacyTasks(rootDir, machineDir);
   // After the 1.x migration, which turns the projects in `projects/` into
-  // topics first.
+  // projects first.
   const projectsLeft = setAsideLegacyProjectsDir({ machineDir, rootDir });
   const appFolders = {
     done: [...movedIn.done, ...projectsLeft.done],
@@ -245,6 +251,39 @@ export function migrateWorkspaceLayout({
     legacyTasks,
     removedBrowserProfileCloneCount,
   };
+}
+
+/**
+ * Moves 1.x's `projects/` off the workspace's top level before anything reads
+ * it, since `Projects/` there is where this build keeps the person's
+ * projects, and a file system that reads names without case takes the two
+ * for one folder: the 1.x migration would write the projects it makes into
+ * the folder it is emptying. Only a folder named `projects` in lowercase,
+ * as 1.x wrote it, is moved.
+ */
+function stageLegacyProjectsDir(rootDir: string) {
+  let names: string[];
+  try {
+    names = fs.readdirSync(rootDir);
+  } catch {
+    return;
+  }
+  const from = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
+  if (!names.includes(LEGACY_TASKS_DIR_NAME) || !isDirectorySync(from)) {
+    return;
+  }
+  const to = legacyProjectsDir(rootDir);
+  if (!entryExists(to)) {
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.renameSync(from, to);
+    return;
+  }
+  mergeDirInto({
+    destination: to,
+    name: LEGACY_TASKS_DIR_NAME,
+    normalized: { done: [], failed: 0 },
+    source: from,
+  });
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
@@ -325,7 +364,7 @@ function migrateLegacyProjectsDir(
   WorkspaceLayoutMigration,
   "appFolders" | "chatRecords" | "legacyTasks"
 > {
-  const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
+  const legacyDir = legacyProjectsDir(rootDir);
   const migration: Omit<
     WorkspaceLayoutMigration,
     "appFolders" | "chatRecords" | "legacyTasks"
@@ -377,13 +416,13 @@ function migrateLegacyProjectsDir(
 
 /**
  * What 1.x left in the workspace's top-level `projects/` once its tasks
- * moved to `tasks/` and its projects became topics (a file beside them, a
+ * moved to `tasks/` and its projects became this build's projects (a file beside them, a
  * task copy whose id another task had), set aside with the projects already
  * in `.instrument/.pre-chats/projects/`, and the folder removed once empty.
  * The top level becomes the person's folder, and the output folder once
  * the workspace moves, so it keeps none of 1.x's. An entry whose name is
  * taken there goes beside it under a numbered name; a project still waiting
- * for its topic stays for the 1.x migration, and a `projects` that is a
+ * for the project it becomes stays for the 1.x migration, and a `projects` that is a
  * link or a file stays as it is. An entry that cannot move is counted in
  * `failed`, so the next sweep tries it again.
  */
@@ -395,7 +434,7 @@ function setAsideLegacyProjectsDir({
   rootDir: string;
 }): AppFoldersMove {
   const move: AppFoldersMove = { done: [], failed: 0 };
-  const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
+  const legacyDir = legacyProjectsDir(rootDir);
   if (!isDirectorySync(legacyDir)) {
     return move;
   }

@@ -126,7 +126,7 @@ function fitting(
  * needs. Each question is a sentence rather than an object: one decision
  * model reads a structured question poorly and scores every chat alike. The
  * title alone, asked whether it is related: measured against asking whether
- * the chat, with its topics and opening ask, is about the search, it found
+ * the chat, with its projects and opening ask, is about the search, it found
  * more of the chats meant (89% against 80%) with less than half the wrong
  * ones, on a quarter fewer tokens; the opening ask mostly added noise.
  */

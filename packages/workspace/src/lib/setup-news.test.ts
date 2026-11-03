@@ -7,8 +7,8 @@ import {
   APPS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
-  TOPIC_FILE_NAME,
-  TOPICS_FOLDER_NAME,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
 } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -63,7 +63,7 @@ describe("setupTouchesBetween", () => {
     await write(skill("tidy"));
     await write(skill("stale"));
     await write(path.join(MEMORY_FOLDER_NAME, "mornings.md"));
-    await write(path.join(TOPICS_FOLDER_NAME, "Travel", TOPIC_FILE_NAME));
+    await write(path.join(PROJECTS_FOLDER_NAME, "Travel", PROJECT_FILE_NAME));
     const before = await snapshotSetup();
 
     await write(skill("tidy", "run.sh"));
@@ -72,8 +72,8 @@ describe("setupTouchesBetween", () => {
     });
     await write(path.join(APPS_FOLDER_NAME, "Linear", APP_FILE_NAME));
     await write(path.join(MEMORY_FOLDER_NAME, "mornings.md"), "Later.\n");
-    // A folder with no TOPIC.md is not a topic, so writing in one is no news.
-    await write(path.join(TOPICS_FOLDER_NAME, "Loose", "notes.md"));
+    // A folder with no SKILL.md is not a skill, so writing in one is no news.
+    await write(skill("loose", "notes.md"));
 
     expect(
       setupTouchesBetween(before, await snapshotSetup()).toSorted((a, b) =>

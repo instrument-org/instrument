@@ -99,7 +99,8 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
-export { moveTopicFolders } from "./lib/permissions/move-topic-folders";
+export { moveProjectFolders } from "./lib/permissions/move-project-folders";
+export { folderProjectId, saveProjectId } from "./lib/chat/projects";
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
@@ -139,11 +140,12 @@ export { type FolderMoved } from "./lib/move-out-of-data-dir";
 export { moveSkillsToFolder, type SkillsMoved } from "./lib/skills-move";
 export { settleKeyFolderCase } from "./lib/key-folder-case";
 export {
-  convertTopicsToTopicFiles,
-  type TopicFilesConverted,
-  moveTopicsToFolder,
-  type TopicsMoved,
-} from "./lib/topics-move";
+  convertProjectsToProjectFiles,
+  type ProjectFilesConverted,
+  moveProjectsToFolder,
+  moveTopicsToProjects,
+  type ProjectsMoved,
+} from "./lib/projects-move";
 export { chatRecords } from "./lib/records/chat-records";
 export {
   chooseDeviceId,

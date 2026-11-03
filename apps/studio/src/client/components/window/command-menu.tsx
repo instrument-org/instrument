@@ -30,18 +30,18 @@ import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
-import { TopicPill } from "@/client/components/window/chat-row";
+import { ProjectPill } from "@/client/components/window/chat-row";
 import {
   byLastUserMessage,
   type Chat,
   railMarkOf,
-  type Topic,
-  topicSearch,
+  type Project,
+  projectSearch,
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
-import { TopicMark } from "@/client/components/window/topic-mark";
+import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -165,7 +165,7 @@ type Item = {
   leavesItself?: true;
   ranges: null | number[];
   run: () => void;
-  /** Marks past the label, as a chat's row in the list wears its topic and star. */
+  /** Marks past the label, as a chat's row in the list wears its project and star. */
   trailing?: ReactNode;
   type: "item";
 };
@@ -570,18 +570,18 @@ export function useCommandMenuRows({
         words,
       ).slice(0, APPS_SHOWN)
     : [];
-  // A topic is found by its name, and by the word for one: "topic" alone
+  // A project is found by its name, and by the word for one: "project" alone
   // lists them all, and beside a name it is left out of what the name is
-  // matched by, so "topic reading" and "reading topic" both find Reading.
-  // Every word left has to be in the name, since a topic that shared one
+  // matched by, so "project reading" and "reading project" both find Reading.
+  // Every word left has to be in the name, since a project that shared one
   // word with a chat's title would otherwise sit over that chat.
-  const topicAsk = topicSearch(words);
-  const liveTopics = shell.topics.filter((topic) => !topic.retired);
-  const topicMatches = !isSearch
+  const projectAsk = projectSearch(words);
+  const liveProjects = shell.projects.filter((project) => !project.retired);
+  const projectMatches = !isSearch
     ? []
-    : topicAsk.name === ""
-      ? liveTopics.map((item) => ({ item, ranges: null }))
-      : fuzzyMatch(liveTopics, (topic) => [topic.name], topicAsk.name);
+    : projectAsk.name === ""
+      ? liveProjects.map((item) => ({ item, ranges: null }))
+      : fuzzyMatch(liveProjects, (project) => [project.name], projectAsk.name);
 
   const goTo: Item[] = PLACES.map(({ id, label }) => ({
     chord: WINDOW_SHORTCUTS[PLACE_CHORDS[id]].accelerator,
@@ -612,15 +612,15 @@ export function useCommandMenuRows({
           label: "Commands",
         },
         // Over the chats rather than under them: there are only ever a few
-        // topics, and the chats are the one list here with no end, so under
-        // them a topic would be out of sight exactly when its name is in
+        // projects, and the chats are the one list here with no end, so under
+        // them a project would be out of sight exactly when its name is in
         // many titles. Asked for by the word, they lead outright, since no
         // place or command answers to it.
         {
-          items: topicMatches.map(({ item, ranges }) =>
-            topicItem(item, ranges),
+          items: projectMatches.map(({ item, ranges }) =>
+            projectItem(item, ranges),
           ),
-          label: "Topics",
+          label: "Projects",
         },
         {
           items: chatMatches.map(({ item, ranges }) => chatItem(item, ranges)),
@@ -813,9 +813,9 @@ export function useCommandMenuRows({
   }
 
   // A chat's row wears what its row in the list does: the dot its tab
-  // would, then its topic and its star past the title.
+  // would, then its project and its star past the title.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
-    const topic = shell.topics.find((each) => each.id === chat.topic);
+    const project = shell.projects.find((each) => each.id === chat.project);
     const mark = railMarkOf([chat]);
     return {
       detail: chat.archived ? "Archived" : undefined,
@@ -828,9 +828,9 @@ export function useCommandMenuRows({
         openScreen(`${CHATS_HREF}/${chat.id}`);
       },
       trailing:
-        topic || chat.starred ? (
+        project || chat.starred ? (
           <>
-            {topic && <TopicPill quiet topic={topic} />}
+            {project && <ProjectPill quiet project={project} />}
             {chat.starred && (
               <StarIcon
                 aria-label="Starred"
@@ -845,14 +845,14 @@ export function useCommandMenuRows({
     };
   }
 
-  function topicItem(topic: Topic, ranges: null | number[]): Item {
+  function projectItem(project: Project, ranges: null | number[]): Item {
     return {
-      icon: <TopicMark topic={topic} />,
-      id: `topic:${topic.id}`,
-      label: topic.name,
+      icon: <ProjectMark project={project} />,
+      id: `project:${project.id}`,
+      label: project.name,
       ranges,
       run: () => {
-        shell.openTopic(topic.id);
+        shell.openProject(project.id);
       },
       type: "item",
     };

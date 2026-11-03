@@ -21,7 +21,7 @@ import { folderHref } from "@/shared/computer-href";
  *
  * Here rather than in the pane that reads it, because anything that opens a
  * brand new chat has to put the list back where that chat is visible: a
- * column standing in a topic or a place is a column the new chat is very
+ * column standing in a project or a place is a column the new chat is very
  * likely not in, and a button that appears to do nothing is a button someone
  * presses again.
  */

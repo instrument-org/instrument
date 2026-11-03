@@ -21,24 +21,24 @@ export interface ChatFilters {
   place?: ChatPlace;
   /** Words that all have to turn up somewhere on a chat's row, whatever their case. */
   search: string;
-  /** Topic ids a chat has to be filed under one of. */
-  topics: string[];
+  /** Project ids a chat has to be filed under one of. */
+  projects: string[];
 }
 
 /** The places of the column apart from the inbox: chats holding replies not yet seen, chats the user starred, drafts not yet sent, chats put away, and every chat, the ones put away among them. All is where a search reaches past the view it was typed in; the picker never offers it. */
 export type ChatPlace = "all" | "archived" | "drafts" | "starred" | "unread";
 
-/** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
-export type Topic = RPCOutput["workspace"]["topics"]["list"][number];
+/** A project as the workspace keeps it: a tag with a name, a mark, and a tint. */
+export type Project = RPCOutput["workspace"]["projects"]["list"][number];
 
 export const NO_FILTERS: ChatFilters = {
   apps: [],
   search: "",
-  topics: [],
+  projects: [],
 };
 
-/** What a search reads the pills by when no topics are in hand: nothing, so a pill's name is not searched. */
-const NO_TOPIC_NAMES: ReadonlyMap<string, string> = new Map();
+/** What a search reads the pills by when no projects are in hand: nothing, so a pill's name is not searched. */
+const NO_PROJECT_NAMES: ReadonlyMap<string, string> = new Map();
 
 /** The part of a chat the filters read, which is what its row shows, so the predicate is testable off any row shape. */
 export interface Filterable {
@@ -52,20 +52,20 @@ export interface Filterable {
   starred: boolean;
   state: "failed" | "idle" | "limited" | "stopped" | "waiting" | "working";
   title: string;
-  /** The id of the topic it is filed under, when it is filed under one. */
-  topic?: string;
+  /** The id of the project it is filed under, when it is filed under one. */
+  project?: string;
   /** Whether it carries the unread mark: something in it not yet looked at. */
   unread: boolean;
 }
 
 /** One row of the column: which group it is in, and which of that group's ids it stands for. */
 export type FilterChoice =
-  | { group: "apps" | "topics"; id: string }
+  | { group: "apps" | "projects"; id: string }
   | { group: "place"; id: ChatPlace };
 
 /**
  * The filters with a row turned. The column shows one view at a time: the
- * inbox, one topic, one app, or one place (the unread, the starred, the
+ * inbox, one project, one app, or one place (the unread, the starred, the
  * drafts, what was put away, all of it), so choosing any of them leaves the others
  * and choosing the one already on steps back to the inbox. The search is its
  * own thing and stays as it was. The predicate still reads lists, so nothing
@@ -76,7 +76,7 @@ export function choose(
   choice: FilterChoice,
 ): ChatFilters {
   const { place: _place, ...rest } = filters;
-  const inbox = { ...rest, apps: [], topics: [] };
+  const inbox = { ...rest, apps: [], projects: [] };
   if (choice.group === "place") {
     return filters.place === choice.id ? inbox : { ...inbox, place: choice.id };
   }
@@ -130,22 +130,25 @@ export function wordRanges(text: string, search: string): null | number[] {
 }
 
 /**
- * What a search of the command menu asks of the topics: whether it names
- * them outright, with "topic" or "topics" as a word of its own anywhere in
- * it, and the words left to find one by its name. So "topic reading" and
- * "reading topic" both look for Reading, and the word alone, which leaves no
- * name, asks for every topic. A search that never says the word is all name.
+ * What a search of the command menu asks of the projects: whether it names
+ * them outright, with "project" or "projects" as a word of its own anywhere in
+ * it, and the words left to find one by its name. So "project reading" and
+ * "reading project" both look for Reading, and the word alone, which leaves no
+ * name, asks for every project. A search that never says the word is all name.
  */
-export function topicSearch(words: string): { isAsked: boolean; name: string } {
+export function projectSearch(words: string): {
+  isAsked: boolean;
+  name: string;
+} {
   const terms = words.trim().split(/\s+/).filter(Boolean);
-  const at = terms.findIndex((term) => /^topics?:?$/i.test(term));
+  const at = terms.findIndex((term) => /^projects?:?$/i.test(term));
   return {
     isAsked: at !== -1,
     name: terms.filter((_, index) => index !== at).join(" "),
   };
 }
 
-/** Whether the column stands in the inbox: no place chosen, whatever topic or app narrows it. */
+/** Whether the column stands in the inbox: no place chosen, whatever project or app narrows it. */
 export function isInbox(filters: ChatFilters) {
   return filters.place === undefined;
 }
@@ -154,19 +157,19 @@ export function isInbox(filters: ChatFilters) {
 export function matchesFilters(
   chat: Filterable,
   filters: ChatFilters,
-  /** Topic names by id, which is how the search reads a row's pills. */
-  topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
+  /** Project names by id, which is how the search reads a row's pills. */
+  projectNames: ReadonlyMap<string, string> = NO_PROJECT_NAMES,
 ) {
   return (
     matchesPlace(chat, filters) &&
-    anyOf(filters.topics, chat.topic ? [chat.topic] : []) &&
+    anyOf(filters.projects, chat.project ? [chat.project] : []) &&
     anyOf(filters.apps, chat.holds.apps) &&
-    matchesSearch(chat, filters.search, topicNames)
+    matchesSearch(chat, filters.search, projectNames)
   );
 }
 
 /**
- * How many chats the words searched for turn up on that the place, topic,
+ * How many chats the words searched for turn up on that the place, project,
  * or app filter keeps out of the list. A search reads inside the place the
  * column stands in, so a match filed elsewhere is silently missing; this is
  * the count the list says so with. Nothing searched for means nothing is
@@ -175,21 +178,21 @@ export function matchesFilters(
 export function outsideFilters(
   chats: Filterable[],
   filters: ChatFilters,
-  topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
+  projectNames: ReadonlyMap<string, string> = NO_PROJECT_NAMES,
 ) {
   if (filters.search.trim() === "") {
     return 0;
   }
   return chats.filter(
     (chat) =>
-      matchesSearch(chat, filters.search, topicNames) &&
-      !matchesFilters(chat, filters, topicNames),
+      matchesSearch(chat, filters.search, projectNames) &&
+      !matchesFilters(chat, filters, projectNames),
   ).length;
 }
 
-/** The same search over every chat: the words kept, the place, topic, and app filters lifted. */
+/** The same search over every chat: the words kept, the place, project, and app filters lifted. */
 export function widenToSearch(filters: ChatFilters): ChatFilters {
-  return { ...filters, apps: [], place: "all", topics: [] };
+  return { ...filters, apps: [], place: "all", projects: [] };
 }
 
 /** A group with nothing chosen narrows nothing; one with choices wants any of them. */
@@ -201,7 +204,7 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
  * Whether a chat is in the place the column stands in. A chat put away
  * is in Archived and All, the way mail keeps what was archived out of the
  * inbox but in the whole of it, so the inbox is every other chat and Unread
- * those of them holding replies not yet seen. A topic is a label rather
+ * those of them holding replies not yet seen. A project is a label rather
  * than a place, so one chosen shows what is filed under it, put away or
  * not. Drafts are not chats at all yet, so that place holds none.
  */
@@ -221,7 +224,7 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
       return chat.starred;
     }
     case undefined: {
-      return !chat.archived || filters.topics.length > 0;
+      return !chat.archived || filters.projects.length > 0;
     }
     case "unread": {
       return !chat.archived && chat.unread;
@@ -231,19 +234,19 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
 
 /**
  * Whether every word searched for turns up somewhere on the chat's row,
- * whatever its case: in the title, the ask, the latest line, a topic's name,
+ * whatever its case: in the title, the ask, the latest line, a project's name,
  * a file's name, a site, or an app. Nothing searched for matches everything.
  */
 function matchesSearch(
   chat: Filterable,
   search: string,
-  topicNames: ReadonlyMap<string, string>,
+  projectNames: ReadonlyMap<string, string>,
 ) {
   return hasWords(search, [
     chat.title,
     chat.firstAsk,
     chat.latest?.text ?? "",
-    chat.topic ? (topicNames.get(chat.topic) ?? "") : "",
+    chat.project ? (projectNames.get(chat.project) ?? "") : "",
     ...chat.holds.files.map(nameOf),
     ...chat.holds.sites,
     ...chat.holds.apps,

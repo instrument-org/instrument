@@ -1,4 +1,4 @@
-import { openTopicDetails } from "@/client/atoms/topic-details-modal";
+import { openProjectDetails } from "@/client/atoms/project-details-modal";
 import { ScreenLink } from "@/client/components/skill-link";
 import { memoryHref, skillHref } from "@/client/components/window/tab-location";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -14,13 +14,13 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
-import { TopicPill } from "./window/chat-row";
+import { ProjectPill } from "./window/chat-row";
 
 type SetupChange =
   SessionMessageDataPart.SetupChangesDataPart["changes"][number];
 
 /**
- * What a turn did to the person's skills, apps, topics and memories, a line
+ * What a turn did to the person's skills, apps, projects and memories, a line
  * each, in the voice of the other notes under a reply. Only the turn's own
  * writes are here, so each line is something this chat did. The name in a
  * line opens the item, unless the line says it is gone.
@@ -38,12 +38,12 @@ export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
   );
 }
 
-// A topic has no icon of its own: its line wears the topic's pill.
+// A project has no icon of its own: its line wears the project's pill.
 const ICONS = {
   app: AppWindowIcon,
   memory: BrainIcon,
   skill: CubeIcon,
-  topic: undefined,
+  project: undefined,
 } as const;
 
 const LINK_CLASS_NAME =
@@ -72,7 +72,7 @@ function SetupChangeLine({ change }: { change: SetupChange }) {
         ) : change.kind === "skill" ? (
           <SkillSentence change={change} />
         ) : (
-          <TopicSentence change={change} />
+          <ProjectSentence change={change} />
         )}
       </span>
     </p>
@@ -156,27 +156,27 @@ function SkillSentence({ change }: { change: SetupChange }) {
   );
 }
 
-function TopicSentence({ change }: { change: SetupChange }) {
-  const { data: topics = [] } = useQuery(
-    rpcClient.workspace.topics.list.queryOptions(),
+function ProjectSentence({ change }: { change: SetupChange }) {
+  const { data: projects = [] } = useQuery(
+    rpcClient.workspace.projects.list.queryOptions(),
   );
-  // The line names the topic's folder, which is its name.
-  const topic = topics.find(
+  // The line names the project's folder, which is its name.
+  const project = projects.find(
     (each) => each.name === change.name && !each.retired,
   );
   return (
     <Sentence
       change={change}
-      {...(topic && {
+      {...(project && {
         link: () => (
           <button
             className="inline-flex align-middle"
             onClick={() => {
-              openTopicDetails(topic.id);
+              openProjectDetails(project.id);
             }}
             type="button"
           >
-            <TopicPill topic={topic} />
+            <ProjectPill project={project} />
           </button>
         ),
       })}

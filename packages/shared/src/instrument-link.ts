@@ -96,7 +96,7 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
 export type OutsideLink =
   | { href: string; kind: "screen" }
   | { kind: "file"; path: string }
-  | { kind: "new"; topic?: string; words: string };
+  | { kind: "new"; project?: string; words: string };
 
 /** The longest words a `new` link may bring; a longer one opens nothing. */
 export const OUTSIDE_WORDS_MAX = 2000;
@@ -113,7 +113,7 @@ const UNSEEN =
 /**
  * Reads a link handed to the app from outside: a browser, another app, a
  * note. Everything a noun names is a screen, `file` a path, and `new` the
- * one verb, `instrument://new?text=<words>&topic=<id>`, a new chat's draft
+ * one verb, `instrument://new?text=<words>&project=<id>`, a new chat's draft
  * that is never sent for the person.
  */
 export function outsideLinkOf(url: string): OutsideLink | undefined {
@@ -142,10 +142,10 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
   if (words.length > OUTSIDE_WORDS_MAX) {
     return undefined;
   }
-  const topic = parsed.searchParams.get("topic") ?? undefined;
+  const project = parsed.searchParams.get("project") ?? undefined;
   return {
     kind: "new",
-    ...(topic !== undefined && NAME.test(topic) ? { topic } : {}),
+    ...(project !== undefined && NAME.test(project) ? { project } : {}),
     words,
   };
 }

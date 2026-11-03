@@ -9,13 +9,13 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { type ChatGrant } from "../permissions/rules";
 import { folderReach } from "./folder-reach";
-import { type ListedTopic } from "./topics";
+import { type ListedProject } from "./projects";
 
 const world = vi.hoisted(() => ({
   missing: new Set<string>(),
   places: {} as Record<string, "allow" | "ask" | "never">,
   tagged: undefined as string | undefined,
-  topics: [] as ListedTopic[],
+  projects: [] as ListedProject[],
 }));
 
 vi.mock(import("../record-folders"), async (importOriginal) => ({
@@ -24,11 +24,11 @@ vi.mock(import("../record-folders"), async (importOriginal) => ({
 }));
 vi.mock(import("../chat-reads"), () => ({
   ChatReads: {
-    session: () => okAsync({ topic: world.tagged } as never),
+    session: () => okAsync({ project: world.tagged } as never),
   } as never,
 }));
-vi.mock(import("./topics"), () => ({
-  listTopics: () => Promise.resolve(world.topics),
+vi.mock(import("./projects"), () => ({
+  listProjects: () => Promise.resolve(world.projects),
 }));
 vi.mock(import("../permissions/rules"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -36,7 +36,7 @@ vi.mock(import("../permissions/rules"), async (importOriginal) => ({
     Promise.resolve({
       apps: [],
       chats: {},
-      topics: {},
+      projects: {},
       folders: [],
       places: world.places,
       dangerouslyAllowEveryFolder: false,
@@ -71,7 +71,7 @@ async function reach(grants: ChatGrant[]) {
   });
 }
 
-function topic(name: string, folders: string[]): ListedTopic {
+function project(name: string, folders: string[]): ListedProject {
   return {
     created: new Date(0),
     folders: folders.map((folderPath) => ({ path: folderPath })),
@@ -83,14 +83,14 @@ function topic(name: string, folders: string[]): ListedTopic {
 beforeEach(() => {
   world.missing = new Set();
   world.places = {};
-  world.topics = [];
+  world.projects = [];
   world.tagged = undefined;
 });
 
 describe("folderReach", () => {
   it("gives the window the home and workspace folders alone", async () => {
     world.tagged = "top_Trips";
-    world.topics = [topic("Trips", [elsewhere])];
+    world.projects = [project("Trips", [elsewhere])];
 
     expect(
       Object.values(await folderReach(WINDOW_ID)).map((folder) => folder.path),
@@ -111,23 +111,23 @@ describe("folderReach", () => {
     ]);
   });
 
-  it("adds what the chat was sent, then its topic's folders that are still there", async () => {
+  it("adds what the chat was sent, then its project's folders that are still there", async () => {
     const recipes = path.resolve(path.sep, "Volumes", "Kitchen", "Recipes");
     const gone = path.resolve(path.sep, "Volumes", "Gone");
-    world.topics = [topic("Cooking", [recipes, gone, elsewhere])];
+    world.projects = [project("Cooking", [recipes, gone, elsewhere])];
     world.tagged = "top_Cooking";
     world.missing = new Set([gone]);
 
     const mounts = await reach(granted({ at: 1, path: elsewhere }));
 
-    // The sent folder and the topic's copy of it are one folder.
+    // The sent folder and the project's copy of it are one folder.
     expect(mounts.slice(2)).toEqual([elsewhere, recipes]);
   });
 
-  // A topic's folder arrives after the folders already sent.
-  it("puts a topic's folder after the folders sent, namesakes included", async () => {
+  // A project's folder arrives after the folders already sent.
+  it("puts a project's folder after the folders sent, namesakes included", async () => {
     const otherArchive = path.resolve(path.sep, "Volumes", "Old", "Archive");
-    world.topics = [topic("History", [otherArchive])];
+    world.projects = [project("History", [otherArchive])];
     world.tagged = "top_History";
 
     const mounts = await reach(granted({ at: 1, path: elsewhere }));
@@ -167,8 +167,8 @@ describe("folderReach", () => {
     ]);
   });
 
-  it("drops a topic's folders once the chat is no longer filed under it", async () => {
-    world.topics = [topic("Cooking", [elsewhere])];
+  it("drops a project's folders once the chat is no longer filed under it", async () => {
+    world.projects = [project("Cooking", [elsewhere])];
     world.tagged = undefined;
 
     expect(await reach([])).toHaveLength(2);

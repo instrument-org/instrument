@@ -269,10 +269,14 @@ describe("isRecordPath", () => {
       data("drafts", "d", "draft.md"),
       true,
     ],
-    ["a topic in Topics", "/Users/sam/Instrument/Topics/Home/TOPIC.md", false],
     [
-      "what a build left in the folder topics were hidden in",
-      data("topics", "Home", "instructions.md"),
+      "a project in Projects",
+      "/Users/sam/Instrument/Projects/Home/AGENTS.md",
+      false,
+    ],
+    [
+      "what a build left in the folder projects were hidden in",
+      data("projects", "Home", "instructions.md"),
       true,
     ],
     ["a skill in Skills", "/Users/sam/Instrument/Skills/brief/SKILL.md", false],

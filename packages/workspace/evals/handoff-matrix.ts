@@ -60,7 +60,7 @@ const CASES: Record<string, string> = {
   "long-chat": "context",
   memory: "context",
   "earlier-preference": "context",
-  "topic-instruction": "context",
+  "project-instruction": "context",
   weather: "research",
   research: "research",
   "long-work": "context",

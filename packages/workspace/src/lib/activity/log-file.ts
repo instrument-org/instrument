@@ -6,10 +6,10 @@ import { DEVICE_ID_PATTERN } from "../records/device-id";
 import { workspaceLayout } from "../workspace-layout";
 import {
   ActivityKindSchema,
-  ActivityPurposeSchema,
+  StoredActivityPurposeSchema,
   type ActivityRow,
   ActivityStatusSchema,
-  ActivitySurfaceSchema,
+  StoredActivitySurfaceSchema,
 } from "./schema";
 
 /**
@@ -46,11 +46,11 @@ const LineSchema = z.object({
     z.object({ requested: nullish(z.string()), served: nullish(z.string()) }),
   ),
   ms: nullish(z.number()),
-  purpose: ActivityPurposeSchema,
+  purpose: StoredActivityPurposeSchema,
   responseId: nullish(z.string()),
   session: nullish(z.string()),
   status: ActivityStatusSchema,
-  surface: nullish(ActivitySurfaceSchema),
+  surface: nullish(StoredActivitySurfaceSchema),
   tokens: nullish(
     z.object({
       cacheRead: nullish(z.number()),

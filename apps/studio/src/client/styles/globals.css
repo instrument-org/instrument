@@ -992,19 +992,19 @@ body {
   }
 }
 
-/* A surface tinted by a topic's color: its mark, a swatch in the picker, the tab being read.
- * Set `--topic-color` to the topic's palette hex (`topicTint()` writes
+/* A surface tinted by a project's color: its mark, a swatch in the picker, the tab being read.
+ * Set `--project-color` to the project's palette hex (`projectTint()` writes
  * that declaration, with the tier's chroma) and paint with the colors this
- * publishes: `--topic-tint-surface` for the fill, `--topic-tint-edge` for the
- * hairline, ring, or hover around it, `--topic-tint-ink` for a letter or a
- * glyph drawn on the fill, `--topic-tint-raised` for something sitting on the
+ * publishes: `--project-tint-surface` for the fill, `--project-tint-edge` for the
+ * hairline, ring, or hover around it, `--project-tint-ink` for a letter or a
+ * glyph drawn on the fill, `--project-tint-raised` for something sitting on the
  * fill and standing off it, such as the tab being read, and
- * `--topic-tint-base` for the swatch that shows the color itself.
+ * `--project-tint-base` for the swatch that shows the color itself.
  *
  * The hue of the chosen color survives, and the tier it was picked from; every
  * other thing about it is rebuilt at a fixed lightness and chroma per theme,
  * so every hue lands exactly as far from the ground as every other and two
- * topics are told apart at a glance in either theme. Rebuilt rather than mixed
+ * projects are told apart at a glance in either theme. Rebuilt rather than mixed
  * into the ground: a mix at the strength a light ground wants came out muddy
  * over a dark one, where the same hue needs less lightness and more chroma to
  * read as a color at all. Light surfaces are the pastel tiles of the design
@@ -1012,53 +1012,53 @@ body {
  *
  * The raised color still mixes into `--card`, since what stands on the fill
  * is standing on the ground a card would, and lands clear of the fill beneath
- * it while staying in the topic's hue.
+ * it while staying in the project's hue.
  *
- * None of these resolves without a `--topic-color`, so a surface that is
- * also drawn for a topic without one paints through a fallback:
- * `var(--topic-tint-surface, var(--background))`. */
-@utility topic-tint {
+ * None of these resolves without a `--project-color`, so a surface that is
+ * also drawn for a project without one paints through a fallback:
+ * `var(--project-tint-surface, var(--background))`. */
+@utility project-tint {
   /* Only the levels are themed, so the colors are written once here rather
      than restated per theme. The tier's chroma scales each: a pale pick is
      the same hue at a softer strength. */
-  --topic-tint-surface-l: 0.93;
-  --topic-tint-surface-c: 0.42;
-  --topic-tint-edge-l: 0.86;
-  --topic-tint-edge-c: 0.7;
-  --topic-tint-ink-l: 0.48;
-  --topic-tint-ink-c: 0.95;
-  --topic-tint-raised-strength: 16%;
+  --project-tint-surface-l: 0.93;
+  --project-tint-surface-c: 0.42;
+  --project-tint-edge-l: 0.86;
+  --project-tint-edge-c: 0.7;
+  --project-tint-ink-l: 0.48;
+  --project-tint-ink-c: 0.95;
+  --project-tint-raised-strength: 16%;
 
-  --topic-tint-base: oklch(
-    from var(--topic-color) var(--topic-lightness, 0.62)
-      var(--topic-chroma, 0.11) h
+  --project-tint-base: oklch(
+    from var(--project-color) var(--project-lightness, 0.62)
+      var(--project-chroma, 0.11) h
   );
-  --topic-tint-surface: oklch(
-    from var(--topic-color) var(--topic-tint-surface-l)
-      calc(var(--topic-chroma, 0.11) * var(--topic-tint-surface-c)) h
+  --project-tint-surface: oklch(
+    from var(--project-color) var(--project-tint-surface-l)
+      calc(var(--project-chroma, 0.11) * var(--project-tint-surface-c)) h
   );
-  --topic-tint-edge: oklch(
-    from var(--topic-color) var(--topic-tint-edge-l)
-      calc(var(--topic-chroma, 0.11) * var(--topic-tint-edge-c)) h
+  --project-tint-edge: oklch(
+    from var(--project-color) var(--project-tint-edge-l)
+      calc(var(--project-chroma, 0.11) * var(--project-tint-edge-c)) h
   );
-  --topic-tint-ink: oklch(
-    from var(--topic-color) var(--topic-tint-ink-l)
-      calc(var(--topic-chroma, 0.11) * var(--topic-tint-ink-c)) h
+  --project-tint-ink: oklch(
+    from var(--project-color) var(--project-tint-ink-l)
+      calc(var(--project-chroma, 0.11) * var(--project-tint-ink-c)) h
   );
-  --topic-tint-raised: color-mix(
+  --project-tint-raised: color-mix(
     in oklab,
-    var(--topic-tint-base) var(--topic-tint-raised-strength),
+    var(--project-tint-base) var(--project-tint-raised-strength),
     var(--card)
   );
 
   :is(.dark *) & {
-    --topic-tint-surface-l: 0.38;
-    --topic-tint-surface-c: 0.75;
-    --topic-tint-edge-l: 0.46;
-    --topic-tint-edge-c: 0.9;
-    --topic-tint-ink-l: 0.84;
-    --topic-tint-ink-c: 0.7;
-    --topic-tint-raised-strength: 45%;
+    --project-tint-surface-l: 0.38;
+    --project-tint-surface-c: 0.75;
+    --project-tint-edge-l: 0.46;
+    --project-tint-edge-c: 0.9;
+    --project-tint-ink-l: 0.84;
+    --project-tint-ink-c: 0.7;
+    --project-tint-raised-strength: 45%;
   }
 }
 

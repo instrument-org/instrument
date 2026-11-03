@@ -37,7 +37,7 @@ import { writeUploadedAttachments } from "./write-uploaded-attachments";
  * its tool definitions, are a function of the chat's records alone: the same
  * on another computer, after the workspace moves, after a provider is
  * connected, after a restart, and after the files the agent reads live
- * (handoff notes, a topic, a skill, an app, a memory) are edited.
+ * (handoff notes, a project, a skill, an app, a memory) are edited.
  *
  * One chat is written on one computer and its request rendered there, then
  * the workspace is copied to another computer (another root, home folder,

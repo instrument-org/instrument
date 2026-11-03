@@ -34,14 +34,14 @@ describe("applying ops", () => {
 
   it("sets and clears fields, stamping the draft only when the update says when", () => {
     const [stamped] = applyDraftOps(
-      [draft("a", { topicId: "house" })],
+      [draft("a", { projectId: "house" })],
       [
         {
           at: 5,
           id: "a",
           set: { words: "Plan the trip" },
           type: "update",
-          unset: ["topicId"],
+          unset: ["projectId"],
         },
       ],
     );
@@ -130,17 +130,17 @@ describe("a chat's replies", () => {
 describe("the update between two drafts", () => {
   it("names only the fields that changed, and the ones cleared", () => {
     const from = draft("a", {
-      topicId: "house",
-      topicSource: "chosen",
+      projectId: "house",
+      projectSource: "chosen",
       words: "a",
     });
-    const to = draft("a", { topicId: "money", words: "a" });
+    const to = draft("a", { projectId: "money", words: "a" });
     expect(draftUpdateOf(from, to, 9)).toEqual({
       at: 9,
       id: "a",
-      set: { topicId: "money" },
+      set: { projectId: "money" },
       type: "update",
-      unset: ["topicSource"],
+      unset: ["projectSource"],
     });
   });
 

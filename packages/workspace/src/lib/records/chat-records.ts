@@ -1615,7 +1615,7 @@ type Settled = Pick<
   | "starredAt"
   | "title"
   | "titleSettledAt"
-  | "topic"
+  | "project"
   | "unreadAt"
   | "unreadByUser"
 >;
@@ -1657,8 +1657,8 @@ function settingsBetween(was: Settled, now: Session.Type): SettingChange[] {
             : "new",
     });
   }
-  if ((was.topic ?? null) !== (now.topic ?? null)) {
-    changes.push({ field: "topic", value: now.topic ?? null });
+  if ((was.project ?? null) !== (now.project ?? null)) {
+    changes.push({ field: "project", value: now.project ?? null });
   }
   return changes;
 }
@@ -2007,8 +2007,8 @@ function withSetting(
       return { ...settings, starred: setting };
     case "title":
       return { ...settings, title: setting };
-    case "topic":
-      return { ...settings, topic: setting };
+    case "project":
+      return { ...settings, project: setting };
     case "unread":
       return { ...settings, unread: setting };
   }

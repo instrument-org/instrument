@@ -2,7 +2,7 @@ import { SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { browserStatusModelNote } from "./browser-status-model-text";
-import { topicModelNote } from "./topic-model-text";
+import { projectModelNote } from "./project-model-text";
 import { viewContextModelNote } from "./view-context-model-text";
 import { workspaceInstructionsModelNote } from "./workspace-instructions-model-text";
 
@@ -36,9 +36,9 @@ const STATE_NOTES: { [K in StateName]: StateNote<K> } = {
     isEmpty: (data) => data.status === "tabs" && data.tabs.length === 0,
     note: browserStatusModelNote,
   },
-  topic: {
-    isEmpty: (data) => data.topic === null,
-    note: topicModelNote,
+  project: {
+    isEmpty: (data) => data.project === null,
+    note: projectModelNote,
   },
   viewContext: {
     isEmpty: () => false,
@@ -122,8 +122,8 @@ function stateOf(part: SessionMessagePart.Type):
     case "data-browserStatus": {
       return entry("browserStatus", part.data);
     }
-    case "data-topic": {
-      return entry("topic", part.data);
+    case "data-project": {
+      return entry("project", part.data);
     }
     case "data-viewContext": {
       return entry("viewContext", part.data);

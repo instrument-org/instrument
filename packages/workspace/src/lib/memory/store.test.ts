@@ -91,7 +91,7 @@ describe("saveMemory", () => {
       [
         "---",
         "updated: 2026-10-14T18:22:04Z",
-        "topic: Kitchen",
+        "project: Kitchen",
         "---",
         "No stevia.",
         "",
@@ -102,7 +102,7 @@ describe("saveMemory", () => {
     await saveMemory(dir, { name: "sweetener", text: "Stevia is fine." });
 
     const written = await fs.readFile(file, "utf8");
-    expect(written).toContain("topic: Kitchen");
+    expect(written).toContain("project: Kitchen");
     expect(written).toContain("Stevia is fine.");
   });
 

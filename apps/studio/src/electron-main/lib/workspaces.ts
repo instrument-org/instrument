@@ -28,7 +28,7 @@ import {
  *
  * A workspace is a folder: the person's own work at the top level, and
  * everything the app keeps for it that travels with it under `.instrument/`
- * (its identity, its preferences, its chats, drafts and topics, laid out by
+ * (its identity, its preferences, its chats, drafts and projects, laid out by
  * `workspaceLayout`). What is this computer's own about it (keys,
  * Chromium profiles, window state, folder rules) is in its machine folder,
  * `<userData>/machine/<local id>/`, named by the short id this machine's

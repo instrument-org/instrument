@@ -18,7 +18,12 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
 import { PlaceIcon } from "./place-icons";
 import { ChatRow } from "./chat-row";
-import { byLastUserMessage, byActivity, type Chat, type Topic } from "./chats";
+import {
+  byLastUserMessage,
+  byActivity,
+  type Chat,
+  type Project,
+} from "./chats";
 import { DraftRow } from "./draft-row";
 import { type RowAction } from "./row-shell";
 import { useNow } from "./use-now";
@@ -42,10 +47,10 @@ const ListedChat = memo(function ListedChat({
   handlers: RefObject<{
     onArchived: (chat: Chat) => void;
     onDelete: (chat: Chat) => void;
-    onNewTopic: (chat: Chat, name?: string) => void;
+    onNewProject: (chat: Chat, name?: string) => void;
     onOpen: (chat: Chat) => void;
     onPopOut: ((chat: Chat) => void) | undefined;
-    onSetTopic: (chat: Chat, topic: null | string) => void;
+    onSetProject: (chat: Chat, project: null | string) => void;
   }>;
   isArriving: boolean;
   isOpen: boolean;
@@ -53,7 +58,7 @@ const ListedChat = memo(function ListedChat({
   isOut: boolean;
   now: Date;
   search: string;
-  topics: Topic[];
+  projects: Project[];
 }) {
   // First on the tile and beside the ways to open it in the menu, while the
   // chat is not already up in a window of its own; one put down to the bar
@@ -89,14 +94,14 @@ const ListedChat = memo(function ListedChat({
       onDelete={() => {
         handlers.current.onDelete(chat);
       }}
-      onNewTopic={(name) => {
-        handlers.current.onNewTopic(chat, name);
+      onNewProject={(name) => {
+        handlers.current.onNewProject(chat, name);
       }}
       onOpen={() => {
         handlers.current.onOpen(chat);
       }}
-      onSetTopic={(next) => {
-        handlers.current.onSetTopic(chat, next);
+      onSetProject={(next) => {
+        handlers.current.onSetProject(chat, next);
       }}
     />
   );
@@ -141,18 +146,18 @@ export function ChatList({
   onArchiveOpen,
   onDelete,
   onDeleteDraft,
-  onNewTopic,
+  onNewProject,
   onOpen,
   onOpenDraft,
   onPopOut,
-  onSetTopic,
+  onSetProject,
   onWiden,
   openId,
   outIds,
   outside = 0,
   scrollSignal,
   search = "",
-  topics,
+  projects,
 }: {
   appsBySlug: AppsBySlug;
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
@@ -169,14 +174,14 @@ export function ChatList({
   /** Asks before a chat goes to the trash, through the caller's dialog. */
   onDelete: (chat: Chat) => void;
   onDeleteDraft: (id: string) => void;
-  /** Opens the new-topic dialog for a chat: the topic it makes is filed on that chat. */
-  onNewTopic: (chat: Chat, name?: string) => void;
+  /** Opens the new-project dialog for a chat: the project it makes is filed on that chat. */
+  onNewProject: (chat: Chat, name?: string) => void;
   onOpen: (chat: Chat) => void;
   onOpenDraft: (id: string) => void;
   /** Floats a chat in a window of its own over the row; a row offers it only when given. */
   onPopOut?: (chat: Chat) => void;
-  onSetTopic: (chat: Chat, topic: null | string) => void;
-  /** Lifts the place, topic, and app filters so the search reads every chat. */
+  onSetProject: (chat: Chat, project: null | string) => void;
+  /** Lifts the place, project, and app filters so the search reads every chat. */
   onWiden?: () => void;
   /** The chat open beside the list, which its row is marked as. */
   openId: string | undefined;
@@ -188,7 +193,7 @@ export function ChatList({
   scrollSignal: number | string;
   /** The words a row marks where they turn up: the search the chats were found by, when they were found by their words. */
   search?: string;
-  topics: Topic[];
+  projects: Project[];
 }) {
   const now = useNow();
   const ref = useRef<HTMLDivElement>(null);
@@ -205,19 +210,19 @@ export function ChatList({
   const handlers = useRef({
     onArchived,
     onDelete,
-    onNewTopic,
+    onNewProject,
     onOpen,
     onPopOut,
-    onSetTopic,
+    onSetProject,
   });
   useLayoutEffect(() => {
     handlers.current = {
       onArchived,
       onDelete,
-      onNewTopic,
+      onNewProject,
       onOpen,
       onPopOut,
-      onSetTopic,
+      onSetProject,
     };
   });
   useLayoutEffect(() => {
@@ -241,7 +246,7 @@ export function ChatList({
             onOpen={() => {
               onOpenDraft(draft.id);
             }}
-            topics={topics}
+            projects={projects}
           />
         ),
       }))
@@ -261,7 +266,7 @@ export function ChatList({
             isOut={outIds?.has(chat.id) ?? false}
             now={now}
             search={search}
-            topics={topics}
+            projects={projects}
           />
         ),
       }));
@@ -343,7 +348,7 @@ export function ChatList({
   return (
     // Fading into the head over it once there is anything scrolled under
     // it, and at its foot while there is more below. No pad at the top: the
-    // first row's hairline meets the head, tinted as it is under a topic.
+    // first row's hairline meets the head, tinted as it is under a project.
     <div
       className={cn(
         "min-h-0 flex-1 overflow-y-auto pb-4",

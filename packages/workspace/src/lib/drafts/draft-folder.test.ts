@@ -221,12 +221,12 @@ describe("the drafts folder", () => {
   it("gives a draft written by hand an id, and writes it into the file", async () => {
     const file = path.join(draftsFolderDir(rootDir), "Mine", "DRAFT.md");
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, "---\ntopic: tpc_01KF\n---\nCall the plumber.\n");
+    fs.writeFileSync(file, "---\nproject: tpc_01KF\n---\nCall the plumber.\n");
 
     const [read] = await readDrafts(rootDir);
 
     expect(read?.draft).toMatchObject({
-      topic: "tpc_01KF",
+      project: "tpc_01KF",
       words: "Call the plumber.",
     });
     expect(fs.readFileSync(file, "utf8")).toContain(

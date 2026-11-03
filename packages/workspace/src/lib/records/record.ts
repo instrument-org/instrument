@@ -17,7 +17,7 @@ import { GENERATION_PATTERN } from "./file-names";
  * A log (`<session>.<device>.jsonl`) holds one session's records from one
  * device and starts with a `session` header; a settings file
  * (`settings.<device>.jsonl`) holds every per-chat value one device set
- * (a session's title, star, archive, unread, topic, the chat's model) and
+ * (a session's title, star, archive, unread, project, the chat's model) and
  * has no header. `seq` counts up from 0 within a file. Dates are ISO strings on
  * disk and `Date`s once read, and a field that is `undefined` is left out.
  */
@@ -217,8 +217,8 @@ const SettingRecordSchema = z.discriminatedUnion("field", [
    * person's and does not. `null` is read.
    */
   settingSchema("unread", z.enum(["marked", "new"]).nullable()),
-  /** The topic id the chat is filed under; `null` is none. */
-  settingSchema("topic", z.string().nullable()),
+  /** The project id the chat is filed under; `null` is none. */
+  settingSchema("project", z.string().nullable()),
   /**
    * The model every session of the chat runs on, as the whole model URI,
    * set on the chat's own session. Kept as written: a URI this build cannot
@@ -242,14 +242,23 @@ export function parseLogLine(text: string): LogRecord | undefined {
   return parseLine(text, LogRecordSchema);
 }
 
-/** The setting a settings file's line holds, or nothing for a line that is not one. */
+/**
+ * The setting a settings file's line holds, or nothing for a line that is not
+ * one. A line from a build that called a project a topic names its field
+ * `topic`, and reads as the `project` it is.
+ */
 export function parseSettingLine(text: string): SettingRecord | undefined {
-  return parseLine(text, SettingRecordSchema);
+  return parseLine(text, SettingRecordSchema, (value) =>
+    isRecord(value) && value.field === "topic"
+      ? { ...value, field: "project" }
+      : value,
+  );
 }
 
 function parseLine<S extends z.ZodType>(
   text: string,
   schema: S,
+  prepare: (value: unknown) => unknown = (value) => value,
 ): z.output<S> | undefined {
   let value: unknown;
   try {
@@ -257,7 +266,7 @@ function parseLine<S extends z.ZodType>(
   } catch {
     return undefined;
   }
-  const parsed = schema.safeParse(value);
+  const parsed = schema.safeParse(prepare(value));
   return parsed.success ? parsed.data : undefined;
 }
 

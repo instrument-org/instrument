@@ -65,7 +65,7 @@ The skills Instrument's tasks can use, and making a new one.
 
 Where your Instrument folder is, and chats in it that can’t be opened.
 
-- **Instrument folder** (`instrument-folder`): Where your chats, topics, and memories are kept, and moving them.
+- **Instrument folder** (`instrument-folder`): Where your chats, projects, and memories are kept, and moving them.
 - **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
 
 ### Activity (`activity`)

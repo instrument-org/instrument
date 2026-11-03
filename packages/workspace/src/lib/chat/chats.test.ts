@@ -53,7 +53,7 @@ import {
   startChatUnreadOnSettle,
   renameChat,
   setChatStarred,
-  setChatTopic,
+  setChatProject,
   settleChatTitle,
   unarchiveChat,
 } from "./chats";
@@ -61,7 +61,7 @@ import { updateSessionTitle } from "../update-session-title";
 import { chatRowAsked, liveChatList } from "./live-chat-list";
 import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
 import { workspaceLayout } from "../workspace-layout";
-import { createTopic } from "./topics";
+import { createProject } from "./projects";
 
 const running = vi.hoisted(() => {
   const value: ChatActivity["running"] = [];
@@ -112,7 +112,7 @@ let counter = 0;
 /** Every root a case made, removed after it. */
 const roots: string[] = [];
 /**
- * A workspace of its own: chats, topics and the window's state all live
+ * A workspace of its own: chats, projects and the window's state all live
  * under the root, so each test gets one.
  */
 const freshChat = async () => {
@@ -783,18 +783,18 @@ describe("listChats", () => {
     },
   );
 
-  it("carries the topic a chat is filed under, and files it under none for an id that is not one", async () => {
+  it("carries the project a chat is filed under, and files it under none for an id that is not one", async () => {
     const chatId = await freshChat();
-    const home = await createTopic({ name: "Home" });
+    const home = await createProject({ name: "Home" });
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list");
     const id = await chatFor(sessionId);
 
-    await setChatTopic(id, home.id);
-    expect((await listChats())[0]?.topic).toBe(home.id);
+    await setChatProject(id, home.id);
+    expect((await listChats())[0]?.project).toBe(home.id);
 
-    await setChatTopic(id, "top_nothing");
-    expect((await listChats())[0]?.topic).toBeUndefined();
+    await setChatProject(id, "top_nothing");
+    expect((await listChats())[0]?.project).toBeUndefined();
   });
 
   it("puts a chat away and brings it back, without moving its stamp", async () => {
@@ -1824,7 +1824,7 @@ describe("liveChatList", () => {
     stop();
   });
 
-  // A window paints the topic from the click; a topic removed before the
+  // A window paints the project from the click; a project removed before the
   // request lands files the chat under none, which writes nothing, so the
   // only answer that takes the paint back is the same list sent again.
   it("answers a request to change a row with the row as it stands, though nothing changed", async () => {
@@ -1834,7 +1834,7 @@ describe("liveChatList", () => {
     const id = await chatFor(sessionId);
     const { first, next, stop } = await open();
 
-    await setChatTopic(id, "top_removed");
+    await setChatProject(id, "top_removed");
     recordChanged(id, "settings");
     expect(await next()).toBeUndefined();
 

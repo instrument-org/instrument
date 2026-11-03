@@ -76,7 +76,7 @@ const MAX_MOVES_FOLLOWED = 4;
  *
  * - Settings › Permissions: the folder rules the person added, the folders
  *   and files opened to one chat, the folders they said not now to, and the
- *   folders granted under each topic.
+ *   folders granted under each project.
  * - A file or folder attached to a draft, in its `DRAFT.md`.
  * - Every store registered with `registerStoredPaths`, which the app keeps
  *   and this does not open: the Files tabs a window is left on, and the
@@ -167,16 +167,16 @@ function rewritePermissions({
         : {}),
     };
   };
-  /** One topic's granted folders, where those are now. */
-  const movedTopic = (topic: unknown): unknown =>
-    isRecord(topic) && Array.isArray(topic.folders)
+  /** One project's granted folders, where those are now. */
+  const movedProject = (project: unknown): unknown =>
+    isRecord(project) && Array.isArray(project.folders)
       ? {
-          ...topic,
-          folders: topic.folders.map((folder: unknown) =>
+          ...project,
+          folders: project.folders.map((folder: unknown) =>
             movedPath(folder, "path"),
           ),
         }
-      : topic;
+      : project;
   try {
     updateJsonRecordSync(file, (held) => {
       const next = {
@@ -197,12 +197,24 @@ function rewritePermissions({
               ),
             }
           : {}),
+        ...(isRecord(held.projects)
+          ? {
+              projects: Object.fromEntries(
+                Object.entries(held.projects).map(([projectId, project]) => [
+                  projectId,
+                  movedProject(project),
+                ]),
+              ),
+            }
+          : {}),
+        // Where a build that called projects topics kept them, until the
+        // file is next written under `projects`.
         ...(isRecord(held.topics)
           ? {
               topics: Object.fromEntries(
-                Object.entries(held.topics).map(([topicId, topic]) => [
-                  topicId,
-                  movedTopic(topic),
+                Object.entries(held.topics).map(([projectId, project]) => [
+                  projectId,
+                  movedProject(project),
                 ]),
               ),
             }

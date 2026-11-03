@@ -255,18 +255,15 @@ export async function buildBashFs(
         })
       : new ReadWriteFs({ maxFileReadSize, root });
     // The setup folders this mount reaches, whose writes say what a turn
-    // did to the person's skills, apps, topics and memories.
-    const setupFolders = (["app", "memory", "skill", "topic"] as const).flatMap(
-      (kind) => {
-        const within = hostPathWithin(
-          mount.hostRoot,
-          SETUP_KINDS[kind].folder(),
-        );
-        return within === null
-          ? []
-          : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
-      },
-    );
+    // did to the person's skills, apps, projects and memories.
+    const setupFolders = (
+      ["app", "memory", "skill", "project"] as const
+    ).flatMap((kind) => {
+      const within = hostPathWithin(mount.hostRoot, SETUP_KINDS[kind].folder());
+      return within === null
+        ? []
+        : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
+    });
     if (setupFolders.length > 0) {
       mounted = setupTrackingFs(mounted, setupFolders);
     }

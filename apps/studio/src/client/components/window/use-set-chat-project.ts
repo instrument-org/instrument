@@ -7,19 +7,19 @@ import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
 
 /**
- * Files a chat under a topic, or under none with `null`, and paints the
+ * Files a chat under a project, or under none with `null`, and paints the
  * pill from the click rather than from the round trip: the list beside the
  * chat is a live read of every chat's messages, re-run on the change, and
  * the pill waiting on that read made filing feel slow. The live read's next
  * answer is the truth, and replaces the paint either way.
  */
-export function useSetChatTopic() {
+export function useSetChatProject() {
   const queryClient = useQueryClient();
   const key = chatListOptions().queryKey;
   const mutation = useMutation(
-    rpcClient.workspace.chats.setTopic.mutationOptions({
+    rpcClient.workspace.chats.setProject.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't change the chat's topic", { cause: error });
+        toast.error("Couldn't change the chat's project", { cause: error });
         void queryClient.invalidateQueries({ queryKey: key });
       },
       onMutate: (input) => {
@@ -28,14 +28,14 @@ export function useSetChatTopic() {
             if (chat.id !== input.id) {
               return chat;
             }
-            const { topic: _was, ...rest } = chat;
-            return input.topic ? { ...rest, topic: input.topic } : rest;
+            const { project: _was, ...rest } = chat;
+            return input.project ? { ...rest, project: input.project } : rest;
           }),
         );
       },
     }),
   );
-  return (id: ChatId, topic: null | string) => {
-    mutation.mutate({ id, topic });
+  return (id: ChatId, project: null | string) => {
+    mutation.mutate({ id, project });
   };
 }

@@ -194,12 +194,14 @@ function draftOf({
   settings: Record<string, unknown>;
   words: string;
 }): DraftFile {
+  // The builds that hid drafts called a project a topic, and kept its id as
+  // `topicId`.
   const { createdAt, topicId, updatedAt } = settings;
   const created = momentOf(createdAt) ?? new Date();
   return {
     created,
     id,
-    ...(typeof topicId === "string" && topicId ? { topic: topicId } : {}),
+    ...(typeof topicId === "string" && topicId ? { project: topicId } : {}),
     updated: momentOf(updatedAt) ?? created,
     words,
   };

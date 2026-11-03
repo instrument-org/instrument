@@ -9,7 +9,7 @@ A retroactive review of the workspace-layout merge and what landed around it, re
 ### A. The agent can widen its own folder access by editing a topic file
 
 - Status: fixed `5a3e53972`
-- Where: [folder-reach.ts:130](/packages/workspace/src/lib/chat/folder-reach.ts#L130), [topic-file.ts:52](/packages/workspace/src/lib/chat/topic-file.ts#L52), [rules.ts:411](/packages/workspace/src/lib/permissions/rules.ts#L411)
+- Where: [folder-reach.ts:130](/packages/workspace/src/lib/chat/folder-reach.ts#L130), [project-file.ts](/packages/workspace/src/lib/chat/project-file.ts) (then `topic-file.ts`), [rules.ts:411](/packages/workspace/src/lib/permissions/rules.ts#L411)
 - What: once the person picks a workspace folder, its top level is the agent's output folder, so the agent can add a `folders:` list to a `TOPIC.md`. The next command rereads it and the topic's folders become allow rules ranked as grants, above a Not allowed folder and the built-in places, with no card. The file also syncs, so a grant made on one computer opens the same-named path on another.
 - Note: `0e8511308` closes the follow-on case of a computer new to the workspace importing every `folders:` key at launch.
 

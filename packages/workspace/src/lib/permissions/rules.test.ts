@@ -23,7 +23,7 @@ const inHome = (relative: string) => nodePath.join(home, relative);
 const settings = {
   apps: [],
   chats: {},
-  topics: {},
+  projects: {},
   folders: [],
   places: {},
   dangerouslyAllowEveryFolder: false,

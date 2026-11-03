@@ -1,5 +1,8 @@
 import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
-import { type ChatId } from "@instrument-org/workspace/electron";
+import {
+  type ChatId,
+  folderProjectId,
+} from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -115,6 +118,41 @@ describe("a window's ops", () => {
     });
   });
 
+  // A folder the person made in Projects/ goes by an id drawn from its name
+  // until something keeps that id, so a draft filed under it writes it down,
+  // and renaming the folder before the draft is sent keeps the draft in it.
+  it("write down the id of a project a draft is filed under", async () => {
+    fs.mkdirSync(path.join(root, "Projects", "Travel"), { recursive: true });
+    const id = folderProjectId("Travel");
+    const { apply } = await open();
+
+    apply({
+      draft: draft("a", {
+        projectId: id,
+        projectSource: "chosen",
+        words: "Plan the trip",
+      }),
+      type: "create",
+    });
+    await vi.waitFor(() => {
+      expect(
+        fs.existsSync(path.join(root, "Projects", "Travel", "AGENTS.md")),
+      ).toBe(true);
+    });
+    fs.renameSync(
+      path.join(root, "Projects", "Travel"),
+      path.join(root, "Projects", "Trips"),
+    );
+
+    expect(read()).toContain(`project: "${id}"`);
+    expect(
+      fs.readFileSync(
+        path.join(root, "Projects", "Trips", "AGENTS.md"),
+        "utf8",
+      ),
+    ).toContain(`id: ${id}\n`);
+  });
+
   it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {
     const { apply, store } = await open();
     apply({ draft: draft("a"), type: "create" });
@@ -160,8 +198,8 @@ describe("a window's ops", () => {
           { kind: "folder", path: plans },
           { kind: "link", url: "https://example.com/" },
         ],
-        topicId: "top_1",
-        topicSource: "suggested",
+        projectId: "top_1",
+        projectSource: "suggested",
         words: "Plan",
       }),
       type: "create",
@@ -189,7 +227,7 @@ describe("a window's ops", () => {
       type: "update",
     });
 
-    // A topic the model suggested is the window's alone.
+    // A project the model suggested is the window's alone.
     expect(read()).toMatchInlineSnapshot(`
       "---
       id: "a"
@@ -443,11 +481,11 @@ describe("what the folder has that the store has not read yet", () => {
   it("is taken in before a window's change is written over it", async () => {
     const { apply, store } = await open();
     apply({ draft: draft("a", { words: "Plan" }), type: "create" });
-    // Another device files the draft under a topic, and its file arrives
+    // Another device files the draft under a project, and its file arrives
     // before the watcher has said so.
     fs.writeFileSync(
       fileOf(),
-      read().replace("---\n\nPlan", 'topic: "travel"\n---\n\nPlan'),
+      read().replace("---\n\nPlan", 'project: "travel"\n---\n\nPlan'),
     );
 
     apply({
@@ -458,10 +496,10 @@ describe("what the folder has that the store has not read yet", () => {
     });
 
     expect(store.snapshot().drafts[0]).toMatchObject({
-      topicId: "travel",
+      projectId: "travel",
       words: "Plan the trip",
     });
-    expect(read()).toContain('topic: "travel"');
+    expect(read()).toContain('project: "travel"');
   });
 
   it("leaves a draft whose file cannot be read for the moment as it was", async () => {

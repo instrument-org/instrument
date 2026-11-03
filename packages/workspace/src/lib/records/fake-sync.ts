@@ -512,7 +512,7 @@ export function simulateChat(random: Random): SimulatedChat {
       case 3:
         return {
           ...base,
-          field: "topic",
+          field: "project",
           value: random.chance(0.5) ? null : "work",
         };
       default:

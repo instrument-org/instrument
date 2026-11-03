@@ -206,8 +206,8 @@ const PURPOSE_LABELS: Record<Row["purpose"], string> = {
   "settings-search": "Settings search",
   task: "Task",
   "title-check": "Title check",
-  "topic-backfill": "Topic sorting",
-  "topic-suggestion": "Topic suggestion",
+  "project-backfill": "Project sorting",
+  "project-suggestion": "Project suggestion",
   "web-search": "Web search",
   "x-search": "X search",
 };
@@ -218,7 +218,7 @@ const SURFACE_LABELS: Record<NonNullable<Row["surface"]>, string> = {
   chats: "Chats",
   draft: "Draft",
   settings: "Settings",
-  topics: "Topics",
+  projects: "Projects",
 };
 
 const STATUS_LABELS: Record<Row["status"], string> = {
@@ -320,7 +320,7 @@ function originHref(row: Row) {
       return APPS_HREF;
     }
     case "chats":
-    case "topics": {
+    case "projects": {
       return CHATS_HREF;
     }
     default: {

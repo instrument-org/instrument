@@ -465,10 +465,10 @@ const COPY_MARK_FILE = "move-copy-mark";
  *    (`.instrument.moved-<pid>-<time>`), a rename on its own volume, so no
  *    launch and no folder pick finds records in `<from>` again.
  * 4. The rest of `<from>`'s top level, the person's own (their chats,
- *    drafts, topics, memories, skills and apps), moves in beside the records
+ *    drafts, projects, memories, skills and apps), moves in beside the records
  *    where its name is free; a file manager's records go.
  * 5. Every path the app stored into `<from>` is written in the new folder
- *    (`rewriteStoredPaths`): the folder rules, a chat's grants, a topic's
+ *    (`rewriteStoredPaths`): the folder rules, a chat's grants, a project's
  *    folders, a draft's attachments, the Files tabs a window is left on and
  *    the person's recent files.
  * 6. Last, the original set aside is deleted, and `<from>` removed once

@@ -92,7 +92,7 @@ describe("bringing the hidden drafts out", () => {
         id: "01KFD1"
         created: 2026-10-14T18:22:04Z
         updated: 2026-10-14T18:25:00Z
-        topic: "tpc_01KF"
+        project: "tpc_01KF"
         ---
 
         Find a quiet dishwasher.

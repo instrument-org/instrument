@@ -39,7 +39,7 @@ export const EVERY_KIND_SESSION: ChatDbSessionRow = {
   starredAt: at(20),
   title: "Plans for the trip",
   titleSettledAt: at(10),
-  topic: "travel",
+  project: "travel",
   unreadAt: at(40),
   unreadByUser: true,
   updatedAt: at(100),
@@ -188,7 +188,7 @@ function text(session: StoreId.Session, n: number, words: string) {
 
 /**
  * A chat with every kind of record: a settled title, star, archive, unread,
- * topic and a Stop on the chat's own session, a rollover; a task forked
+ * project and a Stop on the chat's own session, a rollover; a task forked
  * from it, which the person stopped; user, assistant and context messages
  * with text, reasoning, data parts (one of a type no build reads) and tool
  * calls in every state; an image and a PDF a tool returned, the image twice;

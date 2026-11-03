@@ -33,7 +33,7 @@ import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { shownTitleFrom } from "./shown-title";
 import { excerptOf } from "./standing";
-import { listTopics } from "./topics";
+import { saveProjectId } from "./projects";
 import { hasWakeOnItsWay } from "./wake-queue";
 import { isStopNote } from "./wake-event";
 import { chatStateOf, chatWorks } from "./chat-state";
@@ -137,8 +137,8 @@ export const ChatSchema = z.object({
    * one the user typed, which the window sweeps in when it changes on screen.
    */
   titleByApp: z.boolean(),
-  /** The topic's id, from the session record; absent when it is filed under none. */
-  topic: z.string().optional(),
+  /** The project's id, from the session record; absent when it is filed under none. */
+  project: z.string().optional(),
   /** Whether something in the chat has not been looked at: the mark on its session record. */
   unread: z.boolean(),
   /** Whether the user set that mark themselves, which holds until they come back to the chat. */
@@ -472,18 +472,19 @@ export async function setChatStarred(
 }
 
 /**
- * Files a chat under a topic, by id, or under none with `null`. An id the
- * workspace has no topic for files it under none, so the record never
- * names a topic that was never made.
+ * Files a chat under a project, by id, or under none with `null`. An id the
+ * workspace has no project for files it under none, so the record never
+ * names a project that was never made, and a project's id is written into
+ * its file first, so a rename of its folder keeps the chat in it.
  */
-export async function setChatTopic(
+export async function setChatProject(
   chatId: ChatId,
-  topicId: null | string,
+  projectId: null | string,
 ): Promise<boolean> {
-  const known = (await listTopics()).some((topic) => topic.id === topicId);
+  const known = projectId !== null && (await saveProjectId(projectId));
   return saveMark(chatId, (session) => {
-    const { topic: _was, ...rest } = session;
-    return { ...rest, ...(known && topicId ? { topic: topicId } : {}) };
+    const { project: _was, ...rest } = session;
+    return { ...rest, ...(known && projectId ? { project: projectId } : {}) };
   });
 }
 
@@ -742,7 +743,7 @@ async function chatFor(
     title: shownTitleFrom(session.title, digest.firstAsk),
     titleByApp: session.titleByApp === true,
     titled: !isUntitledChatSessionTitle(session.title),
-    ...(session.topic ? { topic: session.topic } : {}),
+    ...(session.project ? { project: session.project } : {}),
     unread: session.unreadAt !== undefined,
     unreadByUser: session.unreadByUser === true,
     // When anything last happened: the session's own stamp moves when a turn

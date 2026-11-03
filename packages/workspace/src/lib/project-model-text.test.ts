@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { topicModelNote } from "./topic-model-text";
+import { projectModelNote } from "./project-model-text";
 
-describe("topicModelNote", () => {
-  it("names the topic, then gives its instructions and folders", () => {
+describe("projectModelNote", () => {
+  it("names the project, then gives its instructions and folders", () => {
     expect(
-      topicModelNote({
-        topic: {
+      projectModelNote({
+        project: {
           about: "getting away",
           emoji: "✈️",
           folders: ["/Users/sam/Trips", "/Users/sam/Receipts"],
@@ -17,39 +17,39 @@ describe("topicModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      This chat is filed under the topic ✈️ "Travel" (getting away). Topics are tags the user puts on chats to find them by; read the chat through it.
+      This chat is filed under the project ✈️ "Travel" (getting away); read the chat through it. Its folder, \`Projects/Travel/\` in the user's Instrument folder, is where the project's lasting files are kept, so a finished file the user gave no place for goes there.
 
       The user's instructions for every chat under "Travel":
-      <topic_instructions>
+      <project_instructions>
       Book aisle seats.
 
       Keep hotels under $200 a night.
-      </topic_instructions>
+      </project_instructions>
 
       Folders the work under "Travel" uses, attached to this chat: \`/Users/sam/Trips\`, \`/Users/sam/Receipts\`.
       </instrument-system-note>"
     `);
   });
 
-  it("says the chat has no topic once it is taken off", () => {
-    expect(topicModelNote({ topic: null })).toMatchInlineSnapshot(`
+  it("says the chat has no project once it is taken off", () => {
+    expect(projectModelNote({ project: null })).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      This chat has no topic now.
+      This chat has no project now.
       </instrument-system-note>"
     `);
   });
 
-  it("cuts long instructions on a paragraph break, naming the topic's own file", () => {
-    const note = topicModelNote({
-      topic: {
+  it("cuts long instructions on a paragraph break, naming the project's own file", () => {
+    const note = projectModelNote({
+      project: {
         instructions: `${"a".repeat(19_990)}\n\n${"ZZZ ".repeat(30)}`,
         name: "Long",
       },
     });
     expect(note).not.toContain("ZZZ");
     expect(note).toContain(
-      "[Cut off here: the rest is in Topics/Long/TOPIC.md.]",
+      "[Cut off here: the rest is in Projects/Long/AGENTS.md.]",
     );
   });
 });

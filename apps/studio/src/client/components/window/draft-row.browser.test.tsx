@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { ChatList } from "./chat-list";
-import { type Topic } from "./chats";
+import { type Project } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
 import { DraftRow } from "./draft-row";
 
@@ -27,7 +27,7 @@ const TOUCHED_AT = new Date(2026, 8, 16, 9, 11);
 const WORDS =
   "Guard the Nest eco mode before 5 p.m.\nIt keeps tripping while the second floor is empty.";
 
-const HOUSE: Topic = {
+const HOUSE: Project = {
   color: "#0f9d6e",
   created: new Date(1),
   emoji: "🏠",
@@ -82,7 +82,7 @@ async function renderRow(
         now={NOW}
         onDelete={onDelete}
         onOpen={onOpen}
-        topics={[HOUSE]}
+        projects={[HOUSE]}
       />
     </div>,
   );
@@ -107,8 +107,8 @@ function timeOf(row: HTMLElement) {
 }
 
 describe("DraftRow", () => {
-  it("wears a dashed circle, the topic, the first line of the words, Draft, and the time", async () => {
-    const { row } = await renderRow(draft({ topicId: "house" }));
+  it("wears a dashed circle, the project, the first line of the words, Draft, and the time", async () => {
+    const { row } = await renderRow(draft({ projectId: "house" }));
     expect(gutterOf(row).querySelector("[aria-label]")?.ariaLabel).toBe(
       "Draft",
     );
@@ -125,12 +125,14 @@ describe("DraftRow", () => {
         time.right,
       );
     }
-    // The pill names the topic and opens nothing of its own.
+    // The pill names the project and opens nothing of its own.
     expect(row.querySelector("button.rounded-full")).toBeNull();
   });
 
-  it("is a new chat while it has no words, and wears no pill for a topic that is gone", async () => {
-    const { row } = await renderRow(draft({ topicId: "money", words: " \n" }));
+  it("is a new chat while it has no words, and wears no pill for a project that is gone", async () => {
+    const { row } = await renderRow(
+      draft({ projectId: "money", words: " \n" }),
+    );
     expect(row.textContent).toBe("New chat9:11 AMDraft");
   });
 
@@ -211,13 +213,13 @@ describe("the list of drafts", () => {
             isLoading={false}
             onDelete={vi.fn()}
             onDeleteDraft={onDeleteDraft}
-            onNewTopic={vi.fn()}
+            onNewProject={vi.fn()}
             onOpen={vi.fn()}
             onOpenDraft={onOpenDraft}
-            onSetTopic={vi.fn()}
+            onSetProject={vi.fn()}
             openId={undefined}
             scrollSignal={0}
-            topics={[]}
+            projects={[]}
           />
         </div>
       </WindowContext>,

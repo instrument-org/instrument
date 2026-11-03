@@ -8,8 +8,8 @@ import {
   moveAppsToFolder,
   moveMemoriesToFolder,
   moveSkillsToFolder,
-  moveTopicsToFolder,
-  convertTopicsToTopicFiles,
+  moveProjectsToFolder,
+  convertProjectsToProjectFiles,
   newDeviceId,
   renameChatDatabases,
   settleDrafts,
@@ -79,7 +79,7 @@ const TRANSFORMED = [
   // A render: the app writes it from the chat's records and rewrites it
   // whole, so a build that renders differently leaves none of the old bytes.
   /(?:^|\/)CHAT\.md$/,
-  // A topic's two hidden files become its one TOPIC.md, and an app's two
+  // A project's two hidden files become its one AGENTS.md, and an app's two
   // become its one APP.md.
   /(?:^|\/)instructions\.md$/,
   /(?:^|\/)app\.json$/,
@@ -262,7 +262,7 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     const left = Object.entries({
       Memory: "memory",
       Skills: "skills",
-      Topics: "topics",
+      Projects: "projects",
     }).flatMap(([visible, hidden]) => {
       const under = path.join(".instrument", hidden) + path.sep;
       const was = [...before.keys()].filter((where) =>
@@ -283,18 +283,18 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     expect(left).toEqual([]);
   });
 
-  it("turns each topic's hidden files into the one TOPIC.md", () => {
+  it("turns each project's hidden files into the one AGENTS.md", () => {
     const problems: string[] = [];
-    for (const name of foldersUnder(path.join(clone, "Topics"))) {
-      const folder = path.join(clone, "Topics", name);
-      const file = path.join(folder, "TOPIC.md");
+    for (const name of foldersUnder(path.join(clone, "Projects"))) {
+      const folder = path.join(clone, "Projects", name);
+      const file = path.join(folder, "AGENTS.md");
       if (!fs.existsSync(file)) {
-        problems.push(`${name}: no TOPIC.md`);
+        problems.push(`${name}: no AGENTS.md`);
         continue;
       }
       const front = frontMatterOf(fs.readFileSync(file, "utf8"));
       if (front === undefined || typeof front.id !== "string") {
-        problems.push(`${name}: TOPIC.md names no topic`);
+        problems.push(`${name}: AGENTS.md names no project`);
       }
       for (const left of ["instructions.md", ".instrument"]) {
         if (fs.existsSync(path.join(folder, left))) {
@@ -412,9 +412,9 @@ async function runLaunchMigrations(): Promise<void> {
   });
   await moveMemoriesToFolder(clone);
   await moveSkillsToFolder(clone);
-  await moveTopicsToFolder(clone);
+  await moveProjectsToFolder(clone);
   await moveAppsToFolder(clone);
-  await convertTopicsToTopicFiles(clone);
+  await convertProjectsToProjectFiles(clone);
   await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
   await giveChatsTheirFolders(clone, machineDir, converted);
   // A rehearsal moves nothing out of the clone: what a draft left stays.

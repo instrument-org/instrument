@@ -72,10 +72,10 @@ describe("a draft's file", () => {
     );
   });
 
-  it("names the chat a reply goes into, and the topic a new chat opens under", () => {
+  it("names the chat a reply goes into, and the project a new chat opens under", () => {
     expect(
       renderDraftFile(
-        draft({ chat: "2026-10-14-quiet-dishwashers", topic: "tpc_01KF" }),
+        draft({ chat: "2026-10-14-quiet-dishwashers", project: "tpc_01KF" }),
       ),
     ).toMatchInlineSnapshot(`
       "---
@@ -83,7 +83,7 @@ describe("a draft's file", () => {
       created: 2026-10-14T18:22:04Z
       updated: 2026-10-14T18:22:04Z
       chat: instrument://chat/2026-10-14-quiet-dishwashers
-      topic: "tpc_01KF"
+      project: "tpc_01KF"
       ---
 
       Find a quiet dishwasher.
@@ -174,14 +174,14 @@ describe("a draft's file", () => {
   it("is no draft without an id unless it is given one", () => {
     expect(parseDraftFile("Just some words.\n", { at: AT })).toBeUndefined();
     expect(
-      parseDraftFile("---\ntopic: tpc_01KF\n---\n\nWords.\n", { at: AT }),
+      parseDraftFile("---\nproject: tpc_01KF\n---\n\nWords.\n", { at: AT }),
     ).toBeUndefined();
   });
 
   it.each([
     [
       "front matter with no id",
-      "---\ntopic: tpc_01KF\n---\nCall the plumber.\n",
+      "---\nproject: tpc_01KF\n---\nCall the plumber.\n",
     ],
     ["no front matter", "Call the plumber.\n"],
   ])(

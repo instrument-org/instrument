@@ -27,7 +27,7 @@ import { unique } from "radashi";
  * what the composer was given from elsewhere and every chip the draft
  * carries. Read back, the folder is the composer's again and every line is a
  * chip. What the window keeps only while the app runs (the chips of the
- * draft's own tabs taken off, a topic the model suggested) is not written.
+ * draft's own tabs taken off, a project the model suggested) is not written.
  *
  * In a folder another draft shares, the folder cannot say whose a file is,
  * so there a file in it is written as a line by its path inside the folder,
@@ -60,7 +60,8 @@ export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
     ),
     ...(draft.context ?? []).map((item) => contextLineOf(item, folders)),
   ]);
-  const topic = draft.topicSource === "suggested" ? undefined : draft.topicId;
+  const project =
+    draft.projectSource === "suggested" ? undefined : draft.projectId;
   return {
     ...(draft.chatId === undefined ? {} : { chat: draft.chatId }),
     ...(context.length > 0 ? { context } : {}),
@@ -68,7 +69,7 @@ export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
     id: draft.id,
     ...(draft.sendOn === undefined ? {} : { send: draft.sendOn }),
     ...(draft.sendingTo === undefined ? {} : { sending: draft.sendingTo }),
-    ...(topic === undefined ? {} : { topic }),
+    ...(project === undefined ? {} : { project }),
     updated: new Date(draft.updatedAt),
     words: draft.words,
   };
@@ -108,7 +109,7 @@ export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
     id: draft.id,
     ...(draft.send === undefined ? {} : { sendOn: draft.send }),
     ...(sending.success ? { sendingTo: sending.data } : {}),
-    ...(draft.topic === undefined ? {} : { topicId: draft.topic }),
+    ...(draft.project === undefined ? {} : { projectId: draft.project }),
     updatedAt: draft.updated.getTime(),
     words: draft.words,
   };

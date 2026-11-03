@@ -148,7 +148,7 @@ const LEDGER_SUBJECTS = [
   "note the audit questions for April",
 ];
 // What a summary that read the history says, however it words it.
-const LEDGER_TOPICS = [
+const LEDGER_PROJECTS = [
   /opening balance/i,
   /march/i,
   /vendor|invoice 41/i,
@@ -1198,11 +1198,11 @@ const summarizedTheHistory: Assertion = {
   check: async (ctx) => {
     const text = "the reply summarizes what the history holds";
     const reply = chatReplies(await treeSessions(ctx)).join("\n");
-    const found = LEDGER_TOPICS.filter((topic) => topic.test(reply));
+    const found = LEDGER_PROJECTS.filter((project) => project.test(reply));
     return result(
       text,
       found.length >= 4,
-      `${found.length} of ${LEDGER_TOPICS.length} commits reflected`,
+      `${found.length} of ${LEDGER_PROJECTS.length} commits reflected`,
     );
   },
   text: "the reply summarizes what the history holds",

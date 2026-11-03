@@ -14,8 +14,8 @@ import { type ReactNode } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 
-import { TopicPill } from "./chat-row";
-import { activityLabel, draftTitle, type Topic } from "./chats";
+import { ProjectPill } from "./chat-row";
+import { activityLabel, draftTitle, type Project } from "./chats";
 import { HeldMark } from "./context-chip";
 import { screenPresentation } from "./screen-presentation";
 import { isHomeTab } from "./tab-model";
@@ -26,7 +26,7 @@ import { type RowAction, rowClassName } from "./row-shell";
 /**
  * One draft in the Drafts place, laid out the way a chat's row is so the
  * list reads the same whichever it holds: a dashed circle in the gutter
- * where a chat wears its state, the topic it will be filed under as a pill,
+ * where a chat wears its state, the project it will be filed under as a pill,
  * the first line of its words as the title, "Draft" in muted where a chat's
  * latest line goes with the marks of what it holds beside it, and when it
  * was last touched at the far right. A plain
@@ -39,16 +39,16 @@ export function DraftRow({
   now,
   onDelete,
   onOpen,
-  topics,
+  projects,
 }: {
   draft: Draft;
   /** The moment the time at the row's end is read against. */
   now: Date;
   onDelete: () => void;
   onOpen: () => void;
-  topics: Topic[];
+  projects: Project[];
 }) {
-  const topic = topics.find((entry) => entry.id === draft.topicId);
+  const project = projects.find((entry) => entry.id === draft.projectId);
   const actions: RowAction[] = [
     {
       icon: <TrashIcon className="size-3.5" />,
@@ -57,7 +57,7 @@ export function DraftRow({
       run: onDelete,
     },
   ];
-  const pill = topic && <TopicPill topic={topic} />;
+  const pill = project && <ProjectPill project={project} />;
   const title = (
     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground/90">
       {draftTitle(draft.words)}

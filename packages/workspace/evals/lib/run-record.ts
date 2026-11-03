@@ -7,7 +7,7 @@ import path from "node:path";
  * session the case's prompt went to, and the home the run gave its agents.
  *
  * Read from nothing else, because nothing else holds it reliably. A chat's
- * title is the app's to change (the first exchange retitles it, a topic's
+ * title is the app's to change (the first exchange retitles it, a project's
  * send titles it from the prompt), and an assertion that reads a file under
  * the home reads the wrong one in a process whose home is not the run's.
  *

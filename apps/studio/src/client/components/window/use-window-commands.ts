@@ -77,8 +77,8 @@ export function useWindowCommands(
     goToPlace: (place: AppPlace) => void;
     /** A draft of a new chat, at the corner. */
     newChat: () => void;
-    /** A draft of a new chat with the words a link from outside brought, under the topic it named. */
-    newChatFromLink: (words: string, topicId?: string) => void;
+    /** A draft of a new chat with the words a link from outside brought, under the project it named. */
+    newChatFromLink: (words: string, projectId?: string) => void;
     newTab: () => void;
     /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
     openFile: (hostPath: string) => void;
@@ -420,7 +420,7 @@ function openOrCloseCommandMenu() {
 /** Puts up what something outside the window asked for: a file, a screen by its route, or a new chat's words. */
 function answer(
   handlers: {
-    newChatFromLink: (words: string, topicId?: string) => void;
+    newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
     openScreen: (href: string) => void;
   },
@@ -428,7 +428,7 @@ function answer(
 ) {
   switch (ask.type) {
     case "newChat": {
-      handlers.newChatFromLink(ask.words, ask.topic);
+      handlers.newChatFromLink(ask.words, ask.project);
       break;
     }
     case "openFile": {

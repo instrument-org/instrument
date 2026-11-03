@@ -74,17 +74,17 @@ export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
 export type ChatDenial = z.output<typeof ChatDenialSchema>;
 
 /**
- * What the person granted under one topic: folders every chat filed under it
+ * What the person granted under one project: folders every chat filed under it
  * reaches, each by its path on this computer.
  */
-const TopicPermissionsSchema = z.object({
+const ProjectPermissionsSchema = z.object({
   folders: z
     .array(z.object({ addedAt: z.coerce.date(), path: AbsolutePathSchema }))
     .catch([])
     .default([]),
 });
 
-const PermissionSettingsSchema = z.object({
+const PermissionSettingsShape = z.object({
   /**
    * Apps on this computer, by the name a script tells them by, that the
    * agent may control in every chat, asks first about, or never controls.
@@ -137,17 +137,17 @@ const PermissionSettingsSchema = z.object({
     .catch({})
     .default({}),
   /**
-   * The folders granted under each topic, by its id. Here rather than in the
-   * topic's `TOPIC.md`, which the workspace carries to the person's other
+   * The folders granted under each project, by its id. Here rather than in the
+   * project's `AGENTS.md`, which the workspace carries to the person's other
    * computers and which the agent can write where the workspace is the
    * person's own folder: a grant written there would open the same-named
    * path on another computer, and an edit to the file would widen what every
-   * chat under the topic reaches without anyone being asked.
+   * chat under the project reaches without anyone being asked.
    */
-  topics: z
+  projects: z
     .record(
       z.string(),
-      TopicPermissionsSchema.catch(() => ({ folders: [] })),
+      ProjectPermissionsSchema.catch(() => ({ folders: [] })),
     )
     .catch({})
     .default({}),
@@ -160,6 +160,22 @@ const PermissionSettingsSchema = z.object({
    */
   dangerouslyAllowEveryFolder: z.boolean().catch(false).default(false),
 });
+/**
+ * The file as a build reads it. One that called a project a topic kept the
+ * folders granted under each in `topics`, read here as `projects`; the next
+ * write leaves the old key behind.
+ */
+const PermissionSettingsSchema = z.preprocess(
+  (record) =>
+    typeof record === "object" &&
+    record !== null &&
+    "topics" in record &&
+    !("projects" in record)
+      ? { ...record, projects: record.topics }
+      : record,
+  PermissionSettingsShape,
+);
+
 export type PermissionSettings = z.output<typeof PermissionSettingsSchema>;
 
 /**
@@ -199,7 +215,7 @@ export async function updatePermissionSettings(
 /**
  * Every rule as a new install has it: the places at their defaults, none of
  * the person's own folders or apps, asking switched back on, and nothing
- * allowed or refused in any chat or granted under any topic, so each chat
+ * allowed or refused in any chat or granted under any project, so each chat
  * asks again.
  */
 export async function resetPermissionSettings(): Promise<PermissionSettings> {
@@ -319,7 +335,7 @@ export interface Rules {
 /**
  * The rules for a chat: the places with the person's changes, their folder
  * rules, and the chat's grants, which are allows. `extraAllows` are folders
- * the chat holds without a grant (its own folder, its topic's folders).
+ * the chat holds without a grant (its own folder, its project's folders).
  */
 export function rulesFor({
   denials = [],

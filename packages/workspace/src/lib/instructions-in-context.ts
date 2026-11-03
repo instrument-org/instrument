@@ -1,5 +1,5 @@
 /**
- * Standing instructions as a session is given them: a topic's and a connected
+ * Standing instructions as a session is given them: a project's and a connected
  * app's alike, inlined up to a budget and cut on a paragraph break past it,
  * with the file holding them named so the rest is a read away.
  */

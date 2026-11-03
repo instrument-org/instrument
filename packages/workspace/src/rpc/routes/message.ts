@@ -24,7 +24,7 @@ import {
 } from "../../lib/drafts/send-from-folder";
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
-import { setChatTopic } from "../../lib/chat/chats";
+import { setChatProject } from "../../lib/chat/chats";
 
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
@@ -85,8 +85,8 @@ const create = base
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
       sessionId: StoreId.SessionSchema.optional(),
-      /** The topic id for the chat this message opens, when it opens one. */
-      topic: z.string().optional(),
+      /** The project id for the chat this message opens, when it opens one. */
+      project: z.string().optional(),
       viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
@@ -105,7 +105,7 @@ const create = base
         prompt,
         replyTo,
         sessionId,
-        topic,
+        project,
         viewing,
       },
     }) =>
@@ -137,8 +137,8 @@ const create = base
         }
         // Without a session named, the message goes to the chat's own.
         const finalSessionId = sessionId ?? chatSession.value.id;
-        if (!sessionId && topic) {
-          await setChatTopic(chatId, topic);
+        if (!sessionId && project) {
+          await setChatProject(chatId, project);
         }
 
         const messageIdsBeforeResult = await ChatReads.messageIds({

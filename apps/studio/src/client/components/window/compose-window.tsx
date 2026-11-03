@@ -47,7 +47,7 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
-import { draftTitle, type Topic } from "./chats";
+import { draftTitle, type Project } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
   COMPOSE_GUEST_LAYER,
@@ -64,12 +64,12 @@ import { tabSurfaceAtom } from "./tab-surface";
 import { segmentsOf } from "./host-path";
 import { LinkSurface } from "./link-surface";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
-import { topicColor } from "./topic-colors";
-import { TopicMark } from "./topic-mark";
-import { AddTopicChip, TopicPicker } from "./topic-picker";
-import { topicTint } from "./topic-tint";
+import { projectColor } from "./project-colors";
+import { ProjectMark } from "./project-mark";
+import { AddProjectChip, ProjectPicker } from "./project-picker";
+import { projectTint } from "./project-tint";
 import { useDraftChips } from "./use-draft-chips";
-import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
+import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
@@ -181,7 +181,7 @@ export function ComposeBar({
  * chat the way a mail client's compose window does: docked at the window's
  * bottom-right corner, or grown to fill the window inset from its edges, and
  * put down to a bar along the window's foot. Its head carries the draft's
- * name, the topic it will be filed under, the composer's controls (the plus
+ * name, the project it will be filed under, the composer's controls (the plus
  * menu, the model, the arrow) and the window's own three
  * buttons; under it the words on white, borderless, and under those a gray
  * band that is the draft's own pane: the four doors when nothing is gathered
@@ -201,12 +201,12 @@ export function ComposeWindow({
   onClose,
   onDiscard,
   onModelChange,
-  onNewTopic,
+  onNewProject,
   onPlacementChange,
   onStart,
   placement,
   right,
-  topics,
+  projects,
   width = COMPOSE_WIDTH,
 }: {
   browser: BrowserTabsHandle | null;
@@ -218,14 +218,14 @@ export function ComposeWindow({
   /** Throws the draft away, from the head's trash, offered while it has words to lose. */
   onDiscard: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
-  onNewTopic: (name: string) => void;
+  /** Makes a project named for what was typed in the head's project picker, and files the draft under it. */
+  onNewProject: (name: string) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
   placement: Exclude<ComposePlacement, "bar">;
   /** Where a docked window stands along the foot, in layout px from the right edge; the windows beside it are placed the same way. */
   right: number;
-  topics: Topic[];
+  projects: Project[];
   /** A docked window's width, narrower than its own on a row with less room. */
   width?: number;
 }) {
@@ -295,11 +295,11 @@ export function ComposeWindow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 
-  const topic = topics.find((entry) => entry.id === draft.topicId);
-  // Retired topics stay nameable on a draft already filed under one, but are
+  const project = projects.find((entry) => entry.id === draft.projectId);
+  // Retired projects stay nameable on a draft already filed under one, but are
   // never offered or picked again.
-  const liveTopics = topics.filter((entry) => !entry.retired);
-  useDraftTopicSuggestion({ draft, onChange, topics: liveTopics, words });
+  const liveProjects = projects.filter((entry) => !entry.retired);
+  useDraftProjectSuggestion({ draft, onChange, projects: liveProjects, words });
 
   // The head's slot the composer's button row is drawn into. State rather
   // than a ref: the row is a portal, which needs the element to exist.
@@ -534,24 +534,24 @@ export function ComposeWindow({
                 <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium">
                   New chat
                 </span>
-                <TopicSlot
+                <ProjectSlot
                   onClear={() => {
                     onChange((current) => {
-                      const { topicId: _dropped, ...rest } = current;
-                      return { ...rest, topicSource: "chosen" };
+                      const { projectId: _dropped, ...rest } = current;
+                      return { ...rest, projectSource: "chosen" };
                     });
                   }}
-                  onNew={onNewTopic}
+                  onNew={onNewProject}
                   onPick={(picked) => {
                     onChange((current) => ({
                       ...current,
-                      topicId: picked.id,
-                      topicSource: "chosen",
+                      projectId: picked.id,
+                      projectSource: "chosen",
                     }));
                   }}
-                  suggested={draft.topicSource === "suggested"}
-                  topic={topic}
-                  topics={liveTopics}
+                  suggested={draft.projectSource === "suggested"}
+                  project={project}
+                  projects={liveProjects}
                 />
                 {/* The composer's own row, drawn here by the box below. */}
                 {/* Kept whole at the head's end: on a crowded head the
@@ -664,7 +664,7 @@ export function ComposeWindow({
                   // the top of the card under it rather than as the floor. In
                   // dark the floor is the page's own color, so the tab is
                   // lifted to the card's.
-                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)] dark:[--background:var(--card)]">
+                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--project-tint-raised:var(--card)] dark:[--background:var(--card)]">
                     <WindowTabStrip
                       chatTitles={NO_TITLES}
                       childTitles={NO_TITLES}
@@ -741,73 +741,73 @@ export function WindowButton({
  */
 
 /**
- * The topic the chat will be filed under, after what the draft is, joined by
- * "in": the pill the chat will wear, which opens the topic picker, with a way
+ * The project the chat will be filed under, after what the draft is, joined by
+ * "in": the pill the chat will wear, which opens the project picker, with a way
  * to take it off, or a dashed slot that opens the same picker when none is
- * picked yet. A topic Instrument filed on its own explains itself on hover.
+ * picked yet. A project Instrument filed on its own explains itself on hover.
  */
-function TopicSlot({
+function ProjectSlot({
   onClear,
   onNew,
   onPick,
   suggested,
-  topic,
-  topics,
+  project,
+  projects,
 }: {
   onClear: () => void;
-  /** Makes a topic, named for what was typed in the picker, and files the draft under it. */
+  /** Makes a project, named for what was typed in the picker, and files the draft under it. */
   onNew: (name: string) => void;
-  onPick: (topic: Topic) => void;
+  onPick: (project: Project) => void;
   suggested: boolean;
-  topic: Topic | undefined;
-  topics: Topic[];
+  project: Project | undefined;
+  projects: Project[];
 }) {
   const picker = (trigger: ReactNode) => (
-    <TopicPicker
-      chosen={new Set(topic ? [topic.id] : [])}
+    <ProjectPicker
+      chosen={new Set(project ? [project.id] : [])}
       onNew={onNew}
       onToggle={(id) => {
-        const picked = topics.find((entry) => entry.id === id);
-        if (id === topic?.id || !picked) {
+        const picked = projects.find((entry) => entry.id === id);
+        if (id === project?.id || !picked) {
           onClear();
         } else {
           onPick(picked);
         }
       }}
-      topics={topics}
+      projects={projects}
     >
       {trigger}
-    </TopicPicker>
+    </ProjectPicker>
   );
-  if (!topic) {
-    return picker(<AddTopicChip />);
+  if (!project) {
+    return picker(<AddProjectChip />);
   }
-  // One pill in the topic's tint holding two controls: its name, which
-  // opens the picker, and the × at its end that takes the topic off. It
+  // One pill in the project's tint holding two controls: its name, which
+  // opens the picker, and the × at its end that takes the project off. It
   // gives up width to the head, truncating the name, when room runs out.
   const pill = (
     <span
-      className="inline-flex h-5 min-w-0 items-center rounded-full bg-(--topic-tint-surface) text-[11px] leading-4 text-foreground/90 topic-tint"
-      style={topicTint(topicColor(topic))}
+      className="inline-flex h-5 min-w-0 items-center rounded-full bg-(--project-tint-surface) text-[11px] leading-4 text-foreground/90 project-tint"
+      style={projectTint(projectColor(project))}
     >
       {picker(
         <button
-          className="flex h-full min-w-0 items-center gap-1 rounded-l-full pr-0.5 pl-1 hover:bg-(--topic-tint-edge)"
+          className="flex h-full min-w-0 items-center gap-1 rounded-l-full pr-0.5 pl-1 hover:bg-(--project-tint-edge)"
           type="button"
         >
-          {topic.emoji ? (
-            <span className="text-[10px]">{topic.emoji}</span>
+          {project.emoji ? (
+            <span className="text-[10px]">{project.emoji}</span>
           ) : (
-            <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+            <ProjectMark className="size-3.5 text-[10px]" project={project} />
           )}
-          <span className="max-w-28 truncate">{topic.name}</span>
+          <span className="max-w-28 truncate">{project.name}</span>
         </button>,
       )}
       <button
-        aria-label={`Don't file under ${topic.name}`}
-        className="grid h-full w-5 shrink-0 place-items-center rounded-r-full text-foreground/60 hover:bg-(--topic-tint-edge) hover:text-foreground"
+        aria-label={`Don't file under ${project.name}`}
+        className="grid h-full w-5 shrink-0 place-items-center rounded-r-full text-foreground/60 hover:bg-(--project-tint-edge) hover:text-foreground"
         onClick={onClear}
-        title={`Don't file under ${topic.name}`}
+        title={`Don't file under ${project.name}`}
         type="button"
       >
         <XIcon className="size-2.5" weight="bold" />
@@ -818,15 +818,15 @@ function TopicSlot({
     <span className="flex min-w-0 animate-in items-center gap-1 duration-300 fade-in-0">
       <span className="shrink-0 text-[13px] text-muted-foreground">in</span>
       {suggested ? (
-        // A topic that arrived on its own says where it came from.
+        // A project that arrived on its own says where it came from.
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="flex min-w-0">{pill}</span>
           </TooltipTrigger>
           <TooltipContent className="max-w-64" side="bottom">
-            <p className="font-medium">Instrument picked this topic</p>
+            <p className="font-medium">Instrument picked this project</p>
             <p className="opacity-80">
-              {`What you wrote fits “${topic.name}”.`}
+              {`What you wrote fits “${project.name}”.`}
             </p>
           </TooltipContent>
         </Tooltip>

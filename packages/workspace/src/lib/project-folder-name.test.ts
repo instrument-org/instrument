@@ -9,7 +9,7 @@ describe("validateFolderName", () => {
     ["Q3 Report (v2)", "Q3 Report (v2)"],
     ["émojis 🚀 ok", "émojis 🚀 ok"],
   ])("accepts %j -> %j", (input, expected) => {
-    expect(validateFolderName(input, "Topic")._unsafeUnwrap()).toBe(expected);
+    expect(validateFolderName(input, "Project")._unsafeUnwrap()).toBe(expected);
   });
 
   it.each([
@@ -26,6 +26,6 @@ describe("validateFolderName", () => {
     [".", "dot"],
     ["..", "dotdot"],
   ])("rejects %j (%s)", (input) => {
-    expect(validateFolderName(input, "Topic").isErr()).toBe(true);
+    expect(validateFolderName(input, "Project").isErr()).toBe(true);
   });
 });

@@ -190,8 +190,8 @@ describe("parseSettingLine", () => {
     ["unread", mark(3, { field: "unread", value: "marked" })],
     ["a model", mark(7, { field: "model", value: "openai/gpt-6.1-sol" })],
     ["read", mark(4, { field: "unread", value: null })],
-    ["a topic", mark(5, { field: "topic", value: "work" })],
-    ["no topic", mark(5, { field: "topic", value: null })],
+    ["a project", mark(5, { field: "project", value: "work" })],
+    ["no project", mark(5, { field: "project", value: null })],
   ])("reads back %s as written", (_name, record) => {
     expect(parseSettingLine(recordLine(record))).toEqual(record);
   });

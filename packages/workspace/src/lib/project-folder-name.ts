@@ -12,7 +12,7 @@ const MAX_LENGTH = 200;
 /**
  * A name that is also the name of its folder on disk, for anything kept that
  * way: rejected rather than transformed, so what the user typed is what they
- * find in their file manager. `label` starts each message ("Topic name…").
+ * find in their file manager. `label` starts each message ("Project name…").
  */
 export function validateFolderName(
   raw: string,

@@ -691,7 +691,7 @@ const USER_TURN_NOTES = [
   noted("asks", ({ data }) => asksModelNote(data)),
   noted("reply", ({ data }) => replyModelNote(data)),
   noted("workspaceInstructions", stated),
-  noted("topic", stated),
+  noted("project", stated),
   noted("memory", ({ data }) => memoryModelNote(data)),
   noted("setupNews", ({ data }) => setupNewsModelNote(data)),
   noted("modelChange", ({ data }) => modelChangeModelNote(data)),

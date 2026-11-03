@@ -7,12 +7,12 @@ import { logger } from "../lib/electron-logger";
 
 /**
  * A draft to send: its chat, the draft it is, its words, and for a draft
- * that opens a chat of its own, the topic the new chat is filed under.
+ * that opens a chat of its own, the project the new chat is filed under.
  */
 export interface AskedReply {
   chatId: ChatId;
   draftId: string;
-  topicId?: string;
+  projectId?: string;
   words: string;
 }
 
@@ -72,8 +72,8 @@ export function startSendingAskedDrafts({
       await send({
         chatId,
         draftId: draft.id,
-        ...(draft.chatId === undefined && draft.topicId
-          ? { topicId: draft.topicId }
+        ...(draft.chatId === undefined && draft.projectId
+          ? { projectId: draft.projectId }
           : {}),
         words: draft.words,
       });

@@ -22,7 +22,7 @@ import {
   renderDraftFile,
   writeDraftFile,
 } from "@instrument-org/workspace/drafts";
-import { watchFolder } from "@instrument-org/workspace/electron";
+import { saveProjectId, watchFolder } from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -121,6 +121,24 @@ export function createDraftStore({
    * during may have read a file as it was before, so it looks again.
    */
   let changes = 0;
+  /** The projects a draft written here has named, each written down once. */
+  const projectsKept = new Set<string>();
+  /**
+   * Writes a project's id into its file the first time a draft names it, as
+   * filing a chat does, so renaming its folder before the draft is sent
+   * leaves the draft pointing at it. A failure is logged, and the draft
+   * still names the project by the id it went by.
+   */
+  const keepProjectId = (projectId: string | undefined) => {
+    if (projectId === undefined || projectsKept.has(projectId)) {
+      return;
+    }
+    projectsKept.add(projectId);
+    saveProjectId(projectId, rootDir).catch((error: unknown) => {
+      projectsKept.delete(projectId);
+      logger.error(`Could not keep project ${projectId}'s id`, error);
+    });
+  };
   /** The look at the folder under way, and whether another was asked for while it ran. */
   let looking: Promise<void> | undefined;
   let lookAgain = false;
@@ -249,6 +267,7 @@ export function createDraftStore({
       writeDraftFile(known.file, file);
       changes += 1;
     }
+    keepProjectId(file.project);
     const kept = { ...known, text };
     onDisk.set(draft.id, kept);
     return kept;

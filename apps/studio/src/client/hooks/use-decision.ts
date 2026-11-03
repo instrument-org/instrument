@@ -53,7 +53,7 @@ export function useDecisionModelAvailable(enabled: boolean) {
  * typed in), so the answer is known before it is needed.
  *
  * `personal` says whether the ask carries the person's own content (chat
- * titles, a draft, a topic's name) rather than only words typed into a
+ * titles, a draft, a project's name) rather than only words typed into a
  * search over the app's own lists. A personal ask is sent only while the
  * `suggestions_from_your_chats` flag is on; with it off the caller sees the
  * model as out of reach, and nothing is asked, the availability check

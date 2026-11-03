@@ -11,7 +11,7 @@ import { bumpChatGeneration } from "./chat-generation";
  * - `messages`: a message or part of its transcript was written or removed.
  * - `session`: a session record, something a session keeps beside its
  *   transcript (the sites its browser went to, who stopped its turn),
- *   or one of its settings (title, star, archive, unread, topic, model).
+ *   or one of its settings (title, star, archive, unread, project, model).
  * - `settings`: what this computer allows in it, the folders and apps
  *   granted or refused there (`permissions.json`).
  * - `state`: where the user left off in it (this device's state file, and

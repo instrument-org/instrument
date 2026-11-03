@@ -11,7 +11,7 @@ import { permissions } from "./routes/permissions";
 import { session } from "./routes/session";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
-import { topics } from "./routes/topics";
+import { projects } from "./routes/projects";
 import { window } from "./routes/window";
 
 export const router = {
@@ -27,6 +27,6 @@ export const router = {
   session,
   skill,
   storage,
-  topics,
+  projects,
   window,
 };

@@ -475,35 +475,35 @@ function ownRecords<T extends { id: string }>(
   return [...store.values()].filter((record) => text.includes(record.id));
 }
 
-const TOPICS = ["pricing", "onboarding", "hiring"] as const;
+const PROJECTS = ["pricing", "onboarding", "hiring"] as const;
 
 /**
- * The docs this run made for each topic, every one whose title names it: a
+ * The docs this run made for each project, every one whose title names it: a
  * stray duplicate is a doc like any other, so a check passes when any doc
- * of the topic satisfies it.
+ * of the project satisfies it.
  */
 function errandDocs(sessions: Session.WithMessagesAndParts[]) {
   const docs = ownRecords(DOCS, sessions);
-  return TOPICS.map((topic) => ({
-    docs: docs.filter((doc) => doc.title.toLowerCase().includes(topic)),
-    topic,
+  return PROJECTS.map((project) => ({
+    docs: docs.filter((doc) => doc.title.toLowerCase().includes(project)),
+    project,
   }));
 }
 
-/** The topics no doc of which passes `check`. */
-function topicsFailing(
+/** The projects no doc of which passes `check`. */
+function projectsFailing(
   sessions: Session.WithMessagesAndParts[],
   check: (doc: StoredDoc) => boolean,
 ): string[] {
   return errandDocs(sessions)
     .filter(({ docs }) => !docs.some(check))
-    .map(({ topic }) => topic);
+    .map(({ project }) => project);
 }
 
 const madeThreeDocs: Assertion = {
   check: ({ sessions }) => {
     const text = "made a doc for each of pricing, onboarding and hiring";
-    const missing = topicsFailing(sessions, () => true);
+    const missing = projectsFailing(sessions, () => true);
     return {
       evidence:
         missing.length === 0
@@ -524,7 +524,7 @@ const summarized = (doc: StoredDoc) => doc.text.trim().length >= 40;
 const editedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "wrote a summary paragraph into each doc";
-    const empty = topicsFailing(sessions, summarized);
+    const empty = projectsFailing(sessions, summarized);
     return {
       evidence:
         empty.length === 0
@@ -540,7 +540,7 @@ const editedEach: Assertion = {
 const checkedEach: Assertion = {
   check: ({ sessions }) => {
     const text = "read each doc back after editing it";
-    const unread = topicsFailing(sessions, (doc) => doc.readAfterEdit);
+    const unread = projectsFailing(sessions, (doc) => doc.readAfterEdit);
     return {
       evidence:
         unread.length === 0
@@ -554,13 +554,13 @@ const checkedEach: Assertion = {
 };
 
 /**
- * Always passes: how many docs past one each topic got, which a correct
+ * Always passes: how many docs past one each project got, which a correct
  * run can still leave behind and comparing runs reads.
  */
 const extraDocs: Assertion = {
   check: ({ sessions }) => {
     const extra = errandDocs(sessions).map(
-      ({ docs, topic }) => `${topic} ${Math.max(0, docs.length - 1)}`,
+      ({ docs, project }) => `${project} ${Math.max(0, docs.length - 1)}`,
     );
     return {
       evidence: `extra docs per title: ${extra.join(", ")}`,
@@ -604,12 +604,12 @@ const addedTheEvent: Assertion = {
 const draftedTheEmail: Assertion = {
   check: ({ sessions }) => {
     const text = "drafted the email to Aiko linking all three docs";
-    const topics = errandDocs(sessions);
+    const projects = errandDocs(sessions);
     const drafts = ownRecords(DRAFTS, sessions);
     const right = drafts.find(
       (draft) =>
         /^to:.*aiko@example\.com/im.test(draft.raw) &&
-        topics.every(({ docs }) =>
+        projects.every(({ docs }) =>
           docs.some((doc) => summarized(doc) && draft.raw.includes(doc.id)),
         ),
     );

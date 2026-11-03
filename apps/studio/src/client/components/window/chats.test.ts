@@ -17,7 +17,7 @@ import {
   outsideFilters,
   type RailChatMark,
   railMarkOf,
-  topicSearch,
+  projectSearch,
   widenToSearch,
   wordRanges,
 } from "./chats";
@@ -52,43 +52,49 @@ function wordyChat(): Filterable {
     latest: { text: "Ready to drink, chocolate first." },
     firstAsk: "Find the best RTD protein drink",
     title: "Best priced protein drink",
-    topic: "shopping",
+    project: "shopping",
   });
 }
 
-const TOPIC_NAMES = new Map([["shopping", "Shopping"]]);
+const PROJECT_NAMES = new Map([["shopping", "Shopping"]]);
 
 describe("outsideFilters", () => {
   const chats = [
     wordyChat(),
     chat({ archived: true, title: "Protein powder returns" }),
-    chat({ title: "Protein bars", topic: "house" }),
+    chat({ title: "Protein bars", project: "house" }),
     chat({ title: "Roof repair" }),
   ];
 
-  it("counts the chats the words find that the place and the topic keep out", () => {
-    // The inbox hides the archived one; a topic hides the one filed elsewhere.
+  it("counts the chats the words find that the place and the project keep out", () => {
+    // The inbox hides the archived one; a project hides the one filed elsewhere.
     expect(
-      outsideFilters(chats, { ...NO_FILTERS, search: "protein" }, TOPIC_NAMES),
+      outsideFilters(
+        chats,
+        { ...NO_FILTERS, search: "protein" },
+        PROJECT_NAMES,
+      ),
     ).toBe(1);
     expect(
       outsideFilters(
         chats,
-        { ...NO_FILTERS, search: "protein", topics: ["shopping"] },
-        TOPIC_NAMES,
+        { ...NO_FILTERS, search: "protein", projects: ["shopping"] },
+        PROJECT_NAMES,
       ),
     ).toBe(2);
     expect(
       outsideFilters(
         chats,
         { ...NO_FILTERS, place: "all", search: "protein" },
-        TOPIC_NAMES,
+        PROJECT_NAMES,
       ),
     ).toBe(0);
   });
 
   it("counts nothing when nothing is searched for, whatever the filters hide", () => {
-    expect(outsideFilters(chats, { ...NO_FILTERS, topics: ["house"] })).toBe(0);
+    expect(outsideFilters(chats, { ...NO_FILTERS, projects: ["house"] })).toBe(
+      0,
+    );
   });
 
   it("widens to the same words over every chat", () => {
@@ -97,9 +103,9 @@ describe("outsideFilters", () => {
         apps: ["gmail"],
         place: "unread",
         search: "protein",
-        topics: ["shopping"],
+        projects: ["shopping"],
       }),
-    ).toEqual({ apps: [], place: "all", search: "protein", topics: [] });
+    ).toEqual({ apps: [], place: "all", search: "protein", projects: [] });
   });
 });
 
@@ -128,10 +134,10 @@ describe("matchesFilters", () => {
       chat({ unread: true }),
     ],
     [
-      "a topic",
-      { topics: ["house"] },
-      chat({ topic: "house" }),
-      chat({ topic: "money" }),
+      "a project",
+      { projects: ["house"] },
+      chat({ project: "house" }),
+      chat({ project: "money" }),
     ],
     [
       "an app",
@@ -155,7 +161,7 @@ describe("matchesFilters", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: "drafts" };
     expect(matchesFilters(chat(), filters)).toBe(false);
     expect(matchesFilters(chat({ unread: true }), filters)).toBe(false);
-    expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(false);
+    expect(matchesFilters(wordyChat(), filters, PROJECT_NAMES)).toBe(false);
   });
 
   it("keeps every chat not put away in the inbox, whatever it holds", () => {
@@ -183,13 +189,13 @@ describe("matchesFilters", () => {
     expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
   });
 
-  it("keeps a chat put away in a topic it is filed under, as a label does", () => {
-    const filters: ChatFilters = { ...NO_FILTERS, topics: ["house"] };
+  it("keeps a chat put away in a project it is filed under, as a label does", () => {
+    const filters: ChatFilters = { ...NO_FILTERS, projects: ["house"] };
     expect(
-      matchesFilters(chat({ archived: true, topic: "house" }), filters),
+      matchesFilters(chat({ archived: true, project: "house" }), filters),
     ).toBe(true);
     expect(
-      matchesFilters(chat({ archived: true, topic: "garden" }), filters),
+      matchesFilters(chat({ archived: true, project: "garden" }), filters),
     ).toBe(false);
   });
 
@@ -214,14 +220,14 @@ describe("matchesFilters", () => {
     ["the title", "priced"],
     ["the ask", "rtd"],
     ["the latest line", "chocolate"],
-    ["a topic's name", "shopping"],
+    ["a project's name", "shopping"],
     ["a file's name", "protein-report"],
     ["a site", "amazon"],
     ["an app", "gmail"],
   ])("finds a word in %s, whatever its case", (_, search) => {
     const filters = { ...NO_FILTERS, search: search.toUpperCase() };
-    expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(true);
-    expect(matchesFilters(chat(), filters, TOPIC_NAMES)).toBe(false);
+    expect(matchesFilters(wordyChat(), filters, PROJECT_NAMES)).toBe(true);
+    expect(matchesFilters(chat(), filters, PROJECT_NAMES)).toBe(false);
   });
 
   it("wants every word searched for, wherever each turns up", () => {
@@ -229,25 +235,25 @@ describe("matchesFilters", () => {
       matchesFilters(
         wordyChat(),
         { ...NO_FILTERS, search: "  chocolate  amazon " },
-        TOPIC_NAMES,
+        PROJECT_NAMES,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
         wordyChat(),
         { ...NO_FILTERS, search: "chocolate costco" },
-        TOPIC_NAMES,
+        PROJECT_NAMES,
       ),
     ).toBe(false);
     expect(
-      matchesFilters(chat(), { ...NO_FILTERS, search: "   " }, TOPIC_NAMES),
+      matchesFilters(chat(), { ...NO_FILTERS, search: "   " }, PROJECT_NAMES),
     ).toBe(true);
   });
 
   it("reads a pill only by a name it was given", () => {
     const filters = { ...NO_FILTERS, search: "shopping" };
     expect(matchesFilters(wordyChat(), filters)).toBe(false);
-    expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(true);
+    expect(matchesFilters(wordyChat(), filters, PROJECT_NAMES)).toBe(true);
   });
 
   it("reads any row's words the same way, for the rows that are not chats", () => {
@@ -264,22 +270,22 @@ describe("matchesFilters", () => {
     const filters = {
       ...NO_FILTERS,
       apps: ["gmail"],
-      topics: ["house", "errands"],
+      projects: ["house", "errands"],
     };
     expect(
       matchesFilters(
-        chat({ holds: { apps: ["gmail"] }, topic: "errands" }),
+        chat({ holds: { apps: ["gmail"] }, project: "errands" }),
         filters,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
-        chat({ holds: { apps: ["gmail"] }, topic: "money" }),
+        chat({ holds: { apps: ["gmail"] }, project: "money" }),
         filters,
       ),
     ).toBe(false);
     expect(
-      matchesFilters(chat({ holds: { apps: [] }, topic: "house" }), filters),
+      matchesFilters(chat({ holds: { apps: [] }, project: "house" }), filters),
     ).toBe(false);
   });
 
@@ -304,16 +310,16 @@ describe("matchesFilters", () => {
 describe("choosing a row of the column", () => {
   const searched = { ...NO_FILTERS, search: "fence" };
 
-  it("shows one view at a time: a topic leaves the place, and a place the topic", () => {
+  it("shows one view at a time: a project leaves the place, and a place the project", () => {
     expect(
       choose(
         { ...searched, apps: ["gmail"], place: "starred" },
-        { group: "topics", id: "house" },
+        { group: "projects", id: "house" },
       ),
-    ).toEqual({ ...searched, topics: ["house"] });
+    ).toEqual({ ...searched, projects: ["house"] });
     expect(
       choose(
-        { ...searched, topics: ["house"] },
+        { ...searched, projects: ["house"] },
         { group: "place", id: "drafts" },
       ),
     ).toEqual({ ...searched, place: "drafts" });
@@ -322,10 +328,10 @@ describe("choosing a row of the column", () => {
   it("moves between rows of one section", () => {
     expect(
       choose(
-        { ...searched, topics: ["house"] },
-        { group: "topics", id: "money" },
+        { ...searched, projects: ["house"] },
+        { group: "projects", id: "money" },
       ),
-    ).toEqual({ ...searched, topics: ["money"] });
+    ).toEqual({ ...searched, projects: ["money"] });
     expect(
       choose(
         { ...searched, place: "starred" },
@@ -334,10 +340,10 @@ describe("choosing a row of the column", () => {
     ).toEqual({ ...searched, place: "drafts" });
   });
 
-  it("moves between a topic and an app", () => {
+  it("moves between a project and an app", () => {
     expect(
       choose(
-        { ...searched, topics: ["house"] },
+        { ...searched, projects: ["house"] },
         { group: "apps", id: "gmail" },
       ),
     ).toEqual({ ...searched, apps: ["gmail"] });
@@ -355,18 +361,18 @@ describe("choosing a row of the column", () => {
     ).toEqual(searched);
     expect(
       choose(
-        { ...searched, topics: ["house"] },
-        { group: "topics", id: "house" },
+        { ...searched, projects: ["house"] },
+        { group: "projects", id: "house" },
       ),
     ).toEqual(searched);
   });
 });
 
 describe("the inbox", () => {
-  it("is where no place is chosen, whatever the search or a topic says", () => {
+  it("is where no place is chosen, whatever the search or a project says", () => {
     expect(isInbox(NO_FILTERS)).toBe(true);
     expect(isInbox({ ...NO_FILTERS, search: "fence" })).toBe(true);
-    expect(isInbox({ ...NO_FILTERS, topics: ["house"] })).toBe(true);
+    expect(isInbox({ ...NO_FILTERS, projects: ["house"] })).toBe(true);
     expect(isInbox({ ...NO_FILTERS, apps: ["gmail"] })).toBe(true);
   });
 
@@ -492,24 +498,24 @@ describe("wordRanges", () => {
   });
 });
 
-describe("a command menu search's ask of the topics", () => {
+describe("a command menu search's ask of the projects", () => {
   it.each<[string, boolean, string]>([
     ["reading", false, "reading"],
     ["reading list", false, "reading list"],
-    ["topic", true, ""],
-    ["Topics", true, ""],
-    ["topic reading", true, "reading"],
-    ["reading topic", true, "reading"],
-    ["  reading   list topics ", true, "reading list"],
-    ["topic: reading", true, "reading"],
+    ["project", true, ""],
+    ["Projects", true, ""],
+    ["project reading", true, "reading"],
+    ["reading project", true, "reading"],
+    ["  reading   list projects ", true, "reading list"],
+    ["project: reading", true, "reading"],
     // The word inside another is that other word.
     ["topical", false, "topical"],
-    // A topic with the word in its name is found by the rest of it.
-    ["hot topics", true, "hot"],
+    // A project with the word in its name is found by the rest of it.
+    ["hot projects", true, "hot"],
     // Said twice, the second is part of the name.
-    ["topic topic", true, "topic"],
+    ["project project", true, "project"],
   ])("%j asks: %j, by the name %j", (words, isAsked, name) => {
-    expect(topicSearch(words)).toEqual({ isAsked, name });
+    expect(projectSearch(words)).toEqual({ isAsked, name });
   });
 });
 

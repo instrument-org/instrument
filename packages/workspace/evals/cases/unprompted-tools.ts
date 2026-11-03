@@ -585,7 +585,7 @@ const countedToChristmas: Assertion = {
 
 const NOTES_DIR = () => path.join(HOME, "Documents", "Meeting Notes");
 const PEOPLE = ["Priya", "Marcus", "Elena", "Tom"];
-const TOPICS = [
+const PROJECTS = [
   "pricing page",
   "onboarding emails",
   "Q4 roadmap",
@@ -604,12 +604,12 @@ function noteDates(): string[] {
 function seedNotes() {
   fs.mkdirSync(NOTES_DIR(), { recursive: true });
   noteDates().forEach((date, i) => {
-    const topic = TOPICS[i % TOPICS.length] ?? "";
+    const project = PROJECTS[i % PROJECTS.length] ?? "";
     const there = PEOPLE.filter((_, p) => (i + p) % 4 !== 3);
     const owner = there[i % there.length] ?? "";
     fs.writeFileSync(
       path.join(NOTES_DIR(), `${date} sync.md`),
-      `# Sync on ${date}\n\nPresent: ${there.join(", ")}\n\nWe went over the ${topic}. ${owner} walked through where it stands and the open questions.\n\n${i % 3 === 0 ? `Decided: ship the ${topic} changes by end of month.\n\n` : ""}Next steps:\n- ${owner} to draft the ${topic} update\n- ${there[(i + 1) % there.length] ?? ""} to review it by Friday\n`,
+      `# Sync on ${date}\n\nPresent: ${there.join(", ")}\n\nWe went over the ${project}. ${owner} walked through where it stands and the open questions.\n\n${i % 3 === 0 ? `Decided: ship the ${project} changes by end of month.\n\n` : ""}Next steps:\n- ${owner} to draft the ${project} update\n- ${there[(i + 1) % there.length] ?? ""} to review it by Friday\n`,
     );
   });
 }

@@ -18,7 +18,7 @@ Each build answers to its own scheme (`appProtocolOf` in [`constants.ts`](../../
 | `instrument://settings/<name>` | the settings section (`settings/models`) |
 | `instrument://screen/<name>` | one of `SCREENS` in [`instrument-screens.ts`](../../apps/studio/src/shared/instrument-screens.ts) |
 | `instrument://file/<absolute path>` | a file in its viewer, or a folder in Files |
-| `instrument://new?text=<words>&topic=<id>` | a new chat's draft with the words in it |
+| `instrument://new?text=<words>&project=<id>` | a new chat's draft with the words in it |
 
 A noun names one thing by one path segment and only takes the person to it. `new` is the one verb, and what it makes is written in query parameters, so a later verb has the same shape. A Windows path keeps its drive letter as the first segment (`instrument://file/C:/Users/windows-user/report.pdf`).
 
@@ -34,7 +34,7 @@ A link carries no word of who wrote it, and a site the person has let open Instr
 
 - **A path is a plain absolute one.** It goes through the same check as the file channel's (`hostPathOfUrlPath` in [`computer-files.ts`](../../apps/studio/src/electron-main/lib/computer-files.ts)) before anything touches the disk: no doubled separator, which is how a network share is spelled (opening one would hand the share the person's Windows sign-in), no backslash where a backslash separates, and on Windows a drive letter. A step up is taken by the address itself before it is read, so the path judged is the one it leads to. Then the places every way of showing a file refuses ([`refused-files.ts`](../../apps/studio/src/electron-main/lib/refused-files.ts)) are refused here too, by name and by where the name leads.
 - **A page is shown, not opened.** A page opened in the app's browser reads the files beside it, so a page a site saved into Downloads could read the rest of the folder. A link to an HTML file opens its folder in Files with the page selected, and the person opens it from there. Every other kind of file opens: an image, a PDF, Markdown and text run nothing.
-- **A new chat is never sent.** Its words are a draft of its own beside any already open, so nothing the person wrote is replaced, and it takes none of what is on screen (`linkDraftsAtom`), since a link may have just put that there: only what the person adds goes with the message. The characters a person cannot see but the model reads (zero-width ones, the marks that turn text around, the tag block) are taken out, longer words than `OUTSIDE_WORDS_MAX` open nothing, and the topic is used only when one has that id.
+- **A new chat is never sent.** Its words are a draft of its own beside any already open, so nothing the person wrote is replaced, and it takes none of what is on screen (`linkDraftsAtom`), since a link may have just put that there: only what the person adds goes with the message. The characters a person cannot see but the model reads (zero-width ones, the marks that turn text around, the tag block) are taken out, longer words than `OUTSIDE_WORDS_MAX` open nothing, and the project is used only when one has that id.
 - **A site cannot flood the window.** The same link again within a few seconds is one click, at most ten links a minute open, and once ten asks wait for the window another link is let go (`createLinkGate`).
 
 There is no link that opens a web page. One would add nothing a link to the person's own browser does not, and paired with `new` it would put a page a site chose in front of the agent, signed in as the person.

@@ -37,7 +37,7 @@ export interface AppFoldersMove {
 }
 
 /**
- * Moves the app's folders (`chats/`, `drafts/`, `topics/`, `skills/`,
+ * Moves the app's folders (`chats/`, `drafts/`, `projects/`, `skills/`,
  * `apps/`, `memory/`, `.pre-chats/`) from the workspace's top level, where
  * builds before kept them, into its `.instrument/`, so the top level is left
  * to the person's own work.
@@ -48,7 +48,7 @@ export interface AppFoldersMove {
  * still taken is left where it was. An entry that fails, or whose place is
  * taken, is left in place and counted (`failed`), so the sweep is not marked
  * done and the next one tries it again. Writes a path the app stored into
- * one of these folders (a chat's grants, a topic's folders) where that
+ * one of these folders (a chat's grants, a project's folders) where that
  * folder went (`rewriteStoredPaths`). Synchronous, with no store open.
  */
 export function moveAppFoldersIntoDataDir({

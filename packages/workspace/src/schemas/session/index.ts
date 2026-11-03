@@ -112,11 +112,11 @@ export namespace Session {
      */
     titleSettledAt: z.date().optional(),
     /**
-     * The topic this chat is filed under, by topic id. On the chat's own
+     * The project this chat is filed under, by project id. On the chat's own
      * record so the chat list is one read and a filter is a predicate over
      * it; a task's session never carries one.
      */
-    topic: z.string().optional(),
+    project: z.string().optional(),
     updatedAt: z.date().optional(),
   });
 

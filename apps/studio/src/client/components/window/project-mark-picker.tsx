@@ -3,8 +3,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { TOPIC_COLORS } from "@/client/components/window/topic-colors";
-import { topicTint } from "@/client/components/window/topic-tint";
+import { PROJECT_COLORS } from "@/client/components/window/project-colors";
+import { projectTint } from "@/client/components/window/project-tint";
 import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
@@ -28,11 +28,11 @@ export function ColorRow({
     // Eight to a row, each swatch taking an equal share of the width, so the
     // pale row sits square over the deep one and the two read as two families.
     <div className="grid grid-cols-8 justify-items-center gap-2">
-      {TOPIC_COLORS.map((color) => (
+      {PROJECT_COLORS.map((color) => (
         <button
           aria-label={`Color ${color}`}
           className={cn(
-            "size-7 rounded-full transition topic-tint",
+            "size-7 rounded-full transition project-tint",
             color === value
               ? // Outside the swatch, so choosing one does not shrink it: an
                 // inset ring eats into the color it is meant to be marking.
@@ -44,8 +44,8 @@ export function ColorRow({
             onPick(color);
           }}
           style={{
-            background: "var(--topic-tint-base)",
-            ...topicTint(color),
+            background: "var(--project-tint-base)",
+            ...projectTint(color),
           }}
           type="button"
         />
@@ -55,11 +55,11 @@ export function ColorRow({
 }
 
 /**
- * The mark a topic is known by, and the popover that changes it: every emoji
- * with a search field, so the mark that makes a topic findable in a row of
+ * The mark a project is known by, and the popover that changes it: every emoji
+ * with a search field, so the mark that makes a project findable in a row of
  * others is chosen in one place.
  */
-export function TopicMarkPicker({
+export function ProjectMarkPicker({
   children,
   context,
   onEmoji,

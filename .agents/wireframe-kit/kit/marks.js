@@ -1,7 +1,7 @@
 // ---- marks ----------------------------------------------------------------------
 // The small pieces every surface draws with: brand and letter marks, file-type marks,
 // a tab's mark and title, the agent's dot, grey bars for incidental text, the open-in
-// pill and Ask, and a topic's tint.
+// pill and Ask, and a project's tint.
 
 const brand = (key, cls = "size-4") =>
   `<img src="${BRAND_URI[key]}" class="${cls} shrink-0" alt="">`;
@@ -133,12 +133,12 @@ const kbd = (keys) =>
   `<span class="inline-flex h-5 items-center rounded-md bg-foreground/6 px-1.5 text-[11px] font-medium text-muted-foreground ring-1 ring-foreground/8">${keys}</span>`;
 
 /**
- * A topic's tint (topic-tint.ts and the `topic-tint` utility): put the returned
- * style on an element, then color it with `bg-(--topic-tint-surface)`,
- * `text-(--topic-tint-ink)` or `border-(--topic-tint-edge)` inside it. `color` is
- * one of TOPIC_COLORS; the first eight are the pale tier.
+ * A project's tint (project-tint.ts and the `project-tint` utility): put the returned
+ * style on an element, then color it with `bg-(--project-tint-surface)`,
+ * `text-(--project-tint-ink)` or `border-(--project-tint-edge)` inside it. `color` is
+ * one of PROJECT_COLORS; the first eight are the pale tier.
  */
-const TOPIC_COLORS = [
+const PROJECT_COLORS = [
   "#f2a7a6",
   "#ebaf86",
   "#d4bc79",
@@ -156,13 +156,13 @@ const TOPIC_COLORS = [
   "#765fca",
   "#b2468a",
 ];
-const topicTint = (color) => {
-  const pale = TOPIC_COLORS.indexOf(color) > -1 && TOPIC_COLORS.indexOf(color) < 8;
+const projectTint = (color) => {
+  const pale = PROJECT_COLORS.indexOf(color) > -1 && PROJECT_COLORS.indexOf(color) < 8;
   const c = pale ? 0.09 : 0.16;
   return [
-    `--topic-tint-surface:oklch(from ${color} 0.93 ${(c * 0.42).toFixed(3)} h)`,
-    `--topic-tint-edge:oklch(from ${color} 0.86 ${(c * 0.7).toFixed(3)} h)`,
-    `--topic-tint-ink:oklch(from ${color} 0.48 ${(c * 0.95).toFixed(3)} h)`,
-    `--topic-tint-base:oklch(from ${color} ${pale ? 0.8 : 0.56} ${c} h)`,
+    `--project-tint-surface:oklch(from ${color} 0.93 ${(c * 0.42).toFixed(3)} h)`,
+    `--project-tint-edge:oklch(from ${color} 0.86 ${(c * 0.7).toFixed(3)} h)`,
+    `--project-tint-ink:oklch(from ${color} 0.48 ${(c * 0.95).toFixed(3)} h)`,
+    `--project-tint-base:oklch(from ${color} ${pale ? 0.8 : 0.56} ${c} h)`,
   ].join(";");
 };

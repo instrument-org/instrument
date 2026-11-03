@@ -1,31 +1,38 @@
-import { readTopicsSync, type Topic, writeTopicSync } from "../chat/topics";
-import { listedFolderPaths } from "../chat/topic-file";
+import {
+  readProjectsSync,
+  type Project,
+  writeProjectSync,
+} from "../chat/projects";
+import { listedFolderPaths } from "../chat/project-file";
 import { readJsonRecordSync, updateJsonRecordSync } from "../json-record-file";
 import { permissionSettingsOf, permissionsFileIn } from "./rules";
-import { addedTopicFolders } from "./topic-folders";
+import { addedProjectFolders } from "./project-folders";
 
 /**
- * The mark in this computer's permission settings that the folders a topic's
- * `TOPIC.md` listed were taken in here. Outside the settings' schema, so no
- * write of the settings, a reset included, drops it.
+ * The mark in this computer's permission settings that the folders a project's
+ * `AGENTS.md` listed were taken in here. Outside the settings' schema, so no
+ * write of the settings, a reset included, drops it. Spelled as the build
+ * that called projects topics wrote it: every computer that ran one holds
+ * it under this name, and one that missed it would take in whatever a
+ * project's file lists again.
  */
 const MOVED_MARK = "topicFoldersMoved";
 
 /**
- * Brings the folders granted under each topic out of its `TOPIC.md` and into
+ * Brings the folders granted under each project out of its `AGENTS.md` and into
  * this computer's permission settings, once per computer.
  *
  * Builds before this wrote them as front matter. The file travels with the
  * workspace, so a grant made on one computer opened the same-named path on
  * another, and where the workspace is the person's own folder the agent can
- * write the file, which widened what every chat under the topic reaches
+ * write the file, which widened what every chat under the project reaches
  * without a card.
  *
  * Only on a computer where a build before this one kept permission
  * settings for the workspace: a computer opening it for the first time with
  * this build takes in nothing, whatever the files list.
  *
- * Once, and never again: a `folders:` key in a `TOPIC.md` after this is a
+ * Once, and never again: a `folders:` key in an `AGENTS.md` after this is a
  * key the build does not read, whoever wrote it, so an edit to the file
  * never opens a folder. What is held here already is kept, with the file's
  * folders after it.
@@ -36,7 +43,7 @@ const MOVED_MARK = "topicFoldersMoved";
  * and asks again before opening any of them, which is the right answer for
  * folders granted on a different computer.
  */
-export function moveTopicFolders({
+export function moveProjectFolders({
   machineDir,
   rootDir,
 }: {
@@ -56,29 +63,29 @@ export function moveTopicFolders({
     updateJsonRecordSync(file, () => ({ [MOVED_MARK]: true }));
     return { moved: 0 };
   }
-  const listing = readTopicsSync(rootDir).flatMap((topic) => {
-    if (topic.others === undefined || !("folders" in topic.others)) {
+  const listing = readProjectsSync(rootDir).flatMap((project) => {
+    if (project.others === undefined || !("folders" in project.others)) {
       return [];
     }
-    return [{ paths: listedFolderPaths(topic.others.folders), topic }];
+    return [{ paths: listedFolderPaths(project.others.folders), project }];
   });
   updateJsonRecordSync(file, (record) => {
-    let topics = permissionSettingsOf(record).topics;
-    for (const { paths, topic } of listing) {
-      topics = addedTopicFolders(topics, topic.id, paths, new Date());
+    let projects = permissionSettingsOf(record).projects;
+    for (const { paths, project } of listing) {
+      projects = addedProjectFolders(projects, project.id, paths, new Date());
     }
-    return { [MOVED_MARK]: true, topics };
+    return { [MOVED_MARK]: true, projects };
   });
-  for (const { topic } of listing) {
-    writeTopicSync(rootDir, withoutFolders(topic));
+  for (const { project } of listing) {
+    writeProjectSync(rootDir, withoutFolders(project));
   }
   return {
     moved: listing.filter(({ paths }) => paths.length > 0).length,
   };
 }
 
-function withoutFolders(topic: Topic): Topic {
-  const { others, ...rest } = topic;
+function withoutFolders(project: Project): Project {
+  const { others, ...rest } = project;
   const { folders: _folders, ...kept } = others ?? {};
   return Object.keys(kept).length > 0 ? { ...rest, others: kept } : rest;
 }

@@ -1,5 +1,5 @@
 import { type Draft } from "@/shared/drafts";
-import { openTopicDetails } from "@/client/atoms/topic-details-modal";
+import { openProjectDetails } from "@/client/atoms/project-details-modal";
 import { chatFiltersAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -20,25 +20,25 @@ import {
   hasWords,
   matchesFilters,
   outsideFilters,
-  type Topic,
+  type Project,
   widenToSearch,
 } from "./chats";
 import { FilterHead } from "./filter-head";
 import { DeleteChatDialog } from "./delete-chat-dialog";
-import { TopicDialog } from "./topic-dialog";
-import { TopicBanner } from "./topic-banner";
-import { topicColor } from "./topic-colors";
-import { topicTint } from "./topic-tint";
+import { ProjectDialog } from "./project-dialog";
+import { ProjectBanner } from "./project-banner";
+import { projectColor } from "./project-colors";
+import { projectTint } from "./project-tint";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
-import { useSetChatTopic } from "./use-set-chat-topic";
-import { backfillCandidates } from "./use-topic-backfill";
+import { useSetChatProject } from "./use-set-chat-project";
+import { backfillCandidates } from "./use-project-backfill";
 
 /**
  * The chat pane: the inbox under the line that says where it stands and
  * searches it. Nothing is composed here: New in the rail opens
  * a draft, and the chat it starts lands at the top of the list; until it
  * is started it is a row of the Drafts place, which lists the drafts where
- * the chats otherwise go. With one topic chosen in the head, the topic's
+ * the chats otherwise go. With one project chosen in the head, the project's
  * banner stands above the rows.
  */
 export function ChatPane({
@@ -78,35 +78,39 @@ export function ChatPane({
 }) {
   const appsBySlug = useAppsBySlug();
   const chatsQuery = useQuery(chatListOptions());
-  const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
+  const projectsQuery = useQuery(
+    rpcClient.workspace.projects.list.queryOptions(),
+  );
   const chats: Chat[] = chatsQuery.data ?? [];
-  const topics: Topic[] = topicsQuery.data ?? [];
-  const afterTopicChange = {
+  const projects: Project[] = projectsQuery.data ?? [];
+  const afterProjectChange = {
     onError: (error: Error) => {
-      // A name a topic can't take comes back in words written for people.
-      toast.error("Couldn't change the topic", {
+      // A name a project can't take comes back in words written for people.
+      toast.error("Couldn't change the project", {
         cause: error,
         description: spokenMessage(error, ["BAD_REQUEST"]),
       });
     },
-    onSuccess: () => void topicsQuery.refetch(),
+    onSuccess: () => void projectsQuery.refetch(),
   };
-  const createTopic = useMutation(
-    rpcClient.workspace.topics.create.mutationOptions(afterTopicChange),
+  const createProject = useMutation(
+    rpcClient.workspace.projects.create.mutationOptions(afterProjectChange),
   );
-  const setChatTopic = useSetChatTopic();
+  const setChatProject = useSetChatProject();
 
   const [filters, setFilters] = useAtom(chatFiltersAtom);
   // A change of filter is a change of subject, and the newest of the new
   // subject is what matters, so the list is taken back to its top with it.
   // Read off the filters rather than counted here, because the pane is not
-  // the only thing that changes them: the command menu stands it in a topic.
+  // the only thing that changes them: the command menu stands it in a project.
   const scrollSignal = JSON.stringify(filters);
-  const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
-  const matched = chats.filter((chat) =>
-    matchesFilters(chat, filters, topicNames),
+  const projectNames = new Map(
+    projects.map((project) => [project.id, project.name]),
   );
-  const outside = outsideFilters(chats, filters, topicNames);
+  const matched = chats.filter((chat) =>
+    matchesFilters(chat, filters, projectNames),
+  );
+  const outside = outsideFilters(chats, filters, projectNames);
   // Words that turn up in no chat anywhere are handed to the decision
   // model, which reads the chats the other filters keep for the one the
   // search means; its finds stand in the list's place, under a line saying
@@ -118,7 +122,7 @@ export function ChatPane({
       matched.length === 0 &&
       outside === 0,
     candidates: chats.filter((chat) =>
-      matchesFilters(chat, { ...filters, search: "" }, topicNames),
+      matchesFilters(chat, { ...filters, search: "" }, projectNames),
     ),
     search: filters.search,
   });
@@ -133,30 +137,30 @@ export function ChatPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listedKey]);
   // Standing in Drafts, the list holds the drafts, narrowed by the same
-  // search: by their words and the name of the topic each is filed under.
+  // search: by their words and the name of the project each is filed under.
   const shownDrafts =
     filters.place === "drafts"
       ? drafts.filter((draft) =>
           hasWords(filters.search, [
             draftTitle(draft.words),
             draft.words,
-            topicNames.get(draft.topicId ?? "") ?? "",
+            projectNames.get(draft.projectId ?? "") ?? "",
           ]),
         )
       : undefined;
-  // One topic chosen is the place the pane is standing in: the banner names
+  // One project chosen is the place the pane is standing in: the banner names
   // it.
-  const chosenTopic =
-    filters.topics.length === 1
-      ? topics.find((topic) => topic.id === filters.topics[0])
+  const chosenProject =
+    filters.projects.length === 1
+      ? projects.find((project) => project.id === filters.projects[0])
       : undefined;
 
-  // Whether the new-topic dialog is up, and for which chat when a row
-  // opened it: a topic made from a row is filed on that chat as it lands,
+  // Whether the new-project dialog is up, and for which chat when a row
+  // opened it: a project made from a row is filed on that chat as it lands,
   // since that is what asking for one there means; one made from the head's
-  // picker is the topic the list then stands in, since that is what picking
+  // picker is the project the list then stands in, since that is what picking
   // it means.
-  const [newTopic, setNewTopic] = useState<{
+  const [newProject, setNewProject] = useState<{
     forChat?: Chat;
     name?: string;
   }>();
@@ -166,29 +170,31 @@ export function ChatPane({
   const deletingChat = chats.find((chat) => chat.id === deletingId);
 
   return (
-    // Its own stacking context, so the topic's wash can sit under the rows
+    // Its own stacking context, so the project's wash can sit under the rows
     // without going under the card. The rows stop a pixel short of the
     // column's edge, where its line is drawn over them, so two see-through
     // hairlines never cross; the wash, placed against the padding box,
     // still reaches under the line.
     <div
       className="relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px"
-      data-topic={chosenTopic ? "" : undefined}
+      data-project={chosenProject ? "" : undefined}
       data-find-surface
     >
-      {/* The head, and while the list is one topic, the topic's own line
-          under it, with the topic's tint washing down from the card's edge
+      {/* The head, and while the list is one project, the project's own line
+          under it, with the project's tint washing down from the card's edge
           and fading out past the head, behind the first rows. */}
       <div
-        className={cn("shrink-0", chosenTopic && "topic-tint")}
-        style={chosenTopic ? topicTint(topicColor(chosenTopic)) : undefined}
+        className={cn("shrink-0", chosenProject && "project-tint")}
+        style={
+          chosenProject ? projectTint(projectColor(chosenProject)) : undefined
+        }
       >
         {/* Sized against the whole column, so a taller window washes
             further down it. */}
-        {chosenTopic && (
+        {chosenProject && (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--topic-tint-surface)/50 to-transparent dark:from-(--topic-tint-surface)/25"
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent dark:from-(--project-tint-surface)/25"
           />
         )}
         <FilterHead
@@ -196,20 +202,20 @@ export function ChatPane({
           drafts={drafts.length}
           filters={filters}
           onFiltersChange={setFilters}
-          onNewTopic={() => {
-            setNewTopic({});
+          onNewProject={() => {
+            setNewProject({});
           }}
-          onTopicDetails={(topic) => {
-            openTopicDetails(topic.id);
+          onProjectDetails={(project) => {
+            openProjectDetails(project.id);
           }}
-          topics={topics}
+          projects={projects}
         />
-        {chosenTopic && (
-          <TopicBanner
-            onDetails={(topic) => {
-              openTopicDetails(topic.id);
+        {chosenProject && (
+          <ProjectBanner
+            onDetails={(project) => {
+              openProjectDetails(project.id);
             }}
-            topic={chosenTopic}
+            project={chosenProject}
           />
         )}
       </div>
@@ -226,7 +232,7 @@ export function ChatPane({
         emptyLine={
           aiSearch.isLooking
             ? "Looking through your chats…"
-            : emptyLineFor(filters, chats.length, chosenTopic)
+            : emptyLineFor(filters, chats.length, chosenProject)
         }
         // The drafts are kept on this computer, so they are never on
         // their way.
@@ -236,14 +242,14 @@ export function ChatPane({
           setDeletingId(chat.id);
         }}
         onDeleteDraft={onDeleteDraft}
-        onNewTopic={(chat, name) => {
-          setNewTopic({ forChat: chat, ...(name ? { name } : {}) });
+        onNewProject={(chat, name) => {
+          setNewProject({ forChat: chat, ...(name ? { name } : {}) });
         }}
         onOpen={onOpenChat}
         onOpenDraft={onOpenDraft}
         onPopOut={onPopOut}
-        onSetTopic={(chat, next) => {
-          setChatTopic(chat.id, next);
+        onSetProject={(chat, next) => {
+          setChatProject(chat.id, next);
         }}
         onWiden={() => {
           setFilters(widenToSearch(filters));
@@ -255,7 +261,7 @@ export function ChatPane({
         // The decision model's finds are not matches of the words, so
         // nothing on them is marked.
         search={isAISearch ? "" : filters.search}
-        topics={topics}
+        projects={projects}
       />
       {deletingChat && (
         <DeleteChatDialog
@@ -271,23 +277,23 @@ export function ChatPane({
           open
         />
       )}
-      <TopicDialog
+      <ProjectDialog
         candidates={backfillCandidates(
-          chats.filter((chat) => chat.id !== newTopic?.forChat?.id),
+          chats.filter((chat) => chat.id !== newProject?.forChat?.id),
         )}
         mode="create"
-        {...(newTopic?.name ? { name: newTopic.name } : {})}
-        onCreate={(topic, alsoFile) => {
-          const forChat = newTopic?.forChat;
-          createTopic.mutate(topic, {
+        {...(newProject?.name ? { name: newProject.name } : {})}
+        onCreate={(project, alsoFile) => {
+          const forChat = newProject?.forChat;
+          createProject.mutate(project, {
             onSuccess: (created) => {
-              // Chats offered were filed under nothing, so the new topic
+              // Chats offered were filed under nothing, so the new project
               // is all they carry.
               for (const id of alsoFile) {
-                setChatTopic(id, created.id);
+                setChatProject(id, created.id);
               }
               if (forChat) {
-                setChatTopic(forChat.id, created.id);
+                setChatProject(forChat.id, created.id);
                 return;
               }
               // Read at the moment it lands rather than from the render
@@ -295,23 +301,25 @@ export function ChatPane({
               setFilters((current) => ({
                 ...current,
                 apps: [],
-                topics: [created.id],
+                projects: [created.id],
               }));
             },
           });
         }}
         onOpenChange={(open) => {
           if (!open) {
-            setNewTopic(undefined);
+            setNewProject(undefined);
           }
         }}
-        open={newTopic !== undefined}
-        // A retired topic's name brings it back, so only the ones in use
-        // are names a new topic cannot take.
-        otherNames={topics.flatMap((topic) =>
-          topic.retired ? [] : [topic.name],
+        open={newProject !== undefined}
+        // A retired project's name brings it back, so only the ones in use
+        // are names a new project cannot take.
+        otherNames={projects.flatMap((project) =>
+          project.retired ? [] : [project.name],
         )}
-        taken={topics.flatMap((topic) => (topic.emoji ? [topic.emoji] : []))}
+        taken={projects.flatMap((project) =>
+          project.emoji ? [project.emoji] : [],
+        )}
       />
     </div>
   );
@@ -321,7 +329,7 @@ export function ChatPane({
 function emptyLineFor(
   filters: ChatFilters,
   total: number,
-  topic: Topic | undefined,
+  project: Project | undefined,
 ): string {
   const search = filters.search.trim();
   if (search !== "") {
@@ -339,8 +347,8 @@ function emptyLineFor(
   if (filters.place === "archived") {
     return "Chats you archive will show up here";
   }
-  if (topic) {
-    return `Chats you file under ${topic.name} will show up here`;
+  if (project) {
+    return `Chats you file under ${project.name} will show up here`;
   }
   return total === 0 ? "Press New to start a chat" : "There's nothing here yet";
 }

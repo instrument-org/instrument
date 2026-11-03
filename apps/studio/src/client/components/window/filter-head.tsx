@@ -22,14 +22,14 @@ import {
   type Filterable,
   isInbox,
   matchesFilters,
-  type Topic,
+  type Project,
 } from "./chats";
 import { PlaceIcon } from "./place-icons";
 import { SearchField } from "./search-field";
-import { TopicMark } from "./topic-mark";
-import { TopicActionsButton, TopicContextMenu } from "./topic-menu";
+import { ProjectMark } from "./project-mark";
+import { ProjectActionsButton, ProjectContextMenu } from "./project-menu";
 
-/** A view the picker offers above the topics: the chats, or one of the places. */
+/** A view the picker offers above the projects: the chats, or one of the places. */
 interface View {
   /** How many chats it holds, drawn at the end of its row; none for a view whose size says nothing. */
   count?: number;
@@ -54,20 +54,20 @@ interface FilterProps {
   drafts: number;
   filters: ChatFilters;
   onFiltersChange: (filters: ChatFilters) => void;
-  /** Opens the dialog that makes a topic; the one made is the one the list then stands in. */
-  onNewTopic: () => void;
-  /** Opens a topic's details: its name, its mark, and the way to delete it. */
-  onTopicDetails: (topic: Topic) => void;
-  topics: Topic[];
+  /** Opens the dialog that makes a project; the one made is the one the list then stands in. */
+  onNewProject: () => void;
+  /** Opens a project's details: its name, its mark, and the way to delete it. */
+  onProjectDetails: (project: Project) => void;
+  projects: Project[];
 }
 
 /**
  * The line over the inbox: one picker that names the view the list is and
  * changes it, and the search beside it, which reads inside that view. The
  * picker holds the chats (every chat not put away), Unread, Starred, Drafts
- * while there are any, and Archived, then each topic, one view at a time:
+ * while there are any, and Archived, then each project, one view at a time:
  * choosing the view already on steps back to the chats. The picker wears
- * the view's color, a topic's own tint for a topic, and while the search is
+ * the view's color, a project's own tint for a project, and while the search is
  * in use it draws in to its mark so the words have the line.
  */
 export function FilterHead(props: FilterProps) {
@@ -87,7 +87,7 @@ export function FilterHead(props: FilterProps) {
     <div
       aria-label="Filters"
       // 8px in from the card's side, down from its top, and down to the
-      // first row or the topic's line, so the controls sit evenly in their
+      // first row or the project's line, so the controls sit evenly in their
       // band.
       className="flex shrink-0 items-center gap-1.5 px-2 pt-2 pb-2"
       role="group"
@@ -100,8 +100,8 @@ export function FilterHead(props: FilterProps) {
         }}
         onFocusChange={setSearchFocused}
         placeholder={
-          model.chosenTopic
-            ? `Search ${model.chosenTopic.name}`
+          model.chosenProject
+            ? `Search ${model.chosenProject.name}`
             : model.current.id === "chats"
               ? "Search"
               : `Search ${model.current.label}`
@@ -115,7 +115,7 @@ export function FilterHead(props: FilterProps) {
 /**
  * One row of the picker: large, with its face, its name, and what stands at
  * its end. It keeps its height in the menu's flex column, where the rows
- * outside the topics' scroll would otherwise shrink to make room for them.
+ * outside the projects' scroll would otherwise shrink to make room for them.
  */
 function PickerRow({
   children,
@@ -194,28 +194,34 @@ function RowCount({ count }: { count: number | undefined }) {
   ) : null;
 }
 
-/** A topic's face at the size the picker draws it: its emoji, or its mark. */
-function TopicFace({ size, topic }: { size: "chip" | "row"; topic: Topic }) {
-  return topic.emoji ? (
+/** A project's face at the size the picker draws it: its emoji, or its mark. */
+function ProjectFace({
+  size,
+  project,
+}: {
+  size: "chip" | "row";
+  project: Project;
+}) {
+  return project.emoji ? (
     <span
       className={cn(
         "leading-none",
         size === "chip" ? "text-[15px]" : "text-lg",
       )}
     >
-      {topic.emoji}
+      {project.emoji}
     </span>
   ) : (
-    <TopicMark
+    <ProjectMark
       className={size === "chip" ? "size-4" : "size-6"}
-      topic={topic}
+      project={project}
     />
   );
 }
 
 /**
  * What the head draws from: the views with their counts and choosers, each
- * topic with its own, and which of them is on screen. A count is the chats
+ * project with its own, and which of them is on screen. A count is the chats
  * the view would list, so it reads the same predicate the list does.
  */
 function useFilterModel({
@@ -223,18 +229,18 @@ function useFilterModel({
   drafts,
   filters,
   onFiltersChange,
-  onNewTopic,
-  onTopicDetails,
-  topics,
+  onNewProject,
+  onProjectDetails,
+  projects,
 }: FilterProps) {
-  const live = topics.filter((topic) => !topic.retired);
+  const live = projects.filter((project) => !project.retired);
   const countIn = (place: ChatPlace) =>
     chats.filter((chat) =>
-      matchesFilters(chat, { apps: [], place, search: "", topics: [] }),
+      matchesFilters(chat, { apps: [], place, search: "", projects: [] }),
     ).length;
   const isChats =
     isInbox(filters) &&
-    filters.topics.length === 0 &&
+    filters.projects.length === 0 &&
     filters.apps.length === 0;
   const chatsView: View = {
     // The rail's Chat, so the chats look the same wherever they are named.
@@ -291,32 +297,34 @@ function useFilterModel({
     id: "all",
     label: "All chats",
   };
-  const chosenTopic = live.find((topic) => filters.topics.includes(topic.id));
+  const chosenProject = live.find((project) =>
+    filters.projects.includes(project.id),
+  );
   const current = isChats
     ? chatsView
     : (views.find((view) => view.id === filters.place) ??
       (filters.place === "all" ? everything : undefined));
   return {
-    chosenTopic,
-    // A topic or an app narrows the list with no place chosen; the picker
-    // then names the topic, or the chats for an app.
+    chosenProject,
+    // A project or an app narrows the list with no place chosen; the picker
+    // then names the project, or the chats for an app.
     current: current ?? chatsView,
-    onDetails: onTopicDetails,
-    onNew: onNewTopic,
-    topics: live.map((topic) => ({
+    onDetails: onProjectDetails,
+    onNew: onNewProject,
+    projects: live.map((project) => ({
       choose: () => {
-        onFiltersChange(choose(filters, { group: "topics", id: topic.id }));
+        onFiltersChange(choose(filters, { group: "projects", id: project.id }));
       },
-      count: chats.filter((chat) => chat.topic === topic.id).length,
-      isOn: chosenTopic?.id === topic.id,
-      topic,
+      count: chats.filter((chat) => chat.project === project.id).length,
+      isOn: chosenProject?.id === project.id,
+      project,
     })),
     views: views.map((view) => ({
       ...view,
       choose: () => {
         if (view.id === "chats") {
           const { place: _place, ...rest } = filters;
-          onFiltersChange({ ...rest, apps: [], topics: [] });
+          onFiltersChange({ ...rest, apps: [], projects: [] });
           return;
         }
         onFiltersChange(choose(filters, { group: "place", id: view.id }));
@@ -329,28 +337,28 @@ function useFilterModel({
 /**
  * The view at the head of the line, and the way to change it: its name in
  * its color, or its mark alone while the search is in use. Under it, the
- * views, every topic with its count, and a new one at the foot; a topic's
+ * views, every project with its count, and a new one at the foot; a project's
  * details by right click or the dots at its edge. A pick closes the list.
  */
 function ViewPicker({
-  chosenTopic,
+  chosenProject,
   current,
   isCompact,
   onDetails,
   onNew,
-  topics,
+  projects,
   views,
 }: {
-  chosenTopic: Topic | undefined;
+  chosenProject: Project | undefined;
   current: View;
   isCompact: boolean;
-  onDetails: (topic: Topic) => void;
+  onDetails: (project: Project) => void;
   onNew: () => void;
-  topics: {
+  projects: {
     choose: () => void;
     count: number;
     isOn: boolean;
-    topic: Topic;
+    project: Project;
   }[];
   views: (View & { choose: () => void; isOn: boolean })[];
 }) {
@@ -359,12 +367,12 @@ function ViewPicker({
     setOpen(false);
     chooseView();
   };
-  const label = chosenTopic ? chosenTopic.name : current.label;
+  const label = chosenProject ? chosenProject.name : current.label;
   // The chats are named alone, the way the inbox is; every other view
   // carries its mark beside its name, so a narrowed list never passes for
   // the whole of it. Drawn in to its mark, every view shows that mark.
   const hasFace =
-    isCompact || chosenTopic !== undefined || current.id !== "chats";
+    isCompact || chosenProject !== undefined || current.id !== "chats";
   return (
     <Popover onOpenChange={setOpen} open={isOpen}>
       <PopoverTrigger asChild>
@@ -385,8 +393,8 @@ function ViewPicker({
         >
           <Reveal isOpen={hasFace}>
             <span className="grid size-5 place-items-center">
-              {chosenTopic ? (
-                <TopicFace size="chip" topic={chosenTopic} />
+              {chosenProject ? (
+                <ProjectFace size="chip" project={chosenProject} />
               ) : (
                 // Outlined: the button's tint already says the view is chosen.
                 current.icon("size-5", false)
@@ -452,16 +460,16 @@ function ViewPicker({
             <span className="truncate">{view.label}</span>
           </PickerRow>
         ))}
-        {topics.length > 0 && (
+        {projects.length > 0 && (
           <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
         )}
-        {/* The topics scroll between the views and the foot, which stay. */}
+        {/* The projects scroll between the views and the foot, which stay. */}
         <MenuScrollArea className="flex flex-col gap-0.5 p-0">
-          {topics.map((entry) => (
-            <TopicContextMenu
-              key={entry.topic.id}
+          {projects.map((entry) => (
+            <ProjectContextMenu
+              key={entry.project.id}
               onDetails={onDetails}
-              topic={entry.topic}
+              project={entry.project}
             >
               <PickerRow
                 isOn={entry.isOn}
@@ -475,20 +483,20 @@ function ViewPicker({
                     <span className="group-hover/row:invisible group-has-data-[state=open]/row:invisible">
                       <RowCount count={entry.count} />
                     </span>
-                    <TopicActionsButton
+                    <ProjectActionsButton
                       className="absolute right-0 group-hover/row:opacity-100"
                       onDetails={onDetails}
-                      topic={entry.topic}
+                      project={entry.project}
                     />
                   </span>
                 }
               >
                 <span className="grid size-6 shrink-0 place-items-center">
-                  <TopicFace size="row" topic={entry.topic} />
+                  <ProjectFace size="row" project={entry.project} />
                 </span>
-                <span className="truncate">{entry.topic.name}</span>
+                <span className="truncate">{entry.project.name}</span>
               </PickerRow>
-            </TopicContextMenu>
+            </ProjectContextMenu>
           ))}
         </MenuScrollArea>
         <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
@@ -503,7 +511,7 @@ function ViewPicker({
           <span className="grid size-6 shrink-0 place-items-center">
             <PlusSquareIcon className="size-5" weight="regular" />
           </span>
-          <span>New topic</span>
+          <span>New project</span>
         </PickerRow>
       </PopoverContent>
     </Popover>

@@ -88,7 +88,7 @@ describe("instrumentLinkOf", () => {
     ["a task with no id", "instrument://task"],
     ["a name with a path under it", "instrument://task/ses_01J9TASK/files"],
     ["a name with characters no name has", "instrument://memory/no%20stevia"],
-    ["a noun the app has no screen for", "instrument://topic/general"],
+    ["a noun the app has no screen for", "instrument://project/general"],
     ["a chat by its old name", "instrument://thread/ses_01J9"],
     ["a name every object has", "instrument://constructor/x"],
     ["the file channel", "instrument://computer-abc123/Users/me/notes.md"],
@@ -167,11 +167,11 @@ describe("outsideLinkOf", () => {
       { kind: "new", words: "Plan my week" },
     ],
     [
-      "instrument://new/?text=Plan&topic=01JTOPIC",
-      { kind: "new", topic: "01JTOPIC", words: "Plan" },
+      "instrument://new/?text=Plan&project=01JPROJECT",
+      { kind: "new", project: "01JPROJECT", words: "Plan" },
     ],
     [
-      "instrument://new?text=Plan&topic=not%20a%20name",
+      "instrument://new?text=Plan&project=not%20a%20name",
       { kind: "new", words: "Plan" },
     ],
     ["instrument://new", { kind: "new", words: "" }],

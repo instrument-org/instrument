@@ -12,11 +12,11 @@ const metadata = {
   sessionId: StoreId.newSessionId(),
 };
 
-function topic(name: string | null): SessionMessagePart.DataPart {
+function project(name: string | null): SessionMessagePart.DataPart {
   return {
-    data: { topic: name === null ? null : { name } },
+    data: { project: name === null ? null : { name } },
     metadata,
-    type: "data-topic",
+    type: "data-project",
   };
 }
 
@@ -33,27 +33,27 @@ describe("stateNotes", () => {
     const said = stateNotes();
     expect(
       [
-        topic(null),
-        topic("Trips"),
-        topic("Trips"),
-        topic(null),
-        topic(null),
-        topic("Trips"),
+        project(null),
+        project("Trips"),
+        project("Trips"),
+        project(null),
+        project(null),
+        project("Trips"),
       ].map((part) => said(part)?.split(".")[0]),
     ).toMatchInlineSnapshot(`
       [
         undefined,
         "
       <instrument-system-note>
-      This chat is filed under the topic "Trips"",
+      This chat is filed under the project "Trips"; read the chat through it",
         undefined,
         "
       <instrument-system-note>
-      This chat has no topic now",
+      This chat has no project now",
         undefined,
         "
       <instrument-system-note>
-      This chat is filed under the topic "Trips"",
+      This chat is filed under the project "Trips"; read the chat through it",
       ]
     `);
   });
@@ -63,15 +63,15 @@ describe("stateNotes", () => {
     expect(said(instructions("Use metric units."))).toContain(
       "Use metric units.",
     );
-    expect(said(topic(null))).toBeUndefined();
+    expect(said(project(null))).toBeUndefined();
     expect(said(instructions())).toContain(
       "Stop applying the previous workspace instructions.",
     );
   });
 
   it("starts each sequence with nothing said", () => {
-    stateNotes()(topic("Trips"));
-    expect(stateNotes()(topic("Trips"))).toBeDefined();
+    stateNotes()(project("Trips"));
+    expect(stateNotes()(project("Trips"))).toBeDefined();
   });
 
   it("says nothing of a part that is not a picture", () => {
@@ -132,10 +132,17 @@ describe("goesUnsaid", () => {
   }
 
   it.each([
-    [[topic(null), topic(null), instructions(), instructions()]],
-    [[topic(null), topic("Trips"), topic(null), topic(null)]],
+    [[project(null), project(null), instructions(), instructions()]],
+    [[project(null), project("Trips"), project(null), project(null)]],
     [[instructions(), instructions("Use metric units."), instructions()]],
-    [[topic("Trips"), instructions(), topic(null), instructions("Be brief.")]],
+    [
+      [
+        project("Trips"),
+        instructions(),
+        project(null),
+        instructions("Be brief."),
+      ],
+    ],
   ])(
     "leaves off only parts that say nothing in the history or any stretch of it",
     (parts) => {
@@ -148,11 +155,11 @@ describe("goesUnsaid", () => {
 
   it("sends the same model request with the parts left off", async () => {
     const parts = [
-      topic(null),
+      project(null),
       instructions(),
-      topic("Trips"),
+      project("Trips"),
       instructions("Use metric units."),
-      topic(null),
+      project(null),
       instructions(),
     ];
     const ids = parts.map(() => StoreId.newMessageId());
@@ -180,17 +187,17 @@ describe("goesUnsaid", () => {
   it("leaves off an empty picture until the session had something in it", () => {
     expect(
       written([
-        topic(null),
+        project(null),
         instructions(),
-        topic("Trips"),
-        topic(null),
+        project("Trips"),
+        project(null),
         instructions(),
       ]).map((part) => part !== undefined),
     ).toEqual([false, false, true, true, false]);
   });
 
   it("keeps a picture with something in it, and one never empty", () => {
-    expect(goesUnsaid(topic("Trips"), [])).toBe(false);
+    expect(goesUnsaid(project("Trips"), [])).toBe(false);
     expect(
       goesUnsaid(
         { data: { screen: "browser" }, metadata, type: "data-viewContext" },

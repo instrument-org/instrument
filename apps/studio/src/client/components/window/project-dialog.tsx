@@ -28,13 +28,13 @@ import {
 import { isDictating } from "@/client/hooks/use-dictation";
 import {
   starterEmoji,
-  TOPIC_COLORS,
-} from "@/client/components/window/topic-colors";
-import { TopicMark } from "@/client/components/window/topic-mark";
+  PROJECT_COLORS,
+} from "@/client/components/window/project-colors";
+import { ProjectMark } from "@/client/components/window/project-mark";
 import {
   ColorRow,
-  TopicMarkPicker,
-} from "@/client/components/window/topic-mark-picker";
+  ProjectMarkPicker,
+} from "@/client/components/window/project-mark-picker";
 import { folderLabel } from "@/client/lib/path-utils";
 import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
@@ -48,7 +48,10 @@ import { toast } from "@/client/lib/toast";
 
 import { useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";
-import { type BackfillCandidate, useTopicBackfill } from "./use-topic-backfill";
+import {
+  type BackfillCandidate,
+  useProjectBackfill,
+} from "./use-project-backfill";
 
 /**
  * How sure the decision model has to be before its pick replaces the mark: a
@@ -56,66 +59,66 @@ import { type BackfillCandidate, useTopicBackfill } from "./use-topic-backfill";
  */
 const CONFIDENT = 0.3;
 
-/** What the user chooses about a topic: its name, its mark, its tint, its instructions and its folders. */
-export interface TopicChoice {
+/** What the user chooses about a project: its name, its mark, its tint, its instructions and its folders. */
+export interface ProjectChoice {
   color: string;
   emoji: string;
   /** The user's folders the work under it uses, attached to each chat filed there. */
-  folders: TopicFolder[];
+  folders: ProjectFolder[];
   /** What every chat filed under it is given; empty takes them away. */
   instructions: string;
   name: string;
 }
 
-/** How long a topic's name may run: a row's worth, since that is where it is read. */
-const TOPIC_NAME_MAX = 24;
+/** How long a project's name may run: a row's worth, since that is where it is read. */
+const PROJECT_NAME_MAX = 24;
 
 // eslint-disable-next-line no-control-regex
 const NOT_IN_A_FOLDER_NAME = /[<>:"/\\|?*\u0000-\u001F]/;
 
-interface TopicFolder {
+interface ProjectFolder {
   path: string;
 }
 
 /**
- * A topic's name, mark, tint, instructions and folders, the same fields
- * whether the topic is being made or changed.
+ * A project's name, mark, tint, instructions and folders, the same fields
+ * whether the project is being made or changed.
  *
  * Making one (`create`) starts from a fresh mark that follows the name until
  * one is picked by hand, and can file the chats that fit it as it lands.
- * Changing one (`edit`) starts from the topic as it stands, hands back only
+ * Changing one (`edit`) starts from the project as it stands, hands back only
  * what changed, and offers deleting it at its foot.
  */
-export function TopicDialog(
+export function ProjectDialog(
   props: {
     onOpenChange: (open: boolean) => void;
     open: boolean;
-    /** Every other topic's name, none of which this one can take. */
+    /** Every other project's name, none of which this one can take. */
     otherNames: readonly string[];
   } & (
     | {
-        /** Chats the new topic can be filed on as it is made, when they fit it. */
+        /** Chats the new project can be filed on as it is made, when they fit it. */
         candidates?: BackfillCandidate[];
         mode: "create";
         /** The name it starts with: what was typed where it was asked for. */
         name?: string;
-        /** The topic, and the chats the person chose to file under it at once. */
+        /** The project, and the chats the person chose to file under it at once. */
         onCreate: (
-          topic: TopicChoice,
+          project: ProjectChoice,
           alsoFile: BackfillCandidate["id"][],
         ) => void;
-        /** The marks already in use, so a new topic does not repeat one. */
+        /** The marks already in use, so a new project does not repeat one. */
         taken?: readonly string[];
       }
     | {
         mode: "edit";
-        onChange: (edits: Partial<TopicChoice>) => void;
+        onChange: (edits: Partial<ProjectChoice>) => void;
         /** Asked for from the foot, past a confirmation; the dialog closes with it. */
         onDelete: () => void;
-        topic: {
+        project: {
           color?: string;
           emoji?: string;
-          folders?: TopicFolder[];
+          folders?: ProjectFolder[];
           id: string;
           instructions?: string;
           name: string;
@@ -128,16 +131,16 @@ export function TopicDialog(
     const { candidates = [], name = "", onCreate, taken = [] } = props;
     return (
       <Dialog onOpenChange={onOpenChange} open={open}>
-        <TopicForm
+        <ProjectForm
           action="Create"
           candidates={candidates}
-          description="Filing chats under a topic makes them easier to find later."
-          // Seeded from how many topics there already are, so opening the
+          description="Filing chats under a project makes them easier to find later."
+          // Seeded from how many projects there already are, so opening the
           // dialog twice in a row offers two different marks without the
           // render being random.
           initial={{
             color:
-              TOPIC_COLORS[taken.length % TOPIC_COLORS.length] ?? "#3b6ef6",
+              PROJECT_COLORS[taken.length % PROJECT_COLORS.length] ?? "#3b6ef6",
             emoji: starterEmoji(taken, taken.length),
             folders: [],
             instructions: "",
@@ -148,73 +151,74 @@ export function TopicDialog(
           onOpenChange={onOpenChange}
           open={open}
           otherNames={otherNames}
-          title="New topic"
+          title="New project"
         />
       </Dialog>
     );
   }
-  const { onChange, onDelete, topic } = props;
+  const { onChange, onDelete, project } = props;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      {/* Keyed by the topic so opening a different one re-seeds the fields
-        rather than showing the last topic's name. */}
-      <TopicForm
+      {/* Keyed by the project so opening a different one re-seeds the fields
+        rather than showing the last project's name. */}
+      <ProjectForm
         action="Save"
-        deleting={{ name: topic.name, onDelete }}
-        description="Changes apply to every chat filed under this topic."
+        deleting={{ name: project.name, onDelete }}
+        description="Changes apply to every chat filed under this project."
         initial={{
-          color: topic.color ?? TOPIC_COLORS[8] ?? "#3b6ef6",
-          emoji: topic.emoji ?? "",
-          folders: topic.folders ?? [],
-          instructions: topic.instructions ?? "",
-          name: topic.name,
+          color: project.color ?? PROJECT_COLORS[8] ?? "#3b6ef6",
+          emoji: project.emoji ?? "",
+          folders: project.folders ?? [],
+          instructions: project.instructions ?? "",
+          name: project.name,
         }}
-        key={topic.id}
+        key={project.id}
         onCommit={(chosen) => {
           onChange({
-            ...(chosen.color === topic.color ? {} : { color: chosen.color }),
-            ...(chosen.emoji === (topic.emoji ?? "")
+            ...(chosen.color === project.color ? {} : { color: chosen.color }),
+            ...(chosen.emoji === (project.emoji ?? "")
               ? {}
               : { emoji: chosen.emoji }),
-            ...(samePaths(chosen.folders, topic.folders ?? [])
+            ...(samePaths(chosen.folders, project.folders ?? [])
               ? {}
               : { folders: chosen.folders }),
-            ...(chosen.instructions.trim() === (topic.instructions ?? "").trim()
+            ...(chosen.instructions.trim() ===
+            (project.instructions ?? "").trim()
               ? {}
               : { instructions: chosen.instructions }),
-            ...(chosen.name === topic.name ? {} : { name: chosen.name }),
+            ...(chosen.name === project.name ? {} : { name: chosen.name }),
           });
         }}
         onOpenChange={onOpenChange}
         open={open}
         otherNames={otherNames}
-        title="Topic details"
+        title="Project details"
       />
     </Dialog>
   );
 }
 
 /**
- * Why a name cannot be a topic's, said under the field, or nothing: a topic's
+ * Why a name cannot be a project's, said under the field, or nothing: a project's
  * name is its folder's, so it cannot hold what a folder name cannot, and no
- * two topics share one. The workspace checks the same again.
+ * two projects share one. The workspace checks the same again.
  */
 function nameProblem(name: string, otherNames: readonly string[]) {
   const trimmed = name.trim();
   if (NOT_IN_A_FOLDER_NAME.test(trimmed)) {
-    return `A topic name can't contain any of: < > : " / \\ | ? *`;
+    return `A project name can't contain any of: < > : " / \\ | ? *`;
   }
   if (trimmed.startsWith(".") || trimmed.endsWith(".")) {
-    return "A topic name can't start or end with a period";
+    return "A project name can't start or end with a period";
   }
   const taken = otherNames.find(
     (other) => other.toLowerCase() === trimmed.toLowerCase(),
   );
-  return taken ? `There is already a topic called “${taken}”` : undefined;
+  return taken ? `There is already a project called “${taken}”` : undefined;
 }
 
 /** Whether two folder lists name the same paths in the same order. */
-function samePaths(a: TopicFolder[], b: TopicFolder[]) {
+function samePaths(a: ProjectFolder[], b: ProjectFolder[]) {
   return (
     a.length === b.length &&
     a.every((folder, index) => folder.path === b[index]?.path)
@@ -222,18 +226,18 @@ function samePaths(a: TopicFolder[], b: TopicFolder[]) {
 }
 
 /**
- * The folders the work under a topic uses: each one's place, a way to take
+ * The folders the work under a project uses: each one's place, a way to take
  * it off, and a way to add another from the system's own picker. Every chat
- * filed under the topic has them attached, so a task can be handed one.
+ * filed under the project has them attached, so a task can be handed one.
  */
-function TopicFolders({
+function ProjectFolders({
   folders,
   onChange,
 }: {
-  folders: TopicFolder[];
-  onChange: (folders: TopicFolder[]) => void;
+  folders: ProjectFolder[];
+  onChange: (folders: ProjectFolder[]) => void;
 }) {
-  const remove = (folder: TopicFolder) => {
+  const remove = (folder: ProjectFolder) => {
     onChange(folders.filter((entry) => entry !== folder));
   };
   const add = async () => {
@@ -314,10 +318,10 @@ function TopicFolders({
 const FITS_NAMED = 3;
 
 /**
- * Deleting a topic, behind a confirmation: the tag goes, and the chats
+ * Deleting a project, behind a confirmation: the tag goes, and the chats
  * filed under it keep everything else they have.
  */
-function DeleteTopicButton({
+function DeleteProjectButton({
   name,
   onDelete,
 }: {
@@ -331,7 +335,7 @@ function DeleteTopicButton({
           className="text-destructive hover:text-destructive"
           variant="ghost"
         >
-          Delete topic
+          Delete project
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -354,7 +358,7 @@ function DeleteTopicButton({
 }
 
 /**
- * The offer to file the chats that fit a new topic as it is made: one
+ * The offer to file the chats that fit a new project as it is made: one
  * checkbox, off until checked, over the first few chats by title, each with
  * the chat mark so it reads as a chat, and a count of the rest, so the person
  * sees what would be filed without choosing chat by chat.
@@ -402,10 +406,10 @@ function FitsLine({
 }
 
 /** The form's fields and how it stands, as one value, so an opening starts all of it over. */
-type TopicFormState = TopicChoice & {
+type ProjectFormState = ProjectChoice & {
   /**
-   * A new topic's mark follows the best fit for its name until one is chosen
-   * by hand; an existing topic's mark stays what its owner picked.
+   * A new project's mark follows the best fit for its name until one is chosen
+   * by hand; an existing project's mark stays what its owner picked.
    */
   follows: boolean;
   /**
@@ -416,7 +420,7 @@ type TopicFormState = TopicChoice & {
   isPicking: boolean;
 };
 
-function startForm(initial: TopicChoice, isNew: boolean): TopicFormState {
+function startForm(initial: ProjectChoice, isNew: boolean): ProjectFormState {
   return { ...initial, follows: isNew, isFilingFits: false, isPicking: false };
 }
 
@@ -425,7 +429,7 @@ function startForm(initial: TopicChoice, isNew: boolean): TopicFormState {
  * form stays mounted through the dialog's close, so what was typed into it
  * last time would otherwise be waiting at the next opening.
  */
-function TopicForm({
+function ProjectForm({
   action,
   candidates = [],
   deleting,
@@ -439,15 +443,18 @@ function TopicForm({
   title,
 }: {
   action: string;
-  /** Chats to offer filing under the topic as it is made; none for a topic that exists. */
+  /** Chats to offer filing under the project as it is made; none for a project that exists. */
   candidates?: BackfillCandidate[];
-  /** Offered at the foot when the topic exists to be deleted: whose name to confirm, and what deleting does. */
+  /** Offered at the foot when the project exists to be deleted: whose name to confirm, and what deleting does. */
   deleting?: { name: string; onDelete: () => void };
   description: string;
-  initial: TopicChoice;
-  /** A topic being made, whose mark follows its name until one is picked by hand. */
+  initial: ProjectChoice;
+  /** A project being made, whose mark follows its name until one is picked by hand. */
   isNew?: boolean;
-  onCommit: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
+  onCommit: (
+    project: ProjectChoice,
+    alsoFile: BackfillCandidate["id"][],
+  ) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   otherNames: readonly string[];
@@ -464,14 +471,14 @@ function TopicForm({
     isPicking,
     name,
   } = form;
-  const edit = (change: Partial<TopicFormState>) => {
+  const edit = (change: Partial<ProjectFormState>) => {
     setForm((current) => ({ ...current, ...change }));
   };
   const instructionsDictation = useDictatedText({
     onChange: (text) => {
       edit({ instructions: text });
     },
-    surface: "topic-instructions",
+    surface: "project-instructions",
     value: instructions,
   });
   // Saving waits for dictated words, so the instructions keep them.
@@ -487,7 +494,7 @@ function TopicForm({
       instructionsDictation.cancel();
     }
   }
-  const fits = useTopicBackfill({ candidates, name, open });
+  const fits = useProjectBackfill({ candidates, name, open });
   const all = useEmojiSet();
   // Asked after a pause rather than per word, so the mark changes once the
   // name has settled instead of flickering through every prefix of it.
@@ -545,7 +552,7 @@ function TopicForm({
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
       <div className="flex items-center gap-3">
-        <TopicMarkPicker
+        <ProjectMarkPicker
           context={name}
           onEmoji={choose}
           onOpenChange={(next) => {
@@ -558,18 +565,18 @@ function TopicForm({
             className="shrink-0 rounded-xl hover:opacity-80"
             type="button"
           >
-            <TopicMark
+            <ProjectMark
               // A changed mark fades in where it stands, so one that follows
               // the name reads as an answer arriving rather than a flicker.
               className="animate-in duration-300 fade-in-0 zoom-in-90"
               key={emoji}
               size="lg"
-              topic={{ color, emoji, name }}
+              project={{ color, emoji, name }}
             />
           </button>
-        </TopicMarkPicker>
+        </ProjectMarkPicker>
         <Input
-          maxLength={TOPIC_NAME_MAX}
+          maxLength={PROJECT_NAME_MAX}
           onChange={(event) => {
             edit({ name: event.target.value });
           }}
@@ -608,14 +615,14 @@ function TopicForm({
       <div>
         <label
           className="block pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
-          htmlFor="topic-instructions"
+          htmlFor="project-instructions"
         >
           Instructions
         </label>
         <DictatedTextarea
           className="max-h-64 min-h-24 text-sm"
           dictation={instructionsDictation}
-          id="topic-instructions"
+          id="project-instructions"
           onChange={(event) => {
             edit({ instructions: event.target.value });
           }}
@@ -623,7 +630,7 @@ function TopicForm({
           value={instructions}
         />
       </div>
-      <TopicFolders
+      <ProjectFolders
         folders={folders}
         onChange={(next) => {
           edit({ folders: next });
@@ -631,7 +638,7 @@ function TopicForm({
       />
       <DialogFooter className="sm:justify-between">
         {deleting ? (
-          <DeleteTopicButton
+          <DeleteProjectButton
             name={deleting.name}
             onDelete={() => {
               deleting.onDelete();

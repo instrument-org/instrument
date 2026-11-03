@@ -37,22 +37,22 @@ import {
   activityLabel,
   type Chat,
   limitedText,
-  type Topic,
+  type Project,
   wordRanges,
 } from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { ROW_CONTROL, RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
-import { topicColor } from "./topic-colors";
-import { TopicMark } from "./topic-mark";
-import { TopicPicker } from "./topic-picker";
-import { topicTint } from "./topic-tint";
+import { projectColor } from "./project-colors";
+import { ProjectMark } from "./project-mark";
+import { ProjectPicker } from "./project-picker";
+import { projectTint } from "./project-tint";
 import { useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
-/** How long the corner's bar stays after the topic list closes: the list's exit animation. */
+/** How long the corner's bar stays after the project list closes: the list's exit animation. */
 const PICKER_LEAVE_MS = 250;
 
 /**
@@ -63,14 +63,14 @@ const PICKER_LEAVE_MS = 250;
  * which is the only mark unread wears,
  * the word Draft after it in red while a reply waits unsent in the
  * chat, the way mail marks a conversation with a draft in it,
- * the topic it is filed under as a pill in the row's corner, the agent's
+ * the project it is filed under as a pill in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. The title has the
- * first line with the topic at its end, the latest line gets one, and what it holds sits on a
+ * first line with the project at its end, the latest line gets one, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
  * with the time in the row's bottom corner. A starred chat wears a filled
- * star past its topic. Where the chat
+ * star past its project. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
  * a question mark while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
@@ -79,7 +79,7 @@ const PICKER_LEAVE_MS = 250;
  * away or back, marking it read or unread, and starring it last, where the
  * star stands) are the row's own controls, and a
  * click on one stops short of the door. The menu offers the same, with the
- * way to open the chat and its topic.
+ * way to open the chat and its project.
  */
 export function ChatRow({
   actions,
@@ -89,11 +89,11 @@ export function ChatRow({
   isOpen,
   now,
   onDelete,
-  onNewTopic,
+  onNewProject,
   onOpen,
-  onSetTopic,
+  onSetProject,
   search = "",
-  topics,
+  projects,
 }: {
   /** The chat's actions, answered by the list for every row through one set of mutations. */
   actions: RowAction[];
@@ -107,16 +107,16 @@ export function ChatRow({
   now: Date;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
   onDelete: () => void;
-  /** Opens the new-topic dialog for this chat, with the name typed in the picker when anything was. */
-  onNewTopic: (name?: string) => void;
+  /** Opens the new-project dialog for this chat, with the name typed in the picker when anything was. */
+  onNewProject: (name?: string) => void;
   /** A plain click: the chat in place of whatever the window shows. */
   onOpen: () => void;
-  onSetTopic: (topic: null | string) => void;
+  onSetProject: (project: null | string) => void;
   /** The words the list is searched for, which the title and the latest line mark where they turn up. */
   search?: string;
-  topics: Topic[];
+  projects: Project[];
 }) {
-  const filed = topics.find((entry) => entry.id === chat.topic);
+  const filed = projects.find((entry) => entry.id === chat.project);
   const appWindow = useWindow();
   // A Cmd-click or a middle click, and the menu's row, open the chat in a
   // tab of the window's own behind the one up, where a plain click opens
@@ -133,7 +133,7 @@ export function ChatRow({
   // out anchored to the control, and a control that vanished with the
   // pointer already gone left the list to fly to the window's corner.
   const [isPickerLeaving, setPickerLeaving] = useState(false);
-  const pickTopics = (open: boolean) => {
+  const pickProjects = (open: boolean) => {
     setPicking(open);
     if (!open) {
       setPickerLeaving(true);
@@ -154,23 +154,23 @@ export function ChatRow({
     chat.holds.apps.length > 0 ||
     chat.holds.files.length > 0 ||
     chat.holds.sites.length > 0;
-  // Picking the topic the chat is under takes it off; any other moves it.
-  const pickTopic = (id: string) => {
-    onSetTopic(chat.topic === id ? null : id);
+  // Picking the project the chat is under takes it off; any other moves it.
+  const pickProject = (id: string) => {
+    onSetProject(chat.project === id ? null : id);
   };
   const tagControl = (
     <TagControl
       chat={chat}
       isOpen={isPicking}
-      onNewTopic={onNewTopic}
-      onOpenChange={pickTopics}
-      onToggle={pickTopic}
-      topics={topics}
+      onNewProject={onNewProject}
+      onOpenChange={pickProjects}
+      onToggle={pickProject}
+      projects={projects}
     />
   );
-  // The topic in the row's corner, by name; filing is the control in the
+  // The project in the row's corner, by name; filing is the control in the
   // corner's bar.
-  const pill = filed && <TopicPill quiet topic={filed} />;
+  const pill = filed && <ProjectPill quiet project={filed} />;
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
   const title = rename.isEditing ? (
@@ -228,7 +228,7 @@ export function ChatRow({
       {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
-  // A starred chat's star, past its topic in the row's corner and a mark
+  // A starred chat's star, past its project in the row's corner and a mark
   // rather than a control: starring and unstarring end the corner's bar,
   // which takes the same spot, in a box of a control's size so the star
   // stays put as the bar comes and goes.
@@ -282,7 +282,7 @@ export function ChatRow({
           tabIndex={0}
         >
           <div className="min-w-0 flex-1">
-            {/* The topic at the line's end in the row's corner. */}
+            {/* The project at the line's end in the row's corner. */}
             <div className="flex h-5 items-center gap-1.5">
               {title}
               {/* The pills step aside for the row's controls while the
@@ -361,21 +361,21 @@ export function ChatRow({
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <TagIcon className="size-4" />
-            Topic
+            Project
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="flex w-56 flex-col p-0">
             <MenuScrollArea className="max-h-80">
-              {topics
+              {projects
                 .filter((entry) => !entry.retired)
                 .map((entry) => (
                   <ContextMenuCheckboxItem
-                    checked={chat.topic === entry.id}
+                    checked={chat.project === entry.id}
                     key={entry.id}
                     onSelect={() => {
-                      pickTopic(entry.id);
+                      pickProject(entry.id);
                     }}
                   >
-                    <TopicMark topic={entry} />
+                    <ProjectMark project={entry} />
                     <span className="truncate">{entry.name}</span>
                   </ContextMenuCheckboxItem>
                 ))}
@@ -383,11 +383,11 @@ export function ChatRow({
             <div className="shrink-0 border-t border-border p-1">
               <ContextMenuItem
                 onSelect={() => {
-                  onNewTopic();
+                  onNewProject();
                 }}
               >
                 <PlusIcon className="size-4" />
-                New topic…
+                New project…
               </ContextMenuItem>
             </div>
           </ContextMenuSubContent>
@@ -409,40 +409,40 @@ export function ChatRow({
 }
 
 /**
- * A topic the chat is filed under, as a pill in its tint no taller than
+ * A project the chat is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
  * its name, or the mark alone on a narrow chat head, where the name is its
  * tooltip.
  */
-export function TopicPill({
+export function ProjectPill({
   compact,
   quiet = false,
-  topic,
+  project,
 }: {
   /** The mark alone on a narrow chat head. */
   compact?: "narrow";
-  /** A faint wash with the name in the topic's ink, for a list where the pill is a label beside the words rather than a thing to look at. */
+  /** A faint wash with the name in the project's ink, for a list where the pill is a label beside the words rather than a thing to look at. */
   quiet?: boolean;
-  topic: Topic;
+  project: Project;
 }) {
   // `leading-4` rather than none: the name's box has to hold its descenders,
   // or the clip that truncates it cuts them off.
   const className = cn(
     // The file chips' corners, so a row's labels read as one set.
-    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-md pl-1 text-[11px] leading-4 topic-tint",
+    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-md pl-1 text-[11px] leading-4 project-tint",
     quiet
-      ? "bg-(--topic-tint-surface)/40 font-medium text-(--topic-tint-ink)"
-      : "bg-(--topic-tint-surface) text-foreground/90",
+      ? "bg-(--project-tint-surface)/40 font-medium text-(--project-tint-ink)"
+      : "bg-(--project-tint-surface) text-foreground/90",
     compact === "narrow" ? "pr-1.5 @max-sm/chathead:pr-1" : "pr-1.5",
     // A little more room in a list, where the label sits among the words.
     quiet && "pr-2 pl-1.5",
   );
   const inside = (
     <>
-      {topic.emoji ? (
-        <span className="text-[10px]">{topic.emoji}</span>
+      {project.emoji ? (
+        <span className="text-[10px]">{project.emoji}</span>
       ) : (
-        <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+        <ProjectMark className="size-3.5 text-[10px]" project={project} />
       )}
       <span
         className={cn(
@@ -450,16 +450,16 @@ export function TopicPill({
           compact === "narrow" && "@max-sm/chathead:hidden",
         )}
       >
-        {topic.name}
+        {project.name}
       </span>
     </>
   );
   return (
     <span
       className={className}
-      data-slot="topic-pill"
-      style={topicTint(topicColor(topic))}
-      title={compact ? topic.name : undefined}
+      data-slot="project-pill"
+      style={projectTint(projectColor(project))}
+      title={compact ? project.name : undefined}
     >
       {inside}
     </span>
@@ -592,7 +592,7 @@ function Marked({ search, text }: { search: string; text: string }) {
 }
 
 /**
- * The control that files the chat, first in the corner's bar: the topic
+ * The control that files the chat, first in the corner's bar: the project
  * picker every filing shares. The row keeps its open state, so the bar stays
  * in the flow while the list is up and the list keeps its anchor as it
  * closes.
@@ -600,17 +600,17 @@ function Marked({ search, text }: { search: string; text: string }) {
 function TagControl({
   chat,
   isOpen,
-  onNewTopic,
+  onNewProject,
   onOpenChange,
   onToggle,
-  topics,
+  projects,
 }: {
   chat: Chat;
   isOpen: boolean;
-  onNewTopic: (name: string) => void;
+  onNewProject: (name: string) => void;
   onOpenChange: (open: boolean) => void;
   onToggle: (id: string) => void;
-  topics: Topic[];
+  projects: Project[];
 }) {
   return (
     // The list is drawn elsewhere on the page but is this span's in React's
@@ -618,24 +618,24 @@ function TagControl({
     // right click on the control is the row's, and raises the row's menu
     // like a right click on the words.
     <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
-      <TopicPicker
+      <ProjectPicker
         align="end"
-        chosen={new Set(chat.topic ? [chat.topic] : [])}
+        chosen={new Set(chat.project ? [chat.project] : [])}
         isOpen={isOpen}
-        onNew={onNewTopic}
+        onNew={onNewProject}
         onOpenChange={onOpenChange}
         onToggle={onToggle}
-        topics={topics}
+        projects={projects}
       >
         <button
-          aria-label="Topic"
+          aria-label="Project"
           className={ROW_CONTROL}
-          title="Topic"
+          title="Project"
           type="button"
         >
           <TagIcon />
         </button>
-      </TopicPicker>
+      </ProjectPicker>
     </span>
   );
 }

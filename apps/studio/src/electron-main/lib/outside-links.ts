@@ -80,7 +80,7 @@ export async function askOfOutsideLink(
     }
     case "new": {
       return {
-        ...(link.topic === undefined ? {} : { topic: link.topic }),
+        ...(link.project === undefined ? {} : { project: link.project }),
         type: "newChat",
         words: link.words,
       };

@@ -139,6 +139,7 @@ Each entry is the plan's title and the opening of its status.
 - [The floating chat](the-floating-chat.md): Landed.
 - [Rename threads to chats](threads-to-chats-rename.md): Landed.
 - [Bound tool results before they consume the context window](tool-result-context-budgets.md): Complete, two phases of three.
+- [Rename topics to projects](topics-to-projects-rename.md): Landed in one change.
 - [Make the prompt editor uncontrolled](uncontrolled-prompt-editor.md): Done.
 - [One navigation model per window tab](window-tab-model.md): Done, except as below.
 

@@ -8,7 +8,7 @@ import {
 import { createContext, useContext } from "react";
 
 import { type useAppTabs } from "./app-tabs";
-import { type Chat, type Topic } from "./chats";
+import { type Chat, type Project } from "./chats";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -35,10 +35,10 @@ export interface WindowShell {
   newDraft: () => void;
   /** The inbox's rows as it lists them, for stepping through them by chord. */
   onListed: (listed: ChatId[]) => void;
-  /** A topic asked for from a chat's head, with what was typed. */
-  onNewTopic: (name: string | undefined) => void;
-  /** Takes the tab up to Chat with the inbox standing in a topic, by its id. */
-  openTopic: (topicId: string) => void;
+  /** A project asked for from a chat's head, with what was typed. */
+  onNewProject: (name: string | undefined) => void;
+  /** Takes the tab up to Chat with the inbox standing in a project, by its id. */
+  openProject: (projectId: string) => void;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
   sentWords: ReadonlyMap<ChatId, string>;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */
@@ -52,10 +52,10 @@ export interface WindowShell {
     isViewOpen: boolean;
     leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  setChatTopic: (id: ChatId, topic: null | string) => void;
+  setChatProject: (id: ChatId, project: null | string) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
   showDraft: (id: string) => void;
-  topics: Topic[];
+  projects: Project[];
 }
 
 export const ShellContext = createContext<null | WindowShell>(null);

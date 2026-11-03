@@ -2,7 +2,7 @@
 
 A draft is a chat not yet started, or a reply waiting in a chat. Both live in the workspace's `Drafts/`, a folder per draft holding a `DRAFT.md` (plain YAML front matter over the person's words) and every file and folder that goes with its message. A reply names its chat by its address (`chat: instrument://chat/<id>`; a bare id reads the same); a new chat's draft does not. A draft being sent names the chat it is going into as `sending:`, whichever kind it is. The folder is the record: a file manager, a sync engine bringing another device's edit, the phone app, or a newer build can change it, and every window has to follow.
 
-The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `send`, `sending`, `topic` (the topic's id, written only when the person picked one), and `context`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
+The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `send`, `sending`, `project` (the project's id, written only when the person picked one), and `context`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
 
 ## Layers
 
@@ -23,7 +23,7 @@ Main is the only thing that writes `Drafts/` while the app runs. A window never 
 
 A window shows that snapshot with the batches main has not yet acknowledged applied over it. Its own change shows the moment it is made, and a snapshot main sent before applying it cannot undo it: the batch stays applied until a snapshot acknowledges it, and by then main's drafts include it. Because both sides apply ops with the same function, the window's guess and main's answer agree.
 
-`update` ops carry only the fields that changed (`draftUpdateOf`). So a change made elsewhere to another field, such as a topic picked on another device, survives a window's words still being sent.
+`update` ops carry only the fields that changed (`draftUpdateOf`). So a change made elsewhere to another field, such as a project picked on another device, survives a window's words still being sent.
 
 The preload reads the snapshot synchronously before the first render (`drafts:load`), because a chat's box reads its reply as it first draws.
 
@@ -41,7 +41,7 @@ It holds what was pasted or dropped into the composer, the files and folders the
 
 The screen's chips are worked out live from what the window shows (the tab the draft's own band has up, and what the window has in view: an open file, a folder, a page, an app's front), so they follow the screen while the person writes. The chat on screen is never one of them: a reply already names its chat as `chat:`. Dismissing a screen chip is kept in the window's memory by draft and chip (`dismissedChipsAtom`), never on disk, so it holds while the person moves around and may come back after a relaunch.
 
-Read back, the folder is the composer's again, each file with its type read from its name; every line is a chip. What the composer was given by its path from elsewhere comes back as a chip. A topic the decision model suggested (`topicSource: "suggested"`) is kept only while the app runs, and is offered again after a relaunch rather than written as the person's choice.
+Read back, the folder is the composer's again, each file with its type read from its name; every line is a chip. What the composer was given by its path from elsewhere comes back as a chip. A project the decision model suggested (`projectSource: "suggested"`) is kept only while the app runs, and is offered again after a relaunch rather than written as the person's choice.
 
 ## The folder changing under the app
 
@@ -63,7 +63,7 @@ A launch finishes any send step 3 never reached (`finishSentDrafts`), moving wha
 
 ### A reply another device asks this one to send
 
-A phone cannot run the agent, so its Send leaves the draft with `send:` naming a computer (its device id): for a reply, the computer that last worked in its chat; for a draft that opens a chat of its own, the computer that last wrote the chat list. That computer sends it as soon as it has it, through the same three steps (`electron-main/drafts/send-asked-drafts.ts`), making the new chat first where there is none, on the chat's own model or else the default, under the draft's topic. The agent can read `Drafts/` and never write it (`layoutRules` in `workspace-fs-layout.ts`), so a draft it wrote can never ask for a turn nobody started. Naming one device keeps two computers from both sending it. The ask holds for ten minutes from the draft's `updated`: one found later, by a launch the next day say, or one whose send fails, loses its `send` and waits in the chat's box like any other reply, so nothing goes out long after it was written or more than once.
+A phone cannot run the agent, so its Send leaves the draft with `send:` naming a computer (its device id): for a reply, the computer that last worked in its chat; for a draft that opens a chat of its own, the computer that last wrote the chat list. That computer sends it as soon as it has it, through the same three steps (`electron-main/drafts/send-asked-drafts.ts`), making the new chat first where there is none, on the chat's own model or else the default, under the draft's project. The agent can read `Drafts/` and never write it (`layoutRules` in `workspace-fs-layout.ts`), so a draft it wrote can never ask for a turn nobody started. Naming one device keeps two computers from both sending it. The ask holds for ten minutes from the draft's `updated`: one found later, by a launch the next day say, or one whose send fails, loses its `send` and waits in the chat's box like any other reply, so nothing goes out long after it was written or more than once.
 
 ## A chat's box
 

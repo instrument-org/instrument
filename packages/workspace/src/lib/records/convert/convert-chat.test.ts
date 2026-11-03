@@ -372,6 +372,14 @@ describe("convertChat", () => {
               "t": "set",
               "value": true,
             },
+            "project": {
+              "at": 2026-10-14T12:01:40.000Z,
+              "device": "dev_AAAAAAAA",
+              "field": "project",
+              "session": "ses_01K7A000000000000000000001",
+              "t": "set",
+              "value": "travel",
+            },
             "starred": {
               "at": 2026-10-14T12:00:20.000Z,
               "device": "dev_AAAAAAAA",
@@ -390,14 +398,6 @@ describe("convertChat", () => {
                 "auto": false,
                 "text": "Plans for the trip",
               },
-            },
-            "topic": {
-              "at": 2026-10-14T12:01:40.000Z,
-              "device": "dev_AAAAAAAA",
-              "field": "topic",
-              "session": "ses_01K7A000000000000000000001",
-              "t": "set",
-              "value": "travel",
             },
             "unread": {
               "at": 2026-10-14T12:00:40.000Z,
@@ -471,18 +471,20 @@ describe("convertChat", () => {
     }
   });
 
+  // Rows from builds that called a project a topic.
   it.each([
-    [["travel", "family"], "travel"],
-    [[], undefined],
+    [{ topics: ["travel", "family"] }, "travel"],
+    [{ topics: [] }, undefined],
+    [{ topic: "travel" }, "travel"],
   ])(
-    "files a chat whose row kept the topics %j under the first",
-    async (topics, topic) => {
-      const dir = chatPath(`topics-${topics.length}`);
+    "files a chat whose row kept %j under the project it names",
+    async (kept, project) => {
+      const dir = chatPath(`kept-${JSON.stringify(kept).length}`);
       await writeChat(dir, async (store) => {
-        const { topic: _one, ...session } = EVERY_KIND_SESSION;
+        const { project: _one, ...session } = EVERY_KIND_SESSION;
         await tell(store, StorageKey.session(session.id), {
           ...session,
-          topics,
+          ...kept,
         });
       });
 
@@ -490,7 +492,7 @@ describe("convertChat", () => {
         kind: "converted",
       });
       const [chatSession] = (await foldFolder(dir)).sessions;
-      expect(chatSession?.settings.topic?.value).toBe(topic);
+      expect(chatSession?.settings.project?.value).toBe(project);
     },
   );
 

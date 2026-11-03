@@ -312,7 +312,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
           subtitle={
             lostPast === "new" && picked === null
               ? `${APP_NAME} will start fresh in this new location. Your old chats will stay in your old folder.`
-              : `This is where ${APP_NAME} keeps your chats, topics and the files it makes. Most people put it in their Documents folder.`
+              : `This is where ${APP_NAME} keeps your chats, projects and the files it makes. Most people put it in their Documents folder.`
           }
           title={
             lostPast === "new" && picked === null

@@ -76,7 +76,7 @@ describe("sessionOf", () => {
         },
         {
           at: at(6),
-          field: "topic",
+          field: "project",
           session: chatSession,
           value: "top_1",
         },
@@ -90,7 +90,7 @@ describe("sessionOf", () => {
       starredAt: at(3),
       title: "Quarterly numbers",
       titleSettledAt: at(5),
-      topic: "top_1",
+      project: "top_1",
       unreadAt: at(4),
       unreadByUser: true,
       updatedAt: at(1),

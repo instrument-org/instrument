@@ -19,8 +19,8 @@ const ACTIVITY_PURPOSES = [
   "x-search",
   "image",
   "emoji-suggestion",
-  "topic-suggestion",
-  "topic-backfill",
+  "project-suggestion",
+  "project-backfill",
   "chat-search",
   "settings-search",
   "app-search",
@@ -36,9 +36,31 @@ const ACTIVITY_SURFACES = [
   "chats",
   "draft",
   "settings",
-  "topics",
+  "projects",
 ] as const;
 export const ActivitySurfaceSchema = z.enum(ACTIVITY_SURFACES);
+
+/** What a build that called a project a topic logged, by what it is now. */
+const RENAMED: Record<string, string> = {
+  "topic-backfill": "project-backfill",
+  "topic-suggestion": "project-suggestion",
+  topics: "projects",
+};
+
+const renamed = (value: unknown) =>
+  typeof value === "string" ? (RENAMED[value] ?? value) : value;
+
+/** A purpose as a log line or the index holds it, under either name. */
+export const StoredActivityPurposeSchema = z.preprocess(
+  renamed,
+  ActivityPurposeSchema,
+);
+
+/** A surface as a log line or the index holds it, under either name. */
+export const StoredActivitySurfaceSchema = z.preprocess(
+  renamed,
+  ActivitySurfaceSchema,
+);
 export type ActivitySurface = z.output<typeof ActivitySurfaceSchema>;
 
 /**
@@ -71,12 +93,12 @@ export const ActivityRowSchema = z.object({
   modelRequested: z.string().nullable(),
   modelServed: z.string().nullable(),
   outputTokens: z.number().nullable(),
-  purpose: ActivityPurposeSchema,
+  purpose: StoredActivityPurposeSchema,
   reasoningTokens: z.number().nullable(),
   responseId: z.string().nullable(),
   startedAt: z.number(),
   status: ActivityStatusSchema,
-  surface: ActivitySurfaceSchema.nullable(),
+  surface: StoredActivitySurfaceSchema.nullable(),
   sessionId: z.string().nullable(),
   totalTokens: z.number().nullable(),
 });

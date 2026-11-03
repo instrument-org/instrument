@@ -17,7 +17,7 @@ describe("CADENCE", () => {
     expect(state).toMatchInlineSnapshot(`
       [
         "browserStatus",
-        "topic",
+        "project",
         "viewContext",
         "workspaceInstructions",
       ]

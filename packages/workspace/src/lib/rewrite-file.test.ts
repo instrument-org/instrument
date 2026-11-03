@@ -26,12 +26,12 @@ describe("rewriteFileSync", () => {
   });
 
   it("never writes through a link left at its temp name", () => {
-    const file = path.join(dir, "TOPIC.md");
+    const file = path.join(dir, "AGENTS.md");
     const elsewhere = path.join(dir, "elsewhere");
     fs.writeFileSync(elsewhere, "kept");
     fs.symlinkSync(
       elsewhere,
-      path.join(dir, `.~TOPIC.md.${process.pid.toString()}.tmp`),
+      path.join(dir, `.~AGENTS.md.${process.pid.toString()}.tmp`),
     );
 
     rewriteFileSync(file, () => "written");
@@ -42,7 +42,7 @@ describe("rewriteFileSync", () => {
   });
 
   it("builds again from the newer text when the file changes under it", () => {
-    const file = path.join(dir, "TOPIC.md");
+    const file = path.join(dir, "AGENTS.md");
     fs.writeFileSync(file, "color: red\nold body");
     const seen: (string | undefined)[] = [];
 

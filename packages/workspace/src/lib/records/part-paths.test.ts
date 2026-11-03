@@ -121,11 +121,11 @@ describe("part paths", () => {
       },
     ],
     [
-      "the folders of the chat's topic",
+      "the folders of the chat's project",
       {
-        data: { topic: { folders: [inside("filed")], name: "Plan" } },
+        data: { project: { folders: [inside("filed")], name: "Plan" } },
         metadata,
-        type: "data-topic",
+        type: "data-project",
       },
     ],
     [

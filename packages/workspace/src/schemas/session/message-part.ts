@@ -197,7 +197,7 @@ export namespace SessionMessagePart {
   function coerceDataPart(
     stored: SessionMessageRelaxedPart.DataPart,
   ): DataPart {
-    const part = fromTopicsPart(stored);
+    const part = fromProjectsPart(stored);
     const name = part.type.slice("data-".length);
     const parsed = SessionMessageDataPart.parseDataPayload(name, part.data);
 
@@ -213,25 +213,55 @@ export namespace SessionMessagePart {
   }
 
   /**
-   * A `data-topics` part, from builds that filed a chat under a list of
-   * topics, read as the `data-topic` part it stands for: the first of them,
-   * or none.
+   * A part a build wrote before projects were called that, read as the part
+   * it stands for now: a `data-topic` part is the `data-project` part; a
+   * `data-topics` part, from builds that filed a chat under a list of topics,
+   * is the `data-project` part for the first of them, or none; and a
+   * `data-setupChanges` part's `topic` changes are `project` ones.
    */
-  function fromTopicsPart(
+  function fromProjectsPart(
     part: SessionMessageRelaxedPart.DataPart,
   ): SessionMessageRelaxedPart.DataPart {
-    if (part.type !== "data-topics") {
-      return part;
-    }
-    const topics =
+    const data =
       typeof part.data === "object" &&
       part.data !== null &&
-      "topics" in part.data &&
-      Array.isArray(part.data.topics)
-        ? part.data.topics
-        : [];
-    const first: unknown = topics[0];
-    return { ...part, data: { topic: first ?? null }, type: "data-topic" };
+      !Array.isArray(part.data)
+        ? part.data
+        : {};
+    switch (part.type) {
+      case "data-topic": {
+        const project = "topic" in data ? data.topic : null;
+        return { ...part, data: { project }, type: "data-project" };
+      }
+      case "data-topics": {
+        const first: unknown =
+          "topics" in data && Array.isArray(data.topics)
+            ? data.topics[0]
+            : undefined;
+        return {
+          ...part,
+          data: { project: first ?? null },
+          type: "data-project",
+        };
+      }
+      case "data-setupChanges": {
+        if (!("changes" in data) || !Array.isArray(data.changes)) {
+          return part;
+        }
+        const changes = data.changes.map((change: unknown) =>
+          typeof change === "object" &&
+          change !== null &&
+          "kind" in change &&
+          change.kind === "topic"
+            ? { ...change, kind: "project" }
+            : change,
+        );
+        return { ...part, data: { ...data, changes } };
+      }
+      default: {
+        return part;
+      }
+    }
   }
 
   /**

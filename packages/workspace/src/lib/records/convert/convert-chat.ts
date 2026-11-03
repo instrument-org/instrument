@@ -613,8 +613,8 @@ function settingsOf(
       value: session.unreadByUser === true ? "marked" : "new",
     });
   }
-  if (session.topic !== undefined) {
-    settings.push({ ...of, at, field: "topic", value: session.topic });
+  if (session.project !== undefined) {
+    settings.push({ ...of, at, field: "project", value: session.project });
   }
   return settings;
 }
@@ -643,7 +643,7 @@ function sessionRow(folded: FoldedSession): unknown {
       : {}),
     ...(unread?.value ? { unreadAt: unread.at } : {}),
     ...(unread?.value === "marked" ? { unreadByUser: true } : {}),
-    ...(settings.topic?.value ? { topic: settings.topic.value } : {}),
+    ...(settings.project?.value ? { project: settings.project.value } : {}),
     ...(rollover === undefined
       ? {}
       : {

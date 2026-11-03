@@ -125,16 +125,16 @@ function mapPaths(
           ),
         },
       };
-    case "data-topic":
-      return part.data.topic?.folders === undefined
+    case "data-project":
+      return part.data.project?.folders === undefined
         ? part
         : {
             ...part,
             data: {
               ...part.data,
-              topic: {
-                ...part.data.topic,
-                folders: part.data.topic.folders.map(map),
+              project: {
+                ...part.data.project,
+                folders: part.data.project.folders.map(map),
               },
             },
           };

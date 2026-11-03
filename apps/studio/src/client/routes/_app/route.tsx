@@ -116,7 +116,7 @@ function ChatColumn({
       label="Resize the inbox"
       onCollapse={onCollapse}
       // Its edge as faint as the rows' hairlines, drawn over what the
-      // column holds rather than as its border, so a topic's wash shows
+      // column holds rather than as its border, so a project's wash shows
       // through it the way it shows through the rows'.
       panelClassName="border-r-0 bg-background after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-px after:bg-border/70"
       widthAtom={inboxWidthAtom}
@@ -328,7 +328,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                           appTabs.navigate(INBOX_HREF, { replace: true });
                           setInboxOpen(true);
                         }}
-                        onNewTopic={shell.onNewTopic}
+                        onNewProject={shell.onNewProject}
                         // A task opens beside the chat, in the pane.
                         onOpenTask={(id) => {
                           appWindow.openScreen(taskHref(id, chat), {
@@ -337,8 +337,8 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                             show: true,
                           });
                         }}
-                        onSetTopic={(next) => {
-                          shell.setChatTopic(chat, next);
+                        onSetProject={(next) => {
+                          shell.setChatProject(chat, next);
                         }}
                         onViewTasks={() => {
                           appWindow.openScreen(tasksHref(chat), {
@@ -358,7 +358,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                             }
                           },
                         }}
-                        topics={shell.topics}
+                        projects={shell.projects}
                       />
                       <div className="relative min-h-0 flex-1">
                         <div className="absolute inset-0">

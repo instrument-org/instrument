@@ -19,7 +19,7 @@ const CHATS_AT_ONCE = 8;
  * its turn ends or the person sends it a message, so no launch reads a chat
  * it did not just convert.
  *
- * The topics are named as the workspace has them, and the days and times in
+ * The projects are named as the workspace has them, and the days and times in
  * this computer's own zone, which is the zone the person reading the folder
  * is in. Reads the folder rather than the workspace's own state, so it runs
  * before the workspace starts.

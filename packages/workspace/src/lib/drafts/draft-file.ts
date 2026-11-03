@@ -33,6 +33,8 @@ const OWN_KEYS = new Set([
   "id",
   "send",
   "sending",
+  "project",
+  // What builds that called a project a topic wrote for `project`.
   "topic",
   "updated",
 ]);
@@ -73,8 +75,8 @@ export interface DraftFile {
    * it was.
    */
   sending?: string;
-  /** The topic the chat it opens is filed under, by the topic's id; written only when the person picked one. */
-  topic?: string;
+  /** The project the chat it opens is filed under, by the project's id; written only when the person picked one. */
+  project?: string;
   /** When it last changed, which is what puts the newest reply draft in the box. */
   updated: Date;
   /** The person's words, exactly as they typed them. */
@@ -141,9 +143,7 @@ export function parseDraftFile(
     ...(Object.keys(others).length > 0 ? { others } : {}),
     ...(send === "" ? {} : { send }),
     ...(sending === undefined ? {} : { sending }),
-    ...(typeof front.topic === "string" && front.topic
-      ? { topic: front.topic }
-      : {}),
+    ...(projectOf(front) === undefined ? {} : { project: projectOf(front) }),
     updated: updated ?? at,
     words: split.ok ? bodyWords(body) : body.replace(/\n$/, ""),
   };
@@ -155,7 +155,7 @@ export function parseDraftFile(
  * patched in place.
  *
  * Strings a person types or a program names are written as JSON, which YAML
- * reads back as a quoted scalar, so a path or a topic holding a colon, a `#`
+ * reads back as a quoted scalar, so a path or a project holding a colon, a `#`
  * or a quote round-trips. A chat's address is written as it is.
  */
 export function renderDraftFile(draft: DraftFile): string {
@@ -171,8 +171,8 @@ export function renderDraftFile(draft: DraftFile): string {
   if (draft.sending !== undefined) {
     lines.push(`sending: ${chatAddressOf(draft.sending)}`);
   }
-  if (draft.topic !== undefined) {
-    lines.push(`topic: ${JSON.stringify(draft.topic)}`);
+  if (draft.project !== undefined) {
+    lines.push(`project: ${JSON.stringify(draft.project)}`);
   }
   if (draft.context && draft.context.length > 0) {
     lines.push("context:");
@@ -236,4 +236,10 @@ function dateOf(value: unknown): Date | undefined {
     return new Date(Date.parse(value));
   }
   return undefined;
+}
+
+/** The project a draft opens its chat under, under either name a build wrote it by. */
+function projectOf(front: Record<string, unknown>): string | undefined {
+  const project = front.project ?? front.topic;
+  return typeof project === "string" && project ? project : undefined;
 }

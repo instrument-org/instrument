@@ -520,9 +520,12 @@ function ProjectForm({
   };
   const nameField = useRef<HTMLInputElement>(null);
 
-  const problem = nameProblem(name, otherNames);
+  // Judged only while open: the project it just made joins the names in use
+  // as the dialog animates out, and would be named as taken by itself.
+  const problem = open ? nameProblem(name, otherNames) : undefined;
   const commit = () => {
-    if (isHolding) {
+    // A second Enter while the dialog closes would make the project again.
+    if (isHolding || !open) {
       return;
     }
     const trimmed = name.trim();

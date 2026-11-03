@@ -30,7 +30,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { chatOutputFolder } from "../../src/lib/chat/output-folder";
+import {
+  chatOutputFolder,
+  outputFolderPath,
+} from "../../src/lib/chat/output-folder";
 import { workDir } from "../../src/lib/work-dir";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
@@ -51,15 +54,26 @@ const SHOPPING_FIXTURE = path.resolve(
 const MIN_DOCUMENT_BYTES = 4000;
 
 /**
- * Every file this task could have written: its work folder, and the chat's
- * own folder where finished work goes, since a prompt naming one is answered
- * in the other about as often.
+ * Every file this task could have written: its work folder, the chat's own
+ * folder where finished work goes, and the top level of the Instrument
+ * folder, since a prompt saying "the workspace folder" is answered in any of
+ * them.
  */
 async function deliverables(chatId: ChatId): Promise<string[]> {
   return [
     ...(await filesUnder(workDir(chatId))),
     ...(await filesUnder(chatOutputFolder(chatId))),
+    ...(await topLevelFiles(outputFolderPath())),
   ];
+}
+
+async function topLevelFiles(dir: string): Promise<string[]> {
+  const entries = await fs
+    .readdir(dir, { withFileTypes: true })
+    .catch(() => []);
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(dir, entry.name));
 }
 
 function fail(text: string, evidence: string): AssertionResult {

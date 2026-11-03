@@ -6,7 +6,7 @@ import { filesUnder, fingerprintOf } from "./folder-fingerprint";
 
 /**
  * What each item of the person's setup is right now: whether it is there (its
- * `SKILL.md`, `APP.md` or memory file exists, or a project's folder does) and a fingerprint of
+ * `SKILL.md`, `APP.md`, `AGENTS.md` or memory file exists) and a fingerprint of
  * the files it holds. Keyed `kind:name`.
  *
  * Read from the disk rather than from anyone's account of a write, so it sees
@@ -39,14 +39,19 @@ export async function snapshotSetup(): Promise<SetupSnapshot> {
         if (!entry.isDirectory() && !entry.isSymbolicLink()) {
           continue;
         }
-        const files = await filesUnder(path.join(dir, entry.name));
+        // A project's folder holds its lasting files, which are no change to
+        // the project: only its instructions file is.
+        const all = await filesUnder(
+          path.join(dir, entry.name),
+          kind === "project" ? { depth: 0 } : {},
+        );
+        const files =
+          kind === "project" ? all.filter((file) => file.path === marker) : all;
         add({
           fingerprint: fingerprintOf(files),
           kind,
           name: entry.name,
-          // Every folder in `Projects/` is a project, with its file or without.
-          present:
-            kind === "project" || files.some((file) => file.path === marker),
+          present: files.some((file) => file.path === marker),
         });
       }
     }),

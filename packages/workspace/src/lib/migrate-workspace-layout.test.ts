@@ -527,16 +527,15 @@ describe("migrateWorkspaceLayout", () => {
     writeLegacyTask("abc", { "sessions.db": "db" });
     migrate();
 
-    // The mark must block a re-run: what turns up in projects/ later waits
-    // off the top level, where `Projects/` is the person's projects.
+    // The mark must block a re-run: a projects/ that turns up once the
+    // workspace is swept is the person's or the agent's, and stays theirs.
     writeLegacyTask("def", { "sessions.db": "db2" });
     const result = migrate();
 
     expect(result.movedTaskCount).toBe(0);
     expect(exists("tasks", "def")).toBe(false);
-    expect(
-      read(".instrument", "1x-projects", "def", ".instrument", "sessions.db"),
-    ).toBe("db2");
+    expect(exists(".instrument", "1x-projects")).toBe(false);
+    expect(read("projects", "def", ".instrument", "sessions.db")).toBe("db2");
   });
 
   it("never moves a real project folder, even with the mark absent", () => {

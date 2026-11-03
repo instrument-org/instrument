@@ -172,9 +172,13 @@ export function migrateWorkspaceLayout({
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
   };
-  stageLegacyProjectsDir(rootDir);
   const { layoutVersion, legacyProjectsMigrated } = marks.read();
   const legacyMigrationRan = legacyProjectsMigrated !== true;
+  // Only for a sweep that runs: a `projects` folder in a workspace already
+  // swept is one the person or the agent made since, and is theirs.
+  if (legacyMigrationRan || layoutVersion !== WORKSPACE_LAYOUT_VERSION) {
+    stageLegacyProjectsDir(rootDir);
+  }
   if (legacyMigrationRan) {
     migration = migrateLegacyProjectsDir(rootDir);
     marks.write({ legacyProjectsMigrated: true });

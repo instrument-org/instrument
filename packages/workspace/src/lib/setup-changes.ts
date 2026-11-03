@@ -217,7 +217,17 @@ export function setupTrackingFs(
         return { folder, name: "" };
       }
       if (target.startsWith(`${folder.root}/`)) {
-        const entry = target.slice(folder.root.length + 1).split("/")[0] ?? "";
+        const rest = target.slice(folder.root.length + 1);
+        const entry = rest.split("/")[0] ?? "";
+        // A project's folder is where its lasting files go, so only its
+        // instructions file, or the folder whole, is a change to the project.
+        if (
+          folder.kind === "project" &&
+          rest !== entry &&
+          rest !== SETUP_KINDS.project.marker(entry)
+        ) {
+          return undefined;
+        }
         return { folder, name: SETUP_KINDS[folder.kind].itemOf(entry) };
       }
     }

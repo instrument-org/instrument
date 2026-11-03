@@ -76,6 +76,14 @@ export async function sweepWorkspaceFolder({
   // where those builds kept every workspace: a folder the person picked was
   // never one, its top level is theirs, and a workspace moved there had its
   // sweeps finished first.
+  //
+  // First, a build that called projects topics kept them in `Topics/`, each
+  // in a `TOPIC.md`, and they come into `Projects/` before anything reads one,
+  // the 1.x migration included, which finds a 1.x project's earlier project
+  // there.
+  await timeBootStep("sweep.moveTopicsToProjects", () =>
+    moveTopicsToProjectsFolder(rootDir),
+  );
   if (inAppData) {
     sweepWorkspaceLayout(rootDir);
   } else {
@@ -106,11 +114,6 @@ export async function sweepWorkspaceFolder({
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
   await moveFolderOut("Projects", () => moveProjectsToFolder(rootDir));
-  // A build that called projects topics kept them in `Topics/`, each in a
-  // `TOPIC.md`, and they come into `Projects/` before anything reads one.
-  await timeBootStep("sweep.moveTopicsToProjects", () =>
-    moveTopicsToProjectsFolder(rootDir),
-  );
   await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
   // And once the projects and the apps are out, each one's files become the
   // one file a person reads, which is its own step: the folder moves whatever

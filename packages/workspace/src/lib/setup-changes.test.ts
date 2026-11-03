@@ -293,6 +293,44 @@ describe("the workspace's top level as a folder of the chat's", () => {
       });
     }
   });
+
+  // A project's folder is where its lasting files go, so a file saved there
+  // changes nothing about the project, with its AGENTS.md or without.
+  it("says nothing of files saved into a project's folder", async () => {
+    try {
+      await fs.mkdir(path.join(rootDir, PROJECTS_FOLDER_NAME, "Trip"), {
+        recursive: true,
+      });
+      await fs.mkdir(path.join(rootDir, PROJECTS_FOLDER_NAME, "Travel"));
+      await fs.writeFile(
+        path.join(rootDir, PROJECTS_FOLDER_NAME, "Travel", PROJECT_FILE_NAME),
+        "Aisle seats.\n",
+      );
+      const agent = await agentFs({ folders: [rootDir] });
+      const at = (...segments: string[]) =>
+        shellPath(path.join(rootDir, ...segments));
+      beginSetupChangeTracking(turn);
+
+      await withTurnContext(turn, async () => {
+        await agent.fs.writeFile(
+          at(PROJECTS_FOLDER_NAME, "Trip", "itinerary.pdf"),
+          "pdf",
+        );
+        await agent.fs.mkdir(at(PROJECTS_FOLDER_NAME, "Travel", "receipts"));
+        await agent.fs.writeFile(
+          at(PROJECTS_FOLDER_NAME, "Travel", "receipts", "hotel.pdf"),
+          "pdf",
+        );
+      });
+
+      await expect(consumeSetupChanges(turn)).resolves.toEqual([]);
+    } finally {
+      await fs.rm(path.join(rootDir, PROJECTS_FOLDER_NAME), {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
 });
 
 function skill(name: string) {

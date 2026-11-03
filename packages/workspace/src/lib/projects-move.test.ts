@@ -301,6 +301,23 @@ describe("moveTopicsToProjects", () => {
     ]);
   });
 
+  it("takes Topics away once only what the system left in it remains", async () => {
+    await writeTopic("Kitchen", "---\nid: top_1\n---\n");
+    await fs.writeFile(path.join(root, "Topics", ".DS_Store"), "");
+    await fs.mkdir(folder(), { recursive: true });
+    await fs.writeFile(path.join(folder(), ".DS_Store"), "");
+
+    expect(await moveTopicsToProjects(root)).toEqual({
+      done: [
+        "moved Topics/Kitchen to Projects/",
+        "renamed Kitchen/TOPIC.md to AGENTS.md",
+      ],
+      left: [],
+    });
+    expect(await fs.readdir(root)).toEqual([PROJECTS_FOLDER_NAME]);
+    expect(await moveTopicsToProjects(root)).toEqual({ done: [], left: [] });
+  });
+
   it("does nothing for a workspace with no Topics folder", async () => {
     expect(await moveTopicsToProjects(root)).toEqual({ done: [], left: [] });
   });

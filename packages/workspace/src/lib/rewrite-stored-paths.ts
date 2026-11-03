@@ -207,6 +207,18 @@ function rewritePermissions({
               ),
             }
           : {}),
+        // Where a build that called projects topics kept them, until the
+        // file is next written under `projects`.
+        ...(isRecord(held.topics)
+          ? {
+              topics: Object.fromEntries(
+                Object.entries(held.topics).map(([projectId, project]) => [
+                  projectId,
+                  movedProject(project),
+                ]),
+              ),
+            }
+          : {}),
       };
       return rewritten > 0 ? next : undefined;
     });

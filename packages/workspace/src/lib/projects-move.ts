@@ -14,6 +14,7 @@ import {
   PROJECTS_FOLDER_NAME,
 } from "./chat/project-file";
 import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
+import { isSystemClutter } from "./system-clutter";
 import { isRecord } from "./skills";
 import { workspaceLayout } from "./workspace-layout";
 
@@ -179,7 +180,10 @@ export async function moveTopicsToProjects(
   const names: string[] = await fs.readdir(rootDir).catch(() => []);
   if (names.includes(TOPICS_FOLDER_NAME)) {
     if (names.includes(PROJECTS_FOLDER_NAME)) {
-      for (const name of await fs.readdir(topics)) {
+      const inTopics = (await fs.readdir(topics)).filter(
+        (name) => !isSystemClutter(name),
+      );
+      for (const name of inTopics) {
         const to = path.join(projects, name);
         const taken = await fs
           .lstat(to)
@@ -193,12 +197,20 @@ export async function moveTopicsToProjects(
           continue;
         }
         await fs.rename(path.join(topics, name), to);
+        moved.done.push(
+          `moved ${TOPICS_FOLDER_NAME}/${name} to ${PROJECTS_FOLDER_NAME}/`,
+        );
       }
-      await fs.rmdir(topics).catch(() => undefined);
+      if (moved.left.length === 0) {
+        // Nothing of the person's is left in it, only what the system put there.
+        await fs.rm(topics, { force: true, recursive: true });
+      }
     } else {
       await fs.rename(topics, projects);
+      moved.done.push(
+        `moved ${TOPICS_FOLDER_NAME}/ to ${PROJECTS_FOLDER_NAME}/`,
+      );
     }
-    moved.done.push(`moved ${TOPICS_FOLDER_NAME}/ to ${PROJECTS_FOLDER_NAME}/`);
   }
   const folders = await fs
     .readdir(projects, { withFileTypes: true })

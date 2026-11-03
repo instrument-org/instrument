@@ -356,24 +356,28 @@ describe("EditFile", () => {
       await expect(readBack("context.ts")).resolves.toBe(content);
     });
 
-    // The escape matcher exists for a model that sends `\n` as two
-    // characters, and finds exactly the lines it meant. The size check counts
-    // that one-line oldString against the four lines it matched and refuses,
-    // so an escaped edit works up to three lines and fails from four.
-    it.fails("replaces a four-line oldString sent with its newlines escaped", async () => {
-      setupMockFs({ "escaped.ts": "a();\nb();\nc();\nd();\n" });
+    // A model that escapes its arguments twice sends `\n` as two characters
+    // in newString too, so replacing on an unescaped match would write
+    // backslashes into the file. Not found sends it back to read the file.
+    it.each([2, 4])(
+      "refuses a %i-line oldString sent with its newlines escaped",
+      async (count) => {
+        const content = ["a();", "b();", "c();", "d();"].join("\n") + "\n";
+        setupMockFs({ "escaped.ts": content });
+        const lines = content.split("\n").slice(0, count);
 
-      const result = await runTool(
-        TOOLS.EditFile,
-        makeExecuteArgs({
-          filePath: "./escaped.ts",
-          newString: "done();",
-          oldString: String.raw`a();\nb();\nc();\nd();`,
-        }),
-      );
+        const result = await runTool(
+          TOOLS.EditFile,
+          makeExecuteArgs({
+            filePath: "./escaped.ts",
+            newString: lines.map((line) => `// ${line}`).join(String.raw`\n`),
+            oldString: lines.join(String.raw`\n`),
+          }),
+        );
 
-      expect(result.isOk()).toBe(true);
-      await expect(readBack("escaped.ts")).resolves.toBe("done();\n");
-    });
+        expect(result._unsafeUnwrapErr().message).toContain("not found");
+        await expect(readBack("escaped.ts")).resolves.toBe(content);
+      },
+    );
   });
 });

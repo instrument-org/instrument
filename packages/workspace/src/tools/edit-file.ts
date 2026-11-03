@@ -455,65 +455,6 @@ const IndentationFlexibleReplacer: Replacer = function* (content, find) {
   }
 };
 
-const EscapeNormalizedReplacer: Replacer = function* (content, find) {
-  const unescapeString = (str: string): string => {
-    return str.replaceAll(/\\([ntr'"`\\\n$])/g, (match, capturedChar) => {
-      switch (capturedChar) {
-        case "\n": {
-          return "\n";
-        }
-        case '"': {
-          return '"';
-        }
-        case "$": {
-          return "$";
-        }
-        case "'": {
-          return "'";
-        }
-        case "\\": {
-          return "\\";
-        }
-        case "`": {
-          return "`";
-        }
-        case "n": {
-          return "\n";
-        }
-        case "r": {
-          return "\r";
-        }
-        case "t": {
-          return "\t";
-        }
-        default: {
-          return match;
-        }
-      }
-    });
-  };
-
-  const unescapedFind = unescapeString(find);
-
-  // Try direct match with unescaped find string
-  if (content.includes(unescapedFind)) {
-    yield unescapedFind;
-  }
-
-  // Also try finding escaped versions in content that match unescaped find
-  const lines = content.split("\n");
-  const findLines = unescapedFind.split("\n");
-
-  for (let i = 0; i <= lines.length - findLines.length; i++) {
-    const block = lines.slice(i, i + findLines.length).join("\n");
-    const unescapedBlock = unescapeString(block);
-
-    if (unescapedBlock === unescapedFind) {
-      yield block;
-    }
-  }
-};
-
 const normalizeUnicode = (text: string) =>
   text
     .normalize("NFKC")
@@ -691,7 +632,6 @@ function replace(
     BlockAnchorReplacer,
     WhitespaceNormalizedReplacer,
     IndentationFlexibleReplacer,
-    EscapeNormalizedReplacer,
     UnicodeNormalizedReplacer,
     TrimmedBoundaryReplacer,
     ContextAwareReplacer,

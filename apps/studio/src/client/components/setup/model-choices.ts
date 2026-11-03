@@ -144,7 +144,7 @@ const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /**
  * A long list's groups. With no search: Suggested (the recommended model,
- * then a few the catalogs recommend), then every other model under its
+ * then the provider's other defaults, then a few the catalogs recommend), then every other model under its
  * group. Under a search: every match, under its group, best first within
  * each. A group is the model's connection where the list has several, as
  * the picker buckets them, and its maker where one connection serves many
@@ -180,10 +180,13 @@ export function longListGroups({
     });
     return grouped(found);
   }
+  const others = models.filter((model) => model !== recommended);
   const suggested = [
     ...(recommended ? [recommended] : []),
-    ...models.filter(
-      (model) => model !== recommended && model.tags.includes("recommended"),
+    ...others.filter((model) => model.tags.includes("default")),
+    ...others.filter(
+      (model) =>
+        !model.tags.includes("default") && model.tags.includes("recommended"),
     ),
   ].slice(0, SUGGESTED_MOST);
   const rest = models

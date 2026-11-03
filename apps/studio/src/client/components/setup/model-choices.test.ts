@@ -108,6 +108,12 @@ const openRouter = [
     tags: ["recommended"],
   }),
   model({
+    author: "openai",
+    canonicalId: "gpt-5.5-sol",
+    name: "GPT-5.5 Sol",
+    tags: ["default", "recommended"],
+  }),
+  model({
     author: "google",
     canonicalId: "gemini-3-pro",
     name: "Gemini 3 Pro",
@@ -183,10 +189,10 @@ describe("setup's model choices", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "Suggested: Claude Sonnet 5.5, GPT-5.5, Gemini 3 Pro",
+        "Suggested: Claude Sonnet 5.5, GPT-5.5 Sol, GPT-5.5",
         "Anthropic: Claude Haiku 5.5, Claude Opus 5.5",
         "DeepSeek: DeepSeek V4",
-        "Google: Gemini 3 Flash, Gemini 3 Flash Lite",
+        "Google: Gemini 3 Flash, Gemini 3 Flash Lite, Gemini 3 Pro",
       ]
     `);
   });
@@ -218,7 +224,7 @@ describe("setup's model choices", () => {
     ).toEqual(["Claude", "Auto", "ChatGPT"]);
     expect(
       modelsOfConnection(models, { kind: "key", providerConfigId: key }),
-    ).toHaveLength(8);
+    ).toHaveLength(9);
     expect(modelsOfConnection(models, undefined)).toBe(models);
     // Grok's models not listed yet: none, which the model step waits on.
     expect(
@@ -238,9 +244,9 @@ describe("setup's model choices", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "Suggested: Auto, Claude Sonnet 5.5, GPT-5.5",
+        "Suggested: Auto, Claude Sonnet 5.5, GPT-5.5 Sol",
         "Instrument: ChatGPT, Claude",
-        "OpenRouter: Claude Haiku 5.5, Claude Opus 5.5, DeepSeek V4, Gemini 3 Flash, Gemini 3 Flash Lite, Gemini 3 Pro",
+        "OpenRouter: Claude Haiku 5.5, Claude Opus 5.5, DeepSeek V4, Gemini 3 Flash, Gemini 3 Flash Lite, Gemini 3 Pro, GPT-5.5",
       ]
     `);
   });

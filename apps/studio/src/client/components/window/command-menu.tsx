@@ -80,10 +80,12 @@ import { rpcClient } from "@/client/rpc/client";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import {
+  WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -98,6 +100,7 @@ import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -284,6 +287,23 @@ export function useCommandMenuRows({
             run: shell.appTabs.openNewTab,
           },
         ]),
+    {
+      chord: WINDOW_MENU_SHORTCUTS.newWindow.accelerator,
+      icon: <AppWindowIcon />,
+      id: "new-window",
+      label: "New window",
+      run: () => {
+        void rpcClient.window.openNew.call();
+      },
+    },
+    {
+      icon: <StackIcon />,
+      id: "merge-windows",
+      label: "Merge all windows",
+      run: () => {
+        void rpcClient.window.mergeAll.call();
+      },
+    },
     {
       chord: SHORTCUTS.settings.accelerator,
       icon: <GearIcon />,

@@ -893,6 +893,7 @@ function disposeWebview(targetId: BrowserTargetId) {
 function ensureWebview(
   targetId: BrowserTargetId,
   generation: number,
+  src?: string,
 ): PooledWebview {
   const existing = pool.get(targetId);
   if (existing) {
@@ -907,7 +908,7 @@ function ensureWebview(
   // attach; main overrides the actual session there (partition is just a
   // carrier, see browserPartition).
   webview.setAttribute("partition", browserPartition(targetId));
-  webview.setAttribute("src", "about:blank");
+  webview.setAttribute("src", src ?? "about:blank");
   // Permit window.open so a genuine sign-in popup reaches the main process's
   // window-open handler (which allows only real popups; see manager.ts). Without
   // this attribute Chromium blocks every `<webview>` popup before the handler
@@ -1289,7 +1290,7 @@ function reconcile(targets: BrowserGuestTarget[]) {
     if (pooled && pooled.generation !== target.generation) {
       disposeWebview(target.id);
     }
-    const kept = ensureWebview(target.id, target.generation);
+    const kept = ensureWebview(target.id, target.generation, target.src);
     if (kept.asleep !== target.asleep) {
       kept.asleep = target.asleep;
       if (!paintOwners.has(target.id)) {

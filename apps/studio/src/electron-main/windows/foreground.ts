@@ -5,7 +5,7 @@ import { type BrowserWindow } from "electron";
 /**
  * The window the app comes forward as when something outside it asks: a deep
  * link, a sign-in that finished in the browser, a second launch.
- * It is the app window, setup included, which draws over it.
+ * It is the app window last in front, setup included, which draws over it.
  *
  * A read of the windows that already exist, and nothing more. Putting one on
  * screen is `ensureForegroundWindowVisible`, which lives apart because it

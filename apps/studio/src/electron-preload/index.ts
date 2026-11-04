@@ -227,6 +227,13 @@ const api: Window["api"] = {
   homeDir: os.homedir(),
   initialSetupState: loadSetupState(),
   keptState: {
+    acrossWindows: (key) => {
+      const values: unknown = ipcRenderer.sendSync(
+        KEPT_STATE_CHANNEL.acrossWindows,
+        key,
+      );
+      return Array.isArray(values) ? values : [];
+    },
     initial: loadKeptState(),
     onChange: (listener) => {
       const forward = (

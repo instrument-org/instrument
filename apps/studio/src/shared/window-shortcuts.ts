@@ -133,6 +133,9 @@ export const WINDOW_MENU_SHORTCUTS = {
   actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
   closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
   lastTab: { accelerator: "CmdOrCtrl+9", label: "Last Tab" },
+  // Cmd+N is a new chat, as it is a new message in mail, so a window takes
+  // Shift, as it does in a code editor and in Notion.
+  newWindow: { accelerator: "Shift+CmdOrCtrl+N", label: "New Window" },
   // Ctrl+Q off the Mac, Windows included, whose quit role Electron gives no
   // chord. Alt+F4 quits there too, by closing the last window.
   quit: { accelerator: "CmdOrCtrl+Q", label: "Quit" },

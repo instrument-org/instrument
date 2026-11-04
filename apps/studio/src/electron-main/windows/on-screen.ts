@@ -40,9 +40,17 @@ const held = new Map<ScreenWindow, { maximized: boolean }>();
  */
 let relaunchView: RelaunchView | undefined;
 
+/** How many windows the launch still brings back that way. */
+let relaunchWindows = 1;
+
 /** Called once at launch, before any window, with what the restart left. */
 export function comeBackAsLeft(view: RelaunchView | undefined) {
   relaunchView = view;
+}
+
+/** How many windows this launch brings back at once, each of which comes back that way. */
+export function expectRestoredWindows(count: number) {
+  relaunchWindows = Math.max(count, 1);
 }
 
 /**
@@ -61,7 +69,10 @@ export function putOnScreen(
   { maximized = false }: { maximized?: boolean } = {},
 ) {
   const view = relaunchView;
-  relaunchView = undefined;
+  relaunchWindows -= 1;
+  if (relaunchWindows <= 0) {
+    relaunchView = undefined;
+  }
   // A window left hidden waits the same way, until the Dock icon is clicked
   // (macOS only).
   if (keepsOffScreen() || view === "hidden") {

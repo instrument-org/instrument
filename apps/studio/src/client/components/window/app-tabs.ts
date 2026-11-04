@@ -8,6 +8,7 @@ import {
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
+import { keptAcrossWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
@@ -22,6 +23,7 @@ import {
   selectByIndex,
   selectOrAddTab,
   selectTab,
+  TabsModelSchema,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
@@ -78,12 +80,15 @@ export function siteGroupOf(id: string): string {
   return `${SITE_PREFIX}${id}`;
 }
 
+/** The key each window keeps its strip of tabs under. */
+const APP_TABS_KEY = "app-tabs.v2";
+
 /**
  * The window's tabs, across its bar: each one a chat, a folder or file, the
  * apps or an app, or a site, kept across launches with each tab's
  * own history.
  */
-export const appTabsAtom = tabsAtomOf("app-tabs.v2", INBOX_HREF);
+export const appTabsAtom = tabsAtomOf(APP_TABS_KEY, INBOX_HREF);
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands
@@ -147,6 +152,24 @@ export function placeOfHref(href: string): AppPlace | undefined {
       return undefined;
     }
   }
+}
+
+/** The sites' groups a tab of any window stands on or can come back to, closed windows included. */
+export function siteGroupsAcrossWindows() {
+  const models = keptAcrossWindows(APP_TABS_KEY).flatMap((value) => {
+    const model = TabsModelSchema.safeParse(value);
+    return model.success ? [model.data] : [];
+  });
+  return new Set(
+    models.flatMap((model) =>
+      [...model.tabs, ...model.recentlyClosed].flatMap((tab) =>
+        [...(tab.history?.entries ?? []), tab.pathname].flatMap((href) => {
+          const group = groupOfHref(href);
+          return group !== undefined && isSiteGroup(group) ? [group] : [];
+        }),
+      ),
+    ),
+  );
 }
 
 /**
@@ -281,7 +304,13 @@ export function useAppTabs() {
     openNewTab: () => {
       open(NEW_TAB_HREF);
     },
+    // The tab closed last, or with none to reopen the window closed last, the
+    // way a browser's one chord brings back either.
     reopen: () => {
+      if (model.recentlyClosed.length === 0) {
+        void rpcClient.window.reopenClosed.call();
+        return;
+      }
       setModel((current) => reopenClosed(current, { id: freshTabId() }));
     },
     reorder: (ids: TabId[]) => {

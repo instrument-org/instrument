@@ -56,6 +56,9 @@ export function useImagePanzoom({
     }
 
     const panzoom = Panzoom(content, {
+      // Its default is a `move` cursor at every scale. The viewer's classes say
+      // what a press means instead, from `isZoomed`.
+      cursor: "",
       // Panzoom cancels the pointerdown by default, which is also what stops
       // the browser from starting a drag on the image under it. At the fit
       // scale there is no pan to protect -- panOnlyWhenZoomed has already
@@ -254,6 +257,7 @@ export function useImagePanzoom({
       }
     },
     fit: () => panzoomRef.current?.reset(),
+    isZoomed: scale > ZOOMED_IN_THRESHOLD,
     scale,
     zoomIn: () => panzoomRef.current?.zoomIn(),
     zoomOut: () => panzoomRef.current?.zoomOut(),

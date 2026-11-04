@@ -78,12 +78,17 @@ describe("ImageViewer", () => {
     await new Promise(requestAnimationFrame);
     await new Promise(requestAnimationFrame);
     expect(scaleOf(image)).toBe(1);
+    // An arrow while nothing can move, an open hand once something can.
+    expect(globalThis.getComputedStyle(image).cursor).toBe("auto");
 
     wheel(image, { ctrlKey: true, deltaY: -400 });
     await vi.waitFor(() => {
       expect(scaleOf(image)).toBeGreaterThan(1.5);
     });
     const zoomed = scaleOf(image);
+    await vi.waitFor(() => {
+      expect(globalThis.getComputedStyle(image).cursor).toBe("grab");
+    });
     await expect
       .element(screen.getByRole("button", { name: /^Zoom: \d+%$/ }))
       .toBeVisible();

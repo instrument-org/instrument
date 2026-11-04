@@ -4,6 +4,7 @@ import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
   useImagePanzoom,
 } from "@/client/hooks/use-image-panzoom";
+import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
@@ -67,7 +68,10 @@ export function ImageViewer({
         ref={viewportRef}
       >
         <div
-          className="flex items-center justify-center"
+          className={cn(
+            "flex items-center justify-center",
+            zoom.isZoomed && "cursor-grab active:cursor-grabbing",
+          )}
           ref={contentRef}
           style={{ height: "100%", width: "100%" }}
         >
@@ -106,11 +110,12 @@ function ImageZoomMenu({
   actualScale,
   actualSize,
   fit,
+  isZoomed,
   scale,
   zoomIn,
   zoomOut,
 }: ReturnType<typeof useImagePanzoom>) {
-  const isFit = scale <= 1.01;
+  const isFit = !isZoomed;
   // Rounded before it is compared, so a size that reads 100% is checked as it.
   const percent = actualScale ? Math.round((scale / actualScale) * 100) : null;
   const label = isFit || percent === null ? "Fit" : `${percent}%`;

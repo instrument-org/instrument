@@ -44,7 +44,7 @@ export function createApplicationMenu(): void {
   // Only when what it offers changes: a window's title changes as its tabs do.
   let offered = "";
   void publisher.subscribe("windows.changed", () => {
-    const now = `${canMergeWindows()} ${canReopenClosedAppWindow()}`;
+    const now = JSON.stringify([canMergeWindows(), canReopenClosedAppWindow()]);
     if (now !== offered) {
       offered = now;
       updateApplicationMenu();

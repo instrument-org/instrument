@@ -44,6 +44,7 @@ import {
   openAppFile,
   openAppWindow,
   restoreAppWindows,
+  showInWindowHolding,
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -512,6 +513,9 @@ function focusForegroundWindow() {
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
     ask: (ask) => {
+      if (ask.type === "openScreen" && showInWindowHolding(ask.href)) {
+        return;
+      }
       focusForegroundWindow();
       askAppWindow(ask);
     },

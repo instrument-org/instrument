@@ -2,6 +2,7 @@ import { liveRead } from "@instrument-org/workspace/electron";
 import {
   computerUseStatus,
   focusAfterGrant,
+  raiseCaptureConsent,
   requestComputerPermission,
 } from "@/electron-main/lib/computer-use";
 import {
@@ -79,6 +80,7 @@ const live = {
 
 /** What the Settings screen for Computer Use reads and asks of macOS. */
 const computerUse = {
+  captureConsent: base.handler(() => raiseCaptureConsent()),
   focus: base.handler(() => {
     focusAfterGrant();
   }),

@@ -47,14 +47,6 @@ const NEXT_STEP: Record<string, string> = {
     "The app has no window to read. Use `instrument computer windows` to see what it has.",
 };
 
-/**
- * The name a chat's snapshots are kept under, in the only spelling the driver
- * takes: letters, digits, `-` and `_`, up to 64.
- */
-function sessionName(chatId: ChatId): string {
-  return chatId.replaceAll(/[^\w-]/g, "_").slice(0, 64);
-}
-
 /** A refusal as the agent reads it, saying whether the action may have landed. */
 function refusalText({
   code,
@@ -82,13 +74,10 @@ function refusalText({
     .join(" ");
 }
 
-/**
- * One driver command for `chatId`, its data on success and its refusal thrown
- * as a failure. Refused as a whole where the host carries no driver.
- */
-export async function runDriver(
+/** What the driver answers, its data on success and its refusal thrown. */
+async function execDriver(
   args: readonly string[],
-  { chatId, signal }: { chatId: ChatId; signal?: AbortSignal },
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const host = getWorkspaceConfig().computerUse;
   if (host === undefined) {
@@ -99,7 +88,7 @@ export async function runDriver(
   // A command runs while its script does, where just-bash keeps timers from
   // being set; execa's timeout sets one.
   const result = await DefenseInDepthBox.runTrustedAsync(() =>
-    execa(host.binaryPath, [...args, "--session", sessionName(chatId)], {
+    execa(host.binaryPath, args, {
       ...(signal === undefined ? {} : { cancelSignal: signal }),
       env: { AGENT_DESKTOP_HOME: host.stateDir() },
       reject: false,
@@ -126,8 +115,64 @@ export async function runDriver(
   return data;
 }
 
+const SessionStartedSchema = z.object({ session_id: z.string() });
+
+/** Each chat's driver session this run, which keeps its snapshots apart. */
+const sessions = new Map<ChatId, Promise<string>>();
+
+/** Sessions an earlier run left behind are stale past this, in seconds. */
+const STALE_SESSION_SECONDS = 3600;
+
+/**
+ * A chat's session, started the first time it needs one. A session is what the
+ * agent's cursor belongs to, so it gets one of the driver's own rather than a
+ * bare name. Traces stay off: they would keep what the windows showed. A run
+ * that didn't end its sessions, by crashing, leaves them for the first start of
+ * the next to clear away.
+ */
+function sessionOf(chatId: ChatId, signal?: AbortSignal): Promise<string> {
+  const known = sessions.get(chatId);
+  if (known !== undefined) {
+    return known;
+  }
+  if (sessions.size === 0) {
+    void execDriver([
+      "session",
+      "gc",
+      "--older-than",
+      String(STALE_SESSION_SECONDS),
+    ]).catch(noop);
+  }
+  const started = execDriver(
+    ["session", "start", "--no-trace", "--name", APP_NAME],
+    signal,
+  ).then((data) => SessionStartedSchema.parse(data).session_id);
+  sessions.set(chatId, started);
+  // A later call starts afresh rather than inheriting one failure for good.
+  started.catch(() => {
+    sessions.delete(chatId);
+  });
+  return started;
+}
+
+/**
+ * One driver command for `chatId`, in its session, its data on success and its
+ * refusal thrown as a failure. Refused as a whole where the host carries no
+ * driver.
+ */
+export async function runDriver(
+  args: readonly string[],
+  { chatId, signal }: { chatId: ChatId; signal?: AbortSignal },
+): Promise<unknown> {
+  const session = await sessionOf(chatId, signal);
+  return execDriver([...args, "--session", session], signal);
+}
+
 /** The chats whose cursor is already showing. */
 const cursorShown = new Set<ChatId>();
+
+/** How long the cursor takes to cross to a target, short to long, in ms. */
+const CURSOR_TRAVEL_MS = "30,120";
 
 /**
  * Shows the agent's own cursor from a chat's first action, so the person can
@@ -145,10 +190,33 @@ export async function showCursor({
     return;
   }
   cursorShown.add(chatId);
-  await runDriver(["cursor-overlay", "enable", "--label", APP_NAME], {
-    chatId,
-    ...(signal === undefined ? {} : { signal }),
-  }).catch(noop);
+  await runDriver(
+    [
+      "cursor-overlay",
+      "enable",
+      "--label",
+      APP_NAME,
+      "--travel-ms",
+      CURSOR_TRAVEL_MS,
+    ],
+    { chatId, ...(signal === undefined ? {} : { signal }) },
+  ).catch(noop);
+}
+
+/**
+ * Ends this run's sessions as the app quits: the only thing that stops an
+ * agent's cursor, whose process outlives the driver call that started it, and
+ * what lets the next run clear away the snapshots they kept.
+ */
+export async function endComputerSessions(): Promise<void> {
+  const started = [...sessions.values()];
+  sessions.clear();
+  cursorShown.clear();
+  await Promise.allSettled(
+    started.map(async (session) =>
+      execDriver(["session", "end", await session]),
+    ),
+  );
 }
 
 function parseJson(text: string): unknown {

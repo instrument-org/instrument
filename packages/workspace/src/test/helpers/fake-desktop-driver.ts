@@ -54,7 +54,10 @@ switch (args[0]) {
     }
     break;
   case "launch":
-    answer({ app: "TextEdit", pid: 501 });
+    answer({ app: "TextEdit", pid: 501, window: { id: "w-1", title: "Shopping" } });
+    break;
+  case "session":
+    answer({ session_id: "run-fake-desktop" });
     break;
   default:
     answer(delivered);

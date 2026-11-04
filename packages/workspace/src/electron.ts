@@ -1,6 +1,7 @@
 export { ActivityFilterSchema } from "./lib/activity/schema";
 export { activityCsv } from "./lib/activity/store";
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
+export { endComputerSessions } from "./lib/computer/driver";
 export {
   type AppCatalogEntry,
   catalogEntryMacApp,

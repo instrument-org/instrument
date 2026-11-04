@@ -12,6 +12,7 @@ import {
   standInDriver,
 } from "../../test/helpers/computer-driver-stand-in";
 import { capabilityRunner } from "../../test/helpers/run-capability";
+import { endComputerSessions } from "../computer/driver";
 import { treeText } from "../computer/tree-text";
 import { grantApp } from "../permissions/apps";
 import { setDenied } from "../permissions/denials";
@@ -401,8 +402,50 @@ describe("instrument computer", () => {
     await click(["@s1abc:e1"], inChat);
     await click(["@s1abc:e1"], inChat);
     expect(cursorCalls()).toEqual([
-      ["cursor-overlay", "enable", "--label", "Instrument"],
+      [
+        "cursor-overlay",
+        "enable",
+        "--label",
+        "Instrument",
+        "--travel-ms",
+        "30,120",
+      ],
     ]);
+  });
+
+  it("keeps a chat in one session of the driver's, with no trace of the windows", async () => {
+    const chatId = ChatIdSchema.parse("computer-session-chat");
+    const inChat = { ...scope, chatId };
+    const driver = standInDriver(answers);
+    await grantApp(chatId, "com.apple.TextEdit");
+    await snapshot(["TextEdit"], inChat);
+    await click(["@s1abc:e1"], inChat);
+    const starts = driver
+      .calls()
+      .filter(([word, verb]) => word === "session" && verb === "start");
+    expect(starts).toEqual([
+      ["session", "start", "--no-trace", "--name", "Instrument"],
+    ]);
+  });
+
+  it("ends every session when the app quits, and starts afresh after", async () => {
+    const chatId = ChatIdSchema.parse("computer-quit-chat");
+    const inChat = { ...scope, chatId };
+    const driver = standInDriver(answers);
+    await grantApp(chatId, "com.apple.TextEdit");
+    await snapshot(["TextEdit"], inChat);
+    await endComputerSessions();
+    expect(
+      driver
+        .calls()
+        .filter(([word, verb]) => word === "session" && verb === "end"),
+    ).toContainEqual(["session", "end", "run-stand-in"]);
+    await snapshot(["TextEdit"], inChat);
+    expect(
+      driver
+        .calls()
+        .filter(([word, verb]) => word === "session" && verb === "start").length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("says when a refused shortcut has no way past it here", async () => {

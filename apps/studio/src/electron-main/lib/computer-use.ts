@@ -4,6 +4,8 @@ import { getWorkspaceFeatures } from "@/electron-main/stores/workspace/preferenc
 import { app, shell, systemPreferences } from "electron";
 import { execFile } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { noop, sleep } from "radashi";
@@ -154,6 +156,26 @@ export async function requestComputerPermission(
     return;
   }
   await shell.openExternal(PANES[permission]);
+}
+
+/**
+ * One capture, kept nowhere, for macOS's other question about the screen:
+ * whether the app may go past the system's window picker. It asks at the first
+ * capture, so this makes that the moment the person turned the grant on rather
+ * than the middle of a task.
+ */
+export async function raiseCaptureConsent(): Promise<void> {
+  const dir = await mkdtemp(path.join(tmpdir(), "computer-use-"));
+  await execFileAsync(
+    binaryPath(),
+    ["screenshot", "--screen", "0", path.join(dir, "capture.png")],
+    {
+      env: { ...process.env, AGENT_DESKTOP_HOME: stateDir() },
+      timeout: 60_000,
+    },
+  )
+    .catch(noop)
+    .finally(() => rm(dir, { force: true, recursive: true }));
 }
 
 /** Brings the app back over System Settings once a switch has turned on. */

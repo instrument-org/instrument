@@ -17,7 +17,9 @@ const dir = __dirname;
 const args = process.argv.slice(2);
 fs.appendFileSync(path.join(dir, "calls.jsonl"), JSON.stringify(args) + "\\n");
 const answers = JSON.parse(fs.readFileSync(path.join(dir, "answers.json"), "utf8"));
-const answer = answers[args[0]];
+const answer = args[0] === "session" && args[1] === "start"
+  ? { ok: true, data: { session_id: "run-stand-in" } }
+  : answers[args[0]];
 process.stdout.write(JSON.stringify(answer ?? { ok: true, data: {} }));
 `;
 
@@ -59,7 +61,7 @@ export function standInDriver(
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as string[])
-        .map((call) => call.slice(0, -2));
+        .map((call) => (call.at(-2) === "--session" ? call.slice(0, -2) : call));
     },
     /** The calls that aren't how the wrapper finds its way around. */
     actions(): string[][] {
@@ -67,7 +69,8 @@ export function standInDriver(
         ([word]) =>
           word !== "list-apps" &&
           word !== "list-windows" &&
-          word !== "cursor-overlay",
+          word !== "cursor-overlay" &&
+          word !== "session",
       );
     },
     setAnswers,

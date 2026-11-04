@@ -8,6 +8,7 @@ Computer use is the agent operating the person's other apps: reading what a wind
 
 - **`instrument computer` is registry capabilities** ([`capabilities/computer.ts`](../../packages/workspace/src/lib/capabilities/computer.ts)), generated like every other `instrument` command. They run on the main thread, since the host's config is live there; the bash worker builds the command only to send the call back.
 - **The driver runs per call as a plain child of the main process** ([`lib/computer/driver.ts`](../../packages/workspace/src/lib/computer/driver.ts)), so macOS holds the app responsible for it. There is no daemon, and no second row in System Settings.
+- **A chat gets one session of the driver's**, with traces off, since they would keep what windows showed. A session is what the agent's cursor belongs to, and that cursor's process outlives the call that drew it, so quitting ends every session, and the first start after a crash clears away what the last run left.
 - **Studio carries the executable and its helper** in `resources/agent-desktop/`, vendored by [`scripts/download-agent-desktop.ts`](../../apps/studio/scripts/download-agent-desktop.ts) against pinned hashes, and is the host ([`lib/computer-use.ts`](../../apps/studio/src/electron-main/lib/computer-use.ts)). About 4 MB on macOS.
 - **The agent reads a tree of text, not the driver's JSON** ([`lib/computer/tree-text.ts`](../../packages/workspace/src/lib/computer/tree-text.ts)): a line per element with its ref. `--json` gives the driver's own answer.
 

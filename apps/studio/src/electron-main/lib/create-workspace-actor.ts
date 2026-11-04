@@ -36,6 +36,7 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
+  endComputerSessions,
   type DeviceId,
   ensurePythonBase,
   interruptTasksForQuit,
@@ -395,7 +396,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
             (quit) => quit && confirmQuitWithRunningWork(),
           );
         }),
-        closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
+        closeBrowserSessions: fromPromise(async () => {
+          await Promise.all([
+            closeAllAgentBrowserSessions(),
+            endComputerSessions(),
+          ]);
+        }),
         stopServices: fromPromise(async () => {
           // Agent-started servers and watchers outlive the turn that started
           // them, so quitting is what ends them. The tasks at work are

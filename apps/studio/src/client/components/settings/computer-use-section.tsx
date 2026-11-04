@@ -50,6 +50,19 @@ export function ComputerUseSection() {
     grantedBefore.current = data?.accessibility;
   }, [data?.accessibility, focus]);
 
+  // macOS asks one more thing at an app's first capture, so it comes now, while
+  // the person is here, rather than in the middle of a task.
+  const consent = useMutation(
+    rpcClient.features.computerUse.captureConsent.mutationOptions(),
+  );
+  const capturingBefore = useRef(data?.screenRecording);
+  useEffect(() => {
+    if (capturingBefore.current === false && data?.screenRecording === true) {
+      consent.mutate({});
+    }
+    capturingBefore.current = data?.screenRecording;
+  }, [data?.screenRecording, consent]);
+
   if (!data) {
     return null;
   }

@@ -55,6 +55,32 @@ Otherwise suggest the likeliest next message. A finished answer still gets one: 
 /** Room for a low-effort model's thinking and the line after it. */
 const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
 
+/**
+ * Most of the last request the cache may leave unserved: past it, the ask
+ * pays full price for a long tail, which a line in the box is not worth.
+ */
+const SUGGESTION_MAX_UNCACHED_TOKENS = 10_000;
+
+/**
+ * Whether the reply's last request left more than the cache serves: the
+ * input it sent unserved plus what it wrote back, which the ask sends anew.
+ * A provider that reports no cache figures is not judged by them.
+ */
+export function coldTail(usage: SessionMessage.Usage | undefined): boolean {
+  const details = usage?.inputTokenDetails;
+  const uncached =
+    details?.noCacheTokens ??
+    (usage?.inputTokens !== undefined && details?.cacheReadTokens !== undefined
+      ? usage.inputTokens -
+        details.cacheReadTokens -
+        (details.cacheWriteTokens ?? 0)
+      : undefined);
+  if (uncached === undefined || Number.isNaN(uncached)) {
+    return false;
+  }
+  return uncached + (usage?.outputTokens ?? 0) > SUGGESTION_MAX_UNCACHED_TOKENS;
+}
+
 /** The longest suggestion kept: past this it is not a line a box shows. */
 const SUGGESTION_MAX_CHARS = 120;
 
@@ -145,7 +171,12 @@ async function suggestOnSettle(
       message.role === "assistant",
   );
   const model = reply?.metadata.aiGatewayModel;
-  if (!reply || !model || reply.metadata.error !== undefined) {
+  if (
+    !reply ||
+    !model ||
+    reply.metadata.error !== undefined ||
+    coldTail(reply.metadata.usage)
+  ) {
     return;
   }
   const signal = AbortSignal.timeout(30_000);

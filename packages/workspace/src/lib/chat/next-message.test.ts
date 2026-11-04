@@ -1,6 +1,41 @@
 import { describe, expect, it } from "vitest";
 
-import { suggestionFrom } from "./next-message";
+import { type SessionMessage } from "../../schemas/session/message";
+import { coldTail, suggestionFrom } from "./next-message";
+
+function usage(
+  inputTokens: number,
+  outputTokens: number,
+  details: SessionMessage.Usage["inputTokenDetails"],
+): SessionMessage.Usage {
+  return {
+    inputTokenDetails: details,
+    inputTokens,
+    outputTokenDetails: {},
+    outputTokens,
+  };
+}
+
+describe("coldTail", () => {
+  it.each([
+    ["mostly cached", usage(30_000, 200, { cacheReadTokens: 29_000 }), false],
+    [
+      "a long uncached tail",
+      usage(30_000, 200, { cacheReadTokens: 15_000 }),
+      true,
+    ],
+    ["a long reply", usage(30_000, 11_000, { cacheReadTokens: 30_000 }), true],
+    [
+      "the provider's own uncached count",
+      usage(30_000, 0, { noCacheTokens: 12_000 }),
+      true,
+    ],
+    ["no cache figures", usage(30_000, 200, {}), false],
+    ["no usage", undefined, false],
+  ])("judges %s", (_name, given, expected) => {
+    expect(coldTail(given)).toBe(expected);
+  });
+});
 
 describe("suggestionFrom", () => {
   it.each([

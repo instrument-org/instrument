@@ -448,9 +448,11 @@ export function PromptEditor({
           return true;
         }
         const offer = currentOffer();
+        // Right arrow too, as in an editor's inline completion: in an empty
+        // box it has nowhere else to go.
         if (
           offer &&
-          event.key === "Tab" &&
+          (event.key === "Tab" || event.key === "ArrowRight") &&
           !event.shiftKey &&
           !event.altKey &&
           !commandKeyHeld(event)

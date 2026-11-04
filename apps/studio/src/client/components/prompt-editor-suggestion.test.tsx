@@ -58,6 +58,16 @@ describe("a suggestion in the empty box", () => {
     expect(screen.queryByRole("button", { name: "Use suggestion" })).toBeNull();
   });
 
+  it("goes in with Right arrow too", () => {
+    const { editor, ref } = renderOffering();
+    const dom = editor();
+    if (!dom) {
+      throw new Error("no editor");
+    }
+    fireEvent.keyDown(dom, { key: "ArrowRight" });
+    expect(ref.current?.getValue()).toBe(SUGGESTION);
+  });
+
   it("shows its key only while the box has focus", () => {
     const { editor } = renderOffering();
     expect(screen.queryByRole("button", { name: "Use suggestion" })).toBeNull();

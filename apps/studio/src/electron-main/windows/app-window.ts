@@ -479,6 +479,10 @@ function createAppWindow(
 
   const window = new BrowserWindow({
     ...(isSetupSized ? setupBounds() : opening),
+    // On macOS the first click on a window behind another only brings it
+    // forward unless told otherwise, and over the bar that press drags the
+    // window: a tab pulled out of a window in the back would move the window.
+    acceptFirstMouse: true,
     // Left to itself, Electron paints the active window's edge from Windows'
     // accent setting and can get the color wrong (default blue where the
     // system's own windows use the person's accent). Off, Windows draws its

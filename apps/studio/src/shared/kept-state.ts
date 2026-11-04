@@ -44,11 +44,12 @@ export function isKeptFile(file: unknown): file is KeptFile {
  * The IPC channels between a window and the kept state: `load` is the
  * preload's synchronous read of every file, `set` a window's write of one key
  * (`undefined` removes it), `changed` the main process telling the other
- * windows about a write, and `acrossWindows` a synchronous read of one key of
- * `window` as every window kept it, closed windows that can come back included.
+ * windows about a write, and `otherWindows` a synchronous read of one key of
+ * `window` as every other window kept it, closed ones that can come back
+ * included.
  */
 export const KEPT_STATE_CHANNEL = {
-  acrossWindows: "kept-state:across-windows",
+  otherWindows: "kept-state:other-windows",
   changed: "kept-state:changed",
   load: "kept-state:load",
   set: "kept-state:set",

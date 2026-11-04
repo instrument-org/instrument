@@ -199,11 +199,12 @@ export interface WorkspaceConfig {
    */
   deviceId: DeviceId;
   /**
-   * Whether this window is the one that answers what a chat asks of its tabs,
-   * where a host has several: exactly one must, or a tab an agent opens would
-   * open once per window. Every window answers where this is not given.
+   * The window that answers what a chat asks of its tabs, and mounts the pages
+   * it makes, where a host has several: exactly one must, or a tab an agent
+   * opens would open once per window. Every window answers where this is not
+   * given or names none.
    */
-  isWindowFor?: (webContentsId: number, chatId: string | undefined) => boolean;
+  windowForChat?: (chatId: string | undefined) => number | undefined;
   /**
    * What the system's file manager calls each drive at `roots` (`C:\`), by
    * its root, for the Files sidebar's Locations: "Local Disk (C:)" on

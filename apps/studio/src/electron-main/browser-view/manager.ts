@@ -89,6 +89,14 @@ const ATTACH_TIMEOUT_MS = 15_000;
 // after an agent's click is counted as the person's.
 const AGENT_NAVIGATION_TAIL_MS = 2000;
 
+// How long after an agent's last command its page stays in the window it is in.
+const AGENT_KEEPS_GUEST_MS = 30_000;
+
+const agentCommandTimers = new WeakMap<
+  BrowserEntry,
+  ReturnType<typeof setTimeout>
+>();
+
 // How long a guest brought over from another window waits on its page.
 const RESTORE_WAIT_MS = 5000;
 
@@ -686,6 +694,24 @@ function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
+  // Another window leaves a page alone while its window shows it, and while an
+  // agent is at work in it, since coming over is a reload.
+  const isInUse = (entry: BrowserEntry) =>
+    entry.shown || Date.now() - entry.lastAgentCommandAt < AGENT_KEEPS_GUEST_MS;
+
+  function noteAgentCommand(entry: BrowserEntry) {
+    const wasInUse = isInUse(entry);
+    entry.lastAgentCommandAt = Date.now();
+    if (!wasInUse) {
+      notifyEntriesChanged();
+    }
+    clearTimeout(agentCommandTimers.get(entry));
+    agentCommandTimers.set(
+      entry,
+      setTimeout(notifyEntriesChanged, AGENT_KEEPS_GUEST_MS),
+    );
+  }
+
   /**
    * A guest of another window's, brought to this one. A guest cannot change
    * the renderer it is attached to, so this is a fresh guest that reloads its
@@ -732,7 +758,9 @@ function createBrowserViewManager(): BrowserViewManager {
       if (
         host?.take !== undefined &&
         hostId !== host.webContentsId &&
-        (host.take === "always" || !existing.shown || hostOf(targetId) === null)
+        (host.take === "always" ||
+          !isInUse(existing) ||
+          hostOf(targetId) === null)
       ) {
         return moveTarget(existing, partitionDir, host.webContentsId);
       }
@@ -894,6 +922,10 @@ function createBrowserViewManager(): BrowserViewManager {
       if (!isAgentDrivenCommand(method)) {
         return dispatch();
       }
+      const driven = entries.get(targetId);
+      if (driven) {
+        noteAgentCommand(driven);
+      }
       const settle = focusGuard.armCommand(
         targetId,
         hostOf(targetId)?.isFocused() ?? false,
@@ -1013,7 +1045,7 @@ function createBrowserViewManager(): BrowserViewManager {
       [...entries.values()]
         .filter((entry) => hostIdOf(entry) !== webContentsId)
         .map((entry) => ({
-          shown: entry.shown,
+          shown: isInUse(entry),
           targetId: entry.targetId,
         })),
     isHostOf: (webContentsId, targetId) => {

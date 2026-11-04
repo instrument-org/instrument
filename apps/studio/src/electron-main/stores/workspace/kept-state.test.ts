@@ -230,3 +230,13 @@ it("writes where a folder went in what each window keeps for itself too", () => 
     "app-tabs.v2": { pathname: "/files?root=%2Fnew%2Fa" },
   });
 });
+
+it("writes nothing it was told to drop, for a file about to be removed", () => {
+  vi.useFakeTimers();
+  const store = createKeptStateStore(() => dir);
+  store.set("layout", "app-tabs.v2", { tabs: [] });
+  store.discard();
+  vi.runAllTimers();
+  vi.useRealTimers();
+  expect(fs.existsSync(path.join(dir, "layout.json"))).toBe(false);
+});

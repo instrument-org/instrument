@@ -37,6 +37,20 @@ import {
 import { openLinkAddress } from "./open-link-address";
 import { sameHref } from "./window-href";
 
+/** The member a tab with no group is kept under. */
+const NO_GROUP = "-";
+
+// What a build with one window kept whole, once, as every window keeps it now: ahead of
+// the atom below, which reads what is kept as it is made.
+const earlierTabs = takeKept("layout", "window-tabs.v9");
+if (isStoredWindowTabs(earlierTabs)) {
+  for (const [member, group] of splitTabGroups(
+    normalizeWindowTabs(earlierTabs),
+  )) {
+    writeKept("layout", `window-tabs.v10/${member}`, group);
+  }
+}
+
 /**
  * The window's tabs, one list across every group, kept across launches on
  * this computer. Written only here, through the functions of `tab-model.ts`.
@@ -49,19 +63,6 @@ const storedTabsAtom = keptMembersAtom<WindowTabs>(
     split: splitTabGroups,
   },
 );
-
-// What a build with one window kept whole, once, as every window keeps it now.
-const earlierTabs = takeKept("layout", "window-tabs.v9");
-if (isStoredWindowTabs(earlierTabs)) {
-  for (const [member, group] of splitTabGroups(
-    normalizeWindowTabs(earlierTabs),
-  )) {
-    writeKept("layout", `window-tabs.v10/${member}`, group);
-  }
-}
-
-/** The member a tab with no group is kept under. */
-const NO_GROUP = "-";
 
 interface TabGroupMember {
   active?: string;

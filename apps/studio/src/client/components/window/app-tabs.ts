@@ -8,7 +8,7 @@ import {
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
-import { keptAcrossWindows } from "@/client/lib/kept-state";
+import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
@@ -147,15 +147,19 @@ export function placeOfHref(href: string): AppPlace | undefined {
   }
 }
 
-/** The sites' groups a tab of any window stands on or can come back to, closed windows included. */
-export function siteGroupsAcrossWindows() {
-  const models = keptAcrossWindows(APP_TABS_KEY).flatMap((value) => {
+/**
+ * The sites' groups a tab in another window stands on, closed windows that can
+ * come back included. A tab another window closed is not one of them: that
+ * window has let go of its page, and keeps what it needs to bring it back.
+ */
+export function siteGroupsInOtherWindows() {
+  const models = keptInOtherWindows(APP_TABS_KEY).flatMap((value) => {
     const model = TabsModelSchema.safeParse(value);
     return model.success ? [model.data] : [];
   });
   return new Set(
     models.flatMap((model) =>
-      [...model.tabs, ...model.recentlyClosed].flatMap((tab) =>
+      model.tabs.flatMap((tab) =>
         [...(tab.history?.entries ?? []), tab.pathname].flatMap((href) => {
           const group = groupOfHref(href);
           return group !== undefined && isSiteGroup(group) ? [group] : [];

@@ -111,6 +111,9 @@ export interface BrowserEntry {
   // commands that only read existing state, so an entry existing does not mean
   // anything asked for a browser to be shown.
   navigated: boolean;
+  // When an agent's command last reached the guest, which keeps another window
+  // from taking the page out from under it.
+  lastAgentCommandAt: number;
   // The window whose renderer mounts this guest, by its web contents; none
   // until there is a window to ask.
   hostId: null | number;
@@ -183,6 +186,7 @@ export function createEntry({
     eventListeners: new Set(),
     generation: ++generationCounter,
     hostId,
+    lastAgentCommandAt: 0,
     navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),

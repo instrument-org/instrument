@@ -53,12 +53,9 @@ export function writeKept(file: KeptFile, key: string, value: unknown) {
   bridge()?.set(file, key, value);
 }
 
-/**
- * One key of `window` as every window kept it, this one's as it last wrote
- * it, closed windows that can come back included.
- */
-export function keptAcrossWindows(key: string): unknown[] {
-  return bridge()?.acrossWindows(key) ?? [];
+/** One key of `window` as every other window kept it, closed ones that can come back included. */
+export function keptInOtherWindows(key: string): unknown[] {
+  return bridge()?.otherWindows(key) ?? [];
 }
 
 /**

@@ -256,30 +256,12 @@ describe("cancelOAuth", () => {
     await call(apps.cancelOAuth, { slug: "signed-in" }, options);
 
     expect(mocks.cancelMcpOAuth).toHaveBeenCalledWith("open");
-    expect(mocks.recordConnection.mock.calls).toMatchInlineSnapshot(`
-      [
-        [
-          "signed-in",
-          {
-            "ended": "canceled",
-            "error": "The sign-in was stopped before it finished.",
-            "status": "failed",
-          },
-        ],
-      ]
-    `);
-    expect(mocks.appChanged.mock.calls).toMatchInlineSnapshot(`
-      [
-        [
-          "signed-in",
-          {
-            "detail": "The sign-in was stopped before it finished.",
-            "ended": "canceled",
-            "event": "failed",
-          },
-        ],
-      ]
-    `);
+    // Nothing went wrong, so the app goes back to needing its sign-in and the
+    // chat is not woken.
+    expect(mocks.recordConnection.mock.calls).toEqual([
+      ["signed-in", { status: "needs-sign-in" }],
+    ]);
+    expect(mocks.appChanged).not.toHaveBeenCalled();
   });
 
   it("says nothing when no sign-in was waiting", async () => {

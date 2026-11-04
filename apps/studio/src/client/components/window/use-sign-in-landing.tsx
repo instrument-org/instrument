@@ -6,6 +6,9 @@ import { atom, useAtom } from "jotai";
 import { useEffect } from "react";
 import { toast } from "@/client/lib/toast";
 
+/** Where a sign-in page opens: the window's own browser, or the user's. */
+export type SignInDestination = "app" | "external";
+
 /**
  * The app sign-ins started from the window and not yet finished, by slug,
  * with when the app's connection record was last written as the sign-in
@@ -14,7 +17,10 @@ import { toast } from "@/client/lib/toast";
  * take the screen those controls were on.
  */
 export const signInsWaitingAtom = atom<
-  ReadonlyMap<string, { from: number | undefined; inChat: boolean }>
+  ReadonlyMap<
+    string,
+    { from: number | undefined; inChat: boolean; where: SignInDestination }
+  >
 >(new Map());
 
 /**
@@ -23,7 +29,7 @@ export const signInsWaitingAtom = atom<
  * brings the app's page back up wherever the sign-in page took the window.
  * One a chat asked for leaves the window where it is: the sign-in page opened
  * beside the chat, and the chat's card says the app is connected. A sign-in
- * the provider declined or that failed is let go without either.
+ * the provider declined, that failed or that lapsed is let go without either.
  */
 export function useSignInLanding(openScreen: (href: string) => void) {
   const [waiting, setWaiting] = useAtom(signInsWaitingAtom);
@@ -59,7 +65,10 @@ export function useSignInLanding(openScreen: (href: string) => void) {
         // Written since the sign-in started: a second failure in a row is
         // news as much as the first.
         app?.connection?.updatedAt !== from &&
-        (standing === "declined" || standing === "failed")
+        (standing === "declined" ||
+          standing === "failed" ||
+          (standing === "needs-sign-in" &&
+            app?.connection?.ended === "expired"))
       ) {
         settled.add(slug);
       }

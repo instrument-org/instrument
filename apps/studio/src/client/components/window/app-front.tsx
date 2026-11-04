@@ -242,7 +242,7 @@ export function AppFront({
     : bundledToConnect
       ? `macOS will ask you once before Instrument uses ${name}.`
       : app.standing === "needs-sign-in" && !isWeb
-        ? `Sign in here in a tab, or with ${browserName} if you’re already signed in to ${name} there.`
+        ? `Sign in with ${browserName} if you’re already signed in to ${name} there, or here in a tab.`
         : app.standing === "stale"
           ? "Try again to connect it as it is now."
           : undefined;

@@ -151,7 +151,7 @@ export const publisher = new EventPublisher<{
    * one forward. Each ask carries a request id, which the window's answer
    * comes back under.
    */
-  "window.tab": WindowTabRequest & { id: ChatId };
+  "window.tab": WindowTabRequest & { id: ChatId; window?: number };
   /**
    * The window answering an ask: the tab it acted on or made, by the id the
    * conversation names it with and a task can be handed, or why it did

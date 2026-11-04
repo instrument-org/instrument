@@ -119,11 +119,19 @@ const moveTab = base
       ]),
     }),
   )
-  .handler(({ input }) => {
-    for (const page of input.pages) {
-      getBrowserViewManager().releaseGuest(page);
+  .handler(({ context, input }) => {
+    const manager = getBrowserViewManager();
+    // Before a new window can load and ask for them. A page another window
+    // is showing stays with it.
+    const moved = moveTabToWindow(input.tab, input.to);
+    if (moved) {
+      for (const page of input.pages) {
+        if (manager.isHostOf(context.webContentsId, page)) {
+          manager.releaseGuest(page);
+        }
+      }
     }
-    return { moved: moveTabToWindow(input.tab, input.to) };
+    return { moved };
   });
 
 /** Closes the asking window, every tab of which has gone to another. */

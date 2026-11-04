@@ -86,6 +86,12 @@ export function createKeptStateStore(
   };
 
   return {
+    /** Drops what is waiting to be written, for a file about to be removed. */
+    discard: () => {
+      clearTimeout(timer);
+      timer = undefined;
+      dirty.clear();
+    },
     flush,
     get: (file: KeptFile, key: string): unknown => loaded().get(file)?.[key],
     set: (file: KeptFile, key: string, value: unknown) => {
@@ -323,8 +329,8 @@ export function setWindowKeptState(
   windowStoreOf(windowId).set(WINDOW_KEPT_FILE, key, value);
 }
 
-/** Every window's kept value of a key, for windows on disk and in memory alike. */
-function acrossWindows(key: string): unknown[] {
+/** Every other window's kept value of a key, for windows on disk and in memory alike. */
+function otherWindowsValues(key: string, exceptId: string | undefined) {
   const windowsDir = path.join(workspaceWindowDir(), WINDOWS_FOLDER);
   const onDisk = fs.existsSync(windowsDir)
     ? fs
@@ -333,6 +339,9 @@ function acrossWindows(key: string): unknown[] {
         .map((name) => name.slice(0, -".json".length))
     : [];
   return [...new Set([...onDisk, ...windowStores.keys()])].flatMap((id) => {
+    if (id === exceptId) {
+      return [];
+    }
     const value = getWindowKeptState(id, key);
     return value === undefined ? [] : [value];
   });
@@ -340,6 +349,7 @@ function acrossWindows(key: string): unknown[] {
 
 /** Forgets what a window kept, once it can no longer come back. */
 export function forgetWindowKeptState(windowId: string) {
+  windowStores.get(windowId)?.discard();
   windowStores.delete(windowId);
   fs.rmSync(
     path.join(workspaceWindowDir(), WINDOWS_FOLDER, `${windowId}.json`),
@@ -375,8 +385,11 @@ export function serveKeptState() {
       ...(windowId === undefined ? {} : windowStoreOf(windowId).snapshot()),
     } satisfies KeptSnapshot;
   });
-  ipcMain.on(KEPT_STATE_CHANNEL.acrossWindows, (event, key: unknown) => {
-    event.returnValue = typeof key === "string" ? acrossWindows(key) : [];
+  ipcMain.on(KEPT_STATE_CHANNEL.otherWindows, (event, key: unknown) => {
+    event.returnValue =
+      typeof key === "string"
+        ? otherWindowsValues(key, appWindowIdOf(event.sender.id))
+        : [];
   });
   ipcMain.on(
     KEPT_STATE_CHANNEL.set,

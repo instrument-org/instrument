@@ -15,7 +15,7 @@ A person can have any number of app windows open on one workspace. They are full
 | How things are laid out (widths, views, zoom) | `view` kept file | Every window, live |
 | Size and place, which windows are open and in what order, which can come back | `window/window-state.json` | Main |
 
-A group is a chat, a draft or a site, which is the same thing whichever window shows it, so its tabs are kept by the group and not by the window. A window writes only the groups it changed (`keptMembersAtom`), because a write of the whole list from one window would undo what another wrote a moment before. Anything that lets go of a group has to remember that other windows share it: a window drops a site's group only when it held that group itself and no tab in any window, open or closed, stands on it (`siteGroupsAcrossWindows`), and the sweep of empty drafts at startup keeps those floating in any window.
+A group is a chat, a draft or a site, which is the same thing whichever window shows it, so its tabs are kept by the group and not by the window. A window writes only the groups it changed (`keptMembersAtom`), because a write of the whole list from one window would undo what another wrote a moment before. Anything that lets go of a group has to remember that other windows share it: a window drops a site's group only when it held that group itself and no tab in another window stands on it, closed windows that can come back included (`siteGroupsInOtherWindows`), and the sweep of empty drafts at startup keeps those floating in any window.
 
 ## Asking one window
 
@@ -23,7 +23,7 @@ Almost everything main publishes for the windows is read by all of them (`liveRe
 
 What something outside the app asks for goes to the window that already has it (`appWindowShowing`, read from what each window keeps): a notification or a link to a chat brings that window and that tab forward, and otherwise it opens in a new tab of the window in front.
 
-What an agent asks of a chat's tabs must be answered exactly once, or a page it opens would open per window, so `window.tab` reaches only `isWindowForChat`: the window showing the chat, else the one in front. The workspace package asks through `WorkspaceConfig.isWindowFor`, which a host with one window leaves out.
+What an agent asks of a chat's tabs must be answered exactly once, or a page it opens would open per window, so each ask names one window as it goes out (`appWindowForChat`): of the windows whose page can hear it, the one showing the chat, else the one in front. A blank page an agent makes for itself goes to the same window. The workspace package asks through `WorkspaceConfig.windowForChat`, which a host with one window leaves out.
 
 ## Moving a tab
 

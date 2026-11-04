@@ -160,6 +160,36 @@ describe("getBrowserViewManager", () => {
       expect(idsIn(401)).not.toContain(targetId);
     });
 
+    it("leaves a guest where an agent is at work in it", async () => {
+      hostWith(601);
+      hostWith(602);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 601 })
+        .catch(() => undefined);
+      await manager.browser
+        .sendCommand(targetId, "Input.dispatchMouseEvent", {})
+        .catch(() => undefined);
+
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "parked",
+          webContentsId: 602,
+        })
+        .catch(() => undefined);
+      expect(idsIn(601)).toContain(targetId);
+
+      vi.advanceTimersByTime(30_001);
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "parked",
+          webContentsId: 602,
+        })
+        .catch(() => undefined);
+      expect(idsIn(602)).toContain(targetId);
+    });
+
     it("lets a released guest go to the next window that shows it", () => {
       hostWith(501);
       hostWith(502);

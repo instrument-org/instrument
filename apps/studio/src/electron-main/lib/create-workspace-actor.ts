@@ -1,4 +1,4 @@
-import { isWindowForChat } from "@/electron-main/windows/app-window";
+import { appWindowForChat } from "@/electron-main/windows/app-window";
 import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
@@ -133,7 +133,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
-      isWindowFor: isWindowForChat,
+      windowForChat: appWindowForChat,
       captureException: captureFor("workspace"),
       deviceId,
       ...(process.platform === "win32"

@@ -10,11 +10,15 @@ import { getDefaultStore } from "jotai";
 
 import { appTabsAtom, groupOfHref, INBOX_HREF, isSiteGroup } from "./app-tabs";
 
-/** The groups whose tabs went to another window, whose pages are that window's to keep or let go. */
+/** The groups whose tabs went to another window, whose pages are that window's to keep or let go, until a tab comes back. */
 const groupsMovedAway = new Set<string>();
 
 export function hasMovedAway(group: string) {
   return groupsMovedAway.has(group);
+}
+
+export function forgetMovedAway(group: string) {
+  groupsMovedAway.delete(group);
 }
 
 /** Where a tab can go: a new window, at a point on the screen or beside this one, or one open already. */

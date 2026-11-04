@@ -81,6 +81,15 @@ export async function moveTabOut(
   }
 }
 
+/** An address in a window of its own, beside this one. */
+export function openInNewWindow(href: string) {
+  void rpcClient.window.moveTab.call({
+    pages: [],
+    tab: { id: freshTabId(), pathname: href },
+    to: { kind: "new" },
+  });
+}
+
 /** Where a tab let go at a point on this window lands along the strip. */
 export function stripIndexAt(clientX: number, tabs: readonly { id: TabId }[]) {
   const before = [

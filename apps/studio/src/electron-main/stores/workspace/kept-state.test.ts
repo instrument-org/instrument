@@ -212,3 +212,21 @@ describe("the Files addresses a window is left on", () => {
     );
   });
 });
+
+it("writes where a folder went in what each window keeps for itself too", () => {
+  const windows = path.join(dir, "windows");
+  fs.mkdirSync(windows);
+  fs.writeFileSync(
+    path.join(windows, "w1.json"),
+    JSON.stringify({ "app-tabs.v2": { pathname: "/files?root=/old/a" } }),
+  );
+
+  const done = rewriteFolderAddresses(dir, (hostPath) =>
+    hostPath.replace("/old", "/new"),
+  );
+
+  expect(done).toHaveLength(1);
+  expect(read("windows/w1.json")).toEqual({
+    "app-tabs.v2": { pathname: "/files?root=%2Fnew%2Fa" },
+  });
+});

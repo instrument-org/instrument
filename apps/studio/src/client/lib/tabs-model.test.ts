@@ -315,29 +315,31 @@ describe("setTabPathname", () => {
 });
 
 describe("a tab moving between windows", () => {
-  const tab = (id: string) => ({
-    id: TabIdSchema.parse(id),
-    pathname: `/${id}`,
+  const tabAt = (name: string) => ({
+    id: TabIdSchema.parse(name),
+    pathname: `/${name}`,
   });
-  const model = (...ids: string[]) => ({
+  const strip = (...names: string[]) => ({
     recentlyClosed: [],
-    selectedId: TabIdSchema.parse(ids[0]),
-    tabs: ids.map(tab),
+    selectedId: TabIdSchema.parse(names[0]),
+    tabs: names.map(tabAt),
   });
-  const newTab = tab("fresh");
+  const idsOf = ({ tabs }: { tabs: { id: TabId }[] }) =>
+    tabs.map((each) => each.id);
+  const newTab = tabAt("fresh");
 
   it("leaves with nothing to reopen, the one beside it up", () => {
-    const after = removeTab(model("a", "b"), {
+    const after = removeTab(strip("a", "b"), {
       id: TabIdSchema.parse("a"),
       newTab,
     });
-    expect(after.tabs.map(({ id }) => id)).toEqual(["b"]);
+    expect(idsOf(after)).toEqual(["b"]);
     expect(after.selectedId).toBe("b");
     expect(after.recentlyClosed).toEqual([]);
   });
 
   it("leaves a fresh tab where it was the last", () => {
-    const after = removeTab(model("a"), { id: TabIdSchema.parse("a"), newTab });
+    const after = removeTab(strip("a"), { id: TabIdSchema.parse("a"), newTab });
     expect(after.tabs).toEqual([newTab]);
     expect(after.recentlyClosed).toEqual([]);
   });
@@ -348,16 +350,16 @@ describe("a tab moving between windows", () => {
     { index: 1, want: ["a", "x", "b"] },
     { index: 9, want: ["a", "b", "x"] },
   ])("lands up at $index", ({ index, want }) => {
-    const after = insertTab(model("a", "b"), {
+    const after = insertTab(strip("a", "b"), {
       ...(index === undefined ? {} : { index }),
-      tab: tab("x"),
+      tab: tabAt("x"),
     });
-    expect(after.tabs.map(({ id }) => id)).toEqual(want);
+    expect(idsOf(after)).toEqual(want);
     expect(after.selectedId).toBe("x");
   });
 
   it("does not stand twice if it was there already", () => {
-    const after = insertTab(model("a", "b"), { tab: tab("a") });
-    expect(after.tabs.map(({ id }) => id)).toEqual(["b", "a"]);
+    const after = insertTab(strip("a", "b"), { tab: tabAt("a") });
+    expect(idsOf(after)).toEqual(["b", "a"]);
   });
 });

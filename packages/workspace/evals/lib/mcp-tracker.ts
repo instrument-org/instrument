@@ -200,7 +200,7 @@ const FILING_RULES_URI = "beacon://docs/filing";
 /** The label the filing rules ask every new issue to carry. */
 export const FILING_LABEL = "triage";
 
-function buildServer(created: { count: number }): McpServer {
+function buildServer(created: { count: number }, viewer: unknown): McpServer {
   const mcp = new McpServer(
     { name: "beacon", version: "1.0.0" },
     {
@@ -340,11 +340,28 @@ function buildServer(created: { count: number }): McpServer {
     },
     () => ({ content: text(TRACKER.users) }),
   );
+  if (viewer !== undefined) {
+    mcp.registerTool(
+      "get_viewer",
+      {
+        annotations: { readOnlyHint: true },
+        description:
+          "The signed-in user and the workspace this connection reaches.",
+      },
+      () => ({ content: text(viewer) }),
+    );
+  }
   return mcp;
 }
 
-/** Serves the tracker on loopback, a fresh stateless server per request. */
-export async function startMcpTracker(): Promise<{
+/**
+ * Serves the tracker on loopback, a fresh stateless server per request.
+ * With `viewer`, it also answers who the connection is signed in as, the
+ * way a hosted server's "who am I" tool does.
+ */
+export async function startMcpTracker({
+  viewer,
+}: { viewer?: unknown } = {}): Promise<{
   close: () => Promise<void>;
   url: string;
 }> {
@@ -353,7 +370,7 @@ export async function startMcpTracker(): Promise<{
   const created = { count: 0 };
   const server = http.createServer((request, response) => {
     void (async () => {
-      const mcp = buildServer(created);
+      const mcp = buildServer(created, viewer);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       });

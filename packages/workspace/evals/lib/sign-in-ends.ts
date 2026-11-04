@@ -10,8 +10,12 @@ import {
 } from "../../src/lib/apps/connection";
 import { type McpOAuthStore } from "../../src/lib/apps/mcp/oauth-provider";
 import { loadApp } from "../../src/lib/apps/store";
+import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
-import { type OriginBound } from "../../src/lib/apps/origin-bound";
+import {
+  credentialOrigin,
+  type OriginBound,
+} from "../../src/lib/apps/origin-bound";
 import { type WorkspaceAppsConfig } from "../../src/types";
 
 /**
@@ -61,13 +65,14 @@ export async function endSignIn(
 
 /**
  * Answers an app's sign-in card the way the user does in the app: a sign-in
- * that connected as `account`, or Skip. The connection is recorded and the
- * chats waiting on it hear it through the real app-event path.
+ * that connected as `account`, or as nobody the sign-in learned, as an MCP
+ * server's usually does, or Skip. The connection is recorded and the chats
+ * waiting on it hear it through the real app-event path.
  */
 export async function answerSignIn(
   slug: string,
   answer: "connected" | "declined",
-  { account, appsDir }: { account: string; appsDir: string },
+  { account, appsDir }: { account?: string; appsDir: string },
 ): Promise<void> {
   if (answer === "declined") {
     await recordConnection(slug, { status: "declined" });
@@ -78,8 +83,17 @@ export async function answerSignIn(
   if (loaded.isErr()) {
     throw new Error(`${slug}: ${loaded.error.message}`);
   }
+  // A real sign-in leaves tokens behind, which `app test` looks for; the
+  // stand-in servers take any.
+  const { manifest } = loaded.value;
+  if (manifest.type === "mcp" && manifest.auth.kind === "oauth") {
+    await getWorkspaceConfig().apps.oauth?.store.saveTokens(slug, {
+      origin: credentialOrigin(manifest),
+      value: { access_token: "stand-in", token_type: "Bearer" },
+    });
+  }
   await recordConnection(slug, {
-    account,
+    ...(account === undefined ? {} : { account }),
     connectedAt: Date.now(),
     manifestHash: loaded.value.manifestHash,
     status: "connected",

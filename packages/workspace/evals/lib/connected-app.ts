@@ -30,6 +30,13 @@ export interface AppFixture {
   slug: string;
   /** For a web app, where it is worked. */
   url?: string;
+  /**
+   * For a `sign-in` app, who its server says the connection is signed in as.
+   * With it, signing in reaches the MCP tracker with a `get_viewer` tool
+   * answering this, and the sign-in learns no account of its own; without,
+   * the app points nowhere and its sign-in names `you@example.com`.
+   */
+  viewer?: unknown;
 }
 
 /** A service an `api` app serves on loopback, described by its guide. */
@@ -111,13 +118,20 @@ export async function seedConnectedApps(
       continue;
     }
     if (fixture.kind === "sign-in") {
+      const tracker =
+        fixture.viewer === undefined
+          ? undefined
+          : await startMcpTracker({ viewer: fixture.viewer });
+      if (tracker) {
+        closers.push(tracker.close);
+      }
       await writeApp(
         appsDir,
         fixture,
         {
           auth: { kind: "oauth" },
           type: "mcp",
-          url: `https://${fixture.slug}.example.invalid/mcp`,
+          url: tracker?.url ?? `https://${fixture.slug}.example.invalid/mcp`,
         },
         `${fixture.name}, set up and waiting for the user to sign in.\n`,
       );

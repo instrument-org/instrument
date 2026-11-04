@@ -18,6 +18,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { activityTelemetry, connectionFor } from "./activity/record";
 import { TypedError } from "./errors";
+import { withoutInlineThinking } from "./without-inline-thinking";
 import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { textForMessage } from "./text-for-message";
@@ -181,16 +182,8 @@ export function generateTitleFromUserMessage({
         throw new UnnameableMessage("No title generated");
       }
 
-      let cleanedTitle = result.text.trim();
-
-      // Some models think in the text itself rather than in a reasoning part.
-      // The first line of a think block is not a title, and an unterminated one
-      // means the whole answer was thinking, so both forms go.
-      cleanedTitle = cleanedTitle.replaceAll(
-        /<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/g,
-        "",
-      );
-      cleanedTitle = cleanedTitle.replace(/<think(?:ing)?>[\s\S]*$/, "");
+      // The first line of a think block is not a title.
+      let cleanedTitle = withoutInlineThinking(result.text.trim());
 
       cleanedTitle = cleanedTitle.replaceAll(/```[\s\S]*?```/g, "");
       cleanedTitle = cleanedTitle.replaceAll(/```[^\n]*/g, "");

@@ -64,16 +64,19 @@ import { getWorkspaceConfig } from "./workspace-config";
  * the first time that model is asked with a window this process knows; as
  * it was when there is no boundary, a verdict is already recorded, or the
  * window is unknown (the boundary holds meanwhile). A verdict that cannot be
- * recorded is not acted on, so the request reads only what is stored.
+ * recorded, or that a read-only request may not record, is not acted on, so
+ * the request reads only what is stored.
  */
 async function withRolloverDecision({
   chatId,
   model,
+  readOnly,
   session,
   usable,
 }: {
   chatId: ChatId;
   model: string;
+  readOnly: boolean;
   session: Session.Type | undefined;
   usable: number | undefined;
 }): Promise<Session.Type | undefined> {
@@ -87,7 +90,7 @@ async function withRolloverDecision({
     rolledOverUnderUsableTokens: session.rolledOverUnderUsableTokens,
     usable,
   });
-  if (decision === undefined) {
+  if (decision === undefined || readOnly) {
     return session;
   }
   const decided = {
@@ -284,7 +287,8 @@ export async function prepareModelMessages({
    * Builds the request from what is stored and records nothing, for a side
    * call made from a turn's request: when this request would first record a
    * model change, a rollover or a clearing, it is an error instead, since
-   * that turn is the next one the person starts.
+   * that turn is the next one the person starts; a rollover verdict still to
+   * be recorded is left undecided, as one that fails to save is.
    */
   readOnly?: boolean;
   /**
@@ -315,6 +319,7 @@ export async function prepareModelMessages({
   const session = await withRolloverDecision({
     chatId,
     model: model.canonicalId,
+    readOnly,
     session: await ChatReads.session({ chatId, sessionId }).unwrapOr(undefined),
     usable,
   });

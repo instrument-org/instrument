@@ -99,6 +99,10 @@ export function decisionModelAvailable(
  * when the account's plan refused every provider that could, so a caller
  * that treats the answer as optional can carry on without; a throw, naming
  * every provider's failure, when each one that could reach it failed.
+ *
+ * Only some people have either provider, so the answer may only improve on
+ * something that works without it; judgment a feature needs comes from the
+ * chat's own model (docs/principles/decision-models-are-sugar.md).
  */
 export async function askDecisionModel({
   body,

@@ -7,7 +7,7 @@ description: Record a walkthrough of a Studio feature from a script, then build 
 
 A take is Studio driven by a short script in a clean room, recorded as it runs: the page itself, through the internal repo's recorder (rrweb), and beside it a track of what the script meant (chapters, captions, presses, keys, camera pushes, stills). Everything a person watches is built from that one recording afterwards, so the chapters, the snippets, the stills and the clips always agree, and a take is re-cut without re-recording.
 
-The replay is the app's own DOM, styles and fonts, so it matches a live screenshot to within half a percent of pixels and stays sharp when the camera pushes in.
+The replay is the app's own DOM, styles and fonts, so it matches a live screenshot to within half a percent of pixels and stays sharp when the camera pushes in. [DESIGN.md](DESIGN.md) is how it is built and why, with its sources; read it before changing the skill.
 
 ```bash
 W=$(git rev-parse --show-toplevel)/.agents/skills/studio-walkthrough/scripts/walkthrough.mjs
@@ -74,7 +74,7 @@ Presentation mode hides the development pills and swaps the signed-in account's 
 | `chapters.html` | the whole take, chapters beside it; Open this moment opens any frame as its own page |
 | `stills.html` | each still as a picture, the live page and an outline; Copy for agent hands over all three |
 | `video/` | `render` writes MP4s here at 1080p, `--gif` a GIF beside each, `--plain` one without captions or camera |
-| `share/` | `share` writes a page as one file (data and posters inside) for the instrument-page skill's `share.mjs`; the host takes up to 8 MB, about six minutes of Studio |
+| `share/` | `share` writes a page as one file (data and posters inside) for the instrument-page skill's `share.mjs`; the host takes up to 8 MB, about four minutes of Studio |
 | `recording/` | the raw take: `events.jsonl`, `script.jsonl`, the stills as taken |
 
 ## Limits

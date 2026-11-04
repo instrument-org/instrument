@@ -1,7 +1,9 @@
 // Evaluated in Studio's renderer before a take: finding what to press by the
 // name a person would use, dressing the app for showing, and writing the
-// page as one HTML file.
+// page as one HTML file. Loaded once a page: a second load would start an
+// empty picture store while the first one's watcher keeps filling its own.
 (() => {
+  if (window.__walkthroughPage) return;
 
 
   const squash = (s) => (s ?? "").replace(/\s+/g, " ").trim();

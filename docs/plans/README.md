@@ -154,7 +154,7 @@ Each entry is the plan's title and the opening of its status.
 - [Lazy browser targets, and multiple tabs per task](lazy-browser-targets-and-multiple-tabs.md): Superseded by agent-browser-multiple-tabs: Part 2 landed there as the task browser endpoint;
 - [Storage for a conversation that runs for months](long-lived-conversation-storage.md): Overtaken, not built as written.
 - [A built-in Reminders and Calendar app on macOS](mac-reminders-and-calendar-app.md): Superseded.
-- [Multiple top-level app windows](multi-window-support.md): Not built, and overtaken: the investigation below is of the 1.x main window (`windows/main/`, `MainWindow`, `menus/main-window.ts`), removed in `a73917f45`.
+- [Multiple top-level app windows](multi-window-support.md): Not built from this plan: the investigation below is of the 1.x main window (`windows/main/`, `MainWindow`, `menus/main-window.ts`), removed in `a73917f45`,...
 - [One browser abstraction, many tabs](one-browser-many-tabs.md): Superseded by agent-browser-multiple-tabs, which built the tabs on the 2.0 window's own tab ids instead of a per-page id migration.
 - [Temporary tasks](temporary-tasks.md): Not built;
 - [Store tool-result media once, by content hash](tool-result-media-dedup.md): Overtaken by the chat records (`4a4af7b36`): a log keeps every `base64Data` in a tool part's output as a blob in the chat's `blobs/`, named by the SHA-256 of...

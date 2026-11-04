@@ -88,13 +88,13 @@ export function DeveloperStrip({
 
   return (
     <div
-      className="@container flex h-6 shrink-0 items-stretch border-t border-white/8 bg-ink font-mono text-[11px] leading-none text-white/90"
+      className="@container flex h-6 shrink-0 items-stretch border-t pr-4 border-white/8 bg-ink font-mono text-[11px] leading-none text-white/90"
       data-developer-strip
     >
       <Popover>
         <PopoverTrigger asChild>
           <button
-            className="flex min-w-0 items-center gap-2 bg-white/12 px-3 hover:bg-white/16 aria-expanded:bg-white/20"
+            className="flex min-w-0 items-center gap-2 bg-white/12 pr-3 pl-4 hover:bg-white/16 aria-expanded:bg-white/20"
             style={
               env === "preview"
                 ? {

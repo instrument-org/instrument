@@ -17,6 +17,8 @@ export function StripPopover({
   return (
     <PopoverContent
       align={align}
+      // Off the window's edge, which the band's first cell starts at.
+      alignOffset={align === "start" ? 8 : 0}
       className={cn(
         "rounded-lg border p-0 font-mono text-[11px] shadow-xl select-text",
         className,

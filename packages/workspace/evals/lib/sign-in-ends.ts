@@ -10,8 +10,12 @@ import {
 } from "../../src/lib/apps/connection";
 import { type McpOAuthStore } from "../../src/lib/apps/mcp/oauth-provider";
 import { loadApp } from "../../src/lib/apps/store";
+import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
-import { type OriginBound } from "../../src/lib/apps/origin-bound";
+import {
+  credentialOrigin,
+  type OriginBound,
+} from "../../src/lib/apps/origin-bound";
 import { type WorkspaceAppsConfig } from "../../src/types";
 
 /**
@@ -78,6 +82,15 @@ export async function answerSignIn(
   const loaded = await loadApp(AbsolutePathSchema.parse(appsDir), slug);
   if (loaded.isErr()) {
     throw new Error(`${slug}: ${loaded.error.message}`);
+  }
+  // A real sign-in leaves tokens behind, which `app test` looks for; the
+  // stand-in servers take any.
+  const { manifest } = loaded.value;
+  if (manifest.type === "mcp" && manifest.auth.kind === "oauth") {
+    await getWorkspaceConfig().apps.oauth?.store.saveTokens(slug, {
+      origin: credentialOrigin(manifest),
+      value: { access_token: "stand-in", token_type: "Bearer" },
+    });
   }
   await recordConnection(slug, {
     ...(account === undefined ? {} : { account }),

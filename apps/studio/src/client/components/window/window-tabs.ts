@@ -2,7 +2,7 @@ import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { keptAtom } from "@/client/lib/kept-state";
+import { keptMembersAtom, takeKept, writeKept } from "@/client/lib/kept-state";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
@@ -41,14 +41,72 @@ import { sameHref } from "./window-href";
  * The window's tabs, one list across every group, kept across launches on
  * this computer. Written only here, through the functions of `tab-model.ts`.
  */
-const storedTabsAtom = keptAtom<WindowTabs>(
+const storedTabsAtom = keptMembersAtom<WindowTabs>(
   "layout",
-  "window-tabs.v9",
-  { activeByGroup: {}, tabs: [] },
-  // Read as this build keeps them, whatever an earlier one wrote.
-  (value, initial) =>
-    isStoredWindowTabs(value) ? normalizeWindowTabs(value) : initial,
+  "window-tabs.v10",
+  {
+    join: joinTabGroups,
+    split: splitTabGroups,
+  },
 );
+
+// What a build with one window kept whole, once, as every window keeps it now.
+const earlierTabs = takeKept("layout", "window-tabs.v9");
+if (isStoredWindowTabs(earlierTabs)) {
+  for (const [member, group] of splitTabGroups(
+    normalizeWindowTabs(earlierTabs),
+  )) {
+    writeKept("layout", `window-tabs.v10/${member}`, group);
+  }
+}
+
+/** The member a tab with no group is kept under. */
+const NO_GROUP = "-";
+
+interface TabGroupMember {
+  active?: string;
+  tabs: WindowTab[];
+}
+
+/**
+ * The tabs by group, each kept by itself: a chat, draft or site's tabs and
+ * which is up belong to it whichever window shows it.
+ */
+function splitTabGroups({ activeByGroup, tabs }: WindowTabs) {
+  const members = new Map<string, TabGroupMember>();
+  const memberOf = (key: string) => {
+    let member = members.get(key);
+    if (!member) {
+      member = { tabs: [] };
+      members.set(key, member);
+    }
+    return member;
+  };
+  for (const tab of tabs) {
+    memberOf(tab.group ?? NO_GROUP).tabs.push(tab);
+  }
+  for (const [group, active] of Object.entries(activeByGroup)) {
+    memberOf(group).active = active;
+  }
+  return members;
+}
+
+function joinTabGroups(members: Map<string, unknown>): WindowTabs {
+  const activeByGroup: Record<string, string> = {};
+  const tabs: WindowTab[] = [];
+  for (const [group, member] of members) {
+    if (member === null || typeof member !== "object") {
+      continue;
+    }
+    if ("active" in member && typeof member.active === "string") {
+      activeByGroup[group] = member.active;
+    }
+    if ("tabs" in member && Array.isArray(member.tabs)) {
+      tabs.push(...(member.tabs as WindowTab[])); // Written by this module alone.
+    }
+  }
+  return { activeByGroup, tabs };
+}
 
 /** Whether a kept value is the tabs at all: an object whose tabs, if any, are a list. */
 function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {

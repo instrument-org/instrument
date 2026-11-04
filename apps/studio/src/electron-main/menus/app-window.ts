@@ -1,6 +1,6 @@
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
-import { publisher } from "@/electron-main/rpc/publisher";
+import { commandWindow } from "@/electron-main/windows/window-command";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { OS_CONVENTIONS, osOf } from "@/shared/os-conventions";
@@ -40,20 +40,21 @@ interface WindowChord {
   /** The shared table's row, for a chord that has one. */
   id?: WindowShortcutId;
   label: string;
-  run: () => void;
+  /** Answered by the window the chord was pressed in. */
+  run: (window: BrowserWindow) => void;
   /** Drawn in the menu, or an accelerator alone behind a row already there. */
   visible?: boolean;
 }
 
 /** Sends a command to the window's renderer, which holds the tabs and the inbox: every chord's id is one. */
-const command = (name: WindowShortcutId) => () => {
-  publisher.publish("window.command", name);
+const command = (name: WindowShortcutId) => (window: BrowserWindow) => {
+  commandWindow(window, name);
 };
 
 /** A chord from the shared table, answered by the command of the same name unless told otherwise. */
 function chord(
   id: WindowShortcutId,
-  run: () => void = command(id),
+  run: (window: BrowserWindow) => void = command(id),
 ): WindowChord {
   const { accelerator, label } = WINDOW_SHORTCUTS[id];
   return {
@@ -67,19 +68,18 @@ function chord(
 const FILE_CHORDS: WindowChord[] = [
   // Where mail keeps New Message: a draft of a new chat, at the corner.
   chord("newChat"),
-  chord("commandMenu", () => {
+  chord("commandMenu", (window) => {
     // As with the field below: a page guest holding the keyboard keeps the
     // menu's input from taking it, so the window takes it back first.
-    BrowserWindow.getFocusedWindow()?.webContents.focus();
-    publisher.publish("window.command", "commandMenu");
+    window.webContents.focus();
+    commandWindow(window, "commandMenu");
   }),
-  chord("search", () => {
+  chord("search", (window) => {
     // The chord reaches the menu when a page guest has the keyboard, since
     // its keys never reach the window's own renderer. The field is the
-    // window's, so the window (the one in front, which is this one while
-    // its menu is up) takes the keyboard back before it is asked for.
-    BrowserWindow.getFocusedWindow()?.webContents.focus();
-    publisher.publish("window.command", "search");
+    // window's, so the window takes the keyboard back before it is asked for.
+    window.webContents.focus();
+    commandWindow(window, "search");
   }),
   // The renderer opens the find bar in the page on screen, and does nothing
   // when none is.
@@ -152,11 +152,8 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
     ...(index === 8
       ? WINDOW_MENU_SHORTCUTS.lastTab
       : { accelerator: `CmdOrCtrl+${index + 1}`, label: `Tab ${index + 1}` }),
-    run: () => {
-      publisher.publish("window.command", {
-        index: index + 1,
-        type: "selectTab",
-      });
+    run: (window: BrowserWindow) => {
+      commandWindow(window, { index: index + 1, type: "selectTab" });
     },
   })),
 ];
@@ -238,15 +235,29 @@ export function bindAppWindowChords(webContents: WebContents) {
       return;
     }
     event.preventDefault();
-    pressed.run();
+    const window = BrowserWindow.fromWebContents(webContents);
+    if (window) {
+      pressed.run(window);
+    }
   });
+}
+
+/** What the menu does with the windows themselves, which the windows' own module answers. */
+export interface WindowMenuActions {
+  canMerge: boolean;
+  canReopenClosed: boolean;
+  mergeAll: () => void;
+  openNew: () => void;
+  reopenClosed: () => void;
 }
 
 /**
  * The app window's menu: the other windows' menu, but with the
  * chords a browser has, and the ones an inbox has.
  */
-export function createAppWindowMenu(): MenuItemConstructorOptions[] {
+export function createAppWindowMenu(
+  windows: WindowMenuActions,
+): MenuItemConstructorOptions[] {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
@@ -256,8 +267,21 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
       ...menuItems(FILE_ALIAS_CHORDS),
       ...menuItems(FILE_INFO_CHORDS),
       { type: "separator" },
+      {
+        ...resolvedMenuShortcut(WINDOW_MENU_SHORTCUTS.newWindow),
+        click: () => {
+          windows.openNew();
+        },
+      },
       ...menuItems(TAB_CHORDS),
       ...menuItems(TAB_ALIAS_CHORDS),
+      {
+        click: () => {
+          windows.reopenClosed();
+        },
+        enabled: windows.canReopenClosed,
+        label: "Reopen Closed Window",
+      },
       { ...WINDOW_MENU_SHORTCUTS.closeWindow, role: "close" as const },
     ],
   };
@@ -288,8 +312,11 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
         click: () => {
           // A focused page guest holds the keyboard, and the dialog is the
           // window's, so the window takes the keyboard back first.
-          BrowserWindow.getFocusedWindow()?.webContents.focus();
-          publisher.publish("window.command", "clearBrowsingData");
+          const window = BrowserWindow.getFocusedWindow();
+          window?.webContents.focus();
+          if (window) {
+            commandWindow(window, "clearBrowsingData");
+          }
         },
         label: "Clear Browsing Data…",
       },
@@ -302,7 +329,10 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
   // zoom chords go to the window, which decides whether they mean a page.
   const shared = createOtherWindowViewMenu({
     zoom: (type) => {
-      publisher.publish("window.command", type);
+      const window = BrowserWindow.getFocusedWindow();
+      if (window) {
+        commandWindow(window, type);
+      }
     },
   });
   const viewMenu: MenuItemConstructorOptions = {
@@ -328,21 +358,54 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     chatsMenu,
     tabMenu,
     historyMenu,
-    ...createWindowMenu(),
+    ...createWindowMenu([
+      {
+        click: () => {
+          const window = BrowserWindow.getFocusedWindow();
+          if (window) {
+            commandWindow(window, "moveTabToNewWindow");
+          }
+        },
+        label: "Move Tab to New Window",
+      },
+      {
+        click: () => {
+          windows.mergeAll();
+        },
+        enabled: windows.canMerge,
+        label: "Merge All Windows",
+      },
+    ]),
     createHelpMenu({
       reportProblem: () => {
-        BrowserWindow.getFocusedWindow()?.webContents.focus();
-        publisher.publish("window.command", "reportProblem");
+        const window = BrowserWindow.getFocusedWindow();
+        window?.webContents.focus();
+        if (window) {
+          commandWindow(window, "reportProblem");
+        }
       },
       shortcutGuide: () => {
         // A focused page guest holds the keyboard, and the guide's search
         // field is the window's, so the window takes the keyboard back first.
-        BrowserWindow.getFocusedWindow()?.webContents.focus();
-        publisher.publish("window.command", "openShortcutGuide");
+        const window = BrowserWindow.getFocusedWindow();
+        window?.webContents.focus();
+        if (window) {
+          commandWindow(window, "openShortcutGuide");
+        }
       },
     }),
     ...(isDeveloperMode() ? createDevToolsMenu({ windowCommands: true }) : []),
   ]);
+}
+
+function resolvedMenuShortcut({
+  accelerator,
+  label,
+}: (typeof WINDOW_MENU_SHORTCUTS)[keyof typeof WINDOW_MENU_SHORTCUTS]) {
+  return {
+    accelerator: resolveAccelerator(accelerator, { isMac: IS_MAC }),
+    label,
+  };
 }
 
 /**
@@ -354,9 +417,10 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
 function menuItems(chords: WindowChord[]): MenuItemConstructorOptions[] {
   return chords.map(({ accelerator, label, run, visible }) => ({
     accelerator,
-    click: (_item, focusedWindow) => {
-      if (focusedWindow) {
-        run();
+    click: () => {
+      const window = BrowserWindow.getFocusedWindow();
+      if (window) {
+        run(window);
       }
     },
     label,

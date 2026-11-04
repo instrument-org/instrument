@@ -27,8 +27,8 @@ import { runPictureChord } from "@/client/lib/picture-keys";
 import { isBackspaceBackPress } from "@/client/components/extend/file-system-keys";
 import { commandKeyHeld, currentOs, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
-import { useRouter } from "@tanstack/react-router";
 import { getDefaultStore } from "jotai";
 import { useEffect, useRef } from "react";
 
@@ -89,7 +89,13 @@ export function useWindowCommands(
     openFile: (hostPath: string) => void;
     /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
     openScreen: (href: string) => void;
+    /** The tab up to a window of its own. */
+    moveTabToNewWindow: () => void;
+    /** A tab another window handed over, up here at a point along the strip. */
+    receiveTab: (tab: Tab, clientX?: number) => void;
     reopenTab: () => void;
+    /** Every tab of this window to another. */
+    sendEveryTab: (to: string) => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
     /** The next or previous chat of the inbox, as listed. */
@@ -106,8 +112,8 @@ export function useWindowCommands(
     isReady: boolean;
   },
 ) {
-  const router = useRouter();
-  // The stream is opened once; what a chord means is read at the moment it
+  // The stream is opened once, and never again as the tab up changes, or what
+  // arrives while it opens again would be lost; what a chord means is read at the moment it
   // fires, off whatever tab is up then.
   const latest = useRef(handlers);
   useEffect(() => {
@@ -215,6 +221,10 @@ export function useWindowCommands(
               if (getDefaultStore().get(windowHoldsAtom).length === 0) {
                 latest.current.selectTab(command.index);
               }
+            } else if (command.type === "receiveTab") {
+              latest.current.receiveTab(command.tab, command.clientX);
+            } else if (command.type === "sendEveryTab") {
+              latest.current.sendEveryTab(command.to);
             } else {
               answer(latest.current, command);
             }
@@ -222,6 +232,10 @@ export function useWindowCommands(
           }
           if (command === "commandMenu") {
             openOrCloseCommandMenu();
+            continue;
+          }
+          if (command === "moveTabToNewWindow") {
+            latest.current.moveTabToNewWindow();
             continue;
           }
           if (
@@ -418,7 +432,7 @@ export function useWindowCommands(
       window.removeEventListener("mouseup", onMouseUp, { capture: true });
       window.removeEventListener("auxclick", swallow, { capture: true });
     };
-  }, [router]);
+  }, []);
   // What links and files from outside asked for while this window was
   // opening: the command stream could not carry them to a renderer not yet
   // listening, so they are asked for once the window can show them.

@@ -1,6 +1,7 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
+import { type Tab } from "@/shared/tabs";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
@@ -54,7 +55,7 @@ interface PublisherEvents {
   };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
-  "browser.restore-host-focus": null;
+  "browser.restore-host-focus": { targetId: BrowserTargetId };
   // The size a target's parked guest should lay out at, or null to fall back to
   // the size the panel last showed it at. Only the renderer can resize a guest:
   // the `<webview>` element is its DOM.
@@ -101,49 +102,64 @@ interface PublisherEvents {
   // the caret in the window's field, a screen to put up, or a file to open.
   // The chords that can mean a page (history, reload, find, zoom) come as they
   // were pressed, and the window decides which page, if any, they mean.
-  "window.command":
-    | "back"
-    | "clearBrowsingData"
-    | "closeTab"
-    | "commandMenu"
-    | "editPage"
-    | "findInPage"
-    | "findNext"
-    | "fileInfo"
-    | "findPrevious"
-    | "forward"
-    | "goToApps"
-    | "goToBrowser"
-    | "goToChat"
-    | "goToFiles"
-    | "newChat"
-    | "newTab"
-    | "nextChat"
-    | "nextTab"
-    | "openDebugPages"
-    | "openSettings"
-    | "openShortcutGuide"
-    | "reportProblem"
-    | "previousChat"
-    | "previousTab"
-    | "printPage"
-    | "reloadPage"
-    | "reopenTab"
-    | "toggleDeveloperStrip"
-    | "search"
-    | "toggleInbox"
-    | "zoomIn"
-    | "zoomOut"
-    | "zoomReset"
-    | AppWindowAsk
-    | { index: number; type: "selectTab" };
+  "window.command": { command: WindowCommand; webContentsId: number };
+  // The windows open changed, or one of them is called something else: what a
+  // tab's menu offers to move it to, and what the Window menu's commands can do.
+  "windows.changed": null;
+  // Where a tab being carried from another window would land in this one's
+  // strip, or null when it no longer would.
+  "window.tab-drop-preview": {
+    clientX: null | number;
+    webContentsId: number;
+  };
   "window.focus-changed": null;
   // A link under the pointer in text being edited, which the window's native
   // menu offers to open: the page that drew it opens it, in place or in a tab
   // of the window's own.
-  "window.open-menu-link": { newTab: boolean };
+  "window.open-menu-link": { newTab: boolean; webContentsId: number };
   "window.state-changed": null;
 }
+
+/** What one window is asked to do; see `window.command`. */
+export type WindowCommand =
+  | "back"
+  | "clearBrowsingData"
+  | "closeTab"
+  | "commandMenu"
+  | "editPage"
+  | "findInPage"
+  | "findNext"
+  | "fileInfo"
+  | "findPrevious"
+  | "forward"
+  | "goToApps"
+  | "goToBrowser"
+  | "goToChat"
+  | "goToFiles"
+  | "newChat"
+  | "newTab"
+  | "nextChat"
+  | "nextTab"
+  | "openDebugPages"
+  | "openSettings"
+  | "openShortcutGuide"
+  | "reportProblem"
+  | "previousChat"
+  | "previousTab"
+  | "printPage"
+  | "reloadPage"
+  | "reopenTab"
+  | "toggleDeveloperStrip"
+  | "search"
+  | "toggleInbox"
+  | "zoomIn"
+  | "zoomOut"
+  | "zoomReset"
+  | "moveTabToNewWindow"
+  | AppWindowAsk
+  | { clientX?: number; tab: Tab; type: "receiveTab" }
+  | { index: number; type: "selectTab" }
+  | { to: string; type: "sendEveryTab" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that
 // is still busy with one event holds of the ones after it. Several of these

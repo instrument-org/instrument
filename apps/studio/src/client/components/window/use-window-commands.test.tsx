@@ -29,7 +29,6 @@ const stream = vi.hoisted(() => {
   };
 });
 
-vi.mock("@tanstack/react-router", () => ({ useRouter: () => ({}) }));
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     window: {
@@ -54,6 +53,9 @@ const handlers = {
   selectChat: vi.fn(),
   selectRelative: vi.fn(),
   selectTab: vi.fn(),
+  moveTabToNewWindow: vi.fn(),
+  receiveTab: vi.fn(),
+  sendEveryTab: vi.fn(),
   toggleInbox: vi.fn(),
 };
 

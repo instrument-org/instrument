@@ -1,4 +1,4 @@
-import type { WebContents } from "electron";
+import type { NavigationEntry, WebContents } from "electron";
 
 import {
   type AbsolutePath,
@@ -111,7 +111,16 @@ export interface BrowserEntry {
   // commands that only read existing state, so an entry existing does not mean
   // anything asked for a browser to be shown.
   navigated: boolean;
+  // The window whose renderer mounts this guest, by its web contents; none
+  // until there is a window to ask.
+  hostId: null | number;
   phase: EntryPhase;
+  // What the guest was showing in the window it left, to come back to in this
+  // one, its history with it. Spent as the guest attaches.
+  restoreHistory: null | { behind: NavigationEntry[]; url: string };
+  // The page the guest's element opens on: its own blank page, or the one a
+  // guest brought over from another window stood on.
+  src: string | undefined;
   // Workspace browser profile directory, threaded through BrowserConfig so the
   // task lifecycle can correlate a target with its storage without re-deriving
   // the path.
@@ -150,10 +159,16 @@ interface AttachSignal {
 }
 
 export function createEntry({
+  hostId = null,
   partitionDir,
+  restoreHistory = null,
+  src,
   targetId,
 }: {
+  hostId?: null | number;
   partitionDir: AbsolutePath;
+  restoreHistory?: BrowserEntry["restoreHistory"];
+  src?: string;
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {
@@ -167,10 +182,13 @@ export function createEntry({
     downloadsRunning: 0,
     eventListeners: new Set(),
     generation: ++generationCounter,
+    hostId,
     navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),
     phase: "pending",
+    restoreHistory,
+    src,
     screencastInterval: null,
     screencastSessionId: 0,
     shown: false,

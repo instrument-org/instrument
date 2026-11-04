@@ -110,12 +110,17 @@ const keptInGuide: Assertion = {
       })),
     );
     const kept = guides.filter(({ guide }) => /reading/i.test(guide));
+    // Says where the list is: in its own account's guide, or in the other's
+    // naming the account it is under.
+    const placed = kept.some(
+      ({ guide, slug }) => slug === "notion-2" || guide.includes("notion-2"),
+    );
     return {
       evidence:
         kept
           .map(({ guide, slug }) => `${slug}: ${guide.trim().slice(-300)}`)
           .join(" | ") || "no guide mentions Reading",
-      passed: kept.length > 0,
+      passed: placed,
       text: KEPT,
     };
   },

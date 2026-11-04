@@ -444,7 +444,8 @@ describe("instrument computer", () => {
     expect(
       driver
         .calls()
-        .filter(([word, verb]) => word === "session" && verb === "start").length,
+        .filter(([word, verb]) => word === "session" && verb === "start")
+        .length,
     ).toBeGreaterThanOrEqual(2);
   });
 
@@ -463,19 +464,32 @@ describe("instrument computer", () => {
     expect(driver.actions().flat()).not.toContain("--force");
   });
 
-  it("says whether an app it opened has a window yet", async () => {
+  it("waits a moment for a new app's window, and says when none came", async () => {
     standInDriver({ ...answers, launch: ok({ pid: 7 }) });
     await grantApp(scope.chatId, "com.apple.TextEdit");
-    expect((await open(["TextEdit"], scope)).stdout).toContain(
-      "with no window yet",
-    );
-    standInDriver({
-      ...answers,
-      launch: ok({ pid: 7, window: { id: "w-1", title: "Untitled" } }),
-    });
     expect((await open(["TextEdit"], scope)).stdout).toBe(
       'It\'s running, with window w-1 "Untitled".\n',
     );
+    standInDriver({
+      ...answers,
+      launch: ok({ pid: 7 }),
+      "list-windows": ok([]),
+    });
+    expect((await open(["TextEdit"], scope)).stdout).toContain(
+      "with no window yet",
+    );
+  });
+
+  it("reports the window the driver already named, with no wait", async () => {
+    const driver = standInDriver({
+      ...answers,
+      launch: ok({ pid: 7, window: { id: "w-9", title: "Open" } }),
+    });
+    await grantApp(scope.chatId, "com.apple.TextEdit");
+    expect((await open(["TextEdit"], scope)).stdout).toBe(
+      'It\'s running, with window w-9 "Open".\n',
+    );
+    expect(driver.calls().flat()).not.toContain("list-windows");
   });
 
   it("asks before starting an app, and starts it by its bundle id", async () => {

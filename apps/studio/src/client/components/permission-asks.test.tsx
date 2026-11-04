@@ -109,6 +109,24 @@ describe("PermissionAsksFoot", () => {
     },
   );
 
+  it.each(["Terminal", "Finder", "com.apple.Terminal"])(
+    "says what a yes to %s reaches",
+    async (target) => {
+      showAsks([{ kind: "app", target }]);
+      expect(
+        await screen.findByText(
+          `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
+        ),
+      ).toBeTruthy();
+    },
+  );
+
+  it("says nothing more of an app that reaches only itself", async () => {
+    showAsks([{ kind: "app", target: "Calculator" }]);
+    await screen.findByRole("button", { name: "Allow in this chat" });
+    expect(screen.queryByText(/can reach everything/)).toBeNull();
+  });
+
   it("draws the oldest of several asks, with how many are waiting", async () => {
     showAsks([
       { target: "/Users/sam/Desktop" },

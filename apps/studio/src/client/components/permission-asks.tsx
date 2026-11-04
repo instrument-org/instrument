@@ -73,6 +73,40 @@ const SIGN_IN_LINES: Record<string, string> = {
   ".ssh": "This folder has the keys you sign in to other computers with.",
 };
 
+/**
+ * Apps whose yes reaches well past themselves, by name and bundle id: a terminal
+ * runs anything, outside every sandbox, and the others read every file or change
+ * how the computer is set up. These are the apps the person most needs told.
+ */
+// oxlint-disable-next-line studio/no-os-words -- names macOS's own apps, on a card only they raise
+const APPS_THAT_REACH_EVERYTHING = new Set([
+  "automator",
+  "com.apple.automator",
+  "com.apple.finder",
+  "com.apple.scripteditor2",
+  "com.apple.systemevents",
+  "com.apple.systempreferences",
+  "com.apple.terminal",
+  "com.googlecode.iterm2",
+  "com.mitchellh.ghostty",
+  "dev.warp.warp-stable",
+  "finder",
+  "ghostty",
+  "iterm",
+  "script editor",
+  "system events",
+  "system settings",
+  "terminal",
+  "warp",
+]);
+
+/** What a yes to one of those means, said plainly; undefined for any other app. */
+function appReachLine(app: string): string | undefined {
+  return APPS_THAT_REACH_EVERYTHING.has(app.trim().toLowerCase())
+    ? `${app} can reach everything on your computer, so allowing it lets Instrument do the same.`
+    : undefined;
+}
+
 /** What a folder of sign-ins holds, said plainly; undefined for any other folder. */
 function signInLine(target: string): string | undefined {
   const home = window.api.homeDir;
@@ -157,7 +191,11 @@ function PermissionAskCard({
   // Another computer's card, which this one can't answer: what it waits on
   // there, in place of the answers.
   const elsewhere = ask.answerable ? undefined : elsewhereLine(ask);
-  const holds = isFolder ? signInLine(ask.target) : undefined;
+  const holds = isFolder
+    ? signInLine(ask.target)
+    : ask.kind === "app"
+      ? appReachLine(ask.target)
+      : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({
     disabled: false,

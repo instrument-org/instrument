@@ -2,6 +2,7 @@ import { DefenseInDepthBox } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isMainThread } from "node:worker_threads";
+import { sleep } from "radashi";
 import { z } from "zod";
 
 import { getScreenshotsDir } from "../chat-dir-utils";
@@ -181,6 +182,10 @@ const computerWindows = defineCapability({
   where: WHERE,
 });
 
+/** How often, and how many times, `open` looks for a new app's window. */
+const WINDOW_CHECK_MS = 500;
+const WINDOW_CHECKS = 4;
+
 const LaunchData = z.looseObject({
   window: z.object({ id: z.string(), title: z.string().optional() }).optional(),
 });
@@ -205,7 +210,21 @@ const computerOpen = defineCapability({
       ["launch", found.bundleId, ...(activate === true ? ["--activate"] : [])],
       ctx,
     );
-    return LaunchData.parse(data);
+    const launched = LaunchData.parse(data);
+    if (launched.window !== undefined || activate === true) {
+      return launched;
+    }
+    // The driver answers once the process runs, and the window follows a moment
+    // later. Saying there's none would send the agent to --activate, which takes
+    // the person's focus, for a window that was about to show up.
+    for (let tried = 0; tried < WINDOW_CHECKS; tried++) {
+      await DefenseInDepthBox.runTrustedAsync(() => sleep(WINDOW_CHECK_MS));
+      const [window] = await windowsOf(found, ctx);
+      if (window !== undefined) {
+        return { ...launched, window };
+      }
+    }
+    return launched;
   },
   summary: "Starts an allowed app.",
   surfaces: {

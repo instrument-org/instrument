@@ -21,6 +21,7 @@ Computer use asks what every other route to an app asks, so there is no second p
 - A window named with `--window` has to belong to that app, by its process.
 - The agent never drives this app's own windows, whose cards are the person's to answer, or the prompts macOS draws to ask the person themselves (`SecurityAgent`, `universalAccessAuthWarn`, `UserNotificationCenter`, `loginwindow`). No rule opens those.
 - Coordinates aren't offered, since a point carries no app. Neither are the clipboard, notifications, desktop-wide screenshots, or `--force`, which is how the driver's own refusal of quitting shortcuts stays on.
+- An app whose yes reaches past itself, a terminal, Finder or System Settings, says so on its card. A terminal is a shell outside the sandbox, and a person answering about one app should hear that ([the agent works at real paths](../decisions/2026-10-11-the-agent-works-at-real-paths.md)).
 - `instrument computer apps` names what's running and this chat's answer for each, so the agent knows what to ask for. Windows and their titles need the app's yes.
 
 ## What each grant buys

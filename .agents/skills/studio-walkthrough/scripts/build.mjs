@@ -79,6 +79,22 @@ const clock = (ms) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
+/**
+ * The recorded styles' fonts cut down to the ones the take carries: a face
+ * whose first source was inlined keeps only that, and a face the app never
+ * drew with goes. Their other sources name the dev server on this machine,
+ * which a shared page must never ask for (a browser elsewhere blocks it as
+ * insecure, and Safari then waits on the font forever).
+ */
+function withOnlyCarriedFonts(json) {
+  return json.replaceAll(/@font-face\s*\{[^{}]*\}/g, (face) => {
+    const sources = [...face.matchAll(/url\((['"]?)([^'")]+)\1\)\s*(format\([^)]*\))?/g)];
+    const carried = sources.find((m) => m[2].startsWith("data:"));
+    if (!carried) return "";
+    return face.replace(/src:[^;]*;/, `src: ${carried[0]};`);
+  });
+}
+
 /** A page of the player: its stylesheet and script inline, the take beside it or inside it. */
 export function playerPage({ data, mount, title }) {
   const css = readFileSync(path.join(VENDOR, "player.css"), "utf8");
@@ -134,7 +150,7 @@ export async function buildTake(take) {
       eventsJson = eventsJson.replaceAll(JSON.stringify(url).slice(1, -1), token);
     }
   }
-  eventsJson = scrub(eventsJson);
+  eventsJson = scrub(withOnlyCarriedFonts(eventsJson));
 
   // --- the script track, on the recording's clock -----------------------------
   const script = scriptRaw.map((e) => ({ ...e, t: e.t - t0 }));

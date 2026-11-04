@@ -135,6 +135,12 @@ function cameraPlan(script, w, h) {
   return [...explicit, ...merged].sort((a, b) => a.t - b.t);
 }
 
+/**
+ * @param {HTMLElement} root
+ * @param {import("./types").Take & Record<string, any>} data
+ * @param {import("./types").EngineOptions} [options]
+ * @returns {import("./types").Engine}
+ */
 export function createEngine(root, data, options = {}) {
   const { w, h } = data.viewport;
   const mode = options.mode ?? "full";
@@ -205,6 +211,13 @@ export function createEngine(root, data, options = {}) {
     skipInactive: false,
     triggerFocus: false,
     UNSAFE_replayCanvas: false,
+  });
+  // rrweb leaves the frame's document open once it has written it, and a
+  // document still loading never says its fonts are ready.
+  replayer.on("fullsnapshot-rebuilded", () => {
+    try {
+      replayer.iframe.contentDocument?.close();
+    } catch {}
   });
   let shown = -1;
   const seek = (r) => {

@@ -231,7 +231,7 @@ const api: Window["api"] = {
         KEPT_STATE_CHANNEL.acrossWindows,
         key,
       );
-      return Array.isArray(values) ? values : [];
+      return Array.isArray(values) ? (values as unknown[]) : [];
     },
     initial: loadKeptState(),
     onChange: (listener) => {

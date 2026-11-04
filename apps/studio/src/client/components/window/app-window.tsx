@@ -7,7 +7,6 @@ import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
-  type ComposeEntry,
   chatFiltersAtom,
   chatGroupAtom,
   filesFolderAtom,
@@ -143,6 +142,18 @@ import { hasMovedAway, moveTabOut, receiveTab, sendEveryTab } from "./move-tab";
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
+
+/** The drafts floating in what another window kept of its floating windows. */
+function floatingDraftIdsOf(kept: unknown): string[] {
+  return (Array.isArray(kept) ? (kept as unknown[]) : []).flatMap((entry) =>
+    typeof entry === "object" &&
+    entry !== null &&
+    "draftId" in entry &&
+    typeof entry.draftId === "string"
+      ? [entry.draftId]
+      : [],
+  );
+}
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -449,15 +460,13 @@ function WindowShell({
   // unless its window came back with it. A window whose draft is gone goes.
   // Once, over what was restored.
   useEffect(() => {
-    const floating = new Set(
-      [
-        ...compose.entries,
-        // Another window's are as much its own as this one's are this one's.
-        ...keptAcrossWindows("compose.v2").flatMap((entries): ComposeEntry[] =>
-          Array.isArray(entries) ? entries : [],
-        ),
-      ].flatMap((entry) => (entry.kind === "draft" ? [entry.draftId] : [])),
-    );
+    // Another window's are as much its own as this one's are this one's.
+    const floating = new Set([
+      ...compose.entries.flatMap((entry) =>
+        entry.kind === "draft" ? [entry.draftId] : [],
+      ),
+      ...keptAcrossWindows("compose.v2").flatMap(floatingDraftIdsOf),
+    ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
     const isKept = (draft: Draft) =>

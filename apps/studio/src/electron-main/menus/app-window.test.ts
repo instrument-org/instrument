@@ -2,7 +2,7 @@ import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { type Input, type WebContents } from "electron";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const focused = vi.hoisted(() => ({
+const inFront = vi.hoisted(() => ({
   window: null as null | {
     isDestroyed: () => boolean;
     webContents: { id: number };
@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
       isDestroyed: () => false,
       webContents: { id: 1 },
     }),
-    getFocusedWindow: () => focused.window,
+    getFocusedWindow: () => inFront.window,
   },
 }));
 const publish = vi.hoisted(() =>
@@ -193,7 +193,7 @@ describe("Info", () => {
       const click = row?.click as
         | ((item: unknown, window: unknown, event: unknown) => void)
         | undefined;
-      focused.window = { isDestroyed: () => false, webContents: { id: 7 } };
+      inFront.window = { isDestroyed: () => false, webContents: { id: 7 } };
       click?.({}, {}, {});
       expect(publish).toHaveBeenCalledWith("window.command", {
         command: "fileInfo",
@@ -218,11 +218,11 @@ describe("a window chord from the menu", () => {
     expect(click).toBeDefined();
 
     publish.mockClear();
-    focused.window = null;
+    inFront.window = null;
     click?.({}, undefined, {});
     expect(publish).not.toHaveBeenCalled();
 
-    focused.window = { isDestroyed: () => false, webContents: { id: 7 } };
+    inFront.window = { isDestroyed: () => false, webContents: { id: 7 } };
     click?.({}, {}, {});
     expect(publish).toHaveBeenCalledWith("window.command", {
       command: "closeTab",

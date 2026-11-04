@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const FeatureNameSchema = z.enum([
+  "computer_use",
   "context_ring",
   "suggestions_from_your_chats",
 ]);
@@ -19,6 +20,12 @@ export const FEATURE_METADATA: Record<
   FeatureName,
   { code: string; description: string; title: string }
 > = {
+  computer_use: {
+    code: "u",
+    description:
+      "Let the agent work in your other apps, each with your yes. Set it up under Computer Use in Settings.",
+    title: "Computer Use",
+  },
   context_ring: {
     code: "c",
     description:

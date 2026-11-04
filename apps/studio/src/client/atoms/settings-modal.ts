@@ -4,6 +4,7 @@ import { getDefaultStore } from "jotai";
 export type SettingsTab =
   | "Account"
   | "Activity"
+  | "Computer Use"
   | "Debug"
   | "Features"
   | "General"

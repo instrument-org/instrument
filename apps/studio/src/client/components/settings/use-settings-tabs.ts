@@ -1,6 +1,8 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { isLinux } from "@/client/lib/utils";
+import { isLinux, isMacOS } from "@/client/lib/utils";
+import { useAtomValue } from "jotai";
 
 /**
  * The tabs Settings lists, in its sidebar's order, which is also what the
@@ -9,6 +11,7 @@ import { isLinux } from "@/client/lib/utils";
  */
 export function useSettingsTabs(): SettingsTab[] {
   const isDeveloperMode = useDeveloperMode();
+  const { computer_use: computerUse } = useAtomValue(featuresAtom);
 
   return [
     "General",
@@ -16,6 +19,7 @@ export function useSettingsTabs(): SettingsTab[] {
     "Providers",
     "Memory",
     "Permissions",
+    ...(computerUse && isMacOS() ? (["Computer Use"] as const) : []),
     "Skills",
     "Storage",
     "Activity",

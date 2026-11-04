@@ -19,6 +19,7 @@ import {
   seatbeltHelperPath,
   resolveAlias,
 } from "@/electron-main/lib/mac-native";
+import { computerUseHost } from "@/electron-main/lib/computer-use";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
@@ -141,6 +142,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       resolveAlias,
       // Files refuses what the viewers' file channel refuses, by one rule.
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
+      computerUse: computerUseHost(),
       ...(process.platform === "darwin"
         ? {
             macAppAccess,

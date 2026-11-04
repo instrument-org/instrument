@@ -257,6 +257,22 @@ function verifyPackagedMacBridge(context: AfterPackContext) {
     }),
   });
   console.log(`afterPack: verified ${seatbelt} (${size} bytes)`);
+  const desktopDriver = path.join(
+    resolveUnpackedDir(context.appOutDir, "darwin"),
+    "resources",
+    "agent-desktop",
+  );
+  for (const name of ["agent-desktop", "agent-desktop-macos-helper"]) {
+    const file = path.join(desktopDriver, name);
+    if (!existsSync(file)) {
+      throw new Error(
+        `Could not locate ${name} at ${file}. Run \`pnpm agent-desktop:download\` before packaging; without it Computer Use has nothing to run.`,
+      );
+    }
+    console.log(
+      `afterPack: verified ${name} at ${file} (${statSync(file).size} bytes)`,
+    );
+  }
 }
 
 /**

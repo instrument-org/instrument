@@ -18,6 +18,7 @@ import {
   appsNew,
   appsTest,
 } from "./apps-setup";
+import { COMPUTER_CAPABILITIES } from "./computer";
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
 import { taskNew } from "./task/fork";
@@ -56,6 +57,7 @@ export const CAPABILITIES: readonly Capability[] = [
   appsIcon,
   appsAccount,
   appsDisconnect,
+  ...COMPUTER_CAPABILITIES,
   generateImageCapability,
   memoryList,
   memorySave,

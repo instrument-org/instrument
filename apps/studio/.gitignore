@@ -21,6 +21,9 @@ resources/uutils/
 # Vendored MXC launcher (downloaded by scripts/download-mxc.ts)
 resources/mxc/
 
+# Vendored agent-desktop (downloaded by scripts/download-agent-desktop.ts)
+resources/agent-desktop/
+
 # Document-viewer WASM binaries (copied from node_modules by the main build)
 resources/vendor/
 

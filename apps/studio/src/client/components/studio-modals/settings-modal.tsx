@@ -5,6 +5,7 @@ import {
 import { AccountSection } from "@/client/components/settings/account-section";
 import { ActivitySection } from "@/client/components/settings/activity-section";
 import { DebugSection } from "@/client/components/settings/debug-section";
+import { ComputerUseSection } from "@/client/components/settings/computer-use-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
@@ -46,6 +47,7 @@ import { cn } from "@/client/lib/utils";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
+import { CursorClickIcon } from "@phosphor-icons/react/CursorClick";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
@@ -524,6 +526,9 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
     case "Activity": {
       return <ActivitySection />;
     }
+    case "Computer Use": {
+      return <ComputerUseSection />;
+    }
     case "Debug": {
       return <DebugSection />;
     }
@@ -557,6 +562,7 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
 
 /** Each tab's mark in the sidebar. */
 const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
+  "Computer Use": CursorClickIcon,
   Debug: CodeIcon,
   Features: FlagIcon,
   General: FadersHorizontalIcon,

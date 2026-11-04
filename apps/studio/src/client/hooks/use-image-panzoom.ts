@@ -89,9 +89,10 @@ export function useImagePanzoom({
     };
     if (img?.complete) {
       applyNativeMaxScale();
-    } else {
-      img?.addEventListener("load", applyNativeMaxScale, { once: true });
     }
+    // Every load rather than the first: a file written while it is open comes
+    // back in the same element at its new size.
+    img?.addEventListener("load", applyNativeMaxScale);
 
     let pendingDeltaPx = 0;
     let pendingWheelEvent: null | WheelEvent = null;

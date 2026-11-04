@@ -75,6 +75,9 @@ export const WorkspacePreferencesSchema = z.object({
         ),
       }),
     ),
+  // A next message offered in a chat's empty box once it settles; see
+  // next-message.ts in the workspace package.
+  suggestNextMessage: z.boolean().catch(true),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
 });
 

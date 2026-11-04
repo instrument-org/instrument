@@ -261,6 +261,11 @@ export interface WorkspaceConfig {
    */
   mayOfferFeedback?: () => boolean;
   /**
+   * Whether the person lets a chat that settles ask its model for their
+   * likely next message (`next-message.ts`). Absent means it may.
+   */
+  maySuggestNextMessage?: () => boolean;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;

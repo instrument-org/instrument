@@ -1046,6 +1046,23 @@ describe("prepareModelMessages", () => {
         expect(await storedBoundary()).toBeUndefined();
       });
 
+      it("refuses read-only rather than recording one", async () => {
+        await fillPast(4);
+
+        const result = await prepareModelMessages({
+          agent,
+          chatId,
+          model: smallWindowModel,
+          readOnly: true,
+          sessionId,
+          signal: AbortSignal.timeout(30_000),
+        });
+
+        expect(result.isErr()).toBe(true);
+        expect(await storedBoundary()).toBeUndefined();
+        expect(await storedRolloverParts()).toHaveLength(0);
+      });
+
       it("records the boundary on the newest message once it can reclaim", async () => {
         await fillPast(4);
         const before = await ChatReads.transcript({ sessionId, chatId });

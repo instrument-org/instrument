@@ -115,6 +115,12 @@ export const SETTINGS_INDEX = [
     title: "Release channel",
   },
   {
+    detail: "After a reply, show what you might say next. Press Tab to use it.",
+    id: "suggest-next-message",
+    tab: "General",
+    title: "Suggest a next message",
+  },
+  {
     detail: "A local record to send with a problem report",
     id: "diagnostic-log",
     tab: "General",
@@ -303,7 +309,7 @@ export const SETTINGS_PAGES: Record<
   { detail: string; developerOnly?: true; shownWhen?: string }
 > = {
   General: {
-    detail: `How ${APP_NAME} looks, notifications, dictation, updates, and the diagnostic log.`,
+    detail: `How ${APP_NAME} looks, notifications, dictation, suggested messages, updates, and the diagnostic log.`,
   },
   Account: {
     detail: `Who you're logged in to ${APP_NAME} as, your plan and its usage limits, and billing.`,

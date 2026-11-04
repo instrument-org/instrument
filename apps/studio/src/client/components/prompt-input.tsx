@@ -237,6 +237,8 @@ interface PromptInputProps {
   places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
+  /** A next message to offer in the empty box (`PromptEditor`), while nothing is attached. */
+  suggestion?: string;
   /** A pill is one row, the height of a text field, that grows with the draft; bare is the editor above its button row with no box drawn around them, for a host that draws its own. */
   variant: "bare" | "pill";
 }
@@ -266,6 +268,7 @@ export const PromptInput = ({
   places,
   ref,
   selectedSessionId,
+  suggestion,
   variant,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
@@ -1395,6 +1398,11 @@ export const PromptInput = ({
           placeholder={placeholder}
           ref={promptEditorRef}
           skills={userInvocableSkills}
+          suggestion={
+            attachedItems.length === 0 && !hasAttachmentsLead
+              ? suggestion
+              : undefined
+          }
         />
       </ComposerFrame>
 

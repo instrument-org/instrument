@@ -78,11 +78,13 @@ import {
 
 // `baseKeymap` deliberately leaves history out, so undo/redo only work once the
 // keys are bound alongside the history plugin.
-const editorAttributes = (placeholder?: string) => ({
+// A suggestion drawn over the empty box takes the placeholder's place, so
+// the placeholder is left unshown while it is.
+const editorAttributes = (placeholder?: string, shown = placeholder) => ({
   "aria-label": placeholder ?? "Prompt",
   class:
     "prompt-editor min-h-12 flex-1 whitespace-pre-wrap break-words text-sm outline-none",
-  "data-placeholder": placeholder ?? "",
+  "data-placeholder": shown ?? "",
 });
 
 const editorPlugins = () => [
@@ -245,6 +247,7 @@ export function PromptEditor({
   placeholder,
   ref,
   skills,
+  suggestion,
 }: {
   /** What the plus button offers, offered here too. */
   actions: ComposerAction[];
@@ -274,6 +277,12 @@ export function PromptEditor({
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
   skills: ComposerSkill[];
+  /**
+   * A next message offered in the empty box, drawn where the placeholder
+   * is and taken whole with Tab or a click on its key. Typing anything
+   * puts it away.
+   */
+  suggestion?: string;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
@@ -304,6 +313,28 @@ export function PromptEditor({
     );
   };
   const onSubmitEvent = useEffectEvent(onSubmit);
+  const [empty, setEmpty] = useState(defaultValue === "");
+  const offered = suggestion && empty && !dictating ? suggestion : undefined;
+  // Tab takes the offer only from inside the box, so its key shows only there;
+  // outside, the offer reads as the placeholder does.
+  const [focused, setFocused] = useState(false);
+  const currentOffer = useEffectEvent(() => offered);
+  // The offer goes in as the person's own words, caret at the end, ready to
+  // send or to change, as one step undo takes back.
+  const takeOffer = (offer: string) => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const tr = view.state.tr.replaceWith(
+      0,
+      view.state.doc.content.size,
+      promptDocFromText(offer).content,
+    );
+    tr.setSelection(TextSelection.atEnd(tr.doc));
+    view.dispatch(tr);
+    view.focus();
+  };
   // The slash menu as the editor's state last had it, for drawing. The state
   // itself is the plugin's (`slash-menu.ts`); the view's handlers read it
   // there.
@@ -377,13 +408,20 @@ export function PromptEditor({
         // the empty view a page load starts with reports itself as the draft --
         // overwriting the stored one before it has finished loading in.
         if (transaction.docChanged) {
-          onChangeEvent(promptTextFromDoc(nextState.doc));
+          const text = promptTextFromDoc(nextState.doc);
+          onChangeEvent(text);
+          setEmpty(text === "");
         }
         setSlashMenu(slashMenuOf(nextState));
       },
       handleDOMEvents: {
         blur: (blurred) => {
+          setFocused(false);
           blurred.dispatch(closeSlashMenu(blurred.state));
+          return false;
+        },
+        focus: () => {
+          setFocused(true);
           return false;
         },
         paste: (_view, event) => onPasteEvent(event),
@@ -407,6 +445,20 @@ export function PromptEditor({
               }
             })
             .catch(() => undefined);
+          return true;
+        }
+        const offer = currentOffer();
+        // Right arrow too, as in an editor's inline completion: in an empty
+        // box it has nowhere else to go.
+        if (
+          offer &&
+          (event.key === "Tab" || event.key === "ArrowRight") &&
+          !event.shiftKey &&
+          !event.altKey &&
+          !commandKeyHeld(event)
+        ) {
+          event.preventDefault();
+          takeOffer(offer);
           return true;
         }
         const { index, menu: activeMenu } = slashMenuOf(view.state);
@@ -576,8 +628,10 @@ export function PromptEditor({
   // Navigating between skills reuses this view, so the placeholder has to track
   // the prop rather than the value captured when the view was constructed.
   useEffect(() => {
-    viewRef.current?.setProps({ attributes: editorAttributes(placeholder) });
-  }, [placeholder]);
+    viewRef.current?.setProps({
+      attributes: editorAttributes(placeholder, offered ? "" : placeholder),
+    });
+  }, [placeholder, offered]);
 
   // `scroll-fade-y` is only correct while there is something to scroll: Chromium
   // holds a scroll-driven animation at its last committed value once the
@@ -692,7 +746,7 @@ export function PromptEditor({
           own: what there is room for is the composer's question to answer, and
           the scroller below takes whatever that turns out to be. */}
       <PopoverAnchor asChild>
-        <div className="flex min-h-0 flex-1 flex-col" ref={columnRef}>
+        <div className="relative flex min-h-0 flex-1 flex-col" ref={columnRef}>
           {/* The fade masks the text only: the composer's background sits on
               the container around this, so the faded edge dissolves into it
               whichever theme is on. */}
@@ -703,6 +757,28 @@ export function PromptEditor({
             )}
             ref={mountRef}
           />
+          {offered && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-baseline gap-1.5 text-sm text-muted-foreground">
+              <span className="truncate">{offered}</span>
+              {focused && (
+                <button
+                  aria-label="Use suggestion"
+                  className="pointer-events-auto shrink-0 rounded border border-b-2 px-1 font-mono text-xs leading-4 hover:text-foreground"
+                  // The box keeps the caret: a press here never takes focus.
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                  }}
+                  onClick={() => {
+                    takeOffer(offered);
+                  }}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  Tab
+                </button>
+              )}
+            </div>
+          )}
           {chips.map((chip) =>
             createPortal(
               chip.token.type === "app" ? (

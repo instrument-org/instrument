@@ -444,13 +444,15 @@ function withToolResultsCleared(
  *
  * `summaryDue` says the request is near the step with nothing left worth
  * clearing, which is when the conversation is summarized instead
- * (`prepareModelMessages`).
+ * (`prepareModelMessages`). Undefined when `readOnly` and a new clearing is
+ * due, since that would be recorded.
  */
 export async function clearOldToolResults({
   chatId,
   messages,
   model,
   modelMessages,
+  readOnly = false,
   sessionId,
 }: {
   chatId: ChatId;
@@ -458,8 +460,9 @@ export async function clearOldToolResults({
   messages: readonly SessionMessage.WithParts[];
   model: AIGatewayModel.Type;
   modelMessages: ModelMessage[];
+  readOnly?: boolean;
   sessionId: StoreId.Session;
-}): Promise<{ messages: ModelMessage[]; summaryDue: boolean }> {
+}): Promise<{ messages: ModelMessage[]; summaryDue: boolean } | undefined> {
   const rendered = renderedToolResults(modelMessages);
   const tokensOf = (toolCallId: string) => {
     const result = rendered.get(toolCallId);
@@ -489,6 +492,9 @@ export async function clearOldToolResults({
   const newest = messages.at(-1);
 
   if (next !== undefined && newest !== undefined) {
+    if (readOnly) {
+      return undefined;
+    }
     const saved = await ChatWrites.savePart(
       {
         data: next,

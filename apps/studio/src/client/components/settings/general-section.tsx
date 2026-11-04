@@ -106,6 +106,9 @@ export function GeneralSection() {
       <About />
       <PlatformApiServerSetting />
       <ReleaseChannel />
+      <SettingsSection title="Chats">
+        <NextMessageSuggestions />
+      </SettingsSection>
       <SettingsSection title="Advanced">
         <DiagnosticLog />
       </SettingsSection>
@@ -1026,6 +1029,47 @@ function FeedbackOffers() {
         disabled={setOfferFeedback.isPending}
         onCheckedChange={(enabled) => {
           setOfferFeedback.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
+/**
+ * Whether a chat that comes to rest asks its model for the person's likely
+ * next message, shown in the empty box. Each ask is a request on the chat's
+ * own model, so this is where someone saving usage turns it off.
+ */
+function NextMessageSuggestions() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setSuggestNextMessage = useMutation(
+    rpcClient.preferences.setSuggestNextMessage.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  return (
+    <label
+      className="flex items-start justify-between gap-4"
+      {...settingAnchor("suggest-next-message")}
+    >
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">
+          Suggest a next message
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          After each reply, {APP_NAME} suggests what you might say next. It adds
+          a little to your AI usage.
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.suggestNextMessage !== false}
+        disabled={setSuggestNextMessage.isPending}
+        onCheckedChange={(enabled) => {
+          setSuggestNextMessage.mutate({ enabled });
         }}
       />
     </label>

@@ -5,6 +5,7 @@ import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
 import { APP_GUIDANCE_EVALS } from "./app-guidance";
 import { APP_ACCOUNT_NAMING_EVALS } from "./app-account-naming";
 import { APP_GUIDE_MEMORY_EVALS } from "./app-guide-memory";
+import { NEXT_MESSAGE_EVALS } from "./next-message";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { APP_SCRIPTING_API_EVALS } from "./app-scripting-api";
 import { APP_SIGN_IN_CARD_EVALS } from "./app-sign-in-card";
@@ -67,6 +68,7 @@ export const EVALS = [
   ...APP_GUIDANCE_EVALS,
   ...APP_GUIDE_MEMORY_EVALS,
   ...APP_ACCOUNT_NAMING_EVALS,
+  ...NEXT_MESSAGE_EVALS,
   ...APP_SCRIPTING_EVALS,
   ...APP_SCRIPTING_API_EVALS,
   ...APP_SIGN_IN_CARD_EVALS,

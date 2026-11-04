@@ -8,7 +8,7 @@ Link a page or a row as `[Label](instrument://settings/<name>)`, with the name i
 
 ### General (`general`)
 
-How Instrument looks, notifications, dictation, updates, and the diagnostic log.
+How Instrument looks, notifications, dictation, suggested messages, updates, and the diagnostic log.
 
 - **Theme** (`theme`): Choose your preferred color scheme.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller.
@@ -19,6 +19,7 @@ How Instrument looks, notifications, dictation, updates, and the diagnostic log.
 - **Microphone access** (`microphone-access`): Whether your computer lets Instrument use the microphone.
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
+- **Suggest a next message** (`suggest-next-message`): After a reply, show what you might say next. Press Tab to use it.
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)

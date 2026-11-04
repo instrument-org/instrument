@@ -42,7 +42,9 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
-import { atMoment, distinct, liveRead } from "../live-read";
+import { atMoment, distinct, liveRead, where } from "../live-read";
+import { publisher } from "../publisher";
+import { chatNextMessage, watchNextMessage } from "../../lib/chat/next-message";
 
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
@@ -386,6 +388,39 @@ const liveSignInRoute = base
   });
 
 /**
+ * The message this computer suggests the chat's person send next, read
+ * again when one is made and as the chat's records move, which is how a
+ * sent message or a new turn takes it away. None while nothing is
+ * suggested.
+ */
+const liveNextMessageRoute = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(z.string().nullable()))
+  .handler(async function* ({ input, signal }) {
+    // A window reading this shows the chat's box, which is what asks for one.
+    const unwatch = watchNextMessage(input.id);
+    try {
+      yield* distinct(
+        liveRead({
+          changes: [
+            recordChanges(
+              signal,
+              (change) => change.id === input.id && change.kind === "messages",
+            ),
+            where(
+              publisher.subscribe("chat.nextMessage", { signal }),
+              (event) => event.id === input.id,
+            ),
+          ],
+          read: async () => (await chatNextMessage(input.id)) ?? null,
+        }),
+      );
+    } finally {
+      unwatch();
+    }
+  });
+
+/**
  * Not now to a sign-in card, from any device: the computer that asked
  * turns down every app on it still waiting and wakes the chat once. Signing
  * in itself happens on that computer alone, where its sign-ins and keys
@@ -471,6 +506,7 @@ export const chats = {
   live: {
     ...chatRoutes.live,
     asks: liveAsksRoute,
+    nextMessage: liveNextMessageRoute,
     signIn: liveSignInRoute,
     list: liveListChatsRoute,
     tasks: liveChildTasksRoute,

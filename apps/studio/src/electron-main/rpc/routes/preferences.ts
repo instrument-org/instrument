@@ -135,6 +135,12 @@ const setBlockAds = base
     getWorkspacePreferences().set("blockAds", input.enabled);
   });
 
+const setSuggestNextMessage = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("suggestNextMessage", input.enabled);
+  });
+
 const setDeveloperMode = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -271,6 +277,7 @@ export const preferences = {
   setDeveloperMode,
   setPlatformApiServer,
   setReleaseChannel,
+  setSuggestNextMessage,
   setTheme,
   unpinSidebarPlace,
 };

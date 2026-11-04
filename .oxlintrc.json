@@ -26,7 +26,14 @@
     "**/tailwind-browser.js",
     // Script fragments build.mjs concatenates into one page script, so each
     // one's globals come from its siblings and read as unused or untyped alone.
-    ".agents/wireframe-kit/**/*.js"
+    ".agents/wireframe-kit/**/*.js",
+    // The walkthrough skill's browser code. The player and the capture entry
+    // are bundled against a replay library and recorder from another
+    // repository, vendor/ holds those bundles, and in-page.js runs inside
+    // Studio's page, so type-aware rules read their values as `any`.
+    ".agents/skills/studio-walkthrough/player",
+    ".agents/skills/studio-walkthrough/vendor",
+    ".agents/skills/studio-walkthrough/scripts/in-page.js"
   ],
   "options": {
     "typeAware": true

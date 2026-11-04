@@ -35,12 +35,13 @@ Settings › Computer Use walks through both, reading each through the driver it
 
 ## What it leaves the person
 
-Actions go through the accessibility API, so they leave the person's pointer and focus alone, and an element with no such route is refused rather than taking them. `--headed` takes them, and a double-click, a hover and a drag need it. So the agent stops at apps that draw their own controls until someone says it may take the pointer. A driver with its own background input route (Cua Driver's per-process events) would get further there, at about 30 times the size, with a daemon and a second grant.
+Actions go through the accessibility API, so they leave the person's pointer and focus alone, and an element with no such route is refused rather than taking them. The agent's own cursor, a labeled arrow drawn over the screen, shows where it is working. `--headed` takes the real pointer and focus, and a double-click, a hover and a drag need it, as does the first window of an app that shows none until it is brought forward. So the agent stops at apps that draw their own controls until someone says it may take the pointer. A driver with its own background input route (Cua Driver's per-process events) would get further there, at about 30 times the size, with a daemon and a second grant.
 
 ## Still open
 
 - **Windows and Linux.** The driver has both, and neither is carried. An app's identity there isn't a bundle id, so `appBundleId` and the card need a second answer first, and identical controls on those systems can only be told apart with a headed click.
 - **Where it shows.** A flag and a Settings page are enough to try it. A shipped feature would offer setup from onboarding, or at the moment a task needs it.
-- **Windows on another Space.** The driver refuses a window that isn't exposed through accessibility, so the command says to bring it up.
+- **Windows on another Space.** The driver refuses a window that isn't exposed through accessibility, so the command says to bring it up. A minimized window reads fine; another Space hasn't been run.
+- **Asking before `--headed`.** The help says to, and a model passed it unasked when `open` said there was no window. A card, or bringing the app forward and handing focus back, would hold where the words don't.
 - **Self-signed and ad hoc builds.** A grant follows the signature, so a build whose signature changes asks again.
 - **Evals.** [`evals/cases/computer-use.ts`](../../packages/workspace/evals/cases/computer-use.ts) covers finding the command, asking for the one app, and leaving it alone when it isn't needed.

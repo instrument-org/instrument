@@ -61,7 +61,9 @@ export function standInDriver(
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as string[])
-        .map((call) => (call.at(-2) === "--session" ? call.slice(0, -2) : call));
+        .map((call) =>
+          call.at(-2) === "--session" ? call.slice(0, -2) : call,
+        );
     },
     /** The calls that aren't how the wrapper finds its way around. */
     actions(): string[][] {

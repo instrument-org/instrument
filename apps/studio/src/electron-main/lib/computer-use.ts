@@ -124,7 +124,10 @@ const PROMPT_PATIENCE_MS = 500;
 /** Whether one of these prompts is up: a process of its own runs them. */
 async function promptIsUp(): Promise<boolean> {
   await sleep(PROMPT_PATIENCE_MS);
-  return execFileAsync("/usr/bin/pgrep", ["-x", "universalAccessAuthWarn"]).then(
+  return execFileAsync("/usr/bin/pgrep", [
+    "-x",
+    "universalAccessAuthWarn",
+  ]).then(
     () => true,
     () => false,
   );

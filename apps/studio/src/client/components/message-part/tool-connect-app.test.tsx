@@ -304,6 +304,10 @@ describe("how a sign-in ended", () => {
     mocks.apps.mockResolvedValue(
       withoutSite({ error: "HTTP 500", status: "failed" }),
     );
+    mocks.startOAuth.mockResolvedValue({
+      status: "started",
+      url: "https://login.example",
+    });
     const { unmount } = renderCard();
     await screen.findByText("Instrument couldn’t connect to Outlook.");
     await screen.findByRole("button", { name: "Try again with Safari" });

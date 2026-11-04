@@ -1,5 +1,5 @@
 import { displayLocale } from "@/client/lib/display-locale";
-import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { lookAtAtom, lookTargetOf } from "@/client/components/window/look-at";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { openLogin } from "@/client/atoms/login-modal";
@@ -290,7 +290,7 @@ export const PromptInput = ({
   // A pill is one row until it is written in, then opens a row for the rest.
   const [pillFocused, setPillFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const openFilePreview = useSetAtom(openFilePreviewAtom);
+  const setLookAt = useSetAtom(lookAtAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
   // The box the prompt is written in: what this composer's menus are sized and
   // placed against, so they read as an extension of the prompt rather than as
@@ -1209,12 +1209,16 @@ export const PromptInput = ({
                       mimeType={item.mimeType}
                       onClick={() => {
                         if (item.url) {
-                          openFilePreview({
-                            filename: item.name,
-                            mimeType: item.mimeType,
-                            size: item.size,
-                            url: item.url,
-                          });
+                          setLookAt(
+                            lookTargetOf({
+                              filename: item.name,
+                              ...("path" in item
+                                ? { hostPath: item.path }
+                                : {}),
+                              mimeType: item.mimeType,
+                              url: item.url,
+                            }),
+                          );
                         }
                       }}
                       onPutInMessage={putInMessage(item)}

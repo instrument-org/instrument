@@ -1,4 +1,4 @@
-import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { lookAtAtom } from "@/client/components/window/look-at";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { GraphIcon } from "@phosphor-icons/react/Graph";
@@ -39,7 +39,7 @@ export const MermaidDiagram = ({
   language: string;
 }) => {
   const { resolvedTheme } = useTheme();
-  const openFilePreview = useSetAtom(openFilePreviewAtom);
+  const setLookAt = useSetAtom(lookAtAtom);
   const releaseAutoScroll = useReleaseAutoScroll();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>();
@@ -117,10 +117,13 @@ export const MermaidDiagram = ({
       svg,
     });
     if (url) {
-      openFilePreview({
-        filename: "diagram.svg",
-        mimeType: "image/svg+xml",
-        url,
+      setLookAt({
+        kind: "picture",
+        picture: {
+          filename: "diagram.svg",
+          mimeType: "image/svg+xml",
+          url,
+        },
       });
     }
   };

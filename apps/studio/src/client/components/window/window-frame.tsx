@@ -1,4 +1,3 @@
-import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { SetupHost } from "@/client/components/setup/setup-host";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
@@ -6,8 +5,7 @@ import { BELL_TOASTER, Toaster } from "@/client/components/ui/sonner";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { useAtomValue } from "jotai";
-import { lazy, type ReactNode, type Ref, Suspense } from "react";
+import { type ReactNode, type Ref } from "react";
 
 import { APP_RAIL_WIDTH } from "./app-rail";
 import { LinkSurface } from "./link-surface";
@@ -17,14 +15,6 @@ import { LinkSurface } from "./link-surface";
 const CARD_CORNER = { bottom: 8 + 12, left: APP_RAIL_WIDTH + 12 };
 // Just under the bell, at the bar's right end.
 const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
-
-// A pasted file opened from a composer, at its full size: loaded the first
-// time one is opened, since most windows never open one.
-const LazyFilePreviewModal = lazy(() =>
-  import("@/client/components/file-preview-modal").then((m) => ({
-    default: m.FilePreviewModal,
-  })),
-);
 
 /**
  * The window's chrome: no title bar, so it drags by its top-left corner,
@@ -46,9 +36,8 @@ export function WindowFrame({
   /** The row the columns share, for whoever sizes them against it. */
   rowRef?: Ref<HTMLDivElement>;
 }) {
-  const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   // Setup covers the window, so the app behind it takes no input, and what
-  // the app would put up over itself (a dialog, the file preview, a toast)
+  // the app would put up over itself (a dialog, a toast)
   // waits rather than landing over setup.
   const isSetupUp = useIsSetupUp();
   return (
@@ -105,11 +94,6 @@ export function WindowFrame({
             <PageOpenContext value={null}>
               <StudioModals />
             </PageOpenContext>
-            {isFilePreviewOpen && (
-              <Suspense fallback={null}>
-                <LazyFilePreviewModal />
-              </Suspense>
-            )}
             {/* Bottom left, inside the card's corner past the rail, so the
               rail stays in reach: clear of the drafts and the floating chat,
               which dock at the bottom right. */}

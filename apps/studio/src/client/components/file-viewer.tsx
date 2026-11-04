@@ -1323,6 +1323,50 @@ export function FileViewer({
 }
 
 /**
+ * A picture with no file behind it, a diagram or a pasted image, under the same
+ * head a file has. What was opened may not be a picture at all (a composer's
+ * pasted PDF has no path yet either), which gets the card a file would.
+ */
+export function PictureViewer({
+  onClose,
+  picture: { filename, mimeType, url },
+}: {
+  onClose: () => void;
+  picture: { filename: string; mimeType?: string; url: string };
+}) {
+  const [failed, setFailed] = useState(false);
+  const isImage =
+    getFileType({ filename, ...(mimeType ? { mimeType } : {}) }) === "image" ||
+    (!mimeType && !filename.includes("."));
+  return (
+    <div className={fileViewerClassName}>
+      <FileViewerHeader
+        filename={filename}
+        onClose={onClose}
+        path={filename}
+      />
+      <div className="relative min-h-0 flex-1">
+        {isImage && !failed ? (
+          <ImageViewer
+            file={{ filename, url }}
+            onError={() => {
+              setFailed(true);
+            }}
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <FilePreviewFallback
+              {...(isImage ? { fallbackExtension: "jpg" } : {})}
+              filename={filename}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The file viewer's title row: the name on the left, the file's actions and the
  * close button on the right.
  *

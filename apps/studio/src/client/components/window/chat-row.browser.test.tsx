@@ -782,8 +782,8 @@ describe("ChatRow", () => {
       new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
     );
     const items = page.getByRole("menuitem");
-    await expect.element(items.nth(2)).toHaveTextContent("Pop Out");
-    await userEvent.click(items.nth(2));
+    await expect.element(items.nth(3)).toHaveTextContent("Pop Out");
+    await userEvent.click(items.nth(3));
     expect(run).toHaveBeenCalledOnce();
   });
 
@@ -1132,6 +1132,7 @@ describe("the row's actions", () => {
     ).toEqual([
       "Open",
       "Open in New Tab",
+      "Open in New Window",
       "Mark as read",
       "Star",
       "Rename",

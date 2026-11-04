@@ -265,15 +265,28 @@ function isFolder(hostPath: string) {
  * asks for.
  */
 export function openAppScreen(href: string) {
-  const showing = appWindowShowing(href);
-  if (showing) {
-    if (!isHeldOffScreen(showing)) {
-      showing.focus();
-    }
-    askWindow(showing, { href, type: "openScreen" });
-    return;
+  if (!showInWindowHolding(href)) {
+    askAppWindow({ href, type: "openScreen" });
   }
-  askAppWindow({ href, type: "openScreen" });
+}
+
+/**
+ * Brings forward the window that already has a screen in a tab, with that tab
+ * up. False where no window has it.
+ */
+export function showInWindowHolding(href: string) {
+  const showing = appWindowShowing(href);
+  if (!showing) {
+    return false;
+  }
+  if (!isHeldOffScreen(showing)) {
+    if (showing.isMinimized()) {
+      showing.restore();
+    }
+    showing.focus();
+  }
+  askWindow(showing, { href, type: "openScreen" });
+  return true;
 }
 
 /**

@@ -34,6 +34,7 @@ import {
 } from "@/electron-main/stores/workspace/window-state";
 import {
   expectRestoredWindows,
+  isComingBackAsLeft,
   isDrivenInstance,
   isHeldOffScreen,
   putOnScreen,
@@ -59,6 +60,7 @@ import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
+import { is } from "@electron-toolkit/utils";
 import { app, BrowserWindow } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
@@ -195,11 +197,14 @@ function keptTabsOf(id: string) {
  * The window that has a screen in a tab, by its address: the one with that
  * tab up if there is one, else the one in front of the others with it behind.
  */
-export function appWindowShowing(href: string): BrowserWindow | null {
+export function appWindowShowing(
+  href: string,
+  among: readonly BrowserWindow[] = getAppWindows(),
+): BrowserWindow | null {
   const standsThere = (pathname: string) =>
     pathname === href || pathname.startsWith(`${href}?`);
   let behind: BrowserWindow | null = null;
-  for (const window of getAppWindows()) {
+  for (const window of among) {
     const id = appWindowIdOfWindow(window);
     if (id !== undefined) {
       const { selectedId, tabs } = keptTabsOf(id);
@@ -218,17 +223,19 @@ export function appWindowShowing(href: string): BrowserWindow | null {
 }
 
 /**
- * Which window answers what a chat asks of its tabs: the one showing the chat,
- * else the one in front. Exactly one does, so a tab an agent opens opens once.
+ * Which window answers what a chat asks of its tabs and mounts the guests it
+ * makes: of the windows whose page can hear it, the one showing the chat, else
+ * the one in front. Named once for each ask, so one opens one page.
  */
-export function isWindowForChat(
-  webContentsId: number,
-  chatId: string | undefined,
-) {
+export function appWindowForChat(chatId: string | undefined) {
+  const hearing = getAppWindows().filter((window) =>
+    listening.has(window.webContents.id),
+  );
   const window =
-    (chatId === undefined ? null : appWindowShowing(`/chats/${chatId}`)) ??
-    getAppWindow();
-  return window?.webContents.id === webContentsId;
+    (chatId === undefined
+      ? null
+      : appWindowShowing(`/chats/${chatId}`, hearing)) ?? hearing[0];
+  return window?.webContents.id;
 }
 
 /**
@@ -300,6 +307,9 @@ export function restoreAppWindows() {
     createAppWindow(front);
     return;
   }
+  // A restart to install an update brings them back as they were, behind
+  // whatever the person is doing.
+  const takesFocus = !isComingBackAsLeft();
   expectRestoredWindows(ids.length);
   const windows = ids.map((id) => createAppWindow(id));
   // Each comes up as its page is ready, in no particular order, so the one
@@ -310,8 +320,16 @@ export function restoreAppWindows() {
     for (const window of windows) {
       window.once("ready-to-show", () => {
         waiting -= 1;
-        if (waiting === 0 && !front.isDestroyed() && !isHeldOffScreen(front)) {
+        if (
+          waiting === 0 &&
+          takesFocus &&
+          !front.isDestroyed() &&
+          !isHeldOffScreen(front)
+        ) {
           front.moveTop();
+          if (!is.dev) {
+            front.focus();
+          }
         }
       });
     }

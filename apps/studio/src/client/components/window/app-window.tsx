@@ -39,7 +39,7 @@ import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-c
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
-import { keptAcrossWindows } from "@/client/lib/kept-state";
+import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -95,7 +95,7 @@ import {
   pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
-  siteGroupsAcrossWindows,
+  siteGroupsInOtherWindows,
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -139,7 +139,13 @@ import {
   sameHref,
 } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
-import { hasMovedAway, moveTabOut, receiveTab, sendEveryTab } from "./move-tab";
+import {
+  forgetMovedAway,
+  hasMovedAway,
+  moveTabOut,
+  receiveTab,
+  sendEveryTab,
+} from "./move-tab";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -479,7 +485,7 @@ function WindowShell({
       ...compose.entries.flatMap((entry) =>
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
-      ...keptAcrossWindows("compose.v2").flatMap(floatingDraftIdsOf),
+      ...keptInOtherWindows("compose.v2").flatMap(floatingDraftIdsOf),
     ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
@@ -546,6 +552,7 @@ function WindowShell({
     );
     for (const group of open) {
       sitesHeldHere.current.add(group);
+      forgetMovedAway(group);
     }
     // The windows share every site's tabs, so one this window never had a tab
     // on is another's to let go. One it did leaves unless a tab of another
@@ -557,7 +564,9 @@ function WindowShell({
           group && !open.has(group) && sitesHeldHere.current.has(group),
       );
     const inOtherWindows =
-      noLongerHere.length === 0 ? new Set<string>() : siteGroupsAcrossWindows();
+      noLongerHere.length === 0
+        ? new Set<string>()
+        : siteGroupsInOtherWindows();
     const leaving = noLongerHere.filter(
       (group) => !inOtherWindows.has(group) && !hasMovedAway(group),
     );

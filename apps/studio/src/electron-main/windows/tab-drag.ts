@@ -98,10 +98,12 @@ interface Carry {
 let carry: Carry | null = null;
 
 function carriableWindows() {
-  return getAppWindows().map((window) => ({
-    bounds: window.getBounds(),
-    window,
-  }));
+  return getAppWindows()
+    .filter((window) => !window.isMinimized())
+    .map((window) => ({
+      bounds: window.getBounds(),
+      window,
+    }));
 }
 
 /**

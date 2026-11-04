@@ -48,6 +48,11 @@ export function comeBackAsLeft(view: RelaunchView | undefined) {
   relaunchView = view;
 }
 
+/** Whether this launch is the app restarting itself, its windows to come back as they were. */
+export function isComingBackAsLeft() {
+  return relaunchView !== undefined;
+}
+
 /** How many windows this launch brings back at once, each of which comes back that way. */
 export function expectRestoredWindows(count: number) {
   relaunchWindows = Math.max(count, 1);

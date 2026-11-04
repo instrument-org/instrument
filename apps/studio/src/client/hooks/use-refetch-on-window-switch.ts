@@ -18,18 +18,14 @@ export function useRefetchOnWindowSwitch() {
     if (!hasOthers) {
       return;
     }
+    // Told rather than set: a window that thinks it is unfocused stops its
+    // polling, and one beside the window in front is still in view.
     const onFocus = () => {
-      focusManager.setFocused(true);
-    };
-    const onBlur = () => {
-      focusManager.setFocused(false);
+      focusManager.onFocus();
     };
     window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("focus", onFocus);
-      window.removeEventListener("blur", onBlur);
-      focusManager.setFocused(undefined);
     };
   }, [hasOthers]);
 }

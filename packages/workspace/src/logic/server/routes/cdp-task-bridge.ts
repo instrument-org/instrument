@@ -9,6 +9,7 @@ import { sessionLayout } from "../../../lib/session-layout";
 import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
 import { closeTabsOverCap } from "../../../lib/chat/tab-cap";
 import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
+import { getWorkspaceConfig } from "../../../lib/workspace-config";
 import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
 import { type ChatId } from "../../../schemas/chat-id";
@@ -379,8 +380,15 @@ export function handleTaskCdpClient(
       // A page with nothing at it yet: a guest with no tab, which the chat
       // is not shown until it goes somewhere (see intoWindow).
       const targetId = browserTargetOf(StoreId.newTabId());
+      // In the window the chat is in, so looking at it there later has no
+      // reason to bring it over.
+      const window = getWorkspaceConfig().windowForChat?.(resolveChat(chatId));
       const made = await browser
-        .createTarget(targetId, getBrowserSessionDir())
+        .createTarget(
+          targetId,
+          getBrowserSessionDir(),
+          window === undefined ? undefined : { webContentsId: window },
+        )
         .then(() => true)
         .catch((error: unknown) => {
           console.warn(

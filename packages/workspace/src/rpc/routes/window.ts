@@ -56,16 +56,12 @@ const tab = base
       signal,
     })) {
       // A chat's own asks, and those of any task asking among a chat's tabs,
-      // go to the window that answers for that chat.
+      // go to the window named as the ask went out.
       if (
         (resolveChat(event.id) || event.chatId !== undefined) &&
-        (context.webContentsId === undefined ||
-          context.workspaceConfig.isWindowFor?.(
-            context.webContentsId,
-            event.chatId,
-          ) !== false)
+        (event.window === undefined || event.window === context.webContentsId)
       ) {
-        const { id: _asker, ...request } = event;
+        const { id: _asker, window: _window, ...request } = event;
         yield request;
       }
     }

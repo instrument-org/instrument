@@ -54,7 +54,7 @@ function sessionName(chatId: ChatId): string {
 }
 
 /** A refusal as the agent reads it, saying whether the action may have landed. */
-export function refusalText({
+function refusalText({
   code,
   disposition,
   message,
@@ -106,7 +106,7 @@ export async function runDriver(
     throw new CapabilityFailure(
       result.timedOut
         ? "the driver took too long and was stopped. Check the app's state before retrying."
-        : `the driver failed: ${result.stderr || result.shortMessage}`,
+        : `the driver failed: ${String(result.stderr || result.shortMessage)}`,
     );
   }
   const { data, error, ok } = parsed.data;

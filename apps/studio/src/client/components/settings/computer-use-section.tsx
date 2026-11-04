@@ -139,7 +139,12 @@ function Step({
   return (
     <Card className="gap-2 p-4">
       <div className="flex items-center gap-2 text-sm font-medium">
-        {done && <CheckIcon className="size-4 text-success" weight="bold" />}
+        {done && (
+          <CheckIcon
+            className="size-4 text-success-700 dark:text-success-300"
+            weight="bold"
+          />
+        )}
         {title}
       </div>
       {!done && <div className="space-y-3">{children}</div>}

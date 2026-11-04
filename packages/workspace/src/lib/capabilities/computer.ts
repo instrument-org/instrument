@@ -105,7 +105,7 @@ const ACCESS = {
   never: "not allowed",
 } as const;
 
-export const computerApps = defineCapability({
+const computerApps = defineCapability({
   gate: () => setUpGate(),
   input: z.object({}),
   name: "computer.apps",
@@ -142,7 +142,7 @@ export const computerApps = defineCapability({
   where: WHERE,
 });
 
-export const computerWindows = defineCapability({
+const computerWindows = defineCapability({
   gate: ({ app }, ctx) => runningAppGate(app, ctx),
   input: z.object({ app: AppName("windows") }),
   name: "computer.windows",
@@ -167,7 +167,7 @@ export const computerWindows = defineCapability({
   where: WHERE,
 });
 
-export const computerOpen = defineCapability({
+const computerOpen = defineCapability({
   gate: ({ app }, ctx) => openableAppGate(app, ctx),
   input: z.object({
     activate: z.boolean().optional().meta({
@@ -201,7 +201,7 @@ export const computerOpen = defineCapability({
   where: WHERE,
 });
 
-export const computerSnapshot = defineCapability({
+const computerSnapshot = defineCapability({
   gate: ({ app, root }, ctx) =>
     root === undefined ? runningAppGate(app ?? "", ctx) : refGate(root, ctx),
   input: z.object({
@@ -270,7 +270,7 @@ export const computerSnapshot = defineCapability({
   where: WHERE,
 });
 
-export const computerGet = defineCapability({
+const computerGet = defineCapability({
   gate: ({ ref }, ctx) => refGate(ref, ctx),
   input: z.object({
     property: z
@@ -332,56 +332,56 @@ async function act(
   );
 }
 
-export const computerClick = refAction({
+const computerClick = refAction({
   summary: "Presses a button, row or link.",
   word: "click",
 });
-export const computerDoubleClick = refAction({
+const computerDoubleClick = refAction({
   summary: "Double-clicks an element, which needs --headed.",
   word: "double-click",
 });
-export const computerRightClick = refAction({
+const computerRightClick = refAction({
   summary: "Opens an element's context menu.",
   word: "right-click",
 });
-export const computerClear = refAction({
+const computerClear = refAction({
   summary: "Empties a field.",
   word: "clear",
 });
-export const computerFocus = refAction({
+const computerFocus = refAction({
   summary: "Puts the app's own focus on an element.",
   word: "focus",
 });
-export const computerToggle = refAction({
+const computerToggle = refAction({
   summary: "Flips a switch or checkbox.",
   word: "toggle",
 });
-export const computerCheck = refAction({
+const computerCheck = refAction({
   summary: "Turns a checkbox on.",
   word: "check",
 });
-export const computerUncheck = refAction({
+const computerUncheck = refAction({
   summary: "Turns a checkbox off.",
   word: "uncheck",
 });
-export const computerExpand = refAction({
+const computerExpand = refAction({
   summary: "Opens a disclosure or tree row.",
   word: "expand",
 });
-export const computerCollapse = refAction({
+const computerCollapse = refAction({
   summary: "Closes a disclosure or tree row.",
   word: "collapse",
 });
-export const computerScrollTo = refAction({
+const computerScrollTo = refAction({
   summary: "Scrolls an element into view.",
   word: "scroll-to",
 });
-export const computerHover = refAction({
+const computerHover = refAction({
   summary: "Rests the pointer on an element, which needs --headed.",
   word: "hover",
 });
 
-export const computerType = defineCapability({
+const computerType = defineCapability({
   gate: ({ ref }, ctx) => refGate(ref, ctx),
   input: z.object({
     headed: Headed,
@@ -407,7 +407,7 @@ export const computerType = defineCapability({
   where: WHERE,
 });
 
-export const computerSetValue = defineCapability({
+const computerSetValue = defineCapability({
   gate: ({ ref }, ctx) => refGate(ref, ctx),
   input: z.object({
     ref: Ref,
@@ -431,7 +431,7 @@ export const computerSetValue = defineCapability({
   where: WHERE,
 });
 
-export const computerSelect = defineCapability({
+const computerSelect = defineCapability({
   gate: ({ ref }, ctx) => refGate(ref, ctx),
   input: z.object({
     option: z.string({ error: "select: which option?" }).meta({
@@ -455,7 +455,7 @@ export const computerSelect = defineCapability({
   where: WHERE,
 });
 
-export const computerScroll = defineCapability({
+const computerScroll = defineCapability({
   gate: ({ ref }, ctx) => refGate(ref, ctx),
   input: z.object({
     amount: z.number().int().positive().optional().meta({
@@ -492,7 +492,7 @@ export const computerScroll = defineCapability({
   where: WHERE,
 });
 
-export const computerDrag = defineCapability({
+const computerDrag = defineCapability({
   // Both ends are the driver's to touch, so both are asked about.
   async gate({ ref, to }, ctx) {
     const from = await refGate(ref, ctx);
@@ -518,7 +518,7 @@ export const computerDrag = defineCapability({
   where: WHERE,
 });
 
-export const computerPress = defineCapability({
+const computerPress = defineCapability({
   gate: ({ app }, ctx) => runningAppGate(app, ctx),
   input: z.object({
     app: AppName("press"),
@@ -552,7 +552,7 @@ export const computerPress = defineCapability({
 
 const SHOT_NAME = /[:.]/g;
 
-export const computerScreenshot = defineCapability({
+const computerScreenshot = defineCapability({
   gate: ({ app }, ctx) => runningAppGate(app, ctx),
   input: z.object({ app: AppName("screenshot"), window: WindowId }),
   name: "computer.screenshot",

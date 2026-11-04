@@ -519,16 +519,20 @@ const approveWindowClose = base
   }));
 
 const events = {
-  // Fires whenever the window gains or loses focus. The payload is a timestamp
-  // rather than the focus state: subscribers refetch on it, and a value that
-  // differs every time is what makes the second focus in a row observable.
-  windowFocusChanged: base.handler(async function* ({ signal }) {
-    for await (const _ of publisher.subscribe("window.focus-changed", {
-      signal,
-    })) {
-      yield {
-        focused: Date.now(),
-      };
+  // Fires whenever this window gains focus. The payload is a timestamp rather
+  // than the focus state: subscribers refetch on it, and a value that differs
+  // every time is what makes the second focus in a row observable. Only this
+  // window's own, so a focus does not refetch once per window open.
+  windowFocusChanged: base.handler(async function* ({ context, signal }) {
+    for await (const { webContentsId } of publisher.subscribe(
+      "window.focus-changed",
+      { signal },
+    )) {
+      if (webContentsId === context.webContentsId) {
+        yield {
+          focused: Date.now(),
+        };
+      }
     }
   }),
 };

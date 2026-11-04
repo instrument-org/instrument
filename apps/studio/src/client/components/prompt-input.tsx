@@ -101,7 +101,11 @@ import {
   storedWordsAtom,
   typedWordsAtom,
 } from "../atoms/prompt-value";
-import { flushWords } from "../drafts/settle-words";
+import {
+  cancelWords,
+  flushWords,
+  hasWaitingWords,
+} from "../drafts/settle-words";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -336,7 +340,13 @@ export const PromptInput = ({
   const value = shown.key === draftKeyed ? shown.words : storedWords;
   const setValue = (words: string) => {
     setShown({ key: draftKeyed, words });
-    typeWords({ key: draftKey, words });
+    // Back to what the draft has, which is also how words from another window
+    // come in: nothing to write, and what was waiting to be is out of date.
+    if (words === storedWords) {
+      cancelWords(draftKeyed);
+    } else {
+      typeWords({ key: draftKey, words });
+    }
   };
   // A composer going, or moving onto another draft, writes what it was
   // typed into at once: the next one to show that draft starts from it.
@@ -346,6 +356,19 @@ export const PromptInput = ({
     },
     [draftKeyed],
   );
+  // The same chat's box in another window: what is typed there comes in here,
+  // unless this is the window being typed in, or has words on their way.
+  useEffect(() => {
+    if (
+      storedWords !== value &&
+      !document.hasFocus() &&
+      !hasWaitingWords(draftKeyed)
+    ) {
+      promptEditorRef.current?.setValue(storedWords);
+    }
+    // Only as the draft changes: typing here reaches it a beat after `value`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedWords]);
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
   const releaseInputRef = useSetAtom(releasePromptDraftRefAtom);
   const appendDictation = useSetAtom(appendDictationToPromptAtom);

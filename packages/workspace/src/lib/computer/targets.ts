@@ -19,17 +19,28 @@ const NOT_SET_UP =
 
 /**
  * What the system draws to ask the person themselves: a password, or a yes to
- * a privacy prompt. An answer the agent could give is no answer from them.
+ * a privacy prompt. An answer the agent could give is no answer from them. By
+ * bundle id on macOS, and by name or desktop id elsewhere, lowercase: GNOME
+ * Shell draws Linux's password prompts itself, and consent.exe is Windows's.
  */
-const SYSTEM_PROMPT_BUNDLE_IDS = new Set([
-  "com.apple.accessibility.universalAccessAuthWarn",
+const SYSTEM_PROMPTS = new Set([
+  "com.apple.accessibility.universalaccessauthwarn",
   "com.apple.loginwindow",
-  "com.apple.SecurityAgent",
-  "com.apple.UserNotificationCenter",
+  "com.apple.securityagent",
+  "com.apple.usernotificationcenter",
+  "consent",
+  "credentialuibroker",
+  "gcr-prompter",
+  "gnome-shell",
+  "logonui",
+  "polkit-gnome-authentication-agent-1",
 ]);
 
 /** This app and its other builds, whose cards the agent must not answer. */
 const OWN_BUNDLE_PREFIX = "com.finalpoint.instrument";
+
+/** The same off macOS, where an app can go by no more than its program's name. */
+const OWN_NAME = /^instrument\b/i;
 
 const RunningAppSchema = z.object({
   bundle_id: z.string().optional(),
@@ -52,11 +63,12 @@ const WindowSchema = z.object({
 });
 export type AppWindow = z.output<typeof WindowSchema>;
 
-/** What the driver answers for one app: its id, and how the person knows it. */
-function asMacApp(app: RunningApp): MacApp | undefined {
-  return app.bundle_id === undefined
-    ? undefined
-    : { bundleId: app.bundle_id, name: app.name };
+/**
+ * An app as a grant knows it: its bundle id on macOS, its desktop id on Linux
+ * where it has one, and otherwise, as on Windows, its program's name.
+ */
+function identityOf(app: RunningApp): MacApp {
+  return { bundleId: app.bundle_id ?? app.name, name: app.name };
 }
 
 /** The apps running now that a person would call apps, helpers left out. */
@@ -89,25 +101,32 @@ function offLimits(app: MacApp, pid?: number): string | undefined {
   if (
     pid === process.pid ||
     app.bundleId === own ||
-    app.bundleId.startsWith(OWN_BUNDLE_PREFIX)
+    app.bundleId.startsWith(OWN_BUNDLE_PREFIX) ||
+    OWN_NAME.test(app.name)
   ) {
     return "this app can't drive its own windows. Its cards and settings are the person's to answer.";
   }
-  if (SYSTEM_PROMPT_BUNDLE_IDS.has(app.bundleId)) {
-    return `${app.name} is how macOS asks the person themselves, so only they can answer it.`;
+  if (
+    SYSTEM_PROMPTS.has(app.bundleId.toLowerCase()) ||
+    SYSTEM_PROMPTS.has(app.name.toLowerCase())
+  ) {
+    return `${app.name} is how the system asks the person themselves, so only they can answer it.`;
   }
   return undefined;
 }
 
 /** Whether `app` is one the agent may never drive, so it isn't offered. */
 export function isOffLimits(app: RunningApp): boolean {
-  const known = asMacApp(app);
-  return known !== undefined && offLimits(known, app.pid) !== undefined;
+  return offLimits(identityOf(app), app.pid) !== undefined;
 }
 
-/** How a card names `app`: by name when that finds it, else by its bundle id. */
+/**
+ * How a card names `app`: by name when that finds it, else by its bundle id.
+ * Off macOS nothing looks a name up, and the name is what a person knows.
+ */
 async function askableName(app: MacApp): Promise<string> {
-  return (await appBundleId(app.name)) === app.bundleId
+  return process.platform !== "darwin" ||
+    (await appBundleId(app.name)) === app.bundleId
     ? app.name
     : app.bundleId;
 }
@@ -165,13 +184,7 @@ export async function runningAppGate(
       message: `no app called ${JSON.stringify(given)} is running. \`instrument computer apps\` lists what is, and \`instrument computer open\` starts one.`,
     };
   }
-  const app = asMacApp(running);
-  return app === undefined
-    ? {
-        kind: "refused",
-        message: `${running.name} doesn't say which app it is, so it can't be allowed.`,
-      }
-    : gateFor(app, ctx, running.pid);
+  return gateFor(identityOf(running), ctx, running.pid);
 }
 
 /** The gate of `open`, whose app may not be running yet. */
@@ -198,11 +211,12 @@ export async function openableApp(
   ctx: DriverContext,
 ): Promise<MacApp | undefined> {
   const running = await runningApp(given, ctx);
-  const app = running && asMacApp(running);
-  if (app !== undefined) {
-    return app;
+  if (running !== undefined) {
+    return identityOf(running);
   }
-  const bundleId = await appBundleId(given);
+  // Only macOS can look an app up by name here; elsewhere the driver finds it.
+  const bundleId =
+    process.platform === "darwin" ? await appBundleId(given) : given;
   return bundleId === undefined ? undefined : { bundleId, name: given };
 }
 
@@ -266,13 +280,12 @@ export async function gatedRunningApp(
   ctx: DriverContext,
 ): Promise<MacApp & { pid: number }> {
   const running = await runningApp(given, ctx);
-  const app = running && asMacApp(running);
-  if (running === undefined || app === undefined) {
+  if (running === undefined) {
     throw new CapabilityFailure(
       `${given} is no longer running. \`instrument computer apps\` lists what is.`,
     );
   }
-  return { ...app, pid: running.pid };
+  return { ...identityOf(running), pid: running.pid };
 }
 
 /** The windows of `app`, every instance of it included. */
@@ -286,7 +299,7 @@ export async function windowsOf(
   ]);
   const pids = new Set(
     apps
-      .filter((each) => each.bundle_id === app.bundleId)
+      .filter((each) => identityOf(each).bundleId === app.bundleId)
       .map((each) => each.pid),
   );
   return z

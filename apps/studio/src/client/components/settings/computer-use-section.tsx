@@ -5,7 +5,7 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useRef } from "react";
 
-// oxlint-disable studio/no-os-words -- Computer Use is carried for macOS alone, so this screen shows nowhere else.
+// oxlint-disable studio/no-os-words -- The steps that name macOS's panes show only on macOS.
 
 type Status = RPCOutput["features"]["computerUse"]["status"];
 
@@ -25,16 +25,18 @@ function screenPaneName(macOSMajor: number): string {
 }
 
 /**
- * What Computer Use needs from macOS before the agent is offered it. Both
- * steps read their state again as they wait on System Settings, since macOS
- * applies these switches at once and coming back here is when they've changed.
+ * What Computer Use needs from the system before the agent is offered it. On
+ * macOS both steps read their state again as they wait on System Settings,
+ * since macOS applies these switches at once and coming back here is when
+ * they've changed. Windows and Linux have no switches to wait on.
  */
 export function ComputerUseSection() {
   const status = useQuery({
     ...rpcClient.features.computerUse.status.queryOptions(),
     refetchInterval: (query) =>
-      query.state.data?.accessibility === true &&
-      query.state.data.screenRecording
+      query.state.data?.needsGrants === false ||
+      (query.state.data?.accessibility === true &&
+        query.state.data.screenRecording)
         ? false
         : WAITING_POLL_MS,
   });
@@ -82,10 +84,18 @@ export function ComputerUseSection() {
           </p>
         )}
       </div>
-      <div className="space-y-2">
-        <AccessibilityStep data={data} />
-        <ScreenRecordingStep data={data} />
-      </div>
+      {data.needsGrants ? (
+        <div className="space-y-2">
+          <AccessibilityStep data={data} />
+          <ScreenRecordingStep data={data} />
+        </div>
+      ) : data.installed ? (
+        <p className="text-sm">
+          {data.accessibility
+            ? "There's nothing to turn on here, so you're all set."
+            : `${data.appName} can't reach your desktop's accessibility service, so it can't see your other apps yet.`}
+        </p>
+      ) : null}
     </div>
   );
 }

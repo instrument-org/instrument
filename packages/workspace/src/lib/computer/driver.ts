@@ -37,7 +37,7 @@ const NEXT_STEP: Record<string, string> = {
     "Identical elements make this ref unsafe. Take a new snapshot, and act on a control that is unique in the window.",
   APP_UNRESPONSIVE: "The app isn't answering. Check its state before retrying.",
   PERM_DENIED:
-    "macOS isn't letting Instrument do this. Tell the person they can check it in Settings › Computer Use, and stop.",
+    "The system isn't letting Instrument do this. Tell the person they can check it in Settings › Computer Use, and stop.",
   POLICY_DENIED:
     "This takes the person's pointer and focus. Pass --headed only once they've said that's fine.",
   SNAPSHOT_NOT_FOUND: "Take a new snapshot and use its refs.",

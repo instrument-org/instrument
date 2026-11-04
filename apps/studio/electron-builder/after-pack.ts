@@ -50,6 +50,7 @@ export function runAfterPack(context: AfterPackContext) {
   verifyPackagedPnpm(context);
   verifyPackagedFfmpeg(context);
   verifyPackagedMacBridge(context);
+  verifyPackagedDesktopDriver(context);
   dropAppIconFromDocumentTypes(context);
   writePackagedLicenses(context);
 }
@@ -257,13 +258,27 @@ function verifyPackagedMacBridge(context: AfterPackContext) {
     }),
   });
   console.log(`afterPack: verified ${seatbelt} (${size} bytes)`);
-  const desktopDriver = path.join(
-    resolveUnpackedDir(context.appOutDir, "darwin"),
+}
+
+/** What `agent-desktop:download` vendors for each platform. */
+const DESKTOP_DRIVER_FILES: Record<ElectronPlatform, readonly string[]> = {
+  darwin: ["agent-desktop", "agent-desktop-macos-helper"],
+  linux: ["agent-desktop", "agent-desktop-linux-clipboard-owner"],
+  win32: ["agent-desktop.exe"],
+};
+
+function verifyPackagedDesktopDriver(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+  const dir = path.join(
+    resolveUnpackedDir(context.appOutDir, platformName),
     "resources",
     "agent-desktop",
   );
-  for (const name of ["agent-desktop", "agent-desktop-macos-helper"]) {
-    const file = path.join(desktopDriver, name);
+  for (const name of DESKTOP_DRIVER_FILES[platformName]) {
+    const file = path.join(dir, name);
     if (!existsSync(file)) {
       throw new Error(
         `Could not locate ${name} at ${file}. Run \`pnpm agent-desktop:download\` before packaging; without it Computer Use has nothing to run.`,

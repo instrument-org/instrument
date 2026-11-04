@@ -197,6 +197,70 @@ describe("instrument computer", () => {
     expect(driver.actions()).toEqual([]);
   });
 
+  describe("an app with no bundle id, as on Windows", () => {
+    const named = {
+      ...answers,
+      "list-apps": ok({
+        apps: [{ name: "notepad", pid: 900, presentation: "foreground" }],
+      }),
+      "list-windows": ok([
+        {
+          accessible: true,
+          id: "w-1.13-org-gnome-Calculator-a11y-0d6cf3d9_a607",
+          pid: 900,
+          title: "Untitled",
+        },
+      ]),
+    };
+
+    it("is asked about by its name, and its yes covers it", async () => {
+      const driver = standInDriver(named);
+      await expect(snapshot(["notepad"], scope)).rejects.toThrow(
+        "using notepad needs the person's yes",
+      );
+      await grantApp(scope.chatId, "notepad");
+      await snapshot(["notepad"], scope);
+      expect(driver.actions().at(-1)?.slice(0, 3)).toEqual([
+        "snapshot",
+        "--window-id",
+        "w-1.13-org-gnome-Calculator-a11y-0d6cf3d9_a607",
+      ]);
+    });
+
+    it("takes a window by the long ids Linux gives them", async () => {
+      standInDriver(named);
+      await grantApp(scope.chatId, "notepad");
+      await expect(
+        snapshot(
+          [
+            "notepad",
+            "--window",
+            "w-1.13-org-gnome-Calculator-a11y-0d6cf3d9_a607",
+          ],
+          scope,
+        ),
+      ).resolves.toMatchObject({ exitCode: 0 });
+    });
+  });
+
+  it.each([
+    ["GNOME Shell, which draws Linux's password prompts", "gnome-shell"],
+    ["Windows's elevation prompt", "consent"],
+    ["another build of this app on Linux", "instrument"],
+  ])("never drives %s, even with a yes", async (_what, name) => {
+    const driver = standInDriver({
+      ...answers,
+      "list-apps": ok({
+        apps: [{ name, pid: 910, presentation: "foreground" }],
+      }),
+    });
+    await grantApp(scope.chatId, name);
+    await expect(snapshot([name], scope)).rejects.toThrow(
+      /can't drive|only they/,
+    );
+    expect(driver.actions()).toEqual([]);
+  });
+
   describe("acting on a ref", () => {
     it("refuses a ref no snapshot in this chat gave out", async () => {
       const driver = standInDriver(answers);

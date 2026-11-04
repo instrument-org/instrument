@@ -1,7 +1,7 @@
 import { featuresAtom } from "@/client/atoms/features";
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { isLinux, isMacOS } from "@/client/lib/utils";
+import { isLinux } from "@/client/lib/utils";
 import { useAtomValue } from "jotai";
 
 /**
@@ -19,7 +19,7 @@ export function useSettingsTabs(): SettingsTab[] {
     "Providers",
     "Memory",
     "Permissions",
-    ...(computerUse && isMacOS() ? (["Computer Use"] as const) : []),
+    ...(computerUse ? (["Computer Use"] as const) : []),
     "Skills",
     "Storage",
     "Activity",

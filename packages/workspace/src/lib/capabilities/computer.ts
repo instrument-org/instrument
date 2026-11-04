@@ -64,7 +64,7 @@ const Ref = z
 
 const WindowId = z
   .string()
-  .regex(/^w-\d+$/, `a window looks like w-123, from ${NAME} windows.`)
+  .regex(/^w-[\w.:-]+$/, `a window looks like w-123, from ${NAME} windows.`)
   .optional()
   .meta({
     description: `A window from ${NAME} windows, where it has several.`,

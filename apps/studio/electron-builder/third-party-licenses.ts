@@ -190,10 +190,9 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     id: "agent-desktop",
     license: () => "Apache-2.0",
     name: "agent-desktop",
-    // Vendored on macOS by scripts/download-agent-desktop.ts, which writes the
-    // version marker and the license text beside the executable.
+    // Vendored by scripts/download-agent-desktop.ts, which writes the version
+    // marker and the license text beside the executable.
     origin: { dir: path.join(STUDIO_DIR, "resources", "agent-desktop") },
-    platforms: ["darwin"],
     ships: ["resources/agent-desktop/"],
     version: (dir) =>
       readFileSync(path.join(dir, ".version"), "utf8").trim().split(" ")[0] ??

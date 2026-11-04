@@ -277,7 +277,10 @@ async function appToAsk(
   given: string,
   role: Role | undefined,
 ): Promise<Decided> {
-  const bundleId = await appBundleId(given);
+  // Only macOS can look an app up by name; elsewhere a card goes by the name
+  // the agent was told, which is the one its gate asks about.
+  const bundleId =
+    process.platform === "darwin" ? await appBundleId(given) : given;
   if (bundleId === undefined) {
     return {
       message: `No app called ${JSON.stringify(given)} is on this computer.`,

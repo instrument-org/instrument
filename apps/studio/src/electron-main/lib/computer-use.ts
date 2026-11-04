@@ -24,7 +24,9 @@ const execFileAsync = promisify(execFile);
  * Services, it would answer as someone else.
  *
  * Accessibility is all the agent needs to read and act. Screen Recording only
- * adds pictures of a window, so setup finishes without it.
+ * adds pictures of a window, so setup finishes without it. Windows and Linux
+ * ask for neither: the driver only has to be able to reach the desktop's
+ * accessibility service, which it reports itself.
  */
 
 const PermissionsSchema = z.object({
@@ -35,7 +37,10 @@ const PermissionsSchema = z.object({
 });
 
 function binaryPath(): string {
-  return getResourcePath("agent-desktop", "agent-desktop");
+  return getResourcePath(
+    "agent-desktop",
+    process.platform === "win32" ? "agent-desktop.exe" : "agent-desktop",
+  );
 }
 
 /** The driver's own folder, which it refuses unless only this user can read it. */
@@ -52,26 +57,29 @@ function isEnabled(): boolean {
 
 function hasAccessibility(): boolean {
   return (
-    process.platform === "darwin" &&
+    process.platform !== "darwin" ||
     systemPreferences.isTrustedAccessibilityClient(false)
   );
+}
+
+/** Whether a grant the driver reports lets it work: a system may not ask for one. */
+function allows(state: string): boolean {
+  return state === "granted" || state === "not_required";
 }
 
 function isReady(): boolean {
   return isEnabled() && existsSync(binaryPath()) && hasAccessibility();
 }
 
-/** The host a workspace gets, on the one platform the driver is carried for. */
-export function computerUseHost(): ComputerUseHost | undefined {
-  return process.platform === "darwin"
-    ? {
-        binaryPath: binaryPath(),
-        isEnabled,
-        isReady,
-        ownBundleId: APP_BUNDLE_ID,
-        stateDir,
-      }
-    : undefined;
+/** The host a workspace gets. */
+export function computerUseHost(): ComputerUseHost {
+  return {
+    binaryPath: binaryPath(),
+    isEnabled,
+    isReady,
+    ownBundleId: APP_BUNDLE_ID,
+    stateDir,
+  };
 }
 
 /**
@@ -89,14 +97,16 @@ export async function computerUseStatus() {
   const read = PermissionsSchema.safeParse(parseJson(answer?.stdout));
   return {
     accessibility: read.success
-      ? read.data.data.accessibility.state === "granted"
+      ? allows(read.data.data.accessibility.state)
       : hasAccessibility(),
     appName: app.getName(),
     installed,
     macOSMajor: Number(process.getSystemVersion().split(".")[0]),
+    // Only macOS has switches for the person to turn on.
+    needsGrants: process.platform === "darwin",
     ready: isReady(),
     screenRecording: read.success
-      ? read.data.data.screen_recording.state === "granted"
+      ? allows(read.data.data.screen_recording.state)
       : false,
   };
 }

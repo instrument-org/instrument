@@ -14,21 +14,27 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { displayPath } from "@/client/lib/path-utils";
+import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { expandHomePath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { XIcon } from "@phosphor-icons/react/X";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { INBOX_HREF } from "./app-tabs";
 import { ChatMarkIcon } from "./chat-mark";
@@ -46,6 +52,7 @@ import {
 } from "./host-path";
 import { siteTabTitles } from "./site-tab-titles";
 import { type StripTab, TabStrip } from "./tab-strip";
+import { type TabMoveDestination } from "./move-tab";
 import { matchScreen } from "./window-href";
 
 /**
@@ -62,6 +69,7 @@ export function AppTabStrip({
   onCloseOthers,
   onCloseToRight,
   onDuplicate,
+  onMove,
   onNew,
   onReload,
   onReorder,
@@ -77,6 +85,7 @@ export function AppTabStrip({
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;
   onDuplicate: (id: TabId) => void;
+  onMove: (id: TabId, to: TabMoveDestination) => void;
   onNew: () => void;
   /** The tab's own reload, for a site's page; undefined where a tab has none. */
   onReload: (id: TabId) => (() => void) | undefined;
@@ -127,9 +136,21 @@ export function AppTabStrip({
     document.title = selectedTitle ?? APP_NAME;
   }, [selectedTitle]);
 
+  const carry = useTabCarry({
+    isOnlyTab: tabs.length === 1,
+    onLand: (key, to) => {
+      const id = idOf(key);
+      if (id) {
+        onMove(id, to);
+      }
+    },
+    titleOf: (key) => whole.find((tab) => tab.key === key)?.title ?? APP_NAME,
+  });
+
   return (
-    <>
+    <div className="contents" data-app-tab-strip="">
       <TabStrip
+        carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
         onClose={(key) => {
           const id = idOf(key);
@@ -166,9 +187,12 @@ export function AppTabStrip({
             onSelect(id);
           }
         }}
+        onTabDrag={carry.onDrag}
+        onTabDragEnd={carry.onDragEnd}
         selectedKey={selectedId ?? undefined}
         tabs={presented}
       />
+      <TabDropMark />
       {/* The menu a right click on a tab raises, anchored at the pointer:
           what a browser's tab menu offers, marks and all, the way the
           system's own menus draw them. */}
@@ -198,12 +222,153 @@ export function AppTabStrip({
             onCloseOthers={onCloseOthers}
             onCloseToRight={onCloseToRight}
             onDuplicate={onDuplicate}
+            onMove={onMove}
             reload={onReload(menu.id)}
           />
         )}
       </DropdownMenu>
-    </>
+    </div>
   );
+}
+
+/** How far past the strip a tab goes before it is being carried out of the window rather than along the row. */
+const CARRY_MARGIN_PX = 24;
+
+/**
+ * Carrying a tab out of the strip. The strip's own reorder goes on holding the
+ * pointer, whose events keep arriving past the window's edge while the button
+ * is down; once the tab is far enough off the row the main process, which sees
+ * every window, follows it and says where it lands. Escape puts it back.
+ */
+function useTabCarry({
+  isOnlyTab,
+  onLand,
+  titleOf,
+}: {
+  isOnlyTab: boolean;
+  onLand: (key: string, to: TabMoveDestination) => void;
+  titleOf: (key: string) => string;
+}) {
+  const [carriedKey, setCarriedKey] = useState<string>();
+  const carrying = useRef<{ canceled: boolean; stopListening: () => void }>(
+    undefined,
+  );
+
+  const onDrag = (key: string, event: PointerEvent) => {
+    if (!carrying.current) {
+      const strip = document
+        .querySelector("[data-app-tab-strip] [role=tablist]")
+        ?.getBoundingClientRect();
+      if (
+        !strip ||
+        (event.clientY >= strip.top - CARRY_MARGIN_PX &&
+          event.clientY <= strip.bottom + CARRY_MARGIN_PX &&
+          event.clientX >= 0 &&
+          event.clientX <= window.innerWidth)
+      ) {
+        return;
+      }
+      const onKeyDown = (keyEvent: KeyboardEvent) => {
+        if (keyEvent.key === "Escape" && carrying.current) {
+          carrying.current.canceled = true;
+          setCarriedKey(undefined);
+        }
+      };
+      window.addEventListener("keydown", onKeyDown, { capture: true });
+      carrying.current = {
+        canceled: false,
+        stopListening: () => {
+          window.removeEventListener("keydown", onKeyDown, { capture: true });
+        },
+      };
+      setCarriedKey(key);
+      void rpcClient.window.startTabDrag.call({
+        isOnlyTab,
+        title: titleOf(key),
+      });
+    }
+    if (!carrying.current.canceled) {
+      void rpcClient.window.moveTabDrag.call({
+        x: event.screenX,
+        y: event.screenY,
+      });
+    }
+  };
+
+  const onDragEnd = (key: string, event: PointerEvent) => {
+    const ending = carrying.current;
+    if (!ending) {
+      return;
+    }
+    carrying.current = undefined;
+    ending.stopListening();
+    setCarriedKey(undefined);
+    void rpcClient.window.endTabDrag
+      .call({
+        canceled: ending.canceled,
+        point: { x: event.screenX, y: event.screenY },
+      })
+      .then((to) => {
+        if (to.kind !== "none") {
+          onLand(key, to);
+        }
+      });
+  };
+
+  return { carriedKey, onDrag, onDragEnd };
+}
+
+/** Where a tab carried from another window would land along this strip. */
+function TabDropMark() {
+  const [clientX, setClientX] = useState<null | number>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const previews = await rpcClient.window.events.tabDropPreview.call(
+          undefined,
+          { signal: controller.signal },
+        );
+        for await (const preview of previews) {
+          setClientX(preview.clientX);
+        }
+      } catch {
+        // The window closing ends the stream.
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+  }, []);
+  const edges = [
+    ...document.querySelectorAll<HTMLElement>(
+      "[data-app-tab-strip] [data-tab-key]",
+    ),
+  ].flatMap((element) => {
+    const { left, right, top, height } = element.getBoundingClientRect();
+    return [
+      { height, top, x: left },
+      { height, top, x: right },
+    ];
+  });
+  const nearest =
+    clientX === null
+      ? undefined
+      : edges.toSorted(
+          (a, b) => Math.abs(a.x - clientX) - Math.abs(b.x - clientX),
+        )[0];
+  const style = useWindowPointStyle({
+    x: nearest?.x ?? 0,
+    y: nearest?.top ?? 0,
+  });
+  return nearest ? (
+    <span
+      aria-hidden
+      className="pointer-events-none fixed z-50 h-8 w-0.5 -translate-x-1/2 rounded-full bg-ring"
+      data-tab-drop-mark=""
+      style={style}
+    />
+  ) : null;
 }
 
 /**
@@ -270,6 +435,7 @@ function TabMenu({
   onCloseOthers,
   onCloseToRight,
   onDuplicate,
+  onMove,
   reload,
 }: {
   id: TabId;
@@ -280,8 +446,12 @@ function TabMenu({
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;
   onDuplicate: (id: TabId) => void;
+  onMove: (id: TabId, to: TabMoveDestination) => void;
   reload: (() => void) | undefined;
 }) {
+  const others = useQuery(
+    rpcClient.window.live.others.experimental_liveOptions(),
+  ).data;
   const isDeveloperMode = useDeveloperMode();
   const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
 
@@ -306,6 +476,36 @@ function TabMenu({
         <NewTabIcon className="size-4" />
         <span>Duplicate Tab</span>
       </DropdownMenuItem>
+      {isOnly ? null : (
+        <DropdownMenuItem
+          onClick={() => {
+            onMove(id, { kind: "new" });
+          }}
+        >
+          <AppWindowIcon className="size-4" />
+          <span>Move to New Window</span>
+        </DropdownMenuItem>
+      )}
+      {others && others.length > 0 ? (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <ArrowSquareOutIcon className="size-4" />
+            <span>Move to Window</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {others.map((other) => (
+              <DropdownMenuItem
+                key={other.id}
+                onClick={() => {
+                  onMove(id, { id: other.id, kind: "window" });
+                }}
+              >
+                <span className="truncate">{other.title}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      ) : null}
       {/* A site's page shows nothing developer mode adds, so only a
           screen's tab offers it. */}
       {isDeveloperMode && !reload && (

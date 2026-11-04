@@ -93,6 +93,35 @@ export function closeTab(
 }
 
 /**
+ * A tab gone to another window: out of the strip as a close would take it, and
+ * not one this window can reopen.
+ */
+export function removeTab(
+  model: TabsModel,
+  { id, newTab }: { id: TabId; newTab: { id: TabId; pathname: string } },
+): TabsModel {
+  const closed = closeTab(model, { id, newTab });
+  return closed === model
+    ? model
+    : { ...closed, recentlyClosed: model.recentlyClosed };
+}
+
+/** A tab from another window, up, at a place along the strip or at its end. */
+export function insertTab(
+  model: TabsModel,
+  { index, tab }: { index?: number; tab: Tab },
+): TabsModel {
+  const others = model.tabs.filter((each) => each.id !== tab.id);
+  const at =
+    index === undefined ? others.length : Math.min(index, others.length);
+  return {
+    ...model,
+    selectedId: tab.id,
+    tabs: [...others.slice(0, at), tab, ...others.slice(at)],
+  };
+}
+
+/**
  * Every tab but this one closed, up or not, and this one up. The closed go on
  * the closed list leftmost first, so reopening one after another puts the
  * strip back in the order it had.

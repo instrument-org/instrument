@@ -10,9 +10,28 @@
  * bookmarks: they are a synced store every device writes its own file of
  * (`shared/bookmarks.ts`).
  */
-export const KEPT_FILES = ["layout", "view"] as const;
+export const SHARED_KEPT_FILES = ["layout", "view"] as const;
+
+/**
+ * What one window keeps for itself, where the others keep their own: its
+ * strip of tabs and what it had up. A key of `layout` and `view` is the same
+ * for every window, and each window's write reaches the others; a key of
+ * `window` goes with the window it was written in.
+ */
+export const WINDOW_KEPT_FILE = "window";
+
+export const KEPT_FILES = [...SHARED_KEPT_FILES, WINDOW_KEPT_FILE] as const;
 
 export type KeptFile = (typeof KEPT_FILES)[number];
+
+/** The keys an earlier build kept for its one window in `layout`, which the first window takes as its own. */
+export const WINDOW_KEPT_KEYS = [
+  "app-tabs.v2",
+  "chat-group.v2",
+  "compose.v2",
+  "files-folder.v1",
+  "inbox-open.v1",
+] as const;
 
 /** Every kept file's keys and values, as a window loads them. */
 export type KeptSnapshot = Partial<Record<KeptFile, Record<string, unknown>>>;
@@ -24,10 +43,12 @@ export function isKeptFile(file: unknown): file is KeptFile {
 /**
  * The IPC channels between a window and the kept state: `load` is the
  * preload's synchronous read of every file, `set` a window's write of one key
- * (`undefined` removes it), and `changed` the main process telling the other
- * windows about a write.
+ * (`undefined` removes it), `changed` the main process telling the other
+ * windows about a write, and `acrossWindows` a synchronous read of one key of
+ * `window` as every window kept it, closed windows that can come back included.
  */
 export const KEPT_STATE_CHANNEL = {
+  acrossWindows: "kept-state:across-windows",
   changed: "kept-state:changed",
   load: "kept-state:load",
   set: "kept-state:set",

@@ -30,7 +30,10 @@ import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type BrowserGuestTarget } from "@/shared/browser";
-import { BrowserTargetIdSchema } from "@instrument-org/workspace/electron";
+import {
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import { z } from "zod";
 
@@ -38,59 +41,79 @@ import { z } from "zod";
 // pool mounts a `<webview>` for every id (mounting is what triggers the attach);
 // the UI derives "live" from `attached`. Single source of truth for both, so
 // there's no separate polled endpoint.
-function currentTargets(): BrowserGuestTarget[] {
-  return getBrowserViewManager().getTargets();
+function currentTargets(webContentsId: number): BrowserGuestTarget[] {
+  return getBrowserViewManager().getTargets(webContentsId);
+}
+
+/** Whether what is asked of a guest is for this window, which mounts it. */
+function isForHost(webContentsId: number, targetId: BrowserTargetId) {
+  return getBrowserViewManager().isHostOf(webContentsId, targetId);
 }
 
 const events = {
-  focusGuest: base.handler(async function* ({ signal }) {
+  focusGuest: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe("browser.focus-guest", {
       signal,
     })) {
-      yield event;
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
     }
   }),
-  navigationRefused: base.handler(async function* ({ signal }) {
+  navigationRefused: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe(
       "browser.navigation-refused",
       { signal },
     )) {
-      yield event;
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
     }
   }),
-  openInNewTab: base.handler(async function* ({ signal }) {
+  openInNewTab: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe("browser.open-in-new-tab", {
       signal,
     })) {
-      yield event;
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
     }
   }),
-  restoreHostFocus: base.handler(async function* ({ signal }) {
-    for await (const _ of publisher.subscribe("browser.restore-host-focus", {
-      signal,
-    })) {
-      yield null;
+  restoreHostFocus: base.handler(async function* ({ context, signal }) {
+    for await (const { targetId } of publisher.subscribe(
+      "browser.restore-host-focus",
+      { signal },
+    )) {
+      if (isForHost(context.webContentsId, targetId)) {
+        yield null;
+      }
     }
   }),
   // Sizes for parked guests. Replays what is already recorded before streaming
   // changes, so a renderer reload restores every size the model asked for
   // rather than silently reverting its guests to the panel's last bounds.
-  setGuestSurface: base.handler(async function* ({ signal }) {
+  setGuestSurface: base.handler(async function* ({ context, signal }) {
     for (const [targetId, size] of getDesiredGuestSurfaces()) {
-      yield { size, targetId };
+      if (isForHost(context.webContentsId, targetId)) {
+        yield { size, targetId };
+      }
     }
 
     for await (const event of publisher.subscribe("browser.set-guest-surface", {
       signal,
     })) {
-      yield event;
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
     }
   }),
-  stepPage: base.handler(async function* ({ signal }) {
+  stepPage: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe("browser.step-page", {
       signal,
     })) {
-      yield event;
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
     }
   }),
 };
@@ -125,10 +148,18 @@ const live = {
   // set (mount on add, dispose on remove) and the UI reads `attached`.
   // Re-subscribing always yields the current set, so nothing is stranded by a
   // change that happened before the listener existed.
-  targets: base.handler(async function* ({ signal }) {
+  targets: base.handler(async function* ({ context, signal }) {
     yield* liveRead({
       changes: [publisher.subscribe("browser.targets-changed", { signal })],
-      read: currentTargets,
+      read: () => currentTargets(context.webContentsId),
+    });
+  }),
+  // The pages other windows have guests for, and whether each shows its page.
+  targetsElsewhere: base.handler(async function* ({ context, signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.targets-changed", { signal })],
+      read: () =>
+        getBrowserViewManager().getTargetsElsewhere(context.webContentsId),
     });
   }),
 };

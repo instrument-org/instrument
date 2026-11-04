@@ -19,7 +19,7 @@ function freshTabsModel(pathname: string): TabsModel {
  */
 export function tabsAtomOf(key: string, pathname: string) {
   return keptAtom<TabsModel>(
-    "layout",
+    "window",
     key,
     freshTabsModel(pathname),
     (value, initial) => {

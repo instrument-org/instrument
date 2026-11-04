@@ -17,11 +17,23 @@ import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  FIRST_APP_WINDOW_ID,
+  forgetWindowKeptState,
+  getWindowKeptState,
+  setWindowKeptState,
+} from "@/electron-main/stores/workspace/kept-state";
+import {
   getAppZoom,
   getWindowState,
   hasWindowState,
+  keepBoundsOnScreen,
+  forgetWindow,
+  rememberedWindowIds,
+  rememberWindowClosed,
+  rememberWindowInFront,
 } from "@/electron-main/stores/workspace/window-state";
 import {
+  expectRestoredWindows,
   isDrivenInstance,
   isHeldOffScreen,
   putOnScreen,
@@ -31,6 +43,10 @@ import {
   createAppWindowAsks,
 } from "@/electron-main/windows/app-window-asks";
 import {
+  forgetAppWindowName,
+  nameAppWindow,
+} from "@/electron-main/windows/app-window-ids";
+import {
   opensSetupSized,
   forgetSetupWindowPlace,
   grownFromSetup,
@@ -39,30 +55,51 @@ import {
 } from "@/electron-main/windows/setup-size";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
+import { type Tab } from "@/shared/tabs";
 import { app, BrowserWindow } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
 
-/** The shape this window takes the first time, before it has been sized. */
+/** The shape a window takes the first time, before it has been sized. */
 const WINDOW_WIDTH = 1240;
 const WINDOW_HEIGHT = 840;
 
-let appWindow: BrowserWindow | null = null;
+/** How far a new window stands off the one in front of it, so both show. */
+const CASCADE_PX = 26;
+
+/** The key a window keeps its strip of tabs under. */
+const APP_TABS_KEY = "app-tabs.v2";
+
+/** Each open window, by the id it keeps its state under. */
+const openWindows = new Map<string, BrowserWindow>();
+
+/** The open windows, the one last in front first. */
+let inFront: BrowserWindow[] = [];
 
 /**
- * Whether the window is at setup's own shape, fixed, which is never saved as
- * where the window was left. Set as it opens, and cleared once setup is done.
+ * The window at setup's own shape, fixed, which is never saved as where the
+ * window was left. Set as it opens, and cleared once setup is done.
  */
-let isSetupSized = false;
+let setupSized: BrowserWindow | null = null;
 
 /**
- * Whether boot has opened the window yet. It opens the first once setup's
+ * Whether boot has opened a window yet. It opens the first once setup's
  * facts are known, so an ask that arrives before then waits for that one
  * rather than opening a window of its own.
  */
 let hasOpened = false;
+
+/** The windows whose every tab went to another window, which leave nothing to come back to. */
+const emptied = new Set<BrowserWindow>();
+
+/** The windows a launch brings back once setup is out of the way. */
+let waitingForSetup: string[] = [];
+
+/** The windows whose page has asked for what waited for it, and so hear the command stream. */
+const listening = new Set<number>();
 
 /**
  * Asks from outside, in order: several files handed over at once arrive one
@@ -73,19 +110,131 @@ let hasOpened = false;
  */
 const asks = createAppWindowAsks({
   deliver: (ask) => {
-    publisher.publish("window.command", ask);
+    const window =
+      inFront.find((each) => listening.has(each.webContents.id)) ?? null;
+    if (window) {
+      commandWindow(window, ask);
+    }
   },
   isHeld: isSetupUp,
 });
 
+/** A window's page stopped hearing the command stream; asks wait once none is. */
+function stopListening(webContentsId: number) {
+  listening.delete(webContentsId);
+  if (listening.size === 0) {
+    asks.stopTaking();
+  }
+}
+
+/** The window last in front, which is what the app means by "the window". */
 export function getAppWindow(): BrowserWindow | null {
-  return appWindow && !appWindow.isDestroyed() ? appWindow : null;
+  return inFront.find((window) => !window.isDestroyed()) ?? null;
+}
+
+/** Every open app window, the one last in front first. */
+export function getAppWindows(): BrowserWindow[] {
+  return inFront.filter((window) => !window.isDestroyed());
+}
+
+export function isAppWindow(window: BrowserWindow) {
+  return inFront.includes(window);
+}
+
+/** Whether this web contents is the one app window there is. */
+export function isOnlyAppWindow(webContentsId: number) {
+  const windows = getAppWindows();
+  return windows.length === 1 && windows[0]?.webContents.id === webContentsId;
+}
+
+export function appWindowIdOfWindow(window: BrowserWindow) {
+  for (const [id, each] of openWindows) {
+    if (each === window) {
+      return id;
+    }
+  }
+  return undefined;
+}
+
+/** The other windows, front to back, by what each is called now. */
+export function otherAppWindows(webContentsId: number) {
+  return getAppWindows()
+    .filter((window) => window.webContents.id !== webContentsId)
+    .flatMap((window) => {
+      const id = appWindowIdOfWindow(window);
+      return id === undefined ? [] : [{ id, title: window.getTitle() }];
+    });
+}
+
+function keptTabsOf(id: string) {
+  const model = getWindowKeptState(id, APP_TABS_KEY);
+  if (model === null || typeof model !== "object") {
+    return { selectedId: undefined, tabs: [] };
+  }
+  const tabs: unknown[] =
+    "tabs" in model && Array.isArray(model.tabs) ? model.tabs : [];
+  return {
+    selectedId:
+      "selectedId" in model && typeof model.selectedId === "string"
+        ? model.selectedId
+        : undefined,
+    tabs: tabs.flatMap((tab) =>
+      typeof tab === "object" &&
+      tab !== null &&
+      "id" in tab &&
+      "pathname" in tab &&
+      typeof tab.id === "string" &&
+      typeof tab.pathname === "string"
+        ? [{ id: tab.id, pathname: tab.pathname }]
+        : [],
+    ),
+  };
+}
+
+/**
+ * The window that has a screen in a tab, by its address: the one with that
+ * tab up if there is one, else the one in front of the others with it behind.
+ */
+export function appWindowShowing(href: string): BrowserWindow | null {
+  const standsThere = (pathname: string) =>
+    pathname === href || pathname.startsWith(`${href}?`);
+  let behind: BrowserWindow | null = null;
+  for (const window of getAppWindows()) {
+    const id = appWindowIdOfWindow(window);
+    if (id !== undefined) {
+      const { selectedId, tabs } = keptTabsOf(id);
+      const tab = tabs.find(
+        (each) => each.id === selectedId && standsThere(each.pathname),
+      );
+      if (tab) {
+        return window;
+      }
+      if (!behind && tabs.some((each) => standsThere(each.pathname))) {
+        behind = window;
+      }
+    }
+  }
+  return behind;
+}
+
+/**
+ * Which window answers what a chat asks of its tabs: the one showing the chat,
+ * else the one in front. Exactly one does, so a tab an agent opens opens once.
+ */
+export function isWindowForChat(
+  webContentsId: number,
+  chatId: string | undefined,
+) {
+  const window =
+    (chatId === undefined ? null : appWindowShowing(`/chats/${chatId}`)) ??
+    getAppWindow();
+  return window?.webContents.id === webContentsId;
 }
 
 /**
  * Opens a file handed to the app from outside it, a double click, Open With,
- * or a drop on the Dock icon, in the window that is open or the one this
- * opens. A folder opens in the folder view, standing in it.
+ * or a drop on the Dock icon, in the window in front or the one this opens. A
+ * folder opens in the folder view, standing in it.
  */
 export function openAppFile(hostPath: string) {
   if (isFolder(hostPath)) {
@@ -104,34 +253,214 @@ function isFolder(hostPath: string) {
 }
 
 /**
- * Puts a screen of the window up, by its route: in the window that is open,
- * or in the one this opens. What a link from outside the app asks for.
+ * Puts a screen of the window up, by its route: in the window that has it, in
+ * the one in front, or in the one this opens. What a link from outside the app
+ * asks for.
  */
 export function openAppScreen(href: string) {
+  const showing = appWindowShowing(href);
+  if (showing) {
+    if (!isHeldOffScreen(showing)) {
+      showing.focus();
+    }
+    askWindow(showing, { href, type: "openScreen" });
+    return;
+  }
   askAppWindow({ href, type: "openScreen" });
 }
 
 /**
- * The app window: the inbox of chats, the tasks they started, and the tabs
- * the user and the agents open. Its renderer hosts every task's browser guest.
+ * The window last in front, or, with none open, the one last closed brought
+ * back as it was. A launch brings back every window (`restoreAppWindows`).
  */
 export function openAppWindow(): BrowserWindow {
-  if (appWindow && !appWindow.isDestroyed()) {
-    if (!isHeldOffScreen(appWindow)) {
-      appWindow.focus();
+  const front = getAppWindow();
+  if (front) {
+    if (!isHeldOffScreen(front)) {
+      front.focus();
     }
-    return appWindow;
+    return front;
   }
+  const { closed, open } = rememberedWindowIds(FIRST_APP_WINDOW_ID);
+  return createAppWindow(closed[0] ?? open.at(-1) ?? FIRST_APP_WINDOW_ID);
+}
 
+/**
+ * Every window the workspace was left with, each where it was with its tabs,
+ * the one last in front on top; or the one closed last where all of them were
+ * closed. While setup is up only that one opens, since setup draws over it,
+ * and the rest come back as it goes down.
+ */
+export function restoreAppWindows() {
+  const { closed, open } = rememberedWindowIds(FIRST_APP_WINDOW_ID);
+  const ids = open.length > 0 ? open : [closed[0] ?? FIRST_APP_WINDOW_ID];
+  if (isSetupUp()) {
+    const front = ids.at(-1) ?? FIRST_APP_WINDOW_ID;
+    waitingForSetup = ids.filter((id) => id !== front);
+    createAppWindow(front);
+    return;
+  }
+  expectRestoredWindows(ids.length);
+  const windows = ids.map((id) => createAppWindow(id));
+  // Each comes up as its page is ready, in no particular order, so the one
+  // that was in front goes back there once they all have.
+  const front = windows.at(-1);
+  if (front && windows.length > 1) {
+    let waiting = windows.length;
+    for (const window of windows) {
+      window.once("ready-to-show", () => {
+        waiting -= 1;
+        if (waiting === 0 && !front.isDestroyed() && !isHeldOffScreen(front)) {
+          front.moveTop();
+        }
+      });
+    }
+  }
+}
+
+/** A window of its own, at the inbox, standing off the one in front. */
+export function openNewAppWindow(): BrowserWindow | null {
+  if (isSetupUp()) {
+    return null;
+  }
+  return createAppWindow(newWindowId(), { bounds: cascadedBounds() });
+}
+
+/** Closes a window all of whose tabs went elsewhere. */
+export function closeEmptiedWindow(window: BrowserWindow) {
+  emptied.add(window);
+  window.close();
+}
+
+/** Whether a closed window can come back. */
+export function canReopenClosedAppWindow() {
+  return rememberedWindowIds(FIRST_APP_WINDOW_ID).closed.some(
+    (id) => !openWindows.has(id),
+  );
+}
+
+/** The window closed last, as it was. False when none can come back. */
+export function reopenClosedAppWindow() {
+  const id = rememberedWindowIds(FIRST_APP_WINDOW_ID).closed.find(
+    (closed) => !openWindows.has(closed),
+  );
+  if (id === undefined || isSetupUp()) {
+    return false;
+  }
+  createAppWindow(id);
+  return true;
+}
+
+/** Whether there is more than one window to merge. */
+export function canMergeWindows() {
+  return getAppWindows().length > 1;
+}
+
+/** Every other window's tabs into the one in front, each closing as its last tab leaves. */
+export function mergeAllWindows() {
+  const [front, ...others] = getAppWindows();
+  const to = front && appWindowIdOfWindow(front);
+  if (to === undefined) {
+    return;
+  }
+  for (const other of others) {
+    commandWindow(other, { to, type: "sendEveryTab" });
+  }
+}
+
+/**
+ * Hands a tab, history and all, to another window: one opening around it at a
+ * point, or one already open, which puts it at a place along its strip.
+ * False when that window has gone since.
+ */
+export function moveTabToWindow(
+  tab: Tab,
+  to:
+    | { clientX?: number | undefined; id: string; kind: "window" }
+    | { kind: "new"; point?: undefined | { x: number; y: number } },
+) {
+  if (to.kind === "window") {
+    // A page not listening yet could not take it, and the tab would be lost;
+    // this way it stays where it is.
+    const target = openWindows.get(to.id);
+    if (
+      !target ||
+      target.isDestroyed() ||
+      !listening.has(target.webContents.id)
+    ) {
+      return false;
+    }
+    commandWindow(target, {
+      ...(to.clientX === undefined ? {} : { clientX: to.clientX }),
+      tab,
+      type: "receiveTab",
+    });
+    if (!isHeldOffScreen(target)) {
+      if (target.isMinimized()) {
+        target.restore();
+      }
+      target.focus();
+    }
+    return true;
+  }
+  const id = newWindowId();
+  setWindowKeptState(id, APP_TABS_KEY, {
+    recentlyClosed: [],
+    selectedId: tab.id,
+    tabs: [tab],
+  });
+  const beside = cascadedBounds();
+  createAppWindow(id, {
+    bounds: to.point
+      ? keepBoundsOnScreen({
+          ...beside,
+          x: Math.round(to.point.x - beside.width / 2),
+          y: Math.round(to.point.y - 20),
+        })
+      : beside,
+  });
+  return true;
+}
+
+function newWindowId() {
+  return `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** The size of the window in front and a step off it, or a first window's. */
+function cascadedBounds() {
+  const front = getAppWindow();
+  if (!front) {
+    return rememberedStateOf(FIRST_APP_WINDOW_ID).bounds;
+  }
+  const bounds = front.getNormalBounds();
+  return keepBoundsOnScreen({
+    ...bounds,
+    x: bounds.x + CASCADE_PX,
+    y: bounds.y + CASCADE_PX,
+  });
+}
+
+/**
+ * An app window: the inbox of chats, the tasks they started, and the tabs the
+ * user and the agents open. Its renderer hosts the browser guests of the pages
+ * it shows. `id` is what it keeps its state under, which a window brought back
+ * finds as it was left.
+ */
+function createAppWindow(
+  id: string,
+  { bounds }: { bounds?: ReturnType<typeof cascadedBounds> } = {},
+): BrowserWindow {
   hasOpened = true;
   watchSetup();
-  const remembered = rememberedAppWindowState();
+  const remembered = rememberedStateOf(id);
   // Someone new meets setup in a window its own size; someone shown one new
   // step after an update keeps the window as they left it.
-  isSetupSized = opensSetupSized(readSetupState());
+  const isSetupSized =
+    openWindows.size === 0 && opensSetupSized(readSetupState());
+  const opening = bounds ?? remembered.bounds;
 
-  appWindow = new BrowserWindow({
-    ...(isSetupSized ? setupBounds() : remembered.bounds),
+  const window = new BrowserWindow({
+    ...(isSetupSized ? setupBounds() : opening),
     // Left to itself, Electron paints the active window's edge from Windows'
     // accent setting and can get the color wrong (default blue where the
     // system's own windows use the person's accent). Off, Windows draws its
@@ -165,20 +494,30 @@ export function openAppWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
+  if (isSetupSized) {
+    setupSized = window;
+  }
 
-  const tracked = trackWindowBounds(appWindow, "app", {
-    isHeld: () => isSetupSized,
+  const webContentsId = window.webContents.id;
+  // Named before it loads: its preload asks for what it kept as it does.
+  nameAppWindow(webContentsId, id);
+  openWindows.set(id, window);
+  inFront = [window, ...inFront];
+  rememberWindowInFront(id);
+  publisher.publish("windows.changed", null);
+
+  const tracked = trackWindowBounds(window, id, {
+    isHeld: () => setupSized === window,
   });
   // Setup's window comes back where it was after a restart setup makes,
   // which is a quit like any other.
-  const setupWindow = appWindow;
   const keepSetupPlace = () => {
-    if (isSetupSized && !setupWindow.isDestroyed()) {
-      keepSetupWindowPlace(setupWindow.getBounds());
+    if (setupSized === window && !window.isDestroyed()) {
+      keepSetupWindowPlace(window.getBounds());
     }
   };
   app.on("before-quit", keepSetupPlace);
-  setupWindow.on("closed", () => {
+  window.on("closed", () => {
     app.off("before-quit", keepSetupPlace);
   });
   // Every way this window changes shape. `will-resize` and `move` are here
@@ -187,9 +526,9 @@ export function openAppWindow(): BrowserWindow {
   const sized = () => {
     tracked.saveSoon();
   };
-  appWindow.on("will-resize", sized);
-  appWindow.on("resize", sized);
-  appWindow.on("move", sized);
+  window.on("will-resize", sized);
+  window.on("resize", sized);
+  window.on("move", sized);
   // Also told to the renderer, which draws this window's own maximize and
   // restore glyph and, on an X11 session, the hairline that has to go when an
   // edge sits against the screen. The OS drives these as well as the buttons
@@ -198,23 +537,22 @@ export function openAppWindow(): BrowserWindow {
     sized();
     publisher.publish("window.state-changed", null);
   };
-  appWindow.on("maximize", changedShape);
-  appWindow.on("unmaximize", changedShape);
-  appWindow.on("enter-full-screen", changedShape);
-  appWindow.on("leave-full-screen", changedShape);
+  window.on("maximize", changedShape);
+  window.on("unmaximize", changedShape);
+  window.on("enter-full-screen", changedShape);
+  window.on("leave-full-screen", changedShape);
 
   // Center the lights in the window bar for the zoom the renderer last
   // reported, so they are in place for the first paint instead of jumping once
   // this window mounts and syncs its own. Set here rather than through the
   // `trafficLightPosition` option, which only applies to frameless windows; this
   // one keeps its macOS frame.
-  setTrafficLightForZoom(appWindow, getAppZoom());
+  setTrafficLightForZoom(window, getAppZoom());
 
-  const window = appWindow;
   showWhenReady(window, () => {
     if (!window.isDestroyed()) {
       putOnScreen(window, {
-        maximized: !isSetupSized && remembered.isMaximized,
+        maximized: !isSetupSized && !bounds && remembered.isMaximized,
       });
     }
   });
@@ -223,40 +561,55 @@ export function openAppWindow(): BrowserWindow {
   // running-work warning has to happen here, while the window still exists.
   // Asking after the fact would destroy the window first and leave a canceled
   // quit with a running process the user can't get back to.
-  appWindow.on("close", (event) => {
+  window.on("close", (event) => {
     if (
       !quitsWithLastWindow ||
       isQuitApproved() ||
-      hasVisibleWindowOtherThan(appWindow)
+      hasVisibleWindowOtherThan(window)
     ) {
       return;
     }
     event.preventDefault();
     void requestQuitApproval().then((approved) => {
-      if (approved && appWindow && !appWindow.isDestroyed()) {
-        appWindow.close();
+      if (approved && !window.isDestroyed()) {
+        window.close();
       }
     });
   });
 
   // A page loading afresh is not listening yet; what is asked meanwhile waits
   // for it to ask again.
-  appWindow.webContents.on(
+  window.webContents.on(
     "did-start-navigation",
     ({ isMainFrame, isSameDocument }) => {
       if (isMainFrame && !isSameDocument) {
-        asks.stopTaking();
+        stopListening(webContentsId);
       }
     },
   );
-  appWindow.webContents.on("render-process-gone", () => {
-    asks.stopTaking();
+  window.webContents.on("render-process-gone", () => {
+    stopListening(webContentsId);
   });
 
-  appWindow.on("closed", () => {
-    appWindow = null;
-    isSetupSized = false;
-    asks.stopTaking();
+  window.on("closed", () => {
+    openWindows.delete(id);
+    inFront = inFront.filter((each) => each !== window);
+    forgetAppWindowName(webContentsId);
+    if (setupSized === window) {
+      setupSized = null;
+    }
+    stopListening(webContentsId);
+    // A quit closes windows too, and those are what the next launch brings
+    // back. A window the person closed can come back on request instead.
+    if (emptied.delete(window)) {
+      forgetWindow(id);
+      forgetWindowKeptState(id);
+    } else if (!isQuitApproved()) {
+      for (const gone of rememberWindowClosed(id)) {
+        forgetWindowKeptState(gone);
+      }
+    }
+    publisher.publish("windows.changed", null);
     publisher.publish("window.focus-changed", null);
     // The window is already out of the list by now, so nothing to exclude.
     if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
@@ -264,20 +617,27 @@ export function openAppWindow(): BrowserWindow {
     }
   });
 
-  appWindow.on("focus", () => {
+  window.on("focus", () => {
+    inFront = [window, ...inFront.filter((each) => each !== window)];
+    rememberWindowInFront(id);
     publisher.publish("window.focus-changed", null);
   });
 
-  appWindow.webContents.setWindowOpenHandler((details) => {
+  // What the Window menu and a tab's menu call it.
+  window.on("page-title-updated", () => {
+    publisher.publish("windows.changed", null);
+  });
+
+  window.webContents.setWindowOpenHandler((details) => {
     void openExternal(details.url);
     return { action: "deny" };
   });
 
-  guardNavigation(appWindow.webContents);
-  bindAppWindowChords(appWindow.webContents);
+  guardNavigation(window.webContents);
+  bindAppWindowChords(window.webContents);
   // The Developer menu's chords, which would otherwise reach this window only
   // when the page leaves the key unhandled.
-  bindShortcutAccelerators(appWindow.webContents, {
+  bindShortcutAccelerators(window.webContents, {
     group: "Developer",
   });
 
@@ -285,66 +645,72 @@ export function openAppWindow(): BrowserWindow {
   // thumb button ask for history here rather than in the page; the window's
   // own router answers. A thumb button on a Mac or Windows reaches only the
   // page, which answers it itself.
-  appWindow.on("swipe", (_event, direction) => {
+  window.on("swipe", (_event, direction) => {
     if (direction === "left") {
-      publisher.publish("window.command", "back");
+      commandWindow(window, "back");
     } else if (direction === "right") {
-      publisher.publish("window.command", "forward");
+      commandWindow(window, "forward");
     }
   });
-  appWindow.on("app-command", (event, command) => {
+  window.on("app-command", (event, command) => {
     if (command === "browser-backward") {
       event.preventDefault();
-      publisher.publish("window.command", "back");
+      commandWindow(window, "back");
     } else if (command === "browser-forward") {
       event.preventDefault();
-      publisher.publish("window.command", "forward");
+      commandWindow(window, "forward");
     }
   });
 
-  // Every browser guest, the user's tabs and the tasks' pages alike, is
-  // mounted by this window's pool and driven by the manager, so a task can be
-  // handed a tab by target id.
-  getBrowserViewManager().bindHost(appWindow.webContents);
+  // The guests of the pages this window shows are mounted by its pool and
+  // driven by the manager, so a task can be handed a tab by target id.
+  getBrowserViewManager().bindHost(window.webContents);
 
-  loadWindowURL(appWindow.webContents, studioURL("/chats/"));
+  loadWindowURL(window.webContents, studioURL("/chats/"));
 
   createContextMenu({
-    browserWindow: appWindow,
+    browserWindow: window,
     onOpenLink: (options) => {
-      publisher.publish("window.open-menu-link", options);
+      publisher.publish("window.open-menu-link", {
+        ...options,
+        webContentsId,
+      });
     },
   });
 
-  return appWindow;
+  return window;
 }
 
-/** Where the app window opens: where it was left, or its first-time shape. */
-function rememberedAppWindowState() {
-  return getWindowState("app", {
+/** Where a window opens: where it was left, or its first-time shape. */
+function rememberedStateOf(id: string) {
+  return getWindowState(id, {
     height: WINDOW_HEIGHT,
     width: WINDOW_WIDTH,
   });
 }
 
-/** What waits for the window without taking it yet. */
+/** What waits for a window without taking it yet. */
 export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
   return asks.waiting;
 }
 
 /**
- * What was asked of the window while it was opening, once, then nothing.
+ * What was asked of the windows while one was opening, once, then nothing.
  * Nothing while setup is up: what waits goes to the window when it is done.
  */
-export function takePendingAppWindowAsks(): AppWindowAsk[] {
+export function takePendingAppWindowAsks(
+  webContentsId: number,
+): AppWindowAsk[] {
+  listening.add(webContentsId);
   return asks.take();
 }
 
 let isWatchingSetup = false;
 
 /**
- * Follows setup going down: the window takes the remembered shape back, and
- * gets what was asked of it meanwhile.
+ * Follows setup going down: the window takes the remembered shape back, the
+ * windows it held back come up, and the window gets what was asked of it
+ * meanwhile.
  */
 function watchSetup() {
   if (isWatchingSetup) {
@@ -356,25 +722,31 @@ function watchSetup() {
       return;
     }
     leaveSetupSize();
+    const waiting = waitingForSetup;
+    waitingForSetup = [];
+    for (const id of waiting) {
+      createAppWindow(id);
+    }
     asks.release();
   });
 }
 
 /** Back to the window's remembered bounds, resizable again, at once. */
 function leaveSetupSize() {
-  const window = getAppWindow();
-  if (!window || !isSetupSized) {
+  const window = setupSized;
+  if (!window || window.isDestroyed()) {
     return;
   }
-  isSetupSized = false;
+  setupSized = null;
+  const id = appWindowIdOfWindow(window) ?? FIRST_APP_WINDOW_ID;
   forgetSetupWindowPlace();
   window.setResizable(true);
   window.setMaximizable(true);
   window.setFullScreenable(true);
   // A window never sized before grows where setup was, rather than jumping
   // to the middle of the main display.
-  const { bounds, isMaximized } = hasWindowState("app")
-    ? rememberedAppWindowState()
+  const { bounds, isMaximized } = hasWindowState(id)
+    ? rememberedStateOf(id)
     : {
         bounds: grownFromSetup(window.getBounds(), {
           height: WINDOW_HEIGHT,
@@ -391,14 +763,14 @@ function leaveSetupSize() {
 }
 
 export function updateAppWindowBackgroundColor() {
-  if (appWindow && !appWindow.isDestroyed()) {
-    appWindow.setBackgroundColor(getBackgroundColor());
+  for (const window of getAppWindows()) {
+    window.setBackgroundColor(getBackgroundColor());
   }
 }
 
 /**
- * Puts up what something outside the window asked for, in the window that is
- * open or the one this opens, once it can show it.
+ * Puts up what something outside the window asked for, in the window in front
+ * or the one this opens, once it can show it.
  */
 export function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
@@ -416,6 +788,15 @@ export function askAppWindow(ask: AppWindowAsk) {
   if (hasOpened) {
     openAppWindow();
   }
+}
+
+/** Puts up what was asked in one window, or in the one in front while that one's page cannot hear it. */
+export function askWindow(window: BrowserWindow, ask: AppWindowAsk) {
+  if (listening.has(window.webContents.id) && !isSetupUp()) {
+    commandWindow(window, ask);
+    return;
+  }
+  asks.ask(ask);
 }
 
 /**

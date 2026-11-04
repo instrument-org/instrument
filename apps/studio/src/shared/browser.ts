@@ -33,6 +33,8 @@ export const BROWSER_GUEST_VIEWPORT = { height: 800, width: 1280 };
  * only attached targets as "live" (guest present, not a placeholder).
  */
 export interface BrowserGuestTarget {
+  /** The page its element opens on, where it is not the blank page every guest starts on. */
+  src?: string | undefined;
   // Whether the guest is asleep (BrowserEntry.asleep): the pool hides its
   // element so it draws nothing while no slot shows it.
   asleep: boolean;

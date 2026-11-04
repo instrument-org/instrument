@@ -184,6 +184,24 @@ export function createHelpMenu({
  * to close the window, which wins over Close Tab for a key a focused page
  * leaves to the menu.
  */
-export function createWindowMenu(): MenuItemConstructorOptions[] {
-  return IS_MAC ? [{ label: "Window", role: "windowMenu" as const }] : [];
+export function createWindowMenu(
+  windowItems: MenuItemConstructorOptions[] = [],
+): MenuItemConstructorOptions[] {
+  return IS_MAC
+    ? [
+        {
+          label: "Window",
+          role: "windowMenu" as const,
+          submenu: [
+            { role: "minimize" as const },
+            { role: "zoom" as const },
+            ...(windowItems.length > 0
+              ? [{ type: "separator" as const }, ...windowItems]
+              : []),
+            { type: "separator" as const },
+            { role: "front" as const },
+          ],
+        },
+      ]
+    : [];
 }

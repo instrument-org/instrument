@@ -7,6 +7,7 @@ import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
+  type ComposeEntry,
   chatFiltersAtom,
   chatGroupAtom,
   filesFolderAtom,
@@ -38,6 +39,7 @@ import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-c
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
+import { keptAcrossWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -92,6 +94,7 @@ import {
   pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
+  siteGroupsAcrossWindows,
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -126,8 +129,15 @@ import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { chatHref, chatOfGroup, chatOfHref, matchScreen } from "./window-href";
+import {
+  chatHref,
+  chatOfGroup,
+  chatOfHref,
+  matchScreen,
+  sameHref,
+} from "./window-href";
 import { useWindowTabs } from "./window-tabs";
+import { hasMovedAway, moveTabOut, receiveTab, sendEveryTab } from "./move-tab";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -438,9 +448,13 @@ function WindowShell({
   // Once, over what was restored.
   useEffect(() => {
     const floating = new Set(
-      compose.entries.flatMap((entry) =>
-        entry.kind === "draft" ? [entry.draftId] : [],
-      ),
+      [
+        ...compose.entries,
+        // Another window's are as much its own as this one's are this one's.
+        ...keptAcrossWindows("compose.v2").flatMap((entries): ComposeEntry[] =>
+          Array.isArray(entries) ? entries : [],
+        ),
+      ].flatMap((entry) => (entry.kind === "draft" ? [entry.draftId] : [])),
     );
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
@@ -475,6 +489,7 @@ function WindowShell({
   // record is put aside for as long as Shift+Cmd+T can reopen the tab, which
   // brings the page back at its address.
   const setPutAway = useSetAtom(putAwaySitesAtom);
+  const sitesHeldHere = useRef(new Set<string>());
   const siteGroups = [
     ...new Set(
       windowTabs.allTabs.flatMap((tab) =>
@@ -504,9 +519,23 @@ function WindowShell({
         groupsOf([...(tab.history?.entries ?? []), tab.pathname]),
       ),
     );
-    const leaving = siteGroups
+    for (const group of open) {
+      sitesHeldHere.current.add(group);
+    }
+    // The windows share every site's tabs, so one this window never had a tab
+    // on is another's to let go. One it did leaves unless a tab of another
+    // window, open or closed, stands on it now.
+    const noLongerHere = siteGroups
       .split("\n")
-      .filter((group) => group && !open.has(group));
+      .filter(
+        (group) =>
+          group && !open.has(group) && sitesHeldHere.current.has(group),
+      );
+    const inOtherWindows =
+      noLongerHere.length === 0 ? new Set<string>() : siteGroupsAcrossWindows();
+    const leaving = noLongerHere.filter(
+      (group) => !inOtherWindows.has(group) && !hasMovedAway(group),
+    );
     setPutAway((current) => {
       const next: typeof current = {};
       // Kept while a closed tab can bring it back, or while an open one is
@@ -769,10 +798,31 @@ function WindowShell({
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
       },
+      // The tab already there comes up rather than a second of the same.
       openScreen: (href) => {
-        openScreen(href, { newTab: true });
+        const there = appTabs.model.tabs.find((tab) =>
+          sameHref(tab.pathname, href),
+        );
+        if (there) {
+          appTabs.select(there.id);
+        } else {
+          openScreen(href, { newTab: true });
+        }
       },
+      moveTabToNewWindow: () => {
+        if (appTabs.model.selectedId) {
+          void moveTabOut(
+            appTabs.model.selectedId,
+            { kind: "new" },
+            windowTabs.allTabs,
+          );
+        }
+      },
+      receiveTab,
       reopenTab: appTabs.reopen,
+      sendEveryTab: (to) => {
+        void sendEveryTab(to, windowTabs.allTabs);
+      },
       search: focusField,
       selectRelative: appTabs.selectRelative,
       selectTab: appTabs.selectIndex,
@@ -956,6 +1006,9 @@ function WindowShell({
                     onCloseOthers={appTabs.closeOthers}
                     onCloseToRight={appTabs.closeToRight}
                     onDuplicate={duplicateAppTab}
+                    onMove={(id, to) => {
+                      void moveTabOut(id, to, windowTabs.allTabs);
+                    }}
                     onNew={appTabs.openNewTab}
                     onReload={reloadablePageOf}
                     onReorder={appTabs.reorder}

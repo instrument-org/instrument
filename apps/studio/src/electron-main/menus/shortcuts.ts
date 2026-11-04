@@ -2,7 +2,8 @@ import {
   matchesAccelerator,
   parseAccelerator,
 } from "@/electron-main/menus/match-accelerator";
-import { publisher } from "@/electron-main/rpc/publisher";
+import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
+import { commandWindow } from "@/electron-main/windows/window-command";
 import {
   getWorkspacePreferences,
   isDeveloperMode,
@@ -44,8 +45,16 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, ShortcutAction> = {
       focusedWindow.webContents.reload();
     }
   },
-  settings: () => {
-    publisher.publish("window.command", "openSettings");
+  settings: ({ focusedWindow }) => {
+    const window =
+      focusedWindow instanceof BrowserWindow
+        ? focusedWindow
+        : BrowserWindow.getAllWindows().find(
+            (each) => appWindowIdOf(each.webContents.id) !== undefined,
+          );
+    if (window) {
+      commandWindow(window, "openSettings");
+    }
   },
   themeDark: () => {
     getWorkspacePreferences().set("theme", "dark");

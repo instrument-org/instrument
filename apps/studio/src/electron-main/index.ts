@@ -43,6 +43,7 @@ import {
   askAppWindow,
   openAppFile,
   openAppWindow,
+  restoreAppWindows,
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -432,7 +433,7 @@ async function bootstrapPrimaryInstance() {
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).
   await setupStateKnown();
-  openAppWindow();
+  restoreAppWindows();
 
   // Let the initial window render before running the best-effort cache warmup.
   setTimeout(() => {

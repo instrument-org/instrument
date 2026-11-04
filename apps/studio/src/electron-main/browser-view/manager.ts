@@ -1,3 +1,4 @@
+import { historyToRestore } from "@/electron-main/browser-view/guest-history";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   type BrowserGuestTarget,
@@ -88,6 +89,9 @@ const ATTACH_TIMEOUT_MS = 15_000;
 // after an agent's click is counted as the person's.
 const AGENT_NAVIGATION_TAIL_MS = 2000;
 
+// How long a guest brought over from another window waits on its page.
+const RESTORE_WAIT_MS = 5000;
+
 export interface BrowserViewManager {
   // Register the `<webview>` attach lifecycle on a window's webContents.
   // Called once the window exists, whether or not a workspace has started:
@@ -95,9 +99,21 @@ export interface BrowserViewManager {
   // guests of the workspace setup starts.
   bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
-  // Every recorded target and whether its guest has attached yet. The renderer
-  // pool mounts a guest for every id; the UI treats only attached ones as live.
-  getTargets: () => BrowserGuestTarget[];
+  // The targets one window's renderer mounts and whether each guest has
+  // attached yet. Its pool mounts a guest for every id; the UI treats only
+  // attached ones as live.
+  getTargets: (webContentsId: number) => BrowserGuestTarget[];
+  // The targets other windows' renderers mount, and whether each shows its
+  // page: what a window showing that tab says instead of opening it.
+  getTargetsElsewhere: (
+    webContentsId: number,
+  ) => { shown: boolean; targetId: BrowserTargetId }[];
+  // Whether a window's renderer mounts this target, so that what is asked of
+  // its guest goes to that window alone.
+  isHostOf: (webContentsId: number, targetId: BrowserTargetId) => boolean;
+  // The window it was in is letting the guest's tab go, so a window showing
+  // it next may take it without waiting to hear that it has stopped.
+  releaseGuest: (targetId: BrowserTargetId) => void;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
   // this is safe here (the caller always computes scale from live bounds and
@@ -165,10 +181,24 @@ const describeTabScript = (guestId: number) => `(() => {
 
 function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
-  // The app window's renderer, which mounts every guest.
-  let hostContents: null | WebContents = null;
-  const hostOf = (targetId: BrowserTargetId) =>
-    entries.has(targetId) ? hostContents : null;
+  // The window a guest nothing asked for in particular goes to: the one last
+  // in front.
+  let frontHost: null | WebContents = null;
+  const liveHosts = new Set<WebContents>();
+  // The window whose renderer mounts a target, settled on it for good as soon
+  // as there is a window to ask.
+  const hostIdOf = (entry: BrowserEntry) => {
+    entry.hostId ??= frontHost?.id ?? null;
+    return entry.hostId;
+  };
+  const hostOf = (targetId: BrowserTargetId) => {
+    const entry = entries.get(targetId);
+    const id = entry && hostIdOf(entry);
+    if (id === null || id === undefined) {
+      return null;
+    }
+    return [...liveHosts].find((host) => host.id === id) ?? null;
+  };
   // Bounces focus stolen by agent CDP activity back to the host renderer.
   const focusGuard = createFocusGuard({ restoreHostFocus });
 
@@ -206,7 +236,7 @@ function createBrowserViewManager(): BrowserViewManager {
     ) {
       return;
     }
-    publisher.publish("browser.restore-host-focus", null);
+    publisher.publish("browser.restore-host-focus", { targetId });
   }
 
   // Ask the renderer to put keyboard focus on a guest. Only renderer-side DOM
@@ -252,6 +282,10 @@ function createBrowserViewManager(): BrowserViewManager {
     );
 
     wc.debugger.on("detach", () => {
+      // A guest this tab has since replaced, in another window, is not the tab.
+      if (entries.get(targetId) !== entry) {
+        return;
+      }
       handleDetach(entries, targetId);
       notifyEntriesChanged();
     });
@@ -474,11 +508,17 @@ function createBrowserViewManager(): BrowserViewManager {
     );
 
     guest.on("destroyed", () => {
+      if (entries.get(targetId) !== entry) {
+        return;
+      }
       focusGuard.forgetTarget(targetId);
       handleDetach(entries, targetId);
       notifyEntriesChanged();
     });
     guest.on("render-process-gone", () => {
+      if (entries.get(targetId) !== entry) {
+        return;
+      }
       focusGuard.forgetTarget(targetId);
       destroyEntry(entries, targetId);
       notifyEntriesChanged();
@@ -502,23 +542,65 @@ function createBrowserViewManager(): BrowserViewManager {
     // commands like Page.enable hang and Page.navigate has no frame. The
     // element already loads about:blank, but driving it here gives us a
     // deterministic did-finish-load to resolve the handshake on.
-    guest.once("did-finish-load", () => {
+    const settle = () => {
       advanceEntry(entry, "loadSettled");
       ensureDebuggerAttached(entry);
       entry.attach.resolve();
       // The guest is now attached; re-publish so subscribers (the UI's live
       // view) flip this target from pending to live.
       notifyEntriesChanged();
-    });
-    void guest.loadURL("about:blank");
+    };
+    // A guest brought over from another window comes up on the page it stood
+    // on, which its element loads (`BrowserGuestTarget.src`), over the pages
+    // behind it, which have to go in before that load begins. That page can be
+    // slow to answer, and the guest is not held up for it.
+    const { restoreHistory } = entry;
+    guest.once("did-finish-load", settle);
+    if (restoreHistory) {
+      entry.restoreHistory = null;
+      if (restoreHistory.behind.length > 0) {
+        void guest.navigationHistory
+          .restore({
+            entries: restoreHistory.behind,
+            index: restoreHistory.behind.length - 1,
+          })
+          .catch(noop);
+      }
+      setTimeout(() => {
+        if (!entry.attach.settled && entries.get(entry.targetId) === entry) {
+          guest.off("did-finish-load", settle);
+          settle();
+        }
+      }, RESTORE_WAIT_MS);
+    } else {
+      void guest.loadURL("about:blank");
+    }
   }
 
   function bindHost(host: WebContents) {
-    hostContents = host;
+    liveHosts.add(host);
+    frontHost = host;
     const hostWindow = BrowserWindow.fromWebContents(host);
     if (hostWindow) {
       resyncPagesAfterFullScreen(hostWindow);
+      hostWindow.on("focus", () => {
+        frontHost = host;
+      });
     }
+    host.once("destroyed", () => {
+      liveHosts.delete(host);
+      if (frontHost === host) {
+        frontHost = [...liveHosts].at(-1) ?? null;
+      }
+      // A guest not yet mounted goes to a window that can mount it; one that
+      // was is gone with its window, and comes back when its tab is shown.
+      for (const entry of entries.values()) {
+        if (entry.hostId === host.id && !hasGuest(entry)) {
+          entry.hostId = null;
+        }
+      }
+      notifyEntriesChanged();
+    });
     // A FIFO of entries accepted in `will-attach-webview`, drained in
     // `did-attach-webview`: Electron pairs the two events in order, and the
     // guest it hands over carries nothing naming its target. The entry rather
@@ -604,12 +686,56 @@ function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
+  /**
+   * A guest of another window's, brought to this one. A guest cannot change
+   * the renderer it is attached to, so this is a fresh guest that reloads its
+   * page, with its history, in place of the one that goes.
+   */
+  function moveTarget(
+    existing: BrowserEntry,
+    partitionDir: AbsolutePath,
+    hostId: number,
+  ) {
+    const guest = existing.webContents;
+    let restoreHistory: BrowserEntry["restoreHistory"] = null;
+    if (guest && !guest.isDestroyed()) {
+      restoreHistory = historyToRestore(
+        guest.navigationHistory.getAllEntries(),
+        guest.navigationHistory.getActiveIndex(),
+      );
+    }
+    destroyEntry(entries, existing.targetId);
+    const entry = createEntry({
+      hostId,
+      partitionDir,
+      restoreHistory,
+      ...(restoreHistory ? { src: restoreHistory.url } : {}),
+      targetId: existing.targetId,
+    });
+    // The window taking it is showing it, which it says itself only once the
+    // guest has come up; until then another window showing this tab must not
+    // take it straight back.
+    entry.shown = true;
+    entries.set(existing.targetId, entry);
+    notifyEntriesChanged();
+    return waitForAttach(entry);
+  }
+
   function createTarget(
     targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
+    host?: { take?: "always" | "parked"; webContentsId: number },
   ): Promise<void> {
     const existing = entries.get(targetId);
     if (existing) {
+      const hostId = hostIdOf(existing);
+      if (
+        host?.take !== undefined &&
+        hostId !== host.webContentsId &&
+        (host.take === "always" || !existing.shown || hostOf(targetId) === null)
+      ) {
+        return moveTarget(existing, partitionDir, host.webContentsId);
+      }
       // Idempotent: a tab owns at most one guest. Already bound -> reuse it;
       // mount still in flight -> wait on it.
       if (hasGuest(existing)) {
@@ -618,7 +744,11 @@ function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing);
     }
 
-    const entry = createEntry({ partitionDir, targetId });
+    const entry = createEntry({
+      hostId: host?.webContentsId ?? null,
+      partitionDir,
+      targetId,
+    });
     entries.set(targetId, entry);
     // Publishing the new desired set makes the renderer pool mount a guest
     // `<webview>` for this target; it attaches via will/did-attach-webview,
@@ -868,22 +998,48 @@ function createBrowserViewManager(): BrowserViewManager {
       const entry = entries.get(targetId);
       return (entry && lastLoads.get(entry)) ?? null;
     },
-    getTargets: () =>
-      [...entries.values()].map((entry) => ({
-        asleep: entry.asleep,
-        attached: hasGuest(entry),
-        generation: entry.generation,
-        id: entry.targetId,
-        navigated: entry.navigated,
-      })),
+    getTargets: (webContentsId) =>
+      [...entries.values()]
+        .filter((entry) => hostIdOf(entry) === webContentsId)
+        .map((entry) => ({
+          asleep: entry.asleep,
+          attached: hasGuest(entry),
+          generation: entry.generation,
+          id: entry.targetId,
+          navigated: entry.navigated,
+          src: entry.src,
+        })),
+    getTargetsElsewhere: (webContentsId) =>
+      [...entries.values()]
+        .filter((entry) => hostIdOf(entry) !== webContentsId)
+        .map((entry) => ({
+          shown: entry.shown,
+          targetId: entry.targetId,
+        })),
+    isHostOf: (webContentsId, targetId) => {
+      const entry = entries.get(targetId);
+      return entry !== undefined && hostIdOf(entry) === webContentsId;
+    },
+    releaseGuest: (targetId) => {
+      const entry = entries.get(targetId);
+      if (entry?.shown) {
+        entry.shown = false;
+        notifyEntriesChanged();
+      }
+    },
     setEmulatedDevice,
     setGuestFocus,
     setGuestShown: (targetId, shown) => {
       const entry = entries.get(targetId);
       if (entry) {
+        const changed = entry.shown !== shown;
         entry.shown = shown;
         if (shown) {
           void wakeGuest(entry, notifyEntriesChanged);
+        }
+        // Another window showing this tab says so only while this one shows it.
+        if (changed) {
+          notifyEntriesChanged();
         }
       }
     },

@@ -115,6 +115,7 @@ type TabDensity = "compact" | "full" | "icon";
  * it, so a tab is one thing across the window.
  */
 export function TabStrip({
+  carriedKey,
   className,
   groupKey,
   onClose,
@@ -123,9 +124,13 @@ export function TabStrip({
   onNew,
   onReorder,
   onSelect,
+  onTabDrag,
+  onTabDragEnd,
   selectedKey,
   tabs,
 }: {
+  /** A tab being carried out of the strip, drawn as what it leaves behind. */
+  carriedKey?: string | undefined;
   className?: string;
   /** Drawn as a plus at the end of the row when given. */
   /** The set these tabs belong to; when it changes the strip adopts them silently. */
@@ -138,6 +143,9 @@ export function TabStrip({
   onNew?: () => void;
   onReorder: (keys: string[]) => void;
   onSelect: (key: string) => void;
+  /** Where a tab being dragged is, which the strip's own reorder keeps to its row. */
+  onTabDrag?: (key: string, event: PointerEvent) => void;
+  onTabDragEnd?: (key: string, event: PointerEvent) => void;
   selectedKey: string | undefined;
   tabs: StripTab[];
 }) {
@@ -360,6 +368,7 @@ export function TabStrip({
             <Tab
               density={tab.key === selectedKey ? selectedDensity : density}
               isArriving={arriving.includes(tab.key)}
+              isCarried={carriedKey === tab.key}
               isClosing={isClosing}
               isDragging={draggingKey === tab.key}
               isReordering={isReordering}
@@ -377,8 +386,16 @@ export function TabStrip({
               onContextMenu={(event) => {
                 onContextMenu?.(tab.key, event);
               }}
-              onDragEnd={() => {
+              onDrag={(event) => {
+                if (event instanceof PointerEvent) {
+                  onTabDrag?.(tab.key, event);
+                }
+              }}
+              onDragEnd={(event) => {
                 setDraggingKey(undefined);
+                if (event instanceof PointerEvent) {
+                  onTabDragEnd?.(tab.key, event);
+                }
               }}
               onDragStart={() => {
                 setDraggingKey(tab.key);
@@ -498,6 +515,7 @@ function stripLayout(
 function Tab({
   density,
   isArriving,
+  isCarried,
   isClosing,
   isDragging,
   isFixed,
@@ -506,6 +524,7 @@ function Tab({
   nextIsSelected,
   onClose,
   onContextMenu,
+  onDrag,
   onDragEnd,
   onDragStart,
   onSelect,
@@ -516,6 +535,7 @@ function Tab({
 }: {
   density: TabDensity;
   isArriving?: boolean;
+  isCarried?: boolean;
   isClosing?: boolean;
   isDragging?: boolean;
   isFixed?: boolean;
@@ -524,7 +544,8 @@ function Tab({
   nextIsSelected: boolean;
   onClose?: () => void;
   onContextMenu?: (event: React.MouseEvent) => void;
-  onDragEnd?: () => void;
+  onDrag?: (event: Event) => void;
+  onDragEnd?: (event: Event) => void;
   onDragStart?: () => void;
   onSelect: () => void;
   onSelectRelative: (direction: -1 | 1) => void;
@@ -559,6 +580,7 @@ function Tab({
           !isDragging && "hover:bg-foreground/8 hover:text-foreground",
         ),
     isDragging && "z-10 shadow-xs-soft",
+    isCarried && "opacity-40",
     isArriving && "pane-tab-arriving",
     isFixed && showSeparator && "mr-3",
     showSeparator &&
@@ -644,6 +666,7 @@ function Tab({
     "aria-selected": isSelected,
     className,
     "data-density": density,
+    "data-tab-key": tab.key,
     onContextMenu,
     onKeyDown: (event: React.KeyboardEvent) => {
       if (event.key === "Enter" || event.key === " ") {
@@ -680,6 +703,7 @@ function Tab({
         {...handlers}
         as="div"
         layout="position"
+        onDrag={onDrag}
         onDragEnd={onDragEnd}
         onDragStart={onDragStart}
         transition={isReordering ? undefined : LAND_IN_PLACE}

@@ -327,9 +327,22 @@ export function BrowserPanel({
   const openHere = () => {
     setCrashed(null);
     openBrowser({
+      take: "parked",
       targetId,
       ...(restoreUrl && restoreUrl !== "about:blank" ? { restoreUrl } : {}),
     });
+  };
+  // A page is in one window at a time, the one that showed it last. While
+  // another window is showing this one it stays there, until the person asks
+  // for it here or that window stops showing it.
+  const elsewhere = useQuery(
+    rpcClient.browser.live.targetsElsewhere.experimental_liveOptions(),
+  ).data;
+  const isShownElsewhere =
+    elsewhere?.some((each) => each.targetId === targetId && each.shown) ??
+    false;
+  const showHere = () => {
+    openBrowser({ take: "always", targetId });
   };
   // A page on screen with no guest gets one, and only a page on screen does,
   // so a guest discarded out of sight stays gone until its page is shown
@@ -344,7 +357,7 @@ export function BrowserPanel({
       opens.delete(targetId);
       return;
     }
-    if (active) {
+    if (active || isShownElsewhere) {
       return;
     }
     const at = performance.now();
@@ -359,7 +372,7 @@ export function BrowserPanel({
     openHere();
     // The address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, isVisible, openBrowser, targetId]);
+  }, [active, isShownElsewhere, isVisible, openBrowser, targetId]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);
@@ -1162,7 +1175,14 @@ export function BrowserPanel({
         </div>
       ) : (
         <div className="relative flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
-          {openStatus === "error" ? (
+          {isShownElsewhere ? (
+            <>
+              <span>This page is open in another window.</span>
+              <Button onClick={showHere} size="sm" variant="outline">
+                Show Here
+              </Button>
+            </>
+          ) : openStatus === "error" ? (
             <>
               <span>Couldn’t open the browser.</span>
               <Button onClick={openHere} size="sm" variant="outline">

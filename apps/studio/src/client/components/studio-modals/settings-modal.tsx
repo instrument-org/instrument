@@ -351,7 +351,7 @@ function SettingsModalContent({
                         <SidebarMenuButton
                           className={
                             item.isDeveloperMode
-                              ? "text-dev-700 group-hover:bg-white/10 focus-visible:-outline-offset-2 dark:text-dev-300 [&>svg]:text-dev-700 dark:[&>svg]:text-dev-300"
+                              ? "text-dev-700 group-hover:bg-white/10 hover:text-dev-700 focus-visible:-outline-offset-2 data-[active=true]:text-dev-700 dark:text-dev-300 dark:hover:text-dev-300 dark:data-[active=true]:text-dev-300 [&>svg]:text-dev-700 dark:[&>svg]:text-dev-300"
                               : "group-hover:bg-black/10 focus-visible:-outline-offset-2 dark:group-hover:bg-white/10"
                           }
                           isActive={item.tab === activeTab}

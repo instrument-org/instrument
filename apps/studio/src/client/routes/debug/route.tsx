@@ -27,6 +27,7 @@ import {
 
 import { appPages, componentPages } from "./-debug-routes";
 import { scenarios } from "./-transcript/scenarios";
+import { trialSurfaces } from "./-trial-modes";
 
 export const Route = createFileRoute("/debug")({
   component: RouteComponent,
@@ -46,6 +47,8 @@ function RouteComponent() {
   const defaultScenarioId = scenarios[0]?.id;
   const activeScenarioId = search.scenario ?? defaultScenarioId;
   const isTranscriptRoute = pathname === transcriptPage?.to;
+  const isTrialModesRoute = pathname === "/debug/trial-modes";
+  const activeSurfaceId = search.surface ?? trialSurfaces[0].id;
 
   return (
     <main className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -70,6 +73,37 @@ function RouteComponent() {
                           <span>{page.label}</span>
                         </InternalLink>
                       </SidebarMenuButton>
+                      {page.id === "trial-modes" && (
+                        <Collapsible open={isTrialModesRoute}>
+                          <CollapsibleContent>
+                            <SidebarMenuSub>
+                              {trialSurfaces.map((surface) => (
+                                <SidebarMenuSubItem key={surface.id}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    className="h-auto py-1 [&>span:last-child]:whitespace-normal"
+                                    isActive={
+                                      isTrialModesRoute &&
+                                      surface.id === activeSurfaceId
+                                    }
+                                  >
+                                    <InternalLink
+                                      allowOpenNewTab={false}
+                                      search={{
+                                        mode: search.mode,
+                                        surface: surface.id,
+                                      }}
+                                      to="/debug/trial-modes"
+                                    >
+                                      <span>{surface.label}</span>
+                                    </InternalLink>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>

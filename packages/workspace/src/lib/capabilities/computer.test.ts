@@ -480,6 +480,22 @@ describe("instrument computer", () => {
     );
   });
 
+  it("brings an app forward only with --headed, which is what takes focus", async () => {
+    const driver = standInDriver({
+      ...answers,
+      launch: ok({ pid: 7, window: { id: "w-9", title: "Open" } }),
+    });
+    await grantApp(scope.chatId, "com.apple.TextEdit");
+    await open(["TextEdit"], scope);
+    expect(driver.actions().at(-1)).toEqual(["launch", "com.apple.TextEdit"]);
+    await open(["TextEdit", "--headed"], scope);
+    expect(driver.actions().at(-1)).toEqual([
+      "launch",
+      "com.apple.TextEdit",
+      "--activate",
+    ]);
+  });
+
   it("reports the window the driver already named, with no wait", async () => {
     const driver = standInDriver({
       ...answers,

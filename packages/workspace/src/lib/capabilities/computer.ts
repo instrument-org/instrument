@@ -193,29 +193,26 @@ const LaunchData = z.looseObject({
 const computerOpen = defineCapability({
   gate: ({ app }, ctx) => openableAppGate(app, ctx),
   input: z.object({
-    activate: z.boolean().optional().meta({
-      description:
-        "Bring it forward and wait for a window, which takes the person's focus.",
-    }),
     app: AppName("open"),
+    headed: Headed,
   }),
   name: "computer.open",
   output: LaunchData,
-  async run({ activate, app }, ctx) {
+  async run({ app, headed }, ctx) {
     const found = await openableApp(app, ctx);
     if (found === undefined) {
       throw new CapabilityFailure(`no app called ${app} is on this computer.`);
     }
     const data = await runDriver(
-      ["launch", found.bundleId, ...(activate === true ? ["--activate"] : [])],
+      ["launch", found.bundleId, ...(headed === true ? ["--activate"] : [])],
       ctx,
     );
     const launched = LaunchData.parse(data);
-    if (launched.window !== undefined || activate === true) {
+    if (launched.window !== undefined || headed === true) {
       return launched;
     }
     // The driver answers once the process runs, and the window follows a moment
-    // later. Saying there's none would send the agent to --activate, which takes
+    // later. Saying there's none would send the agent to --headed, which takes
     // the person's focus, for a window that was about to show up.
     for (let tried = 0; tried < WINDOW_CHECKS; tried++) {
       await DefenseInDepthBox.runTrustedAsync(() => sleep(WINDOW_CHECK_MS));
@@ -236,7 +233,7 @@ const computerOpen = defineCapability({
   },
   text: ({ window }) =>
     window === undefined
-      ? "It's running, with no window yet. --activate brings it forward and waits for one, which takes the person's focus."
+      ? "It's running, with no window yet. --headed brings it forward and waits for one, so pass it only once the person has said that's fine."
       : `It's running, with window ${window.id} ${JSON.stringify(window.title ?? "")}.`,
   where: WHERE,
 });

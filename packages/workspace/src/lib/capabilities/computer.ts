@@ -249,7 +249,7 @@ const computerOpen = defineCapability({
   summary: "Starts an allowed app.",
   surfaces: {
     cli: {
-      help: "  Starts an allowed app, or finds it already running, and leaves the person's focus where it is.",
+      help: "  Starts an allowed app, or finds it already running. Windows brings a new app's window to the front; elsewhere the person's focus stays where it is.",
       positional: ["app"],
       words: ["computer", "open"],
     },

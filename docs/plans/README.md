@@ -39,7 +39,7 @@ Each entry is the plan's title and the opening of its status.
 - [Chat stream turn-model refactor](chat-stream-turn-model-refactor.md): Proposed, not started.
 - [Chat transcript redesign](chat-transcript-redesign.md): Design rules being worked out against real chats;
 - [The user chooses where Instrument keeps files](choose-where-instrument-keeps-files.md): The step is built, as setup's first step (`9246172a7`, with the Welcome page before it from `b92123c54`).
-- [Computer use](computer-use.md): Behind the `computer_use` feature flag, on macOS only.
+- [Computer use](computer-use.md): Behind the `computer_use` feature flag, on macOS, Windows and Linux.
 - [Context compaction](context-compaction.md): Phases 0 through 2 built, plus the reactive trigger from phase 4.
 - [Dependency sweep: what upstream has fixed for us](dependency-upgrade-sweep.md): Two passes landed;
 - [Dependency work behind the PR queue](dependency-work-behind-the-pr-queue.md): Items 1 and 2 done, 3 to 5 partly.

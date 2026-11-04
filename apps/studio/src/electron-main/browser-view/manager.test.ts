@@ -53,4 +53,127 @@ describe("getBrowserViewManager", () => {
     expect(accepted).toBe(true);
     expect(preventDefault).not.toHaveBeenCalled();
   });
+
+  describe("with more than one window", () => {
+    const partition = "/tmp/partition" as AbsolutePath;
+    const hostWith = (id: number) => {
+      const host = Object.assign(new EventEmitter(), { id });
+      getBrowserViewManager().bindHost(host as unknown as WebContents);
+      return host;
+    };
+    const idsIn = (id: number) =>
+      getBrowserViewManager()
+        .getTargets(id)
+        .map((target) => target.id);
+
+    it("mounts a guest only in the window that asked for it", () => {
+      hostWith(101);
+      hostWith(102);
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void getBrowserViewManager()
+        .browser.createTarget(targetId, partition, { webContentsId: 101 })
+        .catch(() => undefined);
+
+      expect(idsIn(101)).toContain(targetId);
+      expect(idsIn(102)).not.toContain(targetId);
+      expect(getBrowserViewManager().isHostOf(101, targetId)).toBe(true);
+      expect(getBrowserViewManager().isHostOf(102, targetId)).toBe(false);
+      expect(getBrowserViewManager().getTargetsElsewhere(102)).toContainEqual({
+        shown: false,
+        targetId,
+      });
+    });
+
+    it("gives a guest nothing asked for to the window bound last", () => {
+      hostWith(201);
+      hostWith(202);
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void getBrowserViewManager()
+        .browser.createTarget(targetId, partition)
+        .catch(() => undefined);
+
+      expect(idsIn(202)).toContain(targetId);
+      expect(idsIn(201)).not.toContain(targetId);
+    });
+
+    it("moves a parked guest to the window showing it, as a new guest", () => {
+      hostWith(301);
+      hostWith(302);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 301 })
+        .catch(() => undefined);
+      const generation = manager.getTargets(301)[0]?.generation;
+
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "parked",
+          webContentsId: 302,
+        })
+        .catch(() => undefined);
+
+      expect(idsIn(301)).not.toContain(targetId);
+      const moved = manager.getTargets(302).find(({ id }) => id === targetId);
+      expect(moved?.generation).not.toBe(generation);
+    });
+
+    it("leaves a guest where a window is showing it until asked outright, and claims it as it moves", () => {
+      hostWith(401);
+      hostWith(402);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 401 })
+        .catch(() => undefined);
+      manager.setGuestShown(targetId, true);
+
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "parked",
+          webContentsId: 402,
+        })
+        .catch(() => undefined);
+      expect(idsIn(401)).toContain(targetId);
+
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "always",
+          webContentsId: 402,
+        })
+        .catch(() => undefined);
+      expect(idsIn(402)).toContain(targetId);
+
+      // The window it left, still showing the tab, must not take it straight
+      // back before the window it went to has reported showing it.
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "parked",
+          webContentsId: 401,
+        })
+        .catch(() => undefined);
+      expect(idsIn(402)).toContain(targetId);
+      expect(idsIn(401)).not.toContain(targetId);
+    });
+
+    it("lets a released guest go to the next window that shows it", () => {
+      hostWith(501);
+      hostWith(502);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 501 })
+        .catch(() => undefined);
+      manager.setGuestShown(targetId, true);
+      manager.releaseGuest(targetId);
+
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "parked",
+          webContentsId: 502,
+        })
+        .catch(() => undefined);
+      expect(idsIn(502)).toContain(targetId);
+    });
+  });
 });

@@ -2,6 +2,8 @@ import { hasReplyWaitingAtom } from "@/client/drafts/store";
 import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { openInNewWindow } from "./move-tab";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -339,6 +341,14 @@ export function ChatRow({
         <ContextMenuItem onSelect={openInNewTab}>
           <NewTabIcon className="size-4" />
           Open in New Tab
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() => {
+            openInNewWindow(chatHref(chat.id));
+          }}
+        >
+          <AppWindowIcon className="size-4" />
+          Open in New Window
         </ContextMenuItem>
         {popOut && (
           <ContextMenuItem onSelect={popOut.run}>

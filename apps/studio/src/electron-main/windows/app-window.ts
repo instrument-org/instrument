@@ -479,6 +479,9 @@ function createAppWindow(
     minWidth: 900,
     resizable: !isSetupSized,
     show: false,
+    // A system set to prefer tabs would otherwise gather these into native
+    // tabs, over the strip each window draws for itself.
+    tabbingIdentifier: id,
     title: "Instrument",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {

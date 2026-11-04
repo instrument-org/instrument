@@ -139,6 +139,7 @@ describe("formatAcceleratorFor", () => {
         "actualSize: ⌘ 0  /  Ctrl 0  /  Ctrl 0",
         "closeWindow: ⇧ ⌘ W  /  Ctrl Shift W  /  Ctrl Shift W",
         "lastTab: ⌘ 9  /  Ctrl 9  /  Ctrl 9",
+        "newWindow: ⇧ ⌘ N  /  Ctrl Shift N  /  Ctrl Shift N",
         "quit: ⌘ Q  /  Ctrl Q  /  Ctrl Q",
         "tabByPlace: ⌘ 1…8  /  Ctrl 1…8  /  Ctrl 1…8",
         "toggleFullScreen: ⌃ ⌘ F  /  F11  /  F11",

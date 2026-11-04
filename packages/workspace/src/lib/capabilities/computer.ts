@@ -2,7 +2,7 @@ import { DefenseInDepthBox } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isMainThread } from "node:worker_threads";
-import { sleep } from "radashi";
+import { sleep, unique } from "radashi";
 import { z } from "zod";
 
 import { getScreenshotsDir } from "../chat-dir-utils";
@@ -12,6 +12,7 @@ import {
   gatedRunningApp,
   openableApp,
   openableAppGate,
+  openOnWindows,
   refGate,
   rememberSnapshot,
   runningAppGate,
@@ -130,7 +131,7 @@ const computerApps = defineCapability({
   async run({ all }, ctx) {
     const running = await runningApps(ctx);
     return Promise.all(
-      running
+      unique(running, (app) => app.bundle_id ?? app.name)
         .filter((app) =>
           all === true
             ? app.presentation !== undefined
@@ -215,6 +216,9 @@ const computerOpen = defineCapability({
     if (found === undefined) {
       throw new CapabilityFailure(`no app called ${app} is on this computer.`);
     }
+    if (process.platform === "win32") {
+      return openOnWindows(found, headed, ctx);
+    }
     const data = await runDriver(
       ["launch", found.bundleId, ...(headed === true ? ["--activate"] : [])],
       ctx,
@@ -252,6 +256,9 @@ const computerOpen = defineCapability({
   },
   text: ({ app, window }) => {
     const running = app === undefined ? "It's running" : `${app} is running`;
+    if (window === undefined && process.platform === "win32") {
+      return `${app ?? "It"} is starting, with no window yet. \`instrument computer apps\` lists it once it has one.`;
+    }
     return window === undefined
       ? `${running}, with no window yet. --headed brings it forward and waits for one, so pass it only once the person has said that's fine.`
       : `${running}, with window ${window.id} ${JSON.stringify(window.title ?? "")}.`;
@@ -601,8 +608,9 @@ const computerPress = defineCapability({
   output: ActionData,
   async run({ app, headed, keys, window }, ctx) {
     const gated = await gatedRunningApp(app, ctx);
+    // Windows's driver finds a packaged app by its window alone.
     const target =
-      window === undefined
+      window === undefined && process.platform !== "win32"
         ? ["--app", gated.name]
         : await windowTarget(gated, window, ctx);
     return act(["press", keys, ...target], headed, ctx);

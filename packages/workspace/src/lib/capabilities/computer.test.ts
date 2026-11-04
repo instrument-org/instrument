@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
@@ -19,6 +19,40 @@ import { setDenied } from "../permissions/denials";
 import { updatePermissionSettings } from "../permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type CapabilityScope } from "./context";
+
+const startMenu = vi.hoisted(() => ({
+  afterOpening: () => {},
+  apps: [
+    {
+      AppID: "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+      Name: "Calculator",
+    },
+    { AppID: "Microsoft.Windows.Explorer", Name: "File Explorer" },
+    { AppID: "Microsoft.Office.WINWORD.EXE.15", Name: "Microsoft Word" },
+    { AppID: "Microsoft.Paint_8wekyb3d8bbwe!App", Name: "Paint" },
+  ],
+  opened: [] as string[],
+}));
+
+vi.mock("../computer/start-menu", () => ({
+  closeStartMenuNames: (given: string) =>
+    Promise.resolve(
+      startMenu.apps
+        .map((app) => app.Name)
+        .filter((name) => name.toLowerCase().includes(given.toLowerCase())),
+    ),
+  openStartMenuApp: (app: { AppID: string }) => {
+    startMenu.opened.push(app.AppID);
+    startMenu.afterOpening();
+    return Promise.resolve();
+  },
+  startMenuApp: (given: string) =>
+    Promise.resolve(
+      startMenu.apps.find(
+        (app) => app.Name.toLowerCase() === given.toLowerCase(),
+      ),
+    ),
+}));
 
 const scope: CapabilityScope = {
   chatId: ChatIdSchema.parse("computer-chat"),
@@ -197,7 +231,7 @@ describe("instrument computer", () => {
     expect(driver.actions()).toEqual([]);
   });
 
-  describe("an app with no bundle id, as on Windows", () => {
+  describe("an app with no bundle id", () => {
     const named = {
       ...answers,
       "list-apps": ok({
@@ -649,6 +683,225 @@ describe("instrument computer", () => {
     await grantApp(scope.chatId, "com.apple.TextEdit");
     await open(["TextEdit"], scope);
     expect(driver.actions()).toEqual([["launch", "com.apple.TextEdit"]]);
+  });
+
+  describe("on Windows", () => {
+    const realPlatform = process.platform;
+    const calculator = {
+      accessible: true,
+      app_name: "CalculatorApp.exe",
+      id: "w-262330",
+      pid: 12_180,
+      title: "Calculator",
+    };
+    const notepad = {
+      accessible: true,
+      app_name: "Notepad.exe",
+      id: "w-197500",
+      pid: 1672,
+      title: "*Shopping - Notepad",
+    };
+    const desktop = (windows: unknown[]) => ({
+      ...answers,
+      // What the driver says of a packaged app: the process that frames it.
+      "list-apps": ok({
+        apps: [
+          {
+            name: "ApplicationFrameHost.exe",
+            pid: 5364,
+            presentation: "foreground",
+          },
+        ],
+      }),
+      "list-windows": ok(windows),
+    });
+
+    beforeEach(() => {
+      Object.defineProperty(process, "platform", { value: "win32" });
+      startMenu.opened = [];
+      startMenu.afterOpening = () => {};
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, "platform", { value: realPlatform });
+    });
+
+    it("lists apps by what their windows say, and not the process framing them", async () => {
+      standInDriver(
+        desktop([
+          calculator,
+          notepad,
+          { ...notepad, id: "w-328312", title: "Untitled - Notepad" },
+          {
+            ...notepad,
+            app_name: "Instrument Preview (computer-use-170).exe",
+            id: "w-525094",
+            pid: 5980,
+            title: "A chat about Paint",
+          },
+          {
+            ...notepad,
+            app_name: "ApplicationFrameHost.exe",
+            id: "w-1049634",
+            pid: 5364,
+            title: "Settings",
+          },
+        ]),
+      );
+      expect((await apps([], scope)).stdout).toMatchInlineSnapshot(`
+        "Calculator (CalculatorApp): ask first
+        Notepad (Notepad): ask first
+        "
+      `);
+    });
+
+    it("asks by the name a person knows, and reads the window by its id", async () => {
+      const driver = standInDriver(desktop([calculator]));
+      await expect(snapshot(["Calculator"], scope)).rejects.toThrow(
+        "using Calculator needs the person's yes",
+      );
+      await grantApp(scope.chatId, "Calculator");
+      await snapshot(["Calculator"], scope);
+      expect(driver.actions().at(-1)?.slice(0, 3)).toEqual([
+        "snapshot",
+        "--window-id",
+        "w-262330",
+      ]);
+    });
+
+    it.each(["CalculatorApp", "CalculatorApp.exe"])(
+      "takes the program's name too, as %s, under one yes",
+      async (given) => {
+        standInDriver(desktop([calculator]));
+        await grantApp(scope.chatId, "Calculator");
+        await expect(snapshot([given], scope)).resolves.toMatchObject({
+          exitCode: 0,
+        });
+      },
+    );
+
+    it("keeps a yes through a change of title", async () => {
+      const driver = standInDriver(desktop([notepad]));
+      await grantApp(scope.chatId, "Notepad");
+      await snapshot(["Notepad"], scope);
+      driver.setAnswers(
+        desktop([{ ...notepad, title: "Now playing something" }]),
+      );
+      await expect(
+        snapshot(["Now playing something"], scope),
+      ).resolves.toMatchObject({ exitCode: 0 });
+    });
+
+    it("never drives this app's windows, whatever their title says", async () => {
+      const driver = standInDriver(
+        desktop([
+          {
+            ...notepad,
+            app_name: "Instrument.exe",
+            id: "w-9",
+            pid: 77,
+            title: "Calculator",
+          },
+        ]),
+      );
+      await grantApp(scope.chatId, "Calculator");
+      await expect(snapshot(["Calculator"], scope)).rejects.toThrow(
+        "can't drive its own windows",
+      );
+      expect(driver.actions()).toEqual([]);
+    });
+
+    it("never drives the elevation prompt, by its program's whole file name", async () => {
+      const driver = standInDriver(
+        desktop([
+          {
+            ...notepad,
+            app_name: "consent.exe",
+            id: "w-9",
+            pid: 77,
+            title: "User Account Control",
+          },
+        ]),
+      );
+      await grantApp(scope.chatId, "User Account Control");
+      await expect(snapshot(["consent"], scope)).rejects.toThrow("only they");
+      expect(driver.actions()).toEqual([]);
+    });
+
+    it("opens an app from the Start menu and carries the yes to its program", async () => {
+      const driver = standInDriver(desktop([notepad]));
+      await expect(open(["Calculator"], scope)).rejects.toThrow(
+        "using Calculator needs the person's yes",
+      );
+      expect(startMenu.opened).toEqual([]);
+      await grantApp(scope.chatId, "Calculator");
+      startMenu.afterOpening = () => {
+        driver.setAnswers(
+          desktop([
+            notepad,
+            // Windows frames the window from its host for a moment.
+            { ...calculator, app_name: "ApplicationFrameHost.exe", id: "w-1" },
+            { ...calculator, app_name: "CalculatorApp.exe", id: "w-2" },
+          ]),
+        );
+      };
+      expect((await open(["Calculator"], scope)).stdout).toBe(
+        'Calculator is running, with window w-2 "Calculator".\n',
+      );
+      expect(startMenu.opened).toEqual([
+        "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+      ]);
+      expect(driver.actions()).toEqual([]);
+      driver.setAnswers(desktop([{ ...calculator, title: "Scientific mode" }]));
+      await expect(snapshot(["CalculatorApp"], scope)).resolves.toMatchObject({
+        exitCode: 0,
+      });
+    });
+
+    it("doesn't start another copy of a running app", async () => {
+      const driver = standInDriver(desktop([calculator]));
+      await grantApp(scope.chatId, "Calculator");
+      expect((await open(["Calculator"], scope)).stdout).toBe(
+        'Calculator is running, with window w-262330 "Calculator".\n',
+      );
+      expect(startMenu.opened).toEqual([]);
+      await open(["Calculator", "--headed"], scope);
+      expect(driver.actions()).toEqual([
+        ["focus-window", "--window-id", "w-262330"],
+      ]);
+    });
+
+    it("says what the Start menu has when it hasn't the name asked for", async () => {
+      standInDriver(desktop([]));
+      await expect(open(["Word"], scope)).rejects.toThrow(
+        'No app called "Word" is in the Start menu. It has Microsoft Word.',
+      );
+      await expect(open(["Nothing Like It"], scope)).rejects.toThrow(
+        'No app called "Nothing Like It" is in the Start menu.',
+      );
+      expect(startMenu.opened).toEqual([]);
+    });
+
+    it("says File Explorer can't be driven, without asking about it", async () => {
+      standInDriver(desktop([]));
+      await grantApp(scope.chatId, "File Explorer");
+      await expect(open(["File Explorer"], scope)).rejects.toThrow(
+        "part of Windows's own shell",
+      );
+      expect(startMenu.opened).toEqual([]);
+    });
+
+    it("sends keys to a packaged app's window, which is how the driver finds it", async () => {
+      const driver = standInDriver(desktop([calculator]));
+      await grantApp(scope.chatId, "Calculator");
+      await press(["Calculator", "return"], scope);
+      expect(driver.actions().at(-1)).toEqual([
+        "press",
+        "return",
+        "--window-id",
+        "w-262330",
+      ]);
+    });
   });
 });
 

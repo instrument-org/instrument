@@ -1,3 +1,5 @@
+import { DefenseInDepthBox } from "just-bash";
+import { sleep } from "radashi";
 import { z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -7,10 +9,16 @@ import {
   appBundleId,
   appLevel,
   appRefusal,
+  grantApp,
   type MacApp,
 } from "../permissions/apps";
 import { getWorkspaceConfig } from "../workspace-config";
 import { runDriver } from "./driver";
+import {
+  closeStartMenuNames,
+  openStartMenuApp,
+  startMenuApp,
+} from "./start-menu";
 
 type DriverContext = Pick<CapabilityContext, "chatId" | "signal">;
 
@@ -42,6 +50,15 @@ const OWN_BUNDLE_PREFIX = "com.finalpoint.instrument";
 /** The same off macOS, where an app can go by no more than its program's name. */
 const OWN_NAME = /^instrument\b/i;
 
+/** Windows frames a packaged app's window from this process of its own. */
+const FRAME_HOST = "applicationframehost";
+
+/** File Explorer, as Windows's Start menu and its program name it. */
+const WINDOWS_SHELL = new Set(["explorer", "file explorer"]);
+
+/** Past this, a window's title is what it shows rather than the app's name. */
+const MAX_TITLE_NAME = 40;
+
 const RunningAppSchema = z.object({
   bundle_id: z.string().optional(),
   name: z.string(),
@@ -54,6 +71,7 @@ const AppsSchema = z.object({ apps: z.array(RunningAppSchema) });
 
 const WindowSchema = z.object({
   accessible: z.boolean().optional(),
+  app_name: z.string().optional(),
   id: z.string(),
   is_focused: z.boolean().optional(),
   minimized: z.boolean().optional(),
@@ -65,19 +83,66 @@ export type AppWindow = z.output<typeof WindowSchema>;
 
 /**
  * An app as a grant knows it: its bundle id on macOS, its desktop id on Linux
- * where it has one, and otherwise, as on Windows, its program's name.
+ * where it has one, its program on Windows, and otherwise its name.
  */
 function identityOf(app: RunningApp): MacApp {
   return { bundleId: app.bundle_id ?? app.name, name: app.name };
 }
 
-/** The apps running now that a person would call apps, helpers left out. */
-export async function runningApps(ctx: DriverContext): Promise<RunningApp[]> {
-  return AppsSchema.parse(await runDriver(["list-apps"], ctx)).apps;
-}
-
 function same(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function programOf(file: string): string {
+  return file.replace(/\.exe$/i, "");
+}
+
+function programOfWindow(window: AppWindow): string {
+  return programOf(window.app_name ?? "");
+}
+
+/**
+ * What a person calls the app behind a window on Windows. Its title ends in the
+ * name, `Untitled - Notepad`, where the program often doesn't say it: Calculator
+ * is CalculatorApp. A title that doesn't read that way goes by the program.
+ */
+function appNameOfWindow(window: AppWindow): string {
+  const name = window.title?.split(" - ").at(-1)?.trim() ?? "";
+  return name === "" || name.length > MAX_TITLE_NAME || name.includes("|")
+    ? programOfWindow(window)
+    : name;
+}
+
+async function allWindows(ctx: DriverContext): Promise<AppWindow[]> {
+  return z.array(WindowSchema).parse(await runDriver(["list-windows"], ctx));
+}
+
+/**
+ * Windows's apps, from their windows: the driver's list of apps names the frame
+ * host in place of every packaged app in it, and its list of windows names the
+ * app. The host can still own a window for a moment while it comes up.
+ */
+function appsOfWindows(windows: AppWindow[]): RunningApp[] {
+  return windows.flatMap((window) => {
+    const program = programOfWindow(window);
+    return program === "" || same(program, FRAME_HOST)
+      ? []
+      : [
+          {
+            bundle_id: program,
+            name: appNameOfWindow(window),
+            pid: window.pid,
+            presentation: "foreground",
+          },
+        ];
+  });
+}
+
+/** The apps running now that a person would call apps, helpers left out. */
+export async function runningApps(ctx: DriverContext): Promise<RunningApp[]> {
+  return process.platform === "win32"
+    ? appsOfWindows(await allWindows(ctx))
+    : AppsSchema.parse(await runDriver(["list-apps"], ctx)).apps;
 }
 
 /** The running app by its whole name or bundle id: a substring never matches. */
@@ -85,10 +150,11 @@ async function runningApp(
   given: string,
   ctx: DriverContext,
 ): Promise<RunningApp | undefined> {
+  const wanted = process.platform === "win32" ? programOf(given) : given;
   const matching = (await runningApps(ctx)).filter(
     (app) =>
-      same(app.name, given) ||
-      (app.bundle_id !== undefined && same(app.bundle_id, given)),
+      same(app.name, wanted) ||
+      (app.bundle_id !== undefined && same(app.bundle_id, wanted)),
   );
   return (
     matching.find((app) => app.presentation === "foreground") ?? matching[0]
@@ -102,7 +168,8 @@ function offLimits(app: MacApp, pid?: number): string | undefined {
     pid === process.pid ||
     app.bundleId === own ||
     app.bundleId.startsWith(OWN_BUNDLE_PREFIX) ||
-    OWN_NAME.test(app.name)
+    OWN_NAME.test(app.name) ||
+    OWN_NAME.test(app.bundleId)
   ) {
     return "this app can't drive its own windows. Its cards and settings are the person's to answer.";
   }
@@ -111,6 +178,13 @@ function offLimits(app: MacApp, pid?: number): string | undefined {
     SYSTEM_PROMPTS.has(app.name.toLowerCase())
   ) {
     return `${app.name} is how the system asks the person themselves, so only they can answer it.`;
+  }
+  if (
+    process.platform === "win32" &&
+    (WINDOWS_SHELL.has(app.name.toLowerCase()) ||
+      WINDOWS_SHELL.has(app.bundleId.toLowerCase()))
+  ) {
+    return "File Explorer is part of Windows's own shell, which can't be driven. The shell's own commands reach folders.";
   }
   return undefined;
 }
@@ -198,14 +272,23 @@ export async function openableAppGate(
   }
   const app = await openableApp(given, ctx);
   return app === undefined
-    ? {
-        kind: "refused",
-        message: `No app called ${JSON.stringify(given)} is on this computer.`,
-      }
+    ? { kind: "refused", message: await notOnComputer(given) }
     : gateFor(app, ctx);
 }
 
-/** An app to open: as it runs now, else as Spotlight finds it by name. */
+async function notOnComputer(given: string): Promise<string> {
+  const name = JSON.stringify(given);
+  if (process.platform !== "win32") {
+    return `No app called ${name} is on this computer.`;
+  }
+  const close = await closeStartMenuNames(given);
+  return `No app called ${name} is in the Start menu.${close.length === 0 ? "" : ` It has ${close.join(", ")}.`}`;
+}
+
+/**
+ * An app to open: as it runs now, else as Spotlight or Windows's Start menu
+ * finds it by name.
+ */
 export async function openableApp(
   given: string,
   ctx: DriverContext,
@@ -214,7 +297,13 @@ export async function openableApp(
   if (running !== undefined) {
     return identityOf(running);
   }
-  // Only macOS can look an app up by name here; elsewhere the driver finds it.
+  if (process.platform === "win32") {
+    const listed = await startMenuApp(given);
+    return listed === undefined
+      ? undefined
+      : { bundleId: listed.Name, name: listed.Name };
+  }
+  // On Linux the driver finds it.
   const bundleId =
     process.platform === "darwin" ? await appBundleId(given) : given;
   return bundleId === undefined ? undefined : { bundleId, name: given };
@@ -285,7 +374,13 @@ export async function gatedRunningApp(
       `${given} is no longer running. \`instrument computer apps\` lists what is.`,
     );
   }
-  return { ...identityOf(running), pid: running.pid };
+  const app = identityOf(running);
+  // A window's title moves and the program behind it doesn't, so the person's
+  // yes holds through a change of document.
+  if (process.platform === "win32") {
+    await grantApp(ctx.chatId, app.bundleId);
+  }
+  return { ...app, pid: running.pid };
 }
 
 /** The windows of `app`, every instance of it included. */
@@ -293,6 +388,11 @@ export async function windowsOf(
   app: MacApp,
   ctx: DriverContext,
 ): Promise<AppWindow[]> {
+  if (process.platform === "win32") {
+    return (await allWindows(ctx)).filter((window) =>
+      same(programOfWindow(window), app.bundleId),
+    );
+  }
   const [apps, windows] = await Promise.all([
     runningApps(ctx),
     runDriver(["list-windows", "--app", app.name], ctx),
@@ -341,7 +441,7 @@ export async function windowTarget(
   }
   const readable = windows.filter((window) => window.accessible !== false);
   if (windows.length === 0) {
-    return ["--app", app.name];
+    return ["--app", process.platform === "win32" ? app.bundleId : app.name];
   }
   const [only] = readable;
   if (only === undefined) {
@@ -355,4 +455,67 @@ export async function windowTarget(
     );
   }
   return ["--window-id", only.id];
+}
+
+/** How often, and how many times, Windows's `open` looks for the new window. */
+const WINDOW_CHECK_MS = 500;
+const WINDOW_CHECKS = 16;
+
+/** Whether a window that just came up is the app the person's yes was for. */
+function isWindowOf(window: AppWindow, name: string): boolean {
+  return (
+    same(appNameOfWindow(window), name) ||
+    same(programOfWindow(window), name) ||
+    (window.title ?? "").toLowerCase().includes(name.trim().toLowerCase())
+  );
+}
+
+/**
+ * Opens an app on Windows: its window if it has one, else through the Start
+ * menu, which answers before the window shows up. A new window that says it's
+ * the app has the person's yes carried to its program. One that doesn't is
+ * still reported, and asks for itself, since it may be something else opening
+ * at that moment.
+ */
+export async function openOnWindows(
+  app: MacApp,
+  headed: boolean | undefined,
+  ctx: DriverContext,
+): Promise<{ app: string; window?: AppWindow }> {
+  const bringForward = async (window: AppWindow) => {
+    if (headed === true) {
+      await runDriver(["focus-window", "--window-id", window.id], ctx);
+    }
+  };
+  const [running] = await windowsOf(app, ctx);
+  if (running !== undefined) {
+    await bringForward(running);
+    return { app: app.name, window: running };
+  }
+  const listed = await startMenuApp(app.name);
+  if (listed === undefined) {
+    throw new CapabilityFailure(await notOnComputer(app.name));
+  }
+  const before = new Set((await allWindows(ctx)).map((window) => window.id));
+  await openStartMenuApp(listed);
+  for (let tried = 0; tried < WINDOW_CHECKS; tried++) {
+    await DefenseInDepthBox.runTrustedAsync(() => sleep(WINDOW_CHECK_MS));
+    const fresh = (await allWindows(ctx)).filter(
+      (window) =>
+        !before.has(window.id) &&
+        programOfWindow(window) !== "" &&
+        !same(programOfWindow(window), FRAME_HOST),
+    );
+    const theirs = fresh.find((window) => isWindowOf(window, app.name));
+    if (theirs !== undefined) {
+      await grantApp(ctx.chatId, programOfWindow(theirs));
+      await bringForward(theirs);
+      return { app: appNameOfWindow(theirs), window: theirs };
+    }
+    const [only] = fresh;
+    if (only !== undefined && fresh.length === 1 && tried > WINDOW_CHECKS / 2) {
+      return { app: appNameOfWindow(only), window: only };
+    }
+  }
+  return { app: app.name };
 }

@@ -39,7 +39,7 @@ const NEXT_STEP: Record<string, string> = {
   PERM_DENIED:
     "The system isn't letting Instrument do this. Tell the person they can check it in Settings › Computer Use, and stop.",
   POLICY_DENIED:
-    "This takes the person's pointer and focus. Pass --headed only once they've said that's fine.",
+    "This takes the person's pointer and focus. `set-value` fills a text field without either, replacing what's in it. Otherwise pass --headed, only once they've said that's fine.",
   SNAPSHOT_NOT_FOUND: "Take a new snapshot and use its refs.",
   STALE_REF:
     "That element is gone or changed. Take a new snapshot and use its refs.",

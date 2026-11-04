@@ -61,13 +61,14 @@ export async function endSignIn(
 
 /**
  * Answers an app's sign-in card the way the user does in the app: a sign-in
- * that connected as `account`, or Skip. The connection is recorded and the
- * chats waiting on it hear it through the real app-event path.
+ * that connected as `account`, or as nobody the sign-in learned, as an MCP
+ * server's usually does, or Skip. The connection is recorded and the chats
+ * waiting on it hear it through the real app-event path.
  */
 export async function answerSignIn(
   slug: string,
   answer: "connected" | "declined",
-  { account, appsDir }: { account: string; appsDir: string },
+  { account, appsDir }: { account?: string; appsDir: string },
 ): Promise<void> {
   if (answer === "declined") {
     await recordConnection(slug, { status: "declined" });
@@ -79,7 +80,7 @@ export async function answerSignIn(
     throw new Error(`${slug}: ${loaded.error.message}`);
   }
   await recordConnection(slug, {
-    account,
+    ...(account === undefined ? {} : { account }),
     connectedAt: Date.now(),
     manifestHash: loaded.value.manifestHash,
     status: "connected",

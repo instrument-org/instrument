@@ -26,6 +26,22 @@ describe("the note an app event wakes the chat with", () => {
     `);
   });
 
+  it("has a service's unnamed account asked for before the reply", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [{ event: "connected", name: "Notion", slug: "notion-2" }],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      An app changed:
+      - The user signed in to Notion (notion-2). It is connected. Use it now: \`instrument app tools notion-2\`, then \`instrument app call\`. Its account is not named yet: before you reply, ask the service who it is signed in as (most have a call for the current user or workspace) and name it after the workspace, else the email or login: \`instrument app account notion-2 '<account>'\`.
+      Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
+      </instrument-system-note>"
+    `);
+  });
+
   it("tells this computer's connections to a session last told another's", () => {
     expect(
       appEventModelNote({

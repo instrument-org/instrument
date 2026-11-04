@@ -155,11 +155,24 @@ function onThisComputer(
 
 /**
  * Whose account the app is signed in as, when someone named it, or what a
- * connection note asks of the agent when nobody has.
+ * connection note asks of the agent when nobody has: an app reached through
+ * its service asks the service, and a web app, whose name moves it to that
+ * account's address, is named only from what is plain.
  */
-function nameIt({ account, slug }: { account?: string; slug: string }): string {
+function nameIt({
+  account,
+  slug,
+  web,
+}: {
+  account?: string;
+  slug: string;
+  web?: string;
+}): string {
   if (account !== undefined) {
     return ` It is signed in as ${account}.`;
   }
-  return ` If its account is plain (the page you are on shows it, or the user said it), name it: \`${APP_COMMAND.name} account ${slug} '<account>'\`. Don't hunt for it.`;
+  const name = `\`${APP_COMMAND.name} account ${slug} '<account>'\``;
+  return web === undefined
+    ? ` Its account is not named yet: before you reply, ask the service who it is signed in as (most have a call for the current user or workspace) and name it after the workspace, else the email or login: ${name}.`
+    : ` If its account is plain (the page you are on shows it, or the user said it), name it: ${name}. Don't hunt for it.`;
 }

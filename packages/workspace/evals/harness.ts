@@ -1567,8 +1567,11 @@ export async function runEvals(
             write(
               `${evalPrefix(label)}${c.dim}Sign-in to ${slug}: ${answer}${c.reset}\n`,
             );
+            const served = evalCase.apps?.some(
+              (app) => app.slug === slug && app.viewer !== undefined,
+            );
             await answerSignIn(slug, answer, {
-              account: "you@example.com",
+              ...(served ? {} : { account: "you@example.com" }),
               appsDir: workspaceLayout(workspaceRootDir).appsDir,
             });
           }

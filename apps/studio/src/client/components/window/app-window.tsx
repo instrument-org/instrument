@@ -35,6 +35,7 @@ import {
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
+import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-switch";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
@@ -355,6 +356,7 @@ function WindowShell({
   const appTabs = useAppTabs();
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
+  useRefetchOnWindowSwitch();
   useEffect(() => installKeyboardHome(), []);
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it.

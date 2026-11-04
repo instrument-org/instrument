@@ -67,6 +67,25 @@ export const scrub = (text) => {
   return out;
 };
 
+/**
+ * Test ids are for tests and no style reads them, but content blockers hide
+ * elements by them (one hides any whose id starts with "app", which takes
+ * Studio's whole page), so a shared take carries none. Clears them from every
+ * serialized node and attribute change in a recording, in place.
+ */
+const withoutTestIds = (value) => {
+  if (Array.isArray(value)) {
+    for (const item of value) withoutTestIds(item);
+  } else if (value && typeof value === "object") {
+    const { attributes } = value;
+    if (attributes && typeof attributes === "object" && !Array.isArray(attributes)) {
+      delete attributes["data-testid"];
+    }
+    for (const inner of Object.values(value)) withoutTestIds(inner);
+  }
+  return value;
+};
+
 const esc = (s) =>
   String(s)
     .replaceAll("&", "&amp;")
@@ -139,7 +158,7 @@ export async function buildTake(take) {
   // Fonts go inside the styles that name them, once each. A picture can be
   // named many times over a take, so it is kept once and named by a token
   // the player swaps for it.
-  let eventsJson = JSON.stringify(rrweb);
+  let eventsJson = JSON.stringify(withoutTestIds(rrweb));
   const pictures = [];
   for (const [url, dataUrl] of Object.entries(assets)) {
     if (/^data:font\/|\.(woff2?|ttf|otf)(\?|$)/.test(dataUrl.slice(0, 20)) || /\.(woff2?|ttf|otf)(\?|$)/.test(url)) {
@@ -207,7 +226,10 @@ export async function buildTake(take) {
   for (const f of readdirSync(path.join(recording, "stills"))) {
     const from = path.join(recording, "stills", f);
     const to = path.join(take, "stills", f);
-    if (f.endsWith(".html")) writeFileSync(to, scrub(readFileSync(from, "utf8")));
+    if (f.endsWith(".html")) {
+      const html = readFileSync(from, "utf8").replaceAll(/\sdata-testid="[^"]*"/g, "");
+      writeFileSync(to, scrub(html));
+    }
     else if (f.endsWith(".png")) copyFileSync(from, to);
   }
   // Each still's screen as roles and names, read from the still itself: the

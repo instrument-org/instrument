@@ -20,7 +20,7 @@ export const SHARED_KEPT_FILES = ["layout", "view"] as const;
  */
 export const WINDOW_KEPT_FILE = "window";
 
-export const KEPT_FILES = [...SHARED_KEPT_FILES, WINDOW_KEPT_FILE] as const;
+const KEPT_FILES = [...SHARED_KEPT_FILES, WINDOW_KEPT_FILE] as const;
 
 export type KeptFile = (typeof KEPT_FILES)[number];
 

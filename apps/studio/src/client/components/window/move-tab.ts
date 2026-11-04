@@ -95,7 +95,7 @@ export function openInNewWindow(href: string) {
 }
 
 /** Where a tab let go at a point on this window lands along the strip. */
-export function stripIndexAt(clientX: number, tabs: readonly { id: TabId }[]) {
+function stripIndexAt(clientX: number, tabs: readonly { id: TabId }[]) {
   const before = [
     ...document.querySelectorAll<HTMLElement>(
       "[data-app-tab-strip] [data-tab-key]",

@@ -130,6 +130,15 @@ export function clearExceptionEvents() {
   publisher.publish("exceptions.updated", null);
 }
 
+/** Clears one problem, by the fingerprint its count is kept under. */
+export function clearExceptionEvent(fingerprint: string) {
+  EVENTS = listExceptionEvents().filter(
+    (event) => event.fingerprint !== fingerprint,
+  );
+  scheduleWrite();
+  publisher.publish("exceptions.updated", null);
+}
+
 function scheduleWrite() {
   if (writeTimer) {
     return;

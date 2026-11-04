@@ -63,7 +63,7 @@ describe("isRefusedByName", () => {
       false,
     ],
     [
-      "a workspace made from the dev panel",
+      "a workspace made from developer settings",
       at("workspaces", "w", "a.md"),
       false,
     ],

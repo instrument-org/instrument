@@ -26,7 +26,7 @@ A full-window shot is right when the surface is about framing or layout. A cropp
 
 Check the reported `dimensions`. A crop that silently did not apply comes back at full-window size.
 
-Pick a task that already holds the files or state a surface needs rather than driving the agent to produce them. For states with no ordinary path — the post-update toast, the running-agent quit prompt — see the dev panel entries listed in the studio-chrome-devtools skill.
+Pick a task that already holds the files or state a surface needs rather than driving the agent to produce them. For states with no ordinary path — the post-update toast, the running-agent quit prompt — see the App states debug page listed in the studio-chrome-devtools skill.
 
 ## Attaching to Notion
 

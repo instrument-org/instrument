@@ -64,7 +64,7 @@ Each entry is the plan's title and the opening of its status.
 - [Seeded, disposable workspaces for driving and testing Studio](seeded-test-workspaces.md): Corpus (`fixtures/workspaces/`), seeder (`pnpm workspace:seed`), recorder and `studio-drive --workspace` wiring landed, on the 2.0 chat layout.
 - [Seeded workspaces on the Windows test host](seeded-workspaces-on-windows.md): The helper side has landed;
 - [Semantic prompt composer](semantic-prompt-composer.md): Landed for skills and apps, deferred for the rest.
-- [One shortcut table: in-app menu bar and a shortcut guide](shortcut-table-menu-bar-and-guide.md): Phases 1-3 landed, phase 4 not started (checked 2026-10-29: `components/ui/menubar.tsx` is used only by the dev panel;
+- [One shortcut table: in-app menu bar and a shortcut guide](shortcut-table-menu-bar-and-guide.md): Phases 1-3 landed, phase 4 not started (the Radix menubar primitive went with the developer panel that was its only user, so phase 4 adds it back;
 - [Sign in through the API, and run without one](sign-in-through-the-api.md): Sign-in through the API is built on both sides (`922527fee`), and the production build no longer requires any variable.
 - [Sign in with Apple](sign-in-with-apple.md): Planned, not started.
 - [Skills from attached folders](skills-from-attached-folders.md): Proposed, not started (checked 2026-10-29: `getSkillSources` reads no attached folders).

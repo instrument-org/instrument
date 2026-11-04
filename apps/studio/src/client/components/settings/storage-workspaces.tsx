@@ -24,7 +24,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { SettingsSection } from "@/client/components/settings/general-section";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { WORKSPACE_COLOR_HEX } from "@/client/components/window/app-identity-chip";
+import { WORKSPACE_COLOR_HEX } from "@/client/components/window/workspace-colors";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
@@ -56,6 +56,13 @@ export function StorageWorkspaces() {
     ...rpcClient.workspaces.sizes.queryOptions(),
     enabled: isDeveloperMode,
   });
+  const { data: environment } = useQuery({
+    ...rpcClient.debug.getAppEnvironment.queryOptions(),
+    enabled: isDeveloperMode,
+  });
+  const { mutate: openFolder } = useMutation(
+    rpcClient.utils.openFolder.mutationOptions(),
+  );
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: rpcClient.workspaces.key() });
 
@@ -139,6 +146,18 @@ export function StorageWorkspaces() {
                     {row.path}
                   </div>
                 </div>
+                {row.isReachable && (
+                  <Button
+                    className="shrink-0"
+                    onClick={() => {
+                      openFolder({ folderPath: row.path });
+                    }}
+                    size="xs"
+                    variant="outline"
+                  >
+                    {osConventions().showInFileManager}
+                  </Button>
+                )}
                 {row.isRegistered && !row.isResolved && (
                   <Button
                     className="shrink-0"
@@ -180,6 +199,29 @@ export function StorageWorkspaces() {
                 )}
               </li>
             ))}
+            {environment && (
+              <li className="flex min-w-0 items-center gap-3 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">User data</div>
+                  <div
+                    className="truncate font-mono text-[10px] text-muted-foreground/70"
+                    title={environment.userDataPath}
+                  >
+                    {environment.userDataPath}
+                  </div>
+                </div>
+                <Button
+                  className="shrink-0"
+                  onClick={() => {
+                    openFolder({ folderPath: environment.userDataPath });
+                  }}
+                  size="xs"
+                  variant="outline"
+                >
+                  {osConventions().showInFileManager}
+                </Button>
+              </li>
+            )}
           </ul>
         </div>
         <Button

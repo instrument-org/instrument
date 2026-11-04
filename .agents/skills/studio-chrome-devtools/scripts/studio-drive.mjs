@@ -570,7 +570,7 @@ function devUserDataDir() {
  * INSTRUMENT_WORKSPACE. Unlike a fixture it shares the machine's toolchain and
  * caches, so it boots as fast as the developer's instance does, and with
  * `withSignIns` it can run a real agent turn on the developer's sign-ins. The
- * app lists it in the dev panel as agent-made; studio-drive reaps it.
+ * app lists it in developer settings as agent-made; studio-drive reaps it.
  */
 function prepareCleanRoom(name, { purpose, withSignIns }) {
   reapStaleCleanRooms();
@@ -589,7 +589,7 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
           // A blank workspace is in the format this build keeps
           // (WORKSPACE_FORMAT_VERSION in Studio's workspaces.ts), so the
           // launch moves nothing of the person's out of it. Developer mode,
-          // which the dev panel and `rpc` need, is a dev build's default.
+          // which the developer strip and `rpc` need, is a dev build's default.
           formatVersion: 2,
           name: `Clean room: ${name}`,
           settingsVersion: 1,

@@ -21,6 +21,11 @@ export const debugNavigationRoutes = [
 
 export const componentPages = [
   {
+    id: "app-states",
+    label: "App states",
+    to: "/debug/components/app-states",
+  },
+  {
     id: "transcript",
     label: "Transcript",
     to: "/debug/components/transcript",

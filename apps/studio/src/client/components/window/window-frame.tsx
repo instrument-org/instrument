@@ -1,3 +1,7 @@
+import {
+  DEVELOPER_STRIP_HEIGHT,
+  useDeveloperStripShown,
+} from "@/client/atoms/developer-strip";
 import { SetupHost } from "@/client/components/setup/setup-host";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
@@ -40,6 +44,12 @@ export function WindowFrame({
   // the app would put up over itself (a dialog, a toast)
   // waits rather than landing over setup.
   const isSetupUp = useIsSetupUp();
+  const isStripShown = useDeveloperStripShown();
+  // Toasts are placed from the viewport's foot, which the developer band sits on.
+  const toastCorner = {
+    ...CARD_CORNER,
+    bottom: CARD_CORNER.bottom + (isStripShown ? DEVELOPER_STRIP_HEIGHT : 0),
+  };
   return (
     // The band across the top is the window's, so every menu, popover and
     // tooltip is held below it: on macOS the traffic lights are drawn over that
@@ -99,7 +109,7 @@ export function WindowFrame({
               which dock at the bottom right. */}
             <Toaster
               {...(rail
-                ? { mobileOffset: CARD_CORNER, offset: CARD_CORNER }
+                ? { mobileOffset: toastCorner, offset: toastCorner }
                 : {})}
             />
             <Toaster

@@ -1,7 +1,6 @@
 import { SetupNetworkStatusPill } from "@/client/components/network-status/network-status-pill";
 import { Toaster } from "@/client/components/ui/sonner";
 import { WindowControls } from "@/client/components/window-controls";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -9,19 +8,12 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SETUP_STEPS, type SetupStep } from "@/shared/setup";
 import { useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 
 import { SetupPageSwitch } from "./kit/setup-page-switch";
 
 import { SETUP_PAGES } from "./step-pages";
 import { useSetupState } from "./use-setup-state";
-
-// The developer panel, for Skip setup: loaded only in developer mode.
-const DevPanel = lazy(() =>
-  import("@/client/components/dev-panel").then((m) => ({
-    default: m.DevPanel,
-  })),
-);
 
 /**
  * Setup, drawn over the whole app window while it is up, with the app loaded
@@ -39,7 +31,6 @@ export function SetupHost() {
     step: SetupStep;
   }>(null);
   const step = held?.step ?? state?.step ?? null;
-  const isDeveloperMode = useDeveloperMode();
   useHoldWindow(step !== null);
   const { mutate: answer } = useMutation(
     rpcClient.setup.answer.mutationOptions(),
@@ -76,7 +67,6 @@ export function SetupHost() {
             hold={() => {
               setHeld({ isNewStepOnly, step });
             }}
-            isDeveloperMode={isDeveloperMode}
             isNewStepOnly={isNewStepOnly}
             step={step}
           />
@@ -93,7 +83,6 @@ function SetupScreen({
   backTo,
   finish,
   hold,
-  isDeveloperMode,
   isNewStepOnly,
   step,
 }: {
@@ -103,7 +92,6 @@ function SetupScreen({
   backTo: null | SetupStep;
   finish: () => void;
   hold: () => void;
-  isDeveloperMode: boolean;
   isNewStepOnly: boolean;
   step: SetupStep;
 }) {
@@ -130,11 +118,6 @@ function SetupScreen({
         style={{ height: `${TOOLBAR_HEIGHT}px` }}
       >
         <SetupNetworkStatusPill />
-        {isDeveloperMode && (
-          <Suspense fallback={null}>
-            <DevPanel />
-          </Suspense>
-        )}
         <WindowControls />
       </div>
       <SetupPageSwitch depth={SETUP_STEPS.indexOf(step)} page={step}>

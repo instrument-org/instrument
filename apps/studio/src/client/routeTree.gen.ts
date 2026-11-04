@@ -30,6 +30,7 @@ import { Route as AppTasksSessionIdRouteImport } from './routes/_app/tasks/$sess
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
 import { Route as DebugComponentsAppIconsRouteImport } from './routes/debug/components/app-icons'
+import { Route as DebugComponentsAppStatesRouteImport } from './routes/debug/components/app-states'
 import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
 import { Route as DebugComponentsElevationRouteImport } from './routes/debug/components/elevation'
 import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
@@ -147,6 +148,12 @@ const DebugComponentsAppIconsRoute = DebugComponentsAppIconsRouteImport.update({
   path: '/app-icons',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
+const DebugComponentsAppStatesRoute =
+  DebugComponentsAppStatesRouteImport.update({
+    id: '/app-states',
+    path: '/app-states',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
 const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
   id: '/colors',
   path: '/colors',
@@ -233,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
+  '/debug/components/app-states': typeof DebugComponentsAppStatesRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
   '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
@@ -265,6 +273,7 @@ export interface FileRoutesByTo {
   '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
+  '/debug/components/app-states': typeof DebugComponentsAppStatesRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
   '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
@@ -301,6 +310,7 @@ export interface FileRoutesById {
   '/_app/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
+  '/debug/components/app-states': typeof DebugComponentsAppStatesRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
   '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/tasks/$sessionId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
+    | '/debug/components/app-states'
     | '/debug/components/colors'
     | '/debug/components/elevation'
     | '/debug/components/error-card'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/tasks/$sessionId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
+    | '/debug/components/app-states'
     | '/debug/components/colors'
     | '/debug/components/elevation'
     | '/debug/components/error-card'
@@ -404,6 +416,7 @@ export interface FileRouteTypes {
     | '/_app/tasks/$sessionId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
+    | '/debug/components/app-states'
     | '/debug/components/colors'
     | '/debug/components/elevation'
     | '/debug/components/error-card'
@@ -577,6 +590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsAppIconsRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/app-states': {
+      id: '/debug/components/app-states'
+      path: '/app-states'
+      fullPath: '/debug/components/app-states'
+      preLoaderRoute: typeof DebugComponentsAppStatesRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/colors': {
       id: '/debug/components/colors'
       path: '/colors'
@@ -699,6 +719,7 @@ const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
 interface DebugComponentsRouteChildren {
   DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
   DebugComponentsAppIconsRoute: typeof DebugComponentsAppIconsRoute
+  DebugComponentsAppStatesRoute: typeof DebugComponentsAppStatesRoute
   DebugComponentsColorsRoute: typeof DebugComponentsColorsRoute
   DebugComponentsElevationRoute: typeof DebugComponentsElevationRoute
   DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
@@ -717,6 +738,7 @@ interface DebugComponentsRouteChildren {
 const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsAlertsRoute: DebugComponentsAlertsRoute,
   DebugComponentsAppIconsRoute: DebugComponentsAppIconsRoute,
+  DebugComponentsAppStatesRoute: DebugComponentsAppStatesRoute,
   DebugComponentsColorsRoute: DebugComponentsColorsRoute,
   DebugComponentsElevationRoute: DebugComponentsElevationRoute,
   DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,

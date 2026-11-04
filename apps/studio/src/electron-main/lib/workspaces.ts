@@ -56,7 +56,7 @@ const WORKSPACES_DIR_NAME = "workspaces";
  * Where this computer keeps each workspace's own data, one folder per local
  * id. Short, since a Chromium profile's deepest paths inside it come close to
  * Windows' 260 characters, and apart from `workspaces/`, which holds whole
- * workspaces made from the dev panel.
+ * workspaces made from developer settings.
  */
 const MACHINE_DIR_NAME = "machine";
 

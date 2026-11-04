@@ -1,4 +1,5 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
+import { getAppWindow } from "@/electron-main/windows/app-window";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import {
   isQuitGuardForcedInDev,
@@ -252,6 +253,7 @@ const getAppEnvironment = devOnly
       drivePurpose: z.string().optional(),
       isPackaged: z.boolean(),
       userData: z.string().optional(),
+      userDataPath: z.string(),
       worktree: z.string().optional(),
     }),
   )
@@ -261,6 +263,7 @@ const getAppEnvironment = devOnly
     drivePurpose: drivePurpose(),
     isPackaged: app.isPackaged,
     userData: userDataName(),
+    userDataPath: app.getPath("userData"),
     worktree: worktreeName(),
   }));
 
@@ -277,6 +280,10 @@ const openUserDataFolder = devOnly.input(z.void()).handler(() => {
 
 const openWorkspaceFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(getWorkspaceFolder());
+});
+
+const toggleDevTools = devOnly.input(z.void()).handler(() => {
+  getAppWindow()?.webContents.toggleDevTools();
 });
 
 const getQuitGuardForced = devOnly
@@ -298,5 +305,6 @@ export const debug = {
   openWorkspaceFolder,
   setQuitGuardForced,
   systemInfo,
+  toggleDevTools,
   trigger,
 };

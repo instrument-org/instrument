@@ -5,6 +5,7 @@ import {
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
+import { toggleDeveloperStrip } from "@/client/atoms/developer-strip";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { helpMenuReport } from "@/client/lib/problem-reports";
 import {
@@ -45,6 +46,7 @@ const MODAL_SAFE_COMMANDS = new Set([
   "openSettings",
   "openShortcutGuide",
   "reloadPage",
+  "toggleDeveloperStrip",
   "toggleInbox",
   "zoomIn",
   "zoomOut",
@@ -350,6 +352,14 @@ export function useWindowCommands(
             }
             case "search": {
               latest.current.search();
+              break;
+            }
+            case "openDebugPages": {
+              latest.current.openScreen("/debug");
+              break;
+            }
+            case "toggleDeveloperStrip": {
+              toggleDeveloperStrip();
               break;
             }
             case "toggleInbox": {

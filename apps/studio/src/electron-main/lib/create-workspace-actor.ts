@@ -384,7 +384,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           // main-process rebuild. Skip the running-agents prompt in dev so a
           // reload is never blocked waiting on a dialog nobody sees, which would
           // strand the old instance while electron-vite launches a new one.
-          // Teardown still runs. The dev panel can opt back in to exercise the
+          // Teardown still runs. The App states debug page can opt back in to exercise the
           // prompt deliberately.
           if (is.dev && !isQuitGuardForcedInDev()) {
             return Promise.resolve(true);

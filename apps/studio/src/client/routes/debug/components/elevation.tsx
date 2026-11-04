@@ -91,7 +91,7 @@ const ramps: { description: string; levels: Level[]; title: string }[] = [
       {
         className: "shadow-float-md",
         name: "float-md",
-        usedBy: "Tooltips, toasts, the developer panel",
+        usedBy: "Tooltips, toasts",
       },
       {
         className: "shadow-float-lg",

@@ -133,7 +133,15 @@ describe("instrument computer", () => {
     await grantApp(scope.chatId, "com.apple.TextEdit");
     const { stdout } = await snapshot(["TextEdit"], scope);
     expect(driver.actions()).toEqual([
-      ["snapshot", "--window-id", "w-1", "--compact", "-i"],
+      [
+        "snapshot",
+        "--window-id",
+        "w-1",
+        "--compact",
+        "--timeout-ms",
+        "10000",
+        "-i",
+      ],
     ]);
     expect(stdout).toMatchInlineSnapshot(`
       "Window w-1
@@ -339,17 +347,92 @@ describe("instrument computer", () => {
     expect(driver.actions().flat()).not.toContain("--force");
   });
 
-  it("lists running apps with this chat's answer for each, helpers left out", async () => {
+  it("lists running apps with this chat's answer for each", async () => {
     standInDriver(answers);
     await grantApp(scope.chatId, "com.apple.TextEdit");
     const { stdout } = await apps([], scope);
-    expect(stdout).toMatchInlineSnapshot(`
-      "TextEdit (com.apple.TextEdit): allowed
-      Stickies (com.apple.Stickies): ask first
-      SecurityAgent (com.apple.SecurityAgent): ask first
-      Own (com.example.own): ask first
-      "
-    `);
+    expect(stdout).toBe(
+      "TextEdit (com.apple.TextEdit): allowed\nStickies (com.apple.Stickies): ask first\n",
+    );
+  });
+
+  it("leaves out what it can never drive, and helpers even with --all", async () => {
+    standInDriver({
+      ...answers,
+      "list-apps": ok({
+        apps: [
+          {
+            bundle_id: "com.example.menu",
+            name: "Menu Thing",
+            pid: 510,
+            presentation: "background",
+          },
+          {
+            bundle_id: "com.apple.SecurityAgent",
+            name: "SecurityAgent",
+            pid: 503,
+            presentation: "background",
+          },
+          {
+            bundle_id: "com.example.own",
+            name: "Own",
+            pid: 504,
+            presentation: "foreground",
+          },
+          { bundle_id: "com.apple.helper", name: "Helper", pid: 505 },
+        ],
+      }),
+    });
+    expect((await apps([], scope)).stdout).toContain("No apps with a window");
+    expect((await apps(["--all"], scope)).stdout).toBe(
+      "Menu Thing (com.example.menu): ask first\n",
+    );
+  });
+
+  it("shows the agent's cursor once per chat, from its first action", async () => {
+    const chatId = ChatIdSchema.parse("computer-cursor-chat");
+    const inChat = { ...scope, chatId };
+    const driver = standInDriver(answers);
+    await grantApp(chatId, "com.apple.TextEdit");
+    await snapshot(["TextEdit"], inChat);
+    const cursorCalls = () =>
+      driver.calls().filter(([word]) => word === "cursor-overlay");
+    expect(cursorCalls()).toEqual([]);
+    await click(["@s1abc:e1"], inChat);
+    await click(["@s1abc:e1"], inChat);
+    expect(cursorCalls()).toEqual([
+      ["cursor-overlay", "enable", "--label", "Instrument"],
+    ]);
+  });
+
+  it("says when a refused shortcut has no way past it here", async () => {
+    const driver = standInDriver({
+      ...answers,
+      press: refused(
+        "POLICY_DENIED",
+        "Key combo 'cmd+q' is blocked for safety; pass --force to override",
+      ),
+    });
+    await grantApp(scope.chatId, "com.apple.TextEdit");
+    await expect(press(["TextEdit", "cmd+q"], scope)).rejects.toThrow(
+      "That shortcut is refused here, since it could quit an app or log the person out.",
+    );
+    expect(driver.actions().flat()).not.toContain("--force");
+  });
+
+  it("says whether an app it opened has a window yet", async () => {
+    standInDriver({ ...answers, launch: ok({ pid: 7 }) });
+    await grantApp(scope.chatId, "com.apple.TextEdit");
+    expect((await open(["TextEdit"], scope)).stdout).toContain(
+      "with no window yet",
+    );
+    standInDriver({
+      ...answers,
+      launch: ok({ pid: 7, window: { id: "w-1", title: "Untitled" } }),
+    });
+    expect((await open(["TextEdit"], scope)).stdout).toBe(
+      'It\'s running, with window w-1 "Untitled".\n',
+    );
   });
 
   it("asks before starting an app, and starts it by its bundle id", async () => {

@@ -111,10 +111,11 @@ function ScreenRecordingStep({ data }: { data: Status }) {
     >
       <p className="text-sm text-muted-foreground">
         This helps when an app&apos;s buttons and text aren&apos;t enough to go
-        on. Turn on {data.appName} in {screenPaneName(data.macOSMajor)}.
+        on. Turn on {data.appName} in {screenPaneName(data.macOSMajor)}. If
+        macOS offers to quit and reopen it, you can choose Later.
       </p>
       <Button
-        disabled={!data.installed}
+        disabled={!data.installed || !data.accessibility}
         onClick={() => {
           request.mutate({ permission: "screen-recording" });
         }}

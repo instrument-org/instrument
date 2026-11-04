@@ -99,6 +99,12 @@ function offLimits(app: MacApp, pid?: number): string | undefined {
   return undefined;
 }
 
+/** Whether `app` is one the agent may never drive, so it isn't offered. */
+export function isOffLimits(app: RunningApp): boolean {
+  const known = asMacApp(app);
+  return known !== undefined && offLimits(known, app.pid) !== undefined;
+}
+
 /** How a card names `app`: by name when that finds it, else by its bundle id. */
 async function askableName(app: MacApp): Promise<string> {
   return (await appBundleId(app.name)) === app.bundleId

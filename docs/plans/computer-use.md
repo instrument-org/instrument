@@ -27,9 +27,9 @@ Computer use asks what every other route to an app asks, so there is no second p
 | macOS grant | Needed for | Setup |
 | --- | --- | --- |
 | Accessibility | Reading trees and every action | Required. It applies at once, with no relaunch. |
-| Screen Recording | `instrument computer screenshot` | Optional. Everything else works without it. |
+| Screen Recording | `instrument computer screenshot` | Optional. Everything else works without it. macOS offers to quit and reopen the app, but each call is a new process, which has the grant at once, so Later is fine. |
 
-Settings › Computer Use walks through both, reading each through the driver itself, which is the proof that a grant reaches what the agent runs.
+Settings › Computer Use walks through both, reading each through the driver itself, which is the proof that a grant reaches what the agent runs. Screen Recording is asked through the driver as well, since Electron's capture API raises no prompt and lists nothing in the pane.
 
 ## What it leaves the person
 

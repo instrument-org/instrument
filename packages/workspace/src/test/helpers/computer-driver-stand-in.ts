@@ -64,7 +64,10 @@ export function standInDriver(
     /** The calls that aren't how the wrapper finds its way around. */
     actions(): string[][] {
       return this.calls().filter(
-        ([word]) => word !== "list-apps" && word !== "list-windows",
+        ([word]) =>
+          word !== "list-apps" &&
+          word !== "list-windows" &&
+          word !== "cursor-overlay",
       );
     },
     setAnswers,

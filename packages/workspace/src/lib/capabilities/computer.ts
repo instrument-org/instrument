@@ -5,7 +5,7 @@ import { isMainThread } from "node:worker_threads";
 import { z } from "zod";
 
 import { getScreenshotsDir } from "../chat-dir-utils";
-import { runDriver } from "../computer/driver";
+import { runDriver, showCursor } from "../computer/driver";
 import {
   appOfRef,
   gatedRunningApp,
@@ -14,6 +14,7 @@ import {
   refGate,
   rememberSnapshot,
   runningAppGate,
+  isOffLimits,
   runningApps,
   setUpGate,
   windowLine,
@@ -107,14 +108,23 @@ const ACCESS = {
 
 const computerApps = defineCapability({
   gate: () => setUpGate(),
-  input: z.object({}),
+  input: z.object({
+    all: z.boolean().optional().meta({
+      description: "Include menu bar apps and other apps with no window.",
+    }),
+  }),
   name: "computer.apps",
   output: AppsOutput,
-  async run(_input, ctx) {
+  async run({ all }, ctx) {
     const running = await runningApps(ctx);
     return Promise.all(
       running
-        .filter((app) => app.presentation !== undefined)
+        .filter((app) =>
+          all === true
+            ? app.presentation !== undefined
+            : app.presentation === "foreground",
+        )
+        .filter((app) => !isOffLimits(app))
         .map(async (app) => ({
           access:
             ACCESS[
@@ -131,14 +141,18 @@ const computerApps = defineCapability({
   summary: "The running apps, and what this chat may do with each.",
   surfaces: {
     cli: {
-      help: "  What's running, and whether each app is allowed in this chat, asks first or isn't allowed.",
+      help: "  What's running with a window, and whether each app is allowed in this chat, asks first or isn't allowed.",
       words: ["computer", "apps"],
     },
   },
   text: (apps) =>
-    apps
-      .map((app) => `${app.name} (${app.bundle_id ?? "no id"}): ${app.access}`)
-      .join("\n"),
+    apps.length === 0
+      ? "No apps with a window are running. --all includes the ones without."
+      : apps
+          .map(
+            (app) => `${app.name} (${app.bundle_id ?? "no id"}): ${app.access}`,
+          )
+          .join("\n"),
   where: WHERE,
 });
 
@@ -167,6 +181,10 @@ const computerWindows = defineCapability({
   where: WHERE,
 });
 
+const LaunchData = z.looseObject({
+  window: z.object({ id: z.string(), title: z.string().optional() }).optional(),
+});
+
 const computerOpen = defineCapability({
   gate: ({ app }, ctx) => openableAppGate(app, ctx),
   input: z.object({
@@ -177,7 +195,7 @@ const computerOpen = defineCapability({
     app: AppName("open"),
   }),
   name: "computer.open",
-  output: z.looseObject({}),
+  output: LaunchData,
   async run({ activate, app }, ctx) {
     const found = await openableApp(app, ctx);
     if (found === undefined) {
@@ -187,19 +205,28 @@ const computerOpen = defineCapability({
       ["launch", found.bundleId, ...(activate === true ? ["--activate"] : [])],
       ctx,
     );
-    return z.looseObject({}).parse(data);
+    return LaunchData.parse(data);
   },
   summary: "Starts an allowed app.",
   surfaces: {
     cli: {
-      help: "  Starts an allowed app, or finds it already running. It may have no window until you --activate it.",
+      help: "  Starts an allowed app, or finds it already running, and leaves the person's focus where it is.",
       positional: ["app"],
       words: ["computer", "open"],
     },
   },
-  text: () => "It's running.",
+  text: ({ window }) =>
+    window === undefined
+      ? "It's running, with no window yet. --activate brings it forward and waits for one, which takes the person's focus."
+      : `It's running, with window ${window.id} ${JSON.stringify(window.title ?? "")}.`,
   where: WHERE,
 });
+
+/** How long a snapshot may walk a window, which Chess's board takes seconds to. */
+const SNAPSHOT_DEADLINE_MS = 10_000;
+
+/** How long `--wait-for` waits for what it names. */
+const WAIT_MS = 15_000;
 
 const computerSnapshot = defineCapability({
   gate: ({ app, root }, ctx) =>
@@ -237,10 +264,14 @@ const computerSnapshot = defineCapability({
             ? await windowTarget(target, window, ctx)
             : ["--root", root]),
           "--compact",
+          "--timeout-ms",
+          String(SNAPSHOT_DEADLINE_MS),
           ...(all === true ? [] : ["-i"]),
           ...(skeleton === true ? ["--skeleton"] : []),
           ...(surface === undefined ? [] : ["--surface", surface]),
-          ...(wait_for === undefined ? [] : ["--wait-for", wait_for]),
+          ...(wait_for === undefined
+            ? []
+            : ["--wait-for", wait_for, "--wait-timeout", String(WAIT_MS)]),
         ],
         ctx,
       ),
@@ -327,6 +358,7 @@ async function act(
   headed: boolean | undefined,
   ctx: CapabilityContext,
 ): Promise<ActionOutput> {
+  await showCursor(ctx);
   return ActionData.parse(
     await runDriver([...args, ...(headed === true ? ["--headed"] : [])], ctx),
   );

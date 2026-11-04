@@ -1,5 +1,7 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { execa } from "execa";
 import { DefenseInDepthBox } from "just-bash";
+import { noop } from "radashi";
 import { z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -63,6 +65,10 @@ function refusalText({
   disposition?: { retry: string };
   message: string;
 }): string {
+  // The driver's way past this is a flag the agent isn't given.
+  if (message.includes("--force")) {
+    return "That shortcut is refused here, since it could quit an app or log the person out.";
+  }
   const mayHaveLanded =
     disposition !== undefined && disposition.retry !== "safe";
   return [
@@ -118,6 +124,31 @@ export async function runDriver(
     );
   }
   return data;
+}
+
+/** The chats whose cursor is already showing. */
+const cursorShown = new Set<ChatId>();
+
+/**
+ * Shows the agent's own cursor from a chat's first action, so the person can
+ * see something is at work on their desktop. It draws over the screen and never
+ * touches their pointer, and an action goes ahead if it can't be drawn.
+ */
+export async function showCursor({
+  chatId,
+  signal,
+}: {
+  chatId: ChatId;
+  signal?: AbortSignal;
+}): Promise<void> {
+  if (cursorShown.has(chatId)) {
+    return;
+  }
+  cursorShown.add(chatId);
+  await runDriver(["cursor-overlay", "enable", "--label", APP_NAME], {
+    chatId,
+    ...(signal === undefined ? {} : { signal }),
+  }).catch(noop);
 }
 
 function parseJson(text: string): unknown {

@@ -1,7 +1,7 @@
 import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { type ComputerUseHost } from "@instrument-org/workspace/electron";
 import { getWorkspaceFeatures } from "@/electron-main/stores/workspace/preferences";
-import { app, desktopCapturer, shell, systemPreferences } from "electron";
+import { app, shell, systemPreferences } from "electron";
 import { execFile } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
@@ -116,16 +116,13 @@ const PANES = {
 
 export type ComputerPermission = keyof typeof PANES;
 
-/** How long macOS gets to put its Accessibility prompt up after being asked. */
+/** How long macOS gets to put its prompt up after being asked. */
 const PROMPT_PATIENCE_MS = 500;
 
-/** Whether macOS's Accessibility prompt is up: a process of its own runs it. */
-async function accessibilityPromptIsUp(): Promise<boolean> {
+/** Whether one of these prompts is up: a process of its own runs them. */
+async function promptIsUp(): Promise<boolean> {
   await sleep(PROMPT_PATIENCE_MS);
-  return execFileAsync("/usr/bin/pgrep", [
-    "-x",
-    "universalAccessAuthWarn",
-  ]).then(
+  return execFileAsync("/usr/bin/pgrep", ["-x", "universalAccessAuthWarn"]).then(
     () => true,
     () => false,
   );
@@ -134,8 +131,10 @@ async function accessibilityPromptIsUp(): Promise<boolean> {
 /**
  * The system's own ask, which is also what lists the app in the pane, so the
  * person finds a switch instead of having to add the app with the plus button.
- * Accessibility's prompt has its own button to the pane, so the pane opens here
- * only when macOS asks nothing, as it does once it has been answered.
+ * Screen Recording is asked through the driver, since Electron's capture API
+ * raises no prompt and lists nothing. The prompt has its own button to the
+ * pane, so the pane opens here only when macOS asks nothing, as it does once
+ * it has been answered.
  */
 export async function requestComputerPermission(
   permission: ComputerPermission,
@@ -145,13 +144,14 @@ export async function requestComputerPermission(
   }
   if (permission === "accessibility") {
     systemPreferences.isTrustedAccessibilityClient(true);
-    if (await accessibilityPromptIsUp()) {
-      return;
-    }
   } else {
-    await desktopCapturer
-      .getSources({ thumbnailSize: { height: 1, width: 1 }, types: ["screen"] })
-      .catch(noop);
+    // Not waited for: it stays until the prompt is answered.
+    execFileAsync(binaryPath(), ["permissions", "--request"], {
+      env: { ...process.env, AGENT_DESKTOP_HOME: stateDir() },
+    }).catch(noop);
+  }
+  if (await promptIsUp()) {
+    return;
   }
   await shell.openExternal(PANES[permission]);
 }

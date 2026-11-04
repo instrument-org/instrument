@@ -135,7 +135,8 @@ function ScreenRecordingStep({ data }: { data: Status }) {
       <p className="text-sm text-muted-foreground">
         This helps when an app&apos;s buttons and text aren&apos;t enough to go
         on. Turn on {data.appName} in {screenPaneName(data.macOSMajor)}. If
-        macOS offers to quit and reopen it, you can choose Later.
+        macOS offers to quit and reopen it, you can choose Later. When macOS
+        asks about its private window picker, choose Allow.
       </p>
       <Button
         disabled={!data.installed || !data.accessibility}

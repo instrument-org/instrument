@@ -613,7 +613,7 @@ function createAppWindow(
       }
     }
     publisher.publish("windows.changed", null);
-    publisher.publish("window.focus-changed", null);
+    publisher.publish("window.focus-changed", { webContentsId: null });
     // The window is already out of the list by now, so nothing to exclude.
     if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
       app.quit();
@@ -623,7 +623,7 @@ function createAppWindow(
   window.on("focus", () => {
     inFront = [window, ...inFront.filter((each) => each !== window)];
     rememberWindowInFront(id);
-    publisher.publish("window.focus-changed", null);
+    publisher.publish("window.focus-changed", { webContentsId });
   });
 
   // What the Window menu and a tab's menu call it.

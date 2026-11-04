@@ -100,7 +100,8 @@ interface PublisherEvents {
     clientX: null | number;
     webContentsId: number;
   };
-  "window.focus-changed": null;
+  // A window came to the front, or one closed, which names none.
+  "window.focus-changed": { webContentsId: null | number };
   // A link under the pointer in text being edited, which the window's native
   // menu offers to open: the page that drew it opens it, in place or in a tab
   // of the window's own.

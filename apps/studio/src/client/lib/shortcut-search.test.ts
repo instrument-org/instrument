@@ -47,6 +47,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Go to Files  ⌃⌘2",
         "General: Keyboard Shortcuts  ?",
         "General: New Chat  ⌘N",
+        "General: New Window  ⇧⌘N",
         "General: Quit  ⌘Q",
         "General: Search or Ask  ⌘L",
         "General: Settings…  ⌘,",

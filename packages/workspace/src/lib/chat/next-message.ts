@@ -24,6 +24,7 @@ import { cacheSessionFor } from "../fork-cache-session";
 import { prepareModelMessages, TRANSIENT } from "../prepare-model-messages";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking } from "./chats";
+import { withoutInlineThinking } from "../without-inline-thinking";
 import { openAsksUntil } from "./open-asks";
 
 /**
@@ -39,47 +40,22 @@ Predict what they would type next, in their own words. The test: would they thin
 - Write it as the person, to the agent. Never in the agent's voice ("Let me…", "I'll…").
 - Specific beats generic: "Summarize the two you found" beats "Continue".
 - When the agent offered a next step or options, suggest the one the person would most likely take, in their words.
+- When the agent asked whether to do something ("Want me to save it as a file?"), suggest the answer they would most likely give: "Yes, save it".
 - A question is fine when it's the obvious next thing to ask about the answer they just got.
 - Only what follows from what they asked for. No new ideas, no upselling, and nothing that takes their work somewhere they didn't mention (publishing, sharing, another app).
 - Never suggest deleting, sending, buying, posting, or anything else that can't be undone, unless the person already said they want it done.
 - 2 to 10 words, one line. Match how the person writes: their casing, punctuation and tone.
 
 Answer with exactly NONE only when:
-- the agent's last message ends by asking the person something, even in passing ("How's the new phone?"), or is waiting on a card (a permission, a sign-in, a choice): they answer that themselves;
+- the agent's last message asks something only the person can answer, even in passing ("How's the new phone?", "Which city?"), or is waiting on a card (a permission, a sign-in, a choice): they answer that themselves;
 - something failed or the agent is still working;
 - the person just said thanks or goodbye;
-- it would mean guessing at someone else's private life.
+- it touches something sensitive: passwords or keys, a security incident, harm to anyone, health, or someone's private life.
 
 Otherwise suggest the likeliest next message. A finished answer still gets one: the follow-up they would most likely ask for next. Reply with only the suggestion or NONE, no quotes or explanation.`;
 
 /** Room for a low-effort model's thinking and the line after it. */
 const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
-
-/**
- * Most of the last request the cache may leave unserved: past it, the ask
- * pays full price for a long tail, which a line in the box is not worth.
- */
-const SUGGESTION_MAX_UNCACHED_TOKENS = 10_000;
-
-/**
- * Whether the reply's last request left more than the cache serves: the
- * input it sent unserved plus what it wrote back, which the ask sends anew.
- * A provider that reports no cache figures is not judged by them.
- */
-export function coldTail(usage: SessionMessage.Usage | undefined): boolean {
-  const details = usage?.inputTokenDetails;
-  const uncached =
-    details?.noCacheTokens ??
-    (usage?.inputTokens !== undefined && details?.cacheReadTokens !== undefined
-      ? usage.inputTokens -
-        details.cacheReadTokens -
-        (details.cacheWriteTokens ?? 0)
-      : undefined);
-  if (uncached === undefined || Number.isNaN(uncached)) {
-    return false;
-  }
-  return uncached + (usage?.outputTokens ?? 0) > SUGGESTION_MAX_UNCACHED_TOKENS;
-}
 
 /** The longest suggestion kept: past this it is not a line a box shows. */
 const SUGGESTION_MAX_CHARS = 120;
@@ -93,8 +69,37 @@ const latestSettle = new Map<ChatId, symbol>();
 /** What each chat's last ask answered and what it cost, for evals to read. */
 const asked = new Map<
   ChatId,
-  { suggestion?: string; usage: LanguageModelUsage }
+  { answer: string; suggestion?: string; usage: LanguageModelUsage }
 >();
+
+/**
+ * How many windows show each chat's box, by the suggestion streams open on
+ * it; `EVERY_CHAT` counts one that shows them all.
+ */
+const watchers = new Map<ChatId | typeof EVERY_CHAT, number>();
+const EVERY_CHAT = Symbol("every chat");
+
+/**
+ * Counts a window showing the chat's box (every chat's, with none named, as
+ * an eval stands in for one) until the returned call takes it away. A chat
+ * no window shows is asked nothing: its suggestion would go unseen.
+ */
+export function watchNextMessage(chatId?: ChatId): () => void {
+  const key = chatId ?? EVERY_CHAT;
+  watchers.set(key, (watchers.get(key) ?? 0) + 1);
+  return () => {
+    const left = (watchers.get(key) ?? 1) - 1;
+    if (left > 0) {
+      watchers.set(key, left);
+    } else {
+      watchers.delete(key);
+    }
+  };
+}
+
+function watched(chatId: ChatId): boolean {
+  return watchers.has(chatId) || watchers.has(EVERY_CHAT);
+}
 
 /** Whether the person lets chats suggest a next message, read fresh each time. */
 function maySuggest(): boolean {
@@ -137,7 +142,11 @@ export function startNextMessageSuggestions(): void {
     for await (const settle of publisher.subscribe("chat.settled")) {
       const token = Symbol(settle.id);
       latestSettle.set(settle.id, token);
-      if (settle.by !== undefined || !maySuggest()) {
+      // Whatever stood was for the turn before this one, asked for or not.
+      if (suggestions.delete(settle.id)) {
+        publisher.publish("chat.nextMessage", { id: settle.id });
+      }
+      if (settle.by !== undefined || !maySuggest() || !watched(settle.id)) {
         continue;
       }
       // Not awaited: one chat's call never holds another's.
@@ -158,7 +167,6 @@ async function suggestOnSettle(
   },
   token: symbol,
 ): Promise<void> {
-  suggestions.delete(chatId);
   if ((await openAsksUntil(chatId)).asks.length > 0) {
     return;
   }
@@ -171,12 +179,7 @@ async function suggestOnSettle(
       message.role === "assistant",
   );
   const model = reply?.metadata.aiGatewayModel;
-  if (
-    !reply ||
-    !model ||
-    reply.metadata.error !== undefined ||
-    coldTail(reply.metadata.usage)
-  ) {
+  if (!reply || !model || reply.metadata.error !== undefined) {
     return;
   }
   const signal = AbortSignal.timeout(30_000);
@@ -247,6 +250,7 @@ async function suggestOnSettle(
   });
   const text = suggestionFrom(result.text);
   asked.set(chatId, {
+    answer: result.text,
     ...(text === undefined ? {} : { suggestion: text }),
     usage: result.totalUsage,
   });
@@ -275,22 +279,43 @@ function looksLikeCommentary(line: string): boolean {
 }
 
 /**
+ * Whether a line is not something the person would send: praise alone
+ * ("Looks good"), the agent's voice ("Let me…"), or Markdown. "Sure, save
+ * it" and "Yes. Save it" are the person answering an offer, so neither a
+ * "sure" nor a second sentence rules one out.
+ */
+function looksUnsendable(line: string): boolean {
+  return (
+    /^(?:thanks|thank you|looks good|sounds good|great|perfect|nice|makes sense)\b[\s!.]*$/i.test(
+      line,
+    ) ||
+    /^(?:let me|i'll|i will|i've|i'm|here's|here is|you should)\b/i.test(
+      line,
+    ) ||
+    /[*#]/.test(line)
+  );
+}
+
+/**
  * The line a model's answer suggests, or none: an empty answer, one that says
- * it has none, or one too long for a box to show is no suggestion.
+ * it has none, one too long for a box to show, or one the person would not
+ * send is no suggestion. A label or tags around it are taken off.
  */
 export function suggestionFrom(answer: string): string | undefined {
-  const line = answer
-    .replaceAll(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/g, "")
+  const line = withoutInlineThinking(answer)
+    .replaceAll(/<\/?suggestion>/gi, "")
     .trim()
     .split("\n")[0]
     ?.trim()
+    .replace(/^(?:suggestion|suggested message|next message|reply)\s*:\s*/i, "")
     .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "")
     .trim();
   if (
     !line ||
     line.length > SUGGESTION_MAX_CHARS ||
     /^\(?(?:none|nothing|empty)\)?\.?$/i.test(line) ||
-    looksLikeCommentary(line)
+    looksLikeCommentary(line) ||
+    looksUnsendable(line)
   ) {
     return undefined;
   }

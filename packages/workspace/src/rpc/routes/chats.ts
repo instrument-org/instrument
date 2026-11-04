@@ -44,7 +44,7 @@ import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
 import { atMoment, distinct, liveRead, where } from "../live-read";
 import { publisher } from "../publisher";
-import { chatNextMessage } from "../../lib/chat/next-message";
+import { chatNextMessage, watchNextMessage } from "../../lib/chat/next-message";
 
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
@@ -397,21 +397,27 @@ const liveNextMessageRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(z.string().nullable()))
   .handler(async function* ({ input, signal }) {
-    yield* distinct(
-      liveRead({
-        changes: [
-          recordChanges(
-            signal,
-            (change) => change.id === input.id && change.kind === "messages",
-          ),
-          where(
-            publisher.subscribe("chat.nextMessage", { signal }),
-            (event) => event.id === input.id,
-          ),
-        ],
-        read: async () => (await chatNextMessage(input.id)) ?? null,
-      }),
-    );
+    // A window reading this shows the chat's box, which is what asks for one.
+    const unwatch = watchNextMessage(input.id);
+    try {
+      yield* distinct(
+        liveRead({
+          changes: [
+            recordChanges(
+              signal,
+              (change) => change.id === input.id && change.kind === "messages",
+            ),
+            where(
+              publisher.subscribe("chat.nextMessage", { signal }),
+              (event) => event.id === input.id,
+            ),
+          ],
+          read: async () => (await chatNextMessage(input.id)) ?? null,
+        }),
+      );
+    } finally {
+      unwatch();
+    }
   });
 
 /**

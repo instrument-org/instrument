@@ -13,6 +13,7 @@ import { type LanguageModelUsage } from "ai";
 import {
   chatNextMessage,
   lastNextMessageAsk,
+  watchNextMessage,
 } from "../../src/lib/chat/next-message";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, defineEval } from "../harness";
@@ -50,7 +51,7 @@ function offered(expected: boolean): Assertion {
           : said === undefined);
       return {
         evidence: ask
-          ? `suggested: ${said === undefined ? "nothing" : JSON.stringify(said)} · ${tokens(ask.usage)}`
+          ? `suggested: ${said === undefined ? "nothing" : JSON.stringify(said)} (answered ${JSON.stringify(ask.answer.slice(0, 120))}) · ${tokens(ask.usage)}`
           : "never asked",
         passed,
         text,
@@ -60,17 +61,33 @@ function offered(expected: boolean): Assertion {
   };
 }
 
+/** No window shows an eval's chat, so the case stands in for one on every chat. */
+function aWindowOnEveryChat() {
+  watchNextMessage();
+}
+
 export const NEXT_MESSAGE_EVALS = [
   defineEval({
     assertions: [offered(true)],
     kind: "chat",
     name: "next-message-after-work",
     prompt: "Give me a three-item packing list for a rainy weekend in Seattle.",
+    setup: aWindowOnEveryChat,
   }),
   defineEval({
     assertions: [offered(false)],
     kind: "chat",
     name: "next-message-after-thanks",
     prompt: "Thanks, that's all I needed!",
+    setup: aWindowOnEveryChat,
+  }),
+  // The agent ends on a yes-or-no offer, which the person answers with a yes.
+  defineEval({
+    assertions: [offered(true)],
+    kind: "chat",
+    name: "next-message-after-offer",
+    prompt:
+      "Write me a two-line poem about rain, then ask whether I want it saved as a file. Don't save it yet.",
+    setup: aWindowOnEveryChat,
   }),
 ];

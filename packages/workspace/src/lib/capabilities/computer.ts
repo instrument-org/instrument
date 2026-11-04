@@ -1,6 +1,7 @@
 import { DefenseInDepthBox } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isMainThread } from "node:worker_threads";
 import { z } from "zod";
 
 import { getScreenshotsDir } from "../chat-dir-utils";
@@ -36,7 +37,10 @@ import {
 const NAME = COMPUTER_COMMAND.name;
 
 const WHERE: Where = {
-  available: () => getWorkspaceConfig().computerUse?.isEnabled() === true,
+  // The bash worker builds these commands only to send the call to the main
+  // thread, which holds the host and answers for real.
+  available: () =>
+    !isMainThread || getWorkspaceConfig().computerUse?.isEnabled() === true,
 };
 
 const AppName = (verb: string) =>

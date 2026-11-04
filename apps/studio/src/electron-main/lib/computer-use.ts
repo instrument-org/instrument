@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { noop } from "radashi";
+import { noop, sleep } from "radashi";
 import { z } from "zod";
 
 import { getUserDataDir } from "./get-workspace-folder";
@@ -116,10 +116,26 @@ const PANES = {
 
 export type ComputerPermission = keyof typeof PANES;
 
+/** How long macOS gets to put its Accessibility prompt up after being asked. */
+const PROMPT_PATIENCE_MS = 500;
+
+/** Whether macOS's Accessibility prompt is up: a process of its own runs it. */
+async function accessibilityPromptIsUp(): Promise<boolean> {
+  await sleep(PROMPT_PATIENCE_MS);
+  return execFileAsync("/usr/bin/pgrep", [
+    "-x",
+    "universalAccessAuthWarn",
+  ]).then(
+    () => true,
+    () => false,
+  );
+}
+
 /**
- * The system's own ask, then its pane, where the person turns the app on. For
- * Screen Recording the ask is also what lists the app in that pane, so they
- * find a switch instead of having to add the app with the plus button.
+ * The system's own ask, which is also what lists the app in the pane, so the
+ * person finds a switch instead of having to add the app with the plus button.
+ * Accessibility's prompt has its own button to the pane, so the pane opens here
+ * only when macOS asks nothing, as it does once it has been answered.
  */
 export async function requestComputerPermission(
   permission: ComputerPermission,
@@ -129,6 +145,9 @@ export async function requestComputerPermission(
   }
   if (permission === "accessibility") {
     systemPreferences.isTrustedAccessibilityClient(true);
+    if (await accessibilityPromptIsUp()) {
+      return;
+    }
   } else {
     await desktopCapturer
       .getSources({ thumbnailSize: { height: 1, width: 1 }, types: ["screen"] })

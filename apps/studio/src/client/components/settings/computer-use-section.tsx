@@ -137,7 +137,7 @@ function Step({
   title: string;
 }) {
   return (
-    <Card className="space-y-2 p-4">
+    <Card className="gap-2 p-4">
       <div className="flex items-center gap-2 text-sm font-medium">
         {done && <CheckIcon className="size-4 text-success" weight="bold" />}
         {title}

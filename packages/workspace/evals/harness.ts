@@ -79,6 +79,7 @@ import {
   connectMacApp,
   macAppsStandIn,
 } from "../src/test/helpers/mac-apps-launch";
+import { fakeDesktopHost } from "../src/test/helpers/fake-desktop-driver";
 import { getWorkspaceConfig } from "../src/lib/workspace-config";
 import {
   answerSignIn,
@@ -465,6 +466,13 @@ export interface EvalCase {
    * Instrument out of them. Like `apps`, one set serves every case in a run.
    */
   macApps?: { connected: string[]; refused?: string[] };
+  /**
+   * `instrument computer` over a fake desktop
+   * (`src/test/helpers/fake-desktop-driver.ts`), so a run touches no real app.
+   * Like `apps`, one desktop serves every case in a run, so a case that reads
+   * what landed in it runs on its own.
+   */
+  computerDriver?: boolean;
   /**
    * This case's own token cap, over the run's (`--max-run-tokens`), for a
    * long conversation whose legitimate total is past the default. It
@@ -888,6 +896,11 @@ export async function runEvals(
           ? { macHelperBinPath: MAC_HELPER_BIN }
           : {}),
         ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
+        ...(evals.some((evalCase) => evalCase.computerDriver) && {
+          computerUse: fakeDesktopHost(
+            path.join(workspaceRootDir, "computer-driver"),
+          ),
+        }),
         modelCache: noopModelCache,
         ...(evals.some((evalCase) => evalCase.nativeSandbox)
           ? { nativeSandbox: true }

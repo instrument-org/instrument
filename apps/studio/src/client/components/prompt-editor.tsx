@@ -315,6 +315,9 @@ export function PromptEditor({
   const onSubmitEvent = useEffectEvent(onSubmit);
   const [empty, setEmpty] = useState(defaultValue === "");
   const offered = suggestion && empty && !dictating ? suggestion : undefined;
+  // Tab takes the offer only from inside the box, so its key shows only there;
+  // outside, the offer reads as the placeholder does.
+  const [focused, setFocused] = useState(false);
   const currentOffer = useEffectEvent(() => offered);
   // The offer goes in as the person's own words, caret at the end, ready to
   // send or to change, as one step undo takes back.
@@ -413,7 +416,12 @@ export function PromptEditor({
       },
       handleDOMEvents: {
         blur: (blurred) => {
+          setFocused(false);
           blurred.dispatch(closeSlashMenu(blurred.state));
+          return false;
+        },
+        focus: () => {
+          setFocused(true);
           return false;
         },
         paste: (_view, event) => onPasteEvent(event),
@@ -750,21 +758,23 @@ export function PromptEditor({
           {offered && (
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-baseline gap-1.5 text-sm text-muted-foreground">
               <span className="truncate">{offered}</span>
-              <button
-                aria-label="Use suggestion"
-                className="pointer-events-auto shrink-0 rounded border border-b-2 px-1 font-mono text-xs leading-4 hover:text-foreground"
-                // The box keeps the caret: a press here never takes focus.
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                }}
-                onClick={() => {
-                  takeOffer(offered);
-                }}
-                tabIndex={-1}
-                type="button"
-              >
-                Tab
-              </button>
+              {focused && (
+                <button
+                  aria-label="Use suggestion"
+                  className="pointer-events-auto shrink-0 rounded border border-b-2 px-1 font-mono text-xs leading-4 hover:text-foreground"
+                  // The box keeps the caret: a press here never takes focus.
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                  }}
+                  onClick={() => {
+                    takeOffer(offered);
+                  }}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  Tab
+                </button>
+              )}
             </div>
           )}
           {chips.map((chip) =>

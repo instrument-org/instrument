@@ -1061,8 +1061,8 @@ function NextMessageSuggestions() {
           Suggest a next message
         </span>
         <span className="block text-xs text-muted-foreground">
-          After a reply, {APP_NAME} suggests what you might say next. Press Tab
-          to use it. Each suggestion is a small request to the chat's AI model.
+          After each reply, {APP_NAME} suggests what you might say next. It adds
+          a little to your AI usage.
         </span>
       </span>
       <Switch

@@ -58,8 +58,27 @@ describe("a suggestion in the empty box", () => {
     expect(screen.queryByRole("button", { name: "Use suggestion" })).toBeNull();
   });
 
+  it("shows its key only while the box has focus", () => {
+    const { editor } = renderOffering();
+    expect(screen.queryByRole("button", { name: "Use suggestion" })).toBeNull();
+    const dom = editor();
+    if (!dom) {
+      throw new Error("no editor");
+    }
+    fireEvent.focus(dom);
+    expect(screen.getByRole("button", { name: "Use suggestion" })).toBeTruthy();
+    fireEvent.blur(dom);
+    expect(screen.queryByRole("button", { name: "Use suggestion" })).toBeNull();
+    expect(screen.getByText(SUGGESTION)).toBeTruthy();
+  });
+
   it("goes in with a click on its key", () => {
-    const { ref } = renderOffering();
+    const { editor, ref } = renderOffering();
+    const dom = editor();
+    if (!dom) {
+      throw new Error("no editor");
+    }
+    fireEvent.focus(dom);
     fireEvent.click(screen.getByRole("button", { name: "Use suggestion" }));
     expect(ref.current?.getValue()).toBe(SUGGESTION);
   });

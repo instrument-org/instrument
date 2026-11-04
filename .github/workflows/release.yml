@@ -310,13 +310,68 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-  publish:
-    name: Publish GitHub Release
+  # Publishing replaces the update feeds, and builds that overlap can finish in
+  # either order, so a build that finishes behind a higher version of its own
+  # channel stays out of them, and its commits roll into that version's notes.
+  # A stable release counts only stable tags, since one is often cut from a
+  # commit behind the betas. A higher tag whose run failed or was canceled does
+  # not count. Re-running the workflow publishes anyway.
+  newer_release:
+    name: Check for a Newer Release
     runs-on: ubuntu-latest
     needs: [build]
     if: |
       github.ref_type == 'tag' &&
       needs.build.result == 'success'
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      superseded: ${{ steps.check.outputs.superseded }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          ATTEMPT: ${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          channel() {
+            case "$1" in
+              *-alpha*) echo alpha ;;
+              *-beta*) echo beta ;;
+              *) echo stable ;;
+            esac
+          }
+          superseded=false
+          if [ "$ATTEMPT" -gt 1 ]; then
+            echo "::notice::Run attempt $ATTEMPT: publishing $TAG whether or not a newer version exists."
+          else
+            for other in $(git tag --list 'v*.*.*' --sort=-version:refname); do
+              [ "$other" != "$TAG" ] || break
+              [ "$(channel "$other")" = "$(channel "$TAG")" ] || continue
+              outcome=$(gh run list --workflow release.yml --branch "$other" --limit 1 \
+                --json conclusion --jq '.[0].conclusion // ""' || true)
+              case "$outcome" in
+                failure | cancelled | timed_out | startup_failure) continue ;;
+              esac
+              echo "::notice::Skipping $TAG: $other is newer. Re-run this workflow to publish $TAG anyway."
+              superseded=true
+              break
+            done
+          fi
+          echo "superseded=$superseded" >>"$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build, newer_release]
+    if: |
+      github.ref_type == 'tag' &&
+      needs.build.result == 'success' &&
+      needs.newer_release.outputs.superseded != 'true'
     permissions:
       contents: write
 

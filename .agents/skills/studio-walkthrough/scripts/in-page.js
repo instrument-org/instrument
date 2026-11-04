@@ -103,7 +103,7 @@
       const style = document.createElement("style");
       style.id = "walkthrough-present";
       style.textContent =
-        "[data-walkthrough-hidden]{visibility:hidden!important}[data-walkthrough-gone]{display:none!important}";
+        "[data-walkthrough-hidden]{visibility:hidden!important}[data-walkthrough-gone],[data-developer-strip]{display:none!important}";
       document.head.append(style);
     }
     const dress = () => {

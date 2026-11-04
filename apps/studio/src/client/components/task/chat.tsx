@@ -572,7 +572,7 @@ export function ChatConversation({
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
       suggestion={
-        draftKey.scope === "chat" && !replyTo
+        draftKey.scope === "chat" && !replyTo && unsettled.length === 0
           ? (nextMessage ?? undefined)
           : undefined
       }

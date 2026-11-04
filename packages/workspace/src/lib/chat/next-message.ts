@@ -61,6 +61,9 @@ const SUGGESTION_MAX_CHARS = 120;
 /** What this computer suggested each chat's person send next. */
 const suggestions = new Map<ChatId, string>();
 
+/** Each chat's latest settle, so an ask a later settle overtook says nothing. */
+const latestSettle = new Map<ChatId, symbol>();
+
 /** What each chat's last ask answered and what it cost, for evals to read. */
 const asked = new Map<
   ChatId,
@@ -101,24 +104,29 @@ export async function chatNextMessage(
 export function startNextMessageSuggestions(): void {
   void (async () => {
     for await (const settle of publisher.subscribe("chat.settled")) {
+      const token = Symbol(settle.id);
+      latestSettle.set(settle.id, token);
       if (settle.by !== undefined) {
         continue;
       }
       // Not awaited: one chat's call never holds another's.
-      void suggestOnSettle(settle).catch((error: unknown) => {
+      void suggestOnSettle(settle, token).catch((error: unknown) => {
         getWorkspaceConfig().captureException(error, { area: "next-message" });
       });
     }
   })();
 }
 
-async function suggestOnSettle({
-  id: chatId,
-  sessionId,
-}: {
-  id: ChatId;
-  sessionId: StoreId.Session;
-}): Promise<void> {
+async function suggestOnSettle(
+  {
+    id: chatId,
+    sessionId,
+  }: {
+    id: ChatId;
+    sessionId: StoreId.Session;
+  },
+  token: symbol,
+): Promise<void> {
   suggestions.delete(chatId);
   if ((await openAsksUntil(chatId)).asks.length > 0) {
     return;
@@ -140,6 +148,9 @@ async function suggestOnSettle({
     agent: instrumentAgent,
     chatId,
     model,
+    // A request about to roll over or clear is one the cache no longer
+    // serves, and recording either is the next turn's to do.
+    readOnly: true,
     sessionId,
     signal,
   });
@@ -203,10 +214,13 @@ async function suggestOnSettle({
     ...(text === undefined ? {} : { suggestion: text }),
     usage: result.totalUsage,
   });
-  console.error(JSON.stringify(result.text), JSON.stringify(result.totalUsage));
-  // A turn that started while the model answered has moved past the reply
-  // this was for.
-  if (text === undefined || (await chatIsWorking(chatId))) {
+  // A turn that started while the model answered, or a later settle, has
+  // moved past the reply this was for.
+  if (
+    text === undefined ||
+    (await chatIsWorking(chatId)) ||
+    latestSettle.get(chatId) !== token
+  ) {
     return;
   }
   suggestions.set(chatId, text);

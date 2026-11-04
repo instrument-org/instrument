@@ -47,6 +47,8 @@ AnalyserNode = "AnalyserNode"
 createAnalyser = "createAnalyser"
 # The Slack channel CI reports to; "corrected", it names no channel.
 C07R4FUL073 = "C07R4FUL073"
+# rrweb's replayer event, `fullsnapshot-rebuilded`, which code listens for by name.
+rebuilded = "rebuilded"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.
@@ -103,6 +105,9 @@ extend-exclude = [
   "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
   "patches/",
   "apps/studio/resources/tailwind-browser.js",
+  # Minified bundles, whose two-letter names read as misspellings; a write
+  # would break them.
+  ".agents/skills/studio-walkthrough/vendor/",
   # Recorded agent sessions and the documents they produced. The text is model
   # output and extracted PDF glyph runs, not prose anyone maintains.
   "fixtures/workspaces/**/session.json",

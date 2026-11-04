@@ -82,7 +82,7 @@ function cameraPlan(script, w, h) {
       beats.push({ box, end: e.t + (e.ms ?? 0), from: e.t, typing: true });
     }
   }
-  // Neighbouring beats in one chapter whose boxes, together, stay a small
+  // Neighboring beats in one chapter whose boxes, together, stay a small
   // part of the screen.
   const chapterOf = (t) => chapters.filter((c) => c <= t).length;
   const shots = [];

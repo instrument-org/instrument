@@ -224,6 +224,10 @@ export function ChatConversation({
       input: { id },
     }),
   );
+  // Read here too, so turning it off takes a standing suggestion away at once.
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
   const shownMessages = [
     ...messages,
     ...unsettled
@@ -572,7 +576,10 @@ export function ChatConversation({
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
       suggestion={
-        draftKey.scope === "chat" && !replyTo && unsettled.length === 0
+        draftKey.scope === "chat" &&
+        !replyTo &&
+        unsettled.length === 0 &&
+        preferences?.suggestNextMessage !== false
           ? (nextMessage ?? undefined)
           : undefined
       }

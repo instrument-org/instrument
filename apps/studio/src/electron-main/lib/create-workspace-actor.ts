@@ -5,6 +5,7 @@ import {
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
@@ -203,6 +204,8 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       isHostedFeatureAvailable,
       isPlatformSearchForEveryModel,
       mayOfferFeedback: () => getMachinePreferences().get("offerFeedback"),
+      maySuggestNextMessage: () =>
+        getWorkspacePreferences().get("suggestNextMessage"),
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,
       refreshExpiredCredentials: async (providerConfigId) => {

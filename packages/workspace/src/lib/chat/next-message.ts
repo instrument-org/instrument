@@ -70,6 +70,11 @@ const asked = new Map<
   { suggestion?: string; usage: LanguageModelUsage }
 >();
 
+/** Whether the person lets chats suggest a next message, read fresh each time. */
+function maySuggest(): boolean {
+  return getWorkspaceConfig().maySuggestNextMessage?.() ?? true;
+}
+
 /** What the chat's last ask for a next message answered, and its usage; none before one finished. */
 export function lastNextMessageAsk(chatId: ChatId) {
   return asked.get(chatId);
@@ -83,7 +88,7 @@ export async function chatNextMessage(
   chatId: ChatId,
 ): Promise<string | undefined> {
   const suggestion = suggestions.get(chatId);
-  if (!suggestion) {
+  if (!suggestion || !maySuggest()) {
     return undefined;
   }
   if (await chatIsWorking(chatId)) {
@@ -106,7 +111,7 @@ export function startNextMessageSuggestions(): void {
     for await (const settle of publisher.subscribe("chat.settled")) {
       const token = Symbol(settle.id);
       latestSettle.set(settle.id, token);
-      if (settle.by !== undefined) {
+      if (settle.by !== undefined || !maySuggest()) {
         continue;
       }
       // Not awaited: one chat's call never holds another's.

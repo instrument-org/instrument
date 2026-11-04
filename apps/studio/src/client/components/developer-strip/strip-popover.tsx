@@ -2,8 +2,8 @@ import { PopoverContent } from "@/client/components/ui/popover";
 import { cn } from "@/client/lib/utils";
 import { type CSSProperties, type ReactNode } from "react";
 
-/** A floating panel in the band's own ink, rising from what opened it. */
-export function InkPopover({
+/** A floating panel in the window's theme, rising from what opened it. */
+export function StripPopover({
   align,
   children,
   className,
@@ -18,7 +18,7 @@ export function InkPopover({
     <PopoverContent
       align={align}
       className={cn(
-        "rounded-lg border border-white/12 bg-ink p-0 font-mono text-[11px] text-white/90 shadow-2xl select-text",
+        "rounded-lg border p-0 font-mono text-[11px] shadow-xl select-text",
         className,
       )}
       onOpenAutoFocus={(event) => {
@@ -32,7 +32,7 @@ export function InkPopover({
   );
 }
 
-export function InkHeading({
+export function StripHeading({
   children,
   end,
 }: {
@@ -40,7 +40,7 @@ export function InkHeading({
   end?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-white/8 px-3 text-white/50 select-none">
+    <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b px-3 text-muted-foreground select-none">
       <span className="min-w-0 truncate">{children}</span>
       {end && <span className="flex shrink-0 items-center gap-3">{end}</span>}
     </div>

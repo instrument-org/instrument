@@ -22,9 +22,9 @@ import {
   timesLabel,
   whereOf,
 } from "./developer-errors-model";
-import { InkHeading, InkPopover } from "./ink-popover";
+import { StripHeading, StripPopover } from "./strip-popover";
 
-const LINK_CLASS = "text-white/70 hover:text-white";
+const LINK_CLASS = "text-muted-foreground hover:text-foreground";
 
 /**
  * What the app has captured since it started or was last cleared, from any
@@ -60,7 +60,7 @@ export function DeveloperErrors() {
           {label}
         </button>
       </PopoverTrigger>
-      <InkPopover
+      <StripPopover
         align="end"
         className="flex h-105 w-190"
         style={{ maxWidth: "calc(90vw / var(--content-zoom))" }}
@@ -77,7 +77,7 @@ export function DeveloperErrors() {
                 }
           }
         />
-      </InkPopover>
+      </StripPopover>
     </Popover>
   );
 }
@@ -102,8 +102,8 @@ function ErrorsPanel({
 
   return (
     <>
-      <div className="flex w-75 shrink-0 flex-col border-r border-white/8">
-        <InkHeading
+      <div className="flex w-75 shrink-0 flex-col border-r">
+        <StripHeading
           end={
             <>
               {onViewLog && (
@@ -141,13 +141,13 @@ function ErrorsPanel({
           }
         >
           {label}
-        </InkHeading>
+        </StripHeading>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {events.map((event) => (
             <button
               className={cn(
-                "flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-white/6",
-                event === selected && "bg-white/10 hover:bg-white/10",
+                "flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-foreground/5",
+                event === selected && "bg-foreground/8 hover:bg-foreground/8",
               )}
               key={event.fingerprint}
               onClick={() => {
@@ -156,16 +156,16 @@ function ErrorsPanel({
               type="button"
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-white">
+                <span className="block truncate text-foreground">
                   {capturedOf(event)?.value}
                 </span>
-                <span className="mt-1 block truncate text-white/50">
+                <span className="mt-1 block truncate text-muted-foreground">
                   {event.process} · {whereOf(event)}
                 </span>
               </span>
-              <span className="shrink-0 text-right text-white/50">
+              <span className="shrink-0 text-right text-muted-foreground">
                 <span
-                  className={cn("block", event.count > 1 && "text-ink-alert")}
+                  className={cn("block", event.count > 1 && "text-destructive")}
                 >
                   {timesLabel(event.count)}
                 </span>
@@ -198,11 +198,11 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <InkHeading
+      <StripHeading
         end={
           <>
             <CopyButton
-              className="size-5 rounded-sm p-0.5 text-white/70 hover:bg-white/10 hover:text-white"
+              className="size-5 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
               iconSize={12}
               onCopy={() =>
                 navigator.clipboard.writeText(formatExceptionEvent(event))
@@ -221,13 +221,13 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
         }
       >
         {captured?.type}
-      </InkHeading>
+      </StripHeading>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         <div>
-          <div className="text-[13px] leading-5 wrap-break-word text-white">
+          <div className="text-[13px] leading-5 wrap-break-word text-foreground">
             {captured?.value}
           </div>
-          <div className="mt-1 text-white/50">
+          <div className="mt-1 text-muted-foreground">
             {event.handled ? "Caught" : "Uncaught"} in {event.process},{" "}
             {timesLabel(event.count)}, last{" "}
             {formatRelativeTime(new Date(event.lastAt), now)}.
@@ -244,7 +244,7 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
             ))}
             {frames.library.length > 0 && !showLibrary && (
               <button
-                className="py-0.5 text-white/50 hover:text-white"
+                className="py-0.5 text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   setShowLibrary(true);
                 }}
@@ -278,11 +278,11 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
           <Section label="Before it happened">
             {recentBreadcrumbs(event).map((crumb, index) => (
               <div className="flex gap-3 py-0.5" key={index}>
-                <span className="shrink-0 text-white/50">
+                <span className="shrink-0 text-muted-foreground">
                   {new Date(crumb.timestamp).toLocaleTimeString()}
                 </span>
                 <span
-                  className="min-w-0 truncate text-white/80"
+                  className="min-w-0 truncate text-foreground/80"
                   title={crumb.message}
                 >
                   {crumb.category} {crumb.message}
@@ -295,7 +295,7 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
           <Section label="Context">
             {context.map(([key, value]) => (
               <div className="flex gap-3 py-0.5" key={key}>
-                <span className="shrink-0 text-white/50">{key}</span>
+                <span className="shrink-0 text-muted-foreground">{key}</span>
                 <span className="min-w-0 break-all">{value}</span>
               </div>
             ))}
@@ -309,7 +309,7 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
 function Section({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div>
-      <div className="mb-1.5 text-white/50">{label}</div>
+      <div className="mb-1.5 text-muted-foreground">{label}</div>
       {children}
     </div>
   );
@@ -328,11 +328,11 @@ function FrameRow({
     <div
       className={cn(
         "flex justify-between gap-4 py-0.5",
-        dim ? "text-white/50" : "text-white/90",
+        dim ? "text-muted-foreground" : "text-foreground/90",
       )}
     >
       <span className="truncate">{name}</span>
-      <span className="shrink-0 text-white/60">{file}</span>
+      <span className="shrink-0 text-muted-foreground">{file}</span>
     </div>
   );
 }

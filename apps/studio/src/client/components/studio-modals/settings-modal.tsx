@@ -4,8 +4,7 @@ import {
 } from "@/client/atoms/settings-modal";
 import { AccountSection } from "@/client/components/settings/account-section";
 import { ActivitySection } from "@/client/components/settings/activity-section";
-import { DebugSection } from "@/client/components/settings/debug-section";
-import { FeaturesSection } from "@/client/components/settings/features-section";
+import { DeveloperSection } from "@/client/components/settings/developer-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
 import { PermissionsSection } from "@/client/components/settings/permissions-section";
@@ -43,12 +42,11 @@ import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
-import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
-import { FlagIcon } from "@phosphor-icons/react/Flag";
+import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
@@ -524,11 +522,8 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
     case "Activity": {
       return <ActivitySection />;
     }
-    case "Debug": {
-      return <DebugSection />;
-    }
-    case "Features": {
-      return <FeaturesSection />;
+    case "Developer": {
+      return <DeveloperSection />;
     }
     case "General": {
       return <GeneralSection />;
@@ -557,8 +552,7 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
 
 /** Each tab's mark in the sidebar. */
 const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
-  Debug: CodeIcon,
-  Features: FlagIcon,
+  Developer: WrenchIcon,
   General: FadersHorizontalIcon,
   Memory: FingerprintIcon,
   Permissions: LockKeyIcon,

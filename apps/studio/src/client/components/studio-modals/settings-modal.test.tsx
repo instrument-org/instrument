@@ -50,20 +50,14 @@ function setPlatform(platform: NodeJS.Platform) {
 afterEach(installWindowStubs);
 
 describe("Settings sidebar in developer mode", () => {
-  it.each([
-    ["darwin", false],
-    ["win32", false],
-    ["linux", true],
-  ] as const)("on %s lists Debug: %s", (platform, listed) => {
+  it.each(["darwin", "win32", "linux"] as const)("on %s", (platform) => {
     setPlatform(platform);
     renderWithDefaultStore(<SettingsModal />);
     act(() => {
-      openSettings({ tab: "Features" });
+      openSettings({ tab: "Developer" });
     });
-    expect(screen.getByRole("button", { name: "Features" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Debug" }) !== null).toBe(
-      listed,
-    );
+    expect(screen.getByRole("button", { name: "Developer" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Debug" })).toBeNull();
   });
 });
 
@@ -87,7 +81,7 @@ describe("Settings pages", () => {
     setPlatform("darwin");
     renderWithDefaultStore(<SettingsModal />);
     act(() => {
-      openSettings({ tab: "Features" });
+      openSettings({ tab: "Developer" });
     });
     fireEvent.click(screen.getByRole("button", { name: "Storage" }));
     fireEvent.click(screen.getByRole("button", { name: "Memory" }));
@@ -96,7 +90,7 @@ describe("Settings pages", () => {
     back();
     expect(activePage()).toBe("Storage");
     back();
-    expect(activePage()).toBe("Features");
+    expect(activePage()).toBe("Developer");
     back();
     expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
   });
@@ -105,13 +99,13 @@ describe("Settings pages", () => {
     setPlatform("darwin");
     renderWithDefaultStore(<SettingsModal />);
     act(() => {
-      openSettings({ tab: "Features" });
+      openSettings({ tab: "Developer" });
     });
     fireEvent.click(screen.getByRole("button", { name: "Storage" }));
     fireEvent.click(screen.getByRole("button", { name: "Memory" }));
     back();
     back();
-    expect(activePage()).toBe("Features");
+    expect(activePage()).toBe("Developer");
 
     forward();
     expect(activePage()).toBe("Storage");
@@ -132,7 +126,7 @@ describe("Settings pages", () => {
     setPlatform("darwin");
     renderWithDefaultStore(<SettingsModal />);
     act(() => {
-      openSettings({ tab: "Features" });
+      openSettings({ tab: "Developer" });
     });
     // jsdom lays nothing out, so it keeps no scroll offset of its own.
     const scroller = screen.getByRole("main");

@@ -265,7 +265,7 @@ To measure at a real workspace's scale, boot against a copy of it. `cp -cR` make
 
 ## States a dev build otherwise cannot reach
 
-Both have a control on the App states debug page (`/debug/components/app-states`):
+Both have a control on the App states debug page (`/debug/app-states`):
 
 - **Just updated** — the toast only fires when the app launches on a newer version than the last launch. The item queues the bump and reloads, the path a real update takes. It auto-dismisses in a few seconds, so capture promptly.
 - **Quit prompt** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.

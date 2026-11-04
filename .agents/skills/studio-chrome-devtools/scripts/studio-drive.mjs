@@ -996,6 +996,68 @@ function signInAs(account, userDataDir, workspaceDir) {
   );
 }
 
+/**
+ * Forgets the registry entries of workspaces the reaping above removed, along
+ * with their machine folders and the sign-ins copied there, so Settings doesn't
+ * list them as folders it can't find. Only paths under this tool's own cache:
+ * a registered folder anywhere else may be on a disk that comes back. Skipped
+ * for this boot if the app holds the registry's lock.
+ */
+function forgetGoneDriveWorkspaces() {
+  const userDataDir = devUserDataDir();
+  const registryFile = path.join(userDataDir, "workspaces.json");
+  const lock = `${registryFile}.lock`;
+  const driveRoot = `${path.dirname(WORKSPACE_CACHE_ROOT)}${path.sep}`;
+  try {
+    writeFileSync(lock, process.pid.toString(), { flag: "wx" });
+  } catch {
+    return;
+  }
+  try {
+    const registry = JSON.parse(readFileSync(registryFile, "utf8"));
+    const isGone = (entry) => {
+      const dir = path.resolve(userDataDir, entry.path);
+      return dir.startsWith(driveRoot) && !existsSync(dir);
+    };
+    const gone = registry.workspaces.filter(
+      (entry) => isGone(entry) && entry.id !== registry.active,
+    );
+    if (gone.length === 0) {
+      return;
+    }
+    const goneIds = new Set(gone.map((entry) => entry.id));
+    for (const { id } of gone) {
+      rmSync(path.join(userDataDir, "machine", id), {
+        force: true,
+        recursive: true,
+      });
+      rmSync(path.join(userDataDir, "workspaces-data", id), {
+        force: true,
+        recursive: true,
+      });
+    }
+    const temporary = `${registryFile}.${process.pid.toString()}.tmp`;
+    writeFileSync(
+      temporary,
+      JSON.stringify(
+        {
+          ...registry,
+          workspaces: registry.workspaces.filter(
+            (entry) => !goneIds.has(entry.id),
+          ),
+        },
+        undefined,
+        2,
+      ),
+    );
+    renameSync(temporary, registryFile);
+  } catch {
+    // No registry yet, or one this can't read: the app owns what happens next.
+  } finally {
+    rmSync(lock, { force: true });
+  }
+}
+
 function reapStaleCleanRooms() {
   reapGoneCheckouts();
   reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS, {
@@ -1186,6 +1248,7 @@ async function cmdBoot(
   },
 ) {
   const purpose = normalizePurpose(rawPurpose);
+  forgetGoneDriveWorkspaces();
   if ([WORKSPACE, CLEAN_ROOM, SCENARIO].filter(Boolean).length > 1) {
     fail(
       "Pass one of --workspace, --clean-room or --scenario: a fixture and a scenario bring their own application data, a clean room uses yours.",

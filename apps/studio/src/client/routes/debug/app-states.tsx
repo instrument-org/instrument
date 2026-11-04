@@ -12,7 +12,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 
-export const Route = createFileRoute("/debug/components/app-states")({
+export const Route = createFileRoute("/debug/app-states")({
   component: RouteComponent,
   head: () => ({
     meta: [{ title: "Debug app states" }],

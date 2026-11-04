@@ -3,25 +3,31 @@ import { featuresAtom } from "@/client/atoms/features";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
+import { useTheme } from "@/client/components/theme-provider";
 import { Popover, PopoverTrigger } from "@/client/components/ui/popover";
-import { Switch } from "@/client/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { WORKSPACE_COLOR_HEX } from "@/client/components/window/workspace-colors";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import {
-  FEATURE_METADATA,
-  type FeatureName,
-  FeatureNameSchema,
-} from "@/shared/features";
+import { type FeatureName, FeatureNameSchema } from "@/shared/features";
+import { SHORTCUTS } from "@/shared/shortcuts";
 import { APP_FLAVOR, PORTS } from "@instrument-org/shared";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
+import { MoonIcon } from "@phosphor-icons/react/Moon";
+import { SunIcon } from "@phosphor-icons/react/Sun";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 
 import { DeveloperErrors } from "./developer-errors";
-import { InkHeading, InkPopover } from "./ink-popover";
+import { StripHeading, StripPopover } from "./strip-popover";
 
 type AppEnvironment = RPCOutput["debug"]["getAppEnvironment"];
 
@@ -65,9 +71,6 @@ export function DeveloperStrip({
   );
   const { mutate: setDeveloperMode } = useMutation(
     rpcClient.preferences.setDeveloperMode.mutationOptions(),
-  );
-  const { mutate: setFeatureEnabled } = useMutation(
-    rpcClient.features.setEnabled.mutationOptions(),
   );
 
   const flagsOn = FEATURE_NAMES.filter((feature) => features[feature]).length;
@@ -118,7 +121,7 @@ export function DeveloperStrip({
             )}
           </button>
         </PopoverTrigger>
-        <InkPopover align="start" className="w-96">
+        <StripPopover align="start" className="w-96">
           {environment && (
             <BuildDetails
               env={env}
@@ -129,7 +132,7 @@ export function DeveloperStrip({
               workspace={workspace?.name}
             />
           )}
-        </InkPopover>
+        </StripPopover>
       </Popover>
       {isSetupUp && (
         <StripButton
@@ -147,7 +150,7 @@ export function DeveloperStrip({
           isSetupUp
             ? undefined
             : () => {
-                openSettings({ setting: "api-server", tab: "General" });
+                openSettings({ setting: "api-server", tab: "Developer" });
               }
         }
         value={server?.label?.toLowerCase() ?? "production"}
@@ -165,34 +168,18 @@ export function DeveloperStrip({
         value={workspace?.name ?? ""}
       />
       <div className="flex-1" />
-      <Popover>
-        <PopoverTrigger asChild>
-          <button className={cn(CELL_CLASS, ROOMY_CLASS)} type="button">
-            <span className="text-white/50">flags</span>
-            <span>{flagsOn}</span>
-          </button>
-        </PopoverTrigger>
-        <InkPopover align="end" className="w-80">
-          <InkHeading>flags</InkHeading>
-          <div className="p-1">
-            {FEATURE_NAMES.map((feature) => (
-              <label
-                className="flex min-h-8 items-center justify-between gap-4 px-2 py-1"
-                key={feature}
-                title={FEATURE_METADATA[feature].description}
-              >
-                <span>{FEATURE_METADATA[feature].title}</span>
-                <Switch
-                  checked={features[feature]}
-                  onCheckedChange={(enabled) => {
-                    setFeatureEnabled({ enabled, feature });
-                  }}
-                />
-              </label>
-            ))}
-          </div>
-        </InkPopover>
-      </Popover>
+      <Fact
+        className={ROOMY_CLASS}
+        label="flags"
+        onClick={
+          isSetupUp
+            ? undefined
+            : () => {
+                openSettings({ tab: "Developer" });
+              }
+        }
+        value={flagsOn.toString()}
+      />
       {onOpenDebugPages && !isSetupUp && (
         <StripButton className={ROOMY_CLASS} onClick={onOpenDebugPages}>
           debug pages
@@ -206,6 +193,7 @@ export function DeveloperStrip({
       >
         devtools
       </StripButton>
+      <ThemeToggle />
       <DeveloperErrors />
       {!isSetupUp && (
         <button
@@ -228,6 +216,41 @@ export function DeveloperStrip({
         </button>
       )}
     </div>
+  );
+}
+
+/** Switches between light and dark; the icon reports what the theme actually is. */
+function ThemeToggle() {
+  const { resolvedTheme, setTheme, theme } = useTheme();
+  const next = resolvedTheme === "dark" ? "light" : "dark";
+  const ThemeIcon =
+    theme === "system"
+      ? MonitorIcon
+      : resolvedTheme === "dark"
+        ? MoonIcon
+        : SunIcon;
+
+  return (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={`Switch to ${next} theme`}
+          className={cn(CELL_CLASS, "text-white/75 hover:text-white")}
+          onClick={() => {
+            setTheme(next);
+          }}
+          type="button"
+        >
+          <ThemeIcon className="size-3.25" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        Switch to {next}{" "}
+        <span className="opacity-60">
+          {formatAcceleratorText(SHORTCUTS.themeSystem.accelerator)} for system
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -307,10 +330,10 @@ function BuildDetails({
   );
   return (
     <>
-      <InkHeading
+      <StripHeading
         end={
           <CopyButton
-            className="size-5 rounded-sm p-0.5 text-white/70 hover:bg-white/10 hover:text-white"
+            className="size-5 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
             iconSize={12}
             onCopy={() =>
               navigator.clipboard.writeText(
@@ -321,11 +344,11 @@ function BuildDetails({
         }
       >
         build
-      </InkHeading>
+      </StripHeading>
       <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 p-3">
         {shown.map(([key, value]) => (
           <div className="contents" key={key}>
-            <span className="text-white/50">{key}</span>
+            <span className="text-muted-foreground">{key}</span>
             <span className="break-all">{value}</span>
           </div>
         ))}

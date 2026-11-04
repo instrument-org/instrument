@@ -104,14 +104,14 @@ export const SETTINGS_INDEX = [
     detail: "Switch which API server the app uses.",
     developerOnly: true,
     id: "api-server",
-    tab: "General",
+    tab: "Developer",
     title: "API server",
   },
   {
     detail: "Get beta versions before they ship.",
     developerOnly: true,
     id: "release-channel",
-    tab: "General",
+    tab: "Developer",
     title: "Release channel",
   },
   {
@@ -237,7 +237,7 @@ export const SETTINGS_INDEX = [
   {
     detail: "Whether this computer can encrypt saved keys",
     id: "secure-storage",
-    tab: "Debug",
+    tab: "Developer",
     title: "Secure storage",
   },
   {
@@ -333,12 +333,8 @@ export const SETTINGS_PAGES: Record<
   Activity: {
     detail: `Everything ${APP_NAME} asked an AI model to do, which you can filter, sort, and export.`,
   },
-  Features: {
-    detail: "Feature flags.",
-    developerOnly: true,
-  },
-  Debug: {
-    detail: "Tools for working on the app.",
+  Developer: {
+    detail: "The API server, the release channel, and feature flags.",
     developerOnly: true,
     shownWhen: "the app runs on Linux",
   },
@@ -378,7 +374,7 @@ export function settingsTargetOf(
     return { kind: "row", mark: name, tab: "Providers" };
   }
   if (name.startsWith("feature:")) {
-    return { kind: "row", mark: name, tab: "Features" };
+    return { kind: "row", mark: name, tab: "Developer" };
   }
   return { kind: "search", search: name.replaceAll(/[-_:]+/g, " ").trim() };
 }

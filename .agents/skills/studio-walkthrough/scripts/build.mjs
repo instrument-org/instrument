@@ -160,7 +160,10 @@ export async function buildTake(take) {
   // the player swaps for it.
   let eventsJson = JSON.stringify(withoutTestIds(rrweb));
   const pictures = [];
-  for (const [url, dataUrl] of Object.entries(assets)) {
+  // Longest first: a picture's bare address is the start of its versioned
+  // ones, and replacing it first would leave a token with a query after it.
+  const byLength = Object.entries(assets).sort(([a], [b]) => b.length - a.length);
+  for (const [url, dataUrl] of byLength) {
     if (/^data:font\/|\.(woff2?|ttf|otf)(\?|$)/.test(dataUrl.slice(0, 20)) || /\.(woff2?|ttf|otf)(\?|$)/.test(url)) {
       eventsJson = eventsJson.replaceAll(url, dataUrl);
     } else {

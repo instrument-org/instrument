@@ -24,7 +24,7 @@ import {
 } from "../computer/targets";
 import { SnapshotDataSchema, treeText } from "../computer/tree-text";
 import { getCurrentDate } from "../get-current-date";
-import { appLevel } from "../permissions/apps";
+import { appLevel, grantApp } from "../permissions/apps";
 import { COMPUTER_COMMAND } from "../shell-commands/computer-command";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -82,15 +82,26 @@ const ActionData = z.looseObject({
 });
 type ActionOutput = z.output<typeof ActionData>;
 
+const Surfaces = z.array(z.looseObject({ type: z.string().optional() }));
+
+/**
+ * What an action did. A driver may list every surface the app has after it, the
+ * window it was already in among them, so only what's open over a window is
+ * news: a menu, a sheet, an alert.
+ */
 function actionText(output: ActionOutput): string {
   const delivery = output.disposition?.delivery;
   const said =
     delivery === undefined
       ? "Done."
       : `Done (${delivery.replaceAll("_", " ")}).`;
-  return output.surfaces === undefined
+  const surfaces = Surfaces.safeParse(output.surfaces);
+  const opened = surfaces.success
+    ? surfaces.data.filter((surface) => surface.type !== "window")
+    : [];
+  return opened.length === 0
     ? said
-    : `${said} It opened: ${JSON.stringify(output.surfaces)}`;
+    : `${said} It opened: ${JSON.stringify(opened)}`;
 }
 
 const AppsOutput = z.array(
@@ -187,6 +198,7 @@ const WINDOW_CHECK_MS = 500;
 const WINDOW_CHECKS = 4;
 
 const LaunchData = z.looseObject({
+  app: z.string().optional(),
   window: z.object({ id: z.string(), title: z.string().optional() }).optional(),
 });
 
@@ -208,6 +220,13 @@ const computerOpen = defineCapability({
       ctx,
     );
     const launched = LaunchData.parse(data);
+    // The driver can find an app by the name a person knows it by, and it may
+    // run under another: GNOME's Calculator is gnome-calculator. It's the one
+    // app, so the person's yes to one name covers the other, and they aren't
+    // asked twice.
+    if (launched.app !== undefined && launched.app !== found.name) {
+      await grantApp(ctx.chatId, launched.app);
+    }
     if (launched.window !== undefined || headed === true) {
       return launched;
     }
@@ -231,10 +250,12 @@ const computerOpen = defineCapability({
       words: ["computer", "open"],
     },
   },
-  text: ({ window }) =>
-    window === undefined
-      ? "It's running, with no window yet. --headed brings it forward and waits for one, so pass it only once the person has said that's fine."
-      : `It's running, with window ${window.id} ${JSON.stringify(window.title ?? "")}.`,
+  text: ({ app, window }) => {
+    const running = app === undefined ? "It's running" : `${app} is running`;
+    return window === undefined
+      ? `${running}, with no window yet. --headed brings it forward and waits for one, so pass it only once the person has said that's fine.`
+      : `${running}, with window ${window.id} ${JSON.stringify(window.title ?? "")}.`;
+  },
   where: WHERE,
 });
 

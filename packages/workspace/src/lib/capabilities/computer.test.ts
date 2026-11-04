@@ -560,6 +560,74 @@ describe("instrument computer", () => {
     ]);
   });
 
+  it("lets a yes to the name a person knows cover the name it runs under", async () => {
+    const chatId = ChatIdSchema.parse("computer-alias-chat");
+    const inChat = { ...scope, chatId };
+    const driver = standInDriver({
+      ...answers,
+      launch: ok({
+        app: "gnome-calculator",
+        pid: 7,
+        window: { id: "w-1.13-org-gnome-Calculator", title: "Calculator" },
+      }),
+      "list-apps": ok({ apps: [] }),
+    });
+    await grantApp(chatId, "Calculator");
+    const opened = await open(["Calculator"], inChat);
+    expect(opened.stdout).toBe(
+      'gnome-calculator is running, with window w-1.13-org-gnome-Calculator "Calculator".\n',
+    );
+    driver.setAnswers({
+      ...answers,
+      "list-apps": ok({
+        apps: [
+          {
+            bundle_id: "org.gnome.Calculator",
+            name: "gnome-calculator",
+            pid: 7,
+            presentation: "foreground",
+          },
+        ],
+      }),
+      "list-windows": ok([
+        { accessible: true, id: "w-1.13-org-gnome-Calculator", pid: 7 },
+      ]),
+    });
+    await expect(snapshot(["gnome-calculator"], inChat)).resolves.toMatchObject(
+      {
+        exitCode: 0,
+      },
+    );
+  });
+
+  it("reports what an action opened, and not the window it was in", async () => {
+    const driver = standInDriver({
+      ...answers,
+      click: ok({
+        disposition: { delivery: "delivered_unverified" },
+        surfaces: [{ id: "w-1", title: "Calculator", type: "window" }],
+      }),
+    });
+    await grantApp(scope.chatId, "com.apple.TextEdit");
+    await snapshot(["TextEdit"], scope);
+    expect((await click(["@s1abc:e1"], scope)).stdout).toBe(
+      "Done (delivered unverified).\n",
+    );
+    driver.setAnswers({
+      ...answers,
+      click: ok({
+        disposition: { delivery: "delivered_unverified" },
+        surfaces: [
+          { id: "w-1", title: "Calculator", type: "window" },
+          { id: "m-1", type: "menu" },
+        ],
+      }),
+    });
+    expect((await click(["@s1abc:e1"], scope)).stdout).toBe(
+      'Done (delivered unverified). It opened: [{"type":"menu","id":"m-1"}]\n',
+    );
+  });
+
   it("reports the window the driver already named, with no wait", async () => {
     const driver = standInDriver({
       ...answers,

@@ -1,9 +1,10 @@
 import {
   type SessionMessage,
-  type SessionMessageDataPart,
-  type SessionMessagePart,
   StoreId,
+  type TranscriptMessage,
 } from "@instrument-org/workspace/client";
+
+type Shown = SessionMessage.WithParts | TranscriptMessage;
 
 /**
  * Words the user sent that the workspace has not handed back yet: drawn as
@@ -11,7 +12,7 @@ import {
  * the live list is a round trip the user should not watch.
  */
 export interface PendingPrompt {
-  message: SessionMessage.UserWithParts;
+  message: SessionMessage.User & TranscriptMessage;
   /** The session's messages at the moment of sending, none of which can be this one's stored copy. */
   seen: ReadonlySet<StoreId.Message>;
 }
@@ -19,13 +20,10 @@ export interface PendingPrompt {
 export function pendingPrompt({
   messages,
   prompt,
-  reply,
   sessionId,
 }: {
-  messages: SessionMessage.WithParts[];
+  messages: readonly Shown[];
   prompt: string;
-  /** The earlier message it answers, drawn over it the way the stored one will be. */
-  reply?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
 }): PendingPrompt | undefined {
   // Stored trimmed, and a message with no words is not stored as a text part.
@@ -35,25 +33,29 @@ export function pendingPrompt({
   }
   const createdAt = new Date();
   const id = StoreId.newMessageId();
-  const metadata = () => ({
-    createdAt,
-    id: StoreId.newPartId(),
-    messageId: id,
-    sessionId,
-  });
-  const parts: SessionMessagePart.Type[] = [
-    { metadata: metadata(), text, type: "text" },
-  ];
-  if (reply) {
-    parts.push({ data: reply, metadata: metadata(), type: "data-reply" });
-  }
   return {
-    message: { id, metadata: { createdAt, sessionId }, parts, role: "user" },
+    message: {
+      id,
+      metadata: { createdAt, sessionId },
+      parts: [
+        {
+          metadata: {
+            createdAt,
+            id: StoreId.newPartId(),
+            messageId: id,
+            sessionId,
+          },
+          text,
+          type: "text",
+        },
+      ],
+      role: "user",
+    },
     seen: new Set(messages.map((message) => message.id)),
   };
 }
 
-const textOf = (message: SessionMessage.WithParts) =>
+const textOf = (message: Shown) =>
   message.parts.find((part) => part.type === "text")?.text;
 
 /**
@@ -64,7 +66,7 @@ const textOf = (message: SessionMessage.WithParts) =>
  */
 export function unsettledPrompts(
   pending: PendingPrompt[],
-  messages: SessionMessage.WithParts[],
+  messages: readonly Shown[],
 ): PendingPrompt[] {
   const claimed = new Set<StoreId.Message>();
   return pending.filter((entry) => {

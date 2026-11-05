@@ -44,8 +44,6 @@ interface ChatScreenProps {
   >;
   /** The words that open the chat, while the message they make is on its way. */
   sentPrompt?: string;
-  /** What the chat holds, as a row of tiles over its composer. */
-  tiles?: ReactNode;
 }
 
 /**
@@ -94,7 +92,6 @@ function ChatScreenOfRecord({
   sendContext,
   sentPrompt,
   sessionId,
-  tiles,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
   const info = useQuery(
@@ -227,7 +224,6 @@ function ChatScreenOfRecord({
                         }
                   }
                   // What the chat holds, over the composer.
-                  beforeComposer={tiles}
                   composerLead={composerLead}
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.

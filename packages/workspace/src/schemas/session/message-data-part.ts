@@ -34,12 +34,12 @@ export namespace SessionMessageDataPart {
     "setupNews",
     "signedIn",
     "skillMentions",
+    "stepFacts",
     "maxSteps",
     "memory",
     "messageGap",
     "modelChange",
     "outputLimit",
-    "reply",
     "taskEvent",
     "toolResultsCleared",
     "chatContext",
@@ -47,6 +47,7 @@ export namespace SessionMessageDataPart {
     "ratingCard",
     "unknown",
     "viewContext",
+    "workSummary",
     "workspaceInstructions",
   ]);
 
@@ -103,17 +104,18 @@ export namespace SessionMessageDataPart {
     outputLimit: "event",
     permissionAnswer: "event",
     questionAnswer: "event",
-    reply: "event",
     setupChanges: "event",
     setupNews: "diff",
     signedIn: "event",
     skillMentions: "event",
+    stepFacts: "event",
     taskEvent: "event",
     toolResultsCleared: "event",
     project: "state",
     ratingCard: "event",
     unknown: "unwritten",
     viewContext: "state",
+    workSummary: "event",
     workspaceInstructions: "state",
   } satisfies Record<Name, Cadence>;
 
@@ -416,21 +418,6 @@ export namespace SessionMessageDataPart {
   export type AsksDataPart = z.output<typeof AsksDataPartSchema>;
 
   /**
-   * The earlier message the user is replying to: which bubble, by its message
-   * and part, so the transcript can draw the quote and find the original, and
-   * the start of its words, which is all the model is shown. The model already
-   * has the whole message in its history and knows it by no id, so the words
-   * are how it tells which one is meant.
-   */
-  export const ReplyDataPartSchema = z.object({
-    messageId: StoreId.MessageSchema,
-    partId: StoreId.PartSchema,
-    text: z.string().trim().min(1).max(1000),
-  });
-
-  export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
-
-  /**
    * What a turn did to the person's setup: the skills, apps and memories it
    * added, changed or removed, read off the turn's own writes
    * (`setup-changes.ts`), so each is the turn's doing and none is another
@@ -524,6 +511,57 @@ export namespace SessionMessageDataPart {
   });
 
   export type OutputLimitDataPart = z.output<typeof OutputLimitDataPartSchema>;
+
+  /**
+   * What a shell call did, measured rather than asked of the agent: the apps
+   * it called, the sites its tabs reached, what its `counts` label comes to,
+   * and the files it touched. Recorded for the person's view and never sent to
+   * the model. While the call runs it stays unsettled, held by the turn in
+   * memory so its counts rise on screen, and it is written once, when the call
+   * ends. `step` is the call's part.
+   */
+  export const StepFactsDataPartSchema = z.object({
+    apps: z.array(
+      z.object({
+        app: z.string(),
+        calls: z.number(),
+        failed: z.number(),
+        ms: z.number(),
+        /** The tool's name, or the HTTP method of a request to an API app. */
+        tool: z.string(),
+      }),
+    ),
+    counts: z.array(z.object({ count: z.number(), label: z.string() })),
+    /**
+     * Each file the call touched. `disk` is what the disk says changed during
+     * the call, and `command` what the command's words name, which is the only
+     * sign of a read and is a guess.
+     */
+    files: z.array(
+      z.object({
+        change: z.enum(["changed", "created", "deleted", "read"]),
+        path: z.string(),
+        via: z.enum(["command", "disk"]),
+      }),
+    ),
+    /** How many more files it touched than `files` lists. */
+    moreFiles: z.number().optional(),
+    hosts: z.array(z.string()),
+    settled: z.boolean(),
+    step: StoreId.PartSchema,
+  });
+
+  export type StepFactsDataPart = z.output<typeof StepFactsDataPartSchema>;
+
+  /**
+   * The line a side call wrote for a finished turn's folded row, kept on its
+   * last message so a reload reads the same words. Never sent to the model.
+   */
+  export const WorkSummaryDataPartSchema = z.object({
+    words: z.string().trim().min(1).max(300),
+  });
+
+  export type WorkSummaryDataPart = z.output<typeof WorkSummaryDataPartSchema>;
 
   /**
    * Tasks a chat created that finished a turn since it last heard.
@@ -1415,15 +1453,16 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
-    [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
     [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,
     [NameSchema.enum.signedIn]: SignedInDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
+    [NameSchema.enum.stepFacts]: StepFactsDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.toolResultsCleared]: ToolResultsClearedDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
+    [NameSchema.enum.workSummary]: WorkSummaryDataPartSchema,
     [NameSchema.enum.workspaceInstructions]:
       WorkspaceInstructionsDataPartSchema,
   });

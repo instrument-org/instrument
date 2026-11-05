@@ -26,7 +26,6 @@ import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
 import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
 import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
-import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppTasksSessionIdRouteImport } from './routes/_app/tasks/$sessionId'
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
@@ -126,11 +125,6 @@ const AppChatsIdRoute = AppChatsIdRouteImport.update({
 const AppSitesIdRoute = AppSitesIdRouteImport.update({
   id: '/sites/$id',
   path: '/sites/$id',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppTasksSessionIdRoute = AppTasksSessionIdRouteImport.update({
@@ -254,7 +248,6 @@ export interface FileRoutesByFullPath {
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps/': typeof AppAppsIndexRoute
   '/chats/': typeof AppChatsIndexRoute
-  '/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -287,7 +280,6 @@ export interface FileRoutesByTo {
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps': typeof AppAppsIndexRoute
   '/chats': typeof AppChatsIndexRoute
-  '/tasks': typeof AppTasksIndexRoute
   '/debug/components': typeof DebugComponentsIndexRoute
 }
 export interface FileRoutesById {
@@ -324,7 +316,6 @@ export interface FileRoutesById {
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/_app/apps/': typeof AppAppsIndexRoute
   '/_app/chats/': typeof AppChatsIndexRoute
-  '/_app/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
 }
 export interface FileRouteTypes {
@@ -361,7 +352,6 @@ export interface FileRouteTypes {
     | '/debug/components/typography'
     | '/apps/'
     | '/chats/'
-    | '/tasks/'
     | '/debug/components/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -394,7 +384,6 @@ export interface FileRouteTypes {
     | '/debug/components/typography'
     | '/apps'
     | '/chats'
-    | '/tasks'
     | '/debug/components'
   id:
     | '__root__'
@@ -430,7 +419,6 @@ export interface FileRouteTypes {
     | '/debug/components/typography'
     | '/_app/apps/'
     | '/_app/chats/'
-    | '/_app/tasks/'
     | '/debug/components/'
   fileRoutesById: FileRoutesById
 }
@@ -561,13 +549,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSitesIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/tasks/': {
-      id: '/_app/tasks/'
-      path: '/tasks'
-      fullPath: '/tasks/'
-      preLoaderRoute: typeof AppTasksIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
     '/_app/tasks/$sessionId': {
       id: '/_app/tasks/$sessionId'
       path: '/tasks/$sessionId'
@@ -694,7 +675,6 @@ interface AppRouteRouteChildren {
   AppTasksSessionIdRoute: typeof AppTasksSessionIdRoute
   AppAppsIndexRoute: typeof AppAppsIndexRoute
   AppChatsIndexRoute: typeof AppChatsIndexRoute
-  AppTasksIndexRoute: typeof AppTasksIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
@@ -708,7 +688,6 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppTasksSessionIdRoute: AppTasksSessionIdRoute,
   AppAppsIndexRoute: AppAppsIndexRoute,
   AppChatsIndexRoute: AppChatsIndexRoute,
-  AppTasksIndexRoute: AppTasksIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

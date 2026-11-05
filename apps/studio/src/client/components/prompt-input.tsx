@@ -66,6 +66,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
@@ -216,6 +217,8 @@ interface PromptInputProps {
    * holds a send and flashes the note.
    */
   note?: ChatNote;
+  /** Stops the chat's work, offered in Send's place while the box is empty. */
+  onStop?: () => void;
   /** Whether the box is dictating, from the press until the words land, each time that changes. */
   onDictatingChange?: (dictating: boolean) => void;
   /** What the box holds besides the words, each time that changes after it first draws. */
@@ -279,6 +282,7 @@ export const PromptInput = ({
   lead,
   modelURI,
   note,
+  onStop,
   onDictatingChange,
   onItemsChange,
   onItemRemoved,
@@ -1376,7 +1380,17 @@ export const PromptInput = ({
                   size="sm"
                 />
               )}
-              {!dictating && (
+              {!dictating && onStop && !canSubmit && !isLoading && (
+                <Button
+                  aria-label="Stop"
+                  className="size-7 shrink-0 rounded-full p-0"
+                  onClick={onStop}
+                  variant="brand"
+                >
+                  <StopIcon className="size-3.5" weight="fill" />
+                </Button>
+              )}
+              {!dictating && (!onStop || canSubmit || isLoading) && (
                 <Button
                   aria-label="Send"
                   className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"

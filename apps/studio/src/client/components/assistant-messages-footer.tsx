@@ -1,7 +1,7 @@
 import {
-  getUsageSummaryFromMessages,
   type SessionMessage,
   type SessionMessagePart,
+  type TranscriptPart,
 } from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { useMemo, useState } from "react";
@@ -42,7 +42,9 @@ interface AssistantMessagesFooterProps {
    * starts takes that height back out from under whatever the reader is on.
    */
   isTurnLive?: boolean;
-  messages: SessionMessage.AssistantWithParts[];
+  messages: readonly (SessionMessage.Assistant & {
+    parts: readonly (SessionMessagePart.Type | TranscriptPart)[];
+  })[];
 }
 
 export function AssistantMessagesFooter({
@@ -52,13 +54,6 @@ export function AssistantMessagesFooter({
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
-
-  // Compute the summary from the messages this footer already holds -- no need
-  // to reload them from the store via RPC.
-  const usageSummary = useMemo(
-    () => getUsageSummaryFromMessages(messages),
-    [messages],
-  );
 
   const { elapsedDuration, latestCreatedAt, messageText, modelsUsed, sources } =
     useMemo(() => {
@@ -130,7 +125,10 @@ export function AssistantMessagesFooter({
     await navigator.clipboard.writeText(messageText);
   };
 
-  const generationDuration = usageSummary.msToFinish;
+  const generationDuration = messages.reduce(
+    (sum, message) => sum + (message.metadata.msToFinish ?? 0),
+    0,
+  );
   const uniqueUrls = extractUniqueUrls(sources);
 
   return (

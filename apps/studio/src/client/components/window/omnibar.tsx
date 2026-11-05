@@ -10,7 +10,6 @@ import {
 } from "@/client/components/extend/file-system";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { useChatTasks } from "@/client/components/window/child-tasks-query";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
 import {
@@ -32,10 +31,7 @@ import {
 } from "@/client/components/window/host-path";
 import { ShellContext } from "@/client/components/window/shell-context";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
-import {
-  type TabLocation,
-  taskHref,
-} from "@/client/components/window/tab-location";
+import { type TabLocation } from "@/client/components/window/tab-location";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
@@ -61,7 +57,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
-import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -90,10 +85,9 @@ const MATCHES_SHOWN = 8;
 /**
  * What a tab's field reaches, decided by what the tab holds: the web from a
  * page or a new tab, the computer from a folder or a file, and from any other
- * screen the list that screen is one of, so an app's page finds apps and a
- * task's page finds tasks.
+ * screen the list that screen is one of, so an app's page finds apps.
  */
-export type OmnibarMode = "apps" | "chats" | "files" | "tasks" | "web";
+export type OmnibarMode = "apps" | "chats" | "files" | "web";
 
 function omnibarModeOf(location: TabLocation): OmnibarMode {
   switch (location.kind) {
@@ -112,12 +106,9 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "folder": {
       return "files";
     }
-    case "task":
-    case "tasks": {
-      return "tasks";
-    }
     case "newTab":
-    case "page": {
+    case "page":
+    case "task": {
       return "web";
     }
   }
@@ -128,7 +119,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
   apps: "Find an app",
   chats: "Find a chat",
   files: "Go to a folder or file",
-  tasks: "Find a task",
   web: "Search or enter address",
 };
 
@@ -136,7 +126,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
 const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
   apps: "apps",
   chats: "chats",
-  tasks: "tasks",
 };
 
 interface OmniRow {
@@ -700,12 +689,6 @@ function useRows({
 
   // The lists the other screens are one of.
   const appsBySlug = useAppsBySlug();
-  // The tasks of the chat the tasks screen or the task's page is for.
-  const tasks = useChatTasks(
-    mode === "tasks" && (location.kind === "task" || location.kind === "tasks")
-      ? location.chat
-      : undefined,
-  );
 
   if (mode === "web") {
     const completion =
@@ -961,26 +944,6 @@ function useRows({
             open.visit(chatHref(id));
           },
         }));
-      }
-      case "tasks": {
-        // A task's page finds the tasks of the chat it was opened from, the
-        // list its crumb goes back to.
-        const chat =
-          location.kind === "task" || location.kind === "tasks"
-            ? location.chat
-            : undefined;
-        return matchNames(words, tasks.data ?? [], (task) => task.title).map(
-          (task) => ({
-            icon: <CheckSquareIcon className="size-4" />,
-            id: `task:${task.id}`,
-            name: task.title,
-            run: () => {
-              if (chat) {
-                open.visit(taskHref(task.id, chat));
-              }
-            },
-          }),
-        );
       }
     }
   })().slice(0, MATCHES_SHOWN);

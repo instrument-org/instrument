@@ -107,6 +107,8 @@ class Playback {
   private running = true;
   private readonly sessionId = StoreId.newSessionId();
   private toolCallCounter = 0;
+  /** The last call played, which facts are about. */
+  private lastCall: StoreId.Part | undefined;
 
   // A scenario keeps its own clock so it reads the same every time it is built.
   // Where that clock starts still matters: a row that is still running measures
@@ -150,6 +152,29 @@ class Playback {
       }
       case "empty-step": {
         this.emptyStep();
+        return;
+      }
+      case "facts": {
+        if (this.lastCall) {
+          this.put(
+            dataPart(
+              {
+                data: {
+                  apps: [],
+                  counts: [],
+                  files: [],
+                  hosts: [],
+                  ...act.facts,
+                  settled: true,
+                  step: this.lastCall,
+                },
+                type: "data-stepFacts",
+              },
+              this.openPartMetadata(),
+            ),
+          );
+          this.snapshot({ detail: "facts", kind: "notes" });
+        }
         return;
       }
       case "fail": {
@@ -262,6 +287,7 @@ class Playback {
     // exist here -- and drawing it produces a frame where the row has vanished
     // and the agent looks like it is thinking again.
     const seat = this.newSeat();
+    this.lastCall = seat.metadata.id;
     this.put(toolPart(call, seat, "streaming"));
     this.snapshot(mark(call, "streaming"));
     this.put(toolPart(call, seat, "running", this.time()));

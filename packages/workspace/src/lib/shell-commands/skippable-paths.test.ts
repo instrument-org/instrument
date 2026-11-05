@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { skippablePaths, withoutRefused } from "./skippable-paths";
+import { leavesAPath, skippablePaths } from "./skippable-paths";
 
 describe("skippablePaths", () => {
   it.each([
@@ -15,28 +15,28 @@ describe("skippablePaths", () => {
   });
 });
 
-describe("withoutRefused", () => {
-  const args = ["-l", "needle", "good", "~/.ssh"];
+describe("leavesAPath", () => {
+  const onDisk = new Set(["good"]);
+  const isPath = (operand: string) => onDisk.has(operand);
 
-  it("takes out a refused path", () => {
-    expect(withoutRefused(args, [3], new Set([2, 3]))).toEqual([
-      "-l",
-      "needle",
-      "good",
-    ]);
-  });
-
-  it("refuses when no path would be left", () => {
-    expect(withoutRefused(args, [2, 3], new Set([2, 3]))).toBeUndefined();
-  });
-
-  it("refuses when what was refused can't be left out", () => {
-    expect(withoutRefused(args, [1], new Set([2, 3]))).toBeUndefined();
-  });
-
-  it("counts a find's start points past its options", () => {
-    expect(
-      withoutRefused(["-L", "a", "b", "-name", "x"], [1], new Set([0, 1]), 1),
-    ).toEqual(["-L", "a", "-name", "x"]);
+  it.each([
+    ["a real path is left", ["-l", "needle", "good", "~/.ssh"], [3], true],
+    [
+      "every path is refused",
+      ["-l", "needle", "good", "~/.ssh"],
+      [2, 3],
+      false,
+    ],
+    [
+      "only a word that is no path",
+      ["-A", "3", "needle", "~/.ssh"],
+      [3],
+      false,
+    ],
+    ["only the pattern", ["needle", "~/.ssh"], [1], false],
+  ])("%s", (_name, args, refused, expected) => {
+    expect(leavesAPath(args, refused, skippablePaths(args), isPath)).toBe(
+      expected,
+    );
   });
 });

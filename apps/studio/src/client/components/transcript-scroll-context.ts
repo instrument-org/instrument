@@ -30,16 +30,14 @@ export function useReleaseAutoScroll() {
 export const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 /**
- * Scrolls a reply that just landed at the end to its first line, when
- * following the end would carry that line out of sight, and says whether it
- * did. A reply that fits is left to the scroller, which shows it whole, and
- * one landing below where the reader scrolled up to is theirs to find.
+ * Puts a reply's first line back under the top of the window when following its
+ * end has carried it above, and says whether it did.
  *
  * Measured in offsets, which leave out the arrival's own scale and the
  * viewport's scroll, so the row's place in the transcript is where it settles
  * rather than where its first frame draws it.
  */
-export function scrollToReplyStart(row: HTMLElement): boolean {
+export function holdAtReplyStart(row: HTMLElement): boolean {
   const viewport = row.closest<HTMLElement>(
     '[data-slot="message-scroller-viewport"]',
   );
@@ -47,18 +45,8 @@ export function scrollToReplyStart(row: HTMLElement): boolean {
     return false;
   }
   const top = layoutTop(row) - layoutTop(viewport) - viewport.clientTop;
-  const seen = viewport.scrollTop + viewport.clientHeight;
-  // A row lands a gap under the old end, and the scroller's own idea of the
-  // end has 8px of slack.
-  const content = row.closest('[data-slot="message-scroller-content"]');
-  const gap = content
-    ? Number.parseFloat(getComputedStyle(content).rowGap) || 0
-    : 0;
-  if (top > seen + gap + 8) {
-    return false;
-  }
   const target = top - TRANSCRIPT_PREVIOUS_TURN_PEEK;
-  if (target >= viewport.scrollHeight - viewport.clientHeight) {
+  if (viewport.scrollTop <= target) {
     return false;
   }
   viewport.scrollTop = target;

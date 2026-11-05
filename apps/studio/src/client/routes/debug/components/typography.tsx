@@ -1,5 +1,5 @@
 import { Markdown } from "@/client/components/markdown";
-import { REASONING_PROSE } from "@/client/components/reasoning-message";
+import { THOUGHT_PROSE } from "@/client/components/transcript/activity-row";
 import { SessionMarkdown } from "@/client/components/session-markdown";
 import { cn } from "@/client/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
@@ -189,7 +189,7 @@ function RouteComponent() {
         >
           <div className="max-h-44 w-full overflow-y-auto scroll-fade-y">
             <SessionMarkdown
-              className={cn(REASONING_PROSE, "w-full opacity-100")}
+              className={cn(THOUGHT_PROSE, "w-full opacity-100")}
               markdown={THOUGHT}
             />
           </div>

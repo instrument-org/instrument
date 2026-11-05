@@ -181,7 +181,11 @@ describe("outlineSessionLog", () => {
           command: "app call gmail search_threads '{}'",
           explanation: "Finding the thread",
         },
-        output: { exitCode: 1, output: "app: Incompatible auth server" },
+        output: {
+          exitCode: 1,
+          output: "app: Incompatible auth server",
+          stderr: "app: Incompatible auth server",
+        },
       }),
     ).toMatchObject({
       part: {
@@ -189,34 +193,129 @@ describe("outlineSessionLog", () => {
           command: "app call gmail search_threads '{}'",
           explanation: "Finding the thread",
         },
-        output: { exitCode: 1, output: "app: Incompatible auth server" },
+        output: {
+          exitCode: 1,
+          output: "<29 chars>",
+          stderr: "app: Incompatible auth server",
+        },
       },
     });
   });
 
-  it("keeps the output of Instrument's own status commands, trimmed or not", () => {
-    const output = (command: string) =>
+  it.each([
+    {
+      name: "a failed stage behind a pipe",
+      command: "find . | head -5",
+      output: "Error: .: Access is denied. (os error 5)",
+      ran: [
+        {
+          count: 1,
+          exitCode: 1,
+          failed: 1,
+          name: "find",
+          program: "/d/find.exe",
+          sandbox: "mxc",
+          source: "bundled",
+          stderr: "Error: .: Access is denied. (os error 5)",
+        },
+        {
+          count: 1,
+          name: "head",
+          program: "/d/coreutils.exe",
+          sandbox: "mxc",
+          source: "bundled",
+        },
+      ],
+    },
+    {
+      name: "a record with no status on its runs",
+      command: "find . | head -5",
+      output: "a.txt",
+      ran: [
+        {
+          count: 1,
+          name: "find",
+          program: "/d/find.exe",
+          reason: "builtin-args",
+          sandbox: "seatbelt",
+          source: "bundled",
+        },
+      ],
+    },
+  ])("sends the facts of $name, and its output as a length", (run) => {
+    const outlined = outlineRecord(
+      part({
+        type: "tool-bash",
+        input: { command: run.command },
+        output: {
+          commands: ["find", "head"],
+          exitCode: 0,
+          output: run.output,
+          ran: run.ran,
+        },
+      }),
+      emptySources(),
+    );
+    expect(outlined).toMatchObject({
+      part: {
+        output: {
+          output: `<${run.output.length} chars>`,
+          ran: run.ran,
+        },
+      },
+    });
+  });
+
+  it("keeps out what an exit-0 command printed and any field of a run not named", () => {
+    const outlined = JSON.stringify(
       outlineRecord(
         part({
           type: "tool-bash",
-          input: { command },
-          output: { exitCode: 0, output: "t1 idle" },
+          input: { command: "cat mail.txt 2>&1 | head -5" },
+          output: {
+            exitCode: 0,
+            movedForMessageFrom: "user",
+            output: SECRET,
+            ran: [
+              {
+                count: 1,
+                failed: 1,
+                exitCode: 1,
+                name: "cat",
+                source: "builtin",
+                somethingNew: SECRET,
+              },
+            ],
+          },
         }),
         emptySources(),
-      );
-    expect(output("task show t1 | head -30")).toMatchObject({
-      part: { output: { output: "t1 idle" } },
-    });
-    expect(output("instrument app test gmail")).toMatchObject({
-      part: { output: { output: "t1 idle" } },
-    });
-    expect(output("cat notes.md")).toMatchObject({
-      part: { output: { output: "<7 chars>" } },
-    });
-    expect(output("task show t1 | grep x")).toMatchObject({
-      part: { output: { output: "<7 chars>" } },
-    });
+      ),
+    );
+    expect(outlined).not.toContain(SECRET);
+    expect(outlined).toContain('"movedForMessageFrom":"user"');
+    expect(outlined).toContain('"somethingNew":"<11 chars>"');
   });
+
+  it.each([
+    { command: "cat missing mail.txt", exitCode: 1 },
+    { command: "cat mail.txt", exitCode: 0 },
+    { command: "task show t1 | head -30", exitCode: 0 },
+    { command: "instrument app test gmail", exitCode: 1 },
+  ])(
+    "sends a call's output as its length, whatever ran: $command",
+    ({ command, exitCode }) => {
+      expect(
+        outlineRecord(
+          part({
+            type: "tool-bash",
+            input: { command },
+            output: { exitCode, output: SECRET },
+          }),
+          emptySources(),
+        ),
+      ).toMatchObject({ part: { output: { output: "<11 chars>" } } });
+    },
+  );
 
   it("outlines a session the way a report shows it", () => {
     const log = [
@@ -329,7 +428,7 @@ describe("outlineSessionLog", () => {
             ],
             "durationMs": 688,
             "exitCode": 0,
-            "output": "23 tools on gmail.",
+            "output": "<18 chars>",
           },
           "type": "tool-bash",
         },
@@ -347,7 +446,7 @@ describe("outlineSessionLog", () => {
             ],
             "durationMs": 494,
             "exitCode": 1,
-            "output": "app: Incompatible auth server",
+            "output": "<29 chars>",
           },
           "type": "tool-bash",
         },

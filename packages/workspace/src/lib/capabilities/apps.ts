@@ -55,6 +55,10 @@ import {
   type Role,
 } from "./define";
 import { scriptSurfaceOpen } from "./script-surface";
+import {
+  knowsReadOnlyTools,
+  noteReadOnlyTools,
+} from "../transcript/step-facts";
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
 
@@ -455,6 +459,15 @@ export const appsCall = defineCapability({
       manifestHash: app.manifestHash,
       run: async (client) => {
         noteServerGuidance(app.slug, app.manifestHash, client);
+        if (!knowsReadOnlyTools(app.slug)) {
+          const listed = await client.listTools().catch(() => undefined);
+          noteReadOnlyTools(
+            app.slug,
+            (listed?.tools ?? [])
+              .filter((each) => each.annotations?.readOnlyHint === true)
+              .map((each) => each.name),
+          );
+        }
         const called = await callMcpTool(client, {
           args: sent,
           name: tool,

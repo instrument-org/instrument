@@ -176,11 +176,16 @@ function flatten(value: unknown, at = "", out: RecordField[] = []) {
   return out;
 }
 
+/** Whether a run in a command's `ran` list ended in failure, as a stage behind a pipe can in a call that exited 0. */
+function runFailed(run: unknown) {
+  return isFields(run) && typeof run.failed === "number" && run.failed > 0;
+}
+
 function exitedBadly(output: unknown) {
   return (
     isFields(output) &&
-    typeof output.exitCode === "number" &&
-    output.exitCode !== 0
+    ((typeof output.exitCode === "number" && output.exitCode !== 0) ||
+      (Array.isArray(output.ran) && output.ran.some(runFailed)))
   );
 }
 

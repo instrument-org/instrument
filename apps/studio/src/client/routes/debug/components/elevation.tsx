@@ -28,7 +28,7 @@ const ramps: { description: string; levels: Level[]; title: string }[] = [
       {
         className: "shadow-md",
         name: "md",
-        usedBy: "Onboarding cards, chat tiles",
+        usedBy: "Onboarding cards",
       },
       {
         className: "shadow-lg",

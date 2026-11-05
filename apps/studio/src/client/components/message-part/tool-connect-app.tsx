@@ -11,7 +11,7 @@ import {
   type SessionMessagePart,
   type SignInAsk,
 } from "@instrument-org/workspace/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useContext } from "react";
 
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
@@ -36,7 +36,7 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
   // are, so another computer's call never offers this one's controls.
   const signIn = useQuery(
     chatId === undefined
-      ? { enabled: false, queryKey: ["no-chat-sign-in"] }
+      ? { queryFn: skipToken, queryKey: ["no-chat-sign-in"] }
       : rpcClient.workspace.chats.live.signIn.experimental_liveOptions({
           input: { id: chatId, partId: part.metadata.id },
         }),

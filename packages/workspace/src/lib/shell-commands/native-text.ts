@@ -1,4 +1,4 @@
-import { skippablePaths, withoutRefused } from "./skippable-paths";
+import { leavesAPath, skippablePaths } from "./skippable-paths";
 import {
   type Command,
   type CommandContext,
@@ -203,17 +203,23 @@ function xargsRunsKill(args: string[]): boolean {
 }
 
 /** xargs' options, up to the command it starts. */
-function scanXargs(args: string[]): { command?: string; parallel: boolean } {
+function scanXargs(args: string[]): {
+  command?: string;
+  commandAt?: number;
+  parallel: boolean;
+} {
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (arg === undefined) {
       return { parallel: false };
     }
     if (arg === "--") {
-      return { command: args[index + 1], parallel: false };
+      return index + 1 < args.length
+        ? { command: args[index + 1], commandAt: index + 1, parallel: false }
+        : { parallel: false };
     }
     if (!/^-./.test(arg)) {
-      return { command: arg, parallel: false };
+      return { command: arg, commandAt: index, parallel: false };
     }
     if (arg.startsWith("--")) {
       if (arg === "--max-procs" || arg.startsWith("--max-procs=")) {
@@ -418,10 +424,12 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
   { binary: "grep", name: "grep" },
+  // On Windows what `find -exec` starts is found as xargs' programs are.
   { binary: "find", name: "find" },
   // What xargs starts is a program on the PATH. Windows has no `echo` or
   // `printf` of its own, so there xargs' PATH starts with links to the
-  // coreutils it carries (coreutilsLinks).
+  // coreutils it carries (coreutilsLinks) and xargs names the program by its
+  // full path (xargsNamingItsProgram).
   {
     binary: "xargs",
     name: "xargs",
@@ -527,15 +535,90 @@ function coreutilsLinks(): string | null {
   return linksDir;
 }
 
-/** xargs' environment, with the coreutils links first on its PATH. */
-function xargsEnv(env: Record<string, string>): Record<string, string> {
-  const dir = coreutilsLinks();
-  if (dir === null) {
-    return env;
-  }
+/**
+ * The environment for a program that starts others, `xargs` and `find -exec`.
+ * First on its PATH are the coreutils links and then the bundled `find` and
+ * `grep`, ahead of System32's unrelated `find`. `rg` stays off it, since started
+ * this way it would skip the flags the shell's `rg` refuses.
+ */
+function startingProgramsEnv(
+  env: Record<string, string>,
+): Record<string, string> {
   const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
-  const rest = key === undefined ? "" : (env[key] ?? "");
-  return { ...env, [key ?? "Path"]: `${dir};${rest}` };
+  const dirs = [coreutilsLinks(), getWorkspaceConfig().uutilsDir].filter(
+    (dir) => dir !== null && dir !== undefined,
+  );
+  return pathSeparatorEnv({
+    ...env,
+    [key ?? "Path"]: [...dirs, pathOf(env)].join(";"),
+  });
+}
+
+/** The value of a PATH variable, whatever its case. */
+function pathOf(env: Record<string, string>): string {
+  const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
+  return key === undefined ? "" : (env[key] ?? "");
+}
+
+type IsFile = (hostPath: string) => boolean;
+
+/**
+ * A program's full path on a Windows PATH, for a name given bare. Under MXC a
+ * coreutils link looked up by bare name is often not found, and the same link
+ * by full path always is. A name on no PATH folder stays as written, so the
+ * program starting it reports it as usual. A name without an extension means
+ * its `.exe`, the only one those programs try.
+ */
+function programOnWindowsPath(name: string, path: string, isFile: IsFile) {
+  if (/[\\/]/.test(name)) {
+    return name;
+  }
+  const file = nodePath.win32.extname(name) ? name : `${name}.exe`;
+  return (
+    path
+      .split(";")
+      .filter((dir) => nodePath.win32.isAbsolute(dir))
+      .map((dir) => nodePath.win32.join(dir, file))
+      .find((hostPath) => isFile(hostPath)) ?? name
+  );
+}
+
+/** xargs' arguments naming what it starts, `echo` when none is, by full path. */
+export function xargsNamingItsProgram(
+  args: string[],
+  path: string,
+  isFile: IsFile = existsSync,
+): string[] {
+  const { command, commandAt } = scanXargs(args);
+  const named = programOnWindowsPath(command ?? "echo", path, isFile);
+  if (commandAt !== undefined) {
+    return args.with(commandAt, named);
+  }
+  return named === "echo" ? args : [...args, named];
+}
+
+/** The actions of `find` that start a program named by the next argument. */
+const FIND_STARTS = new Set(["-exec", "-execdir", "-ok", "-okdir"]);
+
+/** find's arguments naming what each `-exec` starts by full path. */
+export function findNamingItsPrograms(
+  args: string[],
+  path: string,
+  isFile: IsFile = existsSync,
+): string[] {
+  const named = [...args];
+  for (let index = 0; index < named.length; index++) {
+    const program = named[index + 1];
+    if (!FIND_STARTS.has(named[index] ?? "") || program === undefined) {
+      continue;
+    }
+    named[index + 1] = programOnWindowsPath(program, path, isFile);
+    // What the program is given runs up to its `;` or `+`.
+    while (index < named.length && !/^[;+]$/.test(named[index] ?? "")) {
+      index++;
+    }
+  }
+  return named;
 }
 
 /**
@@ -885,16 +968,18 @@ export function createNativeTextCommand(
     let leftOut = "";
     if (refusals.length > 0) {
       const lines = refusals.map(({ message }) => `${message}\n`).join("");
-      const kept = withoutRefused(
-        args,
-        refusals.map(({ at }) => at),
-        skippableOperands(route, operands),
-        starts ? splitFind(args).options.length : 0,
-      );
-      if (kept === undefined) {
+      const refused = refusals.map(({ at }) => at);
+      const skippable = skippableOperands(route, operands);
+      if (
+        refused.some((at) => !skippable.has(at)) ||
+        !leavesAPath(operands, refused, skippable, (operand) =>
+          existsSync(hostPathOf(resolvePath(operand))),
+        )
+      ) {
         return { exitCode: 2, stderr: lines, stdout: "" };
       }
-      args = kept;
+      const offset = starts ? splitFind(args).options.length : 0;
+      args = args.filter((_, at) => !refused.includes(at - offset));
       leftOut = lines;
     }
     const outside = unsandboxedRun(
@@ -925,12 +1010,21 @@ export function createNativeTextCommand(
         : undefined;
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";
-    const argv = [
-      ...(multicall ? [route.name] : []),
-      ...hostPathArgs(programArgs),
-    ];
     // A system program takes Node's own quoting; uutils needs its own.
     const windows = process.platform === "win32" && route.binary !== "system";
+    const startingEnv =
+      windows && !outside && (route.name === "xargs" || route.name === "find")
+        ? startingProgramsEnv(env)
+        : undefined;
+    const hostArgs = hostPathArgs(programArgs);
+    const namingPrograms =
+      route.name === "xargs" ? xargsNamingItsProgram : findNamingItsPrograms;
+    const argv = [
+      ...(multicall ? [route.name] : []),
+      ...(startingEnv
+        ? namingPrograms(hostArgs, pathOf(startingEnv))
+        : hostArgs),
+    ];
     try {
       return await runNative(
         ctx,
@@ -945,11 +1039,8 @@ export function createNativeTextCommand(
           env:
             outside || !windows
               ? env
-              : route.name === "xargs"
-                ? xargsEnv(env)
-                : route.binary === "find" || route.binary === "grep"
-                  ? pathSeparatorEnv(env)
-                  : env,
+              : (startingEnv ??
+                (route.binary === "grep" ? pathSeparatorEnv(env) : env)),
           ...(windows ? { windowsVerbatimArguments: true } : {}),
           ...(outside
             ? { ownEnvOnly: true as const, unsandboxed: true as const }

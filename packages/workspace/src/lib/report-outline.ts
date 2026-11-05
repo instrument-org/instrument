@@ -20,7 +20,7 @@ import {
   type WordNode,
 } from "just-bash";
 
-/** The most of a failed step's output, or of an error, a report keeps: its end, where the error is. */
+/** The most of a tool's error a report keeps: its end, where the error is. */
 export const OUTLINE_KEPT_OUTPUT = 2000;
 
 /** A quoted word in a command longer than this goes as its length. */
@@ -411,60 +411,6 @@ export function outlineCommand(command: string): string {
   return out;
 }
 
-/** Instrument's own commands whose output is the app's status rather than anything from outside it. */
-const STATUS = new Set([
-  "app catalog",
-  "app new",
-  "app test",
-  "app tool",
-  "app tools",
-  "jobs",
-  "tab list",
-  "task list",
-  "task new",
-  "task send",
-  "task show",
-  "task stop",
-]);
-
-/** Commands that only trim what one before them printed. */
-const TRIMS = new Set(["head", "tail"]);
-
-/**
- * Whether every pipeline in a command is one of Instrument's status
- * commands, trimmed at most by `head` or `tail`.
- */
-function isStatusCommand(command: string): boolean {
-  let script: ScriptNode;
-  try {
-    script = parse(command);
-  } catch {
-    return false;
-  }
-  if (script.statements.length === 0) {
-    return false;
-  }
-  return script.statements.every((stmt) =>
-    stmt.pipelines.every((pipeline) =>
-      pipeline.commands.every((node, index) => {
-        if (node.type !== "SimpleCommand") {
-          return false;
-        }
-        const words = commandWords(node);
-        if (index > 0) {
-          return TRIMS.has(words[0] ?? "");
-        }
-        const [first, second] =
-          words[0] === "instrument" ? words.slice(1) : words;
-        return (
-          STATUS.has(`${first ?? ""} ${second ?? ""}`) ||
-          STATUS.has(first ?? "")
-        );
-      }),
-    ),
-  );
-}
-
 /** Apps a command got answers from: `app call <slug>`. */
 function appsCalled(command: string, sources: OutlineSources) {
   let script: ScriptNode;
@@ -503,6 +449,29 @@ function envelope(part: Obj): Obj {
 
 const SAID = ["explanation", "activity"];
 
+/**
+ * What of a `ran` row goes as written (`CommandRunSchema`): a command's name
+ * is no more than `program` says, the source, sandbox and reason are enums,
+ * and `stderr` is the end of a failed run's, for every program alike.
+ */
+const RUN_FIELDS = [
+  "count",
+  "durationMs",
+  "exitCode",
+  "failed",
+  "name",
+  "program",
+  "reason",
+  "sandbox",
+  "source",
+  "stderr",
+];
+
+/**
+ * A call's `output` is what the agent read, so it goes as its length for every
+ * command, however it ended (`cat missing mail.txt` prints the mail and exits
+ * 1). How a call failed goes in `stderr` and in its `ran` rows.
+ */
 function toolBash(part: Obj, sources: OutlineSources): Obj {
   const input = isObj(part.input) ? part.input : {};
   const command = typeof input.command === "string" ? input.command : "";
@@ -516,34 +485,27 @@ function toolBash(part: Obj, sources: OutlineSources): Obj {
   };
   const output = part.output;
   if (isObj(output)) {
-    const failed = output.exitCode !== 0 && output.exitCode !== undefined;
     const kept = fields(
       output,
       [
         "exitCode",
         "durationMs",
+        "movedForMessageFrom",
         "omittedBytes",
         "logOmittedBytes",
         "commands",
         "processId",
         "pids",
         "handOffs",
+        "stderr",
         "truncated",
       ],
       [],
       sources,
     );
     delete kept.command;
-    if (
-      typeof output.output === "string" &&
-      (failed || isStatusCommand(command))
-    ) {
-      kept.output = capped(output.output);
-    }
     if (Array.isArray(output.ran)) {
-      kept.ran = output.ran.map((ran) =>
-        pick(ran, ["program", "exitCode", "durationMs"]),
-      );
+      kept.ran = output.ran.map((ran) => pick(ran, RUN_FIELDS));
     }
     if (output.browserSkill !== undefined) {
       kept.browserSkill = { loaded: true };
@@ -683,7 +645,6 @@ const NOTES_KEPT = new Set([
   "data-outputFormat",
   "data-permissionAnswer",
   "data-questionAnswer",
-  "data-reply",
   "data-setupChanges",
   "data-skillMentions",
   "data-taskEvent",

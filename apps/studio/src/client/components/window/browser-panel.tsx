@@ -2,7 +2,8 @@ import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
-import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
+import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
+import { BrowserFindCard } from "@/client/components/window/browser-find-card";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import {
   CertificateErrorNotice,
@@ -873,8 +874,8 @@ export function BrowserPanel({
         );
         // The page's controls and the menu, which the row above can carry as
         // they are, and reload, which it keeps beside its arrows; the
-        // address, and the way out to the app that opens the page, are drawn
-        // there by the row itself.
+        // address, the extensions' buttons and the way out to the app that
+        // opens the page are drawn there by the row itself.
         const controls = (
           <>
             {pageControls}
@@ -1058,6 +1059,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
+            <BrowserExtensionButtons />
             <BrowserDownloadsButton />
             {menu}
           </>
@@ -1109,18 +1111,17 @@ export function BrowserPanel({
           </div>
         ) : null;
       })()}
-      {active && find.findOpen && (
-        <BrowserFindBar
-          closeFind={find.closeFind}
-          findInputRef={find.findInputRef}
-          findQuery={find.findQuery}
-          findResult={find.findResult}
-          runFind={find.runFind}
-          setFindQuery={find.setFindQuery}
-        />
-      )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
+          <BrowserFindCard
+            closeFind={find.closeFind}
+            findInputRef={find.findInputRef}
+            findOpen={find.findOpen}
+            findQuery={find.findQuery}
+            findResult={find.findResult}
+            runFind={find.runFind}
+            setFindQuery={find.setFindQuery}
+          />
           {blankPage && !loadError && !signIn && (
             <div
               aria-hidden

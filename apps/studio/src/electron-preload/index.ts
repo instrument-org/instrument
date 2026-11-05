@@ -27,6 +27,7 @@ import {
 import { type SetupState } from "@/shared/setup";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { injectBrowserAction } from "electron-chrome-extensions/browser-action";
 import os from "node:os";
 
 /**
@@ -301,6 +302,9 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld("electron", electronAPI);
     contextBridge.exposeInMainWorld("api", api);
+    // The `<browser-action-list>` element the browser bar draws the
+    // extensions' buttons with, inert until main turns the extensions on.
+    injectBrowserAction();
   } catch (error) {
     console.error("Failed to expose Electron APIs to renderer", error);
   }

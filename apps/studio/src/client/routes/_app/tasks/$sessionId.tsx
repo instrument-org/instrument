@@ -1,5 +1,5 @@
 import { TaskScreen } from "@/client/components/window/chat-tasks-view";
-import { chatOfTasksList } from "@/client/components/window/tab-location";
+import { chatOfTaskAddress } from "@/client/components/window/tab-location";
 import { StoreId } from "@instrument-org/workspace/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_app/tasks/$sessionId")({
 
 function TaskRoute() {
   const params = Route.useParams();
-  const chat = chatOfTasksList(Route.useSearch().chat);
+  const chat = chatOfTaskAddress(Route.useSearch().chat);
   const sessionId = StoreId.SessionSchema.safeParse(params.sessionId);
   if (!sessionId.success || chat === undefined) {
     return (

@@ -17,6 +17,7 @@ import {
 } from "@/client/components/ui/context-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
+import { withoutPathQuotes } from "@/client/lib/path-text";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -579,7 +580,13 @@ export function Peek({
         </>
       ) : (
         <span className="min-w-0 truncate text-muted-foreground">
-          <Marked search={search} text={chat.latest?.text ?? ""} />
+          <Marked
+            search={search}
+            text={withoutPathQuotes(
+              chat.latest?.text ?? "",
+              window.electron.process.platform,
+            )}
+          />
         </span>
       )}
     </span>

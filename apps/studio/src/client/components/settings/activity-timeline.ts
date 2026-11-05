@@ -399,6 +399,7 @@ const DID: Record<Purpose, string> = {
   task: "Worked on a task",
   "title-check": "Checked a chat's name",
   "web-search": "Searched the web",
+  "work-summary": "Summarized the work",
   "x-search": "Searched X",
 };
 

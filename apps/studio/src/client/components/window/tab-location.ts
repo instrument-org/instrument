@@ -34,22 +34,14 @@ export interface Volume {
 
 /**
  * The address of one task's page: its session, and the chat whose store
- * holds it and whose list it was opened from.
+ * holds it.
  */
 export function taskHref(id: StoreId.Session, chat: ChatId): string {
   return `${pathOf(SCREEN_ROUTES.task, { sessionId: id })}?chat=${chat}`;
 }
 
-/** The address of a chat's task list; there is no list of every chat's tasks. */
-export function tasksHref(chat: ChatId): string {
-  return `${pathOf(SCREEN_ROUTES.tasks, {})}?chat=${chat}`;
-}
-
-/**
- * The chat a task list's address names, which every list is for; none for
- * no chat or one that is not a chat's id, an address with no list at it.
- */
-export function chatOfTasksList(chat: unknown): ChatId | undefined {
+/** The chat a task's address names; none for no chat or one that is not a chat's id. */
+export function chatOfTaskAddress(chat: unknown): ChatId | undefined {
   const parsed = ChatIdSchema.safeParse(chat);
   return parsed.success ? parsed.data : undefined;
 }
@@ -76,7 +68,6 @@ export type TabLocation =
     }
   | {
       /** The chat whose list the task was opened from, which is where its crumb goes back to. */
-      chat?: ChatId;
       kind: "task";
       title: string;
     }
@@ -92,19 +83,14 @@ export type TabLocation =
       picked?: number;
     }
   | { kind: "newTab" }
-  | { kind: "page"; url: string }
-  | {
-      /** The chat whose tasks these are; none only on the way to the inbox. */
-      chat?: ChatId;
-      kind: "tasks";
-    };
+  | { kind: "page"; url: string };
 
 /**
  * The place the field shows, as the parts a person reads it in.
  *
  * One rule everywhere: the last part is what you are looking at, and everything
- * the place sits under is somewhere you can go. A file is under its folders, a
- * task under the work, an app page under Apps. An address is not one of these:
+ * the place sits under is somewhere you can go. A file is under its folders, an
+ * app page under Apps. An address is not one of these:
  * a site is one thing you type rather than a trail you walk, so a page has no
  * parts and the field says it whole.
  */
@@ -153,34 +139,22 @@ export function locationCrumbs(
     case "page": {
       return [];
     }
-    // A task opened from no chat's list has no list to go back to.
     case "task": {
-      return [
-        location.chat === undefined
-          ? { label: "Tasks" }
-          : {
-              label: "Tasks",
-              to: { href: tasksHref(location.chat), kind: "screen" },
-            },
-        { label: location.title },
-      ];
-    }
-    case "tasks": {
-      return [{ label: "Tasks" }];
+      return [{ label: location.title }];
     }
   }
 }
 
 /**
- * What an address under the tasks names: the list or one task by its
- * session, and the chat it is for when the address carries one. Nothing for
- * any other address, and nothing for an id that is not one.
+ * The task an address names, by its session, and the chat it is in when the
+ * address carries one. Nothing for any other address, and nothing for an id
+ * that is not one.
  */
 export function tasksOfHref(
   href: string,
-): undefined | { chat?: ChatId; task?: StoreId.Session } {
+): undefined | { chat?: ChatId; task: StoreId.Session } {
   const screen = matchScreen(href);
-  if (screen.kind !== "tasks" && screen.kind !== "task") {
+  if (screen.kind !== "task") {
     return undefined;
   }
   const { kind: _tasks, ...tasks } = screen;

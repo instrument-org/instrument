@@ -189,6 +189,53 @@ describe("command runs", () => {
     },
   );
 
+  it.skipIf(!vendored)(
+    "records a failed stage behind a pipe, whatever hides its stderr",
+    async () => {
+      configure({ outside: false, uutilsDir: UUTILS_DIR });
+      const rows = await runsOf("find ./missing 2>/dev/null | head -1");
+      expect(rows.find((row) => row.name === "find")).toMatchObject({
+        exitCode: 1,
+        failed: 1,
+        stderr: expect.stringContaining("./missing"),
+      });
+      expect(rows.find((row) => row.name === "head")).not.toHaveProperty(
+        "failed",
+      );
+    },
+  );
+
+  it.skipIf(!vendored)(
+    "keeps a failed run's stderr the same way, whatever the program is called",
+    async () => {
+      configure({ outside: false, uutilsDir: UUTILS_DIR });
+      const rows = await runsOf(
+        "sort ./missing 2>/dev/null; find ./missing -exec true ';' 2>/dev/null; true",
+      );
+      expect(rows).toEqual([
+        expect.objectContaining({
+          failed: 1,
+          name: "sort",
+          stderr: expect.stringContaining("missing"),
+        }),
+        expect.objectContaining({
+          failed: 1,
+          name: "find",
+          stderr: expect.stringContaining("missing"),
+        }),
+      ]);
+    },
+  );
+
+  it.skipIf(!vendored)(
+    "does not count a producer cut off by its reader",
+    async () => {
+      configure({ outside: false, uutilsDir: UUTILS_DIR });
+      const rows = await runsOf("seq 1000000 | head -1");
+      expect(rows.flatMap((row) => (row.failed ? [row.name] : []))).toEqual([]);
+    },
+  );
+
   it("records just-bash's own commands as builtins without uutils", async () => {
     configure({});
     expect(await runsOf(SCRIPT)).toMatchInlineSnapshot(`
@@ -292,6 +339,31 @@ describe("CommandRuns", () => {
     expect(runs.rows()).toEqual([
       { count: 3, name: "cat", source: "builtin" },
       { count: 2, name: "jobs", source: "instrument" },
+    ]);
+  });
+
+  it("merges failures with the worker's, the latest status winning", () => {
+    const find = { name: "find", source: "bundled" } as const;
+    const runs = new CommandRuns();
+    runs.record(find);
+    runs.record(find);
+    runs.recordFailure(find, 2, "no such file");
+    runs.setRemote([
+      { ...find, count: 1, exitCode: 1, failed: 1, stderr: "denied" },
+    ]);
+    expect(runs.rows()).toEqual([
+      { ...find, count: 3, exitCode: 2, failed: 2, stderr: "no such file" },
+    ]);
+  });
+
+  it("drops a row's stderr when its latest failure kept none", () => {
+    const find = { name: "find", source: "bundled" } as const;
+    const runs = new CommandRuns();
+    runs.record(find);
+    runs.recordFailure(find, 1, "denied");
+    runs.recordFailure(find, 2);
+    expect(runs.rows()).toEqual([
+      { ...find, count: 1, exitCode: 2, failed: 2 },
     ]);
   });
 });

@@ -218,6 +218,14 @@ describe.each(Object.entries(shells))(
       expect(result.exitCode).toBe(2);
     });
 
+    it("rg with a flag's value in the way refuses rather than walking the working folder", async () => {
+      const bash = await shell();
+      await bash.exec("echo secret > here.txt");
+      const result = await bash.exec(`rg -l -A 3 secret ${shown(closed)}`);
+      expect(result.stdout).toBe("");
+      expect(result.exitCode).toBe(2);
+    });
+
     it("still says a missing file is missing", async () => {
       const bash = await shell();
       const result = await bash.exec(`cat ${shown(docs)}/missing.txt`);

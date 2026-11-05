@@ -1,3 +1,5 @@
+import { ClockCountdownIcon } from "@phosphor-icons/react/ClockCountdown";
+
 import { cn } from "../../lib/utils";
 
 /**
@@ -23,10 +25,11 @@ export function RunningBadge({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center rounded-full border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground",
+        "flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-border px-2 text-xs whitespace-nowrap text-muted-foreground",
         className,
       )}
     >
+      <ClockCountdownIcon className="size-4" />
       {count} {count === 1 ? "command" : "commands"} running
     </span>
   );

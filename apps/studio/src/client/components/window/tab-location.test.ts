@@ -2,10 +2,9 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
-  chatOfTasksList,
+  chatOfTaskAddress,
   locationCrumbs,
   type TabLocation,
-  tasksHref,
   tasksOfHref,
 } from "./tab-location";
 
@@ -225,12 +224,10 @@ describe("locationCrumbs", () => {
     `);
   });
 
-  it("puts a task under the work and an app page under Apps", () => {
-    // Opened from no chat's list, a task has no list to go back to.
+  it("reads a task as its title and puts an app page under Apps", () => {
     expect(readable({ kind: "task", title: "Book the hotel" }))
       .toMatchInlineSnapshot(`
       [
-        "Tasks",
         "Book the hotel",
       ]
     `);
@@ -242,22 +239,7 @@ describe("locationCrumbs", () => {
     `);
   });
 
-  it("puts a task opened from a chat's list under that list", () => {
-    expect(readable({ chat: CHAT, kind: "task", title: "Book the hotel" }))
-      .toMatchInlineSnapshot(`
-      [
-        "Tasks -> /tasks?chat=2026-10-01-roofer",
-        "Book the hotel",
-      ]
-    `);
-  });
-
   it("gives a screen that is under nothing one part, going nowhere", () => {
-    expect(readable({ kind: "tasks" })).toMatchInlineSnapshot(`
-      [
-        "Tasks",
-      ]
-    `);
     expect(readable({ kind: "apps" })).toMatchInlineSnapshot(`
       [
         "Apps",
@@ -291,9 +273,7 @@ describe("locationCrumbs", () => {
 
 describe("tasksOfHref", () => {
   it.each([
-    ["/tasks", {}],
-    [`/tasks?chat=${CHAT}`, { chat: CHAT }],
-    ["/tasks?chat=Not%20a%20chat", {}],
+    ["/tasks", undefined],
     [`/tasks/${TASK}`, { task: TASK }],
     [`/tasks/${TASK}?chat=${CHAT}`, { chat: CHAT, task: TASK }],
     ["/tasks/book", undefined],
@@ -304,19 +284,12 @@ describe("tasksOfHref", () => {
   });
 });
 
-describe("tasksHref", () => {
-  it("addresses one chat's list", () => {
-    expect(tasksHref(CHAT)).toBe(`/tasks?chat=${CHAT}`);
-  });
-});
-
-describe("chatOfTasksList", () => {
-  // A list with no chat is no list: its address goes to the inbox.
+describe("chatOfTaskAddress", () => {
   it.each([
     [undefined, undefined],
     ["Not a chat", undefined],
     [CHAT, CHAT],
   ])("reads the list for %s as %s's", (chat, expected) => {
-    expect(chatOfTasksList(chat)).toBe(expected);
+    expect(chatOfTaskAddress(chat)).toBe(expected);
   });
 });

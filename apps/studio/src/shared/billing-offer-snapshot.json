@@ -1,0 +1,137 @@
+{
+  "beta": null,
+  "plans": [
+    {
+      "allowance": {
+        "multiple": 1,
+        "windows": [
+          {
+            "anchor": "first_use",
+            "duration": "PT5H",
+            "key": "5h"
+          },
+          {
+            "anchor": "first_use",
+            "duration": "P7D",
+            "key": "week"
+          }
+        ]
+      },
+      "description": "Instrument's AI with advanced web search, image generation and dictation.",
+      "features": [
+        "Advanced web search",
+        "Works with text, images and files",
+        "Image generation",
+        "Dictation"
+      ],
+      "key": "basic",
+      "models": [
+        {
+          "id": "instrument/auto",
+          "name": "Auto",
+          "recommended": true
+        },
+        {
+          "family": "GPT Luna",
+          "id": "instrument/chatgpt",
+          "maker": "openai",
+          "name": "ChatGPT",
+          "recommended": false
+        },
+        {
+          "family": "Claude Haiku",
+          "id": "instrument/claude",
+          "maker": "anthropic",
+          "name": "Claude",
+          "recommended": false
+        }
+      ],
+      "name": "Basic",
+      "productName": "Instrument Basic",
+      "price": {
+        "currency": "usd",
+        "interval": "month",
+        "unitAmount": 1000
+      }
+    },
+    {
+      "allowance": {
+        "multiple": 4,
+        "windows": [
+          {
+            "anchor": "first_use",
+            "duration": "PT5H",
+            "key": "5h"
+          },
+          {
+            "anchor": "first_use",
+            "duration": "P7D",
+            "key": "week"
+          }
+        ]
+      },
+      "description": "Everything in Basic with 4\u00d7 the AI usage.",
+      "features": [
+        "Everything in Basic",
+        "4\u00d7 the AI usage",
+        "Higher limits for busy weeks"
+      ],
+      "key": "pro",
+      "models": [
+        {
+          "id": "instrument/auto",
+          "name": "Auto",
+          "recommended": true
+        },
+        {
+          "family": "GPT Luna",
+          "id": "instrument/chatgpt",
+          "maker": "openai",
+          "name": "ChatGPT",
+          "recommended": false
+        },
+        {
+          "family": "Claude Haiku",
+          "id": "instrument/claude",
+          "maker": "anthropic",
+          "name": "Claude",
+          "recommended": false
+        }
+      ],
+      "name": "Pro",
+      "productName": "Instrument Pro",
+      "price": {
+        "currency": "usd",
+        "interval": "month",
+        "unitAmount": 4000
+      }
+    }
+  ],
+  "trial": {
+    "cardRequired": false,
+    "days": 7,
+    "mode": "no_card",
+    "models": [
+      {
+        "id": "instrument/auto",
+        "name": "Auto",
+        "recommended": true
+      },
+      {
+        "family": "GPT Luna",
+        "id": "instrument/chatgpt",
+        "maker": "openai",
+        "name": "ChatGPT",
+        "recommended": false
+      },
+      {
+        "family": "Claude Haiku",
+        "id": "instrument/claude",
+        "maker": "anthropic",
+        "name": "Claude",
+        "recommended": false
+      }
+    ]
+  },
+  "offerVersion": "72ee1b71"
+}

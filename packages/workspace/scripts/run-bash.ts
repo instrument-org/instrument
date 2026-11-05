@@ -213,6 +213,15 @@ setWorkspaceConfig({
       seatbeltHelperPath: AbsolutePathSchema.parse(SEATBELT_LAUNCHER),
     }))
     .catch(() => ({}))),
+  // MXC's launcher, so programs on Windows are held as they are in the app.
+  // Without it they run unsandboxed there, and a check of the sandbox proves
+  // nothing. Other platforms ignore it.
+  mxcExecPath: AbsolutePathSchema.parse(
+    path.resolve(
+      import.meta.dirname,
+      "../../../apps/studio/resources/mxc/wxc-exec.exe",
+    ),
+  ),
   // The uutils binaries Studio vendors (`pnpm --filter
   // @instrument-org/studio uutils:download`); without them the shell's GNU
   // text commands stay its own.

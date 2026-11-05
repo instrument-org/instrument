@@ -43,7 +43,7 @@ export function modelName(model: AnsweringModel): string {
  * the group cannot be keyed on what answered.
  */
 export function modelsAnswering(
-  messages: SessionMessage.AssistantWithParts[],
+  messages: readonly SessionMessage.Assistant[],
 ): ModelUsage[] {
   const usageByRequest = new Map<string, ModelUsage>();
 

@@ -343,7 +343,7 @@ const replayPane = (T, tabs, usingId) => {
 
 /**
  * A session's transcript at T, the chat's or a task's alike, since the app draws a task's tab with the chat's own
- * transcript (ChatStream in child-tasks.tsx): its words streaming in, its steps folding into a line once done, the live
+ * transcript (Transcript in child-tasks.tsx): its words streaming in, its steps folding into a line once done, the live
  * line while it works, and the cards that ask you something. `busy` and `lastWake` say whether it's at work and since
  * when; `withTasks` draws the cards of the tasks it started.
  */

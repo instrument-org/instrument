@@ -10,11 +10,15 @@ const instrument = vi.hoisted(() => ({
     plans: never[];
     trial: { cardRequired: boolean; days: number };
   },
+  offerSnapshot: undefined as
+    | undefined
+    | { plans: never[]; trial: { cardRequired: boolean; days: number } },
+  offerWaits: false,
   signedIn: false,
   start: vi.fn<(input?: unknown) => Promise<ConnectResult | undefined>>(),
 }));
 
-// Each way in as a flow at rest; Instrument's start is the one under test.
+// Each provider as a flow at rest; Instrument's start is the one under test.
 vi.mock("@/client/hooks/use-connect", () => {
   const flow = (
     start: (input?: unknown) => Promise<ConnectResult | undefined> = () =>
@@ -53,7 +57,12 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
-          queryFn: () => Promise.resolve(instrument.offer),
+          initialData: instrument.offerSnapshot,
+          initialDataUpdatedAt: 0,
+          queryFn: () =>
+            instrument.offerWaits
+              ? new Promise(() => {})
+              : Promise.resolve(instrument.offer),
           queryKey: ["offer"],
         }),
       },
@@ -71,6 +80,8 @@ function renderChoices() {
 
 beforeEach(() => {
   instrument.offer = null;
+  instrument.offerSnapshot = undefined;
+  instrument.offerWaits = false;
   instrument.start.mockReset();
 });
 
@@ -104,6 +115,24 @@ describe("ChooseAI", () => {
         "Pick your AI provider to begin. An Instrument plan lets you pick models from OpenAI, Anthropic and more, at one affordable price. Try it free for 7 days.",
       ),
     ).toBeTruthy();
+  });
+
+  it("shows the snapshot's trial while the offer is unanswered", async () => {
+    instrument.signedIn = false;
+    instrument.offerWaits = true;
+    instrument.offerSnapshot = {
+      plans: [],
+      trial: { cardRequired: false, days: 7 },
+    };
+    instrument.start.mockResolvedValue({ outcome: { kind: "canceled" } });
+    renderChoices();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Sign in to try Instrument AI free",
+      }),
+    );
+    expect(screen.getByText(/Try it free for 7 days\./)).toBeTruthy();
+    expect(instrument.start).toHaveBeenCalledOnce();
   });
 
   it("offers See plans in Google's place to an account signed in with no plan, and stays signed in after Cancel", async () => {

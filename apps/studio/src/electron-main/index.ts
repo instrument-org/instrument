@@ -142,6 +142,14 @@ if (gotTheLock) {
       },
       scheme: APP_PROTOCOL,
     },
+    {
+      // The browser extensions' action icons, which the window draws over
+      // this scheme (`browser-view/extensions.ts`). The one call to this
+      // method names every scheme, so the library's own registration of it
+      // is repeated here.
+      privileges: { bypassCSP: true, secure: true },
+      scheme: "crx",
+    },
   ]);
 
   app.setAsDefaultProtocolClient(APP_PROTOCOL);

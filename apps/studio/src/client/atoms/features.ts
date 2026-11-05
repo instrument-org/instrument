@@ -5,6 +5,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { atom } from "jotai";
 
 const defaultFeatures: Features = {
+  browser_extensions: false,
   context_ring: false,
   suggestions_from_your_chats: false,
 };

@@ -31,7 +31,6 @@ export type Screen =
   | { id: string; kind: "site" }
   | { kind: "skill"; name: string }
   | { chat?: ChatId; kind: "task"; task: StoreId.Session }
-  | { chat?: ChatId; kind: "tasks" }
   | { kind: "unknown" };
 
 /** The folder or file a computer tab stands at, from the computer route's search. */
@@ -62,7 +61,6 @@ export const SCREEN_ROUTES = {
   releaseNotes: "/release-notes",
   site: "/sites/$id",
   task: "/tasks/$sessionId",
-  tasks: "/tasks/",
 } as const satisfies Record<string, RoutePath>;
 
 /**
@@ -191,9 +189,6 @@ export function matchScreen(href: string): Screen {
   }
   const forChat = ChatIdSchema.safeParse(search.get("chat"));
   const tasksChat = forChat.success ? { chat: forChat.data } : {};
-  if (at(SCREEN_ROUTES.tasks)) {
-    return { kind: "tasks", ...tasksChat };
-  }
   const task = at(SCREEN_ROUTES.task);
   if (task) {
     const id = StoreId.SessionSchema.safeParse(task.sessionId);

@@ -56,7 +56,12 @@ import {
 import { createPortal } from "react-dom";
 
 import { dictationKey, dictationPlugin } from "./prompt-editor-dictation";
-import { pathsPlugin } from "./prompt-editor-paths";
+import {
+  dispatchPaste,
+  pastedPathsPlugin,
+  pathQuoteKeys,
+  pathsPlugin,
+} from "./prompt-editor-paths";
 import {
   appOfNode,
   appendDictated,
@@ -91,6 +96,8 @@ const editorPlugins = () => [
   slashMenuPlugin(),
   dictationPlugin(),
   pathsPlugin(window.electron.process.platform),
+  pastedPathsPlugin(),
+  pathQuoteKeys(),
   history(),
   keymap({
     Backspace: deleteTokenBackward,
@@ -304,12 +311,14 @@ export function PromptEditor({
     known: ComposerSkill[],
   ) => {
     const slice = Slice.maxOpen(promptDocFromPastedText(text, known).content);
-    view.dispatch(
+    dispatchPaste(
+      view,
       view.state.tr
         .replaceSelection(slice)
         .scrollIntoView()
         .setMeta("paste", true)
         .setMeta("uiEvent", "paste"),
+      text,
     );
   };
   const onSubmitEvent = useEffectEvent(onSubmit);

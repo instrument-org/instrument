@@ -28,21 +28,20 @@ import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatScreen } from "@/client/components/window/chat-screen";
 import { ContextChips } from "@/client/components/window/context-chip";
-import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { liveHostedFileAddress } from "@/client/components/window/hosted-page";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { isPaneOpen } from "@/client/components/window/draft-context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
-import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
+import { PaneTabs } from "@/client/components/window/pane-tabs";
+import { PaneToggle } from "@/client/components/window/pane-toggle";
 import { RightPane } from "@/client/components/window/right-pane";
 import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
-import { taskHref, tasksHref } from "@/client/components/window/tab-location";
 import {
   surfaceLocation,
   tabSurfaceAtom,
@@ -55,11 +54,7 @@ import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
-import {
-  type ChatId,
-  browserTargetOf,
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
   Outlet,
@@ -124,8 +119,8 @@ function ChatColumn({
 
 /**
  * The chat: the inbox down the left, and beside it the chat this tab has
- * open, its transcript and composer with what it holds in a row over it,
- * and the thing it has up drawn large. Choosing another chat in the inbox
+ * open, its transcript and composer, and in the pane the thing it has up
+ * drawn large under a row of its tabs. Choosing another chat in the inbox
  * moves this tab there, one step on in its history.
  */
 function ChatView({ chat }: { chat: ChatId | undefined }) {
@@ -133,7 +128,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   const appWindow = useWindow();
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
   const windowTabs = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
   const outputFolder = useOutputFolder();
   const setInboxOpen = useSetAtom(inboxOpenAtom);
   const sidebarWidth = useAtomValue(inboxWidthAtom);
@@ -180,7 +174,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     showsPane && up.kind === "page",
   );
   const chatRecord = chats?.find((entry) => entry.id === chat);
-  /** A browser beside the chat, the way the tiles' Browser does. */
+  /** A browser beside the chat. */
   const addWeb = () => {
     if (chat === undefined) {
       return;
@@ -191,35 +185,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     });
     setPaneOpen(chat, true);
   };
-
-  // Drawn only once there is something in it.
-  const tiles = chat !== undefined && tabs.length > 0 && (
-    <ChatTiles
-      appsBySlug={appsBySlug}
-      chatTitles={chatTitles}
-      chosenId={showsPane ? up.id : undefined}
-      isChatWorking={chatRecord?.working === true}
-      onAddComputer={() => {
-        windowTabs.openScreen(outputFolderHref(outputFolder), {
-          group: chat,
-          select: true,
-        });
-        setPaneOpen(chat, true);
-      }}
-      onAddWeb={addWeb}
-      onClose={shell.requestClose}
-      onReorder={(keys) => {
-        windowTabs.reorder(keys, chat);
-      }}
-      onSelect={(id) => {
-        windowTabs.select(id);
-        setPaneOpen(chat, true);
-      }}
-      tabs={tabs}
-      targetOf={(tab) => browserTargetOf(tab.id)}
-      taskTitles={shell.childTitles}
-    />
-  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
@@ -310,10 +275,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     <div className="absolute inset-0 flex flex-col">
                       <ChatHeader
                         chat={chatRecord}
-                        // Ahead of the title, the inbox column put away or
-                        // brought back, so the chat and its tabs can have
-                        // the window.
-                        leading={<InboxToggle isCollapsible={showsRightArea} />}
                         // An archived chat is put away, so it leaves the
                         // side beside the list with it.
                         onArchived={leaveChat}
@@ -325,21 +286,8 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                           setInboxOpen(true);
                         }}
                         onNewProject={shell.onNewProject}
-                        // A task opens beside the chat, in the pane.
-                        onOpenTask={(id) => {
-                          appWindow.openScreen(taskHref(id, chat), {
-                            group: chat,
-                            ownTab: true,
-                            show: true,
-                          });
-                        }}
                         onSetProject={(next) => {
                           shell.setChatProject(chat, next);
-                        }}
-                        onViewTasks={() => {
-                          appWindow.openScreen(tasksHref(chat), {
-                            ownTab: true,
-                          });
                         }}
                         popOut={{
                           isOut: isFloating,
@@ -355,6 +303,24 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                           },
                         }}
                         projects={shell.projects}
+                        trailing={
+                          <PaneToggle
+                            isOpen={showsPane}
+                            onToggle={() => {
+                              const newest = tabs.at(-1);
+                              if (showsPane) {
+                                setPaneOpen(chat, false);
+                              } else if (up === undefined && newest) {
+                                windowTabs.select(newest.id);
+                                setPaneOpen(chat, true);
+                              } else if (up === undefined) {
+                                addWeb();
+                              } else {
+                                setPaneOpen(chat, true);
+                              }
+                            }}
+                          />
+                        }
                       />
                       <div className="relative min-h-0 flex-1">
                         <div className="absolute inset-0">
@@ -370,7 +336,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                               appTabs.navigate(INBOX_HREF, { replace: true });
                               setInboxOpen(true);
                             }}
-                            tiles={tiles}
                           />
                         </div>
                       </div>
@@ -394,16 +359,37 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                   )}
                 >
                   {up && (
+                    <PaneTabs
+                      chatTitles={chatTitles}
+                      chosenId={up.id}
+                      isChatWorking={chatRecord?.working === true}
+                      onAddComputer={() => {
+                        windowTabs.openScreen(outputFolderHref(outputFolder), {
+                          group: chat,
+                          select: true,
+                        });
+                      }}
+                      onAddWeb={addWeb}
+                      onClose={shell.requestClose}
+                      onHide={() => {
+                        setPaneOpen(chat, false);
+                      }}
+                      onReorder={(keys) => {
+                        windowTabs.reorder(keys, chat);
+                      }}
+                      onSelect={(id) => {
+                        windowTabs.select(id);
+                      }}
+                      tabs={tabs}
+                      taskTitles={shell.childTitles}
+                    />
+                  )}
+                  {up && (
                     <GroupItem
                       closeTab={shell.requestClose}
                       group={chat}
                       isFramed={false}
                       isShown={showsPane}
-                      // Puts the view away; what it showed stays among the
-                      // chat's tiles, which are where a tab is closed.
-                      onClose={() => {
-                        setPaneOpen(chat, false);
-                      }}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
                       up={up}
@@ -435,13 +421,11 @@ function ChatScreenInPlace({
   isUp,
   isViewOpen,
   onGone,
-  tiles,
 }: {
   chatId: ChatId;
   isUp: boolean;
   isViewOpen: boolean;
   onGone: () => void;
-  tiles: ReactNode;
 }) {
   const shell = useShell();
   const context = useChatContext({ chatId, isPoppedOut: false, isViewOpen });
@@ -464,7 +448,6 @@ function ChatScreenInPlace({
         })
       }
       sentPrompt={shell.sentWords.get(chatId)}
-      tiles={tiles}
     />
   );
 }
@@ -514,6 +497,7 @@ function RouteScreen({ href }: { href: string }) {
   const screenKind = matchScreen(href).kind;
   const hasLocationRow =
     location.kind !== "apps" &&
+    location.kind !== "task" &&
     screenKind !== "newTab" &&
     screenKind !== "releaseNotes";
   return (

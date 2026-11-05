@@ -1,6 +1,6 @@
-import { skippablePaths } from "./skippable-paths";
+import { leavesAPath, skippablePaths } from "./skippable-paths";
 import { defineCommand } from "just-bash";
-import { readdirSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -18,8 +18,10 @@ import {
   otherFolders,
   outsideFolderRefusal,
   resolveReadOnlyHostPath,
+  shellPath,
   shellPathOfHostSpelling,
   type WorkspaceFsLayout,
+  hostPathOf,
 } from "../workspace-fs-layout";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
@@ -139,13 +141,26 @@ export function createRgCommand({
       return { exitCode: 2, stderr: `${bridged.error}\n`, stdout: "" };
     }
 
-    const searched = withAppDataLeftOut(bridged.args, layout, hostCwd, {
-      sandboxed: nativeCommandsSandboxed(),
-    });
+    const stdin = subprocessStdin(ctx.stdin);
+    const searched = withAppDataLeftOut(
+      nativeCommandsSandboxed() && bridged.leftOut.length === 0
+        ? withFoldersPastClosedOnes(bridged.args, {
+            folders: layout.folders.map((folder) =>
+              realHostPath(folder.hostRoot),
+            ),
+            hostCwd,
+            isClosed: (hostPath) =>
+              operandRefusal(layout, shellPath(hostPath)) !== undefined,
+            readsStdin: stdin !== undefined || ctx.stdinConnected === true,
+          })
+        : bridged.args,
+      layout,
+      hostCwd,
+      { sandboxed: nativeCommandsSandboxed() },
+    );
     if ("error" in searched) {
       return { exitCode: 2, stderr: `${searched.error}\n`, stdout: "" };
     }
-    const stdin = subprocessStdin(ctx.stdin);
     const leftOut = bridged.leftOut.map((line) => `${line}\n`).join("");
 
     return runNative(
@@ -234,6 +249,7 @@ function bridgePathArgs(
 
   const skippable = skippablePaths(args);
   const leftOut: string[] = [];
+  const refused: number[] = [];
   const bridged: string[] = [];
   let operandsOnly = false;
   for (const [at, arg] of args.entries()) {
@@ -267,6 +283,7 @@ function bridgePathArgs(
           return { error };
         }
         leftOut.push(error);
+        refused.push(at);
         continue;
       }
       bridged.push(arg);
@@ -279,6 +296,7 @@ function bridgePathArgs(
         return { error };
       }
       leftOut.push(error);
+      refused.push(at);
       continue;
     }
     const hostPath = resolveReadOnlyHostPath(layout, named);
@@ -289,8 +307,12 @@ function bridgePathArgs(
     }
     bridged.push(`${prefix}${hostPath}`);
   }
-  // With no path left ripgrep would walk the working folder instead.
-  if (leftOut.length > 0 && leftOut.length === skippable.size) {
+  if (
+    refused.length > 0 &&
+    !leavesAPath(args, refused, skippable, (operand) =>
+      existsSync(hostPathOf(resolvePath(operand))),
+    )
+  ) {
     return { error: leftOut.join("\n") };
   }
   return { args: bridged, leftOut };
@@ -316,6 +338,95 @@ function deniedFlag(arg: string): null | string {
     }
   }
   return null;
+}
+
+/**
+ * The agent's arguments with the folders the chat reaches that a walk would
+ * miss added to them.
+ *
+ * Where the native sandbox holds ripgrep, a folder that needs the person's yes
+ * can be passed through but not listed, so a walk from above it (the home
+ * folder, with Documents closed) never finds a folder the chat does reach
+ * inside it (the Instrument folder in Documents). The walk is quiet about it
+ * once stderr is dropped, and reads as the search having found nothing.
+ *
+ * What a search walks is read from the disk, with no table of flags. Of the
+ * words that are not flags:
+ *
+ * - None on disk: it walks where it stands, or reads what is piped to it.
+ * - The first alone on disk: it may be the pattern (`rg .`), and adding a path
+ *   would end the walk from where it stands, so the search is left as it is.
+ * - Otherwise: it walks the ones that are folders. One that is a file names
+ *   what to search, so `rg x notes.txt` walks nothing and gains nothing.
+ *
+ * A word that is really a pattern or a flag's value and happens to name a
+ * folder only adds a search, and only when that folder is above a closed one.
+ * The exception is such a word after the pattern with no other path named
+ * (`rg x -g .`): the added folder then stands in for the walk from where the
+ * search stands.
+ */
+export function withFoldersPastClosedOnes(
+  args: readonly string[],
+  {
+    folders,
+    hostCwd,
+    isClosed,
+    readsStdin,
+  }: {
+    /** The folders the chat reaches, where they really are. */
+    folders: readonly string[];
+    hostCwd: string;
+    isClosed: (hostPath: string) => boolean;
+    readsStdin: boolean;
+  },
+): string[] {
+  const dashDash = args.indexOf("--");
+  const words = [
+    ...(dashDash === -1 ? args : args.slice(0, dashDash)).filter(
+      (arg) => !arg.startsWith("-"),
+    ),
+    ...(dashDash === -1 ? [] : args.slice(dashDash + 1)),
+  ];
+  const onDisk = words.filter(
+    (word) => word !== "" && existsSync(hostOperand(hostCwd, word)),
+  );
+  if (onDisk.length === 1 && onDisk[0] === words[0]) {
+    return [...args];
+  }
+  if (onDisk.length === 0 && readsStdin) {
+    return [...args];
+  }
+  const walks =
+    onDisk.length === 0
+      ? [whereItIs(hostCwd) ?? hostCwd]
+      : onDisk.flatMap((word) => {
+          const where = hostOperand(hostCwd, word);
+          const real = statSync(where).isDirectory() ? whereItIs(where) : null;
+          return real === null ? [] : [real];
+        });
+  const added = walks.flatMap((walk) =>
+    folders.filter((folder) => isPastAClosedFolder(walk, folder, isClosed)),
+  );
+  if (added.length === 0) {
+    return [...args];
+  }
+  return [...args, ...(onDisk.length === 0 ? ["."] : []), ...new Set(added)];
+}
+
+/** Whether a closed folder stands between `walk` and a folder inside it. */
+function isPastAClosedFolder(
+  walk: string,
+  folder: string,
+  isClosed: (hostPath: string) => boolean,
+): boolean {
+  const rest = hostPathWithin(walk, folder);
+  if (rest === null || rest === "/") {
+    return false;
+  }
+  const between = rest.split("/").filter(Boolean).slice(0, -1);
+  return between.some((_, index) =>
+    isClosed(nodePath.join(walk, ...between.slice(0, index + 1))),
+  );
 }
 
 /**

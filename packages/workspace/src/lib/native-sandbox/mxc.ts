@@ -420,13 +420,19 @@ export function mxcFilesystemPolicy(
   };
   const above = new Map<string, string>();
   for (const entry of opened) {
+    // The drive's root too: a program asking about the drive holding its
+    // folder (`cmd`'s `dir`, `os.stat`, `df`, `mv`) is refused unless it is
+    // listed. A drive read at its root, as the system drive is, is not closed.
     for (
       let folder = path.dirname(entry.path);
-      folder !== path.dirname(folder);
+      ;
       folder = path.dirname(folder)
     ) {
       if (closedAt(folder)) {
         above.set(fold(folder), folder);
+      }
+      if (folder === path.dirname(folder)) {
+        break;
       }
     }
   }

@@ -65,22 +65,6 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   write_file: "Creating",
 };
 
-const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  ask_permission: "Tried to ask for permission",
-  bash: "Tried to run terminal command",
-  choose: "Tried to ask a question",
-  connect_app: "Tried to ask to connect an app",
-  edit_file: "Tried to edit file",
-  generate_image: "Tried to generate image",
-  load_skill: "Tried to load skill",
-  offer_feedback: "Tried to offer feedback",
-  read_file: "Tried to read file",
-  unavailable: "Tried unknown tool",
-  web_fetch: "Tried to read web page",
-  web_search: "Tried to search the web",
-  write_file: "Tried to create file",
-};
-
 // Past-tense phrases for the heading generated over a run of calls the agent
 // never named. Lower case, because all but the first are read mid-sentence.
 // `plural` is omitted where a count says nothing worth the words: how many
@@ -142,32 +126,6 @@ export function getToolLabel(toolName: ToolName): string {
   return TOOL_DISPLAY_NAMES[toolName] ?? "Unknown tool";
 }
 
-export function getToolLabelForPart({
-  hasCapabilityFailure,
-  hasValue,
-  state,
-  toolName,
-}: {
-  hasCapabilityFailure?: boolean;
-  hasValue?: boolean;
-  state: "completed" | "streaming" | "tried";
-  toolName: ToolName;
-}): string {
-  switch (state) {
-    case "completed": {
-      return hasCapabilityFailure
-        ? getToolTriedLabel(toolName)
-        : getToolLabel(toolName);
-    }
-    case "streaming": {
-      return getToolStreamingLabel(toolName, hasValue);
-    }
-    case "tried": {
-      return getToolTriedLabel(toolName);
-    }
-  }
-}
-
 export function getToolStreamingLabel(
   toolName: ToolName,
   hasValue = false,
@@ -214,6 +172,3 @@ export function summarizeToolRun(toolNames: ToolName[]): string {
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
 
-function getToolTriedLabel(toolName: ToolName): string {
-  return TOOL_TRIED_DISPLAY_NAMES[toolName] ?? "Tried tool";
-}

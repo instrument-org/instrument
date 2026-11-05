@@ -2,7 +2,11 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/client";
-import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  isConnectFailureMessage,
+  OUR_MODELS,
+} from "@instrument-org/shared";
 import {
   type ChatId,
   describeMessageError,
@@ -12,6 +16,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { WifiSlashIcon } from "@phosphor-icons/react/WifiSlash";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -22,6 +27,10 @@ import {
 
 import { openReportDialog } from "../atoms/report-dialog";
 import { openSettings } from "../atoms/settings-modal";
+import {
+  type OnlineRetry,
+  useRetryWhenOnline,
+} from "../hooks/use-retry-when-online";
 import { useSignInAgain } from "../hooks/use-sign-in-again";
 import { stopLineText } from "../lib/billing";
 import {
@@ -35,6 +44,7 @@ import { isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
+import { chatListOptions } from "./window/chat-list-query";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
 import { Spinner } from "./ui/spinner";
@@ -62,12 +72,17 @@ interface MessageErrorProps {
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isLastMessage: boolean;
+  /** Last, or above a retry that hasn't said anything yet (`isLatestAttempt`). */
+  isLatestAttempt?: boolean;
   message: SessionMessage.Assistant;
   /** Retries the pending request with another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
 }
+
+/** Runs the turn again; with `ifIdle`, only if nothing is running in its session. */
+export type RunAgain = (options?: { ifIdle: boolean }) => void;
 
 /**
  * A turn that ended in an error, said in our words with the way forward
@@ -91,6 +106,7 @@ export function MessageError({
   isAgentRunning,
   isDeveloperMode,
   isLastMessage,
+  isLatestAttempt = isLastMessage,
   message,
   onModelChange,
   onRunAgain,
@@ -103,6 +119,30 @@ export function MessageError({
   const [expandedPast, setExpandedPast] = useState(false);
   const [reportSent, setReportSent] = useState(false);
   const signInAgain = useSignInAgain();
+  const { data: chatState } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === chatId)?.state,
+  });
+  const onlineRetry = useRetryWhenOnline({
+    failedAt: message.metadata.createdAt,
+    isConnectionFailure:
+      error !== undefined && isConnectFailureMessage(error.message),
+    // Where there's a way to run it again, and the person hasn't stopped it.
+    isRetryable:
+      isLatestAttempt &&
+      onRunAgain !== undefined &&
+      chatState !== "stopped" &&
+      error !== undefined &&
+      "classification" in error &&
+      error.classification === "transient",
+    isRunning: isAgentRunning,
+    // Every view of this chat hears the computer come back at once.
+    run:
+      onRunAgain &&
+      (() => {
+        onRunAgain({ ifIdle: true });
+      }),
+  });
 
   if (!error) {
     return null;
@@ -136,6 +176,9 @@ export function MessageError({
         )}
       />
     );
+  }
+  if (onlineRetry) {
+    return <OnlineRetryNotice retry={onlineRetry} />;
   }
   const classification =
     "classification" in error ? error.classification : undefined;
@@ -532,7 +575,14 @@ function errorActions({
   provider: string | undefined;
 }): ErrorAction[] {
   const tryAgain = onRunAgain
-    ? [{ label: "Try again", onClick: onRunAgain }]
+    ? [
+        {
+          label: "Try again",
+          onClick: () => {
+            onRunAgain();
+          },
+        },
+      ]
     : [];
   const providerSettings = {
     label: "Open provider settings",
@@ -659,6 +709,28 @@ function BillingStopLine({ text }: { text: string }) {
     >
       <PauseCircleIcon className="size-3.5 shrink-0" />
       {text}
+    </div>
+  );
+}
+
+/** A turn that failed for want of a connection, which goes out once there is one. */
+function OnlineRetryNotice({ retry }: { retry: OnlineRetry }) {
+  return (
+    <div
+      className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground"
+      data-online-retry={retry}
+    >
+      {retry === "offline" ? (
+        <>
+          <WifiSlashIcon className="size-3.5 shrink-0" />
+          {`You're offline. ${APP_NAME} will try again when you're back online.`}
+        </>
+      ) : (
+        <>
+          <Spinner className="size-3.5 shrink-0" delay={0} />
+          You're back online. Trying again.
+        </>
+      )}
     </div>
   );
 }

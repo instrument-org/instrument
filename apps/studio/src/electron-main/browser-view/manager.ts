@@ -128,7 +128,7 @@ export interface BrowserViewManager {
   // page: what a window showing that tab says instead of opening it.
   getTargetsElsewhere: (
     webContentsId: number,
-  ) => { shown: boolean; targetId: BrowserTargetId }[];
+  ) => { isInUse: boolean; targetId: BrowserTargetId }[];
   // Whether a window's renderer mounts this target, so that what is asked of
   // its guest goes to that window alone.
   isHostOf: (webContentsId: number, targetId: BrowserTargetId) => boolean;
@@ -140,6 +140,9 @@ export interface BrowserViewManager {
     targetId: BrowserTargetId,
     webContentsId: number,
   ) => Promise<void>;
+  // Every page one window's renderer mounts, to another, for a window on its way
+  // out with an agent or a person still having use for them.
+  handOffGuestsOf: (fromWebContentsId: number, toWebContentsId: number) => void;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
   // this is safe here (the caller always computes scale from live bounds and
@@ -833,6 +836,28 @@ function createBrowserViewManager(): BrowserViewManager {
     return waitForAttach(entry);
   }
 
+  async function handOffGuest(
+    targetId: BrowserTargetId,
+    webContentsId: number,
+  ) {
+    const existing = entries.get(targetId);
+    if (!existing || hostIdOf(existing) === webContentsId) {
+      return;
+    }
+    const scroll = await pageScrollOf(existing.webContents);
+    // Handed on again, or closed, while the page answered.
+    if (entries.get(targetId) !== existing) {
+      return;
+    }
+    await moveTarget(existing, existing.partitionDir, webContentsId).catch(
+      () => undefined,
+    );
+    const guest = entries.get(targetId)?.webContents;
+    if (guest && !guest.isDestroyed()) {
+      await settlePage(guest, scroll);
+    }
+  }
+
   function createTarget(
     targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
@@ -1131,7 +1156,7 @@ function createBrowserViewManager(): BrowserViewManager {
       [...entries.values()]
         .filter((entry) => hostIdOf(entry) !== webContentsId)
         .map((entry) => ({
-          shown: isInUse(entry),
+          isInUse: isInUse(entry),
           targetId: entry.targetId,
         })),
     hasUsedPage: (webContentsId, except = []) =>
@@ -1150,22 +1175,12 @@ function createBrowserViewManager(): BrowserViewManager {
       const entry = entries.get(targetId);
       return entry !== undefined && hostIdOf(entry) === webContentsId;
     },
-    handOffGuest: async (targetId, webContentsId) => {
-      const existing = entries.get(targetId);
-      if (!existing || hostIdOf(existing) === webContentsId) {
-        return;
-      }
-      const scroll = await pageScrollOf(existing.webContents);
-      // Handed on again, or closed, while the page answered.
-      if (entries.get(targetId) !== existing) {
-        return;
-      }
-      await moveTarget(existing, existing.partitionDir, webContentsId).catch(
-        () => undefined,
-      );
-      const guest = entries.get(targetId)?.webContents;
-      if (guest && !guest.isDestroyed()) {
-        await settlePage(guest, scroll);
+    handOffGuest,
+    handOffGuestsOf: (fromWebContentsId, toWebContentsId) => {
+      for (const entry of entries.values()) {
+        if (hostIdOf(entry) === fromWebContentsId && hasGuest(entry)) {
+          void handOffGuest(entry.targetId, toWebContentsId);
+        }
       }
     },
     setEmulatedDevice,

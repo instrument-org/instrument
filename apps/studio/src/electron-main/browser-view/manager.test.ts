@@ -79,7 +79,7 @@ describe("getBrowserViewManager", () => {
       expect(getBrowserViewManager().isHostOf(101, targetId)).toBe(true);
       expect(getBrowserViewManager().isHostOf(102, targetId)).toBe(false);
       expect(getBrowserViewManager().getTargetsElsewhere(102)).toContainEqual({
-        shown: false,
+        isInUse: false,
         targetId,
       });
     });

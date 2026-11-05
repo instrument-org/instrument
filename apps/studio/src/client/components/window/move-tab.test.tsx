@@ -3,17 +3,12 @@ import { type Tab, type TabCarryView, type TabId } from "@/shared/tabs";
 import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sendTabCall } = vi.hoisted(() => ({
-  sendTabCall: vi.fn<() => Promise<{ moved: boolean }>>(),
+const { moveTabCall } = vi.hoisted(() => ({
+  moveTabCall: vi.fn<(input: unknown) => Promise<unknown>>(),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    window: {
-      closeEmptied: { call: vi.fn() },
-      sendTab: { call: sendTabCall },
-    },
-  },
+  rpcClient: { window: { moveTab: { call: moveTabCall } } },
 }));
 
 const { appTabsAtom, groupOfHref } = await import("./app-tabs");
@@ -22,11 +17,11 @@ const {
   hasMovedAway,
   keepOnlyTab,
   letTabGo,
+  moveTabOut,
   receiveTab,
-  sendEveryTab,
-  stripIndexAt,
 } = await import("./move-tab");
-const { tabsInView } = await import("./tab-carry-view");
+const { showTabCarryView, stripIndexAt, tabCarryViewAtom, tabsInView } =
+  await import("./tab-carry-view");
 
 const store = getDefaultStore();
 const asTab = (id: string) => ({ id, pathname: `/${id}` }) as Tab;
@@ -140,54 +135,6 @@ describe("where a held tab stands along a strip", () => {
   });
 });
 
-describe("a tab handed to another window", () => {
-  const SITES = ["/sites/one", "/sites/two"];
-  const groups = () => SITES.map((href) => groupOfHref(href) ?? "");
-  const movedAway = () => groups().map(hasMovedAway);
-
-  beforeEach(() => {
-    store.set(appTabsAtom, (current) => ({
-      ...current,
-      tabs: [
-        {
-          ...asTab("a"),
-          history: { entries: SITES, index: 1 },
-          pathname: "/sites/two",
-        } as Tab,
-      ],
-    }));
-  });
-
-  afterEach(() => {
-    groups().forEach(forgetMovedAway);
-    sendTabCall.mockReset();
-  });
-
-  it("leaves that window every site it can go back to, not only the one it is on", async () => {
-    sendTabCall.mockResolvedValue({ moved: true });
-    await sendEveryTab("other", []);
-    expect(movedAway()).toEqual([true, true]);
-  });
-
-  it.each([
-    ["says it did not move", () => Promise.resolve({ moved: false })],
-    ["fails", () => Promise.reject(new Error("the connection went"))],
-  ])(
-    "stays, with its sites this window's, when the move %s",
-    async (_case, call) => {
-      sendTabCall.mockImplementation(call);
-      await sendEveryTab("other", []);
-      expect(movedAway()).toEqual([false, false]);
-      expect(seen().tabs).toEqual(["a"]);
-    },
-  );
-
-  it("leaves that window every site it can go back to when let go by a drag", () => {
-    letTabGo("a");
-    expect(movedAway()).toEqual([true, true]);
-  });
-});
-
 describe("a window as a tab is let go", () => {
   it("is left with a tab to show when the one it kept was closed while held", () => {
     keepOnlyTab("gone");
@@ -205,6 +152,25 @@ describe("a window as a tab is let go", () => {
     expect(store.get(composeAtom)).toEqual([]);
   });
 
+  it("leaves another window every site the tab can go back to when it goes there", () => {
+    const sites = ["/sites/one", "/sites/two"];
+    store.set(appTabsAtom, (current) => ({
+      ...current,
+      tabs: [
+        {
+          ...asTab("a"),
+          history: { entries: sites, index: 1 },
+          pathname: "/sites/two",
+        } as Tab,
+        asTab("b"),
+      ],
+    }));
+    letTabGo("a");
+    const groups = sites.map((href) => groupOfHref(href) ?? "");
+    expect(groups.map(hasMovedAway)).toEqual([true, true]);
+    groups.forEach(forgetMovedAway);
+  });
+
   it("lets the tab go when another window has it, and brings its neighbor up", () => {
     letTabGo("a");
     expect(seen().tabs).toEqual(["b", "c"]);
@@ -217,5 +183,88 @@ describe("a window as a tab is let go", () => {
       selectedId: "held",
       tabs: ["a", "b", "held", "c"],
     });
+  });
+});
+
+describe("moving a tab from a menu", () => {
+  beforeEach(() => {
+    store.set(appTabsAtom, (current) => ({
+      ...current,
+      selectedId: asId("a"),
+      tabs: [asTab("a"), asTab("b")],
+    }));
+    // As a drag or a move leaves it, held away from the row.
+    showTabCarryView({ heldId: asId("a"), kind: "alone" });
+  });
+
+  afterEach(() => {
+    moveTabCall.mockReset();
+  });
+
+  it("asks main as a drag does, with the tab as it stands", async () => {
+    moveTabCall.mockResolvedValue({ kind: "none" });
+    await moveTabOut(asId("a"), { kind: "new" });
+    expect(moveTabCall).toHaveBeenCalledWith({
+      isOnlyTab: false,
+      moving: {
+        neighborPages: [],
+        pages: [],
+        tab: expect.objectContaining({ id: "a" }) as Tab,
+      },
+      to: { kind: "new" },
+    });
+  });
+
+  it.each([
+    ["keeps only the tab where the others stay behind", "keepsTab", ["a"]],
+    ["lets the tab go where the tab went instead", "losesTab", ["b"]],
+    ["changes nothing where nothing moved", "none", ["a", "b"]],
+  ])("%s", async (_case, kind, tabs) => {
+    moveTabCall.mockResolvedValue({ kind });
+    await moveTabOut(asId("a"), { kind: "new" });
+    expect(seen().tabs).toEqual(tabs);
+    expect(store.get(tabCarryViewAtom)).toEqual({ kind: "row" });
+  });
+
+  it("takes on the strip of the window it joined", async () => {
+    moveTabCall.mockResolvedValue({
+      kind: "takesStrip",
+      model: {
+        recentlyClosed: [],
+        selectedId: "a",
+        tabs: [asTab("x"), asTab("a")],
+      },
+    });
+    await moveTabOut(asId("a"), { id: "w2", kind: "window" });
+    expect(seen().tabs).toEqual(["x", "a"]);
+  });
+
+  it("goes on showing what it shows while its window closes", async () => {
+    moveTabCall.mockResolvedValue({ kind: "closes" });
+    await moveTabOut(asId("a"), { id: "w2", kind: "window" });
+    expect(store.get(tabCarryViewAtom).kind).toBe("alone");
+  });
+
+  it("stays as it was and back on its row when the call fails", async () => {
+    moveTabCall.mockRejectedValue(new Error("the connection went"));
+    await moveTabOut(asId("a"), { kind: "new" });
+    expect(seen().tabs).toEqual(["a", "b"]);
+    expect(store.get(tabCarryViewAtom)).toEqual({ kind: "row" });
+  });
+
+  it("leaves a window's only tab where it is, but can take it to another window", async () => {
+    store.set(appTabsAtom, (current) => ({
+      ...current,
+      selectedId: asId("a"),
+      tabs: [asTab("a")],
+    }));
+    await moveTabOut(asId("a"), { kind: "new" });
+    expect(moveTabCall).not.toHaveBeenCalled();
+
+    moveTabCall.mockResolvedValue({ kind: "closes" });
+    await moveTabOut(asId("a"), { id: "w2", kind: "window" });
+    expect(moveTabCall).toHaveBeenCalledWith(
+      expect.objectContaining({ isOnlyTab: true }),
+    );
   });
 });

@@ -99,6 +99,7 @@ import {
   siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
+import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
@@ -143,11 +144,9 @@ import { useWindowTabs } from "./window-tabs";
 import {
   forgetMovedAway,
   hasMovedAway,
-  tabStanding,
+  moveTabOut,
   receiveTab,
-  sendEveryTab,
 } from "./move-tab";
-import { moveTabOut } from "./move-tab-out";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -386,11 +385,6 @@ function focusField() {
 }
 
 /**
- * Whether a draft holds anything: words, or something pasted or attached
- * into it. What keeps it past its window, and what a draft has to have to be
- * one to come back to.
- */
-/**
  * The floats, which stay in the window left behind while a tab is held out: out
  * of sight here, and mounted as they are for the drag that comes back.
  */
@@ -509,7 +503,7 @@ function WindowShell({
       ...compose.entries.flatMap((entry) =>
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
-      ...keptInOtherWindows("compose.v2").flatMap(floatingDraftIdsOf),
+      ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
     ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
@@ -866,18 +860,11 @@ function WindowShell({
       },
       moveTabToNewWindow: () => {
         if (appTabs.model.selectedId) {
-          void moveTabOut(
-            appTabs.model.selectedId,
-            { kind: "new" },
-            windowTabs.allTabs,
-          );
+          void moveTabOut(appTabs.model.selectedId, { kind: "new" });
         }
       },
       receiveTab,
       reopenTab: appTabs.reopen,
-      sendEveryTab: (to) => {
-        void sendEveryTab(to, windowTabs.allTabs);
-      },
       search: focusField,
       selectRelative: appTabs.selectRelative,
       selectTab: appTabs.selectIndex,
@@ -1061,13 +1048,11 @@ function WindowShell({
                     onCloseOthers={appTabs.closeOthers}
                     onCloseToRight={appTabs.closeToRight}
                     onDuplicate={duplicateAppTab}
-                    onMove={(id, to) => moveTabOut(id, to, windowTabs.allTabs)}
                     onNew={appTabs.openNewTab}
                     onReload={reloadablePageOf}
                     onReorder={appTabs.reorder}
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}
-                    standingOf={(id) => tabStanding(id, windowTabs.allTabs)}
                     tabs={tabs}
                   />
                 }

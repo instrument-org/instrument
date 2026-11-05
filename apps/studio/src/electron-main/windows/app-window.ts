@@ -22,8 +22,14 @@ import {
   getWindowKeptState,
   setWindowKeptState,
   tellWindowKeptState,
+  windowKeptKeys,
 } from "@/electron-main/stores/workspace/kept-state";
-import { WINDOW_KEPT_KEYS } from "@/shared/kept-state";
+import {
+  APP_TABS_KEY,
+  COMPOSE_KEY,
+  WINDOW_KEPT_KEYS,
+} from "@/shared/kept-state";
+import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import {
   getAppZoom,
   getWindowState,
@@ -63,11 +69,12 @@ import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
-import { type Tab } from "@/shared/tabs";
 import { is } from "@electron-toolkit/utils";
 import { app, BrowserWindow } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
+
+import { mergeFloats } from "./tab-carry-rules";
 
 /** The shape a window takes the first time, before it has been sized. */
 const WINDOW_WIDTH = 1240;
@@ -75,9 +82,6 @@ const WINDOW_HEIGHT = 840;
 
 /** How far a new window stands off the one in front of it, so both show. */
 const CASCADE_PX = 26;
-
-/** The key a window keeps its strip of tabs under. */
-const APP_TABS_KEY = "app-tabs.v2";
 
 /** Each open window, by the id it keeps its state under. */
 const openWindows = new Map<string, BrowserWindow>();
@@ -198,29 +202,14 @@ export function otherAppWindows(webContentsId: number) {
     });
 }
 
-function keptTabsOf(id: string) {
-  const model = getWindowKeptState(id, APP_TABS_KEY);
-  if (model === null || typeof model !== "object") {
-    return { selectedId: undefined, tabs: [] };
-  }
-  const tabs: unknown[] =
-    "tabs" in model && Array.isArray(model.tabs) ? model.tabs : [];
-  return {
-    selectedId:
-      "selectedId" in model && typeof model.selectedId === "string"
-        ? model.selectedId
-        : undefined,
-    tabs: tabs.flatMap((tab) =>
-      typeof tab === "object" &&
-      tab !== null &&
-      "id" in tab &&
-      "pathname" in tab &&
-      typeof tab.id === "string" &&
-      typeof tab.pathname === "string"
-        ? [{ id: tab.id, pathname: tab.pathname }]
-        : [],
-    ),
-  };
+/** A window's tabs, as it keeps them. */
+export function keptTabsOf(id: string): TabsModel {
+  const parsed = TabsModelSchema.safeParse(
+    getWindowKeptState(id, APP_TABS_KEY),
+  );
+  return parsed.success
+    ? parsed.data
+    : { recentlyClosed: [], selectedId: null, tabs: [] };
 }
 
 /**
@@ -380,11 +369,19 @@ export function restoreAppWindows() {
 }
 
 /** A window of its own, at the inbox, standing off the one in front. */
-export function openNewAppWindow(): BrowserWindow | null {
+export function openNewAppWindow(tab?: Tab): BrowserWindow | null {
   if (isSetupUp()) {
     return null;
   }
-  return createAppWindow(newWindowId(), { bounds: cascadedBounds() });
+  const id = newWindowId();
+  if (tab) {
+    setWindowKeptState(id, APP_TABS_KEY, {
+      recentlyClosed: [],
+      selectedId: tab.id,
+      tabs: [tab],
+    });
+  }
+  return createAppWindow(id, { bounds: cascadedBounds() });
 }
 
 function openSpareWindow(): SpareWindow {
@@ -451,7 +448,7 @@ export function returnSpareWindow(taken: SpareWindow) {
   }
   taken.window.setIgnoreMouseEvents(false);
   taken.window.hide();
-  for (const key of WINDOW_KEPT_KEYS) {
+  for (const key of windowKeptKeys(taken.id)) {
     tellWindowKeptState(taken.id, taken.window.webContents, key, undefined);
   }
   waitingSpare = taken;
@@ -463,7 +460,6 @@ export function adoptSpareWindow(adopted: SpareWindow) {
   window.setIgnoreMouseEvents(false);
   window.setSkipTaskbar(false);
   spares.delete(adopted);
-  emptied.delete(window);
   if (isUp) {
     listening.add(window.webContents.id);
   }
@@ -518,64 +514,59 @@ export function canMergeWindows() {
   return getAppWindows().length > 1;
 }
 
-/** Every other window's tabs into the one in front, each closing as its last tab leaves. */
+/**
+ * Every other window's tabs, pages and floats into the one in front, and those
+ * windows gone with nothing to come back to. Only one window can stay itself, so
+ * the tabs open afresh there, each from its address and history.
+ */
 export function mergeAllWindows() {
   const [front, ...others] = getAppWindows();
   const to = front && appWindowIdOfWindow(front);
-  if (to === undefined) {
+  if (!front || to === undefined || !listening.has(front.webContents.id)) {
     return;
   }
+  const manager = getBrowserViewManager();
   for (const other of others) {
-    commandWindow(other, { to, type: "sendEveryTab" });
+    const from = appWindowIdOfWindow(other);
+    if (from !== undefined) {
+      for (const tab of keptTabsOf(from).tabs) {
+        sendTabToWindow(tab, to);
+      }
+      manager.handOffGuestsOf(other.webContents.id, front.webContents.id);
+      tellWindowKeptState(
+        to,
+        front.webContents,
+        COMPOSE_KEY,
+        mergeFloats(
+          getWindowKeptState(to, COMPOSE_KEY),
+          getWindowKeptState(from, COMPOSE_KEY),
+        ),
+      );
+      closeEmptiedWindow(other);
+    }
   }
 }
 
 /**
- * Hands a tab, history and all, to another window: one opening around it beside
- * the window in front, or one already open, which puts it at a place along its strip.
- * Says whether it moved, where to, and the window it opened if it opened one.
- * It did not move when that window has gone since.
+ * Hands a tab, history and all, to a window that is open, which puts it at a
+ * place along its strip. Says whether it could: a page not listening yet could
+ * not take it, and the tab would be lost.
  */
-export function moveTabToWindow(
-  tab: Tab,
-  to:
-    | { id: string; index?: number | undefined; kind: "window" }
-    | { kind: "new" },
-  /** Leaves the window where it is, for a caller with another window standing over it. */
-  { isQuiet = false }: { isQuiet?: boolean } = {},
-): { destination?: BrowserWindow; moved: boolean; opened?: BrowserWindow } {
-  if (to.kind === "window") {
-    // A page not listening yet could not take it, and the tab would be lost;
-    // this way it stays where it is.
-    const target = openWindows.get(to.id);
-    if (
-      !target ||
-      target.isDestroyed() ||
-      !listening.has(target.webContents.id)
-    ) {
-      return { moved: false };
-    }
-    commandWindow(target, {
-      ...(to.index === undefined ? {} : { index: to.index }),
-      tab,
-      type: "receiveTab",
-    });
-    if (!isQuiet && !isHeldOffScreen(target)) {
-      if (target.isMinimized()) {
-        target.restore();
-      }
-      target.focus();
-    }
-    return { destination: target, moved: true };
+export function sendTabToWindow(tab: Tab, id: string, index?: number) {
+  const target = openWindows.get(id);
+  if (
+    !target ||
+    target.isDestroyed() ||
+    !listening.has(target.webContents.id)
+  ) {
+    return false;
   }
-  const id = newWindowId();
-  setWindowKeptState(id, APP_TABS_KEY, {
-    recentlyClosed: [],
-    selectedId: tab.id,
-    tabs: [tab],
+  commandWindow(target, {
+    ...(index === undefined ? {} : { index }),
+    tab,
+    type: "receiveTab",
   });
-  const opened = createAppWindow(id, { bounds: cascadedBounds() });
-  return { destination: opened, moved: true, opened };
+  return true;
 }
 
 /** An open window by the id a tab's menu names it by. */
@@ -674,10 +665,7 @@ function createAppWindow(
   const webContentsId = window.webContents.id;
   // Named before it loads: its preload asks for what it kept as it does.
   nameAppWindow(webContentsId, id);
-  if (isSpare) {
-    // Forgotten when it closes, unless it is adopted first.
-    emptied.add(window);
-  } else {
+  if (!isSpare) {
     openWindows.set(id, window);
     inFront = [window, ...inFront];
     rememberWindowInFront(id);
@@ -793,7 +781,8 @@ function createAppWindow(
     stopListening(webContentsId);
     // A quit closes windows too, and those are what the next launch brings
     // back. A window the person closed can come back on request instead.
-    if (emptied.delete(window)) {
+    // A spare has nothing of anyone's to come back to.
+    if (emptied.delete(window) || closedSpare) {
       forgetWindow(id);
       forgetWindowKeptState(id);
     } else if (!isQuitApproved()) {
@@ -912,7 +901,10 @@ export function takePendingAppWindowAsks(
     spare.isUp = true;
     // What a drag told it while its page was starting, or took back, may have
     // gone unheard: it read its state as it loaded and listens only now.
-    for (const key of WINDOW_KEPT_KEYS) {
+    for (const key of new Set([
+      ...WINDOW_KEPT_KEYS,
+      ...windowKeptKeys(spare.id),
+    ])) {
       tellWindowKeptState(
         spare.id,
         spare.window.webContents,

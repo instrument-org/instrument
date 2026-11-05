@@ -55,16 +55,13 @@ import {
 import { siteTabTitles } from "./site-tab-titles";
 import { isOffRow, type PointerSample, recentPath } from "./tab-pull";
 import { type StripTab, TabStrip } from "./tab-strip";
-import {
-  stripIndexAt,
-  type TabMoveDestination,
-  type TabStanding,
-} from "./move-tab";
-import { settleTabMove } from "./move-tab-out";
+import { moveTabOut, settleTabMove, tabStanding } from "./move-tab";
+import { type TabStanding } from "@/shared/tabs";
 import {
   isTabHeldHere,
   measureCarryIndex,
   showTabCarryView,
+  stripIndexAt,
   tabCarryIndexAtom,
   tabCarryViewAtom,
   tabsInView,
@@ -86,13 +83,11 @@ export function AppTabStrip({
   onCloseOthers,
   onCloseToRight,
   onDuplicate,
-  onMove,
   onNew,
   onReload,
   onReorder,
   onSelect,
   selectedId,
-  standingOf,
   tabs,
 }: {
   /** Each chat's mark, as the rail would wear it for that chat alone. */
@@ -103,15 +98,12 @@ export function AppTabStrip({
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;
   onDuplicate: (id: TabId) => void;
-  onMove: (id: TabId, to: TabMoveDestination) => Promise<void>;
   onNew: () => void;
   /** The tab's own reload, for a site's page; undefined where a tab has none. */
   onReload: (id: TabId) => (() => void) | undefined;
   onReorder: (ids: TabId[]) => void;
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
-  /** A tab as it stands now, as it would be handed to another window. */
-  standingOf: (id: TabId) => TabStanding | undefined;
   tabs: { id: TabId; pathname: string }[];
 }) {
   const presentationOf = useAppTabPresentation({ chatTitles, childTitles });
@@ -202,7 +194,7 @@ export function AppTabStrip({
     order: presented.map((tab) => tab.key),
     standingOf: (key) => {
       const id = idOf(key);
-      return id ? standingOf(id) : undefined;
+      return id ? tabStanding(id) : undefined;
     },
   });
 
@@ -281,7 +273,6 @@ export function AppTabStrip({
             onCloseOthers={onCloseOthers}
             onCloseToRight={onCloseToRight}
             onDuplicate={onDuplicate}
-            onMove={onMove}
             reload={onReload(menu.id)}
           />
         )}
@@ -605,7 +596,6 @@ function TabMenu({
   onCloseOthers,
   onCloseToRight,
   onDuplicate,
-  onMove,
   reload,
 }: {
   id: TabId;
@@ -616,7 +606,6 @@ function TabMenu({
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;
   onDuplicate: (id: TabId) => void;
-  onMove: (id: TabId, to: TabMoveDestination) => void;
   reload: (() => void) | undefined;
 }) {
   const others = useQuery(
@@ -657,7 +646,7 @@ function TabMenu({
               <>
                 <DropdownMenuItem
                   onClick={() => {
-                    onMove(id, { kind: "new" });
+                    void moveTabOut(id, { kind: "new" });
                   }}
                 >
                   <span>New Window</span>
@@ -669,7 +658,7 @@ function TabMenu({
               <DropdownMenuItem
                 key={other.id}
                 onClick={() => {
-                  onMove(id, { id: other.id, kind: "window" });
+                  void moveTabOut(id, { id: other.id, kind: "window" });
                 }}
               >
                 <span className="truncate">{other.title}</span>
@@ -680,7 +669,7 @@ function TabMenu({
       ) : isOnly ? null : (
         <DropdownMenuItem
           onClick={() => {
-            onMove(id, { kind: "new" });
+            void moveTabOut(id, { kind: "new" });
           }}
         >
           <AppWindowIcon className="size-4" />

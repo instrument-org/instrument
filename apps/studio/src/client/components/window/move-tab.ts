@@ -1,15 +1,23 @@
-import { composeAtom, type WindowTab } from "@/client/atoms/window";
+import { composeAtom } from "@/client/atoms/window";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { captureTabView, tabViewRoot } from "@/client/lib/tab-view-state";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { insertTab, removeTab } from "@/client/lib/tabs-model";
-import { rpcClient, type RPCInput } from "@/client/rpc/client";
-import { type Tab, type TabId } from "@/shared/tabs";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import {
+  neighborAt,
+  type Tab,
+  type TabId,
+  type TabMoveDestination,
+  type TabStanding,
+} from "@/shared/tabs";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
 
 import { appTabsAtom, groupOfHref, INBOX_HREF, siteGroupsOf } from "./app-tabs";
+import { showTabCarryView } from "./tab-carry-view";
+import { windowTabsAtom } from "./window-tabs";
 
 /** The groups whose tabs went to another window, whose pages are that window's to keep or let go, until a tab comes back. */
 const groupsMovedAway = new Set<string>();
@@ -29,26 +37,11 @@ function sitesItCanGoTo(tab: Tab) {
   return siteGroupsOf([...(history?.entries ?? []), tab.pathname]);
 }
 
-/** Where a tab can go: a new window beside this one, or one open already. */
-export type TabMoveDestination = RPCInput["window"]["moveTab"]["to"];
-
-/**
- * A tab as another window would take it: its history, the pages that would go
- * with it, and those of the tab that comes up in its place if the rest are left
- * behind in a window of their own.
- */
-export interface TabStanding {
-  neighborPages: RPCInput["window"]["moveTab"]["moving"]["pages"];
-  pages: RPCInput["window"]["moveTab"]["moving"]["pages"];
-  tab: Tab;
-}
-
 /** What handing a tab to another window would hand over, as it stands now. */
-export function tabStanding(
-  id: TabId,
-  allTabs: readonly WindowTab[],
-): TabStanding | undefined {
-  const { tabs } = getDefaultStore().get(appTabsAtom);
+export function tabStanding(id: TabId): TabStanding | undefined {
+  const store = getDefaultStore();
+  const { tabs } = store.get(appTabsAtom);
+  const allTabs = store.get(windowTabsAtom).tabs;
   const tab = tabs.find((each) => each.id === id);
   if (!tab) {
     return undefined;
@@ -71,8 +64,10 @@ export function tabStanding(
         ? [browserTargetOf(each.id)]
         : [],
     );
-  const at = tabs.findIndex((each) => each.id === id);
-  const neighbor = tabs[at + 1] ?? tabs[at - 1];
+  const neighbor = neighborAt(
+    tabs,
+    tabs.findIndex((each) => each.id === id),
+  );
   const neighborGroup = neighbor && groupOfHref(neighbor.pathname);
   return {
     neighborPages:
@@ -82,48 +77,6 @@ export function tabStanding(
     pages: group === undefined || stillHere ? [] : pagesOf(group),
     tab: moved,
   };
-}
-
-/**
- * Hands a tab to another window, where it opens afresh with its history. The tab
- * leaves this strip only once the other window has it, and a window left with
- * nothing closes, with nothing of it to come back to. The pages the tab shows go
- * with it, unless another tab here still shows them.
- */
-async function sendTabOut(
-  id: TabId,
-  to: TabMoveDestination,
-  allTabs: readonly WindowTab[],
-) {
-  const store = getDefaultStore();
-  const standing = tabStanding(id, allTabs);
-  if (!standing) {
-    return;
-  }
-  const { pages, tab: moved } = standing;
-  const groups = sitesItCanGoTo(moved);
-  for (const group of groups) {
-    groupsMovedAway.add(group);
-  }
-  const { moved: landed } = await rpcClient.window.sendTab
-    .call({ pages, tab: moved, to })
-    .catch(() => ({ moved: false }));
-  if (!landed) {
-    for (const group of groups) {
-      groupsMovedAway.delete(group);
-    }
-    return;
-  }
-  const isLast = store.get(appTabsAtom).tabs.length === 1;
-  store.set(appTabsAtom, (current) =>
-    removeTab(current, {
-      id,
-      newTab: { id: freshTabId(), pathname: INBOX_HREF },
-    }),
-  );
-  if (isLast) {
-    void rpcClient.window.closeEmptied.call();
-  }
 }
 
 /**
@@ -162,52 +115,9 @@ export function keepOnlyTab(key: string) {
 
 /** An address in a window of its own, beside this one. */
 export function openInNewWindow(href: string) {
-  void rpcClient.window.sendTab.call({
-    pages: [],
+  void rpcClient.window.openNew.call({
     tab: { id: freshTabId(), pathname: href },
-    to: { kind: "new" },
   });
-}
-
-/**
- * Where a tab held at a point stands among the tabs other than itself, which are
- * taken where they would stand without it, as the strip lays them out. Layout and
- * not what is drawn, since a tab making way is on its way there, and the answer
- * would move it again.
- */
-export function stripIndexAt(
-  clientX: number,
-  tabs: readonly { id: TabId }[],
-  except: TabId,
-) {
-  const list = document.querySelector<HTMLElement>(
-    "[data-app-tab-strip] [role=tablist]",
-  );
-  if (!list) {
-    return 0;
-  }
-  const { left: listLeft, width: listWidth } = list.getBoundingClientRect();
-  // On screen px from layout px, which differ by the window's zoom.
-  const zoom = listWidth / list.offsetWidth;
-  const drawn = [...list.querySelectorAll<HTMLElement>("[data-tab-key]")].map(
-    (element) => ({
-      key: element.dataset.tabKey,
-      left: element.offsetLeft - list.offsetLeft,
-      width: element.offsetWidth,
-    }),
-  );
-  const heldAt = drawn.findIndex(({ key }) => key === except);
-  const held = drawn[heldAt];
-  const slot = held
-    ? (drawn[heldAt + 1]?.left ?? held.left + held.width) - held.left
-    : 0;
-  const before = drawn.filter(({ key, left, width }, index) => {
-    const standsAt = held && index > heldAt ? left - slot : left;
-    return key !== except && clientX > listLeft + (standsAt + width / 2) * zoom;
-  });
-  const others = tabs.filter((tab) => tab.id !== except);
-  const at = others.findIndex((tab) => tab.id === before.at(-1)?.key);
-  return at === -1 ? 0 : at + 1;
 }
 
 /** A tab from another window comes up here, at the place along the strip it was held at. */
@@ -217,10 +127,37 @@ export function receiveTab(tab: Tab, index?: number) {
   );
 }
 
-/** Every tab of this window to another, in order, which closes it. */
-export async function sendEveryTab(to: string, allTabs: readonly WindowTab[]) {
-  const { tabs } = getDefaultStore().get(appTabsAtom);
-  for (const tab of tabs) {
-    await sendTabOut(tab.id, { id: to, kind: "window" }, allTabs);
+/** What a window does as a tab's move ends, by a drag let go or from a menu. */
+export function settleTabMove(
+  key: string,
+  end: RPCOutput["window"]["endTabDrag"],
+) {
+  if (end.kind === "keepsTab") {
+    keepOnlyTab(key);
+  } else if (end.kind === "takesStrip") {
+    getDefaultStore().set(appTabsAtom, end.model);
+  } else if (end.kind === "losesTab") {
+    letTabGo(key);
   }
+  // A window closing goes on showing what it shows until it has gone.
+  if (end.kind !== "closes") {
+    showTabCarryView({ kind: "row" });
+  }
+}
+
+/**
+ * Moves a tab to a window of its own or into another's strip, the way a drag let
+ * go there would, so its page and everything else in it come through the same.
+ */
+export async function moveTabOut(id: TabId, to: TabMoveDestination) {
+  const moving = tabStanding(id);
+  const isOnlyTab = getDefaultStore().get(appTabsAtom).tabs.length === 1;
+  // A window's only tab is in a window of its own already.
+  if (!moving || (isOnlyTab && to.kind === "new")) {
+    return;
+  }
+  const end = await rpcClient.window.moveTab
+    .call({ isOnlyTab, moving, to })
+    .catch(() => ({ kind: "none" as const }));
+  settleTabMove(id, end);
 }

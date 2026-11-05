@@ -196,6 +196,20 @@ describe("bash background processes, end to end", () => {
     30_000,
   );
 
+  it("records a failed call's stderr apart from what it printed", async () => {
+    await fs.writeFile(path.join(chatRoot, "work", "mail.txt"), "the mail\n");
+
+    const failed = await bash("cat missing work/mail.txt", 10_000);
+    expect(failed.exitCode).toBe(1);
+    expect(failed.output).toContain("the mail");
+    expect(failed.stderr).toContain("missing");
+    expect(failed.stderr).not.toContain("the mail");
+
+    const succeeded = await bash("cat missing; true", 10_000);
+    expect(succeeded.exitCode).toBe(0);
+    expect(succeeded.stderr).toBeUndefined();
+  });
+
   it("returns a fast command inline without registering anything", async () => {
     const result = await bash("echo hello", 10_000);
 

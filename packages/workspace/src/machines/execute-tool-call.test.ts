@@ -266,10 +266,14 @@ describe("executeToolCallMachine", () => {
           "ran": [
             {
               "count": 1,
+              "exitCode": 1,
+              "failed": 1,
               "name": "pnpm",
               "source": "bundled",
+              "stderr": "Shell command failed",
             },
           ],
+          "stderr": "pnpm: Shell command failed",
         },
         "preliminary": false,
         "state": "output-available",

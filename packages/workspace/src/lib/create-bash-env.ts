@@ -623,9 +623,7 @@ function recordingRuns(command: Command, source: CommandRun["source"]) {
   return {
     ...command,
     execute: (...[args, ctx]: Parameters<Command["execute"]>) =>
-      runDispatched(command.name, source, args, () =>
-        command.execute(args, ctx),
-      ),
+      runDispatched(command.name, source, () => command.execute(args, ctx)),
   } satisfies Command;
 }
 

@@ -20,7 +20,7 @@ A report sends an outline of the chat's records (`packages/workspace/src/lib/rep
 
 - Every kind of record has a rule naming each field: kept as written, written as its length (`"<2373 chars>"`), or kept as the host it names. What the person and the agent said goes as written; what a step read or wrote goes as its length.
 - A kind with no rule keeps its keys and numbers, and every string goes as its length. A new tool or note sends nothing it read until it gets a rule.
-- A failed step keeps the end of its output, since that is the error, and so does one of Instrument's own status commands, since that output is the app's state.
+- A shell call's output is what the agent read, so it goes as its length however the call ended. How a call failed goes as the end of its stderr, which can quote what a program read: a risk accepted so a report can explain a bug. A tool's error keeps its end.
 - A command line goes through the sandbox's shell parser, so heredoc bodies and long quoted words go as their length and its words, flags and paths stay.
 - The agent's thinking never goes.
 - A device's state file and the notes a handoff leaves never go: the state names the pages its tabs had open, and the notes are the agent's summary of what it read.

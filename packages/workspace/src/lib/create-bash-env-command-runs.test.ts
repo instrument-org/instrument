@@ -206,27 +206,24 @@ describe("command runs", () => {
   );
 
   it.skipIf(!vendored)(
-    "keeps only the stderr of a command that complains of nothing but paths",
+    "keeps a failed run's stderr the same way, whatever the program is called",
     async () => {
       configure({ outside: false, uutilsDir: UUTILS_DIR });
       const rows = await runsOf(
         "sort ./missing 2>/dev/null; find ./missing -exec true ';' 2>/dev/null; true",
       );
-      expect(rows.map(({ failed, name, stderr }) => ({ failed, name, stderr })))
-        .toMatchInlineSnapshot(`
-        [
-          {
-            "failed": 1,
-            "name": "sort",
-            "stderr": undefined,
-          },
-          {
-            "failed": 1,
-            "name": "find",
-            "stderr": undefined,
-          },
-        ]
-      `);
+      expect(rows).toEqual([
+        expect.objectContaining({
+          failed: 1,
+          name: "sort",
+          stderr: expect.stringContaining("missing"),
+        }),
+        expect.objectContaining({
+          failed: 1,
+          name: "find",
+          stderr: expect.stringContaining("missing"),
+        }),
+      ]);
     },
   );
 

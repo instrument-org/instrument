@@ -45,9 +45,8 @@ export const CommandRunSchema = z.object({
   /** The status the row's last failed run ended with. */
   exitCode: z.number().optional(),
   /**
-   * The end of what the row's last failed run wrote to stderr, where that is
-   * only ever the command's own complaint (`keepsStderr`). A redirect such as
-   * `2>/dev/null` happens after this is read.
+   * The end of what the row's last failed run wrote to stderr, read before the
+   * shell applies a redirect such as `2>/dev/null`. Never its stdout.
    */
   stderr: z.string().optional(),
 });
@@ -65,40 +64,12 @@ export const MAX_COMMAND_RUN_ROWS = 64;
 /** The status of a producer its reader stopped early (`pipe-stage.ts`), which is not a failure. */
 const CUT_OFF_STATUS = 141;
 
-/** The most of a failed run's stderr a row keeps: its end, where the error is. */
+/** The most of a failed run's stderr a record keeps: its end, where the error is. */
 const KEPT_STDERR = 500;
 
-/** `find` arguments that run another program or name another file for its output. */
-const FIND_HANDS_ON = new Set([
-  "-exec",
-  "-execdir",
-  "-fls",
-  "-fprint",
-  "-fprint0",
-  "-fprintf",
-  "-ok",
-  "-okdir",
-]);
-
-/**
- * The commands whose stderr names only a path and the system's error, so it
- * says why a file could not be reached and nothing that was in one. Most
- * others can quote what they read: `sort -c` and `join` the offending line,
- * `grep -f` a pattern from its file, and `python`, `node`, `git` or `curl`
- * anything at all.
- */
-const COMPLAINS_ONLY_OF_PATHS = new Map<
-  string,
-  (args: readonly string[]) => boolean
->([
-  ["find", (args) => !args.some((arg) => FIND_HANDS_ON.has(arg))],
-  ["head", () => true],
-  ["stat", () => true],
-  ["tail", () => true],
-]);
-
-function keepsStderr(name: string, args: readonly string[]) {
-  return COMPLAINS_ONLY_OF_PATHS.get(name)?.(args) === true;
+/** The end of what a failed run wrote to stderr, as a record keeps it. */
+export function keptStderr(stderr: string): string {
+  return stderr.slice(-KEPT_STDERR).trimEnd();
 }
 
 function keyOf(run: RunKey): string {
@@ -208,36 +179,36 @@ const dispatchStorage = new AsyncLocalStorage<Dispatch>();
 export async function runDispatched(
   name: string,
   source: CommandRun["source"],
-  args: readonly string[],
   run: () => Promise<ExecResult>,
 ): Promise<ExecResult> {
   const dispatch: Dispatch = { name, source };
   const runs = currentCommandRuns();
+  const row = () => {
+    if (!dispatch.run) {
+      dispatch.run = { name, source };
+      recordCommandRun(dispatch.run);
+    }
+    return dispatch.run;
+  };
   const ended = (result: ExecResult) => {
-    if (
-      dispatch.run &&
-      result.exitCode !== 0 &&
-      result.exitCode !== CUT_OFF_STATUS
-    ) {
-      runs?.recordFailure(
-        dispatch.run,
-        result.exitCode,
-        keepsStderr(name, args)
-          ? result.stderr.slice(-KEPT_STDERR).trimEnd()
-          : undefined,
-      );
+    if (result.exitCode !== 0 && result.exitCode !== CUT_OFF_STATUS) {
+      runs?.recordFailure(row(), result.exitCode, keptStderr(result.stderr));
     }
     return result;
   };
   let result: ExecResult;
   try {
     result = await dispatchStorage.run(dispatch, run);
-  } finally {
-    if (!dispatch.run) {
-      dispatch.run = { name, source };
-      recordCommandRun(dispatch.run);
-    }
+  } catch (error) {
+    // The shell turns what a command throws into a status of 1.
+    runs?.recordFailure(
+      row(),
+      1,
+      keptStderr(error instanceof Error ? error.message : String(error)),
+    );
+    throw error;
   }
+  row();
   const { pipeHandoff } = result;
   return pipeHandoff
     ? {

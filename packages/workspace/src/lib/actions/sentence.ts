@@ -45,7 +45,7 @@ export function actionSentence(
       return `made the folder ${shellPath(action.path)}`;
     }
     case "chat": {
-      return `opened the chat "${action.title}", its records in $${FOLDER_VARIABLES.chats}/${action.id}`;
+      return `read the chat "${action.title}", its records in $${FOLDER_VARIABLES.chats}/${action.id}`;
     }
     case "page": {
       return action.title

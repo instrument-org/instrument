@@ -203,7 +203,7 @@ describe("actionsModelNote", () => {
       - 12m ago · opened a folder in Files
       - 9m ago · opened 3 files
       - 6m ago · moved 3 files
-      - 2m ago · opened another chat
+      - 2m ago · read another chat
       - now · saw an error
       </instrument-system-note>"
     `);

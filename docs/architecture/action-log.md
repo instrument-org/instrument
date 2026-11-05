@@ -43,7 +43,7 @@ Each message the person types in a chat's own session carries an `actions` part 
 ```
 Background, not something they sent: what the user did in this app before this message, oldest first, without names. `instrument activity` gives the names and paths, for when their words point at one of these.
 - 6m ago · moved 3 files
-- 2m ago · opened another chat
+- 2m ago · read another chat
 ```
 
 `instrument activity` ([activity.ts](../../packages/workspace/src/lib/capabilities/activity.ts)) lists the record with names and paths, for a chat and its tasks: `--since`, `--grep`, `--limit`, `--json`. A chat row names that chat's records folder, so the agent can open it. Why the note carries kinds and the command the names: [the decision](../decisions/2026-11-05-the-chat-hears-kinds-not-names.md).

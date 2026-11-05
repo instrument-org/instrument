@@ -47,7 +47,7 @@ function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
       return one ? "made a folder" : `made ${things(count, "folder")}`;
     }
     case "chat": {
-      return one ? "opened another chat" : `opened ${count} other chats`;
+      return one ? "read another chat" : `read ${count} other chats`;
     }
     case "page": {
       return one ? "visited a page" : `visited ${things(count, "page")}`;

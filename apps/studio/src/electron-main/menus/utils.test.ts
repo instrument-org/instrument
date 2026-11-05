@@ -33,6 +33,15 @@ function rows(items: MenuItemConstructorOptions[]) {
 }
 
 describe("the app menu and the Window menu", () => {
+  it("off the Mac, is only the items it is given, with none of Electron's chords", async () => {
+    const { createWindowMenu } = await menusOn("linux");
+    const items = [{ label: "Merge All Windows" }];
+    expect(createWindowMenu(items)).toEqual([
+      { label: "Window", submenu: items },
+    ]);
+    expect(createWindowMenu()).toEqual([]);
+  });
+
   it("bind each system's own chords, and none it keeps for itself", async () => {
     const menus: Record<string, unknown> = {};
     for (const platform of ["darwin", "win32", "linux"] as const) {

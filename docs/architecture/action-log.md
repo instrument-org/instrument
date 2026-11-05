@@ -42,7 +42,7 @@ The person's `shareActionsWithChats` preference, through `mayShareActions` on th
 
 ## Reports
 
-The feedback dialog offers the 30 minutes before it opened as a row, "What you did in the app", the one row with a switch to leave it out, since it is about more than the chat or error being reported ([feedback-dialog.tsx](../../apps/studio/src/client/components/studio-modals/feedback-dialog.tsx)). It is sent as `diagnostics/actions.jsonl`, through the report's redactor like everything else ([problem-reports.ts](../../apps/studio/src/electron-main/lib/problem-reports.ts)).
+The feedback dialog offers the 30 minutes before it opened as a row, "Your activity", the one row with a switch to leave it out, since it is about more than the chat or error being reported ([feedback-dialog.tsx](../../apps/studio/src/client/components/studio-modals/feedback-dialog.tsx)). It is sent as `diagnostics/actions.jsonl`, through the report's redactor like everything else ([problem-reports.ts](../../apps/studio/src/electron-main/lib/problem-reports.ts)).
 
 ## Checks
 

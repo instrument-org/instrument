@@ -185,7 +185,7 @@ describe("FeedbackDialogContent", () => {
     expect(views).toEqual([
       "View Instrument's write-up",
       "View “Star my first email”",
-      "View What you did in the app",
+      "View Your activity",
       "View Diagnostics",
     ]);
   });
@@ -200,7 +200,7 @@ describe("FeedbackDialogContent", () => {
     await open();
     expect(
       screen.getByText(
-        "What you opened and changed in Instrument in the 30 minutes before this.",
+        "What you did in Instrument in the 30 minutes before this.",
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -209,9 +209,7 @@ describe("FeedbackDialogContent", () => {
 
   it("leaves out what the person did in the app when they switch it off", async () => {
     await open();
-    fireEvent.click(
-      screen.getByRole("switch", { name: "Send what you did in the app" }),
-    );
+    fireEvent.click(screen.getByRole("switch", { name: "Send your activity" }));
     expect(screen.getByText("This stays on your Mac.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(sentItems()).toEqual(["chat", "diagnostics"]);
@@ -219,9 +217,8 @@ describe("FeedbackDialogContent", () => {
 
   it("shows what the person did as sentences, with its switch at the foot", async () => {
     await open();
-    fireEvent.click(
-      screen.getByRole("button", { name: "View What you did in the app" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "View Your activity" }));
+    expect(screen.getByRole("heading", { name: "Your activity" })).toBeTruthy();
     expect(screen.getByText("Opened the folder “Downloads”")).toBeTruthy();
     fireEvent.click(
       screen.getByRole("switch", { name: "Send with your feedback" }),

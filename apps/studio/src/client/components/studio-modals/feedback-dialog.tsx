@@ -238,10 +238,10 @@ export function FeedbackDialogContent({
           {
             item: described.data.actions,
             line: sendActions
-              ? `What you opened and changed in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this.`
+              ? `What you did in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this.`
               : `This stays on ${yourComputer}.`,
             sending: { on: sendActions, set: setSendActions },
-            title: "What you did in the app",
+            title: "Your activity",
           },
         ]
       : []),

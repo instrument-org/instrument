@@ -1,4 +1,8 @@
-import { getToolLabel, TOOL_ICONS } from "@/client/lib/tool-display";
+import {
+  getToolLabel,
+  getToolStreamingLabel,
+  TOOL_ICONS,
+} from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
   type ActivityRow,
@@ -218,7 +222,12 @@ function stepLabel(step: TurnStep): string {
   if (!tool) {
     return "Thought";
   }
-  return step.explanation || getToolLabel(tool);
+  if (step.explanation) {
+    return step.explanation;
+  }
+  return step.status === "running" || step.status === "writing"
+    ? getToolStreamingLabel(tool)
+    : getToolLabel(tool);
 }
 
 function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {

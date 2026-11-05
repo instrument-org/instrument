@@ -49,12 +49,15 @@ export const TurnView = memo(function TurnView({
   separator,
   sessionId,
   turn,
+  waitsForStep,
 }: {
   chatInfo: ChatInfo;
   isLast: boolean;
   separator: ChatSeparator | undefined;
   sessionId: StoreId.Session;
   turn: Turn;
+  /** Its message is waiting on a step still going in the turn above it. */
+  waitsForStep: boolean;
 }) {
   return (
     <>
@@ -77,6 +80,7 @@ export const TurnView = memo(function TurnView({
           isLast={isLast}
           sessionId={sessionId}
           turn={turn}
+          waitsForStep={waitsForStep}
         />
       </MessageScrollerItem>
     </>
@@ -153,11 +157,13 @@ function TurnBody({
   isLast,
   sessionId,
   turn,
+  waitsForStep,
 }: {
   chatInfo: ChatInfo;
   isLast: boolean;
   sessionId: StoreId.Session;
   turn: Turn;
+  waitsForStep: boolean;
 }) {
   const isFolded = useIsFolded(turn);
   const [isOpened, setIsOpened] = useState(false);
@@ -213,7 +219,12 @@ function TurnBody({
   return (
     <>
       {rows}
-      {turn.live?.kind === "thinking" && (
+      {waitsForStep && (
+        <p className="-mt-1 pr-1 text-right text-xs text-muted-foreground">
+          Read after this step
+        </p>
+      )}
+      {turn.live?.kind === "thinking" && !waitsForStep && (
         <ThinkingRow since={turn.live.since} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (

@@ -74,6 +74,7 @@ export {
   type TurnsCache,
   type TurnStep,
   turnsOf,
+  waitsForStep,
 } from "./lib/transcript/turns-of";
 export { latestStepIn } from "./lib/chat/step-label";
 export type { Memory } from "./lib/memory/store";

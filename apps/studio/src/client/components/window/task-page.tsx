@@ -1,5 +1,6 @@
 import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
 import { TaskUsageSummary } from "@/client/components/task/usage-summary";
+import { formatClock, useTicking } from "@/client/components/transcript/time";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChildTranscript } from "@/client/components/window/child-tasks";
@@ -17,8 +18,10 @@ import { useMutation } from "@tanstack/react-query";
  * travel together so the menu reads as acting on the task named beside it.
  * A task that left commands running shows how many, opening onto a list
  * that stops them. While the task works or waits on a card, a Stop at the
- * header's far end halts it; in developer mode the task's message and token
- * totals sit beside it. Nothing names the chat: the page stands under it.
+ * header's far end halts it, with how long it has run while it works; once it
+ * is done, how long that took stands there instead. In developer mode the
+ * task's message and token totals sit beside it. Nothing names the chat: the
+ * page stands under it.
  */
 export function TaskPage({
   chat,
@@ -30,6 +33,7 @@ export function TaskPage({
   const task = useChildTask(chat, sessionId);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const isDeveloperMode = useTabDeveloperMode();
+  const now = useTicking(task?.working === true);
   if (!task) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -49,7 +53,7 @@ export function TaskPage({
           )}
           {task.stoppable && (
             <Button
-              className="shrink-0"
+              className="shrink-0 tabular-nums"
               disabled={stop.isPending}
               onClick={() => {
                 stop.mutate({ id: chat, sessionId });
@@ -59,7 +63,15 @@ export function TaskPage({
             >
               <StopIcon weight="fill" />
               Stop
+              {task.working &&
+                ` · ${formatClock(now - task.createdAt.getTime())}`}
             </Button>
+          )}
+          {!task.stoppable && task.standing.kind === "done" && (
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              Done in{" "}
+              {formatClock(task.updatedAt.getTime() - task.createdAt.getTime())}
+            </span>
           )}
         </div>
       </div>

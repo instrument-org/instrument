@@ -464,11 +464,16 @@ function pageOf(text: string | undefined): { title?: string; words?: string } {
   return { title: heading[1].trim(), ...(words !== "" && { words }) };
 }
 
-const AGENT_BROWSER = /\bagent-browser\b/;
+/** Where a program starts in a shell line, and not a word its arguments say. */
+const COMMAND_START = String.raw`(?:^|[\n;&|(])\s*`;
+const AGENT_BROWSER = new RegExp(String.raw`${COMMAND_START}agent-browser\b`);
 const BROWSER_SUBCOMMAND =
   /\bagent-browser\b(?:\s+--?[\w-]+(?:[= ]\S+)?)*\s+([a-z][\w-]*)/g;
-const OPENS_A_PLACE =
-  /(?:^|[\s;&|(])(?:(?:instrument\s+)?(?:window|tab)\s+(?:open|show)|open)\s+(?:"([^"]+)"|'([^']+)'|(\S+))/;
+const OPENS_A_PLACE = new RegExp(
+  String.raw`${COMMAND_START}(?:(?:instrument\s+)?(?:window|tab)\s+(?:open|show)|open)\s+(?:"([^"]+)"|'([^']+)'|(\S+))`,
+);
+/** What the chat tells a task is the task's to do, whatever it names. */
+const STARTS_A_TASK = /^\s*(?:instrument\s+)?task\b/;
 const URL_IN_COMMAND = /(?:https?|file):\/\/[^\s"')]+/;
 /** The browser commands that change what a page shows, and so its picture. */
 const CHANGES_THE_PAGE = new Set([
@@ -500,6 +505,9 @@ const CHANGES_THE_PAGE = new Set([
  * (`file-changes.ts`), never from here.
  */
 function commandShows(command: string): StepShows | undefined {
+  if (STARTS_A_TASK.test(command)) {
+    return undefined;
+  }
   if (AGENT_BROWSER.test(command)) {
     const url = URL_IN_COMMAND.exec(command)?.[0];
     const changesPage = [...command.matchAll(BROWSER_SUBCOMMAND)].some(

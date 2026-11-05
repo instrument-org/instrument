@@ -35,9 +35,6 @@ const KIND_OF: Record<StepShows["kind"], SlotKind> = {
  *    nothing to show changes nothing.
  * 2. Things of one kind share a card, so a burst of files is one card and
  *    a browser's commands update one page.
- *
- * Measured on real timings there is no timer here: the median card lasts tens
- * of seconds, and a minimum time on screen delayed none of 392 cards.
  */
 export function cardsOf(turn: Pick<Turn, "rows">): SlotCard[] {
   const cards: SlotCard[] = [];
@@ -72,10 +69,13 @@ export function cardsOf(turn: Pick<Turn, "rows">): SlotCard[] {
 
 /**
  * The card up now: the turn's newest, for as long as the turn shows one. It
- * goes with the fold, so it stays through the reply.
+ * goes with the fold, so it stays through the reply. A task's card takes over
+ * from the work before it, since the task is what is moving now and carries
+ * a card of its own.
  */
 export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
-  return cardsOf(turn).at(-1);
+  const lastTask = turn.rows.findLastIndex((row) => row.kind === "task");
+  return cardsOf({ rows: turn.rows.slice(lastTask + 1) }).at(-1);
 }
 
 /** Whether the work has moved past what the card shows. */

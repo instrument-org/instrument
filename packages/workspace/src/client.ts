@@ -39,7 +39,7 @@ export type {
   ComputerListing,
   ComputerRefusal,
 } from "./lib/chat/computer";
-export { joinedMidTurn } from "./lib/chat/mid-turn";
+export { joinedMidTurn, MID_TURN_NOTE } from "./lib/chat/mid-turn";
 export {
   applyFeedEvent,
   applyOlder,

@@ -436,17 +436,13 @@ export function takeSpareWindow(): SpareWindow | null {
 
 /**
  * A spare window a drag has no more use for, out of sight and on a tab of its own
- * again, unless another is waiting. Hidden on Linux it loses its place off the
- * taskbar, which only a window not yet shown can be given, so one shown there goes.
+ * again, unless another is waiting.
  */
 export function returnSpareWindow(taken: SpareWindow) {
   if (taken.window.isDestroyed()) {
     return;
   }
-  if (
-    waitingSpare ||
-    (process.platform === "linux" && taken.window.isVisible())
-  ) {
+  if (waitingSpare) {
     taken.window.destroy();
     keepSpareReady();
     return;
@@ -651,8 +647,7 @@ function createAppWindow(
     minWidth: 900,
     resizable: !isSetupSized,
     show: false,
-    // Not on the taskbar until it is adopted. GNOME also takes a window shown
-    // without focus to want attention, and says it "is ready", unless it is off it.
+    // Not on the taskbar until it is adopted.
     skipTaskbar: isSpare,
     // A system set to prefer tabs would otherwise gather these into native
     // tabs, over the strip each window draws for itself.

@@ -1,6 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AddProviderSheet } from "./add-provider-sheet";
 
@@ -43,13 +43,26 @@ const live = vi.hoisted(() => (key: string, value: unknown) => ({
     queryKey: [key],
   }),
 }));
+const account = vi.hoisted(() => ({
+  hasToken: true,
+  readOffer: (): Promise<unknown> => Promise.resolve(null),
+}));
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
-    auth: { live: { hasToken: live("hasToken", true) } },
+    auth: {
+      live: {
+        hasToken: {
+          experimental_liveOptions: () => ({
+            queryFn: () => Promise.resolve(account.hasToken),
+            queryKey: ["hasToken"],
+          }),
+        },
+      },
+    },
     billing: {
       offer: {
         queryOptions: () => ({
-          queryFn: () => Promise.resolve(null),
+          queryFn: () => account.readOffer(),
           queryKey: ["offer"],
         }),
       },
@@ -119,5 +132,54 @@ describe("AddProviderSheet", () => {
     expect(screen.queryByText("Add an AI provider")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  describe("signed out", () => {
+    const row = (provider: string) =>
+      document.querySelector(`[data-connect-row="${provider}"]`);
+    const placeholders = () =>
+      row("instrument")?.querySelectorAll('[data-slot="skeleton-text"]') ?? [];
+
+    beforeEach(() => {
+      account.hasToken = false;
+      phases.chatgpt = "idle";
+    });
+    afterEach(() => {
+      account.hasToken = true;
+      account.readOffer = () => Promise.resolve(null);
+    });
+
+    it("draws every way in while the trial offer is unanswered, holding only the trial's words", async () => {
+      account.readOffer = () => new Promise(() => {});
+      renderWithProviders(sheet);
+      expect(await screen.findByText("An API key")).toBeTruthy();
+      for (const provider of ["chatgpt", "claude", "grok"]) {
+        expect(row(provider)).not.toBeNull();
+      }
+      expect(placeholders()).toHaveLength(2);
+      const signIn = row("instrument")?.querySelector("button");
+      expect(signIn?.textContent).toBe("Continue");
+      expect(signIn?.disabled).toBe(false);
+    });
+
+    it("puts the trial's words in the row once the offer answers", async () => {
+      account.readOffer = () =>
+        Promise.resolve({
+          plans: [],
+          trial: { cardRequired: false, days: 7 },
+        });
+      renderWithProviders(sheet);
+      expect(await screen.findByText("Try Instrument free")).toBeTruthy();
+      expect(placeholders()).toHaveLength(0);
+    });
+
+    it("gives the row the plain words when the offer can't be read", async () => {
+      account.readOffer = () => Promise.reject(new Error("refused"));
+      renderWithProviders(sheet);
+      expect(
+        await screen.findByText("Sign in with Google and choose a plan."),
+      ).toBeTruthy();
+      expect(placeholders()).toHaveLength(0);
+    });
   });
 });

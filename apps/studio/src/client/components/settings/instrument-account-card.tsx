@@ -5,8 +5,8 @@ import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { useInstrumentWay } from "@/client/hooks/use-instrument-way";
 import { useLiveUser } from "@/client/hooks/use-live-user";
-import { instrumentWayCopy } from "@/client/lib/connect-copy";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
@@ -24,11 +24,7 @@ export function InstrumentAccountCard() {
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { data: user } = useLiveUser();
-  const { data: offer } = useQuery({
-    ...rpcClient.billing.offer.queryOptions(),
-    enabled: hasToken === false,
-  });
-  const way = instrumentWayCopy(offer);
+  const way = useInstrumentWay({ enabled: hasToken === false });
 
   if (hasToken === undefined) {
     return null;

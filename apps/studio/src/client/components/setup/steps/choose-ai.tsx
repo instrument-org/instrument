@@ -10,6 +10,7 @@ import {
 } from "@/client/components/connect-button";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
+import { SkeletonText } from "@/client/components/ui/skeleton";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
   useChatGPTConnect,
@@ -19,15 +20,18 @@ import {
 } from "@/client/hooks/use-connect";
 import { type ConnectFlow } from "@/client/hooks/use-connect-flow";
 import {
+  type InstrumentWay,
+  useInstrumentWay,
+} from "@/client/hooks/use-instrument-way";
+import {
   CONNECT_NAMES,
   CONNECT_PLANS,
   connectPageCopy,
-  instrumentWayCopy,
   noCreditsPageCopy,
   type WaitingStage,
   waitingPageCopy,
 } from "@/client/lib/connect-copy";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import {
   type ConnectOutcome,
   type ConnectProvider,
@@ -68,8 +72,6 @@ export type ChooseAIPage =
   /** The choices: Google, a subscription or a key. */
   | { kind: "choices" };
 
-type Offer = RPCOutput["billing"]["offer"];
-
 /**
  * Every way to bring AI to setup: Google's Instrument account (with its
  * trial), a ChatGPT, Claude or Grok subscription, or an API key, with the
@@ -106,7 +108,7 @@ export function ChooseAI({
   const signedIn = hasToken === true;
   // Where Back and Cancel return to from a sign-in's wait.
   const [waitedFrom, setWaitedFrom] = useState<ChooseAIPage>(initial);
-  const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
+  const instrumentWay = useInstrumentWay();
 
   /** Starts `provider`'s sign-in, or with `plans`, the website's plans. */
   const connect = (provider: ConnectProvider, plans = false) => {
@@ -170,7 +172,7 @@ export function ChooseAI({
             onSubscription={() => {
               setPage({ kind: "subscriptions" });
             }}
-            offer={offer}
+            instrumentWay={instrumentWay}
             signedIn={signedIn}
           />
         );
@@ -237,7 +239,7 @@ export function ChooseAI({
         return (
           <OutcomePage
             flows={flows}
-            offer={offer}
+            instrumentWay={instrumentWay}
             offerInstrument={!signedIn}
             onBack={() => {
               setPage(waitedFrom);
@@ -275,7 +277,7 @@ export function ChooseAI({
         return (
           <NoCreditsPage
             flows={flows}
-            offer={offer}
+            instrumentWay={instrumentWay}
             offerInstrument={!signedIn}
             onBack={() => {
               setPage({ kind: "key" });
@@ -319,23 +321,21 @@ const PAGE_DEPTH: Record<ChooseAIPage["kind"], number> = {
  */
 function ChoicesPage({
   google,
-  offer,
+  instrumentWay,
   onGoogle,
   onKey,
   onSubscription,
   signedIn,
 }: {
   google: ConnectFlow<void>;
-  offer: Offer | undefined;
+  instrumentWay: InstrumentWay;
   onGoogle: () => void;
   onKey: () => void;
   onSubscription: () => void;
   signedIn: boolean;
 }) {
-  const trialDays =
-    !signedIn && instrumentWayCopy(offer).isTrial
-      ? offer?.trial?.days
-      : undefined;
+  const trialDays = signedIn ? undefined : instrumentWay.trialDays;
+  const offerUnknown = !signedIn && instrumentWay.isWaiting;
   const line =
     google.phase === "on-web" || (signedIn && google.waiting)
       ? "Finish choosing your plan in your browser."
@@ -346,7 +346,17 @@ function ChoicesPage({
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
-      subtitle={`Pick your AI provider to begin. An ${APP_NAME} plan lets you pick models from OpenAI, Anthropic and more, at one affordable price.${trialDays === undefined ? "" : ` Try it free for ${String(trialDays)} days.`}`}
+      subtitle={
+        <>
+          {`Pick your AI provider to begin. An ${APP_NAME} plan lets you pick models from OpenAI, Anthropic and more, at one affordable price.${trialDays === undefined ? "" : ` Try it free for ${String(trialDays)} days.`}`}
+          {offerUnknown && (
+            <>
+              {" "}
+              <SkeletonText>Try it free for 7 days.</SkeletonText>
+            </>
+          )}
+        </>
+      }
       title={`Which AI should ${APP_NAME} use?`}
     >
       <div className="mt-10 flex w-95 max-w-full flex-col gap-3">
@@ -358,11 +368,15 @@ function ChoicesPage({
           variant="default"
           waiting={google.waiting}
         >
-          {signedIn
-            ? "See plans"
-            : trialDays === undefined
-              ? `Sign in to use ${APP_NAME} AI`
-              : `Sign in to try ${APP_NAME} AI free`}
+          {signedIn ? (
+            "See plans"
+          ) : offerUnknown ? (
+            <SkeletonText>{`Sign in to try ${APP_NAME} AI free`}</SkeletonText>
+          ) : trialDays === undefined ? (
+            `Sign in to use ${APP_NAME} AI`
+          ) : (
+            `Sign in to try ${APP_NAME} AI free`
+          )}
         </BrowserHandoffButton>
         <Button
           className="h-10 w-full bg-white/30 text-base text-foreground dark:bg-white/5"
@@ -516,7 +530,7 @@ function WaitingPage({
  */
 function OutcomePage({
   flows,
-  offer,
+  instrumentWay,
   offerInstrument,
   onBack,
   onConnect,
@@ -526,7 +540,7 @@ function OutcomePage({
   provider,
 }: {
   flows: Record<ConnectProvider, ConnectFlow<void>>;
-  offer: Offer | undefined;
+  instrumentWay: InstrumentWay;
   offerInstrument: boolean;
   onBack: () => void;
   onConnect: (provider: ConnectProvider) => void;
@@ -576,7 +590,7 @@ function OutcomePage({
       <OtherChoices
         flows={flows}
         instrumentLabel={outcome.kind === "no-plan" ? "Learn more" : undefined}
-        offer={offer}
+        instrumentWay={instrumentWay}
         offerInstrument={offerInstrument && provider !== "instrument"}
         onConnect={onConnect}
         providers={PLAN_PROVIDERS.filter((other) => other !== provider)}
@@ -605,7 +619,7 @@ function OutcomePage({
  */
 function NoCreditsPage({
   flows,
-  offer,
+  instrumentWay,
   offerInstrument,
   onBack,
   onConnect,
@@ -613,7 +627,7 @@ function NoCreditsPage({
   providerId,
 }: {
   flows: Record<ConnectProvider, ConnectFlow<void>>;
-  offer: Offer | undefined;
+  instrumentWay: InstrumentWay;
   offerInstrument: boolean;
   /** Back to the key page, also "Use a different API key". */
   onBack: () => void;
@@ -647,7 +661,7 @@ function NoCreditsPage({
     >
       <OtherChoices
         flows={flows}
-        offer={offer}
+        instrumentWay={instrumentWay}
         offerInstrument={offerInstrument}
         onConnect={onConnect}
         providers={PLAN_PROVIDERS}
@@ -681,7 +695,7 @@ function NoCreditsPage({
 function OtherChoices({
   flows,
   instrumentLabel,
-  offer,
+  instrumentWay,
   offerInstrument,
   onConnect,
   providers,
@@ -689,12 +703,11 @@ function OtherChoices({
   flows: Record<ConnectProvider, ConnectFlow<void>>;
   /** What Instrument's button says while a trial can start. */
   instrumentLabel?: string;
-  offer: Offer | undefined;
+  instrumentWay: InstrumentWay;
   offerInstrument: boolean;
   onConnect: (provider: ConnectProvider) => void;
   providers: PlanProvider[];
 }) {
-  const instrument = instrumentWayCopy(offer);
   return (
     <SetupRowList className="mt-8">
       {offerInstrument && (
@@ -709,15 +722,15 @@ function OtherChoices({
               variant="brand"
               waiting={flows.instrument.waiting}
             >
-              {instrument.isTrial
-                ? (instrumentLabel ?? instrument.action)
-                : instrument.action}
+              {instrumentWay.isTrial
+                ? (instrumentLabel ?? instrumentWay.action)
+                : instrumentWay.action}
             </BrowserHandoffButton>
           }
           icon={<BrandMark className="size-12 shrink-0" />}
           inList
-          line={instrument.line}
-          title={instrument.title}
+          line={instrumentWay.line}
+          title={instrumentWay.title}
         />
       )}
       {providers.map((provider) => (

@@ -379,8 +379,7 @@ function readyLine(provider: ConnectProvider, modelName: string | undefined) {
 /**
  * How the Instrument way in reads beside the subscriptions, from the
  * server's trial offer: a free trial when one can start, otherwise signing
- * in to choose a plan. Setup's rows, the Add a provider sheet and the
- * sign-in screen use it.
+ * in to choose a plan. `useInstrumentWay` is how a surface reads it.
  */
 export function instrumentWayCopy(
   offer: RPCOutput["billing"]["offer"] | undefined,

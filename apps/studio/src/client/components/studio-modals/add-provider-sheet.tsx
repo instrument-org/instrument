@@ -28,10 +28,13 @@ import {
   useConnectedPlans,
 } from "@/client/hooks/use-connected-plans";
 import {
+  type InstrumentWay,
+  useInstrumentWay,
+} from "@/client/hooks/use-instrument-way";
+import {
   CONNECT_NAMES,
   CONNECT_PLANS,
   connectPageCopy,
-  instrumentWayCopy,
   waitingPageCopy,
 } from "@/client/lib/connect-copy";
 import { showConnectToast } from "@/client/lib/connect-toast";
@@ -102,17 +105,14 @@ export function AddProviderSheet({
   );
   // What the free trial offers, which the window asks for as it comes up so
   // the trial row draws in its own words at once (`AppWindow`).
-  const { data: offer, isError: offerFailed } = useQuery({
-    ...rpcClient.billing.offer.queryOptions(),
-    enabled: hasToken === false,
-  });
-  // The rows wait for every answer they are drawn from, so they appear once
-  // rather than a row at a time, or as one way in and then another.
+  const instrumentWay = useInstrumentWay({ enabled: hasToken === false });
+  // The rows wait for what this computer knows, so they appear once rather
+  // than a row at a time, or as one way in and then another. The trial's words
+  // come from the server, so they alone wait on it, inside their own row.
   const rowsReady =
     connected !== undefined &&
     providerConfigs !== undefined &&
-    (hasToken === true ||
-      (hasToken === false && (offer !== undefined || offerFailed)));
+    hasToken !== undefined;
   const [view, setView] = useState<View>({ kind: "list" });
   // The keys from before the key page, so the one the form adds is the new one.
   const [knownKeys, setKnownKeys] = useState<Set<AIProviderConfigId>>();
@@ -165,7 +165,7 @@ export function AddProviderSheet({
     <ConnectRow
       connected={provider !== "instrument" && (connected?.[provider] ?? false)}
       flow={flows[provider]}
-      instrument={instrumentWayCopy(offer)}
+      instrument={instrumentWay}
       key={provider}
       onCancel={flows[provider].cancel}
       onStart={() => {
@@ -530,7 +530,7 @@ function ConnectRow({
   connected: boolean;
   flow: ConnectFlow<void>;
   /** The trial's words, for Instrument's own row. */
-  instrument: ReturnType<typeof instrumentWayCopy>;
+  instrument: InstrumentWay;
   onCancel: () => void;
   onStart: () => void;
   provider: ConnectProvider;

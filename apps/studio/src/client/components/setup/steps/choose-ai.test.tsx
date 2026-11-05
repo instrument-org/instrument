@@ -10,6 +10,7 @@ const instrument = vi.hoisted(() => ({
     plans: never[];
     trial: { cardRequired: boolean; days: number };
   },
+  offerWaits: false,
   signedIn: false,
   start: vi.fn<(input?: unknown) => Promise<ConnectResult | undefined>>(),
 }));
@@ -53,7 +54,10 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
-          queryFn: () => Promise.resolve(instrument.offer),
+          queryFn: () =>
+            instrument.offerWaits
+              ? new Promise(() => {})
+              : Promise.resolve(instrument.offer),
           queryKey: ["offer"],
         }),
       },
@@ -71,6 +75,7 @@ function renderChoices() {
 
 beforeEach(() => {
   instrument.offer = null;
+  instrument.offerWaits = false;
   instrument.start.mockReset();
 });
 
@@ -104,6 +109,24 @@ describe("ChooseAI", () => {
         "Pick your AI provider to begin. An Instrument plan lets you pick models from OpenAI, Anthropic and more, at one affordable price. Try it free for 7 days.",
       ),
     ).toBeTruthy();
+  });
+
+  it("holds the trial's words, and only them, while the offer is unanswered", async () => {
+    instrument.signedIn = false;
+    instrument.offerWaits = true;
+    instrument.start.mockResolvedValue({ outcome: { kind: "canceled" } });
+    renderChoices();
+    expect(
+      await screen.findByRole("button", {
+        name: /Use an existing subscription/,
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Sign in to use/)).toBeNull();
+    expect(
+      document.querySelectorAll('[data-slot="skeleton-text"]'),
+    ).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: /Loading/ }));
+    expect(instrument.start).toHaveBeenCalledOnce();
   });
 
   it("offers See plans in Google's place to an account signed in with no plan, and stays signed in after Cancel", async () => {

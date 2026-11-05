@@ -125,7 +125,7 @@ describe("instrument activity", () => {
 
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`
-      "What the user did in Instrument on this computer in the last 1d, oldest first, at their local time:
+      "What the user did in Instrument on this computer in the last 1d, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
       Wednesday, November 4
         9:05 PM  opened the folder /Users/mac-user/Pictures/Lisbon 2025 in Files
       Thursday, November 5
@@ -154,7 +154,7 @@ describe("instrument activity", () => {
     ]);
 
     expect((await activity("--limit", "2")).stdout).toMatchInlineSnapshot(`
-      "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time:
+      "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
       (1 earlier not shown; --limit raises it)
       Thursday, November 5
         2:10 PM  opened /Users/mac-user/two.txt
@@ -171,7 +171,7 @@ describe("instrument activity", () => {
 
     expect((await activity("list", "--grep", "chase")).stdout)
       .toMatchInlineSnapshot(`
-        "What the user did in Instrument on this computer in the last 2h, where it mentions "chase", oldest first, at their local time:
+        "What the user did in Instrument on this computer in the last 2h, where it mentions "chase", oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
         Thursday, November 5
           2:00 PM  opened /Users/mac-user/Taxes/1099-INT Chase.txt
         "

@@ -136,7 +136,7 @@ optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it.`,
         : `Nothing the user did in ${APP_NAME} on this computer ${span} mentions "${grep}". ${further}`;
     }
     return [
-      `What the user did in ${APP_NAME} on this computer ${span}${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time:`,
+      `What the user did in ${APP_NAME} on this computer ${span}${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time. Only what happened in ${APP_NAME} is here: a file they downloaded or saved in another app is not.`,
       ...(earlier > 0
         ? [`(${earlier} earlier not shown; --limit raises it)`]
         : []),

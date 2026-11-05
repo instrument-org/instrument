@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
+import { appCallOf, recordAppCall } from "../transcript/step-facts";
 import { unavailableReason } from "./admit";
 import {
   type Capability,
@@ -189,7 +190,27 @@ export async function dispatch(
     if (ctx.signal?.aborted) {
       return { error: STOPPED };
     }
-    return { capability, input, output: await capability.run(input, ctx) };
+    const { partId } = ctx.asker;
+    const appCall = partId === undefined ? undefined : appCallOf(name, input);
+    if (partId === undefined || appCall === undefined) {
+      return { capability, input, output: await capability.run(input, ctx) };
+    }
+    const startedAt = performance.now();
+    const settled = (failed: boolean) => {
+      recordAppCall(partId, {
+        ...appCall,
+        failed,
+        ms: Math.round(performance.now() - startedAt),
+      });
+    };
+    try {
+      const output = await capability.run(input, ctx);
+      settled(false);
+      return { capability, input, output };
+    } catch (error) {
+      settled(true);
+      throw error;
+    }
   } catch (error) {
     // A card the work itself met is up as a gate's is, and ends the turn
     // the same way.

@@ -82,6 +82,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // agent: the person was told by the chat that made each change.
   "data-setupNews": "dev",
   "data-skillMentions": "dev",
+  // What a shell call did, and the line a turn folds to: the transcript reads
+  // both to draw its rows, and neither is a row of its own.
+  "data-stepFacts": "hidden",
+  "data-workSummary": "hidden",
   // Shown for the same reason the folder note is: the change was made in a
   // conversation the reader of this transcript is not looking at, and it is
   // usually what the task had stopped and waited for.

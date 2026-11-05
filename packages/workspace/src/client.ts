@@ -40,6 +40,40 @@ export type {
   ComputerRefusal,
 } from "./lib/chat/computer";
 export { joinedMidTurn } from "./lib/chat/mid-turn";
+export {
+  applyFeedEvent,
+  applyOlder,
+  type TranscriptFeed,
+  type TranscriptFeedEvent,
+} from "./lib/transcript/feed";
+export {
+  cardsOf,
+  isSlotBehind,
+  type SlotCard,
+  type SlotKind,
+  slotOf,
+} from "./lib/transcript/slot";
+export {
+  type StepPart,
+  type StepShows,
+  type StepStatus,
+  type TranscriptMessage,
+  transcriptMessage,
+  type TranscriptPart,
+  type WebResult,
+} from "./lib/transcript/transcript-message";
+export {
+  type ActivityRow,
+  FOLD_WAIT_MS,
+  isTurnFolded,
+  type Turn,
+  type TurnLive,
+  type TurnOpener,
+  type TurnRow,
+  type TurnsCache,
+  type TurnStep,
+  turnsOf,
+} from "./lib/transcript/turns-of";
 export { latestStepIn } from "./lib/chat/step-label";
 export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";

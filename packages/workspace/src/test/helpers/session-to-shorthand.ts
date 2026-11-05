@@ -209,6 +209,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(",");
       return `<setup-news changes="${changes}" />`;
     }
+    case "data-stepFacts": {
+      return `<data-stepFacts step="${part.data.step}" />`;
+    }
+    case "data-workSummary": {
+      return `<data-workSummary>${part.data.words}</data-workSummary>`;
+    }
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }

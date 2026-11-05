@@ -311,7 +311,7 @@ interface TabDrag {
   pointInTab: number;
   /** Its window goes with it, so it is off its row until main says otherwise. */
   staysOffRow: boolean;
-  stopListening: () => void;
+  stop: () => void;
   /** Where a pointer event read the window as the drag started. */
   windowX: number;
 }
@@ -376,8 +376,8 @@ function useTabCarry({
     }
     const pointInTab = event.clientX - pressed.getBoundingClientRect().left;
     // A page runs in a process of its own, which takes a pointer that crosses
-    // it, and the release with it, unless the press has been captured.
-    pressed.setPointerCapture(event.pointerId);
+    // it, and the release with it, so pages are out of its way for the drag.
+    document.documentElement.toggleAttribute("data-tab-held", true);
     const onKeyDown = (keyEvent: KeyboardEvent) => {
       const drag = dragging.current;
       if (keyEvent.key === "Escape" && drag && !drag.canceled) {
@@ -404,8 +404,9 @@ function useTabCarry({
       path: [],
       pointInTab,
       staysOffRow: false,
-      stopListening: () => {
+      stop: () => {
         window.removeEventListener("keydown", onKeyDown, { capture: true });
+        document.documentElement.removeAttribute("data-tab-held");
       },
       windowX: event.screenX - event.clientX,
     };
@@ -490,7 +491,7 @@ function useTabCarry({
       return;
     }
     dragging.current = undefined;
-    drag.stopListening();
+    drag.stop();
     if (drag.canceled) {
       setCanceledKey(undefined);
       return;

@@ -101,6 +101,12 @@ body {
   :where(code, kbd, samp, pre, .font-mono) {
     font-variant-ligatures: none;
   }
+
+  /* A page runs in a process of its own, which takes a pointer that crosses it,
+     and the release with it. */
+  [data-tab-held] webview {
+    pointer-events: none;
+  }
 }
 
 /* =========================

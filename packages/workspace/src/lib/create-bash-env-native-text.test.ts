@@ -13,6 +13,7 @@ import {
   quietRefusedFolders,
   quoteWindowsArgument,
   splitPrefix,
+  xargsNamingItsProgram,
   xargsRunsParallel,
 } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -136,6 +137,48 @@ describe("quoteWindowsArgument", () => {
     ['a\\"b', '"a\\\\\\"b"'],
   ])("%j becomes %s", (arg, quoted) => {
     expect(quoteWindowsArgument(arg)).toBe(quoted);
+  });
+});
+
+describe("xargsNamingItsProgram", () => {
+  const onDisk = new Set([
+    "C:\\links\\echo.exe",
+    "C:\\links\\wc.exe",
+    "C:\\tools\\wc.exe",
+    "C:\\tools\\run.cmd",
+  ]);
+  const name = (args: string[]) =>
+    xargsNamingItsProgram(args, "C:\\links;relative;C:\\tools", (hostPath) =>
+      onDisk.has(hostPath),
+    );
+
+  it.each([
+    [
+      ["wc", "-c"],
+      ["C:\\links\\wc.exe", "-c"],
+    ],
+    [
+      ["-n", "1", "wc"],
+      ["-n", "1", "C:\\links\\wc.exe"],
+    ],
+    [
+      ["-I", "{}", "wc", "{}"],
+      ["-I", "{}", "C:\\links\\wc.exe", "{}"],
+    ],
+    [
+      ["-0", "--", "wc"],
+      ["-0", "--", "C:\\links\\wc.exe"],
+    ],
+    [["run.cmd"], ["C:\\tools\\run.cmd"]],
+    [[], ["C:\\links\\echo.exe"]],
+    [["-0"], ["-0", "C:\\links\\echo.exe"]],
+    [["--"], ["--", "C:\\links\\echo.exe"]],
+    [["nothing-here"], ["nothing-here"]],
+    [["run"], ["run"]],
+    [["C:\\tools\\wc.exe"], ["C:\\tools\\wc.exe"]],
+    [["./wc"], ["./wc"]],
+  ])("%j becomes %j", (args, expected) => {
+    expect(name(args)).toEqual(expected);
   });
 });
 

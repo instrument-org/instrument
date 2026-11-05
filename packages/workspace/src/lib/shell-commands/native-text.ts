@@ -203,17 +203,23 @@ function xargsRunsKill(args: string[]): boolean {
 }
 
 /** xargs' options, up to the command it starts. */
-function scanXargs(args: string[]): { command?: string; parallel: boolean } {
+function scanXargs(args: string[]): {
+  command?: string;
+  commandAt?: number;
+  parallel: boolean;
+} {
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (arg === undefined) {
       return { parallel: false };
     }
     if (arg === "--") {
-      return { command: args[index + 1], parallel: false };
+      return index + 1 < args.length
+        ? { command: args[index + 1], commandAt: index + 1, parallel: false }
+        : { parallel: false };
     }
     if (!/^-./.test(arg)) {
-      return { command: arg, parallel: false };
+      return { command: arg, commandAt: index, parallel: false };
     }
     if (arg.startsWith("--")) {
       if (arg === "--max-procs" || arg.startsWith("--max-procs=")) {
@@ -421,7 +427,8 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   { binary: "find", name: "find" },
   // What xargs starts is a program on the PATH. Windows has no `echo` or
   // `printf` of its own, so there xargs' PATH starts with links to the
-  // coreutils it carries (coreutilsLinks).
+  // coreutils it carries (coreutilsLinks) and xargs names the program by its
+  // full path (xargsNamingItsProgram).
   {
     binary: "xargs",
     name: "xargs",
@@ -527,15 +534,57 @@ function coreutilsLinks(): string | null {
   return linksDir;
 }
 
-/** xargs' environment, with the coreutils links first on its PATH. */
+/**
+ * xargs' environment. First on its PATH are the coreutils links and then the
+ * bundled `find` and `grep`, ahead of System32's unrelated `find`. `rg` stays
+ * off it, since started this way it would skip the flags the shell's `rg`
+ * refuses.
+ */
 function xargsEnv(env: Record<string, string>): Record<string, string> {
-  const dir = coreutilsLinks();
-  if (dir === null) {
-    return env;
-  }
   const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
-  const rest = key === undefined ? "" : (env[key] ?? "");
-  return { ...env, [key ?? "Path"]: `${dir};${rest}` };
+  const dirs = [coreutilsLinks(), getWorkspaceConfig().uutilsDir].filter(
+    (dir) => dir !== null && dir !== undefined,
+  );
+  return pathSeparatorEnv({
+    ...env,
+    [key ?? "Path"]: [...dirs, pathOf(env)].join(";"),
+  });
+}
+
+/** The value of a PATH variable, whatever its case. */
+function pathOf(env: Record<string, string>): string {
+  const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
+  return key === undefined ? "" : (env[key] ?? "");
+}
+
+/**
+ * xargs' arguments with the program it starts, `echo` when none is named,
+ * spelled as its full path on PATH. Under MXC a coreutils link looked up by
+ * bare name is often not found, and the same link by full path always is. A
+ * name on no PATH folder stays as written, so xargs reports it as usual. A name
+ * without an extension means its `.exe`, the only one xargs itself tries.
+ */
+export function xargsNamingItsProgram(
+  args: string[],
+  path: string,
+  isFile: (hostPath: string) => boolean = existsSync,
+): string[] {
+  const { command = "echo", commandAt } = scanXargs(args);
+  if (/[\\/]/.test(command)) {
+    return args;
+  }
+  const file = nodePath.win32.extname(command) ? command : `${command}.exe`;
+  const found = path
+    .split(";")
+    .filter((dir) => nodePath.win32.isAbsolute(dir))
+    .map((dir) => nodePath.win32.join(dir, file))
+    .find((hostPath) => isFile(hostPath));
+  if (found === undefined) {
+    return args;
+  }
+  return commandAt === undefined
+    ? [...args, found]
+    : args.with(commandAt, found);
 }
 
 /**
@@ -927,12 +976,17 @@ export function createNativeTextCommand(
         : undefined;
     const multicall =
       route.binary === "coreutils" || route.binary === "diffutils";
-    const argv = [
-      ...(multicall ? [route.name] : []),
-      ...hostPathArgs(programArgs),
-    ];
     // A system program takes Node's own quoting; uutils needs its own.
     const windows = process.platform === "win32" && route.binary !== "system";
+    const xargsWindowsEnv =
+      windows && !outside && route.name === "xargs" ? xargsEnv(env) : undefined;
+    const hostArgs = hostPathArgs(programArgs);
+    const argv = [
+      ...(multicall ? [route.name] : []),
+      ...(xargsWindowsEnv
+        ? xargsNamingItsProgram(hostArgs, pathOf(xargsWindowsEnv))
+        : hostArgs),
+    ];
     try {
       return await runNative(
         ctx,
@@ -947,11 +1001,10 @@ export function createNativeTextCommand(
           env:
             outside || !windows
               ? env
-              : route.name === "xargs"
-                ? xargsEnv(env)
-                : route.binary === "find" || route.binary === "grep"
+              : (xargsWindowsEnv ??
+                (route.binary === "find" || route.binary === "grep"
                   ? pathSeparatorEnv(env)
-                  : env,
+                  : env)),
           ...(windows ? { windowsVerbatimArguments: true } : {}),
           ...(outside
             ? { ownEnvOnly: true as const, unsandboxed: true as const }

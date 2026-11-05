@@ -319,10 +319,16 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                             count={tabs.length}
                             isOpen={showsPane}
                             onToggle={() => {
-                              if (up === undefined) {
+                              const newest = tabs.at(-1);
+                              if (showsPane) {
+                                setPaneOpen(chat, false);
+                              } else if (up === undefined && newest) {
+                                windowTabs.select(newest.id);
+                                setPaneOpen(chat, true);
+                              } else if (up === undefined) {
                                 addWeb();
                               } else {
-                                setPaneOpen(chat, !showsPane);
+                                setPaneOpen(chat, true);
                               }
                             }}
                           />

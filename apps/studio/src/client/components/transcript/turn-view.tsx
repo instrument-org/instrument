@@ -278,7 +278,9 @@ function WorkedRow({
       mark={<StepMark step={lastActivity?.steps.at(-1)} />}
       onClick={onToggle}
       places={<Badges apps={turn.apps} sites={turn.sites} />}
-      right={formatClock(turn.workedMs)}
+      {...(turn.summary !== undefined && {
+        right: formatClock(turn.workedMs),
+      })}
     >
       {isOpened && (
         <div className="mt-1 ml-7 flex flex-col gap-0.5">

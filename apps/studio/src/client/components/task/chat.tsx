@@ -52,14 +52,10 @@ import {
 import { toast } from "@/client/lib/toast";
 
 import { useChatNote } from "../billing/chat-note";
-import { ChatBubbles } from "../chat-bubbles";
-import { TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
 import { ModelChangeNote } from "../model-change-note";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { RepliesWaiting } from "../replies-waiting";
-import { ReplyContext } from "../reply-context";
-import { ComposerReplyQuote } from "../reply-quote";
 import {
   TRANSCRIPT_PREVIOUS_TURN_PEEK,
   TranscriptScrollContext,
@@ -76,6 +72,10 @@ import {
   useMessageScrollerScrollable,
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
+import { LiveTranscriptSurface } from "../transcript/live-surface";
+import { Transcript } from "../transcript/transcript";
+import { ThinkingRow } from "../transcript/turn-view";
+import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
 import { chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
@@ -84,7 +84,6 @@ import {
   pendingPrompt,
   unsettledPrompts,
 } from "./pending-prompts";
-import { bubbleFeedOptions } from "./bubble-feed-query";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 
 // How long a submitted prompt follows the transcript on its own before the
@@ -98,8 +97,8 @@ const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
  * Every prompt is sent the moment it is submitted, whether or not a turn is
  * running: the conversation never takes turns with the user, since its
  * session queues what arrives mid-turn and runs it the moment the turn ends.
- * For the same reason the composer has no stop: the chat's is on the line
- * under its title.
+ * Stop stands in Send's place while the box is empty, and stops the chat and
+ * every task it started; typing turns it back into Send.
  */
 export function ChatConversation({
   asks,
@@ -184,19 +183,14 @@ export function ChatConversation({
     setSelectedModelURI(initialSelectedModelURI);
   }
 
-  // The message the next send answers. A reply belongs to the conversation it
-  // was started in, so another one coming on screen lets it go.
-  const [replyTo, setReplyTo] = useState<
-    SessionMessageDataPart.ReplyDataPart | undefined
-  >();
-  const [replySessionId, setReplySessionId] = useState(selectedSessionId);
-  if (selectedSessionId !== replySessionId) {
-    setReplySessionId(selectedSessionId);
-    setReplyTo(undefined);
-  }
-
-  const messagesQuery = useQuery(
-    bubbleFeedOptions({ id, sessionId: selectedSessionId }),
+  const isDeveloperMode = useTabDeveloperMode();
+  const messagesQuery = useTranscriptFeed({
+    id,
+    isDeveloperMode,
+    sessionId: selectedSessionId,
+  });
+  const stopChat = useMutation(
+    rpcClient.workspace.session.stop.mutationOptions(),
   );
 
   const messages = messagesQuery.data?.messages ?? [];
@@ -235,20 +229,14 @@ export function ChatConversation({
       .map((entry) => entry.message),
   ];
   const pendingModelChange =
-    nextModel &&
-    shownMessages.findLast((message) => message.role !== "session-context")
-      ?.role === "assistant"
+    nextModel && shownMessages.at(-1)?.role === "assistant"
       ? modelChangeSincePreviousTurn({ messages, model: nextModel })
       : undefined;
   /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
-  const showPending = (
-    prompt: string,
-    reply?: SessionMessageDataPart.ReplyDataPart,
-  ) => {
+  const showPending = (prompt: string) => {
     const entry = pendingPrompt({
       messages,
       prompt,
-      reply,
       sessionId: selectedSessionId,
     });
     if (entry) {
@@ -261,8 +249,6 @@ export function ChatConversation({
   const messageError = messagesQuery.error;
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
-
-  const isDeveloperMode = useTabDeveloperMode();
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     id,
@@ -468,11 +454,6 @@ export function ChatConversation({
       }
     : undefined;
 
-  const startReply = (reply: SessionMessageDataPart.ReplyDataPart) => {
-    setReplyTo(reply);
-    promptEditor?.focus();
-  };
-
   const promptInput = (
     <PromptInput
       // Beside the work, the row stays open: a tab switch moves the caret, and
@@ -493,6 +474,11 @@ export function ChatConversation({
       onItemRemoved={draftKey.scope === "chat" ? staging.removeItem : undefined}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
+      {...(isAgentRunning && {
+        onStop: () => {
+          stopChat.mutate({ id });
+        },
+      })}
       onSubmit={(sending) => {
         const { files, folders, modelURI, prompt } = staging.asStaged(sending);
         // The composer empties on submit rather than on the reply, so a send the
@@ -525,11 +511,9 @@ export function ChatConversation({
         setIsFollowingSubmit(true);
         setScrollToEndSignal((signal) => signal + 1);
         const taken = asks?.take();
-        const reply = replyTo;
-        setReplyTo(undefined);
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
-        const dropPending = showPending(prompt, reply);
+        const dropPending = showPending(prompt);
         // The message names the draft it came from, so the draft names the
         // chat on disk before the message is written: a launch after a crash
         // finds the message by the chat its draft names.
@@ -538,7 +522,6 @@ export function ChatConversation({
             createMessage.mutate(
               {
                 ...(taken ? { asks: taken.part } : {}),
-                ...(reply ? { replyTo: reply } : {}),
                 files,
                 folders,
                 ...(outgoing ? { fromDraft: outgoing.draftId } : {}),
@@ -555,7 +538,6 @@ export function ChatConversation({
                   if (draft) {
                     promptInputRef.current?.restore(draft);
                   }
-                  setReplyTo(reply);
                 },
                 onSuccess: () => {
                   taken?.done();
@@ -570,7 +552,6 @@ export function ChatConversation({
             if (draft) {
               promptInputRef.current?.restore(draft);
             }
-            setReplyTo(reply);
             toast.error("Couldn't send your message", { cause: error });
           },
         );
@@ -581,7 +562,6 @@ export function ChatConversation({
       selectedSessionId={selectedSessionId}
       suggestion={
         draftKey.scope === "chat" &&
-        !replyTo &&
         unsettled.length === 0 &&
         preferences?.suggestNextMessage !== false
           ? (nextMessage ?? undefined)
@@ -607,7 +587,7 @@ export function ChatConversation({
   // still follows.
   return (
     <ComposerDraftContext value={draftKey}>
-      <ReplyContext value={startReply}>
+      <LiveTranscriptSurface chat={id}>
         <MessageScrollerProvider
           autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
           defaultScrollPosition="end"
@@ -668,14 +648,19 @@ export function ChatConversation({
                     <NoMessages />
                   ) : (
                     <TranscriptStream
-                      awaitingReply={
-                        isAgentAlive || shownMessages.length > messages.length
-                      }
                       chatInfo={chatInfo}
-                      drafting={messagesQuery.data?.drafting ?? false}
-                      isAgentRunning={isAgentRunning || runTurn.isPending}
+                      hasOlder={messagesQuery.data?.hasOlder ?? false}
                       isDeveloperMode={isDeveloperMode}
+                      isLoadingOlder={messagesQuery.isLoadingOlder}
+                      isRunning={
+                        isAgentRunning ||
+                        runTurn.isPending ||
+                        isAgentAlive ||
+                        shownMessages.length > messages.length
+                      }
                       messages={shownMessages}
+                      onLoadOlder={messagesQuery.loadOlder}
+                      sessionId={selectedSessionId}
                       onContinue={handleContinue}
                       onModelChange={(modelURI) => {
                         setSelectedModelURI(modelURI);
@@ -723,19 +708,11 @@ export function ChatConversation({
                   onSwapIn={swapInReply}
                 />
               )}
-              {replyTo && (
-                <ComposerReplyQuote
-                  onDismiss={() => {
-                    setReplyTo(undefined);
-                  }}
-                  reply={replyTo}
-                />
-              )}
               {promptInput}
             </div>
           </div>
         </MessageScrollerProvider>
-      </ReplyContext>
+      </LiveTranscriptSurface>
     </ComposerDraftContext>
   );
 }
@@ -775,19 +752,19 @@ function SentPrompt({
   return (
     <div className="flex flex-col gap-4">
       <UserMessage compact part={part} />
-      <TypingRow />
+      <ThinkingRow since={part.metadata.createdAt} />
     </div>
   );
 }
 
 // The conversation, wired to the scroller it is drawn in: what a bubble opens
 // (a long table, a code block) hands following the end back through it.
-function TranscriptStream(props: ComponentProps<typeof ChatBubbles>) {
+function TranscriptStream(props: ComponentProps<typeof Transcript>) {
   const { releaseAutoScroll } = useMessageScroller();
 
   return (
     <TranscriptScrollContext value={releaseAutoScroll}>
-      <ChatBubbles {...props} />
+      <Transcript {...props} />
     </TranscriptScrollContext>
   );
 }

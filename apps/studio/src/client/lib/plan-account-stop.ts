@@ -1,6 +1,7 @@
 import {
   PLAN_NOT_ELIGIBLE_CODES,
   type SessionMessage,
+  type TranscriptMessage,
 } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
@@ -114,7 +115,7 @@ export function lastPlanAccountStop({
   messages,
 }: {
   isAgentRunning: boolean;
-  messages: SessionMessage.WithParts[];
+  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[];
 }): undefined | { messageId: string; stop: PlanAccountStop } {
   if (isAgentRunning) {
     return undefined;

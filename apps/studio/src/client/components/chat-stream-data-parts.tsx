@@ -102,6 +102,8 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
+    case "data-stepFacts":
+    case "data-workSummary":
     case "data-questionAnswer":
     case "data-reply":
     case "data-signedIn": {

@@ -2,6 +2,7 @@ import {
   type SessionMessage,
   type SessionMessageDataPart,
   type StoreId,
+  type TranscriptMessage,
 } from "@instrument-org/workspace/client";
 import { format } from "date-fns/format";
 import { isSameDay } from "date-fns/isSameDay";
@@ -64,16 +65,16 @@ export interface ModelSide {
  * choice they made.
  */
 export function chatSeparators(
-  messages: readonly SessionMessage.WithParts[],
+  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[],
 ): Map<StoreId.Message, ChatSeparator> {
   const separators = new Map<StoreId.Message, ChatSeparator>();
   // The replies after the first message and after each switch, collected
   // until the next switch.
   let run:
     | undefined
-    | { replies: SessionMessage.AssistantWithParts[]; userId: StoreId.Message };
+    | { replies: SessionMessage.Assistant[]; userId: StoreId.Message };
   const runs: NonNullable<typeof run>[] = [];
-  let previous: SessionMessage.WithParts | undefined;
+  let previous: SessionMessage.WithParts | TranscriptMessage | undefined;
 
   for (const message of messages) {
     if (message.role === "assistant") {
@@ -126,10 +127,10 @@ export function chatSeparators(
  * that asked it.
  */
 function runUsage(
-  replies: readonly SessionMessage.AssistantWithParts[] | undefined,
+  replies: readonly SessionMessage.Assistant[] | undefined,
   which: "first" | "last",
 ): ModelUsage | undefined {
-  const asked = (reply: SessionMessage.AssistantWithParts) =>
+  const asked = (reply: SessionMessage.Assistant) =>
     reply.metadata.aiGatewayModel?.uri ?? reply.metadata.modelId;
   const counted = (replies ?? []).filter(
     (reply) => reply.metadata.modelId && !reply.metadata.synthetic,

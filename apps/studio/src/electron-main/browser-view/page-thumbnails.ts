@@ -5,8 +5,8 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-/** How wide a thumbnail is kept: sharp in a rail tile at 2x, a few KB as a JPEG. */
-const WIDTH = 360;
+/** How wide a thumbnail is kept: sharp on a 400px transcript card at 2x. */
+const WIDTH = 800;
 const QUALITY = 72;
 
 /** How long a picture is waited for; a guest that draws nothing by then gets none. */

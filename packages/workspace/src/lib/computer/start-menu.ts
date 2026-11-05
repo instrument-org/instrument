@@ -102,11 +102,12 @@ function entriesOfPackage(
   programPath: string,
   apps: readonly StartApp[],
 ): StartApp[] {
-  const parts = /\\WindowsApps\\([^\\]+)\\/i.exec(programPath)?.[1]?.split("_");
-  if (parts === undefined || parts.length < 3) {
+  const [, name, publisher] =
+    /\\WindowsApps\\([^\\_]+)_[^\\]*_([^\\_]+)\\/i.exec(programPath) ?? [];
+  if (name === undefined || publisher === undefined) {
     return [];
   }
-  const family = `${parts[0]}_${parts.at(-1)}!`.toLowerCase();
+  const family = `${name}_${publisher}!`.toLowerCase();
   return apps.filter((app) => app.AppID.toLowerCase().startsWith(family));
 }
 

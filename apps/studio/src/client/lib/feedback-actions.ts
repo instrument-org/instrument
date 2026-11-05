@@ -1,4 +1,5 @@
 import { folderOf, nameOf } from "@/client/components/window/host-path";
+import { APP_NAME } from "@instrument-org/shared";
 
 /**
  * What the person did in the app, as feedback sends it (a JSON line per
@@ -67,9 +68,26 @@ function rowOf(fields: Fields, words: Words): Omit<ActionRow, "at"> {
       return {
         mark: { kind: "app" },
         what:
-          fields.did === "sign-in failed"
-            ? `Couldn't sign in to ${name}`
-            : `${name}: ${text(fields.did)}`,
+          fields.did === "signed in"
+            ? `Signed in to ${name}`
+            : fields.did === "disconnected"
+              ? `Disconnected ${name}`
+              : `Couldn't sign in to ${name}`,
+      };
+    }
+    case "permission": {
+      const what =
+        typeof fields.path === "string" ? nameOf(path) : text(fields.app);
+      return {
+        mark: { kind: "chat" },
+        what: `${fields.did === "allowed" ? "Allowed" : "Didn't allow"} ${quoted(text(fields.title))} to use ${what}`,
+      };
+    }
+    case "update": {
+      return {
+        mark: { kind: "screen" },
+        what: `Updated ${APP_NAME} to ${text(fields.to)}`,
+        where: `From ${text(fields.from)}`,
       };
     }
     case "capped": {

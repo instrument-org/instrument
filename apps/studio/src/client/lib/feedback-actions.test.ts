@@ -28,7 +28,24 @@ it("says what the person did as a sentence each, with where", () => {
       { kind: "screen", name: "Settings › General" },
       { kind: "setting", name: "Theme", value: "Dark" },
       { app: "Preview", kind: "open-with", path: "~/a.pdf" },
-      { did: "sign-in failed", kind: "app", name: "linear" },
+      { did: "sign-in failed", kind: "app", name: "Linear" },
+      { did: "signed in", kind: "app", name: "Gmail" },
+      { did: "disconnected", kind: "app", name: "Gmail" },
+      { from: "2.0.13", kind: "update", to: "2.0.14" },
+      {
+        did: "allowed",
+        id: "[other chat]",
+        kind: "permission",
+        path: "~/Downloads",
+        title: "Kitchen remodel quotes",
+      },
+      {
+        app: "Mail",
+        did: "refused",
+        id: "[other chat]",
+        kind: "permission",
+        title: "Kitchen remodel quotes",
+      },
       { dropped: 3, kind: "capped", of: "day" },
     ),
     { trash: "Trash" },
@@ -76,7 +93,27 @@ it("says what the person did as a sentence each, with where", () => {
         "~",
       ],
       [
-        "Couldn't sign in to linear",
+        "Couldn't sign in to Linear",
+        undefined,
+      ],
+      [
+        "Signed in to Gmail",
+        undefined,
+      ],
+      [
+        "Disconnected Gmail",
+        undefined,
+      ],
+      [
+        "Updated Instrument to 2.0.14",
+        "From 2.0.13",
+      ],
+      [
+        "Allowed “Kitchen remodel quotes” to use Downloads",
+        undefined,
+      ],
+      [
+        "Didn't allow “Kitchen remodel quotes” to use Mail",
         undefined,
       ],
       [

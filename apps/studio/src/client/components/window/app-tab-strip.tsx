@@ -497,6 +497,10 @@ function useTabCarry({
       return;
     }
     const store = getDefaultStore();
+    const backOnRow = () => {
+      showTabCarryView({ kind: "row" });
+      setCarriedKey(undefined);
+    };
     void rpcClient.window.endTabDrag
       .call({
         canceled: false,
@@ -513,11 +517,13 @@ function useTabCarry({
           onSelect(key);
         }
         // A window closing goes on showing what it shows until it has gone.
-        if (end.kind !== "closes") {
-          showTabCarryView({ kind: "row" });
+        if (end.kind === "closes") {
+          setCarriedKey(undefined);
+        } else {
+          backOnRow();
         }
-        setCarriedKey(undefined);
-      });
+      })
+      .catch(backOnRow);
   };
 
   const followsReorder = () => {

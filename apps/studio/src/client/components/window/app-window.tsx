@@ -96,6 +96,7 @@ import {
   placeOfHref,
   putAwaySitesAtom,
   siteGroupsInOtherWindows,
+  siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -552,15 +553,10 @@ function WindowShell({
     ),
   ].join("\n");
   useEffect(() => {
-    const groupsOf = (hrefs: string[]) =>
-      hrefs.flatMap((href) => {
-        const group = groupOfHref(href);
-        return group !== undefined && isSiteGroup(group) ? [group] : [];
-      });
     const open = new Set(
       appTabs.model.tabs.flatMap((tab) => {
         const router = routers.get(tab.id);
-        return groupsOf([
+        return siteGroupsOf([
           ...(router
             ? getRouterHistory(router).entries
             : (tab.history?.entries ?? [])),
@@ -570,7 +566,7 @@ function WindowShell({
     );
     const reopenable = new Set(
       appTabs.model.recentlyClosed.flatMap((tab) =>
-        groupsOf([...(tab.history?.entries ?? []), tab.pathname]),
+        siteGroupsOf([...(tab.history?.entries ?? []), tab.pathname]),
       ),
     );
     for (const group of open) {
@@ -602,7 +598,9 @@ function WindowShell({
           next[group] = stashed;
         }
       }
-      for (const group of leaving) {
+      // Another window standing on it now can let it go before this one's
+      // closed tab comes back.
+      for (const group of noLongerHere) {
         if (reopenable.has(group)) {
           next[group] = windowTabs.allTabs.filter((tab) => tab.group === group);
         }

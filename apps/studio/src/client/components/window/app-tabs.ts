@@ -147,6 +147,14 @@ export function placeOfHref(href: string): AppPlace | undefined {
   }
 }
 
+/** The sites' groups among some addresses. */
+export function siteGroupsOf(hrefs: readonly string[]) {
+  return hrefs.flatMap((href) => {
+    const group = groupOfHref(href);
+    return group !== undefined && isSiteGroup(group) ? [group] : [];
+  });
+}
+
 /**
  * The sites' groups a tab in another window stands on, closed windows that can
  * come back included. A tab another window closed is not one of them: that
@@ -160,10 +168,7 @@ export function siteGroupsInOtherWindows() {
   return new Set(
     models.flatMap((model) =>
       model.tabs.flatMap((tab) =>
-        [...(tab.history?.entries ?? []), tab.pathname].flatMap((href) => {
-          const group = groupOfHref(href);
-          return group !== undefined && isSiteGroup(group) ? [group] : [];
-        }),
+        siteGroupsOf([...(tab.history?.entries ?? []), tab.pathname]),
       ),
     ),
   );

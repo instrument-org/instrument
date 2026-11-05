@@ -577,7 +577,7 @@ function createBrowserViewManager(): BrowserViewManager {
     };
     // A guest brought over from another window comes up on the page it stood
     // on, which its element loads (`BrowserGuestTarget.src`), over the pages
-    // behind it, which have to go in before that load begins. That page can be
+    // behind it, which have to go in before that load lands. That page can be
     // slow to answer, and the guest is not held up for it.
     const { restoreHistory } = entry;
     guest.once("did-finish-load", settle);

@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 
 import { describe, expect, it } from "vitest";
 
-import { takeSignal } from "./take-signal";
+import { keepTrapFatal, takeSignal } from "./take-signal";
 
 /**
  * Stands in for `process`, whose signal handle Node opens on a signal's first
@@ -59,5 +59,34 @@ describe("takeSignal", () => {
     takeSignal(fake.target, "SIGINT", () => {});
 
     expect(fake.handles).toEqual(["open SIGINT"]);
+  });
+});
+
+describe("keepTrapFatal", () => {
+  it("takes off a listener already there and any added later, closing the handle each time", async () => {
+    const fake = fakeProcess();
+    fake.target.on("SIGTRAP", () => {});
+    keepTrapFatal(fake.target);
+    expect(fake.target.listenerCount("SIGTRAP")).toBe(0);
+
+    fake.target.on("SIGTRAP", () => {});
+    await Promise.resolve();
+
+    expect(fake.target.listenerCount("SIGTRAP")).toBe(0);
+    expect(fake.handles).toEqual([
+      "open SIGTRAP",
+      "close SIGTRAP",
+      "open SIGTRAP",
+      "close SIGTRAP",
+    ]);
+  });
+
+  it("leaves every other signal's listeners", async () => {
+    const fake = fakeProcess();
+    keepTrapFatal(fake.target);
+    fake.target.on("SIGTERM", () => {});
+    await Promise.resolve();
+
+    expect(fake.target.listenerCount("SIGTERM")).toBe(1);
   });
 });

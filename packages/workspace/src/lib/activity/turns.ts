@@ -6,7 +6,7 @@ import { type ActivityRow } from "./schema";
  */
 
 /** The longest pause between two requests of one turn. */
-export const TURN_GAP_MS = 5 * 60_000;
+const TURN_GAP_MS = 5 * 60_000;
 
 /** What a request is told apart by when it gathers into a turn. */
 type Gathered = Pick<

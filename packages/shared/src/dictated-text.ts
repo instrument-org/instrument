@@ -45,6 +45,12 @@ export function stripDictatedMarks(text: string) {
   );
 }
 
+/** Whether the text is dictated runs alone, with nothing typed around them. */
+export function isAllDictated(text: string) {
+  const typed = text.replaceAll(DICTATED_PATTERN, "");
+  return typed !== text && !typed.trim();
+}
+
 /**
  * The words as the model reads them: each dictated run wrapped in
  * `<dictated>`, which its instructions say was spoken and transcribed, so a

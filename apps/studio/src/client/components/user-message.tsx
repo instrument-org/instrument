@@ -1,10 +1,14 @@
-import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
+import {
+  isAllDictated,
+  stripDictatedMarks,
+} from "@instrument-org/shared/dictated-text";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { debounce } from "radashi";
 import { memo, useContext, useEffect, useRef, useState } from "react";
 
@@ -187,6 +191,12 @@ export const UserMessage = memo(function UserMessage({
           </Collapsible>
         </div>
       </div>
+      {isAllDictated(messageText) && (
+        <div className="mt-1 flex items-center gap-1 pr-1 text-xs text-muted-foreground">
+          <MicrophoneIcon className="size-3.5" />
+          <span>Dictated</span>
+        </div>
+      )}
       {compact ? null : (
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100">
           <RelativeTime

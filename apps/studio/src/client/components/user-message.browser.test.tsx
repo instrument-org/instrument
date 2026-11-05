@@ -55,6 +55,19 @@ async function renderMessage(text: string) {
 }
 
 describe("UserMessage in a browser", () => {
+  it.each([
+    ["one dictated take", "[Move it to Saturday.](dictated:)", true],
+    ["two takes", "[Move it.](dictated:) [Add two tasks.](dictated:)", true],
+    ["typed words after dictated ones", "[Move it.](dictated:) Thanks", false],
+    ["typed words alone", "Move it.", false],
+  ])(
+    "labels %s only when all of it is dictated",
+    async (_case, text, shown) => {
+      const screen = await renderMessage(text);
+      expect(screen.getByText("Dictated").all()).toHaveLength(shown ? 1 : 0);
+    },
+  );
+
   // Fourteen lines clear the clamp and thirty overrun it by plenty; the ones
   // between are the interesting ones, where a message is taller than one
   // candidate clamp and shorter than another.

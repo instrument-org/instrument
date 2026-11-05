@@ -29,7 +29,7 @@ type Props = {
 };
 
 /**
- * "Continue with …" for one way in: it holds as Cancel while the browser has
+ * "Continue with …" for one provider: it turns to Cancel while the browser has
  * the sign-in and while the plan is checked, says where to finish under it,
  * and says there how an attempt that didn't land ended.
  */
@@ -213,7 +213,7 @@ export function grokWaitingLine(userCode: string | undefined): ReactNode {
 }
 
 /**
- * The mark of a way in: Google's for Instrument, each service's own else,
+ * The mark of a provider: Google's for Instrument, each service's own else,
  * in its brand's colors where it has them.
  */
 export function ConnectIcon({

@@ -1,4 +1,4 @@
-import { OFFER_FROM_BUILD } from "@/client/lib/offer-from-build";
+import { OFFER_SNAPSHOT_OPTIONS } from "@/client/lib/billing-offer-snapshot";
 import { type router } from "@/electron-main/rpc/routes";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/message-port";
@@ -34,9 +34,9 @@ export const rpcClient = createTanstackQueryUtils(baseClient, {
       offer: {
         queryOptions: {
           ...REMOTE,
-          ...OFFER_FROM_BUILD,
+          ...OFFER_SNAPSHOT_OPTIONS,
           // Kept with no one reading it, so a sheet opened long after the
-          // window's prefetch has the server's answer, not the build's copy.
+          // window's prefetch has the server's answer, not the snapshot.
           gcTime: Number.POSITIVE_INFINITY,
           retry: 3,
         },

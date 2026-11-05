@@ -45,7 +45,7 @@ const live = vi.hoisted(() => (key: string, value: unknown) => ({
 }));
 const account = vi.hoisted(() => ({
   hasToken: true,
-  offerFromBuild: undefined as unknown,
+  offerSnapshot: undefined as unknown,
   readOffer: (): Promise<unknown> => Promise.resolve(null),
 }));
 vi.mock("@/client/rpc/client", () => ({
@@ -63,7 +63,7 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
-          initialData: account.offerFromBuild,
+          initialData: account.offerSnapshot,
           initialDataUpdatedAt: 0,
           queryFn: () => account.readOffer(),
           queryKey: ["offer"],
@@ -122,7 +122,7 @@ describe("AddProviderSheet", () => {
     plans.chatgpt = false;
   });
 
-  it("lists the ways in while nothing is being checked", () => {
+  it("lists the providers while nothing is being checked", () => {
     phases.chatgpt = "signing-in";
     renderWithProviders(sheet);
     expect(screen.getByText("Add an AI provider")).toBeTruthy();
@@ -143,7 +143,7 @@ describe("AddProviderSheet", () => {
 
     beforeEach(() => {
       account.hasToken = false;
-      account.offerFromBuild = {
+      account.offerSnapshot = {
         plans: [],
         trial: { cardRequired: false, days: 7 },
       };
@@ -151,11 +151,11 @@ describe("AddProviderSheet", () => {
     });
     afterEach(() => {
       account.hasToken = true;
-      account.offerFromBuild = undefined;
+      account.offerSnapshot = undefined;
       account.readOffer = () => Promise.resolve(null);
     });
 
-    it("draws every way in, with the trial's words, while the offer is unanswered", async () => {
+    it("shows every provider and the snapshot's trial while the offer is unanswered", async () => {
       account.readOffer = () => new Promise(() => {});
       renderWithProviders(sheet);
       expect(await screen.findByText("An API key")).toBeTruthy();
@@ -173,7 +173,7 @@ describe("AddProviderSheet", () => {
       expect(signIn?.disabled).toBe(false);
     });
 
-    it("takes the server's words when they differ from the build's", async () => {
+    it("takes the server's copy when it differs from the snapshot's", async () => {
       account.readOffer = () => Promise.resolve({ plans: [], trial: null });
       renderWithProviders(sheet);
       expect(
@@ -182,7 +182,7 @@ describe("AddProviderSheet", () => {
       expect(screen.queryByText("Try Instrument free")).toBeNull();
     });
 
-    it("keeps the build's words when the offer can't be read", async () => {
+    it("keeps the snapshot's copy when the offer can't be read", async () => {
       account.readOffer = () => Promise.reject(new Error("refused"));
       renderWithProviders(sheet);
       expect(await screen.findByText("Try Instrument free")).toBeTruthy();

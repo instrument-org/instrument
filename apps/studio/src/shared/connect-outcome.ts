@@ -1,4 +1,4 @@
-/** The ways in setup and the Add a provider sheet offer by signing in. */
+/** The providers setup and the Add a provider sheet offer by signing in. */
 export type ConnectProvider = "chatgpt" | "claude" | "grok" | "instrument";
 
 /**

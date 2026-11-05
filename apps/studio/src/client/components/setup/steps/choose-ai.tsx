@@ -18,10 +18,7 @@ import {
   useInstrumentConnect,
 } from "@/client/hooks/use-connect";
 import { type ConnectFlow } from "@/client/hooks/use-connect-flow";
-import {
-  type InstrumentWay,
-  useInstrumentWay,
-} from "@/client/hooks/use-instrument-way";
+import { type OfferCopy, useOfferCopy } from "@/client/hooks/use-offer-copy";
 import {
   CONNECT_NAMES,
   CONNECT_PLANS,
@@ -107,7 +104,7 @@ export function ChooseAI({
   const signedIn = hasToken === true;
   // Where Back and Cancel return to from a sign-in's wait.
   const [waitedFrom, setWaitedFrom] = useState<ChooseAIPage>(initial);
-  const instrumentWay = useInstrumentWay();
+  const offerCopy = useOfferCopy();
 
   /** Starts `provider`'s sign-in, or with `plans`, the website's plans. */
   const connect = (provider: ConnectProvider, plans = false) => {
@@ -171,7 +168,7 @@ export function ChooseAI({
             onSubscription={() => {
               setPage({ kind: "subscriptions" });
             }}
-            instrumentWay={instrumentWay}
+            offerCopy={offerCopy}
             signedIn={signedIn}
           />
         );
@@ -238,7 +235,7 @@ export function ChooseAI({
         return (
           <OutcomePage
             flows={flows}
-            instrumentWay={instrumentWay}
+            offerCopy={offerCopy}
             offerInstrument={!signedIn}
             onBack={() => {
               setPage(waitedFrom);
@@ -276,7 +273,7 @@ export function ChooseAI({
         return (
           <NoCreditsPage
             flows={flows}
-            instrumentWay={instrumentWay}
+            offerCopy={offerCopy}
             offerInstrument={!signedIn}
             onBack={() => {
               setPage({ kind: "key" });
@@ -320,20 +317,20 @@ const PAGE_DEPTH: Record<ChooseAIPage["kind"], number> = {
  */
 function ChoicesPage({
   google,
-  instrumentWay,
+  offerCopy,
   onGoogle,
   onKey,
   onSubscription,
   signedIn,
 }: {
   google: ConnectFlow<void>;
-  instrumentWay: InstrumentWay;
+  offerCopy: OfferCopy;
   onGoogle: () => void;
   onKey: () => void;
   onSubscription: () => void;
   signedIn: boolean;
 }) {
-  const trialDays = signedIn ? undefined : instrumentWay.trialDays;
+  const trialDays = signedIn ? undefined : offerCopy.trialDays;
   const line =
     google.phase === "on-web" || (signedIn && google.waiting)
       ? "Finish choosing your plan in your browser."
@@ -514,7 +511,7 @@ function WaitingPage({
  */
 function OutcomePage({
   flows,
-  instrumentWay,
+  offerCopy,
   offerInstrument,
   onBack,
   onConnect,
@@ -524,7 +521,7 @@ function OutcomePage({
   provider,
 }: {
   flows: Record<ConnectProvider, ConnectFlow<void>>;
-  instrumentWay: InstrumentWay;
+  offerCopy: OfferCopy;
   offerInstrument: boolean;
   onBack: () => void;
   onConnect: (provider: ConnectProvider) => void;
@@ -574,7 +571,7 @@ function OutcomePage({
       <OtherChoices
         flows={flows}
         instrumentLabel={outcome.kind === "no-plan" ? "Learn more" : undefined}
-        instrumentWay={instrumentWay}
+        offerCopy={offerCopy}
         offerInstrument={offerInstrument && provider !== "instrument"}
         onConnect={onConnect}
         providers={PLAN_PROVIDERS.filter((other) => other !== provider)}
@@ -603,7 +600,7 @@ function OutcomePage({
  */
 function NoCreditsPage({
   flows,
-  instrumentWay,
+  offerCopy,
   offerInstrument,
   onBack,
   onConnect,
@@ -611,7 +608,7 @@ function NoCreditsPage({
   providerId,
 }: {
   flows: Record<ConnectProvider, ConnectFlow<void>>;
-  instrumentWay: InstrumentWay;
+  offerCopy: OfferCopy;
   offerInstrument: boolean;
   /** Back to the key page, also "Use a different API key". */
   onBack: () => void;
@@ -645,7 +642,7 @@ function NoCreditsPage({
     >
       <OtherChoices
         flows={flows}
-        instrumentWay={instrumentWay}
+        offerCopy={offerCopy}
         offerInstrument={offerInstrument}
         onConnect={onConnect}
         providers={PLAN_PROVIDERS}
@@ -679,7 +676,7 @@ function NoCreditsPage({
 function OtherChoices({
   flows,
   instrumentLabel,
-  instrumentWay,
+  offerCopy,
   offerInstrument,
   onConnect,
   providers,
@@ -687,7 +684,7 @@ function OtherChoices({
   flows: Record<ConnectProvider, ConnectFlow<void>>;
   /** What Instrument's button says while a trial can start. */
   instrumentLabel?: string;
-  instrumentWay: InstrumentWay;
+  offerCopy: OfferCopy;
   offerInstrument: boolean;
   onConnect: (provider: ConnectProvider) => void;
   providers: PlanProvider[];
@@ -706,15 +703,15 @@ function OtherChoices({
               variant="brand"
               waiting={flows.instrument.waiting}
             >
-              {instrumentWay.isTrial
-                ? (instrumentLabel ?? instrumentWay.action)
-                : instrumentWay.action}
+              {offerCopy.isTrial
+                ? (instrumentLabel ?? offerCopy.action)
+                : offerCopy.action}
             </BrowserHandoffButton>
           }
           icon={<BrandMark className="size-12 shrink-0" />}
           inList
-          line={instrumentWay.line}
-          title={instrumentWay.title}
+          line={offerCopy.line}
+          title={offerCopy.title}
         />
       )}
       {providers.map((provider) => (

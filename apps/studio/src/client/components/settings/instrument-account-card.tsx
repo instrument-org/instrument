@@ -5,7 +5,7 @@ import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import { useInstrumentWay } from "@/client/hooks/use-instrument-way";
+import { useOfferCopy } from "@/client/hooks/use-offer-copy";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -24,7 +24,7 @@ export function InstrumentAccountCard() {
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { data: user } = useLiveUser();
-  const way = useInstrumentWay({ enabled: hasToken === false });
+  const offerCopy = useOfferCopy({ enabled: hasToken === false });
 
   if (hasToken === undefined) {
     return null;
@@ -45,12 +45,12 @@ export function InstrumentAccountCard() {
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate font-medium text-foreground">
-              {hasToken ? `${APP_NAME} account` : way.title}
+              {hasToken ? `${APP_NAME} account` : offerCopy.title}
             </h3>
             {hasToken && <PlanBadge />}
           </div>
           <p className="truncate text-sm text-muted-foreground">
-            {hasToken ? user?.email : way.line}
+            {hasToken ? user?.email : offerCopy.line}
           </p>
         </div>
         {hasToken ? (
@@ -73,7 +73,7 @@ export function InstrumentAccountCard() {
             }}
             variant="brand"
           >
-            {way.action}
+            {offerCopy.action}
           </Button>
         )}
       </div>

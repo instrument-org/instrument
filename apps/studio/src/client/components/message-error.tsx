@@ -28,9 +28,9 @@ import {
 import { openReportDialog } from "../atoms/report-dialog";
 import { openSettings } from "../atoms/settings-modal";
 import {
-  type ConnectionWait,
-  useConnectionWait,
-} from "../hooks/use-connection-wait";
+  type OnlineRetry,
+  useRetryWhenOnline,
+} from "../hooks/use-retry-when-online";
 import { useSignInAgain } from "../hooks/use-sign-in-again";
 import { stopLineText } from "../lib/billing";
 import {
@@ -120,12 +120,12 @@ export function MessageError({
     ...chatListOptions(),
     select: (chats) => chats.find((chat) => chat.id === chatId)?.state,
   });
-  const connectionWait = useConnectionWait({
+  const onlineRetry = useRetryWhenOnline({
     failedAt: message.metadata.createdAt,
     isConnectionFailure:
       error !== undefined && isConnectFailureMessage(error.message),
     // Where there's a way to run it again, and the person hasn't stopped it.
-    isFailed:
+    isRetryable:
       isLastMessage &&
       onRunAgain !== undefined &&
       chatState !== "stopped" &&
@@ -187,8 +187,8 @@ export function MessageError({
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
   }
-  if (connectionWait) {
-    return <ConnectionLine wait={connectionWait} />;
+  if (onlineRetry) {
+    return <OnlineRetryNotice retry={onlineRetry} />;
   }
 
   const provider = message.metadata.aiGatewayModel?.params.provider;
@@ -711,13 +711,13 @@ function BillingStopLine({ text }: { text: string }) {
 }
 
 /** A turn that failed for want of a connection, which goes out once there is one. */
-function ConnectionLine({ wait }: { wait: ConnectionWait }) {
+function OnlineRetryNotice({ retry }: { retry: OnlineRetry }) {
   return (
     <div
       className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground"
-      data-connection-line={wait}
+      data-online-retry={retry}
     >
-      {wait === "offline" ? (
+      {retry === "offline" ? (
         <>
           <WifiSlashIcon className="size-3.5 shrink-0" />
           {`You're offline. ${APP_NAME} will try again when you're back online.`}

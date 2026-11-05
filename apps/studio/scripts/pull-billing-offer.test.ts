@@ -13,7 +13,7 @@ const offer = (
 ): BillingOffer => ({ offerVersion, plans: [], trial });
 const TRIAL = { cardRequired: false, days: 7 };
 
-describe("the shipped offer copy", () => {
+describe("the shipped offer snapshot", () => {
   it("reads under the contract", () => {
     expect(BillingOfferSchema.safeParse(snapshot).error).toBeUndefined();
   });
@@ -31,7 +31,7 @@ describe("nextSnapshot", () => {
     );
   });
 
-  it("stays without a trial once the copy has none", () => {
+  it("stays without a trial once the snapshot has none", () => {
     expect(nextSnapshot(offer("new", null), offer("old", null))).toEqual(
       offer("new", null),
     );

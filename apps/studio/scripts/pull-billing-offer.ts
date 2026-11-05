@@ -1,13 +1,13 @@
 /**
- * The offer someone signed out gets from the platform API, kept as the copy this
- * app ships (`src/shared/billing-offer-snapshot.json`), which a window shows
+ * The offer someone signed out gets from the platform API, kept as the snapshot
+ * this app ships (`src/shared/billing-offer-snapshot.json`), which a window shows
  * until the server answers.
  *
  *   pnpm --filter @instrument-org/studio billing-offer:pull
  *
  * Every CI build runs it (`build:vite`, with `--if-ci`), so a build carries what
  * its server says that day. No answer, or an answer this build's contract can't
- * read, fails that build. A local build keeps the repo's copy, which running
+ * read, fails that build. A local build keeps the repo's snapshot, which running
  * this by hand refreshes.
  */
 import { writeFileSync } from "node:fs";
@@ -35,16 +35,16 @@ const SNAPSHOT_PATH = path.resolve(
 const ATTEMPTS = 3;
 
 /**
- * The copy to ship for `answer`. The server can offer no trial for a while and
- * then one again, so a build made during that keeps the trial its copy has
- * rather than showing everyone no trial until the server answers. A trial gone
- * for good is a hand edit to the repo's copy.
+ * The snapshot to ship for `answer`. The server can offer no trial for a while
+ * and then one again, so a build made during that keeps the trial the snapshot
+ * has rather than showing everyone no trial until the server answers. A trial
+ * gone for good is a hand edit to the repo's snapshot.
  */
 export function nextSnapshot(
   answer: BillingOffer,
-  copy: BillingOffer,
+  previous: BillingOffer,
 ): BillingOffer {
-  return answer.trial === null ? { ...answer, trial: copy.trial } : answer;
+  return answer.trial === null ? { ...answer, trial: previous.trial } : answer;
 }
 
 async function askServer(): Promise<BillingOffer> {
@@ -73,15 +73,15 @@ if (import.meta.main && (process.env.CI || !process.argv.includes("--if-ci"))) {
   const next = nextSnapshot(answer, current);
   if (next.trial !== answer.trial) {
     console.warn(
-      "::warning::The server offers no trial right now, so this copy keeps the trial it had.",
+      "::warning::The server offers no trial right now, so this snapshot keeps the trial it had.",
     );
   }
   if (isDeepStrictEqual(next, current)) {
-    console.log(`The offer copy is current (${next.offerVersion}).`);
+    console.log(`The offer snapshot is current (${next.offerVersion}).`);
   } else {
     writeFileSync(SNAPSHOT_PATH, `${JSON.stringify(next, null, 2)}\n`);
     console.log(
-      `Wrote the offer copy: ${current.offerVersion} to ${next.offerVersion}.`,
+      `Wrote the offer snapshot: ${current.offerVersion} to ${next.offerVersion}.`,
     );
   }
 }

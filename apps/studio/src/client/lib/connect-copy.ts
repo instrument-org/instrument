@@ -24,7 +24,7 @@ export const GROK_CONNECT_COPY = {
   requirement: "Your plan needs to include Grok API access.",
 };
 
-/** What each way in is called. */
+/** What each provider is called. */
 export const CONNECT_NAMES: Record<ConnectProvider, string> = {
   chatgpt: "ChatGPT",
   claude: "Claude",
@@ -377,13 +377,16 @@ function readyLine(provider: ConnectProvider, modelName: string | undefined) {
 }
 
 /**
- * How the Instrument way in reads beside the subscriptions, from the
- * server's trial offer: a free trial when one can start, otherwise signing
- * in to choose a plan. `useInstrumentWay` is how a surface reads it.
+ * What Instrument's own row says beside the subscriptions, from the server's
+ * offer: a free trial when one can start, otherwise signing in to choose a
+ * plan. `useOfferCopy` is how a surface reads it.
  */
-export function instrumentWayCopy(
-  offer: RPCOutput["billing"]["offer"] | undefined,
-): { action: string; isTrial: boolean; line: string; title: string } {
+export function offerCopy(offer: RPCOutput["billing"]["offer"] | undefined): {
+  action: string;
+  isTrial: boolean;
+  line: string;
+  title: string;
+} {
   const trial = offer?.trial;
   if (trial && trial.available !== false) {
     return {

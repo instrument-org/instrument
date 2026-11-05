@@ -10,7 +10,7 @@ const instrument = vi.hoisted(() => ({
     plans: never[];
     trial: { cardRequired: boolean; days: number };
   },
-  offerFromBuild: undefined as
+  offerSnapshot: undefined as
     | undefined
     | { plans: never[]; trial: { cardRequired: boolean; days: number } },
   offerWaits: false,
@@ -18,7 +18,7 @@ const instrument = vi.hoisted(() => ({
   start: vi.fn<(input?: unknown) => Promise<ConnectResult | undefined>>(),
 }));
 
-// Each way in as a flow at rest; Instrument's start is the one under test.
+// Each provider as a flow at rest; Instrument's start is the one under test.
 vi.mock("@/client/hooks/use-connect", () => {
   const flow = (
     start: (input?: unknown) => Promise<ConnectResult | undefined> = () =>
@@ -57,7 +57,7 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
-          initialData: instrument.offerFromBuild,
+          initialData: instrument.offerSnapshot,
           initialDataUpdatedAt: 0,
           queryFn: () =>
             instrument.offerWaits
@@ -80,7 +80,7 @@ function renderChoices() {
 
 beforeEach(() => {
   instrument.offer = null;
-  instrument.offerFromBuild = undefined;
+  instrument.offerSnapshot = undefined;
   instrument.offerWaits = false;
   instrument.start.mockReset();
 });
@@ -117,10 +117,10 @@ describe("ChooseAI", () => {
     ).toBeTruthy();
   });
 
-  it("has the build's trial in its words while the offer is unanswered", async () => {
+  it("shows the snapshot's trial while the offer is unanswered", async () => {
     instrument.signedIn = false;
     instrument.offerWaits = true;
-    instrument.offerFromBuild = {
+    instrument.offerSnapshot = {
       plans: [],
       trial: { cardRequired: false, days: 7 },
     };

@@ -27,10 +27,7 @@ import {
   type PlanProvider,
   useConnectedPlans,
 } from "@/client/hooks/use-connected-plans";
-import {
-  type InstrumentWay,
-  useInstrumentWay,
-} from "@/client/hooks/use-instrument-way";
+import { type OfferCopy, useOfferCopy } from "@/client/hooks/use-offer-copy";
 import {
   CONNECT_NAMES,
   CONNECT_PLANS,
@@ -64,7 +61,7 @@ type View =
   | { kind: "answer"; outcome: ConnectOutcome; provider: ConnectProvider }
   | { kind: "key" }
   | { kind: "list" }
-  /** A way in connected or a key was added: its main model, as setup asks it. */
+  /** A provider connected or a key was added: its main model, as setup asks it. */
   | { kind: "model"; connection?: LastConnection };
 
 /**
@@ -72,7 +69,7 @@ type View =
  * Claude, Grok) and an API key, with the ones already connected marked.
  * Each plan connects right in its row, through the same flow as setup; an
  * answer other than ready takes the sheet over, in setup's words, with the
- * other ways in beside it and a way to try again. Signed out of Instrument,
+ * other providers beside it and a way to try again. Signed out of Instrument,
  * its free trial is offered too, and its Google sign-in hands the account
  * to what comes next (`onInstrumentSignedIn`). Once a plan connects, or a
  * key is added, the sheet asks for the main model the way setup does, which
@@ -83,7 +80,7 @@ export function AddProviderSheet({
   onDone,
   onInstrumentSignedIn,
 }: {
-  /** A way in connected, or a key was added. */
+  /** A provider connected, or a key was added. */
   onComplete: () => void;
   /** Closed without adding one. */
   onDone: () => void;
@@ -103,11 +100,11 @@ export function AddProviderSheet({
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
-  // What the free trial offers, which comes with the build until the server
-  // answers (`offer-from-build.ts`).
-  const instrumentWay = useInstrumentWay({ enabled: hasToken === false });
+  // What Instrument's row says, from the snapshot the build shipped with until
+  // the server answers (`billing-offer-snapshot.ts`).
+  const offerCopy = useOfferCopy({ enabled: hasToken === false });
   // The rows wait for what this computer knows, so they appear once rather
-  // than a row at a time, or as one way in and then another.
+  // than a row at a time, or as one provider and then another.
   const rowsReady =
     connected !== undefined &&
     providerConfigs !== undefined &&
@@ -164,7 +161,7 @@ export function AddProviderSheet({
     <ConnectRow
       connected={provider !== "instrument" && (connected?.[provider] ?? false)}
       flow={flows[provider]}
-      instrument={instrumentWay}
+      offerCopy={offerCopy}
       key={provider}
       onCancel={flows[provider].cancel}
       onStart={() => {
@@ -513,12 +510,12 @@ function SheetFrame({
   );
 }
 
-/** One way in: its mark and plans, and Continue, Connected, or the wait. */
+/** One provider: its mark and plans, and Continue, Connected, or the wait. */
 function ConnectRow({
   below,
   connected,
   flow,
-  instrument,
+  offerCopy,
   onCancel,
   onStart,
   provider,
@@ -528,16 +525,16 @@ function ConnectRow({
   below?: ReactNode;
   connected: boolean;
   flow: ConnectFlow<void>;
-  /** The trial's words, for Instrument's own row. */
-  instrument: InstrumentWay;
+  /** What Instrument's own row says. */
+  offerCopy: OfferCopy;
   onCancel: () => void;
   onStart: () => void;
   provider: ConnectProvider;
-  /** In place of the way in's own name, as "Use Claude instead". */
+  /** In place of the provider's own name, as "Use Claude instead". */
   title?: string;
   waitingLine: ReactNode;
 }) {
-  const isTrial = provider === "instrument";
+  const isInstrument = provider === "instrument";
   return (
     <div
       className="rounded-xl border border-border bg-card px-4 py-3"
@@ -545,7 +542,7 @@ function ConnectRow({
     >
       <div className="flex items-center gap-3">
         <div className="flex size-8 shrink-0 items-center justify-center">
-          {isTrial ? (
+          {isInstrument ? (
             <BrandMark className="size-8" />
           ) : (
             <ConnectIcon className="size-5" provider={provider} />
@@ -553,13 +550,14 @@ function ConnectRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
-            {title ?? (isTrial ? instrument.title : CONNECT_NAMES[provider])}
+            {title ??
+              (isInstrument ? offerCopy.title : CONNECT_NAMES[provider])}
           </p>
           <p className="text-xs text-muted-foreground">
             {flow.waiting
               ? waitingLine
-              : isTrial
-                ? instrument.line
+              : isInstrument
+                ? offerCopy.line
                 : CONNECT_PLANS[provider]}
           </p>
         </div>
@@ -574,7 +572,7 @@ function ConnectRow({
             onCancel={onCancel}
             onStart={onStart}
             size="sm"
-            variant={isTrial ? "default" : "outline"}
+            variant={isInstrument ? "default" : "outline"}
             waiting={flow.waiting}
           >
             Continue
@@ -605,7 +603,7 @@ function KeyRow({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-/** The way in's mark, badged with what the answer is about. */
+/** The provider's mark, badged with what the answer is about. */
 function AnswerMark({
   outcome,
   provider,

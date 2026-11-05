@@ -13,6 +13,7 @@ import {
   quietRefusedFolders,
   quoteWindowsArgument,
   splitPrefix,
+  findNamingItsPrograms,
   xargsNamingItsProgram,
   xargsRunsParallel,
 } from "./shell-commands/native-text";
@@ -177,6 +178,53 @@ describe("xargsNamingItsProgram", () => {
     [["run"], ["run"]],
     [["C:\\tools\\wc.exe"], ["C:\\tools\\wc.exe"]],
     [["./wc"], ["./wc"]],
+  ])("%j becomes %j", (args, expected) => {
+    expect(name(args)).toEqual(expected);
+  });
+});
+
+describe("findNamingItsPrograms", () => {
+  const wc = "C:\\links\\wc.exe";
+  const name = (args: string[]) =>
+    findNamingItsPrograms(args, "C:\\links", (hostPath) => hostPath === wc);
+
+  it.each([
+    [
+      [".", "-name", "wc"],
+      [".", "-name", "wc"],
+    ],
+    [
+      [".", "-exec", "wc", "{}", ";"],
+      [".", "-exec", wc, "{}", ";"],
+    ],
+    [
+      [".", "-execdir", "wc", "{}", "+"],
+      [".", "-execdir", wc, "{}", "+"],
+    ],
+    [
+      [".", "-ok", "wc", ";"],
+      [".", "-ok", wc, ";"],
+    ],
+    [
+      [".", "-okdir", "wc", ";"],
+      [".", "-okdir", wc, ";"],
+    ],
+    [
+      [".", "-exec", "wc", ";", "-exec", "wc", ";"],
+      [".", "-exec", wc, ";", "-exec", wc, ";"],
+    ],
+    [
+      [".", "-exec", "sh", "-exec", "wc", ";"],
+      [".", "-exec", "sh", "-exec", "wc", ";"],
+    ],
+    [
+      [".", "-exec", "nothing-here", ";"],
+      [".", "-exec", "nothing-here", ";"],
+    ],
+    [
+      [".", "-exec"],
+      [".", "-exec"],
+    ],
   ])("%j becomes %j", (args, expected) => {
     expect(name(args)).toEqual(expected);
   });

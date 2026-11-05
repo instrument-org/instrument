@@ -424,6 +424,7 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // On Windows both join the paths they walk with `/`, as the shell spells
   // them, because they run with UUTILS_PATH_SEPARATOR (pathSeparatorEnv).
   { binary: "grep", name: "grep" },
+  // On Windows what `find -exec` starts is found as xargs' programs are.
   { binary: "find", name: "find" },
   // What xargs starts is a program on the PATH. Windows has no `echo` or
   // `printf` of its own, so there xargs' PATH starts with links to the
@@ -535,12 +536,14 @@ function coreutilsLinks(): string | null {
 }
 
 /**
- * xargs' environment. First on its PATH are the coreutils links and then the
- * bundled `find` and `grep`, ahead of System32's unrelated `find`. `rg` stays
- * off it, since started this way it would skip the flags the shell's `rg`
- * refuses.
+ * The environment for a program that starts others, `xargs` and `find -exec`.
+ * First on its PATH are the coreutils links and then the bundled `find` and
+ * `grep`, ahead of System32's unrelated `find`. `rg` stays off it, since started
+ * this way it would skip the flags the shell's `rg` refuses.
  */
-function xargsEnv(env: Record<string, string>): Record<string, string> {
+function startingProgramsEnv(
+  env: Record<string, string>,
+): Record<string, string> {
   const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
   const dirs = [coreutilsLinks(), getWorkspaceConfig().uutilsDir].filter(
     (dir) => dir !== null && dir !== undefined,
@@ -557,34 +560,65 @@ function pathOf(env: Record<string, string>): string {
   return key === undefined ? "" : (env[key] ?? "");
 }
 
+type IsFile = (hostPath: string) => boolean;
+
 /**
- * xargs' arguments with the program it starts, `echo` when none is named,
- * spelled as its full path on PATH. Under MXC a coreutils link looked up by
- * bare name is often not found, and the same link by full path always is. A
- * name on no PATH folder stays as written, so xargs reports it as usual. A name
- * without an extension means its `.exe`, the only one xargs itself tries.
+ * A program's full path on a Windows PATH, for a name given bare. Under MXC a
+ * coreutils link looked up by bare name is often not found, and the same link
+ * by full path always is. A name on no PATH folder stays as written, so the
+ * program starting it reports it as usual. A name without an extension means
+ * its `.exe`, the only one those programs try.
  */
+function programOnWindowsPath(name: string, path: string, isFile: IsFile) {
+  if (/[\\/]/.test(name)) {
+    return name;
+  }
+  const file = nodePath.win32.extname(name) ? name : `${name}.exe`;
+  return (
+    path
+      .split(";")
+      .filter((dir) => nodePath.win32.isAbsolute(dir))
+      .map((dir) => nodePath.win32.join(dir, file))
+      .find((hostPath) => isFile(hostPath)) ?? name
+  );
+}
+
+/** xargs' arguments naming what it starts, `echo` when none is, by full path. */
 export function xargsNamingItsProgram(
   args: string[],
   path: string,
-  isFile: (hostPath: string) => boolean = existsSync,
+  isFile: IsFile = existsSync,
 ): string[] {
-  const { command = "echo", commandAt } = scanXargs(args);
-  if (/[\\/]/.test(command)) {
-    return args;
+  const { command, commandAt } = scanXargs(args);
+  const named = programOnWindowsPath(command ?? "echo", path, isFile);
+  if (commandAt !== undefined) {
+    return args.with(commandAt, named);
   }
-  const file = nodePath.win32.extname(command) ? command : `${command}.exe`;
-  const found = path
-    .split(";")
-    .filter((dir) => nodePath.win32.isAbsolute(dir))
-    .map((dir) => nodePath.win32.join(dir, file))
-    .find((hostPath) => isFile(hostPath));
-  if (found === undefined) {
-    return args;
+  return named === "echo" ? args : [...args, named];
+}
+
+/** The actions of `find` that start a program named by the next argument. */
+const FIND_STARTS = new Set(["-exec", "-execdir", "-ok", "-okdir"]);
+
+/** find's arguments naming what each `-exec` starts by full path. */
+export function findNamingItsPrograms(
+  args: string[],
+  path: string,
+  isFile: IsFile = existsSync,
+): string[] {
+  const named = [...args];
+  for (let index = 0; index < named.length; index++) {
+    const program = named[index + 1];
+    if (!FIND_STARTS.has(named[index] ?? "") || program === undefined) {
+      continue;
+    }
+    named[index + 1] = programOnWindowsPath(program, path, isFile);
+    // What the program is given runs up to its `;` or `+`.
+    while (index < named.length && !/^[;+]$/.test(named[index] ?? "")) {
+      index++;
+    }
   }
-  return commandAt === undefined
-    ? [...args, found]
-    : args.with(commandAt, found);
+  return named;
 }
 
 /**
@@ -978,13 +1012,17 @@ export function createNativeTextCommand(
       route.binary === "coreutils" || route.binary === "diffutils";
     // A system program takes Node's own quoting; uutils needs its own.
     const windows = process.platform === "win32" && route.binary !== "system";
-    const xargsWindowsEnv =
-      windows && !outside && route.name === "xargs" ? xargsEnv(env) : undefined;
+    const startingEnv =
+      windows && !outside && (route.name === "xargs" || route.name === "find")
+        ? startingProgramsEnv(env)
+        : undefined;
     const hostArgs = hostPathArgs(programArgs);
+    const namingPrograms =
+      route.name === "xargs" ? xargsNamingItsProgram : findNamingItsPrograms;
     const argv = [
       ...(multicall ? [route.name] : []),
-      ...(xargsWindowsEnv
-        ? xargsNamingItsProgram(hostArgs, pathOf(xargsWindowsEnv))
+      ...(startingEnv
+        ? namingPrograms(hostArgs, pathOf(startingEnv))
         : hostArgs),
     ];
     try {
@@ -1001,10 +1039,8 @@ export function createNativeTextCommand(
           env:
             outside || !windows
               ? env
-              : (xargsWindowsEnv ??
-                (route.binary === "find" || route.binary === "grep"
-                  ? pathSeparatorEnv(env)
-                  : env)),
+              : (startingEnv ??
+                (route.binary === "grep" ? pathSeparatorEnv(env) : env)),
           ...(windows ? { windowsVerbatimArguments: true } : {}),
           ...(outside
             ? { ownEnvOnly: true as const, unsandboxed: true as const }

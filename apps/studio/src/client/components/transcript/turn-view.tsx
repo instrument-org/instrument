@@ -52,7 +52,7 @@ function FoldingRow({ children }: { children: ReactNode }) {
   const isReduced = useReducedMotion();
   return (
     <motion.div
-      className="min-w-0"
+      className="flex min-w-0 flex-col gap-2"
       exit={{ height: 0, marginTop: -ROW_GAP, opacity: 0, overflow: "hidden" }}
       transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
     >
@@ -201,14 +201,6 @@ function TurnBody({
   const firstFolded = turn.rows.findIndex((row) =>
     turn.foldedRowIds.has(row.id),
   );
-  const cardRow = card && (
-    <SlotCardView
-      card={card}
-      isCurrent={!isSlotBehind(card, turn)}
-      key="slot"
-      sessionId={sessionId}
-    />
-  );
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
     if (isFolded && index === firstFolded) {
@@ -236,11 +228,16 @@ function TurnBody({
             isLast={isLast}
             row={row}
           />
+          {/* In its row, so it goes in the same render as the words that end it. */}
+          {index === lastWork && card && (
+            <SlotCardView
+              card={card}
+              isCurrent={!isSlotBehind(card, turn)}
+              sessionId={sessionId}
+            />
+          )}
         </FoldingRow>,
       );
-    }
-    if (index === lastWork && cardRow) {
-      out.push(cardRow);
     }
     return out;
   });

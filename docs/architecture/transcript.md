@@ -48,7 +48,9 @@ Developer mode adds rows rather than a different transcript: a note only develop
 
 ## Beside the transcript
 
-A chat's tabs show only in the pane beside it, under a row of them ([pane-tabs.tsx](../../apps/studio/src/client/components/window/pane-tabs.tsx)). The header's button opens and closes the pane ([pane-toggle.tsx](../../apps/studio/src/client/components/window/pane-toggle.tsx)) and says how many tabs a closed one has. Stop sits where Send does while the box is empty and stops the chat and every task; a task's card stops that task alone. What the chat and its tasks left running is a pill in the header ([background-processes.md](background-processes.md)).
+A chat's tabs show only in the pane beside it, under a row of them ([pane-tabs.tsx](../../apps/studio/src/client/components/window/pane-tabs.tsx)). The header's button opens and closes the pane ([pane-toggle.tsx](../../apps/studio/src/client/components/window/pane-toggle.tsx)), and the × at the end of the row closes it too. Stop sits where Send does while the box is empty and stops the chat and every task; a task's card stops that task alone. A task's tab is its title and Stop over its own transcript, reached from its card, since no screen lists a chat's tasks.
+
+A command that outlasts its turn gets a card under the reply ([command-card.tsx](../../apps/studio/src/client/components/task/command-card.tsx)), with Stop while it runs and how long it ran once it ends. A command that ended while its turn went on gets none, since the reply covers it. The registry keeps ended commands only while the app runs, so after a restart a finished one has no card. What the chat and its tasks have running is a chip in the header, opening onto the same rows ([background-processes.md](background-processes.md)).
 
 ## Checking a change
 

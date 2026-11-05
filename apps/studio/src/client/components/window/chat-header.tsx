@@ -74,6 +74,26 @@ export function ChatHeader({
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
+  const popOutButton = popOut && (
+    <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
+      <Button
+        aria-label={popOut.isOut ? "Bring back" : "Pop out"}
+        aria-pressed={popOut.isOut}
+        className={cn(
+          toolbarClassName({ pressed: popOut.isOut }),
+          "shrink-0",
+          popOut.isOut
+            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+            : "text-muted-foreground/70 opacity-0 not-disabled:hover:text-foreground group-hover/head:opacity-100 focus-visible:opacity-100",
+        )}
+        onClick={popOut.onToggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <PictureInPictureIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
+  );
   return (
     <>
       {chat && (
@@ -97,31 +117,16 @@ export function ChatHeader({
               onSetProject={onSetProject}
               titleClassName="text-sm font-medium"
               projects={projects}
-            />
+            >
+              {popOutButton}
+            </ChatHeading>
           ) : (
-            <h2 className="min-w-0 truncate text-sm font-medium">
-              {fallbackTitle}
-            </h2>
-          )}
-          {popOut && (
-            <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
-              <Button
-                aria-label={popOut.isOut ? "Bring back" : "Pop out"}
-                aria-pressed={popOut.isOut}
-                className={cn(
-                  toolbarClassName({ pressed: popOut.isOut }),
-                  "shrink-0",
-                  popOut.isOut
-                    ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
-                    : "text-muted-foreground/70 opacity-0 not-disabled:hover:text-foreground group-hover/head:opacity-100 focus-visible:opacity-100",
-                )}
-                onClick={popOut.onToggle}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <PictureInPictureIcon className="size-4" />
-              </Button>
-            </ToolbarTooltip>
+            <>
+              <h2 className="min-w-0 truncate text-sm font-medium">
+                {fallbackTitle}
+              </h2>
+              {popOutButton}
+            </>
           )}
         </div>
         <div className="flex h-8 shrink-0 items-center gap-x-1">
@@ -143,6 +148,7 @@ export function ChatHeader({
  */
 function ChatHeading({
   chat,
+  children,
   menu,
   onDelete,
   onNewProject,
@@ -151,6 +157,8 @@ function ChatHeading({
   projects,
 }: {
   chat: Chat;
+  /** What follows the title and its project. */
+  children?: ReactNode;
   /** What the menu offers beyond what every head's does. */
   menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived">;
   onDelete: () => void;
@@ -182,7 +190,7 @@ function ChatHeading({
     onSetProject(chat.project === id ? null : id);
   };
   return (
-    <div className="@container/chathead flex min-w-0 items-center gap-x-2">
+    <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
       {/* The title opens the chat's menu, Rename among it; renaming puts
           the field in the title's place. */}
       <h2 className="flex min-w-0">
@@ -229,6 +237,7 @@ function ChatHeading({
           </button>
         </ProjectPicker>
       )}
+      {children}
     </div>
   );
 }

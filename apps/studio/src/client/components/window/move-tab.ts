@@ -130,7 +130,7 @@ export function receiveTab(tab: Tab, index?: number) {
 /** What a window does as a tab's move ends, by a drag let go or from a menu. */
 export function settleTabMove(
   key: string,
-  end: RPCOutput["window"]["endTabDrag"],
+  end: RPCOutput["window"]["endTabCarry"],
 ) {
   if (end.kind === "keepsTab") {
     keepOnlyTab(key);

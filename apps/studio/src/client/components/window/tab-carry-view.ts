@@ -16,7 +16,7 @@ export const tabCarryIndexAtom = atom<number | undefined>(undefined);
 export function showTabCarryView(view: TabCarryView) {
   const store = getDefaultStore();
   store.set(tabCarryViewAtom, view);
-  if (view.kind !== "joined") {
+  if (view.kind !== "docked") {
     store.set(tabCarryIndexAtom, undefined);
   }
 }
@@ -47,7 +47,7 @@ export function useTabCarryView() {
 export function isTabHeldHere(
   view: TabCarryView,
 ): view is Extract<TabCarryView, { heldId: TabId }> {
-  return view.kind === "alone" || view.kind === "joined";
+  return view.kind === "free" || view.kind === "docked";
 }
 
 /** The tabs a strip draws, as the held tab stands. */
@@ -60,7 +60,7 @@ export function tabsInView(
     return tabs;
   }
   const held = tabs.filter((tab) => tab.id === view.heldId);
-  if (view.kind === "alone") {
+  if (view.kind === "free") {
     return held;
   }
   const others = view.tabs.filter((tab) => tab.id !== view.heldId);
@@ -72,14 +72,14 @@ export function tabsInView(
  * laid out, and told to main, which lands it there.
  */
 export function measureCarryIndex(view: TabCarryView) {
-  if (view.kind !== "joined") {
+  if (view.kind !== "docked") {
     return;
   }
   const store = getDefaultStore();
   const index = stripIndexAt(view.clientX, view.tabs, view.heldId);
   if (store.get(tabCarryIndexAtom) !== index) {
     store.set(tabCarryIndexAtom, index);
-    void rpcClient.window.placeTabDrag.call({ index });
+    void rpcClient.window.placeTabCarry.call({ index });
   }
 }
 

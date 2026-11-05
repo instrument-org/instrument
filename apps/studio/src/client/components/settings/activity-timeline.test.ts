@@ -330,7 +330,7 @@ describe("actionText", () => {
         "trash: Moved “old draft.docx” to the Trash | In Documents",
         "trash: Moved 2 files to the Trash | In Documents",
         "new-folder: Made the folder “Receipts” | In Documents",
-        "chat: Read “Kitchen remodel quotes” | Chat",
+        "chat: Opened “Kitchen remodel quotes” | Chat",
         "page: Visited “Where's My Refund?” | irs.gov",
         "page: Visited irs.gov/refunds | irs.gov",
         "download: Downloaded “Globex NDA.pdf” | To Downloads",

@@ -296,7 +296,7 @@ export function actionText(action: ShownAction, words: Words): RowText {
       };
     }
     case "chat": {
-      return { primary: `Read ${quoted(action.title)}`, secondary: "Chat" };
+      return { primary: `Opened ${quoted(action.title)}`, secondary: "Chat" };
     }
     case "page": {
       return {

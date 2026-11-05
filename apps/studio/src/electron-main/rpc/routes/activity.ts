@@ -76,7 +76,11 @@ const summary = base
       countOwnActivity(input.since),
     ]);
     return {
-      actions: actions.filter((action) => action.kind !== "capped").length,
+      // A permission answered is a rule of the chat's, which clearing
+      // leaves as it is.
+      actions: actions.filter(
+        (action) => action.kind !== "capped" && action.kind !== "permission",
+      ).length,
       requests,
     };
   });

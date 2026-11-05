@@ -14,7 +14,7 @@ import {
 import { capabilityRunner } from "../../test/helpers/run-capability";
 import { endComputerSessions } from "../computer/driver";
 import { treeText } from "../computer/tree-text";
-import { grantApp } from "../permissions/apps";
+import { appLevel, grantApp } from "../permissions/apps";
 import { setDenied } from "../permissions/denials";
 import { updatePermissionSettings } from "../permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -129,6 +129,11 @@ const drag = capabilityRunner("computer", "drag");
 const open = capabilityRunner("computer", "open");
 
 beforeEach(() => {
+  // These desktops list their apps, as macOS's and Linux's do. "on Windows" has
+  // its own, read from windows, and sets its platform for itself.
+  if (process.platform === "win32") {
+    Object.defineProperty(process, "platform", { value: "linux" });
+  }
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "computer-perms-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -617,6 +622,47 @@ describe("instrument computer", () => {
     ]);
   });
 
+  it("keeps a yes to one name from opening up a program marked Not allowed", async () => {
+    const chatId = ChatIdSchema.parse("computer-alias-closed-chat");
+    const inChat = { ...scope, chatId };
+    standInDriver({
+      ...answers,
+      launch: ok({ app: "gnome-calculator", pid: 7 }),
+      "list-apps": ok({ apps: [] }),
+    });
+    await updatePermissionSettings((settings) => ({
+      ...settings,
+      apps: [{ addedAt: new Date(), level: "never", name: "gnome-calculator" }],
+    }));
+    await grantApp(chatId, "Calculator");
+    await expect(open(["Calculator"], inChat)).rejects.toThrow(
+      "Calculator started, and runs as gnome-calculator. gnome-calculator is marked Not allowed",
+    );
+    expect(
+      await appLevel(chatId, {
+        bundleId: "gnome-calculator",
+        name: "gnome-calculator",
+      }),
+    ).toBe("never");
+  });
+
+  it.runIf(process.platform === "linux")(
+    "won't start a path on Linux, whose driver would run what's there",
+    async () => {
+      const chatId = ChatIdSchema.parse("computer-path-chat");
+      const inChat = { ...scope, chatId };
+      const driver = standInDriver({
+        ...answers,
+        "list-apps": ok({ apps: [] }),
+      });
+      await grantApp(chatId, "/tmp/made-by-the-agent");
+      await expect(open(["/tmp/made-by-the-agent"], inChat)).rejects.toThrow(
+        'No app called "/tmp/made-by-the-agent" is on this computer.',
+      );
+      expect(driver.actions()).toEqual([]);
+    },
+  );
+
   it("lets a yes to the name a person knows cover the name it runs under", async () => {
     const chatId = ChatIdSchema.parse("computer-alias-chat");
     const inChat = { ...scope, chatId };
@@ -778,12 +824,12 @@ describe("instrument computer", () => {
       `);
     });
 
-    it("asks by the name a person knows, and reads the window by its id", async () => {
+    it("finds an app by the name a person knows, and asks about its program", async () => {
       const driver = standInDriver(desktop([calculator]));
       await expect(snapshot(["Calculator"], scope)).rejects.toThrow(
-        "using Calculator needs the person's yes",
+        "using CalculatorApp needs the person's yes",
       );
-      await grantApp(scope.chatId, "Calculator");
+      await grantApp(scope.chatId, "CalculatorApp");
       await snapshot(["Calculator"], scope);
       expect(driver.actions().at(-1)?.slice(0, 3)).toEqual([
         "snapshot",
@@ -796,12 +842,41 @@ describe("instrument computer", () => {
       "takes the program's name too, as %s, under one yes",
       async (given) => {
         standInDriver(desktop([calculator]));
-        await grantApp(scope.chatId, "Calculator");
+        await grantApp(scope.chatId, "CalculatorApp");
         await expect(snapshot([given], scope)).resolves.toMatchObject({
           exitCode: 0,
         });
       },
     );
+
+    it("gives another program nothing for a title that says it's an allowed app", async () => {
+      const driver = standInDriver(
+        desktop([
+          {
+            ...notepad,
+            app_name: "Other.exe",
+            id: "w-9",
+            pid: 77,
+            title: "Budget - Calculator",
+          },
+        ]),
+      );
+      await grantApp(scope.chatId, "Calculator");
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        apps: [{ addedAt: new Date(), level: "allow", name: "Calculator" }],
+      }));
+      await expect(snapshot(["Calculator"], scope)).rejects.toThrow(
+        "using Other needs the person's yes",
+      );
+      await expect(snapshot(["Other"], scope)).rejects.toThrow(
+        "using Other needs the person's yes",
+      );
+      expect((await apps([], scope)).stdout).toBe(
+        "Calculator (Other): ask first\n",
+      );
+      expect(driver.actions()).toEqual([]);
+    });
 
     it("keeps a yes through a change of title", async () => {
       const driver = standInDriver(desktop([notepad]));
@@ -883,7 +958,7 @@ describe("instrument computer", () => {
 
     it("doesn't start another copy of a running app", async () => {
       const driver = standInDriver(desktop([calculator]));
-      await grantApp(scope.chatId, "Calculator");
+      await grantApp(scope.chatId, "CalculatorApp");
       expect((await open(["Calculator"], scope)).stdout).toBe(
         'Calculator is running, with window w-262330 "Calculator".\n',
       );
@@ -916,7 +991,7 @@ describe("instrument computer", () => {
 
     it("sends keys to a packaged app's window, which is how the driver finds it", async () => {
       const driver = standInDriver(desktop([calculator]));
-      await grantApp(scope.chatId, "Calculator");
+      await grantApp(scope.chatId, "CalculatorApp");
       await press(["Calculator", "return"], scope);
       expect(driver.actions().at(-1)).toEqual([
         "press",

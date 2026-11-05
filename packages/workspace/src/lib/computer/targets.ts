@@ -12,6 +12,7 @@ import {
   grantApp,
   type MacApp,
 } from "../permissions/apps";
+import { type Level } from "../permissions/places";
 import { getWorkspaceConfig } from "../workspace-config";
 import { runDriver } from "./driver";
 import {
@@ -206,6 +207,25 @@ async function askableName(app: MacApp): Promise<string> {
 }
 
 /**
+ * What a yes has to name. On Windows a running app's name comes from its
+ * window's title, where any program can say anything, so only its program
+ * answers: a window titled Calculator gets nothing from a yes to Calculator.
+ */
+function askedAbout(app: MacApp): MacApp {
+  return process.platform === "win32"
+    ? { bundleId: app.bundleId, name: app.bundleId }
+    : app;
+}
+
+/** This chat's answer for a running app. */
+export function runningAppLevel(
+  chatId: ChatId,
+  app: RunningApp,
+): Promise<Level> {
+  return appLevel(chatId, askedAbout(identityOf(app)));
+}
+
+/**
  * Whether the agent may act on `app` in this chat: the same answer as every
  * other route to it, so a grant, a "Not now" and a rule in Settings all hold.
  */
@@ -218,14 +238,15 @@ async function gateFor(
   if (closed !== undefined) {
     return { kind: "refused", message: closed };
   }
-  const refused = await appRefusal(ctx.chatId, app, ctx.asker);
+  const asked = askedAbout(app);
+  const refused = await appRefusal(ctx.chatId, asked, ctx.asker);
   if (refused === undefined) {
     return { kind: "allowed" };
   }
-  return (await appLevel(ctx.chatId, app)) === "never"
+  return (await appLevel(ctx.chatId, asked)) === "never"
     ? { kind: "refused", message: refused }
     : {
-        ask: { kind: "app", target: await askableName(app) },
+        ask: { kind: "app", target: await askableName(asked) },
         kind: "ask",
         message: refused,
       };
@@ -286,6 +307,36 @@ async function notOnComputer(given: string): Promise<string> {
 }
 
 /**
+ * Whether Linux's driver would take `given` for a path. It starts whatever is
+ * there, outside the sandbox, and the agent can write a program of its own.
+ */
+function startsWhatsAtAPath(given: string): boolean {
+  return process.platform === "linux" && given.includes("/");
+}
+
+/**
+ * What a card off macOS, where nothing looks a name up, asks about: the name it
+ * was given, or on Windows the program of the running window by that name, which
+ * is what the gate will ask about. A path is no app.
+ */
+export async function appToAskOffMac(
+  given: string,
+  chatId: ChatId,
+): Promise<string | undefined> {
+  if (startsWhatsAtAPath(given)) {
+    return undefined;
+  }
+  if (
+    process.platform !== "win32" ||
+    getWorkspaceConfig().computerUse?.isReady() !== true
+  ) {
+    return given;
+  }
+  const running = await runningApp(given, { chatId }).catch(() => undefined);
+  return running?.bundle_id ?? given;
+}
+
+/**
  * An app to open: as it runs now, else as Spotlight or Windows's Start menu
  * finds it by name.
  */
@@ -293,6 +344,9 @@ export async function openableApp(
   given: string,
   ctx: DriverContext,
 ): Promise<MacApp | undefined> {
+  if (startsWhatsAtAPath(given)) {
+    return undefined;
+  }
   const running = await runningApp(given, ctx);
   if (running !== undefined) {
     return identityOf(running);
@@ -374,13 +428,7 @@ export async function gatedRunningApp(
       `${given} is no longer running. \`instrument computer apps\` lists what is.`,
     );
   }
-  const app = identityOf(running);
-  // A window's title moves and the program behind it doesn't, so the person's
-  // yes holds through a change of document.
-  if (process.platform === "win32") {
-    await grantApp(ctx.chatId, app.bundleId);
-  }
-  return { ...app, pid: running.pid };
+  return { ...identityOf(running), pid: running.pid };
 }
 
 /** The windows of `app`, every instance of it included. */

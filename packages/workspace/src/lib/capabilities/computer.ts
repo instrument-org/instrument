@@ -16,6 +16,7 @@ import {
   refGate,
   rememberSnapshot,
   runningAppGate,
+  runningAppLevel,
   isOffLimits,
   runningApps,
   setUpGate,
@@ -25,7 +26,7 @@ import {
 } from "../computer/targets";
 import { SnapshotDataSchema, treeText } from "../computer/tree-text";
 import { getCurrentDate } from "../get-current-date";
-import { appLevel, grantApp } from "../permissions/apps";
+import { appLevel, appRefusal, grantApp } from "../permissions/apps";
 import { COMPUTER_COMMAND } from "../shell-commands/computer-command";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -139,13 +140,7 @@ const computerApps = defineCapability({
         )
         .filter((app) => !isOffLimits(app))
         .map(async (app) => ({
-          access:
-            ACCESS[
-              await appLevel(ctx.chatId, {
-                bundleId: app.bundle_id ?? app.name,
-                name: app.name,
-              })
-            ],
+          access: ACCESS[await runningAppLevel(ctx.chatId, app)],
           ...(app.bundle_id === undefined ? {} : { bundle_id: app.bundle_id }),
           name: app.name,
         })),
@@ -227,8 +222,15 @@ const computerOpen = defineCapability({
     // The driver can find an app by the name a person knows it by, and it may
     // run under another: GNOME's Calculator is gnome-calculator. It's the one
     // app, so the person's yes to one name covers the other, and they aren't
-    // asked twice.
+    // asked twice, unless they've closed the other. Only the driver knows which
+    // program a name starts, so by then it's running.
     if (launched.app !== undefined && launched.app !== found.name) {
+      const other = { bundleId: launched.app, name: launched.app };
+      if ((await appLevel(ctx.chatId, other)) === "never") {
+        throw new CapabilityFailure(
+          `${app} started, and runs as ${launched.app}. ${(await appRefusal(ctx.chatId, other, undefined)) ?? ""}`,
+        );
+      }
       await grantApp(ctx.chatId, launched.app);
     }
     if (launched.window !== undefined || headed === true) {

@@ -156,18 +156,37 @@ describe("ask_permission", () => {
     expect(await openAsks(chatId)).toEqual([]);
   });
 
-  it("refuses an app this computer does not have", async () => {
-    const chatId = createMockChatConfig(
-      ChatIdSchema.parse("ask-permission-app"),
-      {
-        model,
-      },
-    );
-    expect(await ask(chatId, "app", "No Such App Here")).toEqual({
-      message: 'No app called "No Such App Here" is on this computer.',
-      state: "refused",
-    });
-  });
+  it.runIf(process.platform === "darwin")(
+    "refuses an app this computer does not have",
+    async () => {
+      const chatId = createMockChatConfig(
+        ChatIdSchema.parse("ask-permission-app"),
+        {
+          model,
+        },
+      );
+      expect(await ask(chatId, "app", "No Such App Here")).toEqual({
+        message: 'No app called "No Such App Here" is on this computer.',
+        state: "refused",
+      });
+    },
+  );
+
+  it.runIf(process.platform === "linux")(
+    "refuses a path as an app on Linux, where the driver would run it",
+    async () => {
+      const chatId = createMockChatConfig(
+        ChatIdSchema.parse("ask-permission-path"),
+        {
+          model,
+        },
+      );
+      expect(await ask(chatId, "app", "/tmp/made-by-the-agent")).toEqual({
+        message: 'No app called "/tmp/made-by-the-agent" is on this computer.',
+        state: "refused",
+      });
+    },
+  );
 
   it.runIf(process.platform === "darwin")(
     "asks for a Mac app by its name",

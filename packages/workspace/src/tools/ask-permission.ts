@@ -19,6 +19,7 @@ import {
   systemOwnedNote,
 } from "../lib/permissions/account-can-write";
 import { MAC_APPS } from "../lib/mac-apps/apps";
+import { appToAskOffMac } from "../lib/computer/targets";
 import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
 import {
   APP_COMMAND,
@@ -277,11 +278,12 @@ async function appToAsk(
   given: string,
   role: Role | undefined,
 ): Promise<Decided> {
-  // Only macOS can look an app up by name; elsewhere a card goes by the name
-  // the agent was told, which is the one its gate asks about.
-  const bundleId =
-    process.platform === "darwin" ? await appBundleId(given) : given;
-  if (bundleId === undefined) {
+  // Only macOS can look an app up by name; elsewhere a card goes by what the
+  // gate will ask about.
+  const onMac = process.platform === "darwin";
+  const name = onMac ? given : await appToAskOffMac(given, chatId);
+  const bundleId = onMac ? await appBundleId(given) : name;
+  if (name === undefined || bundleId === undefined) {
     return {
       message: `No app called ${JSON.stringify(given)} is on this computer.`,
       state: "refused",
@@ -296,14 +298,14 @@ async function appToAsk(
       state: "refused",
     };
   }
-  const app = { bundleId, name: given };
+  const app = { bundleId, name };
   const level = await appLevel(chatId, app);
   if (level === "allow") {
     return {
       macos: async (asker) =>
-        (await macosAppCard(asker, app)) === undefined ? undefined : given,
+        (await macosAppCard(asker, app)) === undefined ? undefined : name,
       state: "allowed",
-      target: given,
+      target: name,
     };
   }
   if (level === "never") {
@@ -312,5 +314,5 @@ async function appToAsk(
       state: "refused",
     };
   }
-  return { state: "ask", target: given };
+  return { state: "ask", target: name };
 }

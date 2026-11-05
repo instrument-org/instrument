@@ -109,17 +109,22 @@ describe("PermissionAsksFoot", () => {
     },
   );
 
-  it.each(["Terminal", "Finder", "com.apple.Terminal"])(
-    "says what a yes to %s reaches",
-    async (target) => {
-      showAsks([{ kind: "app", target }]);
-      expect(
-        await screen.findByText(
-          `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
-        ),
-      ).toBeTruthy();
-    },
-  );
+  it.each([
+    "Terminal",
+    "Finder",
+    "com.apple.Terminal",
+    "Windows PowerShell",
+    "powershell",
+    "org.gnome.Terminal",
+    "xterm",
+  ])("says what a yes to %s reaches", async (target) => {
+    showAsks([{ kind: "app", target }]);
+    expect(
+      await screen.findByText(
+        `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
+      ),
+    ).toBeTruthy();
+  });
 
   it("says nothing more of an app that reaches only itself", async () => {
     showAsks([{ kind: "app", target: "Calculator" }]);

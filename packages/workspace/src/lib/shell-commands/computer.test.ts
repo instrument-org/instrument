@@ -27,7 +27,13 @@ const answers = {
     ],
   }),
   "list-windows": ok([
-    { accessible: true, id: "w-1", pid: 501, title: "Untitled" },
+    {
+      accessible: true,
+      app_name: "TextEdit.exe",
+      id: "w-1",
+      pid: 501,
+      title: "Untitled",
+    },
   ]),
   snapshot: ok({
     snapshot_id: "s1abc",
@@ -85,7 +91,7 @@ describe.each([
 
     it("is listed once its flag is on, and reads a granted app", async () => {
       const driver = standInDriver(answers);
-      await grantApp(chatId, "com.apple.TextEdit");
+      await grantApp(chatId, "TextEdit");
       expect((await run("instrument help")).stdout).toContain("computer");
       const read = await run("instrument computer snapshot TextEdit");
       expect(read).toMatchObject({ exitCode: 0, stderr: "" });

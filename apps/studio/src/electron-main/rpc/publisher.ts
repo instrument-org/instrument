@@ -20,6 +20,8 @@ interface PublisherEvents {
   "browser.certificate-exceptions-changed": null;
   // A tab's page asked for a username and password, or stopped waiting for one.
   "browser.sign-ins-changed": null;
+  // The browser's extensions changed: one was added or removed.
+  "browser.extensions-changed": null;
   // Ask the renderer to put keyboard focus on a guest before agent keyboard
   // input is dispatched to it. Only renderer-side DOM focus on the `<webview>`
   // element moves Chromium's keyboard focus across the process boundary;

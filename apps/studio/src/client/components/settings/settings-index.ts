@@ -209,6 +209,19 @@ export const SETTINGS_INDEX = [
     title: "Reset permissions",
   },
   {
+    detail: "The extensions the in-app browser runs, each with Remove.",
+    id: "extensions",
+    tab: "Browser",
+    title: "Extensions",
+  },
+  {
+    detail: "Where an extension is added to the in-app browser.",
+    id: "chrome-web-store",
+    mark: "extensions",
+    tab: "Browser",
+    title: "Open the Chrome Web Store",
+  },
+  {
     detail: "Ask for a skill that teaches a new way of working.",
     id: "new-skill",
     tab: "Skills",
@@ -322,6 +335,11 @@ export const SETTINGS_PAGES: Record<
   },
   Permissions: {
     detail: `Which folders and places on this computer ${APP_NAME} may use.`,
+  },
+  Browser: {
+    detail:
+      "The extensions the in-app browser runs, and the Chrome Web Store they are added from.",
+    shownWhen: "the browser extensions flag is on",
   },
   Skills: {
     detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,

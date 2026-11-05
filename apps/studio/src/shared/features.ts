@@ -17,7 +17,7 @@ export const FEATURE_METADATA: Record<
 > = {
   browser_extensions: {
     description:
-      "The in-app browser can run 1Password from the Chrome Web Store. Relaunch Instrument after you change this.",
+      "The in-app browser can run extensions from the Chrome Web Store, with a Browser page in Settings for them. Turning this off takes a relaunch.",
     title: "Browser Extensions",
   },
   context_ring: {

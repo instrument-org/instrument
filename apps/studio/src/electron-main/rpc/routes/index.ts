@@ -7,6 +7,7 @@ import { apps } from "./apps";
 import { auth } from "./auth";
 import { billing } from "./billing";
 import { browser } from "./browser";
+import { browserExtensions } from "./browser-extensions";
 import { browsingData } from "./browsing-data";
 import { chatLocation } from "./chat-location";
 import { chatgptAccount } from "./chatgpt-account";
@@ -41,6 +42,7 @@ export const router = {
   auth,
   billing,
   browser,
+  browserExtensions,
   browsingData,
   chatLocation,
   chatgptAccount,

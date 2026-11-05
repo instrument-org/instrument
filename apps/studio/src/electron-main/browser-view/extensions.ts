@@ -1,22 +1,31 @@
 import { publisher } from "@/electron-main/rpc/publisher";
-import {
-  BROWSER_EXTENSIONS_SESSION,
-  ONE_PASSWORD_EXTENSION_ID,
-} from "@/shared/browser-extensions";
+import { BROWSER_EXTENSIONS_SESSION } from "@/shared/browser-extensions";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   type BaseWindow,
   BrowserWindow,
+  dialog,
+  type NativeImage,
   session,
   type Session,
   type WebContents,
+  webContents,
+  type WebFrameMain,
 } from "electron";
 import {
   ElectronChromeExtensions,
   setSessionPartitionResolver,
 } from "electron-chrome-extensions";
-import { installChromeWebStore } from "electron-chrome-web-store";
+import {
+  installChromeWebStore,
+  uninstallExtension,
+} from "electron-chrome-web-store";
 import { noop } from "radashi";
 
+import {
+  type ExtensionManifest,
+  permissionLines,
+} from "./extension-permissions";
 import { guests } from "./guest-registry";
 import { log } from "./log";
 
@@ -24,6 +33,9 @@ import { log } from "./log";
 const TAB_OPEN_TIMEOUT_MS = 10_000;
 
 let extensions: ElectronChromeExtensions | null = null;
+
+/** The session the extensions run on and where their files are, once they are on. */
+let enabled: null | { extensionsDir: string; session: Session } = null;
 
 /**
  * The guest a person is looking at: what an extension's popup acts on, and
@@ -36,20 +48,27 @@ const tabsAsked: ((tab: WebContents, window: BaseWindow) => void)[] = [];
 
 /**
  * Chrome extension support on the in-app browser's session, behind the
- * `browser_extensions` flag: the library's APIs over Electron's own, with
- * each tab guest registered as a tab (`registerExtensionTab`) and the one a
- * person looks at as the active one (`selectExtensionTab`); the Chrome Web
- * Store's own install button, allowed 1Password alone, keeping what it
- * installs in `extensionsDir` beside the profile and loading it on every
- * boot; and what the extensions' workers log, in the log. The action
- * buttons' icons are served to the window by the `crx:` handler the app
- * session registers as it is made (`lib/app-session.ts`), which finds this
- * session by the name the buttons give it.
+ * `browser_extensions` flag and turned on once, before the window is up or
+ * the moment the flag is (`guest-session.ts`), so the window's buttons find
+ * it when they ask: the library's APIs over Electron's own, with each tab
+ * guest registered as a tab (`registerExtensionTab`) and the one a person
+ * looks at as the active one (`selectExtensionTab`); the Chrome Web Store's
+ * own install button, asking first (`confirmInstall`) and keeping what it
+ * installs in `extensionsDir` beside the
+ * profile and loading it on every boot; and what the extensions' workers
+ * log, in the log. The action buttons' icons are served to the window by
+ * the `crx:` handler the app session registers as it is made
+ * (`lib/app-session.ts`), which finds this session by the name the buttons
+ * give it.
  */
 export function enableBrowserExtensions(
   guestSession: Session,
   extensionsDir: string,
 ): void {
+  if (enabled) {
+    return;
+  }
+  enabled = { extensionsDir, session: guestSession };
   setSessionPartitionResolver((name) =>
     name === BROWSER_EXTENSIONS_SESSION
       ? guestSession
@@ -69,6 +88,11 @@ export function enableBrowserExtensions(
     log.info(
       `extension loaded ${extension.name} ${extension.version} id=${extension.id}`,
     );
+    publisher.publish("browser.extensions-changed", null);
+  });
+  guestSession.extensions.on("extension-unloaded", (_event, extension) => {
+    log.info(`extension unloaded ${extension.name} id=${extension.id}`);
+    publisher.publish("browser.extensions-changed", null);
   });
   guestSession.serviceWorkers.on("console-message", (_event, details) => {
     if (details.sourceUrl.startsWith("chrome-extension://")) {
@@ -78,11 +102,72 @@ export function enableBrowserExtensions(
     }
   });
   installChromeWebStore({
-    allowlist: [ONE_PASSWORD_EXTENSION_ID],
+    beforeInstall: confirmInstall,
     extensionsPath: extensionsDir,
     session: guestSession,
   }).catch((error: unknown) => {
     log.error("the Chrome Web Store could not be set up", error);
+  });
+}
+
+/**
+ * The sheet the store's install button raises before anything is added, as
+ * Chrome's own does: the extension by name and icon, what it will be able to
+ * do in a person's words, and Add or Cancel. Over the window the store page
+ * is in, so it reads as that page's question.
+ */
+async function confirmInstall(details: {
+  frame: WebFrameMain;
+  icon: NativeImage;
+  localizedName: string;
+  manifest: ExtensionManifest;
+}): Promise<{ action: "allow" | "deny" }> {
+  const lines = permissionLines(details.manifest);
+  // The store page is a guest of the window, which is what owns the sheet.
+  const page = webContents.fromFrame(details.frame);
+  const host = page?.hostWebContents ?? page;
+  const window = host ? BrowserWindow.fromWebContents(host) : null;
+  const question = {
+    buttons: ["Add extension", "Cancel"],
+    cancelId: 1,
+    defaultId: 0,
+    detail:
+      lines.length > 0
+        ? `It will be able to:\n${lines.map((line) => `• ${line}`).join("\n")}`
+        : "It asks for nothing beyond running in the browser.",
+    icon: details.icon,
+    message: `Add “${details.localizedName}” to ${APP_NAME}?`,
+    noLink: true,
+    type: "question" as const,
+  };
+  const { response } = await (window
+    ? dialog.showMessageBox(window, question)
+    : dialog.showMessageBox(question));
+  return { action: response === 0 ? "allow" : "deny" };
+}
+
+/** The extensions the browser runs, for Settings; none while they are off. */
+export function listBrowserExtensions(): {
+  id: string;
+  name: string;
+  version: string;
+}[] {
+  if (!enabled) {
+    return [];
+  }
+  return enabled.session.extensions
+    .getAllExtensions()
+    .map(({ id, name, version }) => ({ id, name, version }));
+}
+
+/** Takes an extension out of the browser and off the disk. */
+export async function removeBrowserExtension(id: string): Promise<void> {
+  if (!enabled) {
+    return;
+  }
+  await uninstallExtension(id, {
+    extensionsPath: enabled.extensionsDir,
+    session: enabled.session,
   });
 }
 

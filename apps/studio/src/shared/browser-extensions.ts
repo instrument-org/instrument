@@ -4,5 +4,5 @@
  */
 export const BROWSER_EXTENSIONS_SESSION = "browser";
 
-/** 1Password's id in the Chrome Web Store, the one extension the store may install. */
-export const ONE_PASSWORD_EXTENSION_ID = "aeblfdkhhhdcdjpifhhbdiojplfjncoa";
+/** The Chrome Web Store, where an extension is added from, in a tab of the in-app browser. */
+export const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/";

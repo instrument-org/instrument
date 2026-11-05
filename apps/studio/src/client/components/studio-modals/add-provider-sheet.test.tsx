@@ -45,6 +45,7 @@ const live = vi.hoisted(() => (key: string, value: unknown) => ({
 }));
 const account = vi.hoisted(() => ({
   hasToken: true,
+  offerFromBuild: undefined as unknown,
   readOffer: (): Promise<unknown> => Promise.resolve(null),
 }));
 vi.mock("@/client/rpc/client", () => ({
@@ -62,6 +63,8 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
+          initialData: account.offerFromBuild,
+          initialDataUpdatedAt: 0,
           queryFn: () => account.readOffer(),
           queryKey: ["offer"],
         }),
@@ -137,49 +140,56 @@ describe("AddProviderSheet", () => {
   describe("signed out", () => {
     const row = (provider: string) =>
       document.querySelector(`[data-connect-row="${provider}"]`);
-    const placeholders = () =>
-      row("instrument")?.querySelectorAll('[data-slot="skeleton-text"]') ?? [];
 
     beforeEach(() => {
       account.hasToken = false;
+      account.offerFromBuild = {
+        plans: [],
+        trial: { cardRequired: false, days: 7 },
+      };
       phases.chatgpt = "idle";
     });
     afterEach(() => {
       account.hasToken = true;
+      account.offerFromBuild = undefined;
       account.readOffer = () => Promise.resolve(null);
     });
 
-    it("draws every way in while the trial offer is unanswered, holding only the trial's words", async () => {
+    it("draws every way in, with the trial's words, while the offer is unanswered", async () => {
       account.readOffer = () => new Promise(() => {});
       renderWithProviders(sheet);
       expect(await screen.findByText("An API key")).toBeTruthy();
       for (const provider of ["chatgpt", "claude", "grok"]) {
         expect(row(provider)).not.toBeNull();
       }
-      expect(placeholders()).toHaveLength(2);
+      expect(screen.getByText("Try Instrument free")).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Sign in with Google for 7 days free. No card needed.",
+        ),
+      ).toBeTruthy();
       const signIn = row("instrument")?.querySelector("button");
       expect(signIn?.textContent).toBe("Continue");
       expect(signIn?.disabled).toBe(false);
     });
 
-    it("puts the trial's words in the row once the offer answers", async () => {
-      account.readOffer = () =>
-        Promise.resolve({
-          plans: [],
-          trial: { cardRequired: false, days: 7 },
-        });
-      renderWithProviders(sheet);
-      expect(await screen.findByText("Try Instrument free")).toBeTruthy();
-      expect(placeholders()).toHaveLength(0);
-    });
-
-    it("gives the row the plain words when the offer can't be read", async () => {
-      account.readOffer = () => Promise.reject(new Error("refused"));
+    it("takes the server's words when they differ from the build's", async () => {
+      account.readOffer = () => Promise.resolve({ plans: [], trial: null });
       renderWithProviders(sheet);
       expect(
         await screen.findByText("Sign in with Google and choose a plan."),
       ).toBeTruthy();
-      expect(placeholders()).toHaveLength(0);
+      expect(screen.queryByText("Try Instrument free")).toBeNull();
+    });
+
+    it("keeps the build's words when the offer can't be read", async () => {
+      account.readOffer = () => Promise.reject(new Error("refused"));
+      renderWithProviders(sheet);
+      expect(await screen.findByText("Try Instrument free")).toBeTruthy();
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+      expect(screen.getByText("Try Instrument free")).toBeTruthy();
     });
   });
 });

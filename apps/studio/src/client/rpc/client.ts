@@ -1,3 +1,4 @@
+import { OFFER_FROM_BUILD } from "@/client/lib/offer-from-build";
 import { type router } from "@/electron-main/rpc/routes";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/message-port";
@@ -33,8 +34,9 @@ export const rpcClient = createTanstackQueryUtils(baseClient, {
       offer: {
         queryOptions: {
           ...REMOTE,
+          ...OFFER_FROM_BUILD,
           // Kept with no one reading it, so a sheet opened long after the
-          // window's prefetch draws from it while it asks again.
+          // window's prefetch has the server's answer, not the build's copy.
           gcTime: Number.POSITIVE_INFINITY,
           retry: 3,
         },

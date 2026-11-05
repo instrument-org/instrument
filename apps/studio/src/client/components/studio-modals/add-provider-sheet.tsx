@@ -103,12 +103,11 @@ export function AddProviderSheet({
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
-  // What the free trial offers, which the window asks for as it comes up so
-  // the trial row draws in its own words at once (`AppWindow`).
+  // What the free trial offers, which comes with the build until the server
+  // answers (`offer-from-build.ts`).
   const instrumentWay = useInstrumentWay({ enabled: hasToken === false });
   // The rows wait for what this computer knows, so they appear once rather
-  // than a row at a time, or as one way in and then another. The trial's words
-  // come from the server, so they alone wait on it, inside their own row.
+  // than a row at a time, or as one way in and then another.
   const rowsReady =
     connected !== undefined &&
     providerConfigs !== undefined &&

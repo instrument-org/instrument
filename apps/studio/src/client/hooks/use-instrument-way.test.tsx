@@ -7,31 +7,45 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { instrumentWayCopy } from "../lib/connect-copy";
 import { LOCAL_RPC_DEFAULTS } from "../lib/local-rpc-defaults";
+import { OFFER_FROM_BUILD } from "../lib/offer-from-build";
 import { useInstrumentWay } from "./use-instrument-way";
 
 const read = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 const OFFER_KEY = vi.hoisted(() => ["offer"]);
 
-// The offer's real options (`rpc/client.ts`): a test of when the wait ends has
-// to see that it ends ahead of the retries, and how it reads offline.
-vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    billing: {
-      offer: {
-        queryOptions: () => ({
-          networkMode: "online",
-          queryFn: read,
-          queryKey: OFFER_KEY,
-          retry: 3,
-          retryDelay: 1,
-        }),
+// The offer's real options (`rpc/client.ts`): a test of what shows before the
+// answer has to start from the build's copy and go through the retries.
+vi.mock("@/client/rpc/client", async () => {
+  const { OFFER_FROM_BUILD: fromBuild } =
+    await import("../lib/offer-from-build");
+  return {
+    rpcClient: {
+      billing: {
+        offer: {
+          queryOptions: () => ({
+            ...fromBuild,
+            gcTime: Number.POSITIVE_INFINITY,
+            networkMode: "online",
+            queryFn: read,
+            queryKey: OFFER_KEY,
+            retry: 3,
+            retryDelay: 1,
+          }),
+        },
       },
     },
-  },
-}));
+  };
+});
 
-const TRIAL = { plans: [], trial: { cardRequired: false, days: 7 } };
+const FROM_BUILD = OFFER_FROM_BUILD.initialData;
+const BUILD_WORDS = instrumentWayCopy(FROM_BUILD);
+const FORTNIGHT = {
+  ...FROM_BUILD,
+  trial: { cardRequired: true, days: 14 },
+};
+const NO_TRIAL = { ...FROM_BUILD, trial: null };
 
 const appClient = () => new QueryClient({ defaultOptions: LOCAL_RPC_DEFAULTS });
 
@@ -52,106 +66,112 @@ afterEach(() => {
 });
 
 describe("useInstrumentWay", () => {
-  it("waits while the offer is on its way, then draws the server's words", async () => {
-    let answer: (offer: unknown) => void = () => {};
-    read.mockReturnValue(
-      new Promise((resolve) => {
-        answer = resolve;
-      }),
-    );
+  it("has the build's words from the first paint, while it asks the server", async () => {
+    read.mockReturnValue(new Promise(() => {}));
     const { result } = renderWay();
-    expect(result.current.isWaiting).toBe(true);
-    expect(result.current.title).not.toBe("Instrument");
-
-    answer(TRIAL);
+    expect(result.current.title).toBe(BUILD_WORDS.title);
+    expect(result.current.line).toBe(BUILD_WORDS.line);
     await waitFor(() => {
-      expect(result.current.title).toBe("Try Instrument free");
+      expect(read).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("changes nothing when the server says what the build says", async () => {
+    read.mockResolvedValue(structuredClone(FROM_BUILD));
+    const client = appClient();
+    let renders = 0;
+    renderHook(
+      () => {
+        renders += 1;
+        return useInstrumentWay();
+      },
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    await waitFor(() => {
+      expect(client.getQueryState(OFFER_KEY)?.dataUpdatedAt).toBeGreaterThan(0);
+    });
+    expect(client.getQueryData(OFFER_KEY)).toBe(FROM_BUILD);
+    expect(renders).toBe(1);
+  });
+
+  it("takes the server's words when they differ", async () => {
+    read.mockResolvedValue(FORTNIGHT);
+    const { result } = renderWay();
+    await waitFor(() => {
+      expect(result.current.trialDays).toBe(14);
+    });
+    expect(result.current.line).toBe("Sign in with Google for 14 days free.");
+  });
+
+  it("takes the plain words when the server offers no trial", async () => {
+    read.mockResolvedValue(NO_TRIAL);
+    const { result } = renderWay();
+    await waitFor(() => {
+      expect(result.current.isTrial).toBe(false);
     });
     expect(result.current).toMatchObject({
-      action: "Start free trial",
-      isTrial: true,
-      isWaiting: false,
-      line: "Sign in with Google for 7 days free. No card needed.",
-      trialDays: 7,
+      action: "Log in",
+      line: "Sign in with Google and choose a plan.",
+      title: "Instrument",
     });
-  });
-
-  it("stops waiting at the first failed attempt, and takes the answer a retry brings", async () => {
-    let answer: (offer: unknown) => void = () => {};
-    read.mockRejectedValueOnce(new Error("refused")).mockReturnValueOnce(
-      new Promise((resolve) => {
-        answer = resolve;
-      }),
-    );
-    const { result } = renderWay();
-    await waitFor(() => {
-      expect(result.current.isWaiting).toBe(false);
-    });
-    expect(result.current.title).toBe("Instrument");
     expect(result.current.trialDays).toBeUndefined();
-
-    await waitFor(() => {
-      expect(read).toHaveBeenCalledTimes(2);
-    });
-    answer(TRIAL);
-    await waitFor(() => {
-      expect(result.current.title).toBe("Try Instrument free");
-    });
   });
 
-  it("waits again when opened after the offer failed, so a server back since never shows the wrong words", async () => {
+  it("keeps the build's words when the server can't be reached, and takes a later answer", async () => {
     read.mockRejectedValue(new Error("refused"));
     const client = appClient();
     const first = renderWay({ client });
     await waitFor(() => {
       expect(client.getQueryState(OFFER_KEY)?.status).toBe("error");
     });
+    expect(first.result.current.title).toBe(BUILD_WORDS.title);
     first.unmount();
 
-    let answer: (offer: unknown) => void = () => {};
-    read.mockReturnValue(
-      new Promise((resolve) => {
-        answer = resolve;
-      }),
-    );
+    read.mockResolvedValue(NO_TRIAL);
     const { result } = renderWay({ client });
-    expect(result.current.isWaiting).toBe(true);
-
-    answer(TRIAL);
+    expect(result.current.title).toBe(BUILD_WORDS.title);
     await waitFor(() => {
-      expect(result.current.title).toBe("Try Instrument free");
+      expect(result.current.isTrial).toBe(false);
     });
   });
 
-  it("draws a cached answer at once, while it asks again", async () => {
-    read.mockReturnValue(new Promise(() => {}));
+  it("keeps a server's answer for the next reader rather than going back to the build's", async () => {
+    read.mockResolvedValue(FORTNIGHT);
     const client = appClient();
-    client.setQueryData(OFFER_KEY, TRIAL);
-    const { result } = renderWay({ client });
-    expect(result.current.isWaiting).toBe(false);
-    expect(result.current.title).toBe("Try Instrument free");
+    const first = renderWay({ client });
     await waitFor(() => {
-      expect(read).toHaveBeenCalledOnce();
+      expect(first.result.current.trialDays).toBe(14);
+    });
+    first.unmount();
+
+    read.mockReturnValue(new Promise(() => {}));
+    const { result } = renderWay({ client });
+    expect(result.current.trialDays).toBe(14);
+    await waitFor(() => {
+      expect(read).toHaveBeenCalledTimes(2);
     });
   });
 
-  it("doesn't wait on an offer it can't ask for while offline, and asks once back online", async () => {
+  it("has the build's words offline, and asks once back online", async () => {
     onlineManager.setOnline(false);
-    read.mockResolvedValue(TRIAL);
+    read.mockResolvedValue(NO_TRIAL);
     const { result } = renderWay();
     expect(read).not.toHaveBeenCalled();
-    expect(result.current.isWaiting).toBe(false);
-    expect(result.current.title).toBe("Instrument");
+    expect(result.current.title).toBe(BUILD_WORDS.title);
 
     onlineManager.setOnline(true);
     await waitFor(() => {
-      expect(result.current.title).toBe("Try Instrument free");
+      expect(result.current.isTrial).toBe(false);
     });
   });
 
-  it("asks nothing and doesn't wait while it isn't enabled", () => {
+  it("asks nothing while it isn't enabled", () => {
     const { result } = renderWay({ enabled: false });
     expect(read).not.toHaveBeenCalled();
-    expect(result.current.isWaiting).toBe(false);
+    expect(result.current.title).toBe(BUILD_WORDS.title);
   });
 });

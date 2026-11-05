@@ -14,6 +14,7 @@
   "main": "./out/main/index.js",
   "files": [],
   "scripts": {
+    "billing-offer:pull": "node scripts/pull-billing-offer.ts",
     "build": "node --max-old-space-size=8192 ./node_modules/electron-vite/bin/electron-vite.js build",
     "build:analyze": "cross-env ANALYZE_BUILD=true pnpm run build",
     "build:dev": "node --max-old-space-size=8192 ./node_modules/electron-vite/bin/electron-vite.js build --mode development --sourcemap",
@@ -25,7 +26,7 @@
     "build:mac:unsigned": "cross-env TARGET_PLATFORM=darwin pnpm run build:vite && electron-builder --mac --config.mac.identity=null --dir",
     "build:test": "node --max-old-space-size=8192 ./node_modules/electron-vite/bin/electron-vite.js build --mode test",
     "build:unpack": "pnpm run build:vite && electron-builder --dir",
-    "build:vite": "pnpm run build:install-app-deps && pnpm run uv:download && pnpm run uutils:download && pnpm run mxc:download && pnpm run build:mac-helper && pnpm run build",
+    "build:vite": "pnpm run build:install-app-deps && pnpm run uv:download && pnpm run uutils:download && pnpm run mxc:download && pnpm run build:mac-helper && pnpm run billing-offer:pull --if-ci && pnpm run build",
     "build:win:unsigned": "cross-env TARGET_PLATFORM=win32 pnpm run build:vite && electron-builder --win --config.win.signAndEditExecutable=false --dir",
     "build:windows:dev": "pnpm run build:install-app-deps && pnpm run build:dev && electron-builder --win",
     "check:lint": "oxlint --type-aware",

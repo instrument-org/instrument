@@ -10,7 +10,6 @@ import {
 } from "@/client/components/connect-button";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
-import { SkeletonText } from "@/client/components/ui/skeleton";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
   useChatGPTConnect,
@@ -335,7 +334,6 @@ function ChoicesPage({
   signedIn: boolean;
 }) {
   const trialDays = signedIn ? undefined : instrumentWay.trialDays;
-  const offerUnknown = !signedIn && instrumentWay.isWaiting;
   const line =
     google.phase === "on-web" || (signedIn && google.waiting)
       ? "Finish choosing your plan in your browser."
@@ -346,17 +344,7 @@ function ChoicesPage({
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
-      subtitle={
-        <>
-          {`Pick your AI provider to begin. An ${APP_NAME} plan lets you pick models from OpenAI, Anthropic and more, at one affordable price.${trialDays === undefined ? "" : ` Try it free for ${String(trialDays)} days.`}`}
-          {offerUnknown && (
-            <>
-              {" "}
-              <SkeletonText>Try it free for 7 days.</SkeletonText>
-            </>
-          )}
-        </>
-      }
+      subtitle={`Pick your AI provider to begin. An ${APP_NAME} plan lets you pick models from OpenAI, Anthropic and more, at one affordable price.${trialDays === undefined ? "" : ` Try it free for ${String(trialDays)} days.`}`}
       title={`Which AI should ${APP_NAME} use?`}
     >
       <div className="mt-10 flex w-95 max-w-full flex-col gap-3">
@@ -368,15 +356,11 @@ function ChoicesPage({
           variant="default"
           waiting={google.waiting}
         >
-          {signedIn ? (
-            "See plans"
-          ) : offerUnknown ? (
-            <SkeletonText>{`Sign in to try ${APP_NAME} AI free`}</SkeletonText>
-          ) : trialDays === undefined ? (
-            `Sign in to use ${APP_NAME} AI`
-          ) : (
-            `Sign in to try ${APP_NAME} AI free`
-          )}
+          {signedIn
+            ? "See plans"
+            : trialDays === undefined
+              ? `Sign in to use ${APP_NAME} AI`
+              : `Sign in to try ${APP_NAME} AI free`}
         </BrowserHandoffButton>
         <Button
           className="h-10 w-full bg-white/30 text-base text-foreground dark:bg-white/5"

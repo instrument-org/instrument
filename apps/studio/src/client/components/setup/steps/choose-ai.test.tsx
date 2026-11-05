@@ -10,6 +10,9 @@ const instrument = vi.hoisted(() => ({
     plans: never[];
     trial: { cardRequired: boolean; days: number };
   },
+  offerFromBuild: undefined as
+    | undefined
+    | { plans: never[]; trial: { cardRequired: boolean; days: number } },
   offerWaits: false,
   signedIn: false,
   start: vi.fn<(input?: unknown) => Promise<ConnectResult | undefined>>(),
@@ -54,6 +57,8 @@ vi.mock("@/client/rpc/client", () => ({
     billing: {
       offer: {
         queryOptions: () => ({
+          initialData: instrument.offerFromBuild,
+          initialDataUpdatedAt: 0,
           queryFn: () =>
             instrument.offerWaits
               ? new Promise(() => {})
@@ -75,6 +80,7 @@ function renderChoices() {
 
 beforeEach(() => {
   instrument.offer = null;
+  instrument.offerFromBuild = undefined;
   instrument.offerWaits = false;
   instrument.start.mockReset();
 });
@@ -111,21 +117,21 @@ describe("ChooseAI", () => {
     ).toBeTruthy();
   });
 
-  it("holds the trial's words, and only them, while the offer is unanswered", async () => {
+  it("has the build's trial in its words while the offer is unanswered", async () => {
     instrument.signedIn = false;
     instrument.offerWaits = true;
+    instrument.offerFromBuild = {
+      plans: [],
+      trial: { cardRequired: false, days: 7 },
+    };
     instrument.start.mockResolvedValue({ outcome: { kind: "canceled" } });
     renderChoices();
-    expect(
+    fireEvent.click(
       await screen.findByRole("button", {
-        name: /Use an existing subscription/,
+        name: "Sign in to try Instrument AI free",
       }),
-    ).toBeTruthy();
-    expect(screen.queryByText(/Sign in to use/)).toBeNull();
-    expect(
-      document.querySelectorAll('[data-slot="skeleton-text"]'),
-    ).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: /Loading/ }));
+    );
+    expect(screen.getByText(/Try it free for 7 days\./)).toBeTruthy();
     expect(instrument.start).toHaveBeenCalledOnce();
   });
 

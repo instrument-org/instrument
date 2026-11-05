@@ -1,4 +1,5 @@
 import {
+  type Dirent,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -297,6 +298,42 @@ describe("mxcFilesystemPolicy", () => {
         write ? "write" : read ? "read" : "deny",
       ]);
     }
+  });
+});
+
+describe("mxcFilesystemPolicy over a whole drive", () => {
+  const entry = (name: string) => ({ name }) as Dirent;
+  const disk: Disk = {
+    exists: () => true,
+    list: (folder) =>
+      folder === "D:\\" ? [entry("Games"), entry("desktop.ini")] : [],
+    makeFolder: () => {},
+    real: (target) => target,
+  };
+  const rules = (level: Rule["level"]): Rule[] => [
+    { level, path: "D:\\", source: "grant" },
+  ];
+  const inputs = { appFolders: [], closed: [], disk, root: "C:\\" };
+
+  it("reads a drive opened read-write at its root and opens every entry there", () => {
+    const policy = mxcFilesystemPolicy(
+      reachOver("C:\\home", rules("allow")),
+      inputs,
+    );
+    expect(policy.readwritePaths).toEqual(
+      expect.arrayContaining(["D:\\Games", "D:\\desktop.ini"]),
+    );
+    expect(policy.readwritePaths).not.toContain("D:\\");
+    expect(policy.readonlyPaths).toContain("D:\\");
+  });
+
+  it("leaves a drive given read-only as it is", () => {
+    const policy = mxcFilesystemPolicy(
+      reachOver("C:\\home", rules("readOnly")),
+      inputs,
+    );
+    expect(policy.readwritePaths).toEqual([]);
+    expect(policy.readonlyPaths).toContain("D:\\");
   });
 });
 

@@ -60,6 +60,9 @@ export function mxcCanaryLaunch(exec: string): MxcLaunch {
   };
 }
 
+/** A drive's root, as a rule names one. */
+const DRIVE_ROOT = /^[A-Za-z]:[\\/]?$/;
+
 /** What a policy is built from besides the reach. */
 interface PolicyInputs {
   /** The app's own install, which `node`, `git` and `rg` run from. */
@@ -251,6 +254,17 @@ export function mxcFilesystemPolicy(
     for (const target of rule.dotEntries
       ? dotEntriesIn(rule.path, disk)
       : [rule.path]) {
+      // MXC refuses everything in a drive given read-write at its root. So a
+      // drive the person opened is read at its root and open in every entry
+      // there, which is what programs can use. The listing is part of the
+      // policy's proof, so a new top-level folder opens on the next command.
+      if (access === "write" && DRIVE_ROOT.test(target)) {
+        add(target, "read", ruleRank(rule));
+        for (const entry of disk.list(target) ?? []) {
+          add(path.win32.join(target, entry.name), "write", ruleRank(rule));
+        }
+        continue;
+      }
       add(
         target,
         access,

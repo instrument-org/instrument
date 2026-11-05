@@ -83,6 +83,7 @@ describe("getBrowserViewManager", () => {
       expect(getBrowserViewManager().isHostOf(101, targetId)).toBe(true);
       expect(getBrowserViewManager().isHostOf(102, targetId)).toBe(false);
       expect(getBrowserViewManager().getTargetsElsewhere(102)).toContainEqual({
+        canTake: true,
         isInUse: false,
         targetId,
       });
@@ -120,12 +121,66 @@ describe("getBrowserViewManager", () => {
           })
           .catch(() => undefined);
 
+      const canTake = () =>
+        manager
+          .getTargetsElsewhere(702)
+          .find((each) => each.targetId === targetId)?.canTake;
+
       askedByTheSpare();
       expect(idsIn(701)).toContain(targetId);
+      expect(canTake()).toBe(false);
 
       isSpare = false;
+      expect(canTake()).toBe(true);
       askedByTheSpare();
       expect(idsIn(702)).toContain(targetId);
+    });
+
+    it("hands a closing window's pages on before it has gone, so none goes with it", () => {
+      const leaving = hostWith(901);
+      hostWith(902);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 901 })
+        .catch(() => undefined);
+      leaving.emit(
+        "will-attach-webview",
+        { preventDefault: vi.fn() },
+        {},
+        { partition: browserPartition(targetId) },
+      );
+      // A guest as far as attaching one goes, which asks a lot of it and uses little.
+      const answersAnything = (): unknown =>
+        new Proxy(() => undefined, {
+          apply: () => answersAnything(),
+          get: (_target, key) =>
+            key === "then" ? undefined : answersAnything(),
+        });
+      const guest = new Proxy(
+        Object.assign(new EventEmitter(), {
+          id: 9001,
+          isDestroyed: () => false,
+          navigationHistory: {
+            getActiveIndex: () => 0,
+            getAllEntries: () => [],
+            length: () => 0,
+          },
+        }),
+        {
+          get: (target, key, receiver): unknown =>
+            key in target
+              ? Reflect.get(target, key, receiver)
+              : answersAnything(),
+        },
+      );
+      leaving.emit("did-attach-webview", {}, guest);
+      const generation = manager.getTargets(901)[0]?.generation;
+
+      manager.handOffGuestsOf(901, 902);
+      expect(idsIn(902)).toContain(targetId);
+      expect(idsIn(901)).not.toContain(targetId);
+      expect(manager.getTargets(902)[0]?.generation).not.toBe(generation);
     });
 
     it("sends a guest nothing asked for to a window, never a spare, even as the window in front goes", () => {

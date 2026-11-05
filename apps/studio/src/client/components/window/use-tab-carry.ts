@@ -30,6 +30,8 @@ interface TabDrag {
   orderAtStart: string[];
   path: PointerSample[];
   pointInTab: number;
+  /** When the movement that started it happened, which a release older than this is not part of. */
+  startedAt: number;
   /** Its window goes with it, so it is off its row until main says otherwise. */
   staysOffRow: boolean;
   stop: () => void;
@@ -114,8 +116,15 @@ export function useTabCarry({
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     // Heard as it happens: the reorder reports the end of its drag with a later
-    // frame, and a window out of sight draws none.
+    // frame, and a window out of sight draws none. It holds back the last movement
+    // for a frame too, so the release says where the tab ended up.
     const onRelease = (releaseEvent: PointerEvent) => {
+      if (!releaseEvent.isPrimary) {
+        return;
+      }
+      if (releaseEvent.type === "pointerup") {
+        onDrag(key, releaseEvent);
+      }
       onDragEnd(key, releaseEvent);
     };
     window.addEventListener("pointerup", onRelease, { capture: true });
@@ -132,6 +141,7 @@ export function useTabCarry({
       orderAtStart: order,
       path: [],
       pointInTab,
+      startedAt: event.timeStamp,
       staysOffRow: false,
       stop: () => {
         window.removeEventListener("keydown", onKeyDown, { capture: true });
@@ -219,9 +229,14 @@ export function useTabCarry({
     });
   };
 
+  /**
+   * The release, from the pointer or from the reorder. The reorder's word is what
+   * ends a drag let go before it started, whose release went by unheard, and its
+   * word on the drag before this one comes too late to count.
+   */
   const onDragEnd = (key: string, event: PointerEvent) => {
     const drag = dragging.current;
-    if (drag?.key !== key) {
+    if (drag?.key !== key || event.timeStamp < drag.startedAt) {
       return;
     }
     dragging.current = undefined;
@@ -259,6 +274,7 @@ export function useTabCarry({
     carriedKey,
     followsReorder,
     onDrag,
+    onDragEnd,
     onDragStart,
   };
 }

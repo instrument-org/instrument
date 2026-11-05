@@ -30,7 +30,11 @@ function fakeWindow(id: number, name: string, bounds = BOUNDS) {
     setFullScreen: vi.fn(),
     setFullScreenable: vi.fn(),
     setIgnoreMouseEvents: vi.fn(),
-    setOpacity: vi.fn(),
+    setOpacity: () => {
+      if (window.destroyed) {
+        throw new Error("Object has been destroyed");
+      }
+    },
     setPosition: (x: number, y: number) => {
       window.bounds = { ...window.bounds, x, y };
     },
@@ -60,6 +64,7 @@ const state = vi.hoisted(() => ({
   cursor: { x: 0, y: 0 },
   kept: new Map<string, Map<string, unknown>>(),
   listening: true,
+  offScreen: false,
   platform: "darwin" as NodeJS.Platform,
   sent: [] as unknown[],
   spare: null as null | {
@@ -136,7 +141,7 @@ vi.mock("@/electron-main/stores/workspace/window-state", () => ({
   getAppZoom: () => zoom.value,
 }));
 vi.mock("@/electron-main/windows/on-screen", () => ({
-  keepsOffScreen: () => false,
+  keepsOffScreen: () => state.offScreen,
 }));
 vi.mock("@/electron-main/windows/app-window", () => ({
   adoptSpareWindow,
@@ -271,6 +276,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   state.cursor = { x: 0, y: 0 };
   state.listening = true;
+  state.offScreen = false;
   state.sent = [];
   state.taken = 0;
   state.usedHosts = new Set();
@@ -302,6 +308,19 @@ describe("a tab pulled into the open", () => {
     expect(handOffGuest).toHaveBeenCalledWith("next-page", 2);
     expect(from.bounds).toMatchObject({ x: 1400, y: 1480 });
     expect(from.focused).toBe(1);
+  });
+
+  it("brings up the tab beside it as the window has them at the release", async () => {
+    setUp({ tabs: ["b", "a", "c"] });
+    press(moving(["b-page"]));
+    moveTo(IN_THE_OPEN);
+    await settle();
+    endTabCarry({ canceled: false });
+
+    expect(state.kept.get("spare")?.get("app-tabs.v2")).toMatchObject({
+      selectedId: "c",
+      tabs: [asTab("b"), asTab("c")],
+    });
   });
 
   it("shows the spare even when let go before main first looked at the pointer", () => {
@@ -417,6 +436,46 @@ describe("near another window's strip", () => {
     expect(lastViewOf(1)).toBe("free");
   });
 
+  it("docks in a window held off screen, in an instance an agent drives", async () => {
+    state.offScreen = true;
+    other.visible = false;
+    press();
+    moveTo(OVER_STRIP);
+    await settle();
+    expect(lastViewOf(1)).toBe("docked");
+  });
+
+  it("lands where the tab was drawn, when it went straight from one strip to another", async () => {
+    const beside = fakeWindow(4, "beside", { ...BOUNDS, x: 2600 });
+    state.appWindows = [from, other, beside];
+    state.kept.set(
+      "beside",
+      new Map<string, unknown>([
+        [
+          "app-tabs.v2",
+          {
+            recentlyClosed: [],
+            selectedId: "y",
+            tabs: [asTab("y"), asTab("z")],
+          },
+        ],
+      ]),
+    );
+    press();
+    moveTo(OVER_STRIP);
+    await settle();
+    placeTabCarry(1);
+    // Its window has no cause to say so again: the place along the strip is the same.
+    moveTo({ x: 2700, y: 120 });
+    await settle();
+    expect(lastViewOf(1)).toBe("docked");
+
+    expect(endTabCarry({ canceled: false })).toMatchObject({
+      kind: "takesStrip",
+      model: { tabs: [asTab("y"), asTab("a"), asTab("z")] },
+    });
+  });
+
   it("takes on that window's strip when let go, and that window closes", async () => {
     press();
     moveTo(OVER_STRIP);
@@ -504,6 +563,19 @@ describe("a tab moved from a menu", () => {
 });
 
 describe("a window gone under the drag", () => {
+  it("puts things back when the spare it carried crashed", async () => {
+    state.usedHosts = new Set([1]);
+    press();
+    moveTo(IN_THE_OPEN);
+    await settle();
+    expect(state.spare).not.toBeNull();
+    spareWindow.destroyed = true;
+
+    vi.advanceTimersByTime(8);
+    expect(lastViewOf(1)).toBe("row");
+    expect(returnSpareWindow).toHaveBeenCalledTimes(1);
+  });
+
   it("ends the drag with nothing changing hands", async () => {
     press();
     moveTo(IN_THE_OPEN);

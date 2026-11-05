@@ -47,13 +47,13 @@ Where each piece attaches, read against [in-app-browser.md](../architecture/in-a
 
 ## What 1Password needs
 
-Read from the extension's manifest (8.12.44, MV3, minimum Chrome 140; Studio's Electron 44 is Chromium 152): a module service worker, content scripts at `document_start` on every site including one in the page's main world, a `declarativeNetRequest` ruleset, and these permissions.
+Read from the extension's manifest (8.12.44, MV3, minimum Chrome 140; Studio's Electron 45 is Chromium 156): a module service worker, content scripts at `document_start` on every site including one in the page's main world, a `declarativeNetRequest` ruleset, and these permissions.
 
 | Permission | Served by |
 | --- | --- |
 | `scripting`, `storage`, `webRequest`, `declarativeNetRequestWithHostAccess` | Electron. |
 | `alarms`, `idle` | Chromium's core extension providers, which Electron registers whole apart from `webstorePrivate`. The throwaway spike on 44.1 needed a stand-in for each to get the worker up; inside Studio on 44.9 the worker came up with neither, so no stand-in is carried. Alarms do not survive a relaunch on 44 (fixed in 45); `idle` only drives auto-lock, which the desktop app does anyway. |
-| `management` | Electron, but on 44 not for an extension that declares the permission (fixed in 45). The worker ran fully in the spike on 44 regardless. |
+| `management` | Electron, since 45; 44 refused it to an extension declaring the permission, and the worker ran fully in the spike there regardless. |
 | `tabs`, `webNavigation`, `contextMenus`, `notifications`, `nativeMessaging` | The library. |
 | `privacy`, `downloads` | The library's stand-ins. |
 | `webRequestAuthProvider` | Nothing. Only reached for proxy sign-in. |
@@ -112,11 +112,11 @@ So the product carries the step, and makes it findable: the main process can lau
 ## Phases
 
 1. **A spike inside Studio, behind the developer-mode features pane.** A flag in [`features.ts`](../../apps/studio/src/shared/features.ts). Add both packages; construct the library on the guest session with the session resolver; register each guest at attach and unregister it at teardown; serve the store page and let its button install from an allowlist holding 1Password alone; the `<browser-action-list>` element in the pane header. Carry the `browser` fix as a package patch and the `idle` stand-in beside it. Done when the worker reports itself up in Studio's logs, the button opens the popup under it, and a page shows 1Password's inline menu. This is the go or no-go on the whole plan, and it is a day of work.
-2. **The product behind the flag, 1Password only.** The registry's role for extension pages and what each session policy does with it. `chrome.tabs.create` opens a tab of the window through the same path a page's new-tab open takes; `selectTab` follows the pane. The bridge refuses `chrome-extension://` frames. Extensions reloaded after Clear browsing data in [`browsing-data.ts`](../../apps/studio/src/electron-main/browser-view/browsing-data.ts), since on Electron 44 the clear unregisters their workers. The `_execute_action` and `lock` shortcuts bound in Studio. Where Chromium's sandbox is off ([`chromium-sandbox.ts`](../../apps/studio/src/electron-main/lib/chromium-sandbox.ts), a Linux AppImage started with `--no-sandbox`), no service-worker preload runs and an MV3 extension cannot work, so the flag's row says extensions are unavailable there. A signed preview build, approved under Add Browser, tests desktop unlock and field autofill. The `browser` fix and the `idle` stand-in go upstream.
+2. **The product behind the flag, 1Password only.** The registry's role for extension pages and what each session policy does with it. `chrome.tabs.create` opens a tab of the window through the same path a page's new-tab open takes; `selectTab` follows the pane. The bridge refuses `chrome-extension://` frames. The `_execute_action` and `lock` shortcuts bound in Studio. Where Chromium's sandbox is off ([`chromium-sandbox.ts`](../../apps/studio/src/electron-main/lib/chromium-sandbox.ts), a Linux AppImage started with `--no-sandbox`), no service-worker preload runs and an MV3 extension cannot work, so the flag's row says extensions are unavailable there. A signed preview build, approved under Add Browser, tests desktop unlock and field autofill. The `browser` fix goes upstream.
 3. **The Add Browser guidance.** Detect the untrusted state through the helper and show the steps, in the pane and on the extension's first-run page if it can be told.
 4. **The store, curated.** An allowlist that grows as extensions are checked, each with its own permission needs read the way 1Password's were above, and a "may not work" path for anything off it only if the list proves too slow to grow. A place in Settings that lists what is installed, removes one and shows what the updater did. Verify the CRX3 signature before the store opens past the allowlist. Ad blockers need thought: Electron's `webRequest` wins over an extension's on the same request, and `declarativeNetRequest` is served natively, so a Lite-style blocker likely works while the built-in blocker still runs; measure before stacking two.
 
-Electron 44 holds for phases 1 through 3; the gaps it leaves (alarms across relaunch, management, workers after a clear) are each worked around above. The fix set is a reason to take 45 or 46 once the extensions ship, and iCloud passkeys in 45 bear on the passkey decision below.
+Electron 45 carries the fix set (alarms across relaunch, management, workers surviving a clear), so none of those needs a workaround here, and its iCloud passkeys bear on the passkey decision below.
 
 ## Risks and costs
 

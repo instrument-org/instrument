@@ -67,6 +67,11 @@ minimumReleaseAgeExclude:
   # version, so later dugite releases still wait out the guard; the entry goes
   # inert once 3.3.2 passes the cutoff and can be dropped.
   - "dugite@3.3.2"
+  # Electron 45.2.3 (the Chromium 156 security backports and `chrome.storage.sync`
+  # for extensions), taken ahead of the age cutoff. Exact version, so later
+  # releases still wait out the guard; the entry goes inert once 45.2.3 passes
+  # the cutoff and can be dropped.
+  - "electron@45.2.3"
 
 overrides:
   "@electron/rebuild>node-abi": 4.35.0

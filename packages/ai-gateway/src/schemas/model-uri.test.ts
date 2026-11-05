@@ -17,7 +17,10 @@ describe("AIGatewayModelURI.parse", () => {
   it.each([
     ["no query", "openai/gpt-4"],
     ["no author", "gpt-4?provider=openai&providerConfigId=openai-config-id"],
-    ["no canonical id", "openai/?provider=openai&providerConfigId=openai-config-id"],
+    [
+      "no canonical id",
+      "openai/?provider=openai&providerConfigId=openai-config-id",
+    ],
     ["only a query", "?provider=openai&providerConfigId=openai-config-id"],
     ["no provider", "openai/gpt-4?providerConfigId=openai-config-id"],
     ["no providerConfigId", "openai/gpt-4?provider=openai"],

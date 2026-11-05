@@ -107,6 +107,7 @@ export type WorkspaceEvent =
       type: "runTurn";
       value: {
         id: ChatId;
+        ifIdle?: boolean | undefined;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
       };
@@ -490,6 +491,11 @@ export const workspaceMachine = setup({
       }),
     },
     runTurn: [
+      {
+        guard: ({ context, event }) =>
+          event.value.ifIdle === true &&
+          findLiveSessionRef(context, event.value) !== undefined,
+      },
       {
         actions: ({ context, event }) => {
           findLiveSessionRef(context, event.value)?.send({ type: "runTurn" });

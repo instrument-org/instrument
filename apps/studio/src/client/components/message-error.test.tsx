@@ -5,7 +5,7 @@ import {
   type SessionMessage,
 } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../atoms/settings-modal", () => ({ openSettings: vi.fn() }));
 
@@ -27,6 +27,20 @@ import { TooltipProvider } from "./ui/tooltip";
 type MessageErrorData = NonNullable<
   SessionMessage.Assistant["metadata"]["error"]
 >;
+
+const network = vi.hoisted(() => ({ status: "online" }));
+vi.mock("@/client/hooks/use-network-status", () => ({
+  useNetworkStatus: () => ({ status: network.status }),
+}));
+
+const chat = vi.hoisted(() => ({ state: "failed" }));
+vi.mock("./window/chat-list-query", () => ({
+  chatListOptions: () => ({
+    queryFn: () =>
+      Promise.resolve([{ id: "2026-10-29-model-error", state: chat.state }]),
+    queryKey: ["chats"],
+  }),
+}));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
@@ -103,6 +117,7 @@ function openDetails() {
 }
 
 function renderError({
+  canRunAgain = true,
   isAgentRunning = false,
   error = {
     classification: "rate-limit",
@@ -111,13 +126,16 @@ function renderError({
   },
   isDeveloperMode = false,
   isLastMessage = true,
+  isLatestAttempt,
   provider = OUR_MODELS.providerType,
   onModelChange = vi.fn(),
 }: {
+  canRunAgain?: boolean;
   error?: MessageErrorData;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
+  isLatestAttempt?: boolean;
   provider?: null | string;
   onModelChange?: (uri: string) => void;
 }) {
@@ -128,9 +146,10 @@ function renderError({
         isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
+        isLatestAttempt={isLatestAttempt}
         message={messageWithError(error, provider)}
         onModelChange={onModelChange}
-        onRunAgain={vi.fn()}
+        onRunAgain={canRunAgain ? vi.fn() : undefined}
       />
     </TooltipProvider>,
   );
@@ -383,6 +402,106 @@ describe("MessageError", () => {
     const { container } = renderError({ isLastMessage: false });
 
     expect(container.innerHTML).toBe("");
+  });
+
+  describe("a turn stopped for want of a connection", () => {
+    const NEVER_CONNECTED: MessageErrorData = {
+      classification: "transient",
+      kind: "api-call",
+      message: "fetch failed",
+      name: "AI_APICallError",
+      responseBody:
+        '{"error":{"message":"fetch failed","type":"gateway_error"}}',
+      statusCode: 500,
+      url: "https://example.com/v1/chat/completions",
+    };
+    afterEach(() => {
+      network.status = "online";
+      chat.state = "failed";
+    });
+
+    it("says so while offline, with nothing to press", () => {
+      network.status = "offline";
+      renderError({ error: NEVER_CONNECTED, provider: "openrouter" });
+      expect(
+        screen.getByText(
+          "You're offline. Instrument will try again when you're back online.",
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByText("Couldn't connect")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Send a report" }),
+      ).toBeNull();
+    });
+
+    it("keeps saying so while the next attempt hasn't said anything yet", () => {
+      network.status = "offline";
+      renderError({
+        error: NEVER_CONNECTED,
+        isAgentRunning: true,
+        isLastMessage: false,
+        isLatestAttempt: true,
+        provider: "openrouter",
+      });
+      expect(screen.getByText(/You're offline/)).toBeTruthy();
+    });
+
+    it("gives way once a later attempt has said something", () => {
+      network.status = "offline";
+      const { container } = renderError({
+        error: NEVER_CONNECTED,
+        isAgentRunning: true,
+        isLastMessage: false,
+        isLatestAttempt: false,
+        provider: "openrouter",
+      });
+      expect(container.textContent).toBe("");
+    });
+
+    it("promises nothing once the person has stopped the chat", async () => {
+      network.status = "offline";
+      chat.state = "stopped";
+      renderError({ error: NEVER_CONNECTED, provider: "openrouter" });
+      expect(
+        await screen.findByRole("button", { name: "Try again" }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/You're offline/)).toBeNull();
+    });
+
+    it("promises nothing where there's no way to run it again", () => {
+      network.status = "offline";
+      renderError({
+        canRunAgain: false,
+        error: NEVER_CONNECTED,
+        provider: "openrouter",
+      });
+      expect(screen.queryByText(/You're offline/)).toBeNull();
+      expect(screen.getByText("Couldn't connect")).toBeTruthy();
+    });
+
+    it("offers to try again while online, naming the connection", () => {
+      renderError({ error: NEVER_CONNECTED, provider: "openrouter" });
+      expect(screen.getByText("Couldn't connect")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+      expect(screen.queryByText(/Provider problem/)).toBeNull();
+    });
+
+    it("keeps a refusal's own card while offline", () => {
+      network.status = "offline";
+      renderError({
+        error: {
+          classification: "auth",
+          kind: "api-call",
+          message: "Unauthorized",
+          name: "AI_APICallError",
+          statusCode: 401,
+          url: "https://example.com/v1/chat/completions",
+        },
+        provider: "openrouter",
+      });
+      expect(screen.queryByText(/You're offline/)).toBeNull();
+    });
   });
 
   describe("our platform's refusals for the plan", () => {

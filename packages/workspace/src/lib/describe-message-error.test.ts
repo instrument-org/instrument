@@ -124,6 +124,34 @@ describe("describeMessageError", () => {
     expect(streamed).toEqual(failed);
   });
 
+  it("names the connection for a failed connection, whatever status relayed it, and the provider otherwise", () => {
+    const relayed = {
+      classification: "transient",
+      kind: "api-call",
+      message: "fetch failed",
+      name: "AI_APICallError",
+      responseBody:
+        '{"error":{"message":"fetch failed","type":"gateway_error"}}',
+      statusCode: 500,
+      url: "https://example.com/v1/chat/completions",
+    } as const;
+    expect(describeMessageError(relayed).summary).toBe("Couldn't connect");
+    expect(
+      describeMessageError({
+        classification: "transient",
+        kind: "unknown",
+        message: "terminated",
+      }).summary,
+    ).toBe("Provider problem");
+    expect(
+      describeMessageError({
+        ...relayed,
+        message: "Service Unavailable",
+        statusCode: 503,
+      }).summary,
+    ).toBe("Provider problem");
+  });
+
   it("says a reply that stopped partway was cut off, before or after its output began", () => {
     const beforeOutput = describeMessageError({
       classification: "transient",

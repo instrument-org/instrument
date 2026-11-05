@@ -23,13 +23,15 @@ const run = base
   .input(
     z.object({
       id: ChatIdSchema,
+      /** Does nothing if the session is running, rather than running it next. */
+      ifIdle: z.boolean().optional(),
       modelURI: AIGatewayModelURI.Schema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
-    const { id, modelURI, sessionId } = input;
+    const { id, ifIdle, modelURI, sessionId } = input;
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -47,6 +49,7 @@ const run = base
       type: "runTurn",
       value: {
         id,
+        ifIdle,
         model: modelResult.value,
         sessionId,
       },

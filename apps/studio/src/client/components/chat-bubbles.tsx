@@ -20,7 +20,7 @@ import {
 } from "react";
 
 import { type ChatSeparator, chatSeparators } from "../lib/chat-separators";
-import { isRetriedAway } from "../lib/retried-away";
+import { isLatestAttempt, isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
 import {
   AssistantMessage,
@@ -33,7 +33,7 @@ import { ChatSeparatorRow } from "./chat-separator";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { TailFirst, TypingRow } from "./chat-stream";
-import { MessageError } from "./message-error";
+import { MessageError, type RunAgain } from "./message-error";
 import { ToolCallBody } from "./message-part/tool-call";
 import { SentReplyQuote } from "./reply-quote";
 import {
@@ -86,7 +86,7 @@ export function ChatBubbles({
   onContinue: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
 }) {
   const actions = useStableActions({
     onContinue,
@@ -189,6 +189,7 @@ type BubbleRow =
       isAgentRunning: boolean;
       isDeveloperMode: boolean;
       isLastMessage: boolean;
+      isLatestAttempt: boolean;
       kind: "error";
       message: SessionMessage.AssistantWithParts;
     }
@@ -380,6 +381,7 @@ function bubbleBoxes(
         isAgentRunning,
         isDeveloperMode,
         isLastMessage,
+        isLatestAttempt: isLatestAttempt(regular, index),
         kind: "error",
         message,
       });
@@ -618,7 +620,8 @@ function sameRow(a: BubbleRow, b: BubbleRow | undefined): boolean {
         a.endedTurn === b.endedTurn &&
         a.isAgentRunning === b.isAgentRunning &&
         a.isDeveloperMode === b.isDeveloperMode &&
-        a.isLastMessage === b.isLastMessage
+        a.isLastMessage === b.isLastMessage &&
+        a.isLatestAttempt === b.isLatestAttempt
       );
     }
     case "typing": {
@@ -656,7 +659,7 @@ type BubbleActions = {
   onContinue: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
 };
 
 const BubbleActionsContext = createContext<BubbleActions>({
@@ -684,8 +687,8 @@ function useStableActions(actions: BubbleActions): BubbleActions {
     onRetry: (prompt) => {
       latest.current.onRetry(prompt);
     },
-    onRunAgain: () => {
-      latest.current.onRunAgain?.();
+    onRunAgain: (options?: { ifIdle: boolean }) => {
+      latest.current.onRunAgain?.(options);
     },
   }));
   return stable;
@@ -921,6 +924,7 @@ const BubbleRowView = memo(function BubbleRowView({
           isAgentRunning={row.isAgentRunning}
           isDeveloperMode={row.isDeveloperMode}
           isLastMessage={row.isLastMessage}
+          isLatestAttempt={row.isLatestAttempt}
           message={row.message}
           onModelChange={actions.onModelChange}
           onRunAgain={actions.onRunAgain}

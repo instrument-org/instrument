@@ -1644,7 +1644,7 @@ describe("ChatBubbles and a provider error", () => {
       { presentation: "chat" },
     );
 
-    expect(screen.queryByText("Provider problem") !== null).toBe(drawn);
+    expect(screen.queryByText("Couldn't connect") !== null).toBe(drawn);
   });
 
   it("draws the last one as a line with its actions", () => {
@@ -1654,7 +1654,7 @@ describe("ChatBubbles and a provider error", () => {
     );
 
     expect(screen.getByRole("alert").textContent).toMatchInlineSnapshot(
-      `"Provider problemTry againDetailsSend a report"`,
+      `"Couldn't connectTry againDetailsSend a report"`,
     );
   });
 });

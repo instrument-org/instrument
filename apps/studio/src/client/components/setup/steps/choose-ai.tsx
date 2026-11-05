@@ -18,16 +18,16 @@ import {
   useInstrumentConnect,
 } from "@/client/hooks/use-connect";
 import { type ConnectFlow } from "@/client/hooks/use-connect-flow";
+import { type OfferCopy, useOfferCopy } from "@/client/hooks/use-offer-copy";
 import {
   CONNECT_NAMES,
   CONNECT_PLANS,
   connectPageCopy,
-  instrumentWayCopy,
   noCreditsPageCopy,
   type WaitingStage,
   waitingPageCopy,
 } from "@/client/lib/connect-copy";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import {
   type ConnectOutcome,
   type ConnectProvider,
@@ -68,8 +68,6 @@ export type ChooseAIPage =
   /** The choices: Google, a subscription or a key. */
   | { kind: "choices" };
 
-type Offer = RPCOutput["billing"]["offer"];
-
 /**
  * Every way to bring AI to setup: Google's Instrument account (with its
  * trial), a ChatGPT, Claude or Grok subscription, or an API key, with the
@@ -106,7 +104,7 @@ export function ChooseAI({
   const signedIn = hasToken === true;
   // Where Back and Cancel return to from a sign-in's wait.
   const [waitedFrom, setWaitedFrom] = useState<ChooseAIPage>(initial);
-  const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
+  const offerCopy = useOfferCopy();
 
   /** Starts `provider`'s sign-in, or with `plans`, the website's plans. */
   const connect = (provider: ConnectProvider, plans = false) => {
@@ -170,7 +168,7 @@ export function ChooseAI({
             onSubscription={() => {
               setPage({ kind: "subscriptions" });
             }}
-            offer={offer}
+            offerCopy={offerCopy}
             signedIn={signedIn}
           />
         );
@@ -237,7 +235,7 @@ export function ChooseAI({
         return (
           <OutcomePage
             flows={flows}
-            offer={offer}
+            offerCopy={offerCopy}
             offerInstrument={!signedIn}
             onBack={() => {
               setPage(waitedFrom);
@@ -275,7 +273,7 @@ export function ChooseAI({
         return (
           <NoCreditsPage
             flows={flows}
-            offer={offer}
+            offerCopy={offerCopy}
             offerInstrument={!signedIn}
             onBack={() => {
               setPage({ kind: "key" });
@@ -319,23 +317,20 @@ const PAGE_DEPTH: Record<ChooseAIPage["kind"], number> = {
  */
 function ChoicesPage({
   google,
-  offer,
+  offerCopy,
   onGoogle,
   onKey,
   onSubscription,
   signedIn,
 }: {
   google: ConnectFlow<void>;
-  offer: Offer | undefined;
+  offerCopy: OfferCopy;
   onGoogle: () => void;
   onKey: () => void;
   onSubscription: () => void;
   signedIn: boolean;
 }) {
-  const trialDays =
-    !signedIn && instrumentWayCopy(offer).isTrial
-      ? offer?.trial?.days
-      : undefined;
+  const trialDays = signedIn ? undefined : offerCopy.trialDays;
   const line =
     google.phase === "on-web" || (signedIn && google.waiting)
       ? "Finish choosing your plan in your browser."
@@ -516,7 +511,7 @@ function WaitingPage({
  */
 function OutcomePage({
   flows,
-  offer,
+  offerCopy,
   offerInstrument,
   onBack,
   onConnect,
@@ -526,7 +521,7 @@ function OutcomePage({
   provider,
 }: {
   flows: Record<ConnectProvider, ConnectFlow<void>>;
-  offer: Offer | undefined;
+  offerCopy: OfferCopy;
   offerInstrument: boolean;
   onBack: () => void;
   onConnect: (provider: ConnectProvider) => void;
@@ -576,7 +571,7 @@ function OutcomePage({
       <OtherChoices
         flows={flows}
         instrumentLabel={outcome.kind === "no-plan" ? "Learn more" : undefined}
-        offer={offer}
+        offerCopy={offerCopy}
         offerInstrument={offerInstrument && provider !== "instrument"}
         onConnect={onConnect}
         providers={PLAN_PROVIDERS.filter((other) => other !== provider)}
@@ -605,7 +600,7 @@ function OutcomePage({
  */
 function NoCreditsPage({
   flows,
-  offer,
+  offerCopy,
   offerInstrument,
   onBack,
   onConnect,
@@ -613,7 +608,7 @@ function NoCreditsPage({
   providerId,
 }: {
   flows: Record<ConnectProvider, ConnectFlow<void>>;
-  offer: Offer | undefined;
+  offerCopy: OfferCopy;
   offerInstrument: boolean;
   /** Back to the key page, also "Use a different API key". */
   onBack: () => void;
@@ -647,7 +642,7 @@ function NoCreditsPage({
     >
       <OtherChoices
         flows={flows}
-        offer={offer}
+        offerCopy={offerCopy}
         offerInstrument={offerInstrument}
         onConnect={onConnect}
         providers={PLAN_PROVIDERS}
@@ -681,7 +676,7 @@ function NoCreditsPage({
 function OtherChoices({
   flows,
   instrumentLabel,
-  offer,
+  offerCopy,
   offerInstrument,
   onConnect,
   providers,
@@ -689,12 +684,11 @@ function OtherChoices({
   flows: Record<ConnectProvider, ConnectFlow<void>>;
   /** What Instrument's button says while a trial can start. */
   instrumentLabel?: string;
-  offer: Offer | undefined;
+  offerCopy: OfferCopy;
   offerInstrument: boolean;
   onConnect: (provider: ConnectProvider) => void;
   providers: PlanProvider[];
 }) {
-  const instrument = instrumentWayCopy(offer);
   return (
     <SetupRowList className="mt-8">
       {offerInstrument && (
@@ -709,15 +703,15 @@ function OtherChoices({
               variant="brand"
               waiting={flows.instrument.waiting}
             >
-              {instrument.isTrial
-                ? (instrumentLabel ?? instrument.action)
-                : instrument.action}
+              {offerCopy.isTrial
+                ? (instrumentLabel ?? offerCopy.action)
+                : offerCopy.action}
             </BrowserHandoffButton>
           }
           icon={<BrandMark className="size-12 shrink-0" />}
           inList
-          line={instrument.line}
-          title={instrument.title}
+          line={offerCopy.line}
+          title={offerCopy.title}
         />
       )}
       {providers.map((provider) => (

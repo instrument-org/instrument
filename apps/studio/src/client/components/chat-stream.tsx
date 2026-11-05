@@ -27,7 +27,7 @@ import {
 } from "./chat-stream-render-part";
 import { SentFoldersCard } from "./sent-folders-card";
 import { PlanningDotIcon } from "./icons/planning-dot";
-import { MessageError } from "./message-error";
+import { MessageError, type RunAgain } from "./message-error";
 import {
   GroupHeading,
   WorkingGroupHeading,
@@ -152,7 +152,7 @@ interface ChatStreamProps {
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   /** Sends the last message again, where there is somewhere to send it. */
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.

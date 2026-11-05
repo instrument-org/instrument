@@ -115,6 +115,7 @@ declare namespace NodeJS {
        * without changing which one the app opens next. See lib/workspaces.ts.
        */
       INSTRUMENT_WORKSPACE: string | undefined;
+      MAIN_VITE_APP_API_BASE_URL: string | undefined;
       NODE_ENV: string | undefined;
       /** Windows only: where OneDrive keeps its folder, set by OneDrive. */
       OneDrive: string | undefined;

@@ -32,7 +32,7 @@ import {
   setGrokAccountDefaultModel,
 } from "./set-default-model";
 
-/** The ways in whose plan the app checks itself; Instrument's comes from billing. */
+/** The providers whose plan the app checks itself; Instrument's comes from billing. */
 export type CheckedProvider = Exclude<ConnectProvider, "instrument">;
 
 /**

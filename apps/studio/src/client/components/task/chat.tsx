@@ -324,7 +324,10 @@ export function ChatConversation({
 
   // The failed turn again, with nothing said on the user's behalf: the agent
   // runs over the session as it stands and answers the request already in it.
-  const handleRunAgain = (modelURI = selectedModelURI) => {
+  const handleRunAgain = (
+    modelURI = selectedModelURI,
+    options?: { ifIdle: boolean },
+  ) => {
     if (!modelURI) {
       toast.error("Couldn't try again", {
         description: "Choose a model first.",
@@ -333,6 +336,7 @@ export function ChatConversation({
     }
     runTurn.mutate({
       id,
+      ifIdle: options?.ifIdle,
       modelURI,
       sessionId: selectedSessionId,
     });
@@ -678,7 +682,9 @@ export function ChatConversation({
                         handleRunAgain(modelURI);
                       }}
                       onRetry={handleRetry}
-                      onRunAgain={() => handleRunAgain()}
+                      onRunAgain={(options) => {
+                        handleRunAgain(undefined, options);
+                      }}
                     />
                   )}
                   {pendingModelChange && (

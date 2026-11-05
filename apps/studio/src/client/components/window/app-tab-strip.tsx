@@ -424,6 +424,7 @@ function useTabCarry({
         return;
       }
       const started = await rpcClient.window.startTabDrag.call({
+        at: { x: event.screenX, y: event.screenY },
         // In the window that goes with it, the tab stands first in the strip, so
         // the pointer holds it there at the same point of the tab it pressed.
         grab: { x: strip.left + pointInTab, y: event.clientY },

@@ -375,4 +375,3 @@ function NoteRow({
   }
   return <DeveloperNote part={part}>{node}</DeveloperNote>;
 }
-

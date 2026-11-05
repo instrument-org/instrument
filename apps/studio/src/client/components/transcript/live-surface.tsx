@@ -88,7 +88,9 @@ function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
   const task = useChildTask(useLiveChat(), id);
   return (
     task && {
-      ...(task.standing?.line && { ended: task.standing.line }),
+      ...(task.standing && {
+        ended: task.standing.summary ?? task.standing.line,
+      }),
       failed: task.standing?.kind === "failed",
       ...(task.step && { step: task.step }),
       stoppable: task.stoppable,

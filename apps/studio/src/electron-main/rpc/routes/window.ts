@@ -24,6 +24,7 @@ import {
   BrowserTargetIdSchema,
   liveRead,
 } from "@instrument-org/workspace/electron";
+import { Menu } from "electron";
 import { z } from "zod";
 
 const PointSchema = z.object({ x: z.number(), y: z.number() });
@@ -198,6 +199,18 @@ const placeTabDrag = base
     placeHeldTab(input.index);
   });
 
+/** The window's menu, drawn by the system at a point of the window, where no bar of the system's shows it. */
+const showAppMenu = base.input(PointSchema).handler(({ context, input }) => {
+  const window = getCallingWindow(context.webContentsId);
+  if (window) {
+    Menu.getApplicationMenu()?.popup({
+      window,
+      x: Math.round(input.x),
+      y: Math.round(input.y),
+    });
+  }
+});
+
 /** Lets the tab go, and says where it lands. */
 const endTabDrag = base
   .input(
@@ -220,6 +233,7 @@ export const window = {
   openNew,
   reopenClosed,
   sendTab,
+  showAppMenu,
   startTabDrag,
   takePending,
 };

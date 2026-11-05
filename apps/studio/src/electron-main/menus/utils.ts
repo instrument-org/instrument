@@ -278,30 +278,33 @@ export function createHelpMenu({
 }
 
 /**
- * The Window menu, on a Mac alone. Elsewhere the window draws its own
- * minimize, maximize and close buttons, the system has its own keys for
+ * The Window menu. Only a Mac has Electron's: elsewhere the window draws its
+ * own minimize, maximize and close buttons, the system has its own keys for
  * them, and Electron's Window menu would bind Ctrl+M to minimize and Ctrl+W
  * to close the window, which wins over Close Tab for a key a focused page
- * leaves to the menu.
+ * leaves to the menu. There it is only the items given, if any.
  */
 export function createWindowMenu(
   windowItems: MenuItemConstructorOptions[] = [],
 ): MenuItemConstructorOptions[] {
-  return IS_MAC
-    ? [
-        {
-          label: "Window",
-          role: "windowMenu" as const,
-          submenu: [
-            { role: "minimize" as const },
-            { role: "zoom" as const },
-            ...(windowItems.length > 0
-              ? [{ type: "separator" as const }, ...windowItems]
-              : []),
-            { type: "separator" as const },
-            { role: "front" as const },
-          ],
-        },
-      ]
-    : [];
+  if (!IS_MAC) {
+    return windowItems.length > 0
+      ? [{ label: "Window", submenu: windowItems }]
+      : [];
+  }
+  return [
+    {
+      label: "Window",
+      role: "windowMenu" as const,
+      submenu: [
+        { role: "minimize" as const },
+        { role: "zoom" as const },
+        ...(windowItems.length > 0
+          ? [{ type: "separator" as const }, ...windowItems]
+          : []),
+        { type: "separator" as const },
+        { role: "front" as const },
+      ],
+    },
+  ];
 }

@@ -125,8 +125,6 @@ describe("PermissionAsksFoot", () => {
     "Windows PowerShell",
     "Windows Terminal",
     "powershell",
-    "org.gnome.Terminal",
-    "xterm",
   ])("says what a yes to %s reaches", async (target) => {
     showAsks([{ kind: "app", target }]);
     expect(
@@ -145,6 +143,28 @@ describe("PermissionAsksFoot", () => {
         "Windows Command Processor can reach everything on your computer, so allowing it lets Instrument do the same.",
       ),
     ).toBeTruthy();
+  });
+
+  it.each(["Console", "org.gnome.Terminal", "xterm"])(
+    "says what a yes to %s reaches on Linux",
+    async (target) => {
+      Object.defineProperty(window, "electron", {
+        configurable: true,
+        value: { process: { platform: "linux" } },
+      });
+      showAsks([{ kind: "app", target }]);
+      expect(
+        await screen.findByText(
+          `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
+        ),
+      ).toBeTruthy();
+    },
+  );
+
+  it("says nothing more of the Mac's Console, which only reads logs", async () => {
+    showAsks([{ kind: "app", target: "Console" }]);
+    await screen.findByRole("button", { name: "Allow in this chat" });
+    expect(screen.queryByText(/can reach everything/)).toBeNull();
   });
 
   it("says nothing more of an app that reaches only itself", async () => {

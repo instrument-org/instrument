@@ -29,6 +29,7 @@ import { sessionRole } from "../lib/chat/children";
 import { chatRules } from "../lib/permissions/chat-rules";
 import { reachOf } from "../lib/permissions/rules";
 import { askableFolder, closedNote } from "../lib/permissions/rules-fs";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { hostPathOf, shellPath } from "../lib/workspace-fs-layout";
 import { WINDOW_ID } from "../schemas/window-id";
 import { defineCapability, type Role } from "../lib/capabilities/define";
@@ -289,12 +290,18 @@ async function appToAsk(
   given: string,
   role: Role | undefined,
 ): Promise<Decided> {
-  // Only macOS can look an app up by name; elsewhere a card goes by what the
-  // gate will ask about.
-  const onMac = process.platform === "darwin";
-  const offMac = onMac ? undefined : await appToAskOffMac(given, chatId);
-  const name = onMac ? given : offMac?.name;
-  const bundleId = onMac ? await appBundleId(given) : offMac?.bundleId;
+  // Only macOS can look an app up by name, and off it only computer use has an
+  // app to give a yes to; there a card goes by what the gate will ask about.
+  const drivesAppsOffMac =
+    process.platform !== "darwin" &&
+    getWorkspaceConfig().computerUse?.isEnabled() === true;
+  const offMac = drivesAppsOffMac
+    ? await appToAskOffMac(given, chatId)
+    : undefined;
+  const name = drivesAppsOffMac ? offMac?.name : given;
+  const bundleId = drivesAppsOffMac
+    ? offMac?.bundleId
+    : await appBundleId(given);
   if (name === undefined || bundleId === undefined) {
     return {
       message: `No app called ${JSON.stringify(given)} is on this computer.`,

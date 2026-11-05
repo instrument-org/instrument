@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 
 import { openSettings } from "@/client/atoms/settings-modal";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
-import { cn } from "@/client/lib/utils";
+import { cn, isLinux } from "@/client/lib/utils";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
@@ -110,7 +110,13 @@ const APPS_THAT_REACH_EVERYTHING = new Set([
   "windows terminal",
   "windowsterminal",
   "wt",
-  // Linux, by name, program and desktop id.
+]);
+
+/**
+ * Linux's, by name, program and desktop id, and only there: `console` and `files`
+ * are other apps elsewhere, and the Mac's Console only reads logs.
+ */
+const LINUX_APPS_THAT_REACH_EVERYTHING = new Set([
   "alacritty",
   "console",
   "files",
@@ -142,11 +148,13 @@ const APPS_THAT_REACH_EVERYTHING = new Set([
  * by what its yes covers; undefined for any other app.
  */
 function appReachLine(app: string, bundleId?: string): string | undefined {
-  return [app, bundleId].some(
-    (known) =>
-      known !== undefined &&
-      APPS_THAT_REACH_EVERYTHING.has(known.trim().toLowerCase()),
-  )
+  return [app, bundleId].some((known) => {
+    const name = known?.trim().toLowerCase() ?? "";
+    return (
+      APPS_THAT_REACH_EVERYTHING.has(name) ||
+      (isLinux() && LINUX_APPS_THAT_REACH_EVERYTHING.has(name))
+    );
+  })
     ? `${app} can reach everything on your computer, so allowing it lets Instrument do the same.`
     : undefined;
 }

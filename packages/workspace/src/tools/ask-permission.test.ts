@@ -199,6 +199,26 @@ describe("ask_permission", () => {
     },
   );
 
+  it.each(["linux", "win32"])(
+    "refuses an app on %s while computer use is off, where a yes would do nothing",
+    async (platform) => {
+      const realPlatform = process.platform;
+      const chatId = await chatNamed(`ask-permission-off-${platform}`);
+      const driver = standInDriver({}, { enabled: false });
+      Object.defineProperty(process, "platform", { value: platform });
+      try {
+        expect(await ask(chatId, "app", "Calculator")).toEqual({
+          message: 'No app called "Calculator" is on this computer.',
+          state: "refused",
+        });
+        expect(await openAsks(chatId)).toEqual([]);
+        expect(driver.calls()).toEqual([]);
+      } finally {
+        Object.defineProperty(process, "platform", { value: realPlatform });
+      }
+    },
+  );
+
   it("shows a running Windows app by its name, and goes by its program for the answer", async () => {
     const realPlatform = process.platform;
     const chatId = await chatNamed("ask-permission-windows");

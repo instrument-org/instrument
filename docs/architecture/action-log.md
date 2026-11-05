@@ -15,7 +15,7 @@ One JSON line per action, a file per local day, in the workspace's machine folde
 
 The kinds are in [schema.ts](../../packages/workspace/src/lib/actions/schema.ts). A field is a place's own name or path as the person sees it, never content.
 
-`ActionLog` writes a line as it happens, with the day's file held open: a two-second batch would catch about one event at real rates and keep the newest one from a message sent right after it. It is bounded so a capture point stuck in a loop cannot fill the disk: a repeat of the line before within a minute is skipped, a kind writes at most 60 lines a minute, a day at most 2 MB, and the folder keeps 14 days and 32 MB, swept when a day's file opens. What a cap leaves out is written as a `capped` line. Measured on an M5 Max, a line costs 2 to 3 µs, a heavy day of 3,000 actions is about 470 KB, and reading the last 30 minutes of it about a millisecond.
+`ActionLog` writes a line as it happens, with the day's file held open: a two-second batch would catch about one event at real rates and keep the newest one from a message sent right after it. It is bounded so a capture point stuck in a loop cannot fill the disk: a repeat of the line before within a minute is skipped, a kind writes at most 60 lines a minute, a day at most 2 MB, and the folder at most 32 MB, the oldest days going first when a day's file opens. Nothing expires by age. What a cap leaves out is written as a `capped` line. Measured on an M5 Max, a line costs 2 to 3 µs, a heavy day of 3,000 actions is about 470 KB, and reading the last 30 minutes of it about a millisecond.
 
 ## Capture
 

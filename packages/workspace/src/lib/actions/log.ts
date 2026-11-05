@@ -17,14 +17,14 @@ import { type Action, type ActionInput, ActionSchema } from "./schema";
  * Bounded so a capture point stuck in a loop cannot fill the disk: a repeat
  * of the line before within a minute is not written, a kind writes at most
  * `PER_KIND_PER_MINUTE` lines a minute, a day at most `MAX_DAY_BYTES`, and
- * the folder keeps `KEEP_DAYS` days and `MAX_TOTAL_BYTES` in all. What a cap
- * leaves out is said in a `capped` line.
+ * the folder at most `MAX_TOTAL_BYTES`, the oldest days going first. Nothing
+ * expires by age: a day stays until the folder is full or the person clears
+ * it. What a cap leaves out is said in a `capped` line.
  */
 
 const ACTIONS_FOLDER = "actions";
 const DAY_FILE = /^(\d{4})-(\d{2})-(\d{2})\.jsonl$/;
 
-export const KEEP_DAYS = 14;
 const MAX_DAY_BYTES = 2 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 const PER_KIND_PER_MINUTE = 60;
@@ -88,15 +88,22 @@ export class ActionLog {
   #dropped = new Map<string, number>();
   #onError: (error: unknown) => void;
   #reported = false;
+  readonly #maxTotalBytes: number;
 
   constructor(
     dir: string,
     {
+      maxTotalBytes = MAX_TOTAL_BYTES,
       now = Date.now,
       onError = () => {},
-    }: { now?: () => number; onError?: (error: unknown) => void } = {},
+    }: {
+      maxTotalBytes?: number;
+      now?: () => number;
+      onError?: (error: unknown) => void;
+    } = {},
   ) {
     this.#dir = dir;
+    this.#maxTotalBytes = maxTotalBytes;
     this.#now = now;
     this.#onError = onError;
   }
@@ -250,28 +257,17 @@ export class ActionLog {
     this.#day = day;
     this.#dayBytes = fs.fstatSync(this.#fd).size;
     this.#dayCapped = this.#dayBytes >= MAX_DAY_BYTES;
-    this.#sweep(now, file);
+    this.#sweep(file);
   }
 
-  /** Removes days past `KEEP_DAYS`, then the oldest until the folder fits `MAX_TOTAL_BYTES`; never today's. */
-  #sweep(now: number, today: string) {
-    const oldest = new Date(now);
-    oldest.setHours(0, 0, 0, 0);
-    oldest.setDate(oldest.getDate() - KEEP_DAYS);
-    const kept: { file: string; size: number }[] = [];
-    for (const { file, start } of dayFiles(this.#dir)) {
-      if (file === today) {
-        continue;
-      }
-      if (start < oldest.getTime()) {
-        fs.rmSync(file, { force: true });
-        continue;
-      }
-      kept.push({ file, size: fs.statSync(file).size });
-    }
+  /** Removes the oldest days until the folder fits its cap; never today's. */
+  #sweep(today: string) {
+    const kept = dayFiles(this.#dir)
+      .filter(({ file }) => file !== today)
+      .map(({ file }) => ({ file, size: fs.statSync(file).size }));
     let total = kept.reduce((sum, each) => sum + each.size, this.#dayBytes);
     for (const { file, size } of kept) {
-      if (total <= MAX_TOTAL_BYTES) {
+      if (total <= this.#maxTotalBytes) {
         break;
       }
       fs.rmSync(file, { force: true });

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ActionLog, KEEP_DAYS } from "./log";
+import { ActionLog } from "./log";
 
 let dir: string;
 let now: number;
@@ -85,12 +85,15 @@ describe("ActionLog", () => {
     ]);
   });
 
-  it(`keeps ${KEEP_DAYS} days`, () => {
-    for (const day of ["2026-10-01", "2026-10-21", "2026-10-22"]) {
-      fs.writeFileSync(path.join(dir, `${day}.jsonl`), "{}\n");
+  it("keeps old days until the folder is full, then drops the oldest", () => {
+    log.close();
+    log = new ActionLog(dir, { maxTotalBytes: 1000, now: () => now });
+    for (const day of ["2025-01-01", "2026-10-21", "2026-10-22"]) {
+      fs.writeFileSync(path.join(dir, `${day}.jsonl`), "x".repeat(400));
     }
     log.record({ kind: "screen", name: "Apps" });
     expect(fs.readdirSync(dir).toSorted()).toEqual([
+      "2026-10-21.jsonl",
       "2026-10-22.jsonl",
       "2026-11-05.jsonl",
     ]);

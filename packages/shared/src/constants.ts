@@ -155,8 +155,9 @@ export const PRIVATE_FOLDER_NAME = `.instrument`;
 export const WORKSPACE_MACHINE_ENTRIES = {
   /**
    * What the person did in the app, a JSON Lines file per local day
-   * (`actions/<YYYY-MM-DD>.jsonl`), kept 14 days: what happens on this
-   * computer alone, and never travels with the workspace.
+   * (`actions/<YYYY-MM-DD>.jsonl`), the oldest days dropped past a size
+   * cap: what happens on this computer alone, and never travels with the
+   * workspace.
    */
   actions: "actions",
   /** The local servers of connected apps, as installed. */

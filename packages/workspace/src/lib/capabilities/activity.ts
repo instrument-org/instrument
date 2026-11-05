@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { actionLog, KEEP_DAYS } from "../actions/log";
+import { actionLog } from "../actions/log";
 import { ActionSchema } from "../actions/schema";
 import { actionSentence } from "../actions/sentence";
 import { ACTIONS_NOT_SHARED, mayShareActions } from "../actions/sharing";
@@ -129,11 +129,13 @@ optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it.`,
     if (rows.length === 0) {
       const further =
         sinceMs(since) < DAY_MS
-          ? `\`${ACTIVITY_COMMAND.name} --since 1d\` looks further back.`
-          : `The log keeps ${KEEP_DAYS} days.`;
+          ? ` \`${ACTIVITY_COMMAND.name} --since 1d\` looks further back.`
+          : sinceMs(since) < 30 * DAY_MS
+            ? ` \`${ACTIVITY_COMMAND.name} --since 30d\` looks further back.`
+            : "";
       return grep === undefined
-        ? `Nothing the user did in ${APP_NAME} on this computer ${span} was logged. ${further}`
-        : `Nothing the user did in ${APP_NAME} on this computer ${span} mentions "${grep}". ${further}`;
+        ? `Nothing the user did in ${APP_NAME} on this computer ${span} was logged.${further}`
+        : `Nothing the user did in ${APP_NAME} on this computer ${span} mentions "${grep}".${further}`;
     }
     return [
       `What the user did in ${APP_NAME} on this computer ${span}${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time. Only what happened in ${APP_NAME} is here: a file they downloaded or saved in another app is not.`,

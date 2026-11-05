@@ -16,6 +16,7 @@ import {
   SETTINGS_PAGES,
   type SettingsEntry,
   type SettingsMatch,
+  settingsTabOf,
   settingsTargetOf,
 } from "@/client/components/settings/settings-index";
 import { useSettingsSearch } from "@/client/components/settings/use-settings-search";
@@ -91,10 +92,7 @@ export function SettingsModal() {
   // play) for a moment after `state` clears to null, instead of unmounting
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
-  const activeTab =
-    content === null
-      ? undefined
-      : (content.tab ?? tabOfSetting(content.setting) ?? "General");
+  const activeTab = content === null ? undefined : settingsTabOf(content);
   // The pages back and forward of this one, nearest last, which each open
   // starts without. Choosing a page drops those ahead, as a browser does.
   const [visited, setVisited] = useState<{
@@ -160,15 +158,6 @@ export function SettingsModal() {
       )}
     </Dialog>
   );
-}
-
-/** The page a link's setting is on, or none for one Settings searches for instead. */
-function tabOfSetting(setting: string | undefined) {
-  if (setting === undefined) {
-    return undefined;
-  }
-  const target = settingsTargetOf(setting);
-  return target.kind === "search" ? undefined : target.tab;
 }
 
 function SettingsModalContent({

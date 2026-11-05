@@ -1,3 +1,4 @@
+import { RECORD_ACTION_CHANNEL } from "@/shared/actions";
 import {
   CAPTURE_EXCEPTION_CHANNEL,
   CODE_EDITOR_FOCUS_CHANNEL,
@@ -244,6 +245,11 @@ const api: Window["api"] = {
     set: (file, key, value) => {
       ipcRenderer.send(KEPT_STATE_CHANNEL.set, file, key, value);
     },
+  },
+  // Sent, not invoked: nothing waits on the action log, and the main process
+  // checks what it is told before recording it.
+  recordAction: (action) => {
+    ipcRenderer.send(RECORD_ACTION_CHANNEL, action);
   },
   // One-way bridge for forwarding renderer errors to the main-process dev log.
   // The main side only listens in development, so this is a no-op in production.

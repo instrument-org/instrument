@@ -3,6 +3,7 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import type { ReactNode } from "react";
 import { toast as sonnerToast, type ExternalToast } from "sonner";
 
+import { recordWindowAction } from "./actions";
 import { logger } from "./logger";
 
 // Every toast in the app goes through here, so how a toast behaves is decided
@@ -23,6 +24,9 @@ import { logger } from "./logger";
 // happen, as "Couldn't …"; a second line is there only when it tells them
 // something they can use, in words written for them. The error itself goes in
 // `cause`: it is logged, and it is shown only in developer mode, marked as such.
+//
+// An error or a warning goes in the action log in the words the person read:
+// the title, and a second line that is plain text.
 //
 // `toast.dev` is for code only developers reach. It shows nothing outside
 // developer mode and is marked when it does show, so nobody mistakes it for
@@ -112,11 +116,28 @@ function errorDescription(
   );
 }
 
+/** An error or a warning a toast showed, as the person read it, when its title is text. */
+function recordShown(
+  message: Message,
+  description: ExternalToast["description"],
+) {
+  if (typeof message !== "string" || message === "") {
+    return;
+  }
+  const line = typeof description === "string" ? description : "";
+  const title = /[.!?…]$/.test(message) ? message : `${message}.`;
+  recordWindowAction({
+    kind: "error",
+    message: line === "" ? message : `${title} ${line}`,
+  });
+}
+
 function showError(message: Message, data?: ErrorToast) {
   const { cause, ...rest } = data ?? {};
   if (cause !== undefined) {
     logger.error(typeof message === "string" ? message : "Toast", cause);
   }
+  recordShown(message, rest.description);
   return sonnerToast.error(
     message,
     withDuration(
@@ -212,8 +233,10 @@ export const toast = Object.assign(
     promise: sonnerToast.promise,
     success: (message: Message, data?: ExternalToast) =>
       sonnerToast.success(message, withDuration(data)),
-    warning: (message: Message, data?: ExternalToast) =>
-      sonnerToast.warning(message, withDuration(data)),
+    warning: (message: Message, data?: ExternalToast) => {
+      recordShown(message, data?.description);
+      return sonnerToast.warning(message, withDuration(data));
+    },
     work: showWork,
   },
 );

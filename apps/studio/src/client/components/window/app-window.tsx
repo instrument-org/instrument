@@ -14,10 +14,12 @@ import {
   paneOpenByGroupAtom,
   chatsOutOf,
 } from "@/client/atoms/window";
+import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { NavControls } from "@/client/components/nav-controls";
 import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
+import { settingsTabOf } from "@/client/components/settings/settings-index";
 import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
@@ -108,6 +110,7 @@ import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
+import { screenActionOf, useRecordScreen } from "./screen-action";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -651,14 +654,29 @@ function WindowShell({
   // its pane is open, or the screen the window's tab is at.
   const groupUp = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
-  const screenView =
+  const surfaceInView =
     groupInView === undefined
-      ? (surfaces[appTabs.model.selectedId ?? ""]?.view ?? null)
+      ? surfaces[appTabs.model.selectedId ?? ""]
       : groupUp?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
             isPaneOpen(groupInView, paneOpenByGroup))
-        ? (surfaces[groupUp.id]?.view ?? null)
-        : null;
+        ? surfaces[groupUp.id]
+        : undefined;
+  const screenView = surfaceInView?.view ?? null;
+  // The screen in front, for the action log once it settles.
+  const settings = useAtomValue(settingsModalAtom);
+  useRecordScreen(
+    screenActionOf({
+      appName: (slug) => appsBySlug.get(slug)?.name,
+      chatTitle: (chat) => chatTitles.get(chat),
+      ...(surfaceInView?.walked
+        ? { folderPath: surfaceInView.walked.hostPath }
+        : {}),
+      href: activeHref,
+      ...(settings === null ? {} : { settingsTab: settingsTabOf(settings) }),
+      view: screenView,
+    }),
+  );
   // What goes with a message, read at the moment of sending.
   const volumes = useComputerVolumes();
   const dismissedChips = useAtomValue(dismissedChipsAtom);

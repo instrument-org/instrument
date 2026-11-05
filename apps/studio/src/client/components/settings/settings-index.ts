@@ -379,6 +379,27 @@ export function settingsTargetOf(
   return { kind: "search", search: name.replaceAll(/[-_:]+/g, " ").trim() };
 }
 
+/**
+ * The page Settings shows for what it was opened with: the page asked for,
+ * else the one a link's setting is on, else General, which is also where a
+ * setting it searches for opens.
+ */
+export function settingsTabOf({
+  setting,
+  tab,
+}: {
+  setting?: string;
+  tab?: SettingsTab;
+}): SettingsTab {
+  if (tab) {
+    return tab;
+  }
+  const target = setting === undefined ? undefined : settingsTargetOf(setting);
+  return target === undefined || target.kind === "search"
+    ? "General"
+    : target.tab;
+}
+
 /** Where a setting is, as a person would say the way there: `Settings › General › Zoom`. */
 export function settingsPathOf(name: string): string {
   const target = settingsTargetOf(name);

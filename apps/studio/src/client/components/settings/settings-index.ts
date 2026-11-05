@@ -333,6 +333,10 @@ export const SETTINGS_PAGES: Record<
   Activity: {
     detail: `Everything ${APP_NAME} asked an AI model to do, which you can filter, sort, and export.`,
   },
+  "Computer Use": {
+    detail: `What ${APP_NAME} needs from your computer to work in your other apps.`,
+    shownWhen: "the Computer Use feature flag is on",
+  },
   Developer: {
     detail: "The API server, the release channel, and feature flags.",
     developerOnly: true,

@@ -179,12 +179,37 @@ export interface WorkspaceAppsConfig {
   };
 }
 
+/**
+ * The desktop driver behind `instrument computer`, which the host carries and
+ * runs as a plain child of itself, so macOS holds the host responsible for it
+ * and a grant to the host covers it.
+ */
+export interface ComputerUseHost {
+  /** The driver's executable, with its helper beside it. */
+  binaryPath: string;
+  /** Read per call: a feature flag the person can change from Settings. */
+  isEnabled: () => boolean;
+  /**
+   * Whether the person has finished setup on this computer. They grant access
+   * in the host's own setup screen, never through the agent.
+   */
+  isReady: () => boolean;
+  /** The app's own bundle id, whose windows the agent never drives. */
+  ownBundleId: string;
+  /**
+   * Where the driver keeps snapshots: a folder only this user can read, made
+   * when first asked for so nothing is left behind while the flag is off.
+   */
+  stateDir: () => string;
+}
+
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
+  computerUse?: ComputerUseHost;
   /**
    * This install of the app on this machine, which every chat record this
    * process writes is filed under: the only writer of each log and marks

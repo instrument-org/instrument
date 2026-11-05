@@ -4,6 +4,7 @@ import {
 } from "@/client/atoms/settings-modal";
 import { AccountSection } from "@/client/components/settings/account-section";
 import { ActivitySection } from "@/client/components/settings/activity-section";
+import { ComputerUseSection } from "@/client/components/settings/computer-use-section";
 import { DeveloperSection } from "@/client/components/settings/developer-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
@@ -44,6 +45,7 @@ import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
+import { CursorClickIcon } from "@phosphor-icons/react/CursorClick";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -522,6 +524,9 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
     case "Activity": {
       return <ActivitySection />;
     }
+    case "Computer Use": {
+      return <ComputerUseSection />;
+    }
     case "Developer": {
       return <DeveloperSection />;
     }
@@ -552,6 +557,7 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
 
 /** Each tab's mark in the sidebar. */
 const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
+  "Computer Use": CursorClickIcon,
   Developer: WrenchIcon,
   General: FadersHorizontalIcon,
   Memory: FingerprintIcon,

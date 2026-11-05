@@ -53,7 +53,7 @@ The owner settled these; the design below follows them.
 - **Scripts keep the guide check.** A script's first request to an API app throws `ReadGuideFirst` with the guide, as the CLI hands it back today, and the `app` and `node`/`python` descriptions say to read an app's guide before scripting it.
 - **A preflight ask is built only if an eval shows it helps** (phase 1).
 - **Python is synchronous first**, with calls safe from threads for fan-out.
-- **The Mac apps move into the Apps area like every other app, as plain local MCP apps.** The EventKit helper and the AppleScript behind Mail, Notes and Messages are served by an MCP server bundled inside Instrument, and each Mac app is an ordinary local MCP app (`instrument app call apple-calendar add_event`), the same as Notion or Linear, presented in Apps as a Mac app. There is no `mac` app kind and no registry capability per tool. MCP is the boundary, so the server can later be swapped or reused (iOS, the cloud). macOS's permission prompts stay attributed to Instrument, and a denial is the gate's `card` outcome (exit 2, `CardShown`) with today's macOS card. Longer term, computer use on every OS goes through Apps too (see [Computer use](#computer-use)).
+- **The Mac apps move into the Apps area like every other app, as plain local MCP apps.** The EventKit helper and the AppleScript behind Mail, Notes and Messages are served by an MCP server bundled inside Instrument, and each Mac app is an ordinary local MCP app (`instrument app call apple-calendar add_event`), the same as Notion or Linear, presented in Apps as a Mac app. There is no `mac` app kind and no registry capability per tool. MCP is the boundary, so the server can later be swapped or reused (iOS, the cloud). macOS's permission prompts stay attributed to Instrument, and a denial is the gate's `card` outcome (exit 2, `CardShown`) with today's macOS card. Computer use is the agent's way into every other app (see [Computer use](#computer-use)).
 - **`instrument tab` is `instrument window`**, renamed on its own branch; phase 3's capabilities are `window.*`.
 - **Connecting a Mac app covers every chat**, as connecting any other app does. Calendar, Mail, Messages and the rest stop asking in each chat once the person connects them in Apps; Disconnect in Apps is the off switch, as for every other app, and macOS keeps its own prompt. Per-chat access may come later as an opt-in setting, and it would apply to apps in general rather than to Mac apps alone.
 
@@ -246,21 +246,13 @@ What it costs: the short `instrument calendar` words, and a person who removes t
 
 ## Computer use
 
-The spike lives on the `spike/computer-use` branch: a `computer` shell command (`packages/workspace/src/lib/shell-commands/computer.ts` there) over an embedded Cua Driver that Studio main runs (`apps/studio/src/electron-main/lib/computer-driver.ts`), behind a feature flag, with its own plan (`docs/plans/computer-use.md` on that branch). An earlier `spike/cua-driver` branch is the macOS proof of concept it grew from.
+Computer use is its own plan now: [computer-use.md](computer-use.md). It took the registry route this section argued for: `instrument computer` is `computer.*` capabilities, and every verb passes the one gate, which resolves what it acts on to one app and asks `appLevel`, the way every other route to an app does.
 
-How it limits the agent today: an allowlist of **driver verbs** (`click`, `type_text`, `get_window_state`, `launch_app`, ...; `browser_*`, `kill_app`, the clipboard and driver administration left out), plus the two macOS grants checked in Settings. Nothing limits **which app** a verb acts on: every call names a target by `pid` (and `window_id`), found through `list_apps`, and no check maps that pid to an app the person allowed. It also predates the chat rework (it is keyed by `TaskId`) and runs no per-chat gate (`appRefusal` is not called).
+Where it went another way from what was written here:
 
-What fits an Apps allowlist:
-
-- Every acting verb already names one process, so a gate can resolve `pid` to the app's bundle id (or its executable on Windows and Linux) and check it against the apps the person connected, the way `appReach` matches a Mac app by name or bundle id today. `launch_app` names its app outright.
-- `list_apps` and `list_windows` can be filtered to the allowed apps, so the agent enumerates only what Apps allows.
-- As registry capabilities (`computer.click`, ...), every verb passes the one gate, and a review of each call attaches there as for sends.
-
-What would have to change:
-
-- **Desktop-wide verbs** have no single app: `get_desktop_state` and `zoom` capture the whole screen, `get_screen_size`, `move_cursor` and `drag` across windows reach past one app. They either go, or capture only the allowed apps' windows.
-- **A pid is not stable consent.** The gate resolves it on every call, since an app can quit and its pid be reused, and a helper process (a browser's renderer, an app's XPC service) has to count as its app.
-- **Apps needs an entry for a desktop app** that has no Mac app interface, no service and no folder today: a "desktop app" app kind on every OS, connected by the person in Apps, which is what the computer-use gate checks.
+- **No "desktop app" app kind in Apps.** The grant an `ask_permission` card gives, a rule in Settings › Permissions and a "Not now" already answer for any app on the computer, so nobody connects a desktop app in Apps first. A Mac app that is in Apps (Mail, Notes) keeps pointing there, since its tools are the better route.
+- **Verbs name a ref, not a pid.** The gate reads a ref's app from the snapshot it came from, and the driver refuses a ref whose process has gone, so a reused pid can't carry a grant to another app.
+- **Desktop-wide verbs went**: no whole-screen capture, and no coordinates, which name no app.
 
 ## Phasing
 

@@ -19,6 +19,7 @@ import {
   seatbeltHelperPath,
   resolveAlias,
 } from "@/electron-main/lib/mac-native";
+import { computerUseHost } from "@/electron-main/lib/computer-use";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
@@ -35,6 +36,7 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
+  endComputerSessions,
   type DeviceId,
   ensurePythonBase,
   interruptTasksForQuit,
@@ -141,6 +143,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       resolveAlias,
       // Files refuses what the viewers' file channel refuses, by one rule.
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
+      computerUse: computerUseHost(),
       ...(process.platform === "darwin"
         ? {
             macAppAccess,
@@ -393,7 +396,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
             (quit) => quit && confirmQuitWithRunningWork(),
           );
         }),
-        closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
+        closeBrowserSessions: fromPromise(async () => {
+          await Promise.all([
+            closeAllAgentBrowserSessions(),
+            endComputerSessions(),
+          ]);
+        }),
         stopServices: fromPromise(async () => {
           // Agent-started servers and watchers outlive the turn that started
           // them, so quitting is what ends them. The tasks at work are

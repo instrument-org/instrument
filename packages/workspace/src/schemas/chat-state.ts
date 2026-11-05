@@ -103,6 +103,8 @@ const PermissionAskSchema = z.object({
   failed: z
     .object({ decision: PermissionDecisionSchema, message: z.string() })
     .optional(),
+  /** What a yes to an app covers, where that isn't the name on its card. */
+  bundleId: z.string().optional(),
   /** Whether the ask belongs to this computer, which alone acts on it. */
   here: z.boolean(),
   id: z.string(),

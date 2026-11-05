@@ -17,6 +17,7 @@ const device = DeviceIdSchema.parse("dev_MAC00000");
 
 function showAsks(
   asks: {
+    bundleId?: string;
     /** Set for a card another computer raised, which this one shows. */
     elsewhere?: {
       answerable: boolean;
@@ -37,9 +38,17 @@ function showAsks(
     }).queryKey,
     asks.map(
       (
-        { elsewhere, kind = "folder", reason, status = "open", target },
+        {
+          bundleId,
+          elsewhere,
+          kind = "folder",
+          reason,
+          status = "open",
+          target,
+        },
         index,
       ) => ({
+        ...(bundleId && { bundleId }),
         answerable: elsewhere?.answerable ?? true,
         ...(elsewhere?.answered && { answered: elsewhere.answered }),
         askedAt: new Date(index),
@@ -108,6 +117,61 @@ describe("PermissionAsksFoot", () => {
       ).toBe(holds);
     },
   );
+
+  it.each([
+    "Terminal",
+    "Finder",
+    "com.apple.Terminal",
+    "Windows PowerShell",
+    "Windows Terminal",
+    "powershell",
+  ])("says what a yes to %s reaches", async (target) => {
+    showAsks([{ kind: "app", target }]);
+    expect(
+      await screen.findByText(
+        `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("says what a yes reaches by what it covers, under the name on the card", async () => {
+    showAsks([
+      { bundleId: "cmd", kind: "app", target: "Windows Command Processor" },
+    ]);
+    expect(
+      await screen.findByText(
+        "Windows Command Processor can reach everything on your computer, so allowing it lets Instrument do the same.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it.each(["Console", "org.gnome.Terminal", "xterm"])(
+    "says what a yes to %s reaches on Linux",
+    async (target) => {
+      Object.defineProperty(window, "electron", {
+        configurable: true,
+        value: { process: { platform: "linux" } },
+      });
+      showAsks([{ kind: "app", target }]);
+      expect(
+        await screen.findByText(
+          `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
+        ),
+      ).toBeTruthy();
+    },
+  );
+
+  it("says nothing more of the Mac's Console, which only reads logs", async () => {
+    showAsks([{ kind: "app", target: "Console" }]);
+    await screen.findByRole("button", { name: "Allow in this chat" });
+    expect(screen.queryByText(/can reach everything/)).toBeNull();
+  });
+
+  it("says nothing more of an app that reaches only itself", async () => {
+    showAsks([{ kind: "app", target: "Calculator" }]);
+    await screen.findByRole("button", { name: "Allow in this chat" });
+    expect(screen.queryByText(/can reach everything/)).toBeNull();
+  });
 
   it("draws the oldest of several asks, with how many are waiting", async () => {
     showAsks([

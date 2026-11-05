@@ -6,6 +6,7 @@ import { atom } from "jotai";
 
 const defaultFeatures: Features = {
   browser_extensions: false,
+  computer_use: false,
   context_ring: false,
   suggestions_from_your_chats: false,
 };

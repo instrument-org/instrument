@@ -36,6 +36,10 @@ import {
 import { MAC_APPS } from "./mac-apps/apps";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { createXCommand, X_COMMAND } from "./shell-commands/x";
+import {
+  COMPUTER_COMMAND,
+  createComputerCommand,
+} from "./shell-commands/computer";
 import { answerChannel, type ChannelAnswer } from "./capabilities/channel";
 import { commandRefusal } from "./capabilities/cli";
 import { type CapabilityScope } from "./capabilities/context";
@@ -725,9 +729,17 @@ export function computerCommandsText(): string {
         .filter((name) => !listed.has(name)),
     ),
   ].sort();
-  return added.length > 0
-    ? `Your shell on this computer also has ${added.map((name) => `\`${name}\``).join(", ")}.`
-    : "";
+  return [
+    added.length > 0
+      ? `Your shell on this computer also has ${added.map((name) => `\`${name}\``).join(", ")}.`
+      : "",
+    // Only once it's on and set up: nothing else on the computer depends on it.
+    getWorkspaceConfig().computerUse?.isReady() === true
+      ? `\`${COMPUTER_COMMAND.name}\`: ${COMPUTER_COMMAND.description} \`${COMPUTER_COMMAND.name} help\` shows how.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function createBashDescription() {
@@ -931,6 +943,7 @@ export async function createLocalBashEnv({
         command: createAppCommand(scope),
       },
       { ...X_COMMAND, command: createXCommand(scope) },
+      { ...COMPUTER_COMMAND, command: createComputerCommand(scope) },
       {
         ...MEMORY_COMMAND,
         command: createMemoryCommand(scope),

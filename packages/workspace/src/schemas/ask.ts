@@ -205,6 +205,11 @@ const AskBaseSchema = z.object({
  */
 export const AskRecordSchema = z.discriminatedUnion("kind", [
   AskBaseSchema.extend({
+    /**
+     * What a yes to an app covers, where that isn't the name on its card: on
+     * Windows a running app is known by its program, `mspaint`, and shown as Paint.
+     */
+    bundleId: z.string().optional(),
     kind: z.literal("permission"),
     /** A folder, a Mac app, or a tab of the person's outside the chat, which `Move tab here` moves into it. */
     on: z.enum(["app", "folder", "tab"]),

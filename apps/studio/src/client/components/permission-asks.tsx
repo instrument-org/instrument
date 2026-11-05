@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 
 import { openSettings } from "@/client/atoms/settings-modal";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
-import { cn } from "@/client/lib/utils";
+import { cn, isLinux } from "@/client/lib/utils";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
@@ -72,6 +72,92 @@ const SIGN_IN_LINES: Record<string, string> = {
   ".password-store": "This folder has your saved passwords.",
   ".ssh": "This folder has the keys you sign in to other computers with.",
 };
+
+/**
+ * Apps whose yes reaches well past themselves, by name and bundle id: a terminal
+ * runs anything, outside every sandbox, and the others read every file or change
+ * how the computer is set up. These are the apps the person most needs told.
+ */
+// oxlint-disable-next-line studio/no-os-words -- names macOS's own apps, on a card only they raise
+const APPS_THAT_REACH_EVERYTHING = new Set([
+  "automator",
+  "com.apple.automator",
+  "com.apple.finder",
+  "com.apple.scripteditor2",
+  "com.apple.systemevents",
+  "com.apple.systempreferences",
+  "com.apple.terminal",
+  "com.googlecode.iterm2",
+  "com.mitchellh.ghostty",
+  "dev.warp.warp-stable",
+  "finder",
+  "ghostty",
+  "iterm",
+  "script editor",
+  "system events",
+  "system settings",
+  "terminal",
+  "warp",
+  // Windows, by Start menu name and by program.
+  "cmd",
+  "command prompt",
+  "powershell",
+  "pwsh",
+  "registry editor",
+  "regedit",
+  "systemsettings",
+  "windows powershell",
+  "windows terminal",
+  "windowsterminal",
+  "wt",
+]);
+
+/**
+ * Linux's, by name, program and desktop id, and only there: `console` and `files`
+ * are other apps elsewhere, and the Mac's Console only reads logs.
+ */
+const LINUX_APPS_THAT_REACH_EVERYTHING = new Set([
+  "alacritty",
+  "console",
+  "files",
+  "foot",
+  "gnome-control-center",
+  "gnome-terminal",
+  "gnome-terminal-server",
+  "kgx",
+  "kitty",
+  "konsole",
+  "nautilus",
+  "org.gnome.console",
+  "org.gnome.nautilus",
+  "org.gnome.ptyxis",
+  "org.gnome.settings",
+  "org.gnome.terminal",
+  "org.kde.dolphin",
+  "org.kde.konsole",
+  "ptyxis",
+  "settings",
+  "tilix",
+  "wezterm",
+  "xfce4-terminal",
+  "xterm",
+]);
+
+/**
+ * What a yes to one of those means, said plainly, by the name its card shows or
+ * by what its yes covers; undefined for any other app.
+ */
+function appReachLine(app: string, bundleId?: string): string | undefined {
+  return [app, bundleId].some((known) => {
+    const name = known?.trim().toLowerCase() ?? "";
+    return (
+      APPS_THAT_REACH_EVERYTHING.has(name) ||
+      (isLinux() && LINUX_APPS_THAT_REACH_EVERYTHING.has(name))
+    );
+  })
+    ? `${app} can reach everything on your computer, so allowing it lets Instrument do the same.`
+    : undefined;
+}
 
 /** What a folder of sign-ins holds, said plainly; undefined for any other folder. */
 function signInLine(target: string): string | undefined {
@@ -157,7 +243,11 @@ function PermissionAskCard({
   // Another computer's card, which this one can't answer: what it waits on
   // there, in place of the answers.
   const elsewhere = ask.answerable ? undefined : elsewhereLine(ask);
-  const holds = isFolder ? signInLine(ask.target) : undefined;
+  const holds = isFolder
+    ? signInLine(ask.target)
+    : ask.kind === "app"
+      ? appReachLine(ask.target, ask.bundleId)
+      : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({
     disabled: false,

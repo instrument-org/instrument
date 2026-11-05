@@ -144,7 +144,8 @@ export type MacosAskStatus = SystemWait;
  * its answer too. `status` raises it, or turns the one already up, into
  * one about the system's own answer (macOS, or Windows' ransomware
  * protection, with the `programs` it blocked), for a thing the person's
- * rules already allow. A tab's ask carries its `page`. Answers its id.
+ * rules already allow. A tab's ask carries its `page`, and an app's the
+ * `bundleId` its yes covers where its card goes by another name. Answers its id.
  */
 export async function recordAsk(
   asker: Asker & { reason?: string },
@@ -156,10 +157,12 @@ export async function recordAsk(
         programs?: string[];
         status: MacosAskStatus;
       }
+    | { bundleId: string }
     | { page: NonNullable<PermissionAskRecord["page"]> },
 ): Promise<string> {
   const system = extra && "status" in extra ? extra : undefined;
   const page = extra && "page" in extra ? extra.page : undefined;
+  const bundleId = extra && "bundleId" in extra ? extra.bundleId : undefined;
   const joining = {
     at: getCurrentDate(),
     ...(asker.partId && { partId: asker.partId }),
@@ -190,6 +193,7 @@ export async function recordAsk(
       await askWriter(asker.chatId).ask(asker.chatId, sessionId, {
         askedAt: joining.at,
         askers: [joining],
+        ...(bundleId && { bundleId }),
         device: thisDevice(),
         id,
         kind: "permission",
@@ -434,6 +438,7 @@ async function permissionAskOf(
     answerable: here || answerableElsewhere(state),
     askedAt: ask.askedAt,
     askers,
+    ...(ask.bundleId && { bundleId: ask.bundleId }),
     ...(away?.kind === "permission" && {
       away: { by: await computerName(away.device), decision: away.decision },
     }),

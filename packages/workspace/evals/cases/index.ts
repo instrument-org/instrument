@@ -34,6 +34,7 @@ import { CHAT_EVALS } from "./chat";
 import { DISCRETION_EVALS } from "./discretion";
 import { OUTBOUND_EVALS } from "./outbound";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
+import { COMPUTER_USE_EVALS } from "./computer-use";
 import { PERMISSIONS_EVALS } from "./permissions";
 import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
@@ -101,6 +102,7 @@ export const EVALS = [
   ...CHAT_EVALS,
   ...OUTBOUND_EVALS,
   ...PDF_SKILL_EVALS,
+  ...COMPUTER_USE_EVALS,
   ...PERMISSIONS_EVALS,
   ...QUESTIONS_EVALS,
   ...REACH_EVALS,

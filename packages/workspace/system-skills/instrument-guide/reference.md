@@ -73,6 +73,12 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 
 Everything Instrument asked an AI model to do, which you can filter, sort, and export.
 
+### Computer Use (`computer use`)
+
+What Instrument needs from your computer to work in your other apps.
+
+The sidebar lists this page only when the Computer Use feature flag is on, though a link opens it either way.
+
 ## Screens
 
 Link one as `[Label](instrument://screen/<name>)`.

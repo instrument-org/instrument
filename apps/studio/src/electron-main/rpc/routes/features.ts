@@ -1,5 +1,11 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import {
+  computerUseStatus,
+  focusAfterGrant,
+  raiseCaptureConsent,
+  requestComputerPermission,
+} from "@/electron-main/lib/computer-use";
+import {
   getWorkspaceFeatures,
   setWorkspaceFeature,
 } from "@/electron-main/stores/workspace/preferences";
@@ -72,7 +78,22 @@ const live = {
   }),
 };
 
+/** What the Settings screen for Computer Use reads and asks of macOS. */
+const computerUse = {
+  captureConsent: base.handler(() => raiseCaptureConsent()),
+  focus: base.handler(() => {
+    focusAfterGrant();
+  }),
+  request: base
+    .input(
+      z.object({ permission: z.enum(["accessibility", "screen-recording"]) }),
+    )
+    .handler(({ input }) => requestComputerPermission(input.permission)),
+  status: base.handler(() => computerUseStatus()),
+};
+
 export const features = {
+  computerUse,
   live,
   openPrivacySettings,
   openRansomwareProtection,

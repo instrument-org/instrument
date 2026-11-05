@@ -19,6 +19,7 @@ import {
   systemOwnedNote,
 } from "../lib/permissions/account-can-write";
 import { MAC_APPS } from "../lib/mac-apps/apps";
+import { appToAskOffMac } from "../lib/computer/targets";
 import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
 import {
   APP_COMMAND,
@@ -28,6 +29,7 @@ import { sessionRole } from "../lib/chat/children";
 import { chatRules } from "../lib/permissions/chat-rules";
 import { reachOf } from "../lib/permissions/rules";
 import { askableFolder, closedNote } from "../lib/permissions/rules-fs";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { hostPathOf, shellPath } from "../lib/workspace-fs-layout";
 import { WINDOW_ID } from "../schemas/window-id";
 import { defineCapability, type Role } from "../lib/capabilities/define";
@@ -101,11 +103,17 @@ const askPermissionCapability = defineCapability({
           { chatId, partId, reason: input.reason, sessionId },
           input.kind,
           decided.target,
+          decided.bundleId === undefined
+            ? undefined
+            : { bundleId: decided.bundleId },
         );
         return ok(askedFor(input.kind, decided.target));
       },
       readOnly: true,
-      timeoutMs: () => ms("10 seconds"),
+      // An app on Windows is looked up before its card goes up: its window, then
+      // its name, which has seconds of its own.
+      timeoutMs: ({ input }) =>
+        ms(input.kind === "app" ? "20 seconds" : "10 seconds"),
       toModelOutput: ({ output }) => {
         switch (output.state) {
           case "asked": {
@@ -170,7 +178,12 @@ type Decided =
       state: "allowed";
       target: string;
     }
-  | { state: "ask"; target: string };
+  | {
+      /** What a yes covers, where the card's name isn't what the gate asks about. */
+      bundleId?: string;
+      state: "ask";
+      target: string;
+    };
 
 /**
  * How long the look inside a folder is waited for with no macOS prompt on
@@ -277,8 +290,19 @@ async function appToAsk(
   given: string,
   role: Role | undefined,
 ): Promise<Decided> {
-  const bundleId = await appBundleId(given);
-  if (bundleId === undefined) {
+  // Only macOS can look an app up by name, and off it only computer use has an
+  // app to give a yes to; there a card goes by what the gate will ask about.
+  const drivesAppsOffMac =
+    process.platform !== "darwin" &&
+    getWorkspaceConfig().computerUse?.isEnabled() === true;
+  const offMac = drivesAppsOffMac
+    ? await appToAskOffMac(given, chatId)
+    : undefined;
+  const name = drivesAppsOffMac ? offMac?.name : given;
+  const bundleId = drivesAppsOffMac
+    ? offMac?.bundleId
+    : await appBundleId(given);
+  if (name === undefined || bundleId === undefined) {
     return {
       message: `No app called ${JSON.stringify(given)} is on this computer.`,
       state: "refused",
@@ -293,14 +317,14 @@ async function appToAsk(
       state: "refused",
     };
   }
-  const app = { bundleId, name: given };
+  const app = { bundleId, name };
   const level = await appLevel(chatId, app);
   if (level === "allow") {
     return {
       macos: async (asker) =>
-        (await macosAppCard(asker, app)) === undefined ? undefined : given,
+        (await macosAppCard(asker, app)) === undefined ? undefined : name,
       state: "allowed",
-      target: given,
+      target: name,
     };
   }
   if (level === "never") {
@@ -309,5 +333,10 @@ async function appToAsk(
       state: "refused",
     };
   }
-  return { state: "ask", target: given };
+  const shown = offMac?.show ?? name;
+  return {
+    ...(shown !== name && { bundleId }),
+    state: "ask",
+    target: shown,
+  };
 }

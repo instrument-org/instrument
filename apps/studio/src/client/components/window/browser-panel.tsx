@@ -1,5 +1,7 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
+import { BROWSER_EXTENSIONS_SESSION } from "@/shared/browser-extensions";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
@@ -605,6 +607,10 @@ export function BrowserPanel({
       : undefined;
   const bookmarks = useAtomValue(bookmarksAtom);
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
+  // The extensions' buttons, each opening its popup under itself.
+  const extensionButtons = useAtomValue(featuresAtom).browser_extensions && (
+    <browser-action-list partition={BROWSER_EXTENSIONS_SESSION} />
+  );
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
   const toggleBookmark = () => {
     if (!pageUrl) {
@@ -878,6 +884,7 @@ export function BrowserPanel({
         const controls = (
           <>
             {pageControls}
+            {extensionButtons}
             <BrowserDownloadsButton />
             {menu}
           </>
@@ -1058,6 +1065,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
+            {extensionButtons}
             <BrowserDownloadsButton />
             {menu}
           </>

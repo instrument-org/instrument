@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const FeatureNameSchema = z.enum([
+  "browser_extensions",
   "context_ring",
   "suggestions_from_your_chats",
 ]);
@@ -14,6 +15,11 @@ export const FEATURE_METADATA: Record<
   FeatureName,
   { description: string; title: string }
 > = {
+  browser_extensions: {
+    description:
+      "The in-app browser can run 1Password from the Chrome Web Store. Relaunch Instrument after you change this.",
+    title: "Browser Extensions",
+  },
   context_ring: {
     description:
       "Show a context window usage ring in the prompt input for the active session.",

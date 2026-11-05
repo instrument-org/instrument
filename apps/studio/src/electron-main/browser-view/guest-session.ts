@@ -1,5 +1,7 @@
+import { getWorkspaceFeatures } from "@/electron-main/stores/workspace/preferences";
 import { BrowserWindow, session, type Session } from "electron";
 import fs from "node:fs";
+import path from "node:path";
 
 import { applyStandardUserAgent } from "../lib/user-agent";
 import { followPageEdits } from "../page-editor/sessions";
@@ -11,6 +13,7 @@ import {
 import { routeGuestDownloads } from "./downloads";
 import { mayOpenInAnotherApp } from "./external-app-links";
 import { askToOpenInAnotherApp } from "./external-app-prompt";
+import { enableBrowserExtensions } from "./extensions";
 import { mayEnterFullScreen } from "./full-screen-policy";
 import { guests } from "./guest-registry";
 import { log } from "./log";
@@ -139,5 +142,13 @@ export function configureGuestSession(profileDir: string): Session {
   enableContentBlocking(guestSession, (id) => guests.isAdBlockExempt(id));
   refusePasskeys(guestSession, cspResponse);
   routeGuestDownloads(guestSession, guests);
+  // Read once, here: the extensions register preloads on the session, which
+  // a flag flipped later could not take back, so a change takes a relaunch.
+  if (getWorkspaceFeatures().browser_extensions) {
+    enableBrowserExtensions(
+      guestSession,
+      path.join(path.dirname(profileDir), "extensions"),
+    );
+  }
   return guestSession;
 }

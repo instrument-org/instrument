@@ -24,6 +24,7 @@ import { isDrivenInstance } from "../windows/on-screen";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
 import { captureDownloadWillBeginGuid } from "./downloads";
+import { registerExtensionTab, selectExtensionTab } from "./extensions";
 import {
   advanceEntry,
   type BrowserEntry,
@@ -484,6 +485,7 @@ function createBrowserViewManager(): BrowserViewManager {
       notifyEntriesChanged();
     });
 
+    entry.disposers.add(registerExtensionTab(guest));
     entry.disposers.add(() => {
       stopScreencast(entry);
     });
@@ -884,6 +886,9 @@ function createBrowserViewManager(): BrowserViewManager {
         entry.shown = shown;
         if (shown) {
           void wakeGuest(entry, notifyEntriesChanged);
+          if (entry.webContents) {
+            selectExtensionTab(entry.webContents);
+          }
         }
       }
     },

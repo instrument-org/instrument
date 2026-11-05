@@ -11,6 +11,19 @@ declare module "*.md" {
   export default content;
 }
 
+declare module "react" {
+  namespace JSX {
+    interface IntrinsicElements {
+      // The extensions' action buttons for the session `partition` names,
+      // an element the preload defines (`electron-chrome-extensions`).
+      "browser-action-list": DetailedHTMLProps<
+        HTMLAttributes<HTMLElement>,
+        HTMLElement
+      > & { alignment?: string; partition?: string };
+    }
+  }
+}
+
 declare global {
   interface Window {
     api: {

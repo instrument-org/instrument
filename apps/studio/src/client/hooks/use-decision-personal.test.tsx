@@ -82,6 +82,7 @@ const PERSONAL: [string, () => unknown][] = [
 function render(hook: () => unknown, flag: boolean) {
   const store = createStore();
   store.set(featuresAtom, {
+    browser_extensions: false,
     context_ring: false,
     suggestions_from_your_chats: flag,
   });

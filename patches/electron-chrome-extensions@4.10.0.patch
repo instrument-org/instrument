@@ -1,0 +1,19 @@
+diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
+index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..93941b329cc2bbedb671d533d97fc479f4125e8c 100644
+--- a/dist/chrome-extension-api.preload.js
++++ b/dist/chrome-extension-api.preload.js
+@@ -568,6 +568,14 @@
+       });
+       delete globalThis.electron;
+       Object.freeze(chrome);
++      if ("browser" in globalThis) {
++        Object.defineProperty(globalThis, "browser", {
++          value: chrome,
++          enumerable: true,
++          configurable: true,
++          writable: true
++        });
++      }
+     }
+     if (!process.contextIsolated) {
+       console.warn(`injectExtensionAPIs: context isolation disabled in ${location.href}`);

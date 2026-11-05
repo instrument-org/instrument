@@ -17,6 +17,10 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
 vi.mock("./guest-session", () => ({ configureGuestSession: vi.fn() }));
+vi.mock("./extensions", () => ({
+  registerExtensionTab: () => () => {},
+  selectExtensionTab: vi.fn(),
+}));
 vi.mock("../page-editor/sessions", () => ({
   pageEditorPreloadPath: () => "/preload.js",
 }));

@@ -3,15 +3,15 @@ import { type Tab, type TabCarryView, type TabId } from "@/shared/tabs";
 import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { moveTabCall } = vi.hoisted(() => ({
-  moveTabCall: vi.fn<() => Promise<{ moved: boolean }>>(),
+const { sendTabCall } = vi.hoisted(() => ({
+  sendTabCall: vi.fn<() => Promise<{ moved: boolean }>>(),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     window: {
       closeEmptied: { call: vi.fn() },
-      moveTab: { call: moveTabCall },
+      sendTab: { call: sendTabCall },
     },
   },
 }));
@@ -22,8 +22,8 @@ const {
   hasMovedAway,
   keepOnlyTab,
   letTabGo,
-  moveTabOut,
   receiveTab,
+  sendEveryTab,
   stripIndexAt,
 } = await import("./move-tab");
 const { tabsInView } = await import("./tab-carry-view");
@@ -154,21 +154,19 @@ describe("a tab handed to another window", () => {
           history: { entries: SITES, index: 1 },
           pathname: "/sites/two",
         } as Tab,
-        asTab("b"),
       ],
     }));
   });
 
   afterEach(() => {
     groups().forEach(forgetMovedAway);
-    moveTabCall.mockReset();
+    sendTabCall.mockReset();
   });
 
   it("leaves that window every site it can go back to, not only the one it is on", async () => {
-    moveTabCall.mockResolvedValue({ moved: true });
-    await moveTabOut(asId("a"), { kind: "new" }, []);
+    sendTabCall.mockResolvedValue({ moved: true });
+    await sendEveryTab("other", []);
     expect(movedAway()).toEqual([true, true]);
-    expect(seen().tabs).toEqual(["b"]);
   });
 
   it.each([
@@ -177,10 +175,10 @@ describe("a tab handed to another window", () => {
   ])(
     "stays, with its sites this window's, when the move %s",
     async (_case, call) => {
-      moveTabCall.mockImplementation(call);
-      await moveTabOut(asId("a"), { kind: "new" }, []);
+      sendTabCall.mockImplementation(call);
+      await sendEveryTab("other", []);
       expect(movedAway()).toEqual([false, false]);
-      expect(seen().tabs).toEqual(["a", "b"]);
+      expect(seen().tabs).toEqual(["a"]);
     },
   );
 

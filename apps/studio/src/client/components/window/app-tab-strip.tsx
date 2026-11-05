@@ -30,7 +30,6 @@ import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { XIcon } from "@phosphor-icons/react/X";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
@@ -39,7 +38,7 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { getDefaultStore, useAtom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { appTabsAtom, INBOX_HREF } from "./app-tabs";
+import { INBOX_HREF } from "./app-tabs";
 import { ChatMarkIcon } from "./chat-mark";
 import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
@@ -57,12 +56,11 @@ import { siteTabTitles } from "./site-tab-titles";
 import { isOffRow, type PointerSample, recentPath } from "./tab-pull";
 import { type StripTab, TabStrip } from "./tab-strip";
 import {
-  keepOnlyTab,
-  letTabGo,
   stripIndexAt,
   type TabMoveDestination,
   type TabStanding,
 } from "./move-tab";
+import { settleTabMove } from "./move-tab-out";
 import {
   isTabHeldHere,
   measureCarryIndex,
@@ -500,7 +498,6 @@ function useTabCarry({
       setCanceledKey(undefined);
       return;
     }
-    const store = getDefaultStore();
     const backOnRow = () => {
       showTabCarryView({ kind: "row" });
       setCarriedKey(undefined);
@@ -511,21 +508,11 @@ function useTabCarry({
         point: { x: event.screenX, y: event.screenY },
       })
       .then((end) => {
-        if (end.kind === "keepsTab") {
-          keepOnlyTab(key);
-        } else if (end.kind === "takesStrip") {
-          store.set(appTabsAtom, end.model);
-        } else if (end.kind === "losesTab") {
-          letTabGo(key);
-        } else if (end.kind === "none" && drag.isNeighborUp) {
+        settleTabMove(key, end);
+        if (end.kind === "none" && drag.isNeighborUp) {
           onSelect(key);
         }
-        // A window closing goes on showing what it shows until it has gone.
-        if (end.kind === "closes") {
-          setCarriedKey(undefined);
-        } else {
-          backOnRow();
-        }
+        setCarriedKey(undefined);
       })
       .catch(backOnRow);
   };
@@ -650,23 +637,25 @@ function TabMenu({
         <NewTabIcon className="size-4" />
         <span>Duplicate Tab</span>
       </DropdownMenuItem>
-      {isOnly ? null : (
-        <DropdownMenuItem
-          onClick={() => {
-            onMove(id, { kind: "new" });
-          }}
-        >
-          <AppWindowIcon className="size-4" />
-          <span>Move to New Window</span>
-        </DropdownMenuItem>
-      )}
       {others && others.length > 0 ? (
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
-            <ArrowSquareOutIcon className="size-4" />
-            <span>Move to Window</span>
+            <AppWindowIcon className="size-4" />
+            <span>Move Tab to Another Window</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
+            {isOnly ? null : (
+              <>
+                <DropdownMenuItem
+                  onClick={() => {
+                    onMove(id, { kind: "new" });
+                  }}
+                >
+                  <span>New Window</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {others.map((other) => (
               <DropdownMenuItem
                 key={other.id}
@@ -679,7 +668,16 @@ function TabMenu({
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-      ) : null}
+      ) : isOnly ? null : (
+        <DropdownMenuItem
+          onClick={() => {
+            onMove(id, { kind: "new" });
+          }}
+        >
+          <AppWindowIcon className="size-4" />
+          <span>Move Tab to New Window</span>
+        </DropdownMenuItem>
+      )}
       {/* A site's page shows nothing developer mode adds, so only a
           screen's tab offers it. */}
       {isDeveloperMode && !reload && (

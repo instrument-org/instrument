@@ -104,7 +104,7 @@ body {
 
   /* A page runs in a process of its own, which takes a pointer that crosses it,
      and the release with it. */
-  [data-tab-held] webview {
+  [data-tab-held] :is(webview, iframe) {
     pointer-events: none;
   }
 }

@@ -100,6 +100,59 @@ describe("getBrowserViewManager", () => {
       expect(idsIn(201)).not.toContain(targetId);
     });
 
+    it("leaves a parked guest alone for a spare window showing it, until the spare is a window", () => {
+      hostWith(701);
+      let isSpare = true;
+      const spare = Object.assign(new EventEmitter(), { id: 702 });
+      const manager = getBrowserViewManager();
+      manager.bindHost(spare as unknown as WebContents, {
+        isSpare: () => isSpare,
+      });
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 701 })
+        .catch(() => undefined);
+      const askedByTheSpare = () =>
+        void manager.browser
+          .createTarget(targetId, partition, {
+            take: "parked",
+            webContentsId: 702,
+          })
+          .catch(() => undefined);
+
+      askedByTheSpare();
+      expect(idsIn(701)).toContain(targetId);
+
+      isSpare = false;
+      askedByTheSpare();
+      expect(idsIn(702)).toContain(targetId);
+    });
+
+    it("sends a guest nothing asked for to a window, never a spare, even as the window in front goes", () => {
+      const window = hostWith(801);
+      const spare = Object.assign(new EventEmitter(), { id: 802 });
+      const front = hostWith(803);
+      const manager = getBrowserViewManager();
+      manager.bindHost(spare as unknown as WebContents, {
+        isSpare: () => true,
+      });
+
+      const before = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(before, partition)
+        .catch(() => undefined);
+      expect(idsIn(803)).toContain(before);
+
+      front.emit("destroyed");
+      const after = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(after, partition)
+        .catch(() => undefined);
+      expect(idsIn(801)).toContain(after);
+      expect(idsIn(802)).not.toContain(after);
+      window.emit("destroyed");
+    });
+
     it("moves a parked guest to the window showing it, as a new guest", () => {
       hostWith(301);
       hostWith(302);

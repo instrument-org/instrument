@@ -176,6 +176,16 @@ describe("reorderTabs", () => {
     const next = reorderTabs(start, { ids: [id("c"), id("a"), id("b")] });
     expect(next.tabs.map((t) => t.id)).toEqual(["c", "a", "b"]);
   });
+
+  it("keeps a tab the order does not name, past the ones it does", () => {
+    const start = model([
+      tab({ id: id("a") }),
+      tab({ id: id("opened-since") }),
+      tab({ id: id("b") }),
+    ]);
+    const next = reorderTabs(start, { ids: [id("b"), id("a")] });
+    expect(next.tabs.map((t) => t.id)).toEqual(["b", "a", "opened-since"]);
+  });
 });
 
 describe("reopenClosed", () => {

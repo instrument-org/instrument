@@ -24,6 +24,7 @@ import {
 import { log } from "./log";
 
 const TARGET_ID = browserTargetOf(StoreId.newTabId());
+const HOST_ID = 7;
 
 interface FakeDebugger {
   isAttached: () => boolean;
@@ -92,6 +93,7 @@ function makeEntry({
       }
     : null;
   const entry = createEntry({
+    hostId: HOST_ID,
     partitionDir: "/tmp/partition" as AbsolutePath,
     targetId,
   });
@@ -520,11 +522,29 @@ describe("sendCommand", () => {
     // The renderer owns the budget and reports it; a unit test has to stand in
     // for that. 1440x1265 is a window whose budget is 1872x1644.
     const setBudget = () => {
-      setRasterBudget({ height: 1644, width: 1872 });
+      setRasterBudget(HOST_ID, { height: 1644, width: 1872 });
     };
 
     afterEach(() => {
       clearGuestSurface(TARGET_ID);
+    });
+
+    it("goes by the budget of the guest's own window, not another's", async () => {
+      setBudget();
+      // A smaller window reporting after this one, such as a spare starting.
+      setRasterBudget(HOST_ID + 1, { height: 400, width: 400 });
+      await expect(
+        dispatch({
+          entries: new Map([[TARGET_ID, makeEntry()]]),
+          method: "Emulation.setDeviceMetricsOverride",
+          params: {
+            deviceScaleFactor: 0,
+            height: 1000,
+            mobile: false,
+            width: 1600,
+          },
+        }),
+      ).resolves.toEqual({});
     });
 
     it("records a size within the budget without touching the debugger", async () => {

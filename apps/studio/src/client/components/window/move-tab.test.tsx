@@ -189,6 +189,13 @@ describe("a tab handed to another window", () => {
 });
 
 describe("a window as a tab is let go", () => {
+  it("is left with a tab to show when the one it kept was closed while held", () => {
+    keepOnlyTab("gone");
+    const { selectedId, tabs } = store.get(appTabsAtom);
+    expect(tabs).toHaveLength(1);
+    expect(selectedId).toBe(tabs[0]?.id);
+  });
+
   it("keeps only the tab when it went off with it, its floats left behind", () => {
     // Only its being there matters here, not what a float has in it.
     store.set(composeAtom, [{ chatId: "chat", kind: "chat" } as ComposeEntry]);

@@ -3,6 +3,7 @@ import { modalBackStackAtom } from "@/client/atoms/tab-navigation-block";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
+import { rpcClient } from "@/client/rpc/client";
 import { type FeedbackItem, type FeedbackTag } from "@/shared/problem-reports";
 import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
@@ -63,6 +64,16 @@ vi.mock("@/client/rpc/client", () => ({
               },
               title: "“Star my first email”",
             },
+            actions: item(
+              "actions",
+              "actions",
+              "What you did in the app",
+              `${JSON.stringify({
+                at: "2026-11-05T22:45:00.000Z",
+                kind: "folder",
+                path: "~/Downloads",
+              })}\n`,
+            ),
             diagnostics: item(
               "diagnostics",
               "diagnostics",
@@ -174,7 +185,48 @@ describe("FeedbackDialogContent", () => {
     expect(views).toEqual([
       "View Instrument's write-up",
       "View “Star my first email”",
+      "View What you did in the app",
       "View Diagnostics",
     ]);
+  });
+
+  const sentItems = () =>
+    vi
+      .mocked(rpcClient.problems.sendFeedback.call)
+      .mock.calls.at(-1)?.[0]
+      .items.map((each) => each.id);
+
+  it("sends what the person did in the app with the rest", async () => {
+    await open();
+    expect(
+      screen.getByText(
+        "What you opened and changed in Instrument in the 30 minutes before this.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(sentItems()).toEqual(["chat", "actions", "diagnostics"]);
+  });
+
+  it("leaves out what the person did in the app when they switch it off", async () => {
+    await open();
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Send what you did in the app" }),
+    );
+    expect(screen.getByText("This stays on your Mac.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(sentItems()).toEqual(["chat", "diagnostics"]);
+  });
+
+  it("shows what the person did as sentences, with its switch at the foot", async () => {
+    await open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "View What you did in the app" }),
+    );
+    expect(screen.getByText("Opened the folder “Downloads”")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Send with your feedback" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("This stays on your Mac.")).toBeTruthy();
   });
 });

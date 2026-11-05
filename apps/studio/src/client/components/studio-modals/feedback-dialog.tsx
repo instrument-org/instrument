@@ -6,12 +6,15 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { Switch } from "@/client/components/ui/switch";
 import {
   DictatedTextarea,
   useDictatedText,
 } from "@/client/components/dictation-controls";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { isDictating } from "@/client/hooks/use-dictation";
 import { useModalBack } from "@/client/hooks/use-modal-back";
+import { type ActionMark, actionRows } from "@/client/lib/feedback-actions";
 import {
   aboutFields,
   chatGroups,
@@ -33,6 +36,7 @@ import {
   MAX_FEEDBACK_IMAGES,
 } from "@/shared/feedback-images";
 import {
+  FEEDBACK_ACTIONS_MS,
   FEEDBACK_TOO_LARGE,
   type FeedbackItem,
   type FeedbackTag,
@@ -40,10 +44,16 @@ import {
 } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowBendDownRightIcon } from "@phosphor-icons/react/ArrowBendDownRight";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
+import { PlugsIcon } from "@phosphor-icons/react/Plugs";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -144,14 +154,18 @@ async function offerImages(already: number, files: readonly File[]) {
 type Part = {
   item: FeedbackItem;
   line: string;
+  /** Whether it goes, for the one part the person may leave out. */
+  sending?: { on: boolean; set: (on: boolean) => void };
   title: string;
 };
 
 /**
  * Feedback: the person's note and the images they attach, then what goes
  * with them, a row each (the agent's write-up, the chat when there is one,
- * and the diagnostics). View turns the dialog into a page that shows each
- * as it will be sent, a row per record; everything listed goes.
+ * what the person did in the app, and the diagnostics). View turns the
+ * dialog into a page that shows each as it will be sent, a row per record.
+ * Everything listed goes, but what the person did in the app has a switch
+ * to leave it out.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -171,6 +185,7 @@ export function FeedbackDialogContent({
     value: note,
   });
   const [viewing, setViewing] = useState<string | null>(null);
+  const [sendActions, setSendActions] = useState(true);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -218,6 +233,18 @@ export function FeedbackDialogContent({
           },
         ]
       : []),
+    ...(described.data?.actions
+      ? [
+          {
+            item: described.data.actions,
+            line: sendActions
+              ? `What you opened and changed in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this.`
+              : `This stays on ${yourComputer}.`,
+            sending: { on: sendActions, set: setSendActions },
+            title: "What you did in the app",
+          },
+        ]
+      : []),
     ...(described.data
       ? [
           {
@@ -228,7 +255,9 @@ export function FeedbackDialogContent({
         ]
       : []),
   ];
-  const going = parts.map((part) => part.item);
+  const going = parts
+    .filter((part) => part.sending?.on !== false)
+    .map((part) => part.item);
   const reviewed = parts.find((part) => part.item.id === viewing);
 
   // The dialog gets out of the way at once, and the toast follows the send.
@@ -343,6 +372,7 @@ export function FeedbackDialogContent({
             setViewing(null);
           }}
           part={reviewed}
+          readAt={described.dataUpdatedAt}
         />
       ) : (
         <div className="flex flex-col gap-5 p-6">
@@ -499,7 +529,7 @@ export function FeedbackDialogContent({
   );
 }
 
-/** A part of what goes: its name, the line saying what it is, and View. */
+/** A part of what goes: its name, the line saying what it is, its switch when it has one, and View. */
 function PartRow({ onView, part }: { onView: () => void; part: Part }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3">
@@ -507,6 +537,13 @@ function PartRow({ onView, part }: { onView: () => void; part: Part }) {
         <p className="truncate text-sm font-medium">{part.title}</p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">{part.line}</p>
       </div>
+      {part.sending && (
+        <Switch
+          aria-label={`Send ${part.title.toLowerCase()}`}
+          checked={part.sending.on}
+          onCheckedChange={part.sending.set}
+        />
+      )}
       <Button
         aria-label={`View ${part.title}`}
         onClick={onView}
@@ -534,7 +571,16 @@ function PartRowLoading() {
 }
 
 /** The review page: one part as it will be sent, under its own name. */
-function Review({ onBack, part }: { onBack: () => void; part: Part }) {
+function Review({
+  onBack,
+  part,
+  readAt,
+}: {
+  onBack: () => void;
+  part: Part;
+  /** When what goes was read, which what the person did is read back from. */
+  readAt: number;
+}) {
   return (
     <>
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
@@ -554,6 +600,8 @@ function Review({ onBack, part }: { onBack: () => void; part: Part }) {
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {part.item.kind === "chat" ? (
           <ChatReview item={part.item} />
+        ) : part.item.kind === "actions" ? (
+          <ActionsReview item={part.item} readAt={readAt} />
         ) : part.item.kind === "diagnostics" ? (
           <DiagnosticsReview item={part.item} />
         ) : (
@@ -562,12 +610,97 @@ function Review({ onBack, part }: { onBack: () => void; part: Part }) {
           </p>
         )}
       </div>
-      <div className="flex h-14 shrink-0 items-center justify-end border-t border-border px-5">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-t border-border px-5">
+        <div className="min-w-0 flex-1">
+          {part.sending && (
+            <label className="inline-flex items-center gap-2.5 text-sm">
+              <Switch
+                checked={part.sending.on}
+                onCheckedChange={part.sending.set}
+              />
+              Send with your feedback
+            </label>
+          )}
+        </div>
         <Button onClick={onBack} variant="outline">
           Done
         </Button>
       </div>
     </>
+  );
+}
+
+/** The mark beside one thing the person did. */
+function ActionMarkIcon({ mark }: { mark: ActionMark }) {
+  const className = "size-4 text-foreground/70";
+  switch (mark.kind) {
+    case "app": {
+      return <PlugsIcon className={className} />;
+    }
+    case "chat": {
+      return <ChatCircleIcon className={className} />;
+    }
+    case "error": {
+      return <WarningCircleIcon className="size-4 text-destructive" />;
+    }
+    case "file": {
+      return <FileTypeIcon className="size-4" fileName={mark.file} />;
+    }
+    case "folder": {
+      return <FolderIcon className={className} />;
+    }
+    case "move": {
+      return <ArrowBendDownRightIcon className={className} />;
+    }
+    case "page": {
+      return <GlobeIcon className={className} />;
+    }
+    case "screen": {
+      return <AppWindowIcon className={className} />;
+    }
+  }
+}
+
+/** What the person did in the app, oldest first, a plain sentence each, as it will be sent. */
+function ActionsReview({
+  item,
+  readAt,
+}: {
+  item: FeedbackItem;
+  readAt: number;
+}) {
+  const rows = actionRows(item.files[0]?.content ?? "", {
+    trash: osConventions().trash,
+  });
+  return (
+    <div className="flex flex-col">
+      <p className="px-3 pt-1 pb-2 text-[13px] text-muted-foreground">
+        From {timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to {timeOfDay(readAt)},
+        written just as it will be sent.
+      </p>
+      {rows.map((row, index) => (
+        <div
+          className="flex items-start gap-3 rounded-md px-3 py-1.5 select-text"
+          // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
+          key={index}
+        >
+          <span className="w-16 shrink-0 pt-px text-[13px] text-muted-foreground tabular-nums">
+            {timeOfDay(Date.parse(row.at))}
+          </span>
+          <span className="grid size-5 shrink-0 place-items-center">
+            <ActionMarkIcon mark={row.mark} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm leading-5 break-words">{row.what}</p>
+            {row.where && (
+              <p className="truncate text-[13px] leading-5 text-muted-foreground">
+                {row.where}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

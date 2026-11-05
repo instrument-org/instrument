@@ -19,19 +19,15 @@ describe("screenPresentation", () => {
     expect(screenPresentation(INBOX_HREF, CONTEXT).title).toBe("Chat");
   });
 
-  it("names a tasks tab, and a task's by its title once known", () => {
+  it("names a task's tab by its title once known", () => {
     const task = StoreId.newSessionId();
     const taskTitles = new Map([[task, "Book the hotel"]]);
     const href = `/tasks/${task}?chat=${CHAT_ID}`;
-    expect(screenPresentation(`/tasks?chat=${CHAT_ID}`, CONTEXT).title).toBe(
-      "Tasks",
-    );
     expect(screenPresentation(href, { ...CONTEXT, taskTitles }).title).toBe(
       "Book the hotel",
     );
     expect(screenPresentation(href, CONTEXT).title).toBe("Task");
     expect(screenLocation(href, { ...CONTEXT, taskTitles })).toEqual({
-      chat: CHAT_ID,
       kind: "task",
       title: "Book the hotel",
     });

@@ -84,7 +84,7 @@ export function ChatHeader({
           "shrink-0",
           popOut.isOut
             ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
-            : "text-muted-foreground/70 opacity-0 not-disabled:hover:text-foreground group-hover/head:opacity-100 focus-visible:opacity-100",
+            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
         )}
         onClick={popOut.onToggle}
         size="icon-sm"

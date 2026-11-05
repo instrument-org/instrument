@@ -202,8 +202,24 @@ export function nextAttempts({
   };
 }
 
-/** How the app window was left, for the restart to bring it back the same way. */
+/** How the app windows were left, for the restart to bring them back the same way. */
 export type RelaunchView = "front" | "hidden" | "minimized";
+
+/**
+ * The one way a restart brings every window back, from how each was left. A window
+ * in view wins, so none of those goes missing, and a minimized one beside it comes
+ * back up with it.
+ */
+export function relaunchViewOfWindows(
+  windows: readonly { isMinimized: boolean; isVisible: boolean }[],
+): RelaunchView {
+  if (windows.some(({ isMinimized, isVisible }) => isVisible && !isMinimized)) {
+    return "front";
+  }
+  return windows.some(({ isMinimized }) => isMinimized)
+    ? "minimized"
+    : "hidden";
+}
 
 /**
  * How a launch puts its window up, from the marker the restart before it

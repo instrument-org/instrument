@@ -563,7 +563,7 @@ describe("feedback", () => {
             "content": "{"at":"2026-11-05T22:18:00.000Z","kind":"folder","path":"~/Downloads"}
         {"at":"2026-11-05T22:19:00.000Z","id":"[other chat]","kind":"chat","title":"Roof quotes"}
         ",
-            "label": "What you did in the app",
+            "label": "Your activity",
             "path": "diagnostics/actions.jsonl",
           },
         ]

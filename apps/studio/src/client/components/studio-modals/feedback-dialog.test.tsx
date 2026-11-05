@@ -67,7 +67,7 @@ vi.mock("@/client/rpc/client", () => ({
             actions: item(
               "actions",
               "actions",
-              "What you did in the app",
+              "Your activity",
               `${JSON.stringify({
                 at: "2026-11-05T22:45:00.000Z",
                 kind: "folder",

@@ -667,13 +667,13 @@ export function actionsFeedback(
     files: [
       {
         content: lines.toReversed().join(""),
-        label: "What you did in the app",
+        label: "Your activity",
         path: FEEDBACK_ACTIONS_PATH,
       },
     ],
     id: "actions",
     kind: "actions",
-    label: "What you did in the app",
+    label: "Your activity",
   });
 }
 

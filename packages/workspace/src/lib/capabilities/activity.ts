@@ -1,11 +1,19 @@
 import { APP_NAME } from "@instrument-org/shared";
+import { unique } from "radashi";
 import { z } from "zod";
 
+import { FOLDER_VARIABLES } from "../../constants";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { readActions } from "../actions/read";
 import { ActionSchema } from "../actions/schema";
 import { actionSentence } from "../actions/sentence";
 import { ACTIONS_NOT_SHARED, mayShareActions } from "../actions/sharing";
+import { type ActivityRow } from "../activity/schema";
+import { listActivity } from "../activity/store";
+import { gatherTurns } from "../activity/turns";
+import { chatTitle } from "../chat-info";
 import { ACTIVITY_COMMAND } from "../shell-commands/activity-command";
+import { getWorkspaceConfig } from "../workspace-config";
 import { defineCapability } from "./define";
 
 /** How far back a listing reaches: whole minutes, hours or days. */
@@ -23,17 +31,173 @@ function sinceMs(since: string): number {
     : 0;
 }
 
+/** The AI requests one chat turn made, as a row of the listing. */
+const RequestTurnSchema = z.object({
+  /** When its first request started. */
+  at: z.iso.datetime(),
+  /** The chat it was in, by its id and its title while it has one; none for requests no chat made. */
+  chat: z.object({ id: z.string(), title: z.string().optional() }).optional(),
+  count: z.number(),
+  /** Each error a request failed with, and how many failed with it. */
+  failed: z.array(z.object({ count: z.number(), error: z.string() })),
+  /** The models that answered, or were asked when the answer did not say. */
+  models: z.array(z.string()),
+  /** From the first request's start to the end of the last. */
+  ms: z.number(),
+  purpose: z.string(),
+  /** Where requests no chat made came from. */
+  surface: z.string().optional(),
+});
+
+type RequestTurn = z.output<typeof RequestTurnSchema>;
+
 const ActivityOutput = z.object({
   /** Rows that matched but were older than the newest `limit`. */
   earlier: z.number(),
   grep: z.string().optional(),
-  /** Oldest first, each the action as logged and its sentence. */
-  rows: z.array(z.object({ action: ActionSchema, text: z.string() })),
+  /**
+   * Oldest first, each the action as logged or the AI requests of a chat
+   * turn, with its sentence.
+   */
+  rows: z.array(
+    z.union([
+      z.object({ action: ActionSchema, text: z.string() }),
+      z.object({ requests: RequestTurnSchema, text: z.string() }),
+    ]),
+  ),
   /** How far back the listing reached, as it was asked: `2h`. */
   since: z.string(),
+  /** The listing has the AI requests in it (`activityListsRequests`). */
+  withRequests: z.literal(true).optional(),
 });
 
 type Row = z.output<typeof ActivityOutput>["rows"][number];
+
+/** A span as a person says it: `42s`, `1m 10s`, `1h 5m`. */
+function lasting(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return minutes < 60
+    ? `${minutes}m ${seconds % 60}s`
+    : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/** A chat turn's requests as a sentence: how many, where, which model, how long, and what failed. */
+function turnSentence(turn: RequestTurn): string {
+  const where = turn.chat
+    ? `in the chat ${turn.chat.title === undefined ? "" : `"${turn.chat.title}", `}its records in $${FOLDER_VARIABLES.chats}/${turn.chat.id}`
+    : `from ${turn.surface ?? "the app"}`;
+  const failed = turn.failed
+    .map(({ count, error }) => `"${error}"${count > 1 ? ` ×${count}` : ""}`)
+    .join(", ");
+  return [
+    `AI: ${turn.count} ${turn.count === 1 ? "request" : "requests"} (${turn.purpose}) ${where}`,
+    `model ${turn.models.join(", ") || "unknown"}`,
+    `${lasting(turn.ms)} from first to last`,
+    ...(failed
+      ? [
+          `${turn.failed.reduce((sum, each) => sum + each.count, 0)} failed: ${failed}`,
+        ]
+      : []),
+  ].join(", ");
+}
+
+/** One turn's requests, newest first, as its row says them. */
+async function requestTurn(
+  requests: readonly ActivityRow[],
+  titleOf: (chat: string) => Promise<string | undefined>,
+): Promise<RequestTurn> {
+  const oldest = requests.at(-1) ?? requests[0];
+  const start = Math.min(...requests.map((each) => each.startedAt));
+  const end = Math.max(
+    ...requests.map((each) => each.startedAt + (each.durationMs ?? 0)),
+  );
+  const failures = new Map<string, number>();
+  for (const each of requests) {
+    if (each.status === "failed" || each.status === "limited") {
+      const error = each.error ?? each.status;
+      failures.set(error, (failures.get(error) ?? 0) + 1);
+    }
+  }
+  const chatId = oldest?.chatId ?? null;
+  const title = chatId === null ? undefined : await titleOf(chatId);
+  return {
+    at: new Date(start).toISOString(),
+    ...(chatId === null
+      ? {}
+      : { chat: { id: chatId, ...(title === undefined ? {} : { title }) } }),
+    count: requests.length,
+    failed: [...failures].map(([error, count]) => ({ count, error })),
+    models: unique(
+      requests.flatMap((each) => each.modelServed ?? each.modelRequested ?? []),
+    ),
+    ms: end - start,
+    purpose: oldest?.purpose ?? "other",
+    ...(oldest?.surface ? { surface: oldest.surface } : {}),
+  };
+}
+
+/** The most requests a listing reads. */
+const REQUESTS_MAX = 5000;
+
+/**
+ * What the person did from `since` to `until`, with the AI requests made
+ * among it gathered into turns when the workspace lists them, oldest first,
+ * each with its sentence. Reading the chat that asks is coming back to it,
+ * which says nothing the chat does not already know.
+ */
+async function rowsOf({
+  chatId,
+  since,
+  until,
+}: {
+  chatId: string;
+  since: number;
+  until: number;
+}): Promise<Row[]> {
+  const actions = (await readActions({ since, until })).filter(
+    (action) => !(action.kind === "chat" && action.id === chatId),
+  );
+  if (!getWorkspaceConfig().activityListsRequests) {
+    return actions.map((action) => ({ action, text: actionSentence(action) }));
+  }
+  const requests = await listActivity({
+    filter: { since, until },
+    limit: REQUESTS_MAX,
+    offset: 0,
+    sort: { column: "startedAt", direction: "desc" },
+  });
+  const titles = new Map<string, Promise<string | undefined>>();
+  const titleOf = (chat: string) => {
+    const known = titles.get(chat);
+    if (known) {
+      return known;
+    }
+    const id = ChatIdSchema.safeParse(chat);
+    const title = id.success ? chatTitle(id.data) : Promise.resolve(undefined);
+    titles.set(chat, title);
+    return title;
+  };
+  const gathered = gatherTurns(
+    [
+      ...actions.map((action) => ({ action, at: Date.parse(action.at) })),
+      ...requests.map((request) => ({ at: request.startedAt, request })),
+    ].toSorted((a, b) => b.at - a.at),
+  );
+  const rows: Row[] = [];
+  for (const entry of gathered.toReversed()) {
+    if (entry.kind === "action") {
+      rows.push({ action: entry.action, text: actionSentence(entry.action) });
+    } else {
+      const turn = await requestTurn(entry.requests, titleOf);
+      rows.push({ requests: turn, text: turnSentence(turn) });
+    }
+  }
+  return rows;
+}
 
 /** A time of day on this computer's clock: `2:14 PM`. */
 function clock(at: Date): string {
@@ -53,13 +217,13 @@ function dayOf(at: Date): string {
 function listed(rows: readonly Row[]): string[] {
   const lines: string[] = [];
   let day = "";
-  for (const { action, text } of rows) {
-    const at = new Date(action.at);
+  for (const row of rows) {
+    const at = new Date("action" in row ? row.action.at : row.requests.at);
     if (dayOf(at) !== day) {
       day = dayOf(at);
       lines.push(day);
     }
-    lines.push(`  ${clock(at)}  ${text}`);
+    lines.push(`  ${clock(at)}  ${row.text}`);
   }
   return lines;
 }
@@ -95,21 +259,20 @@ export const activityList = defineCapability({
   async run({ grep, limit, since }, ctx) {
     const until = Date.now();
     const needle = grep?.toLowerCase();
-    const rows = (await readActions({ since: until - sinceMs(since), until }))
-      // Reading this chat is coming back to it, which says nothing the chat
-      // does not already know.
-      .filter((action) => !(action.kind === "chat" && action.id === ctx.chatId))
-      .map((action) => ({ action, text: actionSentence(action) }))
-      .filter(
-        ({ text }) =>
-          needle === undefined || text.toLowerCase().includes(needle),
-      );
+    const rows = (
+      await rowsOf({ chatId: ctx.chatId, since: until - sinceMs(since), until })
+    ).filter(
+      ({ text }) => needle === undefined || text.toLowerCase().includes(needle),
+    );
     const shown = rows.slice(-limit);
     return {
       earlier: rows.length - shown.length,
       ...(grep === undefined ? {} : { grep }),
       rows: shown,
       since,
+      ...(getWorkspaceConfig().activityListsRequests
+        ? { withRequests: true as const }
+        : {}),
     };
   },
   summary: ACTIVITY_COMMAND.summary,
@@ -123,7 +286,7 @@ them. The word list is optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it
       words: ["activity", "list"],
     },
   },
-  text: ({ earlier, grep, rows, since }) => {
+  text: ({ earlier, grep, rows, since, withRequests }) => {
     const span = `in the last ${since}`;
     if (rows.length === 0) {
       const further =
@@ -137,7 +300,7 @@ them. The word list is optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it
         : `Nothing the user did in ${APP_NAME} on this computer ${span} mentions "${grep}".${further}`;
     }
     return [
-      `What the user did in ${APP_NAME} on this computer ${span}${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time. Only what happened in ${APP_NAME} is here: a file they downloaded or saved in another app is not.`,
+      `What the user did in ${APP_NAME} on this computer ${span}${withRequests ? ", with the AI requests its chats made, a chat turn to an AI row" : ""}${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time. Only what happened in ${APP_NAME} is here: a file they downloaded or saved in another app is not.`,
       ...(earlier > 0
         ? [`(${earlier} earlier not shown; --limit raises it)`]
         : []),

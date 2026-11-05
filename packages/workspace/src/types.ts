@@ -273,6 +273,12 @@ export interface WorkspaceConfig {
    */
   mayShareActions?: () => boolean;
   /**
+   * Whether `instrument activity` lists the AI requests chats made beside
+   * what the person did, a chat turn to a row. Off unless set: it exists for
+   * the evals that measure it.
+   */
+  activityListsRequests?: boolean;
+  /**
    * What the person did that the app's history keeps rather than the action
    * log (`lib/actions/`): the pages they visited in their own tabs and the
    * files they opened, in the app or in another app from it. Those from

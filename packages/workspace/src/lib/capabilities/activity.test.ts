@@ -1,8 +1,11 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import {
   forgetRecordedActions,
@@ -10,10 +13,14 @@ import {
   recordActions,
 } from "../../test/helpers/recorded-actions";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { type ActivityEntry } from "../activity/schema";
+import { insertActivity } from "../activity/store";
 import { ChatWrites } from "../chat-writes";
 import { updatePermissionSettings } from "../permissions/rules";
+import { DeviceIdSchema } from "../records/device-id";
 import { createActivityCommand } from "../shell-commands/activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { closeWorkspaceDb } from "../workspace-db";
 
 const chatId = ChatIdSchema.parse("activity-test");
 const HOME = "/Users/mac-user";
@@ -194,7 +201,89 @@ describe("instrument activity", () => {
         "
       `);
     } finally {
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        chats: {},
+      }));
       setWorkspaceConfig(original);
+    }
+  });
+
+  it("lists the AI requests among what the user did, a chat turn to a row, when the workspace says to", async () => {
+    logged([
+      [ago(25), { kind: "folder", path: `${HOME}/Taxes` }],
+      [ago(5), { kind: "screen", name: "Settings › Models" }],
+    ]);
+    const original = getWorkspaceConfig();
+    const roof = ChatIdSchema.parse("roof-quotes");
+    createMockChatConfig(roof);
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "activity-requests-"));
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      deviceId: DeviceIdSchema.parse("dev_A1B2C3D4"),
+      rootDir: WorkspaceDirSchema.parse(dir),
+      workspaceDbFile: AbsolutePathSchema.parse(path.join(dir, "workspace.db")),
+    });
+    try {
+      await ChatWrites.saveSession(
+        {
+          createdAt: new Date(0),
+          id: StoreId.newSessionId(),
+          title: "Roof quotes",
+        },
+        roof,
+      );
+      const request = (seconds: number, over: Partial<ActivityEntry> = {}) => {
+        insertActivity({
+          chatId: roof,
+          durationMs: 4000,
+          kind: "language",
+          modelRequested: "openai/gpt-6-luna",
+          purpose: "chat",
+          sessionId: "ses_roof",
+          startedAt: NOW.getTime() - 20 * 60_000 + seconds * 1000,
+          status: "finished",
+          ...over,
+        });
+      };
+      request(0);
+      request(5, { durationMs: 800, error: "Overloaded", status: "failed" });
+      request(8, { durationMs: 900, error: "Overloaded", status: "failed" });
+      request(12);
+      request(17, { durationMs: 53_000 });
+      request(10 * 60, {
+        chatId: null,
+        modelRequested: "anthropic/claude-haiku-5.5",
+        purpose: "settings-search",
+        sessionId: null,
+        surface: "settings",
+      });
+
+      const listing = async () => (await activity()).stdout;
+      expect(await listing()).toMatchInlineSnapshot(`
+        "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+        Thursday, November 5
+          2:05 PM  opened the folder /Users/mac-user/Taxes in Files
+          2:25 PM  opened Settings › Models
+        "
+      `);
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        activityListsRequests: true,
+      });
+      expect(await listing()).toMatchInlineSnapshot(`
+        "What the user did in Instrument on this computer in the last 2h, with the AI requests its chats made, a chat turn to an AI row, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+        Thursday, November 5
+          2:05 PM  opened the folder /Users/mac-user/Taxes in Files
+          2:10 PM  AI: 5 requests (chat) in the chat "Roof quotes", its records in $INSTRUMENT_CHATS/roof-quotes, model openai/gpt-6-luna, 1m 10s from first to last, 2 failed: "Overloaded" ×2
+          2:20 PM  AI: 1 request (settings-search) from settings, model anthropic/claude-haiku-5.5, 4s from first to last
+          2:25 PM  opened Settings › Models
+        "
+      `);
+    } finally {
+      closeWorkspaceDb();
+      setWorkspaceConfig(original);
+      await fs.rm(dir, { force: true, recursive: true });
     }
   });
 

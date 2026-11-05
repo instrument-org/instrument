@@ -33,6 +33,7 @@ export { setupNewsModelNote } from "./lib/setup-news-model-text";
 export { outputLimitModelNote } from "./lib/output-limit-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { actionsModelNote } from "./lib/actions-model-text";
+export { gatherTurns } from "./lib/activity/turns";
 export { actionSentence } from "./lib/actions/sentence";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";

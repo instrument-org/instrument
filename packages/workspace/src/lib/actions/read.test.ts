@@ -144,6 +144,10 @@ describe("the permissions the person answered", () => {
         "refused Kitchen remodel quotes: Music",
       ]);
     } finally {
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        chats: {},
+      }));
       setWorkspaceConfig(original);
     }
   });

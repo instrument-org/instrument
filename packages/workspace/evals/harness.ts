@@ -62,6 +62,7 @@ import { type ChooseQuestion, chooseQuestions } from "../src/lib/choose-call";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
+import { AbsolutePathSchema } from "../src/schemas/paths";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { platformSearchClient } from "./lib/platform-search";
 import {
@@ -82,6 +83,8 @@ import {
 import { getWorkspaceConfig } from "../src/lib/workspace-config";
 import { ActionLog, actionsDir } from "../src/lib/actions/log";
 import { type Action, type HistoryAction } from "../src/lib/actions/schema";
+import { type ActivityEntry } from "../src/lib/activity/schema";
+import { insertActivity } from "../src/lib/activity/store";
 import {
   answerSignIn,
   cardOnlySignIns,
@@ -509,7 +512,32 @@ function writeActions(
   log.close();
 }
 
+/**
+ * An AI request the app made before the case's first message, `ago`
+ * seconds before it is sent, as the app's recorder would have logged it.
+ */
+export type SeededRequest = Omit<ActivityEntry, "startedAt"> & {
+  ago: number;
+};
+
+/**
+ * Writes the requests into this computer's request log and the index, each
+ * `ago` seconds before `sentAt`, as `insertActivity` writes a request the
+ * app made.
+ */
+function writeRequests(requests: readonly SeededRequest[], sentAt: number) {
+  for (const { ago, ...request } of requests) {
+    insertActivity({ ...request, startedAt: sentAt - ago * 1000 });
+  }
+}
+
 export interface EvalCase {
+  /**
+   * `instrument activity` lists the AI requests chats made beside what the
+   * user did (`activityListsRequests`). Like `apps`, it holds for every case
+   * in a process, so a case with it on runs apart from one with it off.
+   */
+  activityListsRequests?: boolean;
   /**
    * What the user did in the app before the case's first message, written
    * to the run's action log or its history before it is sent: what the note
@@ -675,6 +703,18 @@ export interface EvalCase {
   outlivesTurn?: boolean;
   /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
+  /**
+   * AI requests the app made before the case's first message, written to
+   * this computer's request log once the case's chat exists, given its id
+   * and own session so a request can be the chat's own, and the earlier
+   * messages those requests answered can be written into it first. The run
+   * then keeps a `workspace.db`, as the app does, which every case in the
+   * process shares.
+   */
+  requests?: (chat: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }) => Promise<SeededRequest[]> | SeededRequest[];
   /**
    * Run before the case's task is created, with the run's home and workspace
    * in place: for fixtures that have to be made rather than copied, such as
@@ -977,6 +1017,22 @@ export async function runEvals(
         ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
         modelCache: noopModelCache,
         readPersonHistory: readSeededHistory,
+        ...(evals.some((evalCase) => evalCase.activityListsRequests)
+          ? { activityListsRequests: true }
+          : {}),
+        // Where the request log is indexed, as the app keeps it, for a case
+        // that seeds requests.
+        ...(evals.some((evalCase) => evalCase.requests)
+          ? {
+              workspaceDbFile: AbsolutePathSchema.parse(
+                path.join(
+                  workspaceRootDir,
+                  EVAL_MACHINE_DIR_NAME,
+                  "workspace.db",
+                ),
+              ),
+            }
+          : {}),
         ...(evals.some((evalCase) => evalCase.nativeSandbox)
           ? { nativeSandbox: true }
           : {}),
@@ -1118,8 +1174,14 @@ export async function runEvals(
               uri,
             });
           }
+          const { requests } = evalCase;
           return startRun(
             {
+              ...(requests && {
+                beforeSend: async (chat) => {
+                  writeRequests(await requests(chat), Date.now());
+                },
+              }),
               files: evalCase.files,
               folders: folders.length > 0 ? folders : undefined,
               kind: evalCase.kind ?? "task",

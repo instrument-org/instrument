@@ -51,7 +51,7 @@ function filesTab(folder: string, title: string) {
   };
 }
 
-function onChat(
+export function onChat(
   tabs: NonNullable<SessionMessageDataPart.ViewContextDataPart["tabs"]> = [],
 ): SessionMessageDataPart.ViewContextDataPart {
   return { screen: "conversation", tabs };
@@ -88,7 +88,7 @@ async function askedCard(ctx: Context): Promise<boolean> {
 }
 
 /** How the run used the log and whether it asked, recorded and not scored. */
-const howItWent: Assertion = {
+export const howItWent: Assertion = {
   check: async (ctx) => {
     const calls = await touched(ctx);
     const activity = (calls.match(/instrument activity/g) ?? []).length;
@@ -103,7 +103,7 @@ const howItWent: Assertion = {
   text: "how it went (recorded, not scored)",
 };
 
-function replyMatches(text: string, wanted: RegExp): Assertion {
+export function replyMatches(text: string, wanted: RegExp): Assertion {
   return {
     check: (ctx) => {
       const words = reply(ctx);
@@ -171,16 +171,13 @@ function leftAlone(text: string, unwanted: RegExp): Assertion {
 // Seeding another chat
 // ---------------------------------------------------------------------------
 
-async function seedChat(
-  title: string,
-  daysAgo: number,
-  turns: { role: "assistant" | "user"; text: string }[],
-): Promise<ChatId> {
-  const start = Date.now() - daysAgo * 86_400_000;
-  const sessionId = StoreId.newSessionId();
-  const chatId = await ensureChat(sessionId, turns[0]?.text);
-  for (const [index, turn] of turns.entries()) {
-    const at = new Date(start + index * 30_000);
+/** Writes each turn into a session of the chat, at its own time. */
+export async function writeTurns(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  turns: { at: Date; role: "assistant" | "user"; text: string }[],
+) {
+  for (const { at, role, text } of turns) {
     const id = StoreId.newMessageId();
     const parts = [
       {
@@ -190,12 +187,12 @@ async function seedChat(
           messageId: id,
           sessionId,
         },
-        text: turn.text,
+        text,
         type: "text" as const,
       },
     ];
     const message =
-      turn.role === "user"
+      role === "user"
         ? {
             id,
             metadata: { createdAt: at, sessionId },
@@ -217,6 +214,25 @@ async function seedChat(
           };
     (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
   }
+}
+
+/** Another chat of the user's, titled, whose turns start `daysAgo` days back, 30 seconds apart. */
+export async function seedChat(
+  title: string,
+  daysAgo: number,
+  turns: { role: "assistant" | "user"; text: string }[],
+): Promise<ChatId> {
+  const start = Date.now() - daysAgo * 86_400_000;
+  const sessionId = StoreId.newSessionId();
+  const chatId = await ensureChat(sessionId, turns[0]?.text);
+  await writeTurns(
+    chatId,
+    sessionId,
+    turns.map((turn, index) => ({
+      ...turn,
+      at: new Date(start + index * 30_000),
+    })),
+  );
   const session = (
     await ChatReads.session({ chatId, sessionId })
   )._unsafeUnwrap();

@@ -5,7 +5,7 @@ import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 import type { RPCInput, RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
-import { ChatIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, gatherTurns } from "@instrument-org/workspace/client";
 
 /**
  * Settings › Activity as data: what the person did and the AI requests the
@@ -35,9 +35,6 @@ export const ACTIVITY_VIEWS = [
   "yours",
   "ai",
 ] as const satisfies readonly ActivityView[];
-
-/** The longest pause between two requests of one turn. */
-const TURN_GAP_MS = 5 * 60_000;
 
 /** The requests one chat turn made, newest first. */
 export type Turn = {
@@ -75,16 +72,6 @@ function isShown(action: PersonAction): action is ShownAction {
   return action.kind !== "capped";
 }
 
-/** Whether a request continues an open turn: the same chat and session, or with no chat, the same place and purpose. */
-function continues(turn: ActivityRequest, request: ActivityRequest) {
-  if (turn.chatId !== null || request.chatId !== null) {
-    return (
-      turn.chatId === request.chatId && turn.sessionId === request.sessionId
-    );
-  }
-  return turn.surface === request.surface && turn.purpose === request.purpose;
-}
-
 /**
  * The list `view` shows from what both logs have loaded, and the logs whose
  * next page it waits on.
@@ -94,9 +81,8 @@ function continues(turn: ActivityRequest, request: ActivityRequest) {
  * log may have entries not read yet that belong in between. The logs that
  * stop it there are the ones to read next.
  *
- * The requests of one chat and session gather into a turn while each comes
- * within {@link TURN_GAP_MS} of the next and the person did nothing in
- * between; requests from no chat gather by where they came from and why.
+ * The requests gather into turns by `gatherTurns`, the rule
+ * `instrument activity` reads them by too.
  */
 export function timelineOf({
   actions,
@@ -128,7 +114,7 @@ export function timelineOf({
       seen.set(action.at, nth + 1);
       const at = actionTimes[index] ?? 0;
       return isShown(action) && at >= shownFrom
-        ? [{ action, at, id: `${action.at}#${nth}` }]
+        ? [{ action: { action, id: `${action.at}#${nth}` }, at }]
         : [];
     }),
     ...theirs.items.flatMap((request) =>
@@ -138,30 +124,18 @@ export function timelineOf({
     ),
   ].toSorted((a, b) => b.at - a.at);
 
-  const entries: TimelineEntry[] = [];
-  let open: { oldest: number; turn: Turn }[] = [];
-  for (const item of merged) {
-    if ("action" in item) {
-      open = [];
-      entries.push({ ...item, kind: "action" });
-      continue;
+  const entries = gatherTurns(merged).map((entry): TimelineEntry => {
+    if (entry.kind === "action") {
+      return { ...entry.action, at: entry.at, kind: "action" };
     }
-    const { at, request } = item;
-    open = open.filter((each) => each.oldest - at < TURN_GAP_MS);
-    const joined = open.find(
-      (each) =>
-        each.turn.requests[0] !== undefined &&
-        continues(each.turn.requests[0], request),
-    );
-    if (joined) {
-      joined.turn.requests.push(request);
-      joined.oldest = at;
-      continue;
-    }
-    const turn = { id: request.id, requests: [request] };
-    open.push({ oldest: at, turn });
-    entries.push({ at, id: request.id, kind: "turn", turn });
-  }
+    const id = entry.requests[0]?.id ?? "";
+    return {
+      at: entry.at,
+      id,
+      kind: "turn",
+      turn: { id, requests: entry.requests },
+    };
+  });
 
   const waitingOn = (["actions", "requests"] as const).filter(
     (source) => reach[source] !== -Infinity && reach[source] === shownFrom,

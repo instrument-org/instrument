@@ -23,14 +23,7 @@ import { StopIcon } from "@phosphor-icons/react/Stop";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
-import {
-  type ComponentProps,
-  type CSSProperties,
-  type ReactNode,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
 import { TaskBackgroundProcesses } from "../task/task-background-processes";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
@@ -45,21 +38,18 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
 
 /**
- * The head over a chat's conversation, wherever the chat is shown: beside
- * the inbox and popped out into its small window alike. Its title in the
- * middle, which opens the chat's menu, with the project it is filed under
- * after it. At the right, the commands the chat and its tasks left running,
- * then whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
- * it is out, when pressing it brings the conversation back) and the pane
- * toggle while the pane is closed; popped out, the window's own buttons. The
- * two sides keep one width, the wider one's, so the title stands in the
- * window's middle however unevenly they are filled, and takes all the room
- * between them before it gives way, truncating.
+ * The head over a chat's conversation, wherever the chat is shown: beside the
+ * inbox and popped out into its small window alike. Its title at the left,
+ * which opens the chat's menu, with the project it is filed under after it and,
+ * under a hand, the glyph that pops the conversation out (lit, and always
+ * there, while it is out, when pressing it brings the conversation back). At
+ * the right, the commands the chat and its tasks left running, then whatever
+ * the place it is shown in adds: beside the inbox the pane button, popped out
+ * the window's own buttons.
  */
 export function ChatHeader({
   chat,
   fallbackTitle = "Chat",
-  leading,
   onArchived,
   onDeleted,
   onNewProject,
@@ -72,8 +62,6 @@ export function ChatHeader({
   chat: Chat | undefined;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
-  /** What sits ahead of the title: the toggle that puts the inbox away. */
-  leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
@@ -87,11 +75,10 @@ export function ChatHeader({
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
   projects: Project[];
-  /** What sits at the head's right: the pane toggle while the pane is closed, or the popped-out window's buttons. */
+  /** What sits at the head's right: the pane button, or the popped-out window's buttons. */
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
-  const sideWidth = useWiderSide();
   return (
     <>
       {chat && (
@@ -102,109 +89,53 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      {/* Three columns, the outer two both as wide as the wider side's
-          contents, so the title stands in the middle of the conversation
-          whatever sits at either side. The middle one takes the rest rather
-          than sizing to the title, since the heading is a container and has
-          no width of its own. */}
-      <div
-        className="@container/head grid h-14 w-full min-w-0 shrink-0 grid-cols-[var(--side,max-content)_minmax(0,1fr)_var(--side,max-content)] items-start gap-x-2 bg-background px-3 pt-2"
-        style={
-          sideWidth.width === undefined
-            ? undefined
-            : // A custom property, which CSSProperties has no key for.
-              ({ "--side": `${sideWidth.width}px` } as CSSProperties)
-        }
-      >
-        <div className="flex h-8 items-center">
-          <div
-            className="flex w-max items-center gap-x-1"
-            ref={sideWidth.leading}
-          >
-            {leading}
-          </div>
+      <div className="group/head @container/head flex h-14 w-full min-w-0 shrink-0 items-start gap-x-2 bg-background pt-2 pr-3 pl-4">
+        <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
+          {chat ? (
+            <ChatHeading
+              chat={chat}
+              menu={{ onArchived, onViewTasks }}
+              onDelete={() => {
+                setDeleting(true);
+              }}
+              onNewProject={onNewProject}
+              onSetProject={onSetProject}
+              titleClassName="text-sm font-medium"
+              projects={projects}
+            />
+          ) : (
+            <h2 className="min-w-0 truncate text-sm font-medium">
+              {fallbackTitle}
+            </h2>
+          )}
+          {popOut && (
+            <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
+              <Button
+                aria-label={popOut.isOut ? "Bring back" : "Pop out"}
+                aria-pressed={popOut.isOut}
+                className={cn(
+                  toolbarClassName({ pressed: popOut.isOut }),
+                  "shrink-0",
+                  popOut.isOut
+                    ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+                    : "text-muted-foreground/70 opacity-0 not-disabled:hover:text-foreground group-hover/head:opacity-100 focus-visible:opacity-100",
+                )}
+                onClick={popOut.onToggle}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <PictureInPictureIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
+          )}
         </div>
-        <div className="flex min-w-0 flex-col items-center">
-          <div className="flex h-8 w-full min-w-0 items-center">
-            {chat ? (
-              <ChatHeading
-                centered
-                chat={chat}
-                menu={{ onArchived, onViewTasks }}
-                onDelete={() => {
-                  setDeleting(true);
-                }}
-                onNewProject={onNewProject}
-                onSetProject={onSetProject}
-                titleClassName="text-sm font-medium"
-                projects={projects}
-              />
-            ) : (
-              <h2 className="mx-auto min-w-0 truncate text-sm font-medium">
-                {fallbackTitle}
-              </h2>
-            )}
-          </div>
-        </div>
-        <div className="flex h-8 items-center justify-end">
-          <div
-            className="flex w-max items-center gap-x-1"
-            ref={sideWidth.trailing}
-          >
-            {chat && <TaskBackgroundProcesses chatId={chat.id} />}
-            {popOut && (
-              <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
-                <Button
-                  aria-label={popOut.isOut ? "Bring back" : "Pop out"}
-                  aria-pressed={popOut.isOut}
-                  className={cn(
-                    toolbarClassName({ pressed: popOut.isOut }),
-                    // The grey of the inbox toggle across the head.
-                    !popOut.isOut &&
-                      "text-muted-foreground/70 not-disabled:hover:text-foreground",
-                    popOut.isOut &&
-                      "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300",
-                  )}
-                  onClick={popOut.onToggle}
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <PictureInPictureIcon className="size-4" />
-                </Button>
-              </ToolbarTooltip>
-            )}
-            {trailing}
-          </div>
+        <div className="flex h-8 shrink-0 items-center gap-x-1">
+          {chat && <TaskBackgroundProcesses chatId={chat.id} />}
+          {trailing}
         </div>
       </div>
     </>
   );
-}
-
-/**
- * The width both sides of the head take: the wider side's contents, read in
- * layout px (`offsetWidth`, not a rect) since the app scales with CSS zoom,
- * and read again whenever either side's contents change size.
- */
-function useWiderSide() {
-  const [leading, setLeading] = useState<HTMLDivElement | null>(null);
-  const [trailing, setTrailing] = useState<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState<number>();
-  useLayoutEffect(() => {
-    const sides = [leading, trailing].filter((side) => side !== null);
-    const measure = () => {
-      setWidth(Math.max(0, ...sides.map((side) => side.offsetWidth)));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    for (const side of sides) {
-      observer.observe(side);
-    }
-    return () => {
-      observer.disconnect();
-    };
-  }, [leading, trailing]);
-  return { leading: setLeading, trailing: setTrailing, width };
 }
 
 /**
@@ -216,7 +147,6 @@ function useWiderSide() {
  * mark alone.
  */
 function ChatHeading({
-  centered = false,
   chat,
   menu,
   onDelete,
@@ -225,8 +155,6 @@ function ChatHeading({
   titleClassName,
   projects,
 }: {
-  /** Whether the title and its project stand in the middle of the room, as the chat's head has them. */
-  centered?: boolean;
   chat: Chat;
   /** What the menu offers beyond what every head's does. */
   menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived" | "onViewTasks">;
@@ -259,12 +187,7 @@ function ChatHeading({
     onSetProject(chat.project === id ? null : id);
   };
   return (
-    <div
-      className={cn(
-        "@container/chathead flex min-w-0 flex-1 items-center gap-x-2",
-        centered && "justify-center",
-      )}
-    >
+    <div className="@container/chathead flex min-w-0 items-center gap-x-2">
       {/* The title opens the chat's menu, Rename among it; renaming puts
           the field in the title's place. */}
       <h2 className="flex min-w-0">

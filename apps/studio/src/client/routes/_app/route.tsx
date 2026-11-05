@@ -34,7 +34,6 @@ import { useWindow, WindowContext } from "@/client/components/window/context";
 import { isPaneOpen } from "@/client/components/window/draft-context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
-import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { PaneToggle } from "@/client/components/window/pane-toggle";
@@ -277,10 +276,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     <div className="absolute inset-0 flex flex-col">
                       <ChatHeader
                         chat={chatRecord}
-                        // Ahead of the title, the inbox column put away or
-                        // brought back, so the chat and its tabs can have
-                        // the window.
-                        leading={<InboxToggle isCollapsible={showsRightArea} />}
                         // An archived chat is put away, so it leaves the
                         // side beside the list with it.
                         onArchived={leaveChat}
@@ -316,7 +311,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         projects={shell.projects}
                         trailing={
                           <PaneToggle
-                            count={tabs.length}
                             isOpen={showsPane}
                             onToggle={() => {
                               const newest = tabs.at(-1);
@@ -383,6 +377,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       }}
                       onAddWeb={addWeb}
                       onClose={shell.requestClose}
+                      onHide={() => {
+                        setPaneOpen(chat, false);
+                      }}
                       onReorder={(keys) => {
                         windowTabs.reorder(keys, chat);
                       }}
@@ -399,11 +396,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       group={chat}
                       isFramed={false}
                       isShown={showsPane}
-                      // Puts the view away; what it showed stays among the
-                      // chat's tabs, which are where a tab is closed.
-                      onClose={() => {
-                        setPaneOpen(chat, false);
-                      }}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
                       up={up}

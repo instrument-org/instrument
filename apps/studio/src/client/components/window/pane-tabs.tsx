@@ -57,7 +57,8 @@ function keyOf(tab: WindowTab): string {
  * A chat's tabs, across the head of the pane beside it, the one place they
  * show: what its agent browses and the person opened, oldest at the left,
  * scrolling sideways when there are many. Pressing one brings it up, its ×
- * takes it out of the chat, and dragging one moves it among the others.
+ * takes it out of the chat, and dragging one moves it among the others. The ×
+ * at the row's far end puts the whole pane away and keeps the tabs.
  */
 export function PaneTabs({
   chatTitles,
@@ -66,6 +67,7 @@ export function PaneTabs({
   onAddComputer,
   onAddWeb,
   onClose,
+  onHide,
   onReorder,
   onSelect,
   tabs,
@@ -78,6 +80,7 @@ export function PaneTabs({
   onAddComputer: () => void;
   onAddWeb: () => void;
   onClose: (id: string) => void;
+  onHide: () => void;
   /** The chat's tabs in a new order, by their strip keys, oldest first. */
   onReorder: (keys: string[]) => void;
   onSelect: (id: string) => void;
@@ -109,7 +112,7 @@ export function PaneTabs({
   return (
     <div
       aria-label="What this chat has open"
-      className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2"
+      className="flex h-10 shrink-0 items-center gap-1 px-2"
       role="tablist"
     >
       <motion.div
@@ -190,6 +193,14 @@ export function PaneTabs({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <button
+        aria-label="Hide tabs"
+        className="ml-auto grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        onClick={onHide}
+        type="button"
+      >
+        <XIcon className="size-4" />
+      </button>
     </div>
   );
 }
@@ -240,9 +251,9 @@ function PaneTab({
   const body = (isWorking: boolean) => (
     <div
       className={cn(
-        "group/tab flex h-7 w-36 items-center gap-0.5 rounded-md pr-0.5 pl-2 text-xs",
+        "group/tab flex h-7 w-36 items-center gap-0.5 rounded-lg pr-0.5 pl-2 text-xs",
         isChosen
-          ? "bg-accent font-medium text-foreground"
+          ? "bg-card font-medium text-foreground ring-1 ring-border"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
       )}
     >

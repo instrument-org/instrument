@@ -48,7 +48,6 @@ export function GroupItem({
   group,
   isFramed = true,
   isShown = true,
-  onClose,
   onPageChrome,
   onPageHost,
   up,
@@ -61,8 +60,6 @@ export function GroupItem({
   isFramed?: boolean;
   /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
   isShown?: boolean;
-  /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
-  onClose?: () => void;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
@@ -161,7 +158,6 @@ export function GroupItem({
           ? { liveAddress: () => liveAddressOf(location.path) }
           : {})}
         location={location}
-        {...(onClose ? { onClose } : {})}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={(url) => {
           if (up.kind === "page" && page) {

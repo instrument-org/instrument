@@ -53,7 +53,6 @@ import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { Fragment, type ReactNode, useState } from "react";
@@ -88,7 +87,6 @@ export function TabLocationRow({
   liveAddress,
   location,
   onBack,
-  onClose,
   onForward,
   onSite,
   onVisit,
@@ -108,8 +106,6 @@ export function TabLocationRow({
   location: TabLocation;
   /** Back through what the thing up has been at, drawn with forward; a row over a screen that is the tab's own route leaves both to the window's bar. */
   onBack?: () => void;
-  /** Puts the view away, for a row over something shown large beside a chat; the thing stays with the chat. */
-  onClose?: () => void;
   onForward?: () => void;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
@@ -213,14 +209,6 @@ export function TabLocationRow({
           onClick={() => {
             setLookAt(lookTarget);
           }}
-        />
-      )}
-      {onClose && (
-        <TabRowControl
-          disabled={false}
-          icon={<XIcon className="size-4" />}
-          label="Close"
-          onClick={onClose}
         />
       )}
     </div>

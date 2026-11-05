@@ -179,7 +179,13 @@ export async function moveTopicsToProjects(
   const projects = path.join(rootDir, PROJECTS_FOLDER_NAME);
   const names: string[] = await fs.readdir(rootDir).catch(() => []);
   if (names.includes(TOPICS_FOLDER_NAME)) {
-    if (names.includes(PROJECTS_FOLDER_NAME)) {
+    // Asked of the disk rather than the listing, which spells it `projects/`
+    // on a disk that doesn't tell the two apart, where a rename onto it fails.
+    const hasProjects = await fs
+      .lstat(projects)
+      .then(() => true)
+      .catch(() => false);
+    if (hasProjects) {
       const inTopics = (await fs.readdir(topics)).filter(
         (name) => !isSystemClutter(name),
       );

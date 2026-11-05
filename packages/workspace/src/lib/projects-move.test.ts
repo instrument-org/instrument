@@ -255,6 +255,23 @@ describe("moveTopicsToProjects", () => {
     await fs.writeFile(path.join(root, "Topics", name, "TOPIC.md"), text);
   }
 
+  it("moves into a lowercase projects folder on a disk that doesn't tell the two apart", async () => {
+    await writeTopic("Kitchen", "---\nid: top_1\n---\n\nInduction only.\n");
+    await fs.mkdir(path.join(root, "projects", "Garden"), { recursive: true });
+    const caseInsensitive = await fs
+      .lstat(path.join(root, "PROJECTS"))
+      .then(() => true)
+      .catch(() => false);
+
+    const moved = await moveTopicsToProjects(root);
+
+    expect(moved.done).toContain(
+      caseInsensitive
+        ? "moved Topics/Kitchen to Projects/"
+        : "moved Topics/ to Projects/",
+    );
+  });
+
   it("renames Topics to Projects, each TOPIC.md becoming the project's AGENTS.md", async () => {
     await writeTopic("Kitchen", "---\nid: top_1\n---\n\nInduction only.\n");
     await fs.writeFile(path.join(root, "Topics", "Kitchen", "plan.pdf"), "");

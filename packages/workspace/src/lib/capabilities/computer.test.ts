@@ -34,6 +34,7 @@ const startMenu = vi.hoisted(() => ({
   ],
   displayName: undefined as string | undefined,
   opened: [] as string[],
+  readAhead: 0,
 }));
 
 vi.mock("../computer/start-menu", () => ({
@@ -48,6 +49,9 @@ vi.mock("../computer/start-menu", () => ({
     startMenu.opened.push(app.AppID);
     startMenu.afterOpening();
     return Promise.resolve();
+  },
+  readStartMenuAhead: () => {
+    startMenu.readAhead += 1;
   },
   startMenuApp: (given: string) =>
     Promise.resolve(
@@ -822,6 +826,13 @@ describe("instrument computer", () => {
 
     afterEach(() => {
       Object.defineProperty(process, "platform", { value: realPlatform });
+    });
+
+    it("starts reading the Start menu at the first command, ahead of any card", async () => {
+      standInDriver(desktop([calculator]));
+      startMenu.readAhead = 0;
+      await apps([], scope);
+      expect(startMenu.readAhead).toBeGreaterThan(0);
     });
 
     it("asks about a running app under its program, by the name a person knows it by", async () => {

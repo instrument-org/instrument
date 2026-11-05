@@ -23,6 +23,7 @@ import { AskPermission } from "./ask-permission";
 vi.mock(import("../lib/computer/start-menu"), async (importOriginal) => ({
   ...(await importOriginal()),
   displayNameOfProcess: () => Promise.resolve("Paint"),
+  readStartMenuAhead: () => {},
 }));
 
 const model = createMockAIGatewayModel();

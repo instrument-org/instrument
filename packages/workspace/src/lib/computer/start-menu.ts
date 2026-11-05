@@ -26,12 +26,14 @@ const LIST_TIMEOUT_MS = 15_000;
  * How long a card waits for an app's proper name. It goes by its program past
  * this, since `ask_permission` has a limit of its own and no card is worse.
  */
-const DISPLAY_NAME_TIMEOUT_MS = 4000;
+const DISPLAY_NAME_TIMEOUT_MS = 7000;
 
 /** The names a refusal offers when none is the one asked for. */
 const MAX_CLOSE_NAMES = 5;
 
 let listed: StartApp[] | undefined;
+
+let readAhead: Promise<unknown> | undefined;
 
 function runPowerShell(script: string, timeout: number) {
   return DefenseInDepthBox.runTrustedAsync(() =>
@@ -57,6 +59,14 @@ async function readStartMenu(): Promise<StartApp[]> {
       `the Start menu couldn't be read: ${String(result.stderr || result.shortMessage)}`,
     );
   }
+}
+
+/**
+ * Starts reading the menu for the first card that needs it, whose name has only
+ * seconds, and a first read after a launch can take longer than that.
+ */
+export function readStartMenuAhead(): void {
+  readAhead ??= readStartMenu().catch(() => undefined);
 }
 
 function named(apps: StartApp[], given: string): StartApp | undefined {
@@ -137,15 +147,15 @@ async function lookUpDisplayName(pid: number): Promise<string | undefined> {
     DISPLAY_NAME_TIMEOUT_MS,
   );
   const program = ProgramSchema.parse(JSON.parse(result.stdout));
-  const packaged = program.path.toLowerCase().includes("\\windowsapps\\");
+  if (!program.path.toLowerCase().includes("\\windowsapps\\")) {
+    return programDisplayName(program, []);
+  }
+  await readAhead;
   return programDisplayName(
     program,
-    !packaged
-      ? []
-      : listed !== undefined &&
-          entriesOfPackage(program.path, listed).length > 0
-        ? listed
-        : await readStartMenu().catch(() => []),
+    listed !== undefined && entriesOfPackage(program.path, listed).length > 0
+      ? listed
+      : await readStartMenu().catch(() => []),
   );
 }
 

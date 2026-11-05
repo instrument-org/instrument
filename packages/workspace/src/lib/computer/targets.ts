@@ -19,6 +19,7 @@ import {
   closeStartMenuNames,
   displayNameOfProcess,
   openStartMenuApp,
+  readStartMenuAhead,
   startMenuApp,
 } from "./start-menu";
 
@@ -142,9 +143,11 @@ function appsOfWindows(windows: AppWindow[]): RunningApp[] {
 
 /** The apps running now that a person would call apps, helpers left out. */
 export async function runningApps(ctx: DriverContext): Promise<RunningApp[]> {
-  return process.platform === "win32"
-    ? appsOfWindows(await allWindows(ctx))
-    : AppsSchema.parse(await runDriver(["list-apps"], ctx)).apps;
+  if (process.platform !== "win32") {
+    return AppsSchema.parse(await runDriver(["list-apps"], ctx)).apps;
+  }
+  readStartMenuAhead();
+  return appsOfWindows(await allWindows(ctx));
 }
 
 /** The running app by its whole name or bundle id: a substring never matches. */

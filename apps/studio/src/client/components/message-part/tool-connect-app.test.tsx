@@ -92,7 +92,7 @@ function outlook(
   connection: {
     ended?: "canceled" | "expired" | "refused";
     error?: string;
-    status: "failed" | "needs-sign-in";
+    status: "failed" | "needs-key" | "needs-sign-in";
   },
   type: "mcp" | "web" = "mcp",
 ) {
@@ -106,6 +106,7 @@ function outlook(
         endpoint: "https://graph.microsoft.com/v1.0",
         hasCredential: false,
         name: "Outlook",
+        site: "https://outlook.office.com",
         ...(type === "web"
           ? { signIn: "https://outlook.office.com", type }
           : { type }),
@@ -163,12 +164,11 @@ function renderCard(
 
 const PART_ID = StoreId.newPartId();
 
-/** The card's words and buttons, in the order they read. */
-async function cardReads(): Promise<string[]> {
-  await screen.findByRole("button", { name: "Sign in on the web" });
+/** The card's lines and buttons, lines first. */
+function reads(): string[] {
   return [
     ...screen
-      .getAllByText(/./, { selector: "p" })
+      .getAllByText(/./, { selector: "p, span.truncate, span.text-xs" })
       .map((line) => line.textContent ?? ""),
     ...screen
       .getAllByRole("button")
@@ -187,67 +187,159 @@ beforeEach(() => {
   openPage.mockReset();
 });
 
-describe("the connect card after a sign-in that did not connect", () => {
-  it("offers signing in on the web first, however the sign-in ended", async () => {
-    const read: Record<string, string[]> = {};
-    for (const [ended, error] of [
-      ["refused", "access_denied: AADSTS65001: not consented"],
-      ["canceled", "The sign-in was stopped before it finished."],
-      ["expired", "The sign-in lapsed."],
-      [undefined, "HTTP 500: registration failed"],
-    ] as const) {
-      mocks.apps.mockResolvedValue(
-        outlook({ ...(ended ? { ended } : {}), error, status: "failed" }),
-      );
-      const { unmount } = renderCard();
-      read[ended ?? "failed"] = await cardReads();
-      unmount();
-    }
-    expect(read).toMatchInlineSnapshot(`
-      {
-        "canceled": [
-          "Sign in to Outlook",
-          "So I can read your mail.",
-          "Signing in to Outlook stopped before it finished. You can sign in on the web instead, or try again.",
-          "[Sign in on the web]",
-          "[Try again]",
-          "[Sign in with Safari]",
-          "[Not now]",
-        ],
-        "expired": [
-          "Sign in to Outlook",
-          "So I can read your mail.",
-          "The sign-in to Outlook timed out. You can sign in on the web instead, or try again.",
-          "[Sign in on the web]",
-          "[Try again]",
-          "[Sign in with Safari]",
-          "[Not now]",
-        ],
-        "failed": [
-          "Sign in to Outlook",
-          "So I can read your mail.",
-          "Instrument couldn’t connect to Outlook. You can sign in on the web instead, or try again.",
-          "[Sign in on the web]",
-          "[Try again]",
-          "[Sign in with Safari]",
-          "[Not now]",
-          "[Details]",
-        ],
-        "refused": [
-          "Sign in to Outlook",
-          "So I can read your mail.",
-          "Outlook won’t let this account connect directly. You can sign in to Outlook on the web instead.",
-          "[Sign in on the web]",
-          "[Try again]",
-          "[Sign in with Safari]",
-          "[Not now]",
-          "[Details]",
-        ],
-      }
+describe("the card for one app", () => {
+  it("is the same card with one row, leading with the person's own browser", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    renderCard();
+
+    const own = await screen.findByRole("button", {
+      name: "Sign in with Safari",
+    });
+    expect(own.getAttribute("data-variant")).toBe("brand");
+    expect(reads()).toMatchInlineSnapshot(`
+      [
+        "Connect Outlook",
+        "So I can read your mail.",
+        "Outlook",
+        "[Not now]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
+      ]
     `);
   });
 
-  it("keeps what the service said behind Details until it is opened", async () => {
+  it("opens a key's field by itself, with no press to get to it", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-key" }));
+    renderCard(undefined, {
+      kind: "key",
+      name: "Outlook",
+      slug: "outlook",
+      state: "asked",
+    });
+
+    expect(
+      await screen.findByPlaceholderText("Paste the Outlook key"),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add key" })).toBeNull();
+    expect(await screen.findByText(/The key goes only to/)).toBeTruthy();
+  });
+
+  it("says an app with no sign-in is being tested, and offers nothing to press", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));
+    renderCard(undefined, {
+      kind: "none",
+      name: "Outlook",
+      slug: "outlook",
+      state: "asked",
+    });
+
+    expect(await screen.findByText(/doesn’t need a sign-in/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Sign in/ })).toBeNull();
+  });
+
+  it("folds to the account once connected", async () => {
+    mocks.apps.mockResolvedValue({
+      apps: [
+        {
+          ...outlook({ status: "needs-sign-in" }).apps[0],
+          connection: {
+            account: "you@example.com",
+            status: "connected",
+            updatedAt: 1,
+          },
+          standing: "connected",
+        },
+      ],
+    });
+    renderCard();
+
+    expect(await screen.findByText("Outlook connected")).toBeTruthy();
+    expect(screen.getByText("Connected as you@example.com")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("how a sign-in ended", () => {
+  const START = ["[Not now]", "[Sign in with Safari]", "[Sign in here]"];
+  const HEAD = ["Connect Outlook", "So I can read your mail.", "Outlook"];
+  it.each([
+    ["stopped, back to the start", { status: "needs-sign-in" }, [], START],
+    [
+      "timed out, back to the start with a line",
+      { ended: "expired", error: "lapsed", status: "needs-sign-in" },
+      ["That sign-in timed out."],
+      START,
+    ],
+    [
+      "failed, another try or the app's site",
+      { error: "HTTP 500: registration failed", status: "failed" },
+      ["Instrument couldn’t connect to Outlook."],
+      ["[Not now]", "[Try again with Safari]", "[Sign in here]"],
+    ],
+    [
+      "refused, only the app's site",
+      { ended: "refused", error: "access_denied", status: "failed" },
+      ["Outlook won’t let this account connect directly."],
+      ["[Not now]", "[Sign in here]"],
+    ],
+  ] as const)("%s", async (_, connection, line, buttons) => {
+    mocks.apps.mockResolvedValue(outlook(connection));
+    renderCard();
+
+    await waitFor(
+      () => {
+        expect(reads()).toEqual([...HEAD, ...line, ...buttons]);
+      },
+      { interval: 1 },
+    );
+  });
+
+  it("offers the same sign-in again when an app has no site to go to", async () => {
+    const withoutSite = (connection: Parameters<typeof outlook>[0]) => ({
+      apps: outlook(connection).apps.map((app) => ({
+        ...app,
+        site: undefined,
+      })),
+    });
+    mocks.apps.mockResolvedValue(
+      withoutSite({ error: "HTTP 500", status: "failed" }),
+    );
+    mocks.startOAuth.mockResolvedValue({
+      status: "started",
+      url: "https://login.example",
+    });
+    const { unmount } = renderCard();
+    await screen.findByText("Instrument couldn’t connect to Outlook.");
+    await screen.findByRole("button", { name: "Try again with Safari" });
+    expect(screen.getByRole("button", { name: "Sign in here" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in here" }));
+    await waitFor(
+      () => {
+        expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
+          opensIn: "app",
+        });
+      },
+      { interval: 1 },
+    );
+    expect(mocks.signInOnWeb).not.toHaveBeenCalled();
+    unmount();
+
+    mocks.apps.mockResolvedValue(
+      withoutSite({
+        ended: "refused",
+        error: "access_denied",
+        status: "failed",
+      }),
+    );
+    renderCard();
+    await screen.findByText("Outlook won’t let this account connect directly.");
+    expect(
+      screen.queryByRole("button", { name: /Sign in here|Try again/ }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy();
+  });
+
+  it("never shows the service's own words, which go to the agent", async () => {
     mocks.apps.mockResolvedValue(
       outlook({
         ended: "refused",
@@ -257,15 +349,12 @@ describe("the connect card after a sign-in that did not connect", () => {
     );
     renderCard();
 
-    const details = await screen.findByRole("button", { name: "Details" });
+    await screen.findByText("Outlook won’t let this account connect directly.");
     expect(screen.queryByText(/AADSTS65001/)).toBeNull();
-    fireEvent.click(details);
-    expect(
-      await screen.findByText("access_denied: AADSTS65001: not consented"),
-    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
   });
 
-  it("moves the app to the web and opens its sign-in in the window's browser", async () => {
+  it("moves a refused app to its site, then asks for the word that the sign-in is done", async () => {
     mocks.apps.mockResolvedValue(
       outlook({ ended: "refused", error: "access_denied", status: "failed" }),
     );
@@ -275,9 +364,8 @@ describe("the connect card after a sign-in that did not connect", () => {
     });
     const { queryClient } = renderCard();
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Sign in on the web" }),
-    );
+    await screen.findByText("Outlook won’t let this account connect directly.");
+    fireEvent.click(screen.getByRole("button", { name: "Sign in here" }));
     await waitFor(
       () => {
         expect(openPage).toHaveBeenCalledWith("https://outlook.office.com");
@@ -290,12 +378,11 @@ describe("the connect card after a sign-in that did not connect", () => {
     expect(
       await screen.findByRole("button", { name: "Done signing in" }),
     ).toBeTruthy();
-    expect(screen.getByText("Sign in to Outlook on the web")).toBeTruthy();
   });
 
-  it("sends another try to the user's own browser when they pick it", async () => {
+  it("sends another try after a failure to the user's own browser", async () => {
     mocks.apps.mockResolvedValue(
-      outlook({ ended: "expired", status: "failed" }),
+      outlook({ error: "HTTP 500", status: "failed" }),
     );
     mocks.startOAuth.mockResolvedValue({
       status: "started",
@@ -305,9 +392,9 @@ describe("the connect card after a sign-in that did not connect", () => {
 
     // Looked up again at the click: the row can draw again after the button
     // first appears, leaving an earlier lookup detached.
-    await screen.findByRole("button", { name: "Sign in with Safari" });
+    await screen.findByRole("button", { name: "Try again with Safari" });
     fireEvent.click(
-      screen.getByRole("button", { name: "Sign in with Safari" }),
+      screen.getByRole("button", { name: "Try again with Safari" }),
     );
     await waitFor(
       () => {
@@ -319,6 +406,10 @@ describe("the connect card after a sign-in that did not connect", () => {
       opensIn: "external",
     });
     expect(openPage).not.toHaveBeenCalled();
+    // The failure stays until it is answered, but the row is waiting now.
+    expect(
+      await screen.findByText("Finish signing in in Safari."),
+    ).toBeTruthy();
   });
 });
 
@@ -395,39 +486,48 @@ function renderGroupCard() {
   );
 }
 
-/** The card's lines and buttons, in the order they read. */
-function groupReads(): string[] {
-  return [
-    ...screen
-      .getAllByText(/./, { selector: "p, span.truncate, span.text-xs" })
-      .map((line) => line.textContent ?? ""),
-    ...screen
-      .getAllByRole("button")
-      .map((button) => `[${button.textContent ?? ""}]`),
-  ];
-}
-
 describe("the card asking for several apps", () => {
-  it("counts what is connected, lights the next sign-in, and offers to skip the rest", async () => {
+  it("marks what is connected, lights the next sign-in, and offers to skip the rest", async () => {
     mocks.apps.mockResolvedValue(google({ drive: "connected" }));
     renderGroupCard();
 
-    await screen.findByText("1 of 3 connected");
-    expect(groupReads()).toMatchInlineSnapshot(`
+    await screen.findByText("Connected as you@example.com");
+    expect(reads()).toMatchInlineSnapshot(`
       [
         "Connect 3 apps",
         "So I can read your files and email.",
-        "1 of 3 connected",
         "Google Drive",
         "Connected as you@example.com",
         "Google Docs",
         "Gmail",
-        "Waiting on 2 more.",
-        "[Sign in]",
-        "[Skip]",
-        "[Sign in]",
-        "[Skip]",
         "[Skip the rest]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
+      ]
+    `);
+  });
+
+  it("offers Not now until something is answered", async () => {
+    mocks.apps.mockResolvedValue(google({}));
+    renderGroupCard();
+
+    await screen.findByRole("button", { name: "Not now" });
+    expect(reads()).toMatchInlineSnapshot(`
+      [
+        "Connect 3 apps",
+        "So I can read your files and email.",
+        "Google Drive",
+        "Google Docs",
+        "Gmail",
+        "[Not now]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
       ]
     `);
   });
@@ -437,7 +537,7 @@ describe("the card asking for several apps", () => {
     mocks.dismiss.mockResolvedValue(undefined);
     renderGroupCard();
 
-    await screen.findByText("1 of 3 connected");
+    await screen.findByText("Connected as you@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Skip the rest" }));
     await waitFor(
       () => {
@@ -458,12 +558,13 @@ describe("the card asking for several apps", () => {
     renderGroupCard();
 
     await screen.findByText("2 apps connected");
-    expect(groupReads()).toMatchInlineSnapshot(`
+    expect(reads()).toMatchInlineSnapshot(`
       [
         "2 apps connected",
         "You skipped Google Docs.",
         "Google Docs",
-        "[Sign in]",
+        "[Sign in with Safari]",
+        "[Sign in here]",
       ]
     `);
   });
@@ -478,7 +579,9 @@ describe("the card asking for several apps", () => {
     });
     renderGroupCard();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Sign in with Safari" }),
+    );
     await waitFor(
       () => {
         expect(mocks.startOAuth).toHaveBeenCalled();
@@ -490,6 +593,30 @@ describe("the card asking for several apps", () => {
       slug: "docs",
     });
   });
+
+  it.each([
+    ["Sign in with Safari", "external", "Finish signing in in Safari."],
+    ["Sign in here", "app", "Finish signing in on the page that opened."],
+  ])(
+    "%s opens there and says where the wait is",
+    async (name, opensIn, line) => {
+      mocks.apps.mockResolvedValue(
+        google({ docs: "connected", drive: "connected" }),
+      );
+      mocks.startOAuth.mockResolvedValue({
+        status: "started",
+        url: "https://login.example",
+      });
+      renderGroupCard();
+
+      fireEvent.click(await screen.findByRole("button", { name }));
+      expect(await screen.findByText(line)).toBeDefined();
+      expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
+        opensIn,
+        slug: "gmail",
+      });
+    },
+  );
 });
 
 describe("a sign-in card another computer put up", () => {

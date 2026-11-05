@@ -1,10 +1,18 @@
 import { type FileTab } from "@/client/atoms/window";
 import { atom } from "jotai";
 
-/** What the large panel shows: a file or a folder, by where it is. */
+/** What the large panel shows: a file or a folder by where it is, or a picture by its address. */
 export type LookTarget =
   | { kind: "file"; tab: FileTab }
-  | { folder: LookFolder; kind: "folder" };
+  | { folder: LookFolder; kind: "folder" }
+  | { kind: "picture"; picture: LookPicture };
+
+/** A picture with no file behind it: a diagram, a pasted image, a web image in a message. */
+export type LookPicture = {
+  filename: string;
+  mimeType?: string;
+  url: string;
+};
 
 /** A folder in the panel, with what its card says about it. */
 export type LookFolder = {
@@ -16,9 +24,35 @@ export type LookFolder = {
   name: string;
 };
 
-/** Where a target is on the computer, which is what makes two the same. */
+/** Where a target is, which is what makes two the same. */
 export function lookPathOf(target: LookTarget) {
-  return target.kind === "file" ? target.tab.hostPath : target.folder.hostPath;
+  switch (target.kind) {
+    case "file": {
+      return target.tab.hostPath;
+    }
+    case "folder": {
+      return target.folder.hostPath;
+    }
+    case "picture": {
+      return target.picture.url;
+    }
+  }
+}
+
+/** The file where the opener knows it, for its actions; the picture alone otherwise. */
+export function lookTargetOf({
+  hostPath,
+  ...picture
+}: LookPicture & { hostPath?: string }): LookTarget {
+  return hostPath
+    ? {
+        kind: "file",
+        tab: {
+          hostPath,
+          name: hostPath.split(/[/\\]/).at(-1) ?? picture.filename,
+        },
+      }
+    : { kind: "picture", picture };
 }
 
 /**

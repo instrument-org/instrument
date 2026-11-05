@@ -49,8 +49,11 @@ export type ConnectionOutcome =
   | { ended?: SignInEnd; error: string; status: "failed" }
   /** The user allowed a local server to run, pinned to the manifest they saw. */
   | { approvedManifestHash: string; status: "needs-approval" }
-  /** The server refused the key or sign-in the app holds, or the key is gone. */
-  | { error: string; status: "needs-key" | "needs-sign-in" };
+  /**
+   * The server refused the key or sign-in the app holds, the key is gone, or
+   * the user stopped a sign-in, which has no error to keep.
+   */
+  | { error?: string; status: "needs-key" | "needs-sign-in" };
 
 /**
  * Record where an app's connection moved and say so, as one step: every list

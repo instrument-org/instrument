@@ -26,6 +26,7 @@ import {
   requestQuitApproval,
 } from "@/electron-main/lib/quit";
 import {
+  clearExceptionEvent,
   clearExceptionEvents,
   listSessionExceptionEvents,
 } from "@/electron-main/lib/exception-store";
@@ -462,6 +463,12 @@ const clearExceptions = base.input(z.void()).handler(() => {
   clearExceptionEvents();
 });
 
+const clearException = base
+  .input(z.object({ fingerprint: z.string() }))
+  .handler(({ input }) => {
+    clearExceptionEvent(input.fingerprint);
+  });
+
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the band of
 // chrome above the UI, whose visual height scales with that zoom. One setting
@@ -674,6 +681,7 @@ const showFolderPicker = base
 export const utils = {
   approveWindowClose,
   browserOpenTarget,
+  clearException,
   clearExceptions,
   closeWindow,
   computerFileBase,

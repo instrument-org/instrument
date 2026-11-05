@@ -21,7 +21,7 @@ export function setupChangeSentence(
         after: " app.",
         before:
           change === "added"
-            ? "Set up the "
+            ? "Added the "
             : change === "changed"
               ? "Updated the "
               : "Removed the ",

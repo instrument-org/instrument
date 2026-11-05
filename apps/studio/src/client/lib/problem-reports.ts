@@ -8,9 +8,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 
-/** How long the thank-you stays before the report dialog closes on its own. */
-export const SENT_CLOSE_MS = 1600;
-
 /**
  * Feedback the person starts: from a chat's menu or a slash command in its
  * reply box, about that chat, or from the Help menu or a new draft, with no

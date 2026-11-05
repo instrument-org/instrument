@@ -28,7 +28,7 @@ import {
 } from "./workspaces";
 
 /**
- * Listing, creating, and removing workspaces, for the dev panel. Plain file
+ * Listing, creating, and removing workspaces, for developer settings. Plain file
  * operations over the registry and the workspace folders; the RPC routes add
  * what needs Electron (the Trash, restarting).
  */
@@ -72,8 +72,8 @@ const SIGN_IN_FILES = [
 /**
  * Make a workspace folder under `<userData>/workspaces/` and register it,
  * without switching to it. It starts with developer mode as the current
- * workspace has it, so a workspace made from the dev panel can reach the dev
- * panel, and one made some other way later does not inherit it by accident.
+ * workspace has it, so a workspace made from developer settings can reach them
+ * again, and one made some other way later does not inherit it by accident.
  */
 export function createWorkspace({
   color,

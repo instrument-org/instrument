@@ -5,7 +5,7 @@ import { SetupFooter } from "@/client/components/setup/kit/setup-page";
 import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
 import { ChooseAI } from "@/client/components/setup/steps/choose-ai";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
-import { Button } from "@/client/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { modelsHeldBack } from "@/client/lib/billing";
 import { rpcClient } from "@/client/rpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -28,6 +28,7 @@ import {
   trialModeOffer,
   trialModes,
   trialModeStatus,
+  trialSurfaces,
 } from "./-trial-modes";
 
 const noop = () => {};
@@ -40,9 +41,8 @@ const noop = () => {};
 const surfaces = [
   {
     id: "setup-outcome",
-    label: "Setup: sign-in outcome",
     render: () => (
-      <div className="flex h-170 w-240 flex-col">
+      <div className="flex h-170 w-200 flex-col">
         <ChooseAI
           hold={noop}
           initial={{
@@ -58,7 +58,6 @@ const surfaces = [
   },
   {
     id: "settings-plan",
-    label: "Settings: plan",
     render: () => (
       <div className="w-170 p-4">
         <AccountSection />
@@ -68,7 +67,6 @@ const surfaces = [
   },
   {
     id: "model-picker",
-    label: "Model picker",
     render: (mode: TrialModeId) => {
       const step = modelsHeldBack(trialModeStatus(mode), new Date());
       return (
@@ -86,7 +84,6 @@ const surfaces = [
   },
   {
     id: "chat-note",
-    label: "Chat note",
     render: (mode: TrialModeId) => (
       <ChatNoteSample mode={mode} refused={false} />
     ),
@@ -94,25 +91,21 @@ const surfaces = [
   },
   {
     id: "chat-note-refused",
-    label: "Chat note after a refused turn",
     render: (mode: TrialModeId) => <ChatNoteSample mode={mode} refused />,
     signedIn: true,
   },
   {
     id: "chat-note-image",
-    label: "Chat note after a refused image",
     render: (mode: TrialModeId) => <ImageNoteSample mode={mode} />,
     signedIn: true,
   },
   {
     id: "chat-note-image-signed-out",
-    label: "Chat note for an image, signed out",
     render: (mode: TrialModeId) => <ImageNoteSample mode={mode} signedOut />,
     signedIn: false,
   },
   {
     id: "add-provider",
-    label: "Add a provider",
     render: () => (
       <div className="w-140 rounded-2xl border border-border bg-background">
         <AddProviderSheet
@@ -126,7 +119,6 @@ const surfaces = [
   },
   {
     id: "log-in-free-account",
-    label: "Log in: free account",
     render: () => (
       <div className="flex w-190 flex-col rounded-2xl border border-border bg-background">
         <FreeAccountPage
@@ -145,8 +137,7 @@ const surfaces = [
     signedIn: false,
   },
 ] as const satisfies readonly {
-  id: string;
-  label: string;
+  id: (typeof trialSurfaces)[number]["id"];
   render: (mode: TrialModeId) => ReactNode;
   signedIn: boolean;
 }[];
@@ -180,44 +171,37 @@ function RouteComponent() {
   const modeId = (
     trialModes.find((item) => item.id === search.mode) ?? trialModes[0]
   ).id;
+  const surfaceLabel = trialSurfaces.find(
+    (item) => item.id === surfaceId,
+  )?.label;
 
   return (
     <div className="flex size-full flex-col overflow-hidden">
-      <div className="flex flex-col gap-2 border-b border-border p-3">
-        <div className="flex flex-wrap gap-1">
-          {surfaces.map((item) => (
-            <Button
-              key={item.id}
-              onClick={() => {
-                void navigate({ search: { mode: modeId, surface: item.id } });
-              }}
-              size="sm"
-              variant={item.id === surfaceId ? "default" : "ghost"}
-            >
-              {item.label}
-            </Button>
-          ))}
+      <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b px-6">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h1 className="truncate text-sm font-medium">{surfaceLabel}</h1>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {surface.signedIn ? "Signed in" : "Signed out"}
+          </span>
         </div>
-        <div className="flex flex-wrap gap-1">
-          {trialModes.map((mode) => (
-            <Button
-              key={mode.id}
-              onClick={() => {
-                void navigate({
-                  search: { mode: mode.id, surface: surfaceId },
-                });
-              }}
-              size="sm"
-              variant={mode.id === modeId ? "default" : "ghost"}
-            >
-              {mode.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto bg-muted/40 p-6">
+        <Tabs
+          onValueChange={(mode) => {
+            void navigate({ search: { mode, surface: surfaceId } });
+          }}
+          value={modeId}
+        >
+          <TabsList>
+            {trialModes.map((mode) => (
+              <TabsTrigger key={mode.id} value={mode.id}>
+                {mode.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto bg-muted/40 p-8">
         <div
-          className="inline-block bg-background"
+          className="mx-auto w-fit overflow-hidden rounded-xl bg-background shadow-xs ring-1 ring-foreground/8"
           data-trial-mode={modeId}
           data-trial-surface={surfaceId}
         >

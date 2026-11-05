@@ -400,30 +400,18 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
         throw new Error("Expected a sign-in to start");
       }
       await vi.advanceTimersByTimeAsync(PENDING_FLOW_TTL_MS);
-      await vi.waitFor(() => {
-        expect(heard).toHaveLength(1);
+      await vi.waitFor(async () => {
+        expect(
+          await getWorkspaceConfig().apps.connections.get(setUp.slug),
+        ).toMatchObject({ ended: "expired" });
       });
 
-      // Named by whichever Outlook this run set up, the directory's slug
-      // being taken by the tests before it.
-      expect(heard.map((event) => ({ ...event, name: "", slug: "" })))
-        .toMatchInlineSnapshot(`
-        [
-          {
-            "detail": "The sign-in page was left open without finishing, and the sign-in lapsed.",
-            "event": "failed",
-            "name": "",
-            "signIn": {
-              "ended": "expired",
-              "web": "https://outlook.office.com",
-            },
-            "slug": "",
-          },
-        ]
-      `);
+      // Nothing went wrong, so nobody is told: the app is back to needing its
+      // sign-in, with a word of why.
+      expect(heard).toEqual([]);
       expect(
         await getWorkspaceConfig().apps.connections.get(setUp.slug),
-      ).toMatchObject({ ended: "expired", status: "failed" });
+      ).toMatchObject({ ended: "expired", status: "needs-sign-in" });
       // The page coming back after the lapse finds nothing waiting.
       expect(
         (

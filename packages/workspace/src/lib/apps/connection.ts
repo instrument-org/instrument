@@ -25,8 +25,10 @@ export type AppConnectionStatus = z.output<typeof AppConnectionStatusSchema>;
 /**
  * How a sign-in that started ended without connecting: the service refused
  * the account (a vendor policy, an admin's consent, a client it will not
- * take), the user stopped it, or nobody came back before it lapsed. A user who
- * turned the sign-in down is `declined`, not this.
+ * take), or nobody came back before it lapsed, which leaves the app needing
+ * its sign-in rather than failed. `canceled` is only in a record an earlier
+ * build wrote: a sign-in the user stops now leaves no trace. A user who turned
+ * the sign-in down is `declined`, not this.
  */
 const SignInEndSchema = z.enum(["canceled", "expired", "refused"]);
 

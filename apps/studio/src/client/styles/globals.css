@@ -146,6 +146,8 @@ body {
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-ground: var(--ground);
+  --color-ink: var(--ink);
+  --color-ink-alert: var(--ink-alert);
   --color-resize-held: var(--resize-held);
   --color-setup-ground-top: var(--setup-ground-top);
   --color-setup-ground-bottom: var(--setup-ground-bottom);
@@ -355,6 +357,9 @@ body {
   --sidebar: var(--background);
   /* The window's own plane, under the rail and the bar, which the app's card stands inset on. */
   --ground: color-mix(in oklab, var(--gray-200) 25%, var(--gray-100));
+  /* The developer band's ground in both themes, a step below dark's own. */
+  --ink: #1c1917;
+  --ink-alert: #fda29b;
   /* The app's card under the inbox and the chat, a hair below the background,
    * so a row in the card's own white stands out from the list. */
   --pane: color-mix(in oklab, var(--gray-50) 35%, var(--gray-100));
@@ -537,6 +542,7 @@ body {
   --sidebar: var(--gray-900);
   /* Halfway from near-black to the card, the softer step light mode takes. */
   --ground: color-mix(in oklab, #0f0d0c 50%, var(--gray-900));
+  --ink: #0a0908;
   --pane: var(--background);
   --resize-held: var(--brand-400);
   --sidebar-foreground: #ffffff;

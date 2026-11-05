@@ -1,5 +1,11 @@
 export const debugNavigationRoutes = [
   {
+    id: "app-states",
+    label: "App states",
+    title: "Debug app states",
+    to: "/debug/app-states",
+  },
+  {
     id: "components",
     label: "Components",
     title: "Debug components",
@@ -18,6 +24,11 @@ export const debugNavigationRoutes = [
     to: "/debug/trial-modes",
   },
 ] as const;
+
+/** The pages about the app as a whole, above the components in the sidebar. */
+export const appPages = debugNavigationRoutes.filter(
+  (route) => route.id !== "components",
+);
 
 export const componentPages = [
   {

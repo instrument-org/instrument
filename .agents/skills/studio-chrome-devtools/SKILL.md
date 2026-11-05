@@ -101,7 +101,7 @@ node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
 node $DRIVE boot --purpose "near limit" --workspace documents --account ~/.instrument/accounts/scenario-near-limit-4fa6.json
 ```
 
-Fixtures and clean rooms set `SKIP_ONBOARDING`, so they open on the app window whatever setup would say, and pin their workspace with `INSTRUMENT_WORKSPACE`, which a run that skips setup has to name. `--scenario <name>` is for the states setup reads: it builds application data of its own from `fixtures/scenarios/<name>.yaml` (a workspace, where the folder is, sentinel sign-ins, setup's record, and the notification and network status a development build takes from the environment), rebuilds it on every boot, and leaves setup to decide. Like `--workspace`, it goes on every command. Read where setup landed from its state rather than the screen: `setup.live.state` is a live route, so take its first value in an `eval`, as below. `setup.answer`, `setup.finish` and `setup.dev.reset` go through `rpc`. `fixtures/scenarios/README.md` lists the scenarios and the file's keys; the dev panel's "Run setup again" forgets the record in any instance.
+Fixtures and clean rooms set `SKIP_ONBOARDING`, so they open on the app window whatever setup would say, and pin their workspace with `INSTRUMENT_WORKSPACE`, which a run that skips setup has to name. `--scenario <name>` is for the states setup reads: it builds application data of its own from `fixtures/scenarios/<name>.yaml` (a workspace, where the folder is, sentinel sign-ins, setup's record, and the notification and network status a development build takes from the environment), rebuilds it on every boot, and leaves setup to decide. Like `--workspace`, it goes on every command. Read where setup landed from its state rather than the screen: `setup.live.state` is a live route, so take its first value in an `eval`, as below. `setup.answer`, `setup.finish` and `setup.dev.reset` go through `rpc`. `fixtures/scenarios/README.md` lists the scenarios and the file's keys; the App states debug page's "Run setup again" forgets the record in any instance.
 
 ```bash
 node $DRIVE boot --purpose "setup" --scenario beta-tester
@@ -265,10 +265,10 @@ To measure at a real workspace's scale, boot against a copy of it. `cp -cR` make
 
 ## States a dev build otherwise cannot reach
 
-Both have a dev panel entry under the `dev` badge:
+Both have a control on the App states debug page (`/debug/app-states`):
 
-- **Simulate > Just updated** — the toast only fires when the app launches on a newer version than the last launch. The item queues the bump and reloads, the path a real update takes. It auto-dismisses in a few seconds, so capture promptly.
-- **Simulate > Quit prompt** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.
+- **Just updated** — the toast only fires when the app launches on a newer version than the last launch. The item queues the bump and reloads, the path a real update takes. It auto-dismisses in a few seconds, so capture promptly.
+- **Quit prompt** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.
 
 The quit prompt is a native `showMessageBox`, outside the web contents. CDP cannot capture it.
 

@@ -104,9 +104,12 @@ function signInCardLine(
 
 /**
  * A sign-in of the app's own that did not connect, and the way on from it:
- * the web, where the service's own sign-in page works in the window's
- * browser. A refusal or a failure goes there; a sign-in the user stopped or
- * left to lapse may only want another try, which the card offers beside it.
+ * the service's site, where its own sign-in page works in the window's
+ * browser. The card offers that itself, so a second card would only ask the
+ * same thing again; with no site to offer, the agent has to find one. A
+ * sign-in the user stopped or
+ * left to lapse tells nobody now, so those two lines are only for a note an
+ * earlier build stored.
  */
 function signInEnded(
   { name, slug }: AppEventLine,
@@ -114,6 +117,8 @@ function signInEnded(
   detail: string | undefined,
 ): string {
   const said = detail ? `: ${detail}` : "";
+  const onCard = `The card now offers signing in on the service's site in ${APP_NAME}'s browser, which connects the app when they finish`;
+  const wait = `Say so in a line and wait: do not change the app or call connect_app again.`;
   switch (ended) {
     case "canceled":
     case "expired": {
@@ -124,10 +129,12 @@ function signInEnded(
       return `- ${what} The card offers signing in on the web or trying again; ask which in a line. For the web: \`${webInsteadCommand(slug, web)}\`, then connect_app. To try again: connect_app as it is.`;
     }
     case "failed": {
-      return `- Signing in to ${name} (${slug}) failed${said}. ${webInsteadStep(slug, web)}`;
+      return web === undefined
+        ? `- Signing in to ${name} (${slug}) failed${said}. ${webInsteadStep(slug, web)}`
+        : `- Signing in to ${name} (${slug}) failed${said}. ${onCard}, or another try. ${wait}`;
     }
     case "refused": {
-      return `- ${name} (${slug}) refused to connect this account directly${said}. That is the service's rule, not the user declining, and trying the same sign-in again meets it again. ${webInsteadStep(slug, web)}`;
+      return `- ${name} (${slug}) refused to connect this account directly${said}. That is the service's rule, not the user declining, and trying the same sign-in again meets it again. ${web === undefined ? webInsteadStep(slug, web) : `${onCard}. ${wait}`}`;
     }
   }
 }

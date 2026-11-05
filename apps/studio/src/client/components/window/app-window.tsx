@@ -17,6 +17,7 @@ import {
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { NavControls } from "@/client/components/nav-controls";
+import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
 import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
@@ -67,9 +68,16 @@ import {
   RouterContextProvider,
   RouterProvider,
   useRouterState,
+  useNavigate,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
@@ -150,6 +158,20 @@ export function AppWindow() {
   );
 }
 
+/** The window's shell above the developer band, which opens a debug page in the tab up. */
+function WindowContent(props: ComponentProps<typeof WindowShell>) {
+  const navigate = useNavigate();
+  return (
+    <WithDeveloperStrip
+      onOpenDebugPages={() => {
+        void navigate({ to: "/debug" });
+      }}
+    >
+      <WindowShell {...props} />
+    </WithDeveloperStrip>
+  );
+}
+
 /** The window before the workspace has a folder: setup over the window's own ground. */
 function SetupWindow() {
   return (
@@ -159,11 +181,13 @@ function SetupWindow() {
         <TooltipProvider>
           <IconContext.Provider value={ICON_CONTEXT_VALUE}>
             <WindowZoomRoot>
-              <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
-                <div className="relative h-full bg-ground">
-                  <SetupHost />
-                </div>
-              </ChromeInsetProvider>
+              <WithDeveloperStrip>
+                <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
+                  <div className="relative h-full bg-ground">
+                    <SetupHost />
+                  </div>
+                </ChromeInsetProvider>
+              </WithDeveloperStrip>
             </WindowZoomRoot>
           </IconContext.Provider>
           <WindowBorder />
@@ -193,7 +217,7 @@ function WorkspaceWindow() {
               <WindowZoomRoot>
                 {activeRouter ? (
                   <RouterContextProvider router={activeRouter}>
-                    <WindowShell routers={routers} tabs={model.tabs} />
+                    <WindowContent routers={routers} tabs={model.tabs} />
                   </RouterContextProvider>
                 ) : null}
               </WindowZoomRoot>

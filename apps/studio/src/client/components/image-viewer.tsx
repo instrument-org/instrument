@@ -4,26 +4,48 @@ import {
   IMAGE_PANZOOM_VIEWPORT_CLASS,
   useImagePanzoom,
 } from "@/client/hooks/use-image-panzoom";
-import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { setPictureKeys } from "@/client/lib/picture-keys";
+import { cn } from "@/client/lib/utils";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
 import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
-import { useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { ImageWithFallback } from "./image-with-fallback";
-import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 /**
- * A single image, fitted to the space it is given, with wheel and pinch zoom.
+ * A single image, fitted to the space it is given on a ground of its own, with
+ * pinch and Cmd+wheel zoom and a two-finger scroll that moves around it. A press
+ * gives it the keyboard, where the window's zoom chords zoom it and the arrows
+ * move around it.
+ *
+ * Nothing is drawn over the picture: its zoom menu goes into `controlsInto`,
+ * the row above it, which the host owns.
  *
  * `onError` reports upward rather than being handled here because the failure
  * outlives this component: the host swaps the whole viewer for the
  * preview-unavailable card and drops the header's Copy action.
  */
 export function ImageViewer({
+  controlsInto,
   file,
   onError,
   previewUrl,
 }: {
+  controlsInto: HTMLElement | null;
   // Only the name and the bytes are certain: this also draws images a markdown
   // embed pointed at by URL, which name no file anyone could be handed.
   file: Partial<Pick<ViewerFile, "hostPath">> &
@@ -36,21 +58,28 @@ export function ImageViewer({
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const { canReset, reset, zoomIn, zoomOut } = useImagePanzoom({
-    contentRef,
-    viewportRef,
-  });
+  const zoom = useImagePanzoom({ contentRef, viewportRef });
   // Always on: which of the two gestures a press means is settled by the
-  // panzoom hook, which stops cancelling the press once the image is zoomed all
-  // the way out, and nowhere else. Setting it from the zoom level here as well
+  // panzoom hook, which leaves the press alone once the image has nowhere to
+  // move, and nowhere else. Setting it from the zoom level here as well
   // would be the same decision made twice, in two places that can disagree.
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   return (
-    <div className={`${IMAGE_PANZOOM_VIEWPORT_CLASS} relative size-full`}>
+    <div
+      className={`${IMAGE_PANZOOM_VIEWPORT_CLASS} relative size-full bg-foreground/6`}
+    >
       <div
-        className="flex size-full items-center justify-center overflow-hidden"
+        className={cn(
+          "flex size-full touch-none items-center justify-center overflow-hidden p-6 -outline-offset-3 outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+          zoom.canPan && "cursor-grab active:cursor-grabbing",
+        )}
+        // After the file list: the picture has the keyboard when the folder
+        // beside it is put away.
+        data-keyboard-home="2"
+        data-picture-keys
         ref={viewportRef}
+        tabIndex={0}
       >
         <div
           className="flex items-center justify-center"
@@ -59,7 +88,7 @@ export function ImageViewer({
         >
           <ImageWithFallback
             alt={filename}
-            className="size-auto max-h-full max-w-full object-contain select-none"
+            className="size-auto max-h-full max-w-full object-contain shadow-sm ring-1 ring-foreground/10 select-none"
             filename={filename}
             onError={onError}
             onLoad={() => {
@@ -73,50 +102,126 @@ export function ImageViewer({
       </div>
       {/* Held back until there is an image to zoom. A file the app cannot
           preview only reports that once its load has actually failed, which
-          takes a round trip to the main process, and controls drawn over the
-          empty frame in the meantime appear and then vanish as the
-          preview-unavailable card replaces them. Remounted per file by the
-          host's `key`, so this starts false again for the next one. */}
-      {isLoaded && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-          <div className="pointer-events-auto">
-            <ImageZoomControls
-              canReset={canReset}
-              onReset={reset}
-              onZoomIn={zoomIn}
-              onZoomOut={zoomOut}
-            />
-          </div>
-        </div>
-      )}
+          takes a round trip to the main process, and a control in the row in
+          the meantime would appear and then vanish as the preview-unavailable
+          card replaces the viewer. Remounted per file by the host's `key`, so
+          this starts false again for the next one. */}
+      {isLoaded &&
+        controlsInto &&
+        createPortal(
+          <ImageZoomMenu {...zoom} viewportRef={viewportRef} />,
+          controlsInto,
+        )}
     </div>
   );
 }
 
-function ImageZoomControls({
-  canReset,
-  onReset,
-  onZoomIn,
-  onZoomOut,
-}: {
-  canReset: boolean;
-  onReset: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
+/**
+ * The zoom, as one quiet word in the row: Fit, or how far in it is, opening a
+ * menu of the rest. Styled as the page's mode menu beside it in other rows.
+ */
+function ImageZoomMenu({
+  actualScale,
+  actualSize,
+  fit,
+  isZoomed,
+  scale,
+  zoomIn,
+  viewportRef,
+  zoomOut,
+}: ReturnType<typeof useImagePanzoom> & {
+  viewportRef: RefObject<HTMLDivElement | null>;
 }) {
+  const isFit = !isZoomed;
+  // Rounded before it is compared, so a size that reads 100% is checked as it.
+  const percent = actualScale ? Math.round((scale / actualScale) * 100) : null;
+  const label = isFit || percent === null ? "Fit" : `${percent}%`;
+  // With the menu open the zoom chords still mean this picture. Its arrows are
+  // the menu's, so Quick Look does not take them for walking the folder.
+  const answerChords = (menu: HTMLDivElement) =>
+    setPictureKeys(menu, {
+      canPan: () => true,
+      pan: () => undefined,
+      zoom: (chord) => {
+        if (chord === "zoomIn") {
+          zoomIn();
+        } else if (chord === "zoomOut") {
+          zoomOut();
+        } else {
+          fit();
+        }
+      },
+    });
   return (
-    <div className="flex items-center gap-1 rounded-xl bg-background p-1 text-foreground shadow-lg">
-      <Button onClick={onZoomOut} size="icon-sm" variant="ghost">
-        <MagnifyingGlassMinusIcon className="size-5" />
-      </Button>
-      <Button onClick={onZoomIn} size="icon-sm" variant="ghost">
-        <MagnifyingGlassPlusIcon className="size-5" />
-      </Button>
-      {canReset && (
-        <Button onClick={onReset} size="icon-sm" variant="ghost">
-          <ArrowsInIcon className="size-5" />
-        </Button>
-      )}
-    </div>
+    // Non-modal, so the picture stays in reach while it is open.
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={`Zoom: ${label}`}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-foreground/70 tabular-nums outline-none hover:bg-foreground/8 hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
+          type="button"
+        >
+          <MagnifyingGlassIcon className="size-3.5" />
+          {/* As wide as the longest reading, so the row stays still as it changes. */}
+          <span className="w-[5ch] text-right">{label}</span>
+          <CaretDownIcon className="size-2.5 opacity-60" weight="bold" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-44"
+        data-picture-keys
+        // The picture, not the trigger, is where the keyboard goes after a pick.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          viewportRef.current?.focus({ preventScroll: true });
+        }}
+        ref={answerChords}
+      >
+        {/* Left open on a press, since one step is rarely the whole way. */}
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            zoomIn();
+          }}
+        >
+          <MagnifyingGlassPlusIcon className="size-4" />
+          <span>Zoom in</span>
+          <DropdownMenuShortcut>
+            {formatAcceleratorText(WINDOW_MENU_SHORTCUTS.zoomIn.accelerator)}
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={isFit}
+          onSelect={(event) => {
+            event.preventDefault();
+            zoomOut();
+          }}
+        >
+          <MagnifyingGlassMinusIcon className="size-4" />
+          <span>Zoom out</span>
+          <DropdownMenuShortcut>
+            {formatAcceleratorText(WINDOW_MENU_SHORTCUTS.zoomOut.accelerator)}
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem checked={isFit} onSelect={fit}>
+          Fit
+          <DropdownMenuShortcut>
+            {formatAcceleratorText(
+              WINDOW_MENU_SHORTCUTS.actualSize.accelerator,
+            )}
+          </DropdownMenuShortcut>
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem
+          checked={!isFit && percent === 100}
+          // A picture smaller than the space it has is at its fit already.
+          disabled={!actualScale || actualScale <= 1}
+          onSelect={actualSize}
+        >
+          Actual size
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -1,5 +1,6 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
@@ -79,16 +80,45 @@ export function createAppMenu(): MenuItemConstructorOptions {
   };
 }
 
-export function createDevToolsMenu(): MenuItemConstructorOptions[] {
+export function createDevToolsMenu({
+  windowCommands = false,
+}: {
+  /** Whether a shell is listening for the window's commands: the app window's, with setup down. */
+  windowCommands?: boolean;
+} = {}): MenuItemConstructorOptions[] {
   return [
     {
-      label: "🐛 Dev",
+      label: "Developer",
       submenu: [
         shortcutMenuItem("reloadApp"),
+        { label: "Open Developer Tools", role: "toggleDevTools" as const },
+        ...(windowCommands
+          ? [
+              {
+                click: () => {
+                  publisher.publish("window.command", "openDebugPages");
+                },
+                label: "Debug Pages",
+              },
+              {
+                click: () => {
+                  publisher.publish("window.command", "toggleDeveloperStrip");
+                },
+                label: "Toggle Developer Strip",
+              },
+            ]
+          : []),
         { type: "separator" as const },
         shortcutMenuItem("themeLight"),
         shortcutMenuItem("themeDark"),
         shortcutMenuItem("themeSystem"),
+        { type: "separator" as const },
+        {
+          click: () => {
+            getWorkspacePreferences().set("developerMode", false);
+          },
+          label: "Turn Off Developer Mode",
+        },
       ],
     },
   ];

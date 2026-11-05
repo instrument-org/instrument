@@ -3,7 +3,7 @@ import {
   FileSystemFolderGlyph,
   formatTimestamp,
 } from "@/client/components/extend/file-system";
-import { FileViewer } from "@/client/components/file-viewer";
+import { FileViewer, PictureViewer } from "@/client/components/file-viewer";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -75,6 +75,7 @@ export function LookPanel({
       : null);
   const file = shown?.kind === "file" ? shown.tab : null;
   const folder = shown?.kind === "folder" ? shown.folder : null;
+  const picture = shown?.kind === "picture" ? shown.picture : null;
   // Watched while the panel is up, so a write shows in it.
   const fileUrl = useWatchedFileUrl(file?.hostPath);
   const pageUrl =
@@ -217,9 +218,16 @@ export function LookPanel({
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">
-          {(file ?? folder)?.name ?? "Preview"}
+          {(file ?? folder)?.name ?? picture?.filename ?? "Preview"}
         </DialogTitle>
         {folder ? <FolderCard folder={folder} onClose={onClose} /> : null}
+        {picture ? (
+          <PictureViewer
+            key={picture.url}
+            onClose={onClose}
+            picture={picture}
+          />
+        ) : null}
         {file && fileUrl !== undefined ? (
           <FileViewer
             autoPlay

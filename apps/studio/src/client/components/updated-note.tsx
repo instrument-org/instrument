@@ -1,4 +1,4 @@
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { AnimatePresence, motion } from "motion/react";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { formatRelativeTime } from "@/client/lib/relative-time";
@@ -90,7 +90,7 @@ export function useUpdatedNote() {
       setUnsaid({ at: at ?? now, markedAt: now });
     },
     shown: note !== null,
-    /** Which update the view is saying it had, so each one turns the arrow again. */
+    /** Which update the view is saying it had, so each one pops the check again. */
     turn: note?.turn ?? 0,
   };
 }
@@ -147,15 +147,15 @@ export function UpdatedNote({
             role="status"
             transition={{ damping: 22, stiffness: 320, type: "spring" }}
           >
-            {/* One turn for each update: the view was loaded again. */}
+            {/* One pop for each update: the view already has the new version. */}
             <motion.span
-              animate={{ rotate: 360 }}
+              animate={{ scale: 1 }}
               className="flex"
-              initial={{ rotate: 0 }}
+              initial={{ scale: 0.4 }}
               key={turn}
-              transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+              transition={{ damping: 14, stiffness: 420, type: "spring" }}
             >
-              <ArrowClockwiseIcon className="size-3.5" weight="bold" />
+              <CheckIcon className="size-3.5" weight="bold" />
             </motion.span>
             {ago === null ? "Updated" : `Updated ${ago}`}
           </motion.span>

@@ -37,7 +37,7 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
 }
 
 /**
- * The View menu of a window that is not the main one: reload, dev tools, and
+ * The View menu of a window that is not the main one: reload and
  * the app's own zoom. `zoom` is where a zoom chord goes: by default to the
  * app's own zoom in every window, which the app window replaces with its
  * window command, since there a chord can mean the page holding the keyboard
@@ -56,7 +56,6 @@ export function createOtherWindowViewMenu({
     submenu: [
       { role: "reload" as const },
       { role: "forceReload" as const },
-      { role: "toggleDevTools" as const },
       { type: "separator" as const },
       // Custom CSS `zoom` (not Electron's native page zoom), so these windows
       // share the app's zoom mechanism and persisted level. See

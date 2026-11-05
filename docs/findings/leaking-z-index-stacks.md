@@ -44,7 +44,7 @@ which is the second reason the composer's slash menu now uses `Popover`.
   and the video progress bar and duration
 - `components/file-drop-region.tsx` -- the drag-and-drop overlay
 - `components/code-block.tsx` -- the copy button over a code block
-- `components/window/server-exceptions.tsx` -- the per-row copy button
+- `components/developer-strip/developer-errors.tsx` -- the per-row copy button
 - `components/icons/planning-dot.tsx` -- the dot over its shockwave ring
 
 Left raised on purpose, because each has to paint above a sibling subtree: the

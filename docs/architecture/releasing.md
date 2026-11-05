@@ -28,6 +28,8 @@ The NSIS installer and `latest.yml` are still built and published, for the move:
 
 That sync is the release. Once the manifests land, every running app can see the new version and will offer it.
 
+Builds that overlap can finish in either order, so a build behind a higher version of its own channel (stable, beta or alpha) skips publishing and leaves the feeds alone, and its commits roll into the next release's notes. A stable release counts only stable tags, since one is often cut from a commit behind the betas. A higher tag whose run failed or was canceled does not count. Re-running the workflow publishes the tag anyway.
+
 A stable release is created as a draft anyway, because the GitHub release exists for the notes rather than the bits. A draft is invisible to the unauthenticated GitHub API, and the app reads release bodies back through it to show the changelog for the build someone is running, so the notes reach users only once the draft is published. Publishing is not what ships the build, and leaving it drafted holds nothing back except the notes.
 
 Prereleases are published immediately for the same reason read the other way: beta users need the notes, and `prerelease: true` keeps them off the "Latest" badge and lets stable clients filter them out.

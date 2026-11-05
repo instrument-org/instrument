@@ -20,16 +20,15 @@ import { isDictating } from "@/client/hooks/use-dictation";
 import { REPORT_NOTE_MAX_LENGTH } from "@/shared/problem-reports";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import { describeReport, SENT_CLOSE_MS } from "@/client/lib/problem-reports";
+import { describeReport } from "@/client/lib/problem-reports";
 import { FeedbackDialogContent } from "./feedback-dialog";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 
 /**
  * The one report dialog, modeled on the Mac's own problem report: the
@@ -129,57 +128,36 @@ function ReportDialogContent({
   });
   const details = described?.details;
 
-  const send = useMutation({
-    mutationFn: async () => {
-      if (details === undefined) {
-        return;
-      }
-      await rpcClient.problems.send.call({
-        alwaysSend: request.offerAlwaysSend && alwaysSend,
-        pending: request.pending,
-        report: {
-          automatic: false,
-          details,
-          events: described?.events,
-          fingerprint: described?.fingerprint,
-          kind: request.kind,
-          note: note.trim() || undefined,
-          surface: request.surface,
-          title: request.reportTitle,
-        },
-      });
-    },
-    onError: (error) => {
-      toast.error("Couldn't send the report", { cause: error });
-    },
-    onSuccess: () => {
-      request.onSent?.();
-    },
-  });
-
-  useEffect(() => {
-    if (!send.isSuccess) {
+  // The dialog gets out of the way at once, and the toast follows the send.
+  const send = () => {
+    if (details === undefined) {
       return;
     }
-    const timeout = setTimeout(onClose, SENT_CLOSE_MS);
-    return () => {
-      clearTimeout(timeout);
+    const report = {
+      alwaysSend: request.offerAlwaysSend && alwaysSend,
+      pending: request.pending,
+      report: {
+        automatic: false,
+        details,
+        events: described?.events,
+        fingerprint: described?.fingerprint,
+        kind: request.kind,
+        note: note.trim() || undefined,
+        surface: request.surface,
+        title: request.reportTitle,
+      },
     };
-  }, [onClose, send.isSuccess]);
-
-  if (send.isSuccess) {
-    return (
-      <DialogContent maxWidth="35rem" onExitComplete={onExitComplete}>
-        <div className="flex flex-col items-center gap-2 py-6 text-center">
-          <CheckCircleIcon className="size-7 text-brand-600" />
-          <DialogTitle>Thanks, we got your report.</DialogTitle>
-          <DialogDescription className="sr-only">
-            The report was sent.
-          </DialogDescription>
-        </div>
-      </DialogContent>
-    );
-  }
+    onClose();
+    toast.work({
+      done: "Thanks, we got your report.",
+      failed: "Couldn't send your report",
+      onDone: request.onSent,
+      run: async () => {
+        await rpcClient.problems.send.call(report);
+      },
+      running: "Sending your report…",
+    });
+  };
 
   return (
     <DialogContent maxWidth="35rem" onExitComplete={onExitComplete}>
@@ -273,14 +251,8 @@ function ReportDialogContent({
         </Button>
         <Button
           // Waits for dictated words, so the note goes with them.
-          disabled={
-            details === undefined ||
-            send.isPending ||
-            isDictating(noteDictation.phase)
-          }
-          onClick={() => {
-            send.mutate();
-          }}
+          disabled={details === undefined || isDictating(noteDictation.phase)}
+          onClick={send}
           variant="brand"
         >
           Send

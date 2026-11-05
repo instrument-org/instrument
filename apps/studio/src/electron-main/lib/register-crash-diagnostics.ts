@@ -7,6 +7,7 @@ import {
 import { crashReporter } from "electron";
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -386,14 +387,18 @@ function reportUncleanExit(app: Electron.App): {
         return { previousVersion: undefined, unclean: false };
       }
       if (previous?.pid !== process.pid) {
-        unclean = true;
         previousVersion = previous?.version;
         const details = previous
           ? ` (${previous.version}, started ${previous.startedAt})`
           : "";
-        log.warn(
-          `Previous session${details} did not exit cleanly: it was force-quit, stopped responding, or crashed.`,
-        );
+        if (previous && startedBeforeThisBoot(previous.startedAt)) {
+          log.info(`Previous session${details} ended with the computer.`);
+        } else {
+          unclean = true;
+          log.warn(
+            `Previous session${details} did not exit cleanly: it was force-quit, stopped responding, or crashed.`,
+          );
+        }
       }
     }
     fs.writeFileSync(
@@ -412,7 +417,7 @@ function reportUncleanExit(app: Electron.App): {
     );
     return { previousVersion, unclean };
   }
-  process.on("exit", () => {
+  const removeMarker = () => {
     try {
       if (readSessionMarker(markerPath)?.pid === process.pid) {
         fs.rmSync(markerPath, { force: true });
@@ -420,8 +425,20 @@ function reportUncleanExit(app: Electron.App): {
     } catch {
       // Already gone, or another instance has it.
     }
+  };
+  process.on("exit", removeMarker);
+  // Windows ends the process with its session, before Node's `exit`. A shut
+  // down with Fast Startup also keeps the uptime running, so the boot time
+  // cannot tell afterward.
+  app.on("browser-window-created", (_event, window) => {
+    window.once("session-end", removeMarker);
   });
   return { previousVersion, unclean };
+}
+
+/** Whether the computer has started since `startedAt`, which ends every app. */
+function startedBeforeThisBoot(startedAt: string): boolean {
+  return Date.parse(startedAt) < Date.now() - os.uptime() * 1000;
 }
 
 function readSessionMarker(

@@ -48,7 +48,7 @@ Include:
 Exclude:
 
 - Commits authored by or co-authored with Neil Renicker, unless the user asks to include designer-owned work.
-- Surfaces only a developer sees: developer-mode cards, the dev panel, debug pages, and anything else behind the developer-mode setting. A debug page is still the right place to capture a shipping surface from; it just isn't one itself.
+- Surfaces only a developer sees: developer-mode cards, the developer strip, debug pages, and anything else behind the developer-mode setting. A debug page is still the right place to capture a shipping surface from; it just isn't one itself.
 - Internal-only changes, tests, telemetry, diagnostics, release commits, dependency churn, spelling, or docs-only commits.
 - Small spacing, border, token, and polish changes unless they create a reusable visual pattern.
 - Architecture changes where the intended UI stayed the same.

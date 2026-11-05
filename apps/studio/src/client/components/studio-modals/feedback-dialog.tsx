@@ -6,7 +6,6 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { Spinner } from "@/client/components/ui/spinner";
 import {
   DictatedTextarea,
   useDictatedText,
@@ -24,7 +23,7 @@ import {
   type RecordRow,
 } from "@/client/lib/feedback-records";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
-import { SENT_CLOSE_MS } from "@/client/lib/problem-reports";
+import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -43,12 +42,11 @@ import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Fragment, type ReactNode, useRef, useState } from "react";
 
 /** The agent's write-up as one file of what goes, sent like the rest. */
 function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
@@ -212,86 +210,65 @@ export function FeedbackDialogContent({
   const going = parts.map((part) => part.item);
   const reviewed = parts.find((part) => part.item.id === viewing);
 
-  const send = useMutation({
-    mutationFn: () => {
-      const trimmed = note.trim();
-      return rpcClient.problems.sendFeedback.call({
-        images: images.map((image) => ({ data: image.file, name: image.name })),
-        items: going,
-        note: trimmed || undefined,
-        surface: request.surface,
-        title:
-          trimmed.split("\n")[0]?.slice(0, 300) ||
-          request.writeup?.title ||
-          (request.chatId ? "Feedback about a chat" : "Feedback"),
-      });
-    },
-    onSuccess: () => {
-      request.onSent?.();
-    },
-  });
+  // The dialog gets out of the way at once, and the toast follows the send.
+  const send = () => {
+    const trimmed = note.trim();
+    const feedback = {
+      images: images.map((image) => ({ data: image.file, name: image.name })),
+      items: going,
+      note: trimmed || undefined,
+      surface: request.surface,
+      title:
+        trimmed.split("\n")[0]?.slice(0, 300) ||
+        request.writeup?.title ||
+        (request.chatId ? "Feedback about a chat" : "Feedback"),
+    };
+    onClose();
+    toast.work({
+      done: "Thanks, we got your feedback.",
+      failed: "Couldn't send your feedback",
+      onDone: request.onSent,
+      run: async () => {
+        await rpcClient.problems.sendFeedback.call(feedback);
+      },
+      running: "Sending your feedback…",
+    });
+  };
 
   // Back (a thumb button, a swipe, the History menu) leaves the review for
   // the form, as it leaves a page inside Settings.
   useModalBack(() => {
     setViewing(null);
-  }, reviewed !== undefined && !send.isSuccess);
+  }, reviewed !== undefined);
 
-  useEffect(() => {
-    if (!send.isSuccess) {
-      return;
-    }
-    const timeout = setTimeout(onClose, SENT_CLOSE_MS);
-    return () => {
-      clearTimeout(timeout);
-    };
-  }, [onClose, send.isSuccess]);
-
-  const problem = send.error
-    ? send.error.message
-    : described.error
-      ? `We couldn't gather what goes with your feedback: ${described.error.message}`
-      : undefined;
+  const problem = described.error
+    ? `We couldn't gather what goes with your feedback: ${described.error.message}`
+    : undefined;
 
   const sendButton = (
     <Button
       disabled={
         described.isPending ||
         chatTooLarge ||
-        send.isPending ||
         // Waits for dictated words, so the note goes with them.
         isDictating(noteDictation.phase)
       }
-      onClick={() => {
-        send.mutate();
-      }}
+      onClick={send}
       variant="brand"
     >
-      {send.isPending ? (
-        <>
-          <Spinner className="size-3.5" />
-          Sending…
-        </>
-      ) : send.isError ? (
-        "Try again"
-      ) : (
-        "Send"
-      )}
+      Send
     </Button>
   );
 
-  // One `DialogContent` for the form, the review and the thanks, so moving
+  // One `DialogContent` for the form and the review, so moving
   // between them swaps what is inside rather than opening the dialog again.
   return (
     <DialogContent
-      className={cn(
-        "flex flex-col gap-0 overflow-hidden p-0",
-        send.isSuccess && "items-center justify-center p-6",
-      )}
+      className="flex flex-col gap-0 overflow-hidden p-0"
       maxHeight={REVIEW_HEIGHT}
       maxWidth={DIALOG_WIDTH}
       onDragOver={(event) => {
-        if (send.isSuccess || reviewed) {
+        if (reviewed) {
           return;
         }
         if (event.dataTransfer.types.includes("Files")) {
@@ -300,7 +277,7 @@ export function FeedbackDialogContent({
         }
       }}
       onDrop={(event) => {
-        if (send.isSuccess || reviewed) {
+        if (reviewed) {
           return;
         }
         if (event.dataTransfer.files.length > 0) {
@@ -311,14 +288,14 @@ export function FeedbackDialogContent({
       }}
       // Escape on the review goes back to the form rather than closing.
       onEscapeKeyDown={(event) => {
-        if (reviewed && !send.isSuccess) {
+        if (reviewed) {
           event.preventDefault();
           setViewing(null);
         }
       }}
       onExitComplete={onExitComplete}
       onPaste={(event) => {
-        if (send.isSuccess || reviewed) {
+        if (reviewed) {
           return;
         }
         const text = event.clipboardData.getData("text/plain");
@@ -335,20 +312,10 @@ export function FeedbackDialogContent({
           void addImages(files);
         }
       }}
-      showCloseButton={!reviewed && !send.isSuccess}
-      style={
-        reviewed && !send.isSuccess ? { height: REVIEW_HEIGHT } : undefined
-      }
+      showCloseButton={!reviewed}
+      style={reviewed ? { height: REVIEW_HEIGHT } : undefined}
     >
-      {send.isSuccess ? (
-        <div className="flex flex-col items-center gap-2 py-10 text-center">
-          <CheckCircleIcon className="size-7 text-brand-600" />
-          <DialogTitle>Thanks, we got your feedback.</DialogTitle>
-          <DialogDescription className="sr-only">
-            The feedback was sent.
-          </DialogDescription>
-        </div>
-      ) : reviewed ? (
+      {reviewed ? (
         <Review
           onBack={() => {
             setViewing(null);
@@ -821,9 +788,7 @@ function LogLine({ content }: { content: string }) {
         }}
         type="button"
       >
-        <span className="flex-1">
-          The last {lines.toLocaleString()} lines
-        </span>
+        <span className="flex-1">The last {lines.toLocaleString()} lines</span>
         <Caret className="size-3.5 text-muted-foreground" />
       </button>
       {open && (

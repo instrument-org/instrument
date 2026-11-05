@@ -3,13 +3,8 @@ import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 
 import { CodeWithCopy, MarkdownCodeBlock } from "./code-block";
-import { ImageViewer } from "./image-viewer";
 import { SessionMarkdown } from "./session-markdown";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
-
-// A 1x1 transparent gif, which is enough to get the viewer past its load gate.
-const PIXEL =
-  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 // A solid fill computes to `rgb(r, g, b)`, but the two ways of asking for a
 // translucent one land in different notations: a `/80` opacity modifier comes
@@ -26,8 +21,8 @@ const alphaOf = (element: Element): number => {
   return parts.length > 3 ? Number(parts[3]) : 1;
 };
 
-// These controls float over whatever the block is showing — a diagram, an
-// image, syntax-highlighted code. Anything less than a solid fill lets that
+// These controls float over whatever the block is showing — a diagram,
+// syntax-highlighted code. Anything less than a solid fill lets that
 // content read straight through the button sitting on top of it.
 
 describe("block toolbar", () => {
@@ -50,35 +45,6 @@ describe("block toolbar", () => {
       await screen.getByRole("button").hover();
 
       expect(alphaOf(button)).toBe(1);
-    },
-  );
-
-  it.each(["light", "dark"] as const)(
-    "keeps the image viewer's controls opaque in %s",
-    async (theme) => {
-      document.documentElement.classList.toggle("dark", theme === "dark");
-
-      const screen = await renderInBrowser(
-        <div style={{ height: 300, width: 300 }}>
-          <ImageViewer
-            file={{ filename: "pixel.gif", url: PIXEL }}
-            onError={() => {
-              throw new Error("the pixel should load");
-            }}
-          />
-        </div>,
-      );
-
-      // The controls are held back until there is an image to zoom.
-      const controls = await vi.waitFor(() => {
-        const zoomIn = screen.container.querySelector("button")?.parentElement;
-        if (!zoomIn) {
-          throw new Error("controls did not render");
-        }
-        return zoomIn;
-      });
-
-      expect(alphaOf(controls)).toBe(1);
     },
   );
 });

@@ -126,7 +126,7 @@ function useSettingsEntries({
     ...Object.entries(FEATURE_METADATA).map(([name, feature]) => ({
       detail: feature.description,
       id: `feature:${name}`,
-      tab: "Features" as const,
+      tab: "Developer" as const,
       title: feature.title,
     })),
   ];

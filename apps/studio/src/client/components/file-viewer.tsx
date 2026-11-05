@@ -371,6 +371,8 @@ interface ViewerContext {
   editable: boolean;
   fallback: ReactNode;
   file: ViewerFile;
+  /** The place in the file's actions an image puts its zoom menu. */
+  imageControlsInto: HTMLElement | null;
   imageLoadError: boolean;
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
@@ -597,7 +599,13 @@ const VIEWERS = {
   },
   image: {
     hasToolbar: false,
-    render: ({ fallback, file, imageLoadError, onImageError }) =>
+    render: ({
+      fallback,
+      file,
+      imageControlsInto,
+      imageLoadError,
+      onImageError,
+    }) =>
       imageLoadError ? (
         <div className="flex size-full items-center justify-center">
           {fallback}
@@ -606,6 +614,7 @@ const VIEWERS = {
         <ContextMenu>
           <ContextMenuTrigger className="size-full">
             <ImageViewer
+              controlsInto={imageControlsInto}
               file={file}
               key={file.hostPath}
               onError={onImageError}
@@ -685,7 +694,13 @@ const VIEWERS = {
   pdf: { hasToolbar: true, render: renderPdf, scrolls: "self" },
   photoshop: {
     hasToolbar: false,
-    render: ({ fallback, file, imageLoadError, onImageError }) => {
+    render: ({
+      fallback,
+      file,
+      imageControlsInto,
+      imageLoadError,
+      onImageError,
+    }) => {
       const previewUrl = getComputerThumbnailUrl({
         hostPath: file.hostPath,
         size: 1024,
@@ -699,6 +714,7 @@ const VIEWERS = {
         </div>
       ) : (
         <ImageViewer
+          controlsInto={imageControlsInto}
           file={file}
           key={file.hostPath}
           onError={onImageError}
@@ -970,6 +986,8 @@ export function FileViewer({
   const [sourceChosen, setSourceChosen] = useState(false);
   const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
   const [mediaLoadError, setMediaLoadError] = useState(false);
+  const [imageControlsInto, setImageControlsInto] =
+    useState<HTMLElement | null>(null);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
@@ -1108,6 +1126,7 @@ export function FileViewer({
       />
     ),
     file,
+    imageControlsInto,
     imageLoadError,
     onImageError: () => {
       setImageErrorUrl(url);
@@ -1128,6 +1147,9 @@ export function FileViewer({
 
   const actions = (
     <>
+      {(fileType === "image" || fileType === "photoshop") && (
+        <span className="contents" ref={setImageControlsInto} />
+      )}
       {actionsLead}
       {showsSource && (
         // Where the source was left from: the menu took the person here, and
@@ -1318,6 +1340,53 @@ export function FileViewer({
           {note}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A picture with no file behind it, a diagram or a pasted image, under the same
+ * head a file has. What was opened may not be a picture at all (a composer's
+ * pasted PDF has no path yet either), which gets the card a file would.
+ */
+export function PictureViewer({
+  onClose,
+  picture: { filename, mimeType, url },
+}: {
+  onClose: () => void;
+  picture: { filename: string; mimeType?: string; url: string };
+}) {
+  const [controlsInto, setControlsInto] = useState<HTMLElement | null>(null);
+  const [failed, setFailed] = useState(false);
+  const isImage =
+    getFileType({ filename, ...(mimeType ? { mimeType } : {}) }) === "image" ||
+    (!mimeType && !filename.includes("."));
+  return (
+    <div className={fileViewerClassName}>
+      <FileViewerHeader
+        actions={<span className="contents" ref={setControlsInto} />}
+        filename={filename}
+        onClose={onClose}
+        path={filename}
+      />
+      <div className="relative min-h-0 flex-1">
+        {isImage && !failed ? (
+          <ImageViewer
+            controlsInto={controlsInto}
+            file={{ filename, url }}
+            onError={() => {
+              setFailed(true);
+            }}
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <FilePreviewFallback
+              {...(isImage ? { fallbackExtension: "jpg" } : {})}
+              filename={filename}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

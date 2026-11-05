@@ -45,6 +45,10 @@ import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import {
+  developerStripHiddenAtom,
+  toggleDeveloperStrip,
+} from "@/client/atoms/developer-strip";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import {
@@ -238,6 +242,10 @@ export function useCommandMenuRows({
   const setDeveloperMode = useMutation(
     rpcClient.preferences.setDeveloperMode.mutationOptions(),
   );
+  const toggleDevTools = useMutation(
+    rpcClient.debug.toggleDevTools.mutationOptions(),
+  );
+  const isStripHidden = useAtomValue(developerStripHiddenAtom);
   const setReleaseChannel = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions(),
   );
@@ -289,6 +297,35 @@ export function useCommandMenuRows({
       label: "Keyboard shortcuts",
       run: openShortcutGuide,
     },
+    ...(developerMode
+      ? [
+          {
+            icon: <WrenchIcon />,
+            id: "turn-off-developer-mode",
+            label: "Turn off developer mode",
+            run: () => {
+              setDeveloperMode.mutate({ enabled: false });
+              toast("Developer mode off");
+            },
+          },
+          {
+            icon: <WrenchIcon />,
+            id: "toggle-developer-strip",
+            label: isStripHidden
+              ? "Show developer strip"
+              : "Hide developer strip",
+            run: toggleDeveloperStrip,
+          },
+          {
+            icon: <WrenchIcon />,
+            id: "open-developer-tools",
+            label: "Open developer tools",
+            run: () => {
+              toggleDevTools.mutate();
+            },
+          },
+        ]
+      : []),
     {
       icon: <BroomIcon />,
       id: "clear-browsing-data",

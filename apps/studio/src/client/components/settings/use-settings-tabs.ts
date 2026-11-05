@@ -1,13 +1,11 @@
 import { featuresAtom } from "@/client/atoms/features";
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { isLinux } from "@/client/lib/utils";
 import { useAtomValue } from "jotai";
 
 /**
  * The tabs Settings lists, in its sidebar's order, which is also what the
- * command menu finds by name: in developer mode Features too, with Debug on
- * Linux.
+ * command menu finds by name: in developer mode Developer too.
  */
 export function useSettingsTabs(): SettingsTab[] {
   const isDeveloperMode = useDeveloperMode();
@@ -23,7 +21,6 @@ export function useSettingsTabs(): SettingsTab[] {
     "Skills",
     "Storage",
     "Activity",
-    ...(isDeveloperMode ? (["Features"] as const) : []),
-    ...(isDeveloperMode && isLinux() ? (["Debug"] as const) : []),
+    ...(isDeveloperMode ? (["Developer"] as const) : []),
   ];
 }

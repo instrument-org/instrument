@@ -187,18 +187,18 @@ export default async (app, args) => {
       h.after(() => app.closeModal());
     },
   };
-  // The network pill says the API is out, which in a dev run is where the API is rather
-  // than what a person sees; the states about it show it again (showPill).
-  // Everything in the bar's right corner but the bell and an Update pill: the workspace
-  // chip, the dev panel and server exceptions show only in developer mode, and the
-  // network pill says the API is out, which in a dev run is where the API is rather
-  // than what a person sees. The state about the pill shows it again (showPill).
+  // The developer band, and everything in the bar's right corner but the bell and an
+  // Update pill: the network pill says the API is out, which in a dev run is where the API
+  // is rather than what a person sees. The state about the pill shows it again (showPill).
   const hideDevChrome = () =>
     app.eval(`(() => {
-      let n = document.querySelector('button[aria-label^="Notifications"]');
-      for (let i = 0; i < 4 && n.parentElement.children.length <= 2; i++) n = n.parentElement;
-      for (const e of n.parentElement.children) {
-        if (e === n || /^Update/.test(e.textContent.trim()) || e.style.display === 'none') continue;
+      for (const strip of document.querySelectorAll('[data-developer-strip]')) {
+        strip.style.display = 'none';
+        strip.setAttribute('data-measure-hidden', '');
+      }
+      const bell = document.querySelector('button[aria-label^="Notifications"]');
+      for (const e of document.querySelector('[data-window-corner]').children) {
+        if (e.contains(bell) || /^Update/.test(e.textContent.trim()) || e.style.display === 'none') continue;
         e.style.display = 'none';
         e.setAttribute('data-measure-hidden', '');
       }

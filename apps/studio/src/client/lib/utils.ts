@@ -51,8 +51,8 @@ export function isWindows(): boolean {
 
 const WHEEL_LINE_TO_PX = 16;
 
-// deltaY is pixels for trackpad pinch and most wheels, but lines when
+// A wheel's delta is pixels for trackpad pinch and most wheels, but lines when
 // `deltaMode` is 1, so line deltas are normalized to px first.
-export function normalizeWheelDeltaPx(event: WheelEvent) {
-  return event.deltaMode === 1 ? event.deltaY * WHEEL_LINE_TO_PX : event.deltaY;
+export function normalizeWheelDeltaPx(event: WheelEvent, delta = event.deltaY) {
+  return event.deltaMode === 1 ? delta * WHEEL_LINE_TO_PX : delta;
 }

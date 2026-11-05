@@ -2,20 +2,9 @@ import { UpdateStatusIndicator } from "@/client/components/update-status-indicat
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
 import { NotificationsBell } from "@/client/components/window/notifications-bell";
 import { WindowControls } from "@/client/components/window-controls";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { lazy, type ReactNode, Suspense } from "react";
-
-import { AppIdentityChip } from "./app-identity-chip";
-import { ServerExceptionsIndicator } from "./server-exceptions";
-
-// The developer panel: loaded only where developer mode already put it.
-const DevPanel = lazy(() =>
-  import("@/client/components/dev-panel").then((m) => ({
-    default: m.DevPanel,
-  })),
-);
+import { type ReactNode } from "react";
 
 /**
  * The row across the top of the window: the traffic lights' band, the
@@ -68,7 +57,9 @@ export function WindowBar({
         tab, so it is chrome the window keeps and not something the strip
         appears to have opened. */}
       {trailing ? (
-        <div className="flex shrink-0 items-center gap-2">{trailing}</div>
+        <div className="flex shrink-0 items-center gap-2" data-window-corner>
+          {trailing}
+        </div>
       ) : null}
       {/* Nothing on macOS, where the system draws the buttons at the other
         end; the row is their band on the platforms that do not. */}
@@ -79,19 +70,8 @@ export function WindowBar({
 
 /** What the window keeps at the bar's right edge, whatever screen is up. */
 export function WindowCorner() {
-  const isDeveloperMode = useDeveloperMode();
   return (
     <>
-      {/* Which app, API server and workspace this is, when any is not the usual one. */}
-      <AppIdentityChip />
-      {/* What the main process threw, beside the panel a developer would
-        reach for next; developer mode only, like the panel. */}
-      {isDeveloperMode && <ServerExceptionsIndicator />}
-      {isDeveloperMode && (
-        <Suspense fallback={null}>
-          <DevPanel />
-        </Suspense>
-      )}
       {/* A build waiting to be installed is the window's news, not a
         chat's, so it sits in the window's corner. */}
       <UpdateStatusIndicator />

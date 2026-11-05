@@ -161,7 +161,7 @@ export async function setUpFromDirectory({
  * Moves an app set up another way over to signing in on the web: the same
  * app, its name and folder kept, now a web app at the service's site, whose
  * sign-in starts where the directory says. What `instrument app new <slug>
- * --web <url> --force` writes, for the card's "Sign in on the web" after its
+ * --web <url> --force` writes, for the card's "Sign in here" after its
  * own sign-in failed. The chats still waiting on the app stay waiting, and
  * hear of it once the user says they are signed in. Answers the page the
  * sign-in opens; an app that is already a web app is left as it is.

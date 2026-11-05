@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "2.0.0-beta.127",
+  "version": "2.0.0-beta.128",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
@@ -139,7 +139,6 @@
     "@milkdown/crepe": "7.22.3",
     "@milkdown/kit": "7.22.3",
     "@oxlint/plugins": "1.87.0",
-    "@panzoom/panzoom": "^4.6.2",
     "@phosphor-icons/react": "^2.1.10",
     "@pierre/trees": "1.0.0-beta.6",
     "@radix-ui/react-accordion": "^1.2.21",
@@ -152,7 +151,6 @@
     "@radix-ui/react-dropdown-menu": "^2.1.25",
     "@radix-ui/react-hover-card": "^1.1.24",
     "@radix-ui/react-label": "^2.1.16",
-    "@radix-ui/react-menubar": "^1.1.25",
     "@radix-ui/react-popover": "^1.2.0",
     "@radix-ui/react-progress": "^1.1.17",
     "@radix-ui/react-radio-group": "^1.4.8",

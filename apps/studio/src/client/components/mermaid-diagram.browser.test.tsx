@@ -1,4 +1,4 @@
-import { filePreviewAtom } from "@/client/atoms/file-preview";
+import { lookAtAtom } from "@/client/components/window/look-at";
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 
@@ -260,9 +260,9 @@ describe("MermaidDiagram", () => {
     );
   });
 
-  it("opens the diagram full-window", async () => {
+  it("opens the diagram in the large panel", async () => {
     // A diagram is fitted to the column, so a large one arrives small and the
-    // full-window preview — not anything inline — is where it gets read. The
+    // large panel — not anything inline — is where it gets read. The
     // SVG is handed over as a data URL carrying the surface it was drawn
     // against, since an `img` brings none of the page's CSS with it.
     const screen = await renderInBrowser(
@@ -274,12 +274,14 @@ describe("MermaidDiagram", () => {
     );
     await expect.poll(() => diagramSvg(screen.container)).toBeTruthy();
 
-    expect(screen.store.get(filePreviewAtom).isOpen).toBe(false);
+    expect(screen.store.get(lookAtAtom)).toBeNull();
     await screen.getByRole("button", { name: "Open diagram" }).click();
 
-    const preview = screen.store.get(filePreviewAtom);
-    expect(preview.isOpen).toBe(true);
-    expect(preview.file?.url.startsWith("data:image/svg+xml")).toBe(true);
+    const look = screen.store.get(lookAtAtom);
+    expect(
+      look?.kind === "picture" &&
+        look.picture.url.startsWith("data:image/svg+xml"),
+    ).toBe(true);
   });
 
   it("leaves the diagram itself selectable", async () => {

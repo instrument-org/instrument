@@ -47,7 +47,7 @@ describe("workspaceLabel", () => {
       "instrument-preview-first-run",
     ],
     [
-      "one made from the dev panel, by both",
+      "one made from developer settings, by both",
       path.join(userDataDir, "workspaces", "byok-only"),
       "instrument-preview-first-run-byok-only",
     ],

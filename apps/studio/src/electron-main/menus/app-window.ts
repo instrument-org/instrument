@@ -342,7 +342,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
         publisher.publish("window.command", "openShortcutGuide");
       },
     }),
-    ...(isDeveloperMode() ? createDevToolsMenu() : []),
+    ...(isDeveloperMode() ? createDevToolsMenu({ windowCommands: true }) : []),
   ];
 }
 

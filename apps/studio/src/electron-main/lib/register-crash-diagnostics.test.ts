@@ -129,6 +129,8 @@ describe("registerCrashDiagnostics", () => {
       .filter((listener) => !inheritedRejection.includes(listener));
 
   beforeEach(() => {
+    // Long up, so a marker in a test reads as from this boot unless it says not.
+    vi.spyOn(os, "uptime").mockReturnValue(1e10);
     vi.clearAllMocks();
     buildMainExceptionEvent.mockImplementation(eventFor);
     crashDir = fs.mkdtempSync(path.join(os.tmpdir(), "crash-diagnostics-"));
@@ -587,6 +589,35 @@ describe("registerCrashDiagnostics", () => {
     expect(
       JSON.parse(fs.readFileSync(sessionMarkerPath(), "utf8")),
     ).toMatchObject({ pid: process.pid, version: "2.0.0" });
+  });
+
+  it("says nothing was wrong when the computer restarted since the last session started", () => {
+    fs.writeFileSync(
+      sessionMarkerPath(),
+      JSON.stringify({
+        pid: 999_999_999,
+        startedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+        version: "2.0.0-beta.40",
+      }),
+    );
+    vi.spyOn(os, "uptime").mockReturnValue(3600);
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it("takes the marker away when Windows ends the session", () => {
+    const { app, emit } = createFakeApp();
+    registerCrashDiagnostics(app);
+    const once = vi.fn();
+
+    emit("browser-window-created", {}, { once });
+    expect(fs.existsSync(sessionMarkerPath())).toBe(true);
+    expect(once.mock.calls[0]?.[0]).toBe("session-end");
+    once.mock.calls[0]?.[1]();
+
+    expect(fs.existsSync(sessionMarkerPath())).toBe(false);
   });
 
   it("counts the bare marker an older build left as an unclean exit", () => {

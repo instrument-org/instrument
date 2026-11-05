@@ -55,7 +55,7 @@ const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
 /**
  * This computer's folders' rule: all of the app's data is refused, in its
  * own folder and in its home data folder, but the workspaces it keeps, the
- * default one and those made from the dev panel, the workspace this process
+ * default one and those made from developer settings, the workspace this process
  * has open wherever it is, and every chat's work folder.
  */
 export function userDataViewRule({

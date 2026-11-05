@@ -4,7 +4,7 @@
 // centered over it and its × ringed in the corner; a 176px column of the search and the
 // tabs, then the open tab across the rest, its sections labeled over white cards of rows.
 
-/** The tabs in the sidebar's order (use-settings-tabs.ts): [name, icon]. Features shows in developer mode. */
+/** The tabs in the sidebar's order (use-settings-tabs.ts): [name, icon]. Developer shows in developer mode. */
 const SETTINGS_TABS = [
   ["General", "faders-horizontal"],
   ["Account", "user-circle"],
@@ -19,7 +19,7 @@ const SETTINGS_TABS = [
 /**
  * Settings open over the window (pass it as appWindow's `over`): `on` is the tab shown,
  * `body` what it shows (settingsGeneral() and the others below, or sections of your
- * own), `dev` adds Features in its blue, `search` types into the search, `extra` adds
+ * own), `dev` adds Developer in its blue, `search` types into the search, `extra` adds
  * tabs a proposal brings as [name, icon].
  */
 const settingsSheet = ({ on = "General", body, dev = false, search = "", extra = [] } = {}) =>
@@ -29,10 +29,10 @@ const settingsSheet = ({ on = "General", body, dev = false, search = "", extra =
       <div class="flex min-h-0 flex-1">
         <div class="flex w-[200px] shrink-0 flex-col gap-1 px-3 pt-2">
           <div class="mb-1 flex h-8 items-center gap-2 rounded-lg bg-card px-2.5 text-sm ${search ? "text-foreground ring-2 ring-foreground/15" : "text-muted-foreground"}"><i class="ph ph-magnifying-glass text-[15px] text-muted-foreground"></i>${search || "Search"}</div>
-          ${[...SETTINGS_TABS, ...extra, ...(dev ? [["Features", "flag"]] : [])]
+          ${[...SETTINGS_TABS, ...extra, ...(dev ? [["Developer", "wrench"]] : [])]
             .map(
               ([name, icon]) =>
-                `<div class="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm ${name === on ? "bg-foreground/8 font-medium" : ""} ${name === "Features" ? "text-blue-600" : ""}"><i class="ph ph-${icon} text-[16px] ${name === "Features" ? "" : "text-foreground/75"}"></i>${name}</div>`,
+                `<div class="flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm ${name === on ? "bg-foreground/8 font-medium" : ""} ${name === "Developer" ? "text-blue-600" : ""}"><i class="ph ph-${icon} text-[16px] ${name === "Developer" ? "" : "text-foreground/75"}"></i>${name}</div>`,
             )
             .join("")}
         </div>

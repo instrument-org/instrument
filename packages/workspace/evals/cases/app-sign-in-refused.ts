@@ -1,14 +1,15 @@
 /**
- * When a service refuses an app's direct sign-in, does the agent go on to
- * signing in on the web rather than stopping or treating it as a decline?
+ * When a service refuses an app's direct sign-in, does the agent explain and
+ * leave the next step to the card, rather than stopping as if declined or
+ * asking a second time?
  *
  * The user asks to connect Linear; the agent sets it up and puts a sign-in
  * card up. The run then ends that sign-in the way the app's callback does
  * when the service turns the account away (`signInsEndAs`), which wakes the
- * chat with a note naming the web way in. Scored: the note arrived, the agent
- * then moved the app to the web (`instrument app new linear --web ...
- * --force`) and asked again with `connect_app`, whose card is now the web
- * sign-in, and it never told the user they declined.
+ * chat with a note saying the card now offers the service's site. Scored: the
+ * note arrived, the agent said so in a line, it neither moved the app to the
+ * web itself nor called `connect_app` again, and it never told the user they
+ * declined.
  */
 import { type Session } from "../../src/schemas/session";
 import { connectAppResults } from "../../src/tools/connect-app-output";
@@ -112,27 +113,22 @@ const reachedRefusal: Assertion = {
   text: "put a sign-in card up and was woken by the refusal",
 };
 
-/** After the note, moved Linear to the web and asked again with its web card. */
-const movesToWeb: Assertion = {
+/** After the note, said so and left the next step to the card it already has. */
+const leavesItToTheCard: Assertion = {
   check: ({ sessions }) => {
-    const text = "moved Linear to the web and asked for the web sign-in";
+    const text = "explained in a line and left the next step to the card";
     const found = steps(sessions);
     const after = found.slice(noteAt(found) + 1);
-    const moved = after.findIndex(
-      (step) => step.kind === "to-web" && step.wrote,
-    );
     return {
       evidence: describe(after),
       passed:
         noteAt(found) !== -1 &&
-        moved !== -1 &&
-        after
-          .slice(moved + 1)
-          .some((step) => step.kind === "card" && step.card === "web"),
+        after.some((step) => step.kind === "text") &&
+        !after.some((step) => step.kind === "to-web" || step.kind === "card"),
       text,
     };
   },
-  text: "moved Linear to the web and asked for the web sign-in",
+  text: "explained in a line and left the next step to the card",
 };
 
 /** Never told the user they declined: the service refused, not them. */
@@ -158,7 +154,7 @@ const neverSaysDeclined: Assertion = {
 
 export const APP_SIGN_IN_REFUSED_EVALS = [
   defineEval({
-    assertions: [reachedRefusal, movesToWeb, neverSaysDeclined],
+    assertions: [reachedRefusal, leavesItToTheCard, neverSaysDeclined],
     kind: "chat",
     name: "app-sign-in-refused",
     prompt: "Connect my Linear so you can see what's assigned to me.",

@@ -14,7 +14,6 @@ import {
   startApiSignIn,
 } from "../api-oauth";
 import { catalogApiSignInClient } from "../catalog";
-import { appChanged } from "../changed";
 import { readConnection, recordConnection } from "../connection";
 import { type ApiAppManifest } from "../manifest";
 import { boundTo, credentialOrigin } from "../origin-bound";
@@ -592,16 +591,12 @@ async function lapse(state: string): Promise<void> {
   if (connection?.status === "connected") {
     return;
   }
-  const error =
-    "The sign-in page was left open without finishing, and the sign-in lapsed.";
+  // Nothing went wrong and nobody is told: the app is back to needing its
+  // sign-in, with a line on its row saying the last one timed out.
   await recordConnection(flow.slug, {
     ended: "expired",
-    error,
-    status: "failed",
-  });
-  await appChanged(flow.slug, {
-    detail: error,
-    ended: "expired",
-    event: "failed",
+    error:
+      "The sign-in page was left open without finishing, and the sign-in lapsed.",
+    status: "needs-sign-in",
   });
 }

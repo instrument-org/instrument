@@ -682,16 +682,13 @@ const cancelOAuth = base
     }
     await appOAuthStore.clearTransient(input.slug);
     if (waiting) {
-      await settleConnection(input.slug, {
-        ended: "canceled",
-        error: "The sign-in was stopped before it finished.",
-        status: "failed",
-      });
+      // The user changed their mind, which nobody needs to hear about.
+      await settleConnection(input.slug, { status: "needs-sign-in" });
     }
   });
 
 /**
- * "Sign in on the web" on a card whose sign-in did not connect: the app moves
+ * "Sign in here" on a card whose sign-in did not connect: the app moves
  * to the service's site, to be signed in to in the window's browser, where
  * the site's cookies keep it. Answers the page to open; "Done signing in"
  * connects it as a web app, which wakes the chat.

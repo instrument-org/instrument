@@ -92,6 +92,11 @@ const CARRIED = {
   backgroundColor: "var(--card)",
 } satisfies React.CSSProperties;
 
+// Cuts off tabs past the row's end, with room left around them for the selected
+// tab's shadow, which a row exactly as tall as its tabs would slice flat.
+const TAB_ROW =
+  "flex min-w-0 flex-1 items-center gap-1 overflow-clip [overflow-clip-margin:4px]";
+
 interface StripLayout {
   density: TabDensity;
   fixedIsNamed: boolean;
@@ -309,7 +314,7 @@ export function TabStrip({
     >
       <div
         aria-label="Open tabs"
-        className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+        className={TAB_ROW}
         data-density={density}
         ref={stripRef}
         role="tablist"
@@ -339,7 +344,7 @@ export function TabStrip({
         <Reorder.Group
           as="div"
           axis="x"
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden"
+          className={TAB_ROW}
           onReorder={(keys: string[]) => {
             onReorder([
               ...movableKeys.slice(0, start),

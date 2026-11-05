@@ -53,7 +53,7 @@ export const WorkspacePreferencesSchema = z.object({
     .boolean()
     .catch(import.meta.env.DEV || APP_FLAVOR.kind === "preview"),
   /**
-   * The experimental features the developer panel turns on. Here rather than
+   * The experimental features the developer strip turns on. Here rather than
    * in a `features.json` of its own: a flag is one of the person's choices
    * for the workspace like the rest of these, and one file is one read, one
    * write and one event. Read flag by flag, so a file from a build with

@@ -1,4 +1,4 @@
-import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { lookAtAtom, lookTargetOf } from "@/client/components/window/look-at";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useComposerDraft } from "@/client/components/composer-draft-context";
@@ -1066,7 +1066,7 @@ export const Markdown = memo(
     markdown,
     chatId,
   }: MarkdownProps) => {
-    const openFilePreview = useSetAtom(openFilePreviewAtom);
+    const setLookAt = useSetAtom(lookAtAtom);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(baseRehypePlugins);
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
@@ -1108,13 +1108,13 @@ export const Markdown = memo(
         const src = event.currentTarget.src;
         const alt = event.currentTarget.alt || "image";
         if (src) {
-          // Where the file is rides along so the expanded view can act on it
-          // and not just draw it. Absent for an embed pointing at a real URL,
-          // where there is no file to act on.
-          openFilePreview({ filename: alt, hostPath, url: src });
+          // Where the file is rides along so the panel can act on it and not
+          // just draw it. Absent for an embed pointing at a real URL, where
+          // there is no file to act on.
+          setLookAt(lookTargetOf({ filename: alt, hostPath, url: src }));
         }
       },
-      [openFilePreview],
+      [setLookAt],
     );
 
     useEffect(() => {

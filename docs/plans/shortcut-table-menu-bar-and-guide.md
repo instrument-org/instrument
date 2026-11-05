@@ -1,6 +1,6 @@
 # One shortcut table: in-app menu bar and a shortcut guide
 
-Status: open. Phases 1-3 landed, phase 4 not started (checked 2026-10-29: `components/ui/menubar.tsx` is used only by the dev panel; the table, binder, and guide carried over into the 2.0 app window). Owner: TBD. The table is [shared/shortcuts.ts](../../apps/studio/src/shared/shortcuts.ts), the native menu is a projection over it, and the shortcut guide reads the same descriptors. What remains is the in-app menu bar for Windows/Linux.
+Status: open. Phases 1-3 landed, phase 4 not started (the Radix menubar primitive went with the developer panel that was its only user, so phase 4 adds it back; the table, binder, and guide carried over into the 2.0 app window). Owner: TBD. The table is [shared/shortcuts.ts](../../apps/studio/src/shared/shortcuts.ts), the native menu is a projection over it, and the shortcut guide reads the same descriptors. What remains is the in-app menu bar for Windows/Linux.
 
 ## Problem
 
@@ -34,7 +34,7 @@ One declaration per shortcut, read by every surface that shows or runs it:
 - **The display formatter**: `formatAccelerator()` splits an accelerator into per-`Kbd` tokens for this platform ([format-accelerator.ts](../../apps/studio/src/client/lib/format-accelerator.ts)).
 - **Menu rebuild plumbing**: `createApplicationMenu()` re-runs `Menu.buildFromTemplate` on window focus/blur, `window.focus-changed`, and `preferences.updated` ([menus/index.ts](../../apps/studio/src/electron-main/menus/index.ts)), so a table-driven template stays live without new invalidation.
 - **Command transport**: menu actions call `sendAppCommand` ([app-command.ts](../../apps/studio/src/electron-main/app-command.ts)), streamed to the renderer and applied by `useWindowCommands`, which already gates on `MODAL_SAFE_COMMANDS` and `windowHoldsAtom` ([use-window-commands.ts](../../apps/studio/src/client/components/window/use-window-commands.ts)). An in-app menu bar can dispatch the same `AppCommand` union directly instead of routing through main.
-- **UI primitives on hand**: `ui/menubar.tsx` (Radix Menubar, currently only used by [dev-panel.tsx](../../apps/studio/src/client/components/dev-panel.tsx)) and `ui/kbd.tsx` for rendering chords.
+- **UI primitives on hand**: `ui/kbd.tsx` for rendering chords.
 - **Where the bar mounts**: [window-bar.tsx](../../apps/studio/src/client/components/window/window-bar.tsx) is the custom title bar row, which in 2.0 also carries the app-level tab strip, so the menu bar competes with the tabs for its width, and `WindowControls` already self-gates on `isWindows() || isLinux() || (isMacOS() && forceShow)` ([window-controls.tsx:16](../../apps/studio/src/client/components/window-controls.tsx#L16)) with a debug-panel override to force it on macOS. The menu bar wants the same gate and the same override so it stays testable on a Mac.
 
 ## Design decisions

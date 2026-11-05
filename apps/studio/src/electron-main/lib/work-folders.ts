@@ -16,8 +16,8 @@ const LABEL_LENGTH = 40;
  * suffix, as the person knows the workspace: the folder they picked for it,
  * or for one in the app's own data, the name of that data folder
  * (`Instrument`, `Instrument (Dev)`, a preview's), which tells copies of the
- * app apart, followed by the workspace's own folder for one made from the
- * dev panel. Lowercase, with a hyphen for anything but letters and digits,
+ * app apart, followed by the workspace's own folder for one made from
+ * developer settings. Lowercase, with a hyphen for anything but letters and digits,
  * as a chat's folder is, so a path to it needs no quoting.
  */
 export function workspaceLabel({

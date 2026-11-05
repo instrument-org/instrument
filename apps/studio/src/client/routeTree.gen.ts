@@ -17,6 +17,7 @@ import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
+import { Route as DebugAppStatesRouteImport } from './routes/debug/app-states'
 import { Route as DebugBillingRouteImport } from './routes/debug/billing'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
 import { Route as DebugTrialModesRouteImport } from './routes/debug/trial-modes'
@@ -80,6 +81,11 @@ const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
 const DebugIndexRoute = DebugIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugAppStatesRoute = DebugAppStatesRouteImport.update({
+  id: '/app-states',
+  path: '/app-states',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const DebugBillingRoute = DebugBillingRouteImport.update({
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/app-states': typeof DebugAppStatesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/trial-modes': typeof DebugTrialModesRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/app-states': typeof DebugAppStatesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/trial-modes': typeof DebugTrialModesRoute
   '/debug': typeof DebugIndexRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/_app/files': typeof AppFilesRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
+  '/debug/app-states': typeof DebugAppStatesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/trial-modes': typeof DebugTrialModesRoute
@@ -327,6 +336,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/new-tab'
     | '/release-notes'
+    | '/debug/app-states'
     | '/debug/billing'
     | '/debug/components'
     | '/debug/trial-modes'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/new-tab'
     | '/release-notes'
+    | '/debug/app-states'
     | '/debug/billing'
     | '/debug/trial-modes'
     | '/debug'
@@ -394,6 +405,7 @@ export interface FileRouteTypes {
     | '/_app/files'
     | '/_app/new-tab'
     | '/_app/release-notes'
+    | '/debug/app-states'
     | '/debug/billing'
     | '/debug/components'
     | '/debug/trial-modes'
@@ -484,6 +496,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/debug/'
       preLoaderRoute: typeof DebugIndexRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/app-states': {
+      id: '/debug/app-states'
+      path: '/app-states'
+      fullPath: '/debug/app-states'
+      preLoaderRoute: typeof DebugAppStatesRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/debug/billing': {
@@ -737,6 +756,7 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 )
 
 interface DebugRouteRouteChildren {
+  DebugAppStatesRoute: typeof DebugAppStatesRoute
   DebugBillingRoute: typeof DebugBillingRoute
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
   DebugTrialModesRoute: typeof DebugTrialModesRoute
@@ -744,6 +764,7 @@ interface DebugRouteRouteChildren {
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
+  DebugAppStatesRoute: DebugAppStatesRoute,
   DebugBillingRoute: DebugBillingRoute,
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
   DebugTrialModesRoute: DebugTrialModesRoute,

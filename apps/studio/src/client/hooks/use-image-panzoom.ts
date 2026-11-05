@@ -1,38 +1,53 @@
-import { normalizeWheelDeltaPx } from "@/client/lib/utils";
-import Panzoom, {
-  type PanzoomEventDetail,
-  type PanzoomObject,
-} from "@panzoom/panzoom";
-import { clamp } from "radashi";
+import {
+  type PictureChord,
+  pictureHoldingKeyboard,
+  type PictureKeys,
+  setPictureKeys,
+} from "@/client/lib/picture-keys";
+import {
+  FIT_VIEW,
+  panReach,
+  type PictureBox,
+  type PictureView,
+  settleView,
+  zoomedAt,
+} from "@/client/lib/picture-view";
+import { commandKeyHeld, normalizeWheelDeltaPx } from "@/client/lib/utils";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 // The image viewer tags the panzoom viewport element with this class (see
-// image-viewer), which runs its own wheel zoom below.
+// image-viewer).
 export const IMAGE_PANZOOM_VIEWPORT_CLASS = "image-panzoom-viewport";
 
 const ZOOMED_IN_THRESHOLD = 1.01;
-const PANNED_THRESHOLD_PX = 2;
-const MIN_SCALE = 1;
-// Smallest the native-resolution cap is ever allowed to be. A small image is
-// shown at (or below) native size to begin with, so its native cap alone would
-// equal MIN_SCALE and leave nothing to zoom; this guarantees any image can be
-// enlarged at least this far beyond its fit size (see getNativeMaxScale).
-const MIN_MAX_SCALE = 3;
-// Used only until the image's natural size is known (see getNativeMaxScale);
-// any transient overshoot before then is snapped back once it is.
-const INITIAL_MAX_SCALE = Infinity;
+// Where a double-click lands on a picture already at its actual size or smaller.
+const DOUBLE_CLICK_SCALE = 2;
+// How far zoom goes, from a picture's fit size or its actual size, whichever
+// is further in: far enough to read a diagram or count a screenshot's pixels.
+const MAX_ZOOM = 8;
+// What Zoom In and Zoom Out multiply the scale by.
+const ZOOM_STEP = 1.5;
+// How far an arrow moves a zoomed picture, in layout px.
+const ARROW_STEP = 64;
+const ANIMATED_TRANSITION = "transform 200ms ease-out";
+const ARROW_TRANSITION = "transform 120ms ease-out";
 
 // Percentage change per wheel pixel, so it feels consistent whether
 // wheel/trackpad deltas are large or small, and at any zoom level.
 const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 
+const ARROWS: Record<string, { x: number; y: number }> = {
+  ArrowDown: { x: 0, y: 1 },
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+};
+
 /**
- * Wires @panzoom/panzoom onto `contentRef`, which Panzoom scales/pans in
- * place, inside `viewportRef`, its DOM parent, which Panzoom styles directly
- * (overflow, touch-action, cursor). Panzoom binds pointer-based pan/pinch
- * itself, but wheel zoom (delta-accumulated, applied once per animation
- * frame), right-click pan suppression, resize recentering, and the
- * native-resolution zoom cap aren't part of the library and are wired here.
+ * Pan and zoom for the picture in `contentRef`, inside `viewportRef`, its DOM
+ * parent. Every input (wheel, drag, pinch, double-click, the menu, the keys, a
+ * resize) proposes a view, and `show` settles it (`settleView`) and writes it
+ * as `contentRef`'s transform, so none can leave the picture off its edges.
  */
 export function useImagePanzoom({
   contentRef,
@@ -41,8 +56,15 @@ export function useImagePanzoom({
   contentRef: RefObject<HTMLDivElement | null>;
   viewportRef: RefObject<HTMLDivElement | null>;
 }) {
-  const panzoomRef = useRef<null | PanzoomObject>(null);
-  const [canReset, setCanReset] = useState(false);
+  const controlsRef = useRef<null | {
+    actualSize: () => void;
+    fit: () => void;
+    zoom: (direction: "in" | "out") => void;
+  }>(null);
+  const [scale, setScale] = useState(FIT_VIEW.scale);
+  const [canPan, setCanPan] = useState(false);
+  // The scale at which one image pixel fills one device pixel, once it is known.
+  const [actualScale, setActualScale] = useState<null | number>(null);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -50,109 +72,282 @@ export function useImagePanzoom({
     if (!viewport || !content) {
       return;
     }
-
-    const panzoom = Panzoom(content, {
-      // Panzoom cancels the pointerdown by default, which is also what stops
-      // the browser from starting a drag on the image under it. At the fit
-      // scale there is no pan to protect -- panOnlyWhenZoomed has already
-      // turned it off -- so the press is left alone, and the image can be
-      // dragged out to the desktop from exactly the state where dragging it
-      // means nothing else.
-      handleStartEvent: (event) => {
-        if ((panzoomRef.current?.getScale() ?? MIN_SCALE) <= MIN_SCALE) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      },
-      maxScale: INITIAL_MAX_SCALE,
-      minScale: MIN_SCALE,
-      // Dragging does nothing useful at the fit-to-container scale; only
-      // allow it once the user has actually zoomed in.
-      panOnlyWhenZoomed: true,
-    });
-    panzoomRef.current = panzoom;
-    let currentMaxScale = INITIAL_MAX_SCALE;
-
     const img = content.querySelector("img");
-    const applyNativeMaxScale = () => {
-      const maxScale = img && getNativeMaxScale(img);
-      if (!maxScale) {
+    let view = FIT_VIEW;
+
+    const boxNow = (): PictureBox => {
+      const actual = img && getActualScale(img, viewport);
+      return {
+        imageHeight: img?.clientHeight ?? 0,
+        imageWidth: img?.clientWidth ?? 0,
+        maxScale: MAX_ZOOM * Math.max(actual ?? 1, 1),
+        viewHeight: viewport.clientHeight,
+        viewWidth: viewport.clientWidth,
+      };
+    };
+    const reachNow = (box = boxNow()) => panReach(box, view.scale);
+    const canPanNow = () => {
+      const reach = reachNow();
+      return reach.x > 0 || reach.y > 0;
+    };
+
+    const show = (next: PictureView, transition = "none") => {
+      view = settleView(next, boxNow());
+      content.style.transition = transition;
+      content.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+      setScale(view.scale);
+      setCanPan(canPanNow());
+    };
+
+    /** On-screen px to layout px, from the pane's center. */
+    const pointIn = ({ clientX, clientY }: PointLike) => {
+      const rect = viewport.getBoundingClientRect();
+      const appZoom = rect.width / viewport.offsetWidth || 1;
+      return {
+        x: (clientX - rect.left - rect.width / 2) / appZoom,
+        y: (clientY - rect.top - rect.height / 2) / appZoom,
+      };
+    };
+
+    const stepScale = (direction: "in" | "out") => {
+      const actual = img && getActualScale(img, viewport);
+      const stepped =
+        direction === "in" ? view.scale * ZOOM_STEP : view.scale / ZOOM_STEP;
+      // A step across the actual size stops on it.
+      const crosses =
+        actual !== null &&
+        (direction === "in"
+          ? view.scale < actual && actual < stepped
+          : stepped < actual && actual < view.scale);
+      return crosses ? actual : stepped;
+    };
+    const zoomStep = (direction: "in" | "out") => {
+      show(
+        zoomedAt(view, stepScale(direction), { x: 0, y: 0 }, boxNow()),
+        ANIMATED_TRANSITION,
+      );
+    };
+    const fit = () => {
+      show(FIT_VIEW, ANIMATED_TRANSITION);
+    };
+    controlsRef.current = {
+      actualSize: () => {
+        const actual = img && getActualScale(img, viewport);
+        if (actual) {
+          show(
+            zoomedAt(view, actual, { x: 0, y: 0 }, boxNow()),
+            ANIMATED_TRANSITION,
+          );
+        }
+      },
+      fit,
+      zoom: zoomStep,
+    };
+
+    const keys: PictureKeys = {
+      canPan: canPanNow,
+      pan: (dx, dy) => {
+        show({ ...view, x: view.x - dx, y: view.y - dy }, ARROW_TRANSITION);
+      },
+      zoom: (chord: PictureChord) => {
+        if (chord === "zoomReset") {
+          fit();
+        } else {
+          zoomStep(chord === "zoomIn" ? "in" : "out");
+        }
+      },
+    };
+    const stopAnsweringKeys = setPictureKeys(viewport, keys);
+    // After everything that answers an arrow on the way down and through the
+    // tree: a list or menu holding the keyboard has had its turn.
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const arrow = ARROWS[event.key];
+      if (
+        !arrow ||
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey ||
+        pictureHoldingKeyboard() !== keys ||
+        !canPanNow()
+      ) {
         return;
       }
-      currentMaxScale = maxScale;
-      panzoom.setOptions({ maxScale });
-      // setOptions doesn't re-clamp the already-applied scale.
-      if (panzoom.getScale() > maxScale) {
-        panzoom.zoom(maxScale, { animate: true });
-      }
+      event.preventDefault();
+      keys.pan(arrow.x * ARROW_STEP, arrow.y * ARROW_STEP);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    let lastImageWidth = 0;
+    const readSizes = () => {
+      lastImageWidth = img?.clientWidth ?? 0;
+      setActualScale(img && getActualScale(img, viewport));
+      show(view);
     };
     if (img?.complete) {
-      applyNativeMaxScale();
-    } else {
-      img?.addEventListener("load", applyNativeMaxScale, { once: true });
+      readSizes();
     }
+    // Every load rather than the first: a file written while it is open comes
+    // back in the same element at its new size.
+    img?.addEventListener("load", readSizes);
 
     let pendingDeltaPx = 0;
-    let pendingWheelEvent: null | WheelEvent = null;
+    let pendingWheelPoint: null | PointLike = null;
+    let pendingPanX = 0;
+    let pendingPanY = 0;
     let wheelFrame: number | undefined;
-    const applyPendingWheelZoom = () => {
+    const applyPendingWheel = () => {
       wheelFrame = undefined;
-      const event = pendingWheelEvent;
+      if (pendingPanX !== 0 || pendingPanY !== 0) {
+        show({ ...view, x: view.x - pendingPanX, y: view.y - pendingPanY });
+      }
+      pendingPanX = 0;
+      pendingPanY = 0;
+      const point = pendingWheelPoint;
       const deltaPx = pendingDeltaPx;
-      pendingWheelEvent = null;
+      pendingWheelPoint = null;
       pendingDeltaPx = 0;
-      if (!event) {
-        return;
+      if (point) {
+        show(
+          zoomedAt(
+            view,
+            view.scale * Math.exp(-deltaPx * WHEEL_ZOOM_SENSITIVITY),
+            pointIn(point),
+            boxNow(),
+          ),
+        );
       }
-      const currentScale = panzoom.getScale();
-      const targetScale = clamp(
-        currentScale * Math.exp(-deltaPx * WHEEL_ZOOM_SENSITIVITY),
-        MIN_SCALE,
-        currentMaxScale,
-      );
-      // Already at a bound and still pushing past it: skip the no-op zoom, which
-      // otherwise forces a layout read + transform write for nothing (e.g.
-      // trackpad momentum continuing to fire after scale hits minScale).
-      if (targetScale === currentScale) {
-        return;
-      }
-      panzoom.zoomToPoint(targetScale, event);
     };
-    // Accumulated and applied once per frame rather than per wheel event,
-    // since each applied zoom forces a synchronous layout read internally --
-    // doing that on every event in a fast wheel/trackpad burst visibly stutters.
+    // Accumulated and applied once per frame rather than per wheel event, since
+    // a trackpad sends many in a frame and each write forces layout reads.
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
-      pendingDeltaPx += normalizeWheelDeltaPx(event);
-      pendingWheelEvent = event;
-      wheelFrame ??= window.requestAnimationFrame(applyPendingWheelZoom);
+      // A trackpad pinch arrives as a wheel with ctrl held.
+      if (event.ctrlKey || commandKeyHeld(event)) {
+        pendingDeltaPx += normalizeWheelDeltaPx(event);
+        pendingWheelPoint = event;
+      } else {
+        pendingPanX += normalizeWheelDeltaPx(event, event.deltaX);
+        pendingPanY += normalizeWheelDeltaPx(event);
+      }
+      wheelFrame ??= window.requestAnimationFrame(applyPendingWheel);
     };
 
-    const handleChange = (event: Event) => {
-      // panzoomchange's detail isn't in lib.dom's CustomEvent typing.
-      const { scale, x, y } = (event as CustomEvent<PanzoomEventDetail>).detail;
-      // Focal (cursor-anchored) zoom-out leaves a residual pan offset even once
-      // scale is back at the fit floor, where panOnlyWhenZoomed then blocks the
-      // user from dragging it back. Snap it re-centered so zooming all the way
-      // out always lands centered, without needing the reset button. The
-      // resulting pan(0,0) re-enters here with x/y already 0, so it settles.
-      if (scale <= MIN_SCALE && (x !== 0 || y !== 0)) {
-        panzoom.pan(0, 0, { animate: true, force: true });
+    const handleDoubleClick = (event: MouseEvent) => {
+      if (view.scale > ZOOMED_IN_THRESHOLD) {
+        fit();
         return;
       }
-      setCanReset(
-        scale > ZOOMED_IN_THRESHOLD ||
-          Math.abs(x) > PANNED_THRESHOLD_PX ||
-          Math.abs(y) > PANNED_THRESHOLD_PX,
+      const actual = img && getActualScale(img, viewport);
+      show(
+        zoomedAt(
+          view,
+          actual && actual > ZOOMED_IN_THRESHOLD ? actual : DOUBLE_CLICK_SCALE,
+          pointIn(event),
+          boxNow(),
+        ),
+        ANIMATED_TRANSITION,
       );
     };
 
-    // Right-click (or macOS Ctrl+click) opens the context menu; don't let it
-    // also start a pan.
-    const handlePointerDownCapture = (event: PointerEvent) => {
-      if (event.button === 2 || (event.button === 0 && event.ctrlKey)) {
+    // The fingers on the pane, for a pinch on a touch screen.
+    const touches = new Map<number, PointLike>();
+    let pinch: null | {
+      distance: number;
+      middle: PointLike;
+      start: PictureView;
+    } = null;
+    const fingers = () => {
+      const [a, b] = [...touches.values()];
+      return a && b
+        ? {
+            distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+            middle: {
+              clientX: (a.clientX + b.clientX) / 2,
+              clientY: (a.clientY + b.clientY) / 2,
+            },
+          }
+        : null;
+    };
+    let drag: null | { press: PointLike; start: PictureView } = null;
+    let stopFollowing: (() => void) | undefined;
+    const handlePointerMove = (event: PointerEvent) => {
+      if (touches.has(event.pointerId)) {
+        touches.set(event.pointerId, event);
+      }
+      const now = pinch && fingers();
+      if (pinch && now) {
+        const { x, y } = pointIn(now.middle);
+        const was = pointIn(pinch.middle);
+        const zoomed = zoomedAt(
+          pinch.start,
+          pinch.start.scale * (now.distance / pinch.distance),
+          was,
+          boxNow(),
+        );
+        show({ ...zoomed, x: zoomed.x + x - was.x, y: zoomed.y + y - was.y });
+      } else if (drag) {
+        const point = pointIn(event);
+        const was = pointIn(drag.press);
+        show({
+          ...drag.start,
+          x: drag.start.x + point.x - was.x,
+          y: drag.start.y + point.y - was.y,
+        });
+      }
+    };
+    const handlePointerEnd = (event: PointerEvent) => {
+      touches.delete(event.pointerId);
+      pinch = null;
+      drag = null;
+      if (touches.size === 0) {
+        stopFollowing?.();
+        stopFollowing = undefined;
+      }
+    };
+    // On the window, for a press that runs off the pane.
+    const follow = () => {
+      if (stopFollowing) {
+        return;
+      }
+      const controller = new AbortController();
+      const { signal } = controller;
+      window.addEventListener("pointermove", handlePointerMove, { signal });
+      window.addEventListener("pointerup", handlePointerEnd, { signal });
+      window.addEventListener("pointercancel", handlePointerEnd, { signal });
+      stopFollowing = () => {
+        controller.abort();
+      };
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      // A press takes the keyboard, whichever way it goes from here.
+      viewport.focus({ preventScroll: true });
+      // Right-click (or macOS Ctrl+click) opens the context menu.
+      if (event.button !== 0 || event.ctrlKey) {
+        return;
+      }
+      if (event.pointerType === "touch") {
+        touches.set(event.pointerId, event);
+        const now = fingers();
+        if (now) {
+          drag = null;
+          pinch = { ...now, start: view };
+          follow();
+          return;
+        }
+      }
+      // With nowhere to move, the press is left alone, and the image can be
+      // dragged out to the desktop from exactly the state where dragging it
+      // means nothing else. Otherwise cancelling it is also what stops the
+      // browser starting a drag on the image under it.
+      if (canPanNow()) {
+        event.preventDefault();
         event.stopPropagation();
+        drag = { press: event, start: view };
+      }
+      if (drag || touches.size > 0) {
+        follow();
       }
     };
 
@@ -163,9 +358,17 @@ export function useImagePanzoom({
       }
       resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = undefined;
-        // The fit size (and so the native-resolution cap) changes with layout.
-        applyNativeMaxScale();
-        panzoom.pan(0, 0, { animate: false, force: true });
+        const width = img?.clientWidth ?? 0;
+        // The fit size moves with the pane. A zoomed picture keeps the size it
+        // is on screen, so the same spot stays at the pane's center.
+        if (
+          view.scale > ZOOMED_IN_THRESHOLD &&
+          width > 0 &&
+          lastImageWidth > 0
+        ) {
+          view = { ...view, scale: view.scale * (lastImageWidth / width) };
+        }
+        readSizes();
       });
     };
     // ResizeObserver (not window "resize") so panel-only resizes -- e.g.
@@ -174,10 +377,8 @@ export function useImagePanzoom({
     resizeObserver.observe(viewport);
 
     viewport.addEventListener("wheel", handleWheel, { passive: false });
-    viewport.addEventListener("pointerdown", handlePointerDownCapture, {
-      capture: true,
-    });
-    content.addEventListener("panzoomchange", handleChange);
+    viewport.addEventListener("dblclick", handleDoubleClick);
+    viewport.addEventListener("pointerdown", handlePointerDown);
 
     return () => {
       resizeObserver.disconnect();
@@ -187,36 +388,50 @@ export function useImagePanzoom({
       if (wheelFrame !== undefined) {
         window.cancelAnimationFrame(wheelFrame);
       }
-      content.removeEventListener("panzoomchange", handleChange);
-      viewport.removeEventListener("pointerdown", handlePointerDownCapture, {
-        capture: true,
-      });
+      stopFollowing?.();
+      viewport.removeEventListener("pointerdown", handlePointerDown);
       viewport.removeEventListener("wheel", handleWheel);
-      img?.removeEventListener("load", applyNativeMaxScale);
-      panzoom.destroy();
-      panzoom.resetStyle();
-      panzoomRef.current = null;
+      viewport.removeEventListener("dblclick", handleDoubleClick);
+      img?.removeEventListener("load", readSizes);
+      window.removeEventListener("keydown", handleKeyDown);
+      stopAnsweringKeys();
+      controlsRef.current = null;
+      content.style.removeProperty("transform");
+      content.style.removeProperty("transition");
     };
   }, [contentRef, viewportRef]);
 
   return {
-    canReset,
-    reset: () => panzoomRef.current?.reset(),
-    zoomIn: () => panzoomRef.current?.zoomIn(),
-    zoomOut: () => panzoomRef.current?.zoomOut(),
+    actualScale,
+    actualSize: () => {
+      controlsRef.current?.actualSize();
+    },
+    canPan,
+    fit: () => {
+      controlsRef.current?.fit();
+    },
+    isZoomed: scale > ZOOMED_IN_THRESHOLD,
+    scale,
+    zoomIn: () => {
+      controlsRef.current?.zoom("in");
+    },
+    zoomOut: () => {
+      controlsRef.current?.zoom("out");
+    },
   };
 }
 
-// `clientWidth` is the pre-transform layout size (CSS transforms don't affect
-// it), so this stays correct regardless of the current zoom. Caps zoom at 1
-// image pixel per CSS pixel for images large enough to be downscaled into the
-// viewport -- past that, zooming a raster image further just blows up pixels
-// with no new detail, and an unbounded cap reads as broken rather than
-// intentional. Small images already shown at native size would cap at
-// MIN_SCALE, so MIN_MAX_SCALE floors the cap to keep them enlargeable.
-function getNativeMaxScale(img: HTMLImageElement) {
-  if (!img.naturalWidth || !img.clientWidth) {
+type PointLike = Pick<MouseEvent, "clientX" | "clientY">;
+
+// One image pixel per device pixel, which is what a screenshot looks like where
+// it was taken. The viewport's two widths give the app's own zoom, since it is
+// never transformed itself and `clientWidth` is the image's layout size at fit.
+function getActualScale(img: HTMLImageElement, viewport: HTMLElement) {
+  if (!img.naturalWidth || !img.clientWidth || !viewport.offsetWidth) {
     return null;
   }
-  return Math.max(img.naturalWidth / img.clientWidth, MIN_MAX_SCALE);
+  const appZoom = viewport.getBoundingClientRect().width / viewport.offsetWidth;
+  return (
+    img.naturalWidth / (img.clientWidth * appZoom * window.devicePixelRatio)
+  );
 }

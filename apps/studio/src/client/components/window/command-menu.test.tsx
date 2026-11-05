@@ -110,11 +110,7 @@ afterEach(() => {
 // The tabs the menu finds are the ones the Settings sidebar lists, so none
 // opens a page the sidebar would not show.
 describe("Settings tabs in the command menu in developer mode", () => {
-  it.each([
-    ["darwin", false],
-    ["win32", false],
-    ["linux", true],
-  ] as const)("on %s lists Debug: %s", (platform, debug) => {
+  it.each(["darwin", "win32", "linux"] as const)("on %s", (platform) => {
     setPlatform(platform);
     renderWithProviders(<SettingsTabRows />);
 
@@ -122,13 +118,12 @@ describe("Settings tabs in the command menu in developer mode", () => {
       [
         "Settings: Account",
         "Settings: Activity",
-        "Settings: Features",
+        "Settings: Developer",
         "Settings: Memory",
         "Settings: Permissions",
         "Settings: Providers",
         "Settings: Skills",
         "Settings: Storage",
-        ...(debug ? ["Settings: Debug"] : []),
       ].sort(),
     );
   });

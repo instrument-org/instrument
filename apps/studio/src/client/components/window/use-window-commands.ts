@@ -5,6 +5,7 @@ import {
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
+import { toggleDeveloperStrip } from "@/client/atoms/developer-strip";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { helpMenuReport } from "@/client/lib/problem-reports";
 import {
@@ -22,6 +23,7 @@ import {
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { runPageChord } from "@/client/lib/page-chords";
+import { runPictureChord } from "@/client/lib/picture-keys";
 import { commandKeyHeld, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -45,6 +47,7 @@ const MODAL_SAFE_COMMANDS = new Set([
   "openSettings",
   "openShortcutGuide",
   "reloadPage",
+  "toggleDeveloperStrip",
   "toggleInbox",
   "zoomIn",
   "zoomOut",
@@ -352,6 +355,14 @@ export function useWindowCommands(
               latest.current.search();
               break;
             }
+            case "openDebugPages": {
+              latest.current.openScreen("/debug");
+              break;
+            }
+            case "toggleDeveloperStrip": {
+              toggleDeveloperStrip();
+              break;
+            }
             case "toggleInbox": {
               latest.current.toggleInbox();
               break;
@@ -359,8 +370,8 @@ export function useWindowCommands(
             case "zoomIn":
             case "zoomOut":
             case "zoomReset": {
-              // The page holding the keyboard, else the app's own zoom.
-              if (!runPageChord(command)) {
+              // The page or picture holding the keyboard, else the app's own zoom.
+              if (!runPageChord(command) && !runPictureChord(command)) {
                 getDefaultStore().set(zoomAtom, (z) =>
                   appZoomAfter(command, z),
                 );

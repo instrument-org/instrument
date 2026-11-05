@@ -121,9 +121,13 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 - Back in Page: ← / ←
 - Close Page Viewer or File: Esc / Esc
+- Fit Picture: ⌘0 / Ctrl+0
 - Forward in Page: → / →
 - Info: ⌘I / Alt+Enter
+- Move Around Zoomed Picture: ↑↓←→ / ↑↓←→
 - Scroll Page: Space / Space
+- Zoom In on Picture: ⌘+ / Ctrl+=
+- Zoom Out of Picture: ⌘- / Ctrl+-
 
 ### Tabs
 

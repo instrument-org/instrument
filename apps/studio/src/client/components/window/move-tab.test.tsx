@@ -1,13 +1,31 @@
 import { type ComposeEntry, composeAtom } from "@/client/atoms/window";
 import { type Tab, type TabCarryView, type TabId } from "@/shared/tabs";
 import { getDefaultStore } from "jotai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
+const { moveTabCall } = vi.hoisted(() => ({
+  moveTabCall: vi.fn<() => Promise<{ moved: boolean }>>(),
+}));
 
-const { appTabsAtom } = await import("./app-tabs");
-const { keepOnlyTab, letTabGo, receiveTab, stripIndexAt } =
-  await import("./move-tab");
+vi.mock("@/client/rpc/client", () => ({
+  rpcClient: {
+    window: {
+      closeEmptied: { call: vi.fn() },
+      moveTab: { call: moveTabCall },
+    },
+  },
+}));
+
+const { appTabsAtom, groupOfHref } = await import("./app-tabs");
+const {
+  forgetMovedAway,
+  hasMovedAway,
+  keepOnlyTab,
+  letTabGo,
+  moveTabOut,
+  receiveTab,
+  stripIndexAt,
+} = await import("./move-tab");
 const { tabsInView } = await import("./tab-carry-view");
 
 const store = getDefaultStore();
@@ -119,6 +137,56 @@ describe("where a held tab stands along a strip", () => {
     layOutStrip(["a", "b", "c"], 2);
     expect(stripIndexAt(90, store.get(appTabsAtom).tabs, asId("a"))).toBe(0);
     expect(stripIndexAt(110, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
+  });
+});
+
+describe("a tab handed to another window", () => {
+  const SITES = ["/sites/one", "/sites/two"];
+  const groups = () => SITES.map((href) => groupOfHref(href) ?? "");
+  const movedAway = () => groups().map(hasMovedAway);
+
+  beforeEach(() => {
+    store.set(appTabsAtom, (current) => ({
+      ...current,
+      tabs: [
+        {
+          ...asTab("a"),
+          history: { entries: SITES, index: 1 },
+          pathname: "/sites/two",
+        } as Tab,
+        asTab("b"),
+      ],
+    }));
+  });
+
+  afterEach(() => {
+    groups().forEach(forgetMovedAway);
+    moveTabCall.mockReset();
+  });
+
+  it("leaves that window every site it can go back to, not only the one it is on", async () => {
+    moveTabCall.mockResolvedValue({ moved: true });
+    await moveTabOut(asId("a"), { kind: "new" }, []);
+    expect(movedAway()).toEqual([true, true]);
+    expect(seen().tabs).toEqual(["b"]);
+  });
+
+  it.each([
+    ["says it did not move", () => Promise.resolve({ moved: false })],
+    ["fails", () => Promise.reject(new Error("the connection went"))],
+  ])(
+    "stays, with its sites this window's, when the move %s",
+    async (_case, call) => {
+      moveTabCall.mockImplementation(call);
+      await moveTabOut(asId("a"), { kind: "new" }, []);
+      expect(movedAway()).toEqual([false, false]);
+      expect(seen().tabs).toEqual(["a", "b"]);
+    },
+  );
+
+  it("leaves that window every site it can go back to when let go by a drag", () => {
+    letTabGo("a");
+    expect(movedAway()).toEqual([true, true]);
   });
 });
 

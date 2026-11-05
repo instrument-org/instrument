@@ -9,7 +9,7 @@ import { type Tab, type TabId } from "@/shared/tabs";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
 
-import { appTabsAtom, groupOfHref, INBOX_HREF, isSiteGroup } from "./app-tabs";
+import { appTabsAtom, groupOfHref, INBOX_HREF, siteGroupsOf } from "./app-tabs";
 
 /** The groups whose tabs went to another window, whose pages are that window's to keep or let go, until a tab comes back. */
 const groupsMovedAway = new Set<string>();
@@ -20,6 +20,13 @@ export function hasMovedAway(group: string) {
 
 export function forgetMovedAway(group: string) {
   groupsMovedAway.delete(group);
+}
+
+/** The sites a tab stands on or can go back to, by its history as its router holds it now. */
+function sitesItCanGoTo(tab: Tab) {
+  const router = getTabRouter(tab.id);
+  const history = router ? getRouterHistory(router) : tab.history;
+  return siteGroupsOf([...(history?.entries ?? []), tab.pathname]);
 }
 
 /** Where a tab can go: a new window, at a point on the screen or beside this one, or one open already. */
@@ -94,17 +101,15 @@ export async function moveTabOut(
     return;
   }
   const { pages, tab: moved } = standing;
-  const group = groupOfHref(moved.pathname);
-  if (group !== undefined && isSiteGroup(group)) {
+  const groups = sitesItCanGoTo(moved);
+  for (const group of groups) {
     groupsMovedAway.add(group);
   }
-  const { moved: landed } = await rpcClient.window.moveTab.call({
-    pages,
-    tab: moved,
-    to,
-  });
+  const { moved: landed } = await rpcClient.window.moveTab
+    .call({ pages, tab: moved, to })
+    .catch(() => ({ moved: false }));
   if (!landed) {
-    if (group !== undefined) {
+    for (const group of groups) {
       groupsMovedAway.delete(group);
     }
     return;
@@ -131,8 +136,7 @@ export function letTabGo(key: string) {
   if (!tab) {
     return;
   }
-  const group = groupOfHref(tab.pathname);
-  if (group !== undefined && isSiteGroup(group)) {
+  for (const group of sitesItCanGoTo(tab)) {
     groupsMovedAway.add(group);
   }
   store.set(appTabsAtom, (current) =>

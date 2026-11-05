@@ -15,7 +15,6 @@ import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId } from "@instrument-org/workspace/client";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
@@ -34,7 +33,6 @@ import {
 } from "react";
 
 import { chatMenuGroups, useChatActions } from "./chat-actions";
-import { ChatStatusLine } from "./chat-status-line";
 import { ProjectPill } from "./chat-row";
 import { ChatTitleButton, ChatTitleField } from "./chat-title";
 import { type Chat, type Project } from "./chats";
@@ -49,9 +47,7 @@ import { useTitleArrival } from "./use-title-arrival";
  * The head over a chat's conversation, wherever the chat is shown: beside
  * the inbox and popped out into its small window alike. Its title in the
  * middle, which opens the chat's menu, with the project it is filed under
- * after it, and under the title the one line saying where its work stands
- * (`ChatStatusLine`), which is the chat's loading state and lists its
- * tasks. At the right, whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
+ * after it. At the right, whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
  * it is out, when pressing it brings the conversation back) and the pane
  * toggle while the pane is closed; popped out, the window's own buttons. The
  * two sides keep one width, the wider one's, so the title stands in the
@@ -65,7 +61,6 @@ export function ChatHeader({
   onArchived,
   onDeleted,
   onNewProject,
-  onOpenTask,
   onSetProject,
   onViewTasks,
   popOut,
@@ -84,7 +79,6 @@ export function ChatHeader({
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
   /** Opens one of the chat's tasks beside it, from the list under its title. */
-  onOpenTask: (sessionId: StoreId.Session) => void;
   onSetProject: (project: null | string) => void;
   /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
   onViewTasks?: () => void;
@@ -149,11 +143,6 @@ export function ChatHeader({
               </h2>
             )}
           </div>
-          {chat && (
-            <div className="-mt-1 flex h-4 max-w-full min-w-0 justify-center">
-              <ChatStatusLine chat={chat} onOpenTask={onOpenTask} />
-            </div>
-          )}
         </div>
         <div className="flex h-8 items-center justify-end">
           <div

@@ -42,7 +42,7 @@ import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
-import { taskHref, tasksHref } from "@/client/components/window/tab-location";
+import { tasksHref } from "@/client/components/window/tab-location";
 import {
   surfaceLocation,
   tabSurfaceAtom,
@@ -325,14 +325,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                           setInboxOpen(true);
                         }}
                         onNewProject={shell.onNewProject}
-                        // A task opens beside the chat, in the pane.
-                        onOpenTask={(id) => {
-                          appWindow.openScreen(taskHref(id, chat), {
-                            group: chat,
-                            ownTab: true,
-                            show: true,
-                          });
-                        }}
                         onSetProject={(next) => {
                           shell.setChatProject(chat, next);
                         }}

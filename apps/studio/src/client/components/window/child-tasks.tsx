@@ -1,5 +1,4 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { ChatStream } from "@/client/components/chat-stream";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
 import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
@@ -10,6 +9,9 @@ import {
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
 import { StoppedLine } from "@/client/components/stopped-line";
+import { LiveTranscriptSurface } from "@/client/components/transcript/live-surface";
+import { Transcript } from "@/client/components/transcript/transcript";
+import { useTranscriptFeed } from "@/client/components/transcript/use-transcript-feed";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { reachModel } from "@/client/lib/model-status";
@@ -35,7 +37,7 @@ import { type OpenOptions, useWindow } from "./context";
 import { windowTabsAtom } from "./window-tabs";
 
 const noop = () => {
-  // A transcript with nothing to type into has nothing to retry or continue.
+  // A transcript with nothing to type into has nothing to retry.
 };
 
 /**
@@ -47,15 +49,12 @@ const noop = () => {
  */
 export function ChildTranscript({
   chat,
-  expandGroups = false,
   isDeveloperMode = false,
   isWorking,
   sessionId,
   stoppedBy,
 }: {
   chat: ChatId;
-  /** Every phase open as it arrives, the way the task card is read. */
-  expandGroups?: boolean;
   isDeveloperMode?: boolean;
   isWorking: boolean;
   sessionId: StoreId.Session;
@@ -68,16 +67,12 @@ export function ChildTranscript({
       input: { id: chat },
     }),
   );
-  const messages = useQuery(
-    rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: { id: chat, sessionId },
-    }),
-  );
+  const feed = useTranscriptFeed({ id: chat, isDeveloperMode, sessionId });
 
   const openFile = useOpenFileNamedByTask(chat);
 
   const chatInfo = record.data;
-  if (!chatInfo || !messages.data) {
+  if (!chatInfo || !feed.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -106,16 +101,19 @@ export function ChildTranscript({
               <ChatSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
-                  <ChatStream
-                    expandGroups={expandGroups}
-                    isAgentRunning={isWorking}
-                    isDeveloperMode={isDeveloperMode}
-                    messages={messages.data}
-                    onContinue={noop}
-                    onRetry={noop}
-                    renderAsItems
-                    chatInfo={chatInfo}
-                  />
+                  <LiveTranscriptSurface chat={chat}>
+                    <Transcript
+                      chatInfo={chatInfo}
+                      hasOlder={feed.data.hasOlder}
+                      isDeveloperMode={isDeveloperMode}
+                      isLoadingOlder={feed.isLoadingOlder}
+                      isRunning={isWorking}
+                      messages={feed.data.messages}
+                      onLoadOlder={feed.loadOlder}
+                      onRetry={noop}
+                      sessionId={sessionId}
+                    />
+                  </LiveTranscriptSurface>
                 </FileOpenContext>
               </ChatSessionProvider>
               {stoppedBy && (

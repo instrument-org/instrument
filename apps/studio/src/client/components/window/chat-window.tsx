@@ -367,9 +367,6 @@ export function ChatWindow({
         onArchived={onClose}
         onDeleted={onClose}
         onNewProject={onNewProject}
-        onOpenTask={(id) => {
-          openTasksHere(taskHref(id, chatId));
-        }}
         onSetProject={onSetProject}
         onViewTasks={() => {
           openTasksHere(tasksHref(chatId));

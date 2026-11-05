@@ -10,7 +10,12 @@
  * whether the run read `instrument activity`.
  */
 import { type ChatId } from "../../src/schemas/chat-id";
-import { defineEval, type EvalCase, type SeededRequest } from "../harness";
+import {
+  type Assertion,
+  defineEval,
+  type EvalCase,
+  type SeededRequest,
+} from "../harness";
 import {
   howItWent,
   onChat,
@@ -18,6 +23,7 @@ import {
   seedChat,
   writeTurns,
 } from "./activity-context";
+import { fail, pass, said, sentAt } from "./handoff";
 
 /** A chat request the user's chats made, `ago` seconds before the message. */
 function request(
@@ -40,6 +46,32 @@ function request(
 
 const overloaded = { error: "Overloaded", status: "failed" } as const;
 
+/**
+ * `replyMatches` over what the chat said after `prompt` alone, for a case
+ * whose chat holds earlier turns written before it ran.
+ */
+function answerMatches(
+  prompt: string,
+  text: string,
+  wanted: RegExp,
+): Assertion {
+  return {
+    check: (ctx) => {
+      const from = sentAt(ctx.sessions, prompt) ?? 0;
+      const words = said(ctx.sessions)
+        .filter((one) => one.at >= from)
+        .map((one) => one.text)
+        .join("\n");
+      return wanted.test(words)
+        ? pass(text, words.slice(0, 300))
+        : fail(text, `missing ${String(wanted)}: ${words.slice(0, 300)}`);
+    },
+    text,
+  };
+}
+
+const SLOW_ANSWER = "Why did your last answer take so long?";
+
 /** Each question with the requests listed, then the same without them, `-off`. */
 function both(evalCase: EvalCase): EvalCase[] {
   return [
@@ -54,12 +86,16 @@ function both(evalCase: EvalCase): EvalCase[] {
  */
 const slowAnswer: EvalCase = {
   assertions: [
-    replyMatches("names the overloaded errors as the cause", /overload/i),
+    answerMatches(
+      SLOW_ANSWER,
+      "names the overloaded errors as the cause",
+      /overload/i,
+    ),
     howItWent,
   ],
   kind: "chat",
   name: "ai-requests-slow-answer",
-  prompt: "Why did your last answer take so long?",
+  prompt: SLOW_ANSWER,
   requests: async ({ chatId, sessionId }) => {
     const now = Date.now();
     await writeTurns(chatId, sessionId, [

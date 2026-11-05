@@ -294,7 +294,7 @@ async function carryOut(
     // Kept before the close, so an asker that asks again meets it; one
     // that cannot be kept is reported, and the askers still hear the no.
     if (ask.on !== "tab") {
-      await setDenied(chatId, ask.on, ask.target, true).catch(
+      await setDenied(chatId, ask.on, ask.bundleId ?? ask.target, true).catch(
         getWorkspaceConfig().captureException,
       );
     }
@@ -1031,7 +1031,7 @@ async function grant(
   if (on === "tab") {
     return;
   }
-  await setDenied(chatId, on, target, false);
+  await setDenied(chatId, on, ask.bundleId ?? target, false);
   if (on === "folder") {
     await grantFolder({ chatId, path: target, source: "card" });
     if (decision === "always") {
@@ -1042,9 +1042,9 @@ async function grant(
     }
     return;
   }
-  await grantApp(chatId, target);
+  await grantApp(chatId, target, ask.bundleId);
   if (decision === "always") {
-    const bundleId = await appBundleId(target);
+    const bundleId = ask.bundleId ?? (await appBundleId(target));
     await updatePermissionSettings((settings) => ({
       ...settings,
       apps: [

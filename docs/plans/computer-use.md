@@ -22,6 +22,7 @@ Computer use asks what every other route to an app asks, so there is no second p
 - A window named with `--window` has to belong to that app, by its process, or by its program on Windows.
 - The agent never drives this app's own windows, whose cards are the person's to answer, or the prompts a system draws to ask the person themselves (`SecurityAgent` and `universalAccessAuthWarn` on macOS, `consent` and `CredentialUIBroker` on Windows, `gnome-shell` and `gcr-prompter` on Linux). No rule opens those.
 - Coordinates aren't offered, since a point carries no app. Neither are the clipboard, notifications, desktop-wide screenshots, or `--force`, which is how the driver's own refusal of quitting shortcuts stays on.
+- The person's yes is the line around `open`, which starts what a name finds outside the sandbox. That takes in an app the agent built itself, on macOS, where Spotlight can find one, and it's accepted: it takes a model building an app to get past its sandbox and a person saying yes to it.
 - An app whose yes reaches past itself, a terminal, a file manager or a system's settings, says so on its card. A terminal is a shell outside the sandbox, and a person answering about one app should hear that ([the agent works at real paths](../decisions/2026-10-11-the-agent-works-at-real-paths.md)).
 - `instrument computer apps` names what's running and this chat's answer for each, so the agent knows what to ask for. Windows and their titles need the app's yes.
 
@@ -43,14 +44,16 @@ Actions go through the accessibility API, so they leave the person's pointer and
 | | macOS | Windows | Linux, GNOME on Wayland |
 | --- | --- | --- | --- |
 | Reads through | Accessibility | UI Automation | AT-SPI |
-| An app goes by | Bundle id | Program, shown by the end of its window's title | Desktop id, else its program |
+| An app goes by | Bundle id | Program, shown by its Start menu name or its file's description | Desktop id, else its program |
 | `open` | The driver's launch, in the background | The Start menu, and the new window comes to the front | The driver's launch |
 | Setup | Accessibility, and optionally Screen Recording | None | None |
 | The agent's cursor | Drawn | Drawn | Not drawn |
 | `screenshot` | With Screen Recording | Yes | Refused |
 | Hover, double-click, drag | With `--headed` | Not run | Refused |
 
-Windows differs most, because the driver's two inventories disagree there. `list-apps` names `ApplicationFrameHost.exe` in place of every packaged app in it, and `list-windows` names the real program, so apps are read from windows alone. That program is what a yes is asked and kept under, for a running app, because a title moves with the document and any program can put anything there. So a card for one reads `CalculatorApp` or `mspaint`, and a window titled `Budget - Calculator` gets nothing from a yes to Calculator. The end of the title (`Untitled - Notepad`) is only how `apps` shows the app and a way to find it, since a packaged app's program often doesn't say what it is. A file's `FileDescription` is no help: Calculator's is blank and Notepad's is `Notepad.exe`.
+Windows differs most, because the driver's two inventories disagree there. `list-apps` names `ApplicationFrameHost.exe` in place of every packaged app in it, and `list-windows` names the real program, so apps are read from windows alone. That program is what a yes is asked and kept under, for a running app, because a title moves with the document and any program can put anything there. So a window titled `Budget - Calculator` gets nothing from a yes to Calculator. The end of the title (`Untitled - Notepad`) is only how `apps` shows the app and a way to find it.
+
+A card shows a running app by a name read from its process, with its program stored beside that name on the ask, and the grant, the "Not now" and the rule all go by the program. A packaged app's name is its Start menu entry, found from the package folder it runs from. Anything else goes by its file's `FileDescription`, which is no use for a packaged app: Paint's is `mspaint.exe` and Photos has none. A card goes by the program when neither says, or when the lookup takes more than 4 seconds.
 
 The driver's own launch can't serve Windows: it takes only System32 names and absolute paths, and spends its whole timeout on the stubs those lead to, whose real app is another process. `open` reads the Start menu (`Get-StartApps`) and starts the entry through `shell:AppsFolder`, which reaches packaged and classic apps alike. A new window that says it's the app has the person's yes carried to its program; one that doesn't is reported and asks for itself, since it may be something else opening at that moment. File Explorer is refused up front, because the driver won't touch `explorer.exe` and its windows never list.
 
@@ -59,7 +62,6 @@ Some controls have no way in without focus. Windows's Notepad refuses `type`, an
 ## Still open
 
 - **Windows beyond the test VM.** It has run on one ARM VM, as the x64 build under emulation. A native x64 machine, a classic app with its own window frame, Electron apps and `--headed` input haven't been run. `--headed` typing garbled text once in that VM.
-- **An app the agent built, on macOS.** `open` finds an app through Spotlight and starts it outside the sandbox, so a bundle the agent wrote somewhere indexed, the output folder for one, could be started after a yes to a name that reads like any other. Linux's equivalent is closed for paths, and its `.desktop` folders and `PATH` are read-only to the agent. Checking where the bundle lives before launching would close it. This hasn't been tried on a real Mac.
 - **A name that starts a closed program on Linux.** Only the driver knows which program a name starts, so a yes to `Calculator` can start a `gnome-calculator` marked Not allowed. It stays closed to the agent, but it has started.
 - **The agent's shell on Windows.** When computer use couldn't reach Calculator, a model went to `explorer.exe`, PowerShell and `taskkill` from its shell, none of which ask. With the app reachable it stopped needing to, and it still tried `explorer.exe` once before reading the help.
 - **Identical controls on Windows and Linux** can only be told apart with a headed click.

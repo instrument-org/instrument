@@ -6,14 +6,24 @@ import { describe, expect, it, vi } from "vitest";
 import { openAsks } from "../lib/chat/open-asks";
 import { grantFolder } from "../lib/chat/grants";
 import { ChatWrites } from "../lib/chat-writes";
+import { grantApp } from "../lib/permissions/apps";
 import { sessionOfChat } from "../lib/record-folders";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
+import {
+  ok as driverOk,
+  standInDriver,
+} from "../test/helpers/computer-driver-stand-in";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { shellPath } from "../lib/workspace-fs-layout";
 import { runTool } from "../test/helpers/run-tool";
 import { AskPermission } from "./ask-permission";
+
+vi.mock(import("../lib/computer/start-menu"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  displayNameOfProcess: () => Promise.resolve("Paint"),
+}));
 
 const model = createMockAIGatewayModel();
 // A home of its own, with the folders a Mac's has, so every computer the
@@ -187,6 +197,44 @@ describe("ask_permission", () => {
       });
     },
   );
+
+  it("shows a running Windows app by its name, and goes by its program for the answer", async () => {
+    const realPlatform = process.platform;
+    const chatId = await chatNamed("ask-permission-windows");
+    standInDriver({
+      "list-windows": driverOk([
+        {
+          accessible: true,
+          app_name: "mspaint.exe",
+          id: "w-1",
+          pid: 77,
+          title: "Untitled - Paint",
+        },
+      ]),
+    });
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      expect(await ask(chatId, "app", "mspaint")).toEqual({
+        kind: "app",
+        state: "asked",
+        target: "Paint",
+      });
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({
+          bundleId: "mspaint",
+          kind: "app",
+          target: "Paint",
+        }),
+      ]);
+      // A yes to the name alone, from a card raised before it was running.
+      await grantApp(chatId, "Paint");
+      expect((await ask(chatId, "app", "Paint")).state).toBe("asked");
+      await grantApp(chatId, "Paint", "mspaint");
+      expect((await ask(chatId, "app", "Paint")).state).toBe("allowed");
+    } finally {
+      Object.defineProperty(process, "platform", { value: realPlatform });
+    }
+  });
 
   it.runIf(process.platform === "darwin")(
     "asks for a Mac app by its name",

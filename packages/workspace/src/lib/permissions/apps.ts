@@ -170,12 +170,21 @@ async function chatAppGrants(chatId: ChatId): Promise<ChatAppGrant[]> {
   return (await readChatPermissions(chatId)).appGrants;
 }
 
-/** Lets this chat use `app`. A grant already held stays as it was. */
-export async function grantApp(chatId: ChatId, app: string): Promise<void> {
-  const bundleId = await appBundleId(app);
+/**
+ * Lets this chat use `app`, under `knownAs` where something other than its name
+ * says what it is. A grant already held for that stays as it was.
+ */
+export async function grantApp(
+  chatId: ChatId,
+  app: string,
+  knownAs?: string,
+): Promise<void> {
+  const bundleId = knownAs ?? (await appBundleId(app));
   await updateChatPermissions(chatId, (held) => {
     if (
-      held.appGrants.some((grant) => isFor({ ...grant, name: grant.app }, app))
+      held.appGrants.some((grant) =>
+        isFor({ ...grant, name: grant.app }, knownAs ?? app),
+      )
     ) {
       return held;
     }

@@ -13,6 +13,7 @@ import {
 } from "../../test/helpers/computer-driver-stand-in";
 import { capabilityRunner } from "../../test/helpers/run-capability";
 import { endComputerSessions } from "../computer/driver";
+import { appToAskOffMac } from "../computer/targets";
 import { treeText } from "../computer/tree-text";
 import { appLevel, grantApp } from "../permissions/apps";
 import { setDenied } from "../permissions/denials";
@@ -31,6 +32,7 @@ const startMenu = vi.hoisted(() => ({
     { AppID: "Microsoft.Office.WINWORD.EXE.15", Name: "Microsoft Word" },
     { AppID: "Microsoft.Paint_8wekyb3d8bbwe!App", Name: "Paint" },
   ],
+  displayName: undefined as string | undefined,
   opened: [] as string[],
 }));
 
@@ -41,6 +43,7 @@ vi.mock("../computer/start-menu", () => ({
         .map((app) => app.Name)
         .filter((name) => name.toLowerCase().includes(given.toLowerCase())),
     ),
+  displayNameOfProcess: () => Promise.resolve(startMenu.displayName),
   openStartMenuApp: (app: { AppID: string }) => {
     startMenu.opened.push(app.AppID);
     startMenu.afterOpening();
@@ -812,12 +815,36 @@ describe("instrument computer", () => {
 
     beforeEach(() => {
       Object.defineProperty(process, "platform", { value: "win32" });
+      startMenu.displayName = undefined;
       startMenu.opened = [];
       startMenu.afterOpening = () => {};
     });
 
     afterEach(() => {
       Object.defineProperty(process, "platform", { value: realPlatform });
+    });
+
+    it("asks about a running app under its program, by the name a person knows it by", async () => {
+      standInDriver(desktop([calculator]));
+      const asked = { bundleId: "CalculatorApp", name: "CalculatorApp" };
+      startMenu.displayName = "Calculator";
+      for (const given of ["Calculator", "CalculatorApp"]) {
+        await expect(appToAskOffMac(given, scope.chatId)).resolves.toEqual({
+          ...asked,
+          show: "Calculator",
+        });
+      }
+      // Its own process couldn't be looked at, or it doesn't say.
+      startMenu.displayName = undefined;
+      await expect(appToAskOffMac("Calculator", scope.chatId)).resolves.toEqual(
+        { ...asked, show: "CalculatorApp" },
+      );
+      // Not running, it goes by the name it was given.
+      await expect(appToAskOffMac("Paint", scope.chatId)).resolves.toEqual({
+        bundleId: "Paint",
+        name: "Paint",
+        show: "Paint",
+      });
     });
 
     it("lists apps by what their windows say, and not the process framing them", async () => {

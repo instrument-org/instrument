@@ -17,6 +17,7 @@ const device = DeviceIdSchema.parse("dev_MAC00000");
 
 function showAsks(
   asks: {
+    bundleId?: string;
     /** Set for a card another computer raised, which this one shows. */
     elsewhere?: {
       answerable: boolean;
@@ -37,9 +38,17 @@ function showAsks(
     }).queryKey,
     asks.map(
       (
-        { elsewhere, kind = "folder", reason, status = "open", target },
+        {
+          bundleId,
+          elsewhere,
+          kind = "folder",
+          reason,
+          status = "open",
+          target,
+        },
         index,
       ) => ({
+        ...(bundleId && { bundleId }),
         answerable: elsewhere?.answerable ?? true,
         ...(elsewhere?.answered && { answered: elsewhere.answered }),
         askedAt: new Date(index),
@@ -123,6 +132,17 @@ describe("PermissionAsksFoot", () => {
     expect(
       await screen.findByText(
         `${target} can reach everything on your computer, so allowing it lets Instrument do the same.`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("says what a yes reaches by what it covers, under the name on the card", async () => {
+    showAsks([
+      { bundleId: "cmd", kind: "app", target: "Windows Command Processor" },
+    ]);
+    expect(
+      await screen.findByText(
+        "Windows Command Processor can reach everything on your computer, so allowing it lets Instrument do the same.",
       ),
     ).toBeTruthy();
   });

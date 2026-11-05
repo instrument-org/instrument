@@ -245,6 +245,7 @@ const setApp = base
             ...others,
             {
               addedAt: known?.addedAt ?? getCurrentDate(),
+              ...(known?.bundleId && { bundleId: known.bundleId }),
               level: input.level,
               name: known?.name ?? input.name,
             },

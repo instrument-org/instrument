@@ -460,6 +460,75 @@ describe("permissions.answer", () => {
       "using Contacts needs the person's yes first.",
     );
   });
+
+  it("keeps a yes under what the card's app is known by, and lists it by the name shown", async () => {
+    const program = { bundleId: "mspaint", name: "mspaint" };
+    const here = await chatWithTask();
+    const elsewhere = await chatWithTask();
+    await recordAsk(
+      { chatId: here.chatId, sessionId: here.own },
+      "app",
+      "Paint",
+      {
+        bundleId: "mspaint",
+      },
+    );
+    const [card] = await openAsks(here.chatId);
+    expect(card).toMatchObject({ bundleId: "mspaint", target: "Paint" });
+
+    await call(
+      permissions.answer,
+      { askId: card?.id ?? "", decision: "always", id: here.chatId },
+      { context: context() },
+    );
+
+    expect((await readPermissionSettings()).apps).toEqual([
+      expect.objectContaining({
+        bundleId: "mspaint",
+        level: "allow",
+        name: "Paint",
+      }),
+    ]);
+    expect(await appRefusal(here.chatId, program, undefined)).toBeUndefined();
+    expect(
+      await appRefusal(elsewhere.chatId, program, undefined),
+    ).toBeUndefined();
+
+    // Changed in Settings, the rule still reaches what the app is known by.
+    await call(
+      permissions.setApp,
+      { level: "never", name: "Paint" },
+      { context: context() },
+    );
+    expect(await appRefusal(elsewhere.chatId, program, undefined)).toContain(
+      "marked Not allowed",
+    );
+  });
+
+  it("holds a no to a card's app under what it's known by, until a yes", async () => {
+    const program = { bundleId: "mspaint", name: "mspaint" };
+    const { chatId, own } = await chatWithTask();
+    const raise = async (decision: "allowed" | "declined") => {
+      await recordAsk({ chatId, sessionId: own }, "app", "Paint", {
+        bundleId: "mspaint",
+      });
+      const [card] = await openAsks(chatId);
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision, id: chatId },
+        { context: context() },
+      );
+    };
+
+    await raise("declined");
+    expect(await appRefusal(chatId, program, undefined)).toContain(
+      "said not now to mspaint",
+    );
+
+    await raise("allowed");
+    expect(await appRefusal(chatId, program, undefined)).toBeUndefined();
+  });
+
   it("wakes the askers of a declined card when the refusal cannot be kept", async () => {
     const { chatId, own, task } = await chatWithTask();
     await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");

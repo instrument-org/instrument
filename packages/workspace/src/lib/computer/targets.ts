@@ -17,6 +17,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { runDriver } from "./driver";
 import {
   closeStartMenuNames,
+  displayNameOfProcess,
   openStartMenuApp,
   startMenuApp,
 } from "./start-menu";
@@ -315,25 +316,35 @@ function startsWhatsAtAPath(given: string): boolean {
 }
 
 /**
- * What a card off macOS, where nothing looks a name up, asks about: the name it
- * was given, or on Windows the program of the running window by that name, which
- * is what the gate will ask about. A path is no app.
+ * What a card off macOS, where nothing looks a name up, asks about, as the gate
+ * will ask about it: the name it was given, or on Windows the program of the
+ * running window by that name, with the name a person knows it by to `show`. A
+ * path is no app.
  */
 export async function appToAskOffMac(
   given: string,
   chatId: ChatId,
-): Promise<string | undefined> {
+): Promise<(MacApp & { show: string }) | undefined> {
   if (startsWhatsAtAPath(given)) {
     return undefined;
   }
+  const named = { bundleId: given, name: given, show: given };
   if (
     process.platform !== "win32" ||
     getWorkspaceConfig().computerUse?.isReady() !== true
   ) {
-    return given;
+    return named;
   }
   const running = await runningApp(given, { chatId }).catch(() => undefined);
-  return running?.bundle_id ?? given;
+  if (running?.bundle_id === undefined) {
+    return named;
+  }
+  const program = running.bundle_id;
+  return {
+    bundleId: program,
+    name: program,
+    show: (await displayNameOfProcess(running.pid)) ?? program,
+  };
 }
 
 /**

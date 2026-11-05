@@ -137,9 +137,16 @@ const APPS_THAT_REACH_EVERYTHING = new Set([
   "xterm",
 ]);
 
-/** What a yes to one of those means, said plainly; undefined for any other app. */
-function appReachLine(app: string): string | undefined {
-  return APPS_THAT_REACH_EVERYTHING.has(app.trim().toLowerCase())
+/**
+ * What a yes to one of those means, said plainly, by the name its card shows or
+ * by what its yes covers; undefined for any other app.
+ */
+function appReachLine(app: string, bundleId?: string): string | undefined {
+  return [app, bundleId].some(
+    (known) =>
+      known !== undefined &&
+      APPS_THAT_REACH_EVERYTHING.has(known.trim().toLowerCase()),
+  )
     ? `${app} can reach everything on your computer, so allowing it lets Instrument do the same.`
     : undefined;
 }
@@ -231,7 +238,7 @@ function PermissionAskCard({
   const holds = isFolder
     ? signInLine(ask.target)
     : ask.kind === "app"
-      ? appReachLine(ask.target)
+      ? appReachLine(ask.target, ask.bundleId)
       : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({

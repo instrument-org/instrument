@@ -102,6 +102,9 @@ const askPermissionCapability = defineCapability({
           { chatId, partId, reason: input.reason, sessionId },
           input.kind,
           decided.target,
+          decided.bundleId === undefined
+            ? undefined
+            : { bundleId: decided.bundleId },
         );
         return ok(askedFor(input.kind, decided.target));
       },
@@ -171,7 +174,12 @@ type Decided =
       state: "allowed";
       target: string;
     }
-  | { state: "ask"; target: string };
+  | {
+      /** What a yes covers, where the card's name isn't what the gate asks about. */
+      bundleId?: string;
+      state: "ask";
+      target: string;
+    };
 
 /**
  * How long the look inside a folder is waited for with no macOS prompt on
@@ -281,8 +289,9 @@ async function appToAsk(
   // Only macOS can look an app up by name; elsewhere a card goes by what the
   // gate will ask about.
   const onMac = process.platform === "darwin";
-  const name = onMac ? given : await appToAskOffMac(given, chatId);
-  const bundleId = onMac ? await appBundleId(given) : name;
+  const offMac = onMac ? undefined : await appToAskOffMac(given, chatId);
+  const name = onMac ? given : offMac?.name;
+  const bundleId = onMac ? await appBundleId(given) : offMac?.bundleId;
   if (name === undefined || bundleId === undefined) {
     return {
       message: `No app called ${JSON.stringify(given)} is on this computer.`,
@@ -314,5 +323,10 @@ async function appToAsk(
       state: "refused",
     };
   }
-  return { state: "ask", target: name };
+  const shown = offMac?.show ?? name;
+  return {
+    ...(shown !== name && { bundleId }),
+    state: "ask",
+    target: shown,
+  };
 }

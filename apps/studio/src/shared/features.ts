@@ -16,7 +16,6 @@ export const FEATURE_METADATA: Record<
   { description: string; title: string }
 > = {
   computer_use: {
-    code: "u",
     description:
       "Let the agent work in your other apps, each with your yes. Set it up under Computer Use in Settings.",
     title: "Computer Use",

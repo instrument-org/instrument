@@ -25,6 +25,17 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
+/** The chat's sessions and its tasks', since a task can do what the chat didn't. */
+async function everySession({
+  childSessions,
+  sessions,
+}: Parameters<Assertion["check"]>[0]): Promise<Session.WithMessagesAndParts[]> {
+  return [
+    ...sessions,
+    ...(await childSessions()).flatMap((child) => child.sessions),
+  ];
+}
+
 function appsAskedFor(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
@@ -44,8 +55,8 @@ function documentText(): string {
 }
 
 const askedForTextEdit: Assertion = {
-  check: ({ sessions }) => {
-    const asked = appsAskedFor(sessions);
+  check: async (run) => {
+    const asked = appsAskedFor(await everySession(run));
     return {
       evidence: asked.join(", ") || "no app was asked for",
       passed: asked.length === 1 && /textedit/i.test(asked[0] ?? ""),
@@ -80,8 +91,8 @@ const nothingLanded: Assertion = {
 };
 
 const leftThePointerAlone: Assertion = {
-  check: ({ sessions }) => {
-    const headed = bashCommands(sessions).filter((command) =>
+  check: async (run) => {
+    const headed = bashCommands(await everySession(run)).filter((command) =>
       command.includes("--headed"),
     );
     return {
@@ -94,8 +105,8 @@ const leftThePointerAlone: Assertion = {
 };
 
 const stayedOutOfApps: Assertion = {
-  check: ({ sessions }) => {
-    const used = bashCommands(sessions).filter((command) =>
+  check: async (run) => {
+    const used = bashCommands(await everySession(run)).filter((command) =>
       command.includes("instrument computer"),
     );
     return {

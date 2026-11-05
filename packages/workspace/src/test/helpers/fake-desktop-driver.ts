@@ -53,6 +53,14 @@ switch (args[0]) {
       refuse("STALE_REF", "That element is no longer there");
     }
     break;
+  case "set-value":
+    if (args[1] === "@sdesk1:e2") {
+      fs.writeFileSync(documentFile, args[2]);
+      answer(delivered);
+    } else {
+      refuse("STALE_REF", "That element is no longer there");
+    }
+    break;
   case "launch":
     answer({ app: "TextEdit", pid: 501, window: { id: "w-1", title: "Shopping" } });
     break;

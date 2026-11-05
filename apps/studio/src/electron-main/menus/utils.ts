@@ -1,15 +1,28 @@
 import { openExternal } from "@/electron-main/lib/open-external";
-import { publisher } from "@/electron-main/rpc/publisher";
+import { publisher, type WindowCommand } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
-import { app, type MenuItemConstructorOptions } from "electron";
+import { commandWindow } from "@/electron-main/windows/window-command";
+import { app, BrowserWindow, type MenuItemConstructorOptions } from "electron";
 
 import { shortcutMenuItem } from "./shortcuts";
 
 const IS_MAC = process.platform === "darwin";
+
+/** A menu row that asks the window it was chosen in, where one is. */
+function commandsFocusedWindow(command: WindowCommand) {
+  return (
+    _item: Electron.MenuItem,
+    window: Electron.BaseWindow | undefined,
+  ) => {
+    if (window instanceof BrowserWindow) {
+      commandWindow(window, command);
+    }
+  };
+}
 
 let updateReady = false;
 
@@ -95,15 +108,11 @@ export function createDevToolsMenu({
         ...(windowCommands
           ? [
               {
-                click: () => {
-                  publisher.publish("window.command", "openDebugPages");
-                },
+                click: commandsFocusedWindow("openDebugPages"),
                 label: "Debug Pages",
               },
               {
-                click: () => {
-                  publisher.publish("window.command", "toggleDeveloperStrip");
-                },
+                click: commandsFocusedWindow("toggleDeveloperStrip"),
                 label: "Toggle Developer Strip",
               },
             ]

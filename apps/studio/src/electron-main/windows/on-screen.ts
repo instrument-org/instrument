@@ -17,7 +17,7 @@ export function isDrivenInstance() {
  * Whether this run's windows wait off screen until someone asks for one.
  * `studio-drive boot --visible` puts them up as a development run would.
  */
-function keepsOffScreen() {
+export function keepsOffScreen() {
   return isDrivenInstance() && process.env.STUDIO_DRIVE_VISIBLE !== "1";
 }
 

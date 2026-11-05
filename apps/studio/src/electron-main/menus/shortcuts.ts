@@ -50,7 +50,9 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, ShortcutAction> = {
       focusedWindow instanceof BrowserWindow
         ? focusedWindow
         : BrowserWindow.getAllWindows().find(
-            (each) => appWindowIdOf(each.webContents.id) !== undefined,
+            (each) =>
+              appWindowIdOf(each.webContents.id) !== undefined &&
+              each.isVisible(),
           );
     if (window) {
       commandWindow(window, "openSettings");

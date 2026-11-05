@@ -21,7 +21,9 @@ import {
   forgetWindowKeptState,
   getWindowKeptState,
   setWindowKeptState,
+  tellWindowKeptState,
 } from "@/electron-main/stores/workspace/kept-state";
+import { WINDOW_KEPT_KEYS } from "@/shared/kept-state";
 import {
   getAppZoom,
   getWindowState,
@@ -31,12 +33,14 @@ import {
   rememberedWindowIds,
   rememberWindowClosed,
   rememberWindowInFront,
+  setWindowState,
 } from "@/electron-main/stores/workspace/window-state";
 import {
   expectRestoredWindows,
   isComingBackAsLeft,
   isDrivenInstance,
   isHeldOffScreen,
+  keepsOffScreen,
   putOnScreen,
 } from "@/electron-main/windows/on-screen";
 import {
@@ -97,6 +101,26 @@ let hasOpened = false;
 /** The windows whose every tab went to another window, which leave nothing to come back to. */
 const emptied = new Set<BrowserWindow>();
 
+/**
+ * A window kept booted and out of sight, on none of the lists above, for a tab's
+ * drag to put the tabs it leaves behind in, or the tab itself. It is an ordinary
+ * app window, which stands on a tab of its own until it is given others, as a
+ * window coming back from a launch does.
+ */
+export interface SpareWindow {
+  id: string;
+  /** Its page can hear what it is given. */
+  isUp: boolean;
+  window: BrowserWindow;
+}
+
+/** Every spare window not yet adopted: the one waiting, and any a drag has taken. */
+const spares = new Set<SpareWindow>();
+let waitingSpare: SpareWindow | null = null;
+let spareTimer: NodeJS.Timeout | undefined;
+/** How long after a window opens, or the last spare goes, the next one starts. */
+const SPARE_DELAY_MS = 4000;
+
 /** The windows a launch brings back once setup is out of the way. */
 let waitingForSetup: string[] = [];
 
@@ -123,6 +147,10 @@ const asks = createAppWindowAsks({
 
 /** A window's page stopped hearing the command stream; asks wait once none is. */
 function stopListening(webContentsId: number) {
+  const spare = spareOf(webContentsId);
+  if (spare) {
+    spare.isUp = false;
+  }
   listening.delete(webContentsId);
   if (listening.size === 0) {
     asks.stopTaking();
@@ -357,6 +385,111 @@ export function openNewAppWindow(): BrowserWindow | null {
   return createAppWindow(newWindowId(), { bounds: cascadedBounds() });
 }
 
+function openSpareWindow(): SpareWindow {
+  const id = newWindowId();
+  const opened = {
+    id,
+    isUp: false,
+    window: createAppWindow(id, { isSpare: true }),
+  };
+  spares.add(opened);
+  return opened;
+}
+
+function spareOf(webContentsId: number) {
+  return [...spares].find(
+    ({ window }) => window.webContents.id === webContentsId,
+  );
+}
+
+/** Starts a spare window before long, if there is not one. */
+function keepSpareReady() {
+  // An agent's instance keeps to the windows it is driving; a drag opens one.
+  if (isDrivenInstance()) {
+    return;
+  }
+  clearTimeout(spareTimer);
+  spareTimer = setTimeout(() => {
+    if (!waitingSpare && !isSetupUp() && getAppWindows().length > 0) {
+      waitingSpare = openSpareWindow();
+    }
+  }, SPARE_DELAY_MS);
+}
+
+/**
+ * The spare window, for a drag to use. Where none has finished starting one opens
+ * now, which reads what the drag writes for it as it loads.
+ */
+export function takeSpareWindow(): SpareWindow | null {
+  if (isSetupUp()) {
+    return null;
+  }
+  if (!waitingSpare?.isUp) {
+    return openSpareWindow();
+  }
+  const taken = waitingSpare;
+  waitingSpare = null;
+  taken.window.setBackgroundColor(getBackgroundColor());
+  setTrafficLightForZoom(taken.window, getAppZoom());
+  return taken;
+}
+
+/**
+ * A spare window a drag has no more use for, out of sight and on a tab of its own
+ * again, unless another is waiting. Hidden on Linux it loses its place off the
+ * taskbar, which only a window not yet shown can be given, so one shown there goes.
+ */
+export function returnSpareWindow(taken: SpareWindow) {
+  if (taken.window.isDestroyed()) {
+    return;
+  }
+  if (
+    waitingSpare ||
+    (process.platform === "linux" && taken.window.isVisible())
+  ) {
+    taken.window.destroy();
+    keepSpareReady();
+    return;
+  }
+  taken.window.setIgnoreMouseEvents(false);
+  taken.window.hide();
+  for (const key of WINDOW_KEPT_KEYS) {
+    tellWindowKeptState(taken.id, taken.window.webContents, key, undefined);
+  }
+  waitingSpare = taken;
+}
+
+/** A spare window that now holds tabs of the person's: a window like any other from here. */
+export function adoptSpareWindow(adopted: SpareWindow) {
+  const { id, isUp, window } = adopted;
+  window.setIgnoreMouseEvents(false);
+  window.setSkipTaskbar(false);
+  spares.delete(adopted);
+  emptied.delete(window);
+  if (isUp) {
+    listening.add(window.webContents.id);
+  }
+  openWindows.set(id, window);
+  inFront = inFront.toSpliced(1, 0, window);
+  // Under the window in front, as it stands: remembered in the order they are in.
+  for (const each of inFront.toReversed()) {
+    const eachId = appWindowIdOfWindow(each);
+    if (eachId !== undefined) {
+      rememberWindowInFront(eachId);
+    }
+  }
+  setWindowState(id, {
+    bounds: window.getBounds(),
+    isMaximized: window.isMaximized(),
+  });
+  publisher.publish("windows.changed", null);
+  // An instance kept off screen holds it there, as it does any window of its own.
+  if (keepsOffScreen()) {
+    putOnScreen(window, { maximized: false });
+  }
+  keepSpareReady();
+}
+
 /** Closes a window all of whose tabs went elsewhere. */
 export function closeEmptiedWindow(window: BrowserWindow) {
   emptied.add(window);
@@ -402,14 +535,22 @@ export function mergeAllWindows() {
 /**
  * Hands a tab, history and all, to another window: one opening around it at a
  * point, or one already open, which puts it at a place along its strip.
- * False when that window has gone since.
+ * Says whether it moved, where to, and the window it opened if it opened one.
+ * It did not move when that window has gone since.
  */
 export function moveTabToWindow(
   tab: Tab,
   to:
-    | { clientX?: number | undefined; id: string; kind: "window" }
-    | { kind: "new"; point?: undefined | { x: number; y: number } },
-) {
+    | { id: string; index?: number | undefined; kind: "window" }
+    | {
+        bounds?:
+          | undefined
+          | { height: number; width: number; x: number; y: number };
+        kind: "new";
+      },
+  /** Leaves the window where it is, for a caller with another window standing over it. */
+  { isQuiet = false }: { isQuiet?: boolean } = {},
+): { destination?: BrowserWindow; moved: boolean; opened?: BrowserWindow } {
   if (to.kind === "window") {
     // A page not listening yet could not take it, and the tab would be lost;
     // this way it stays where it is.
@@ -419,20 +560,20 @@ export function moveTabToWindow(
       target.isDestroyed() ||
       !listening.has(target.webContents.id)
     ) {
-      return false;
+      return { moved: false };
     }
     commandWindow(target, {
-      ...(to.clientX === undefined ? {} : { clientX: to.clientX }),
+      ...(to.index === undefined ? {} : { index: to.index }),
       tab,
       type: "receiveTab",
     });
-    if (!isHeldOffScreen(target)) {
+    if (!isQuiet && !isHeldOffScreen(target)) {
       if (target.isMinimized()) {
         target.restore();
       }
       target.focus();
     }
-    return true;
+    return { destination: target, moved: true };
   }
   const id = newWindowId();
   setWindowKeptState(id, APP_TABS_KEY, {
@@ -440,17 +581,10 @@ export function moveTabToWindow(
     selectedId: tab.id,
     tabs: [tab],
   });
-  const beside = cascadedBounds();
-  createAppWindow(id, {
-    bounds: to.point
-      ? keepBoundsOnScreen({
-          ...beside,
-          x: Math.round(to.point.x - beside.width / 2),
-          y: Math.round(to.point.y - 20),
-        })
-      : beside,
+  const opened = createAppWindow(id, {
+    bounds: to.bounds ? keepBoundsOnScreen(to.bounds) : cascadedBounds(),
   });
-  return true;
+  return { destination: opened, moved: true, opened };
 }
 
 function newWindowId() {
@@ -479,7 +613,10 @@ function cascadedBounds() {
  */
 function createAppWindow(
   id: string,
-  { bounds }: { bounds?: ReturnType<typeof cascadedBounds> } = {},
+  {
+    bounds,
+    isSpare = false,
+  }: { bounds?: ReturnType<typeof cascadedBounds>; isSpare?: boolean } = {},
 ): BrowserWindow {
   hasOpened = true;
   watchSetup();
@@ -514,6 +651,9 @@ function createAppWindow(
     minWidth: 900,
     resizable: !isSetupSized,
     show: false,
+    // Not on the taskbar until it is adopted. GNOME also takes a window shown
+    // without focus to want attention, and says it "is ready", unless it is off it.
+    skipTaskbar: isSpare,
     // A system set to prefer tabs would otherwise gather these into native
     // tabs, over the strip each window draws for itself.
     tabbingIdentifier: id,
@@ -539,13 +679,19 @@ function createAppWindow(
   const webContentsId = window.webContents.id;
   // Named before it loads: its preload asks for what it kept as it does.
   nameAppWindow(webContentsId, id);
-  openWindows.set(id, window);
-  inFront = [window, ...inFront];
-  rememberWindowInFront(id);
-  publisher.publish("windows.changed", null);
+  if (isSpare) {
+    // Forgotten when it closes, unless it is adopted first.
+    emptied.add(window);
+  } else {
+    openWindows.set(id, window);
+    inFront = [window, ...inFront];
+    rememberWindowInFront(id);
+    publisher.publish("windows.changed", null);
+    keepSpareReady();
+  }
 
   const tracked = trackWindowBounds(window, id, {
-    isHeld: () => setupSized === window,
+    isHeld: () => setupSized === window || spareOf(webContentsId) !== undefined,
   });
   // Setup's window comes back where it was after a restart setup makes,
   // which is a quit like any other.
@@ -587,13 +733,15 @@ function createAppWindow(
   // one keeps its macOS frame.
   setTrafficLightForZoom(window, getAppZoom());
 
-  showWhenReady(window, () => {
-    if (!window.isDestroyed()) {
-      putOnScreen(window, {
-        maximized: !isSetupSized && !bounds && remembered.isMaximized,
-      });
-    }
-  });
+  if (!isSpare) {
+    showWhenReady(window, () => {
+      if (!window.isDestroyed()) {
+        putOnScreen(window, {
+          maximized: !isSetupSized && !bounds && remembered.isMaximized,
+        });
+      }
+    });
+  }
 
   // Where closing the last window the user can see quits the app, the
   // running-work warning has to happen here, while the window still exists.
@@ -627,9 +775,20 @@ function createAppWindow(
   );
   window.webContents.on("render-process-gone", () => {
     stopListening(webContentsId);
+    if (spareOf(webContentsId) && !window.isDestroyed()) {
+      window.destroy();
+    }
   });
 
   window.on("closed", () => {
+    const closedSpare = spareOf(webContentsId);
+    if (closedSpare) {
+      spares.delete(closedSpare);
+    }
+    if (waitingSpare?.window === window) {
+      waitingSpare = null;
+      keepSpareReady();
+    }
     openWindows.delete(id);
     inFront = inFront.filter((each) => each !== window);
     forgetAppWindowName(webContentsId);
@@ -649,6 +808,13 @@ function createAppWindow(
     }
     publisher.publish("windows.changed", null);
     publisher.publish("window.focus-changed", { webContentsId: null });
+    // With every window gone nothing can be dragged, and a window the next one
+    // opens starts another.
+    if (getAppWindows().length === 0) {
+      for (const each of spares) {
+        each.window.destroy();
+      }
+    }
     // The window is already out of the list by now, so nothing to exclude.
     if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
       app.quit();
@@ -656,6 +822,9 @@ function createAppWindow(
   });
 
   window.on("focus", () => {
+    if (spareOf(webContentsId)) {
+      return;
+    }
     inFront = [window, ...inFront.filter((each) => each !== window)];
     rememberWindowInFront(id);
     publisher.publish("window.focus-changed", { webContentsId });
@@ -702,7 +871,7 @@ function createAppWindow(
 
   // The guests of the pages this window shows are mounted by its pool and
   // driven by the manager, so a task can be handed a tab by target id.
-  getBrowserViewManager().bindHost(window.webContents);
+  getBrowserViewManager().bindHost(window.webContents, { isFront: !isSpare });
 
   loadWindowURL(window.webContents, studioURL("/chats/"));
 
@@ -739,6 +908,13 @@ export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
 export function takePendingAppWindowAsks(
   webContentsId: number,
 ): AppWindowAsk[] {
+  // A spare window's page is up and quiet, which is all this tells: nothing
+  // asked of the windows is for it.
+  const spare = spareOf(webContentsId);
+  if (spare) {
+    spare.isUp = true;
+    return [];
+  }
   listening.add(webContentsId);
   return asks.take();
 }
@@ -766,6 +942,7 @@ function watchSetup() {
       createAppWindow(id);
     }
     asks.release();
+    keepSpareReady();
   });
 }
 
@@ -847,6 +1024,9 @@ export function askWindow(window: BrowserWindow, ask: AppWindowAsk) {
 function hasVisibleWindowOtherThan(exclude: BrowserWindow | null) {
   return BrowserWindow.getAllWindows().some(
     (window) =>
-      window !== exclude && !window.isDestroyed() && window.isVisible(),
+      window !== exclude &&
+      !window.isDestroyed() &&
+      window.isVisible() &&
+      !spareOf(window.webContents.id),
   );
 }

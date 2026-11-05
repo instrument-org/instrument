@@ -186,7 +186,7 @@ describe("getBrowserViewManager", () => {
       expect(idsIn(602)).toContain(targetId);
     });
 
-    it("lets a released guest go to the next window that shows it", () => {
+    it("hands a guest to another window even while its own shows it", async () => {
       hostWith(501);
       hostWith(502);
       const manager = getBrowserViewManager();
@@ -195,15 +195,16 @@ describe("getBrowserViewManager", () => {
         .createTarget(targetId, partition, { webContentsId: 501 })
         .catch(() => undefined);
       manager.setGuestShown(targetId, true);
-      manager.releaseGuest(targetId);
 
-      void manager.browser
-        .createTarget(targetId, partition, {
-          take: "parked",
-          webContentsId: 502,
-        })
-        .catch(() => undefined);
+      void manager.handOffGuest(targetId, 502);
+      await vi.advanceTimersByTimeAsync(0);
+
       expect(idsIn(502)).toContain(targetId);
+      expect(idsIn(501)).not.toContain(targetId);
+      // The window it left is told nothing of it to show, so nothing can ask to
+      // have it shown there instead.
+      expect(manager.isHostOf(501, targetId)).toBe(false);
+      expect(manager.isHostOf(502, targetId)).toBe(true);
     });
   });
 });

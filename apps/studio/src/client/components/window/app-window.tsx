@@ -50,6 +50,7 @@ import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
+import { restoreTabView } from "@/client/lib/tab-view-state";
 import { setTabPathname } from "@/client/lib/tabs-model";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
@@ -114,6 +115,7 @@ import { ProjectDialog } from "./project-dialog";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
+import { isTabHeldHere, tabCarryViewAtom } from "./tab-carry-view";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
@@ -141,6 +143,7 @@ import {
   forgetMovedAway,
   hasMovedAway,
   moveTabOut,
+  tabStanding,
   receiveTab,
   sendEveryTab,
 } from "./move-tab";
@@ -281,6 +284,7 @@ function AppTabView({
   // somewhere on screen by then (the tab strip's own arrows, a field a
   // command opened).
   const lastFocused = useRef<HTMLElement | null>(null);
+  const arrivesWithFocus = Boolean(tab.arrivingView?.focus);
   useEffect(() => {
     if (!isActive) {
       return;
@@ -294,7 +298,7 @@ function AppTabView({
         opacityProperty: true,
         visibilityProperty: true,
       });
-    if (isOnScreen) {
+    if (isOnScreen || arrivesWithFocus) {
       return;
     }
     if (kept?.isConnected) {
@@ -302,7 +306,7 @@ function AppTabView({
     } else {
       focusScreenHome({ leaving: false });
     }
-  }, [isActive]);
+  }, [arrivesWithFocus, isActive]);
   useEffect(() => {
     const unsubscribe = router.subscribe("onResolved", () => {
       setModel((model) =>
@@ -317,8 +321,32 @@ function AppTabView({
       unsubscribe();
     };
   }, [router, setModel, tab.id]);
+  // Arriving from another window: its keyboard and scrolling go back as what
+  // they stood on comes in, and only then is the tab drawn as it was.
+  const arrivingView = tab.arrivingView;
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!arrivingView || !root) {
+      return;
+    }
+    return restoreTabView(root, arrivingView, () => {
+      setModel((model) => ({
+        ...model,
+        tabs: model.tabs.map((each) => {
+          if (each.id !== tab.id) {
+            return each;
+          }
+          const { arrivingView: _done, ...rest } = each;
+          return rest;
+        }),
+      }));
+    });
+  }, [arrivingView, setModel, tab.id]);
   return (
     <div
+      ref={rootRef}
+      data-app-tab-view={tab.id}
       className={cn(
         "absolute inset-0 flex",
         // Transparent as well as invisible, so a layer the compositor
@@ -361,6 +389,15 @@ function focusField() {
  * into it. What keeps it past its window, and what a draft has to have to be
  * one to come back to.
  */
+/**
+ * The floats, which stay in the window left behind while a tab is held out: out
+ * of sight here, and mounted as they are for the drag that comes back.
+ */
+function FloatsOfThisWindow({ children }: { children: React.ReactNode }) {
+  const isHeld = isTabHeldHere(useAtomValue(tabCarryViewAtom));
+  return <div className={isHeld ? "hidden" : "contents"}>{children}</div>;
+}
+
 function WindowShell({
   routers,
   tabs,
@@ -1026,14 +1063,13 @@ function WindowShell({
                     onCloseOthers={appTabs.closeOthers}
                     onCloseToRight={appTabs.closeToRight}
                     onDuplicate={duplicateAppTab}
-                    onMove={(id, to) => {
-                      void moveTabOut(id, to, windowTabs.allTabs);
-                    }}
+                    onMove={(id, to) => moveTabOut(id, to, windowTabs.allTabs)}
                     onNew={appTabs.openNewTab}
                     onReload={reloadablePageOf}
                     onReorder={appTabs.reorder}
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}
+                    standingOf={(id) => tabStanding(id, windowTabs.allTabs)}
                     tabs={tabs}
                   />
                 }
@@ -1041,35 +1077,37 @@ function WindowShell({
               />
             }
             overlay={
-              <ComposeLayer
-                browser={browser}
-                chats={chats.data ?? []}
-                compose={compose}
-                drafts={drafts}
-                modelURI={defaultModelURI}
-                onChangeDraft={(id, update) => {
-                  updateDraft({ id, update });
-                }}
-                onCloseChat={(chatId) => {
-                  compose.remove(chatId);
-                }}
-                onCloseDraft={closeDraft}
-                onDiscardDraft={discardDraft}
-                onExpandChat={expandChat}
-                onCloseTab={requestClose}
-                onModelChange={setDefaultModelURI}
-                onNewChatProject={(chatId, name) => {
-                  setNewProject({ chatId, ...(name ? { name } : {}) });
-                }}
-                onNewProject={(draftId, name) => {
-                  setNewProject({ draftId, ...(name ? { name } : {}) });
-                }}
-                onSetChatProject={setChatProject}
-                onStart={startChat}
-                sendContext={(options) => sendContextRef.current(options)}
-                sentWords={sentWords}
-                projects={projects}
-              />
+              <FloatsOfThisWindow>
+                <ComposeLayer
+                  browser={browser}
+                  chats={chats.data ?? []}
+                  compose={compose}
+                  drafts={drafts}
+                  modelURI={defaultModelURI}
+                  onChangeDraft={(id, update) => {
+                    updateDraft({ id, update });
+                  }}
+                  onCloseChat={(chatId) => {
+                    compose.remove(chatId);
+                  }}
+                  onCloseDraft={closeDraft}
+                  onDiscardDraft={discardDraft}
+                  onExpandChat={expandChat}
+                  onCloseTab={requestClose}
+                  onModelChange={setDefaultModelURI}
+                  onNewChatProject={(chatId, name) => {
+                    setNewProject({ chatId, ...(name ? { name } : {}) });
+                  }}
+                  onNewProject={(draftId, name) => {
+                    setNewProject({ draftId, ...(name ? { name } : {}) });
+                  }}
+                  onSetChatProject={setChatProject}
+                  onStart={startChat}
+                  sendContext={(options) => sendContextRef.current(options)}
+                  sentWords={sentWords}
+                  projects={projects}
+                />
+              </FloatsOfThisWindow>
             }
             rail={
               <AppRail

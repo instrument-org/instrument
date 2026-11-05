@@ -13,6 +13,7 @@ import { startChatRetitle } from "./retitle";
 import { startSignInWake } from "./sign-in-wake";
 import { startChatWake } from "./wake";
 import { startWorkDirReap } from "./work-dir-reap";
+import { startWorkSummaries } from "./work-summary";
 
 /**
  * Everything a chat needs from the process that owns the workspace
@@ -23,7 +24,8 @@ import { startWorkDirReap } from "./work-dir-reap";
  * computer's permission cards, the one
  * that names a chat again once its first exchange settles, the one that
  * marks a chat unread each time it settles, the one that adds the card
- * asking how a chat went, the one that writes the
+ * asking how a chat went, the one that writes the line a finished turn's work
+ * folds into, the one that writes the
  * chat's transcript into its folder as each turn ends, the one that
  * records the folder of each chat this computer has no name for, the one that
  * removes a work folder a chat at rest left empty, and the one that writes
@@ -43,6 +45,7 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startChatRetitle();
   startNextMessageSuggestions();
   startRatingCards();
+  startWorkSummaries();
   startChatUnreadOnSettle();
   startChatFolderWrites();
   startChatFolderNames();

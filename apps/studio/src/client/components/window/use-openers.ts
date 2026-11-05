@@ -37,7 +37,7 @@ import {
   tasksPlacementOf,
 } from "./placement";
 import { visitInTab } from "./tab-history";
-import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
+import { taskHref, tasksOfHref } from "./tab-location";
 import { isFreshTab } from "./tab-model";
 import {
   chatHref,
@@ -243,19 +243,16 @@ export function useOpeners({
       openScreen(route, options);
       return;
     }
-    // A chat's tasks, or one task, are a tab in the chat's group, a task in
-    // the chat it was filed from, with the chat on screen and its pane open.
-    // A tasks tab already up in that chat walks there in place, the way its
-    // crumbs do; anything else gets the tab at that address, or a new one.
+    // A task is a tab in the group of the chat it was filed from, with the
+    // chat on screen and its pane open. A task's tab already up in that chat
+    // walks there in place; anything else gets the tab at that address, or a
+    // new one.
     const tasks = tasksOfHref(href);
     const owner = tasks
       ? chatOfGroup(tasks.chat ?? into ?? windowTabs.groupOnScreen)
       : undefined;
     if (tasks && owner) {
-      const at =
-        tasks.task === undefined
-          ? tasksHref(owner)
-          : taskHref(tasks.task, owner);
+      const at = taskHref(tasks.task, owner);
       const up = windowTabs.selectedTabIn(owner);
       const placement = tasksPlacementOf(owner, options, {
         groupOnScreen: windowTabs.groupOnScreen,

@@ -316,28 +316,26 @@ describe("sendContext", () => {
     `);
   });
 
-  it("describes a chat's tasks tab as its screen reports it", async () => {
-    const tasksTab: WindowTab = {
+  it("describes a chat's task tab as its screen reports it", async () => {
+    const taskTab: WindowTab = {
       group: CHAT,
-      href: `/tasks?chat=${CHAT}`,
-      id: "tasks",
+      href: `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
+      id: "task",
       kind: "screen",
     };
     const { sendContext } = contextReaders(
       windowOf({
-        href: tasksTab.href,
+        href: taskTab.href,
         screenView: {
-          screen: "tasks",
-          tasks: [
-            {
-              id: ChatIdSchema.parse("scan"),
-              status: "working",
-              step: "Reading Downloads",
-              title: "Scan the receipts",
-            },
-          ],
+          screen: "task",
+          task: {
+            id: ChatIdSchema.parse("scan"),
+            status: "working",
+            step: "Reading Downloads",
+            title: "Scan the receipts",
+          },
         },
-        windowTabs: tabsOf([tasksTab, SITE], CHAT),
+        windowTabs: tabsOf([taskTab, SITE], CHAT),
       }),
     );
     await expect(
@@ -349,12 +347,12 @@ describe("sendContext", () => {
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
-        "screen": "tasks",
+        "screen": "task",
         "tabs": [
           {
-            "at": "/tasks?chat=2026-10-01-lisbon",
-            "id": "tasks",
-            "title": "Tasks",
+            "at": "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-lisbon",
+            "id": "task",
+            "title": "Task",
           },
           {
             "at": "https://example.com/",
@@ -362,15 +360,13 @@ describe("sendContext", () => {
             "title": "Example",
           },
         ],
-        "tasks": [
-          {
-            "id": "scan",
-            "status": "working",
-            "step": "Reading Downloads",
-            "title": "Scan the receipts",
-          },
-        ],
-        "url": "/tasks?chat=2026-10-01-lisbon",
+        "task": {
+          "id": "scan",
+          "status": "working",
+          "step": "Reading Downloads",
+          "title": "Scan the receipts",
+        },
+        "url": "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-lisbon",
       }
     `);
   });

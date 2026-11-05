@@ -82,6 +82,7 @@ import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
 import { AppTabStrip } from "./app-tab-strip";
+import { InboxToggle } from "./inbox-toggle";
 import {
   appTabsAtom,
   groupOfHref,
@@ -946,7 +947,12 @@ function WindowShell({
           <WindowFrame
             bar={
               <WindowBar
-                leading={<NavControls steps={windowSteps} />}
+                leading={
+                  <>
+                    <InboxToggle isChatUp={isChat} />
+                    <NavControls steps={windowSteps} />
+                  </>
+                }
                 tabs={
                   <AppTabStrip
                     chatMarks={chatMarks}
@@ -983,7 +989,6 @@ function WindowShell({
                 onCloseDraft={closeDraft}
                 onDiscardDraft={discardDraft}
                 onExpandChat={expandChat}
-                onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
                 onNewChatProject={(chatId, name) => {
                   setNewProject({ chatId, ...(name ? { name } : {}) });

@@ -6,10 +6,7 @@ import { useChatSession } from "../../hooks/use-chat-session";
 import { formatElapsed } from "../../lib/format-elapsed";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
-import { Favicon } from "../favicon";
 import { StopProcessButton } from "../task/stop-process-button";
-import { createdTaskSession } from "../window/created-task";
-import { CreatedTaskCard } from "../window/created-task-card";
 import { BashCommandSection } from "./bash-command-section";
 import { isFailedBashExitCode } from "./bash-exit-status";
 import { useToolCallSession } from "./tool-call-session";
@@ -18,37 +15,12 @@ import {
   ToolCardEmpty,
   ToolCardHeader,
   ToolCardSection,
-  ToolChip,
 } from "./tool-card";
 
-export interface BrowserInfo {
-  /** Sorted by visit count, descending. */
-  domains: string[];
-}
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 
 /** Matches the task header's list, the other place this duration appears. */
 const ELAPSED_TICK_MS = 1000;
-
-export function BrowserChip({ info }: { info: BrowserInfo }) {
-  const topDomain = info.domains[0] ?? "";
-  const extra = info.domains.length - 1;
-
-  return (
-    <ToolChip className="max-w-[12rem]">
-      <Favicon
-        className="size-3.5 border border-muted"
-        url={`https://${topDomain}`}
-      />
-      <span className="truncate text-xs font-medium text-foreground/50">
-        {topDomain}
-        {extra > 0 && (
-          <span className="text-foreground/30"> & {extra} more</span>
-        )}
-      </span>
-    </ToolChip>
-  );
-}
 
 export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
@@ -82,10 +54,6 @@ export function ToolBash({ part }: { part: BashPart }) {
   const label = isStreaming
     ? getToolStreamingLabel("bash")
     : getToolLabel("bash");
-  // The chat's `instrument task new`: the task it made follows the command as a
-  // card, so the work handed off stays in view here rather than only in a
-  // note when it ends.
-  const createdTask = createdTaskSession(part);
 
   return (
     <ToolCard>
@@ -155,11 +123,6 @@ export function ToolBash({ part }: { part: BashPart }) {
           )}
         </ToolCardSection>
       )}
-      {createdTask ? (
-        <div className="px-3 pb-3">
-          <CreatedTaskCard chatId={createdTask} />
-        </div>
-      ) : null}
     </ToolCard>
   );
 }

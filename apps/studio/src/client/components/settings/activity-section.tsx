@@ -210,6 +210,7 @@ const PURPOSE_LABELS: Record<Row["purpose"], string> = {
   "project-backfill": "Project sorting",
   "project-suggestion": "Project suggestion",
   "web-search": "Web search",
+  "work-summary": "Work summary",
   "x-search": "X search",
 };
 

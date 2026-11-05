@@ -329,10 +329,6 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
     ]);
     await saveMessage(store, user(s, 4), [
       text(s, 4, "Which one is cheaper?"),
-      part(s, messageId(4), 41, {
-        data: { messageId: m3, partId: partId(32), text: "Let me look." },
-        type: "data-reply",
-      }),
       part(s, messageId(4), 42, {
         data: {
           from: { modelId: "small-model" },

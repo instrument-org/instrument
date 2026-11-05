@@ -10,12 +10,11 @@ import { formatDuration } from "../../lib/format-time";
 import { UNTRUSTED_FILE_IMAGE_KINDS } from "../../lib/image-policy";
 import { getToolLabel } from "../../lib/tool-display";
 import { AIProviderIcon } from "../ai-provider-icon";
-import { Favicon } from "../favicon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
-import { isActiveToolPart } from "../transcript-layout";
+import { isActiveToolPart } from "./tool-call-utils";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
-import { ToolCard, ToolCardEmpty, ToolCardHeader, ToolChip } from "./tool-card";
+import { ToolCard, ToolCardEmpty, ToolCardHeader } from "./tool-card";
 
 type WebSearchPart = Extract<
   SessionMessagePart.ToolPart,
@@ -142,52 +141,6 @@ export function ToolWebSearch({
         </div>
       )}
     </ToolCard>
-  );
-}
-
-export function WebSearchChip({ part }: { part: SessionMessagePart.ToolPart }) {
-  if (
-    part.type !== "tool-web_search" ||
-    part.state !== "output-available" ||
-    part.output.state !== "success"
-  ) {
-    return null;
-  }
-
-  const results = readWebSearchResults(part.output);
-  if (!results || results.sources.length === 0) {
-    return null;
-  }
-
-  const uniqueUrls = [
-    ...new Map(
-      results.sources.map((s) => {
-        const hostname = URL.canParse(s.url)
-          ? new URL(s.url).hostname.replace(/^www\./, "")
-          : s.url;
-        return [hostname, s.url];
-      }),
-    ).values(),
-  ].slice(0, 5);
-
-  return (
-    <ToolChip className="gap-0 px-1">
-      {/* One surface under the whole run rather than one per icon: five icons
-          each carrying their own read as a chain of interlocking discs
-          instead of as the one thing this chip is. So the row is the pill and
-          each icon gives up the tile it would otherwise bring. Its own class
-          rather than the favicon's, because what this needs is a shape that
-          groups and what that one gives is a lift for legibility. */}
-      <span className="flex items-center gap-0.5 rounded-full bg-gray-100 px-0.5 py-px dark:bg-white/10">
-        {uniqueUrls.map((url, index) => (
-          <Favicon
-            className="size-3.5 border-0 bg-transparent ring-0"
-            key={index}
-            url={url}
-          />
-        ))}
-      </span>
-    </ToolChip>
   );
 }
 

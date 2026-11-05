@@ -30,7 +30,7 @@ export function modelChangeSincePreviousTurn({
   messages,
   model,
 }: {
-  messages: readonly SessionMessage.WithParts[];
+  messages: readonly SessionMessage.Type[];
   model: AIGatewayModel.Type;
 }): SessionMessageDataPart.ModelChangeDataPart | undefined {
   for (let index = messages.length - 1; index >= 0; index--) {

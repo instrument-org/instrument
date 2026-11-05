@@ -17,8 +17,7 @@ export function isGroupScreenHref(href: string): boolean {
     case "browser":
     case "computer":
     case "newTab":
-    case "task":
-    case "tasks": {
+    case "task": {
       return true;
     }
     default: {

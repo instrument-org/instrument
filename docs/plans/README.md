@@ -37,7 +37,6 @@ Each entry is the plan's title and the opening of its status.
 - [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): Phase 1 is built behind a flag and proved the chain inside Studio, and what is left unverified waits on a signed-in extension.
 - [Chat records as append-only logs, one per session per device](chat-records.md): Built and landed, but for the two parts named here.
 - [Chat stream turn-model refactor](chat-stream-turn-model-refactor.md): Proposed, not started.
-- [Chat transcript redesign](chat-transcript-redesign.md): Design rules being worked out against real chats;
 - [The user chooses where Instrument keeps files](choose-where-instrument-keeps-files.md): The step is built, as setup's first step (`9246172a7`, with the Welcome page before it from `b92123c54`).
 - [Computer use](computer-use.md): Behind the `computer_use` feature flag, on macOS, Windows and Linux.
 - [Context compaction](context-compaction.md): Phases 0 through 2 built, plus the reactive trigger from phase 4.
@@ -96,6 +95,7 @@ Each entry is the plan's title and the opening of its status.
 - [A cheaper chat list rebuild](chat-list-payload-and-parentage.md): Both changes landed.
 - [The chat's status line and loading states](chat-status-line-and-loading-states.md): Done.
 - [Chat surface](chat-surface.md): Landed, then partly reshaped.
+- [Chat transcript redesign](chat-transcript-redesign.md): Built as the transcript's map describes, which holds wherever it and this file differ: one card up at a time where this says a card per page, tabs only in th...
 - [Killing a degenerate stream loop](degenerate-stream-loops.md): Both changes are built.
 - [Dictation](dictation.md): Landed (`b57a3a2ca`, with mic access in Settings from `bafc2b9b5`): live dictation in the composer, the problem report, topic instructions and the question c...
 - [Document viewers](document-viewers.md): Completed.

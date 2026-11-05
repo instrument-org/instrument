@@ -45,6 +45,26 @@ export function useRunningBackgroundProcess({
 }
 
 /**
+ * Every command a chat and its tasks started that the registry remembers, those
+ * still running and those that ended with how long they ran.
+ */
+export function useChatCommands(chatId: ChatId) {
+  const running = useTaskBackgroundProcesses(chatId);
+  const { data: ended } = useQuery(
+    rpcClient.workspace.chats.backgroundProcesses.ended.queryOptions({
+      input: { id: chatId },
+    }),
+  );
+  return [
+    ...running,
+    ...(ended ?? []).map(({ durationMs, ...process }) => ({
+      ...process,
+      ranMs: durationMs,
+    })),
+  ];
+}
+
+/**
  * What this task still has running, kept current.
  *
  * Shared by the header pill and by the transcript, which need the same answer

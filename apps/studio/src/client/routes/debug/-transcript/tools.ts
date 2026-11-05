@@ -277,6 +277,31 @@ export function ran({
   });
 }
 
+/** A command the shell moved to the background, still going as the call returned. */
+export function ranInBackground({
+  command,
+  explanation,
+  processId,
+}: {
+  command: string;
+  explanation?: string;
+  processId: string;
+}): ToolCall {
+  return call({
+    input: { command, explanation },
+    output: {
+      backgrounded: true,
+      command,
+      commands: [command.split(" ")[0] ?? command],
+      durationMs: 120,
+      omittedBytes: 0,
+      output: "",
+      processId,
+    },
+    type: "tool-bash",
+  });
+}
+
 /** A command that ran and came back non-zero, which is not a tool failure. */
 export function ranAndFailed({
   command,
@@ -323,6 +348,31 @@ export function read({
   });
 }
 
+/** A read of a picture, which the model is shown and the card can draw. */
+export function readImage({
+  explanation,
+  filePath,
+}: {
+  explanation?: string;
+  filePath: string;
+}): ToolCall {
+  return call({
+    input: { explanation, filePath },
+    output: {
+      base64Data: "",
+      filePath,
+      height: 600,
+      mimeType: "image/png",
+      modifiedAt: MODIFIED_AT,
+      state: "image",
+      viewHeight: 600,
+      viewWidth: 1000,
+      width: 1000,
+    },
+    type: "tool-read_file",
+  });
+}
+
 /** A read of something that is not there, which draws as a failed row. */
 export function readMissing({
   explanation,
@@ -341,9 +391,12 @@ export function readMissing({
 export function searched({
   explanation,
   query,
+  results,
 }: {
   explanation?: string;
   query: string;
+  /** What it found, in place of the stand-in sources below. */
+  results?: { title: string; url: string }[];
 }): ToolCall {
   return call({
     input: { explanation, query },
@@ -358,7 +411,10 @@ export function searched({
         // what the row's favicons do -- a request apiece, each landing when it
         // answers -- so a scenario that keeps them is a scenario the treatment
         // can be watched in.
-        sources: [
+        sources: results?.map((result) => ({
+          ...result,
+          text: `What ${result.title} says.`,
+        })) ?? [
           {
             text: "Legends belong outside the plot area when the series count is small.",
             title: "Color legend",

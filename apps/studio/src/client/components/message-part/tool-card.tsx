@@ -1,10 +1,8 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { debounce } from "radashi";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { filenameFromFilePath } from "../../lib/path-utils";
 import { cn } from "../../lib/utils";
 import {
   BlockExpandButton,
@@ -15,42 +13,6 @@ import {
 } from "../code-block";
 import { CopyButton } from "../copy-button";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-
-export function FileChip({ part }: { part: SessionMessagePart.ToolPart }) {
-  let filePath: string | undefined;
-
-  if (
-    (part.type === "tool-edit_file" ||
-      part.type === "tool-write_file" ||
-      part.type === "tool-read_file") &&
-    // typeof guard is intentional: the AI SDK types DeepPartial<string> as
-    // string during streaming, but parsePartialJson can produce null mid-stream.
-    typeof part.input?.filePath === "string" &&
-    part.input.filePath.length > 0
-  ) {
-    filePath = part.input.filePath;
-  }
-
-  if (!filePath) {
-    return null;
-  }
-
-  const filename = filenameFromFilePath(filePath);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <ToolChip className="max-w-[12rem] px-2">
-          <span className="truncate text-xs font-medium text-foreground/50">
-            {filename}
-          </span>
-        </ToolChip>
-      </TooltipTrigger>
-      <TooltipContent>{filePath}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 export function ToolCard({
   children,
@@ -336,24 +298,5 @@ export function ToolCardSection({
         />
       )}
     </div>
-  );
-}
-
-export function ToolChip({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "ml-1 flex shrink-0 items-center gap-1.5 rounded-full bg-foreground/5 py-0.5 pr-2.5 pl-1",
-        className,
-      )}
-    >
-      {children}
-    </span>
   );
 }

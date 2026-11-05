@@ -1,5 +1,10 @@
-import { ChatBubbles } from "@/client/components/chat-bubbles";
-import { ChatStream } from "@/client/components/chat-stream";
+import {
+  type CommandFacts,
+  type TaskCardFacts,
+  type TranscriptSurface,
+  TranscriptSurfaceContext,
+} from "@/client/components/transcript/surface";
+import { Transcript } from "@/client/components/transcript/transcript";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -18,10 +23,16 @@ import { Switch } from "@/client/components/ui/switch";
 import { TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
-  BubbleProjection,
   ChatIdSchema,
   getToolNameByType,
+  isToolPart,
   type ChatInfo,
+  type SessionMessagePart,
+  type StepPart,
+  type StoreId,
+  type TranscriptMessage,
+  transcriptMessage,
+  turnsOf,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { ArticleIcon } from "@phosphor-icons/react/Article";
@@ -39,14 +50,21 @@ import { UserIcon } from "@phosphor-icons/react/User";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import { Profiler, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  Profiler,
+  use,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { z } from "zod";
 
 import { buildFrames, type Frame, type FrameMark } from "../-transcript/frames";
-import { scenarios } from "../-transcript/scenarios";
+import { type DebugScenario, scenarios } from "../-transcript/scenarios";
 import {
   autoScrollAtom,
-  chatPresentationAtom,
   developerModeAtom,
   replayAtom,
   showsBottomEdgeAtom,
@@ -69,15 +87,16 @@ export const Route = createFileRoute("/debug/components/transcript")({
   validateSearch: searchSchema,
 });
 
-// When a scenario's clock starts. A row that has not finished measures itself
-// against the wall clock, so a transcript stamped at zero reports its first step
-// as having run since 1970. Read once at import, which is outside render.
-//
-// A fixed transcript cannot report a live duration, so a row still running says
-// how long this page has been open rather than how long the step took, and
-// settles to the scenario's own tick when it finishes. The number is the one
-// thing here that is not what the product would show; the row's shape is.
-const OPENED_AT = Date.now();
+// A scenario's frames, stamped so its last one happens as the page opens: a row
+// that has not finished measures itself against the wall clock, and a turn folds
+// a few seconds after its last event. So a settled scenario folds right after it
+// lands, as it would, and an earlier frame has the time a real one would have had.
+function framesOf(script: DebugScenario["script"]): Frame[] {
+  const startedAt = Date.now();
+  const first = buildFrames(script, startedAt).at(-1)?.messages;
+  const lastAt = first?.at(-1)?.metadata.createdAt.getTime() ?? startedAt;
+  return buildFrames(script, startedAt - (lastAt - startedAt));
+}
 
 // One timeline row, in pixels. The list turns scroll position into a frame by
 // this number alone, so it has to stay the row's own height (`h-7`).
@@ -141,6 +160,110 @@ function describe(mark: FrameMark): { icon: Icon; name: string } {
 function noop() {
   // The transcript's callbacks all leave the page, which this has no use for:
   // nothing here is a real task.
+}
+
+/** What a frame is, for the surface: its messages, its place in the run, and its tasks. */
+interface DebugFrame {
+  commands: readonly CommandFacts[];
+  frameIndex: number;
+  lastFrameIndex: number;
+  messages: readonly SessionMessagePart.Type[];
+  tasks: Map<string, { frames: Frame[]; ended: string; title: string }>;
+  taskStarts: Map<string, number>;
+}
+
+const DebugFrameContext = createContext<DebugFrame | undefined>(undefined);
+
+/** A stand-in for a page's picture, changing as the frames go by. */
+function DebugPagePicture() {
+  const frame = use(DebugFrameContext);
+  const seed = Math.floor((frame?.frameIndex ?? 0) / 3);
+  const widths = [60, 92, 74, 88, 66, 95, 70].map(
+    (width, index) => 40 + ((width + seed * 13 + index * 7) % 60),
+  );
+  return (
+    <div className="flex size-full flex-col gap-2 bg-background p-4">
+      <div className="h-3 w-1/3 rounded-sm bg-foreground/20" />
+      <div className="h-12 w-full rounded-md bg-foreground/5" />
+      {widths.map((width, index) => (
+        <div
+          className="h-1.5 rounded-sm bg-foreground/10"
+          key={index}
+          style={{ width: `${width.toString()}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function taskFrame(frame: DebugFrame | undefined, id: StoreId.Session) {
+  const task = frame?.tasks.get(id);
+  const start = frame?.taskStarts.get(id);
+  if (!frame || !task || start === undefined) {
+    return undefined;
+  }
+  // Its whole run plays out between its start and the end of its chat's frames.
+  const through =
+    (frame.frameIndex - start) / Math.max(frame.lastFrameIndex - 3 - start, 1);
+  const at = Math.min(
+    Math.max(Math.round(through * (task.frames.length - 1)), 0),
+    task.frames.length - 1,
+  );
+  return { at, task, working: at < task.frames.length - 1 };
+}
+
+const debugSurface: TranscriptSurface = {
+  onOpenFile: noop,
+  onOpenTask: noop,
+  onOpenUrl: noop,
+  onStopCommand: noop,
+  onStopTask: noop,
+  PagePicture: DebugPagePicture,
+  useHostPaths: (paths) =>
+    Object.fromEntries(paths.map((path) => [path, path])),
+  useCommands: () => use(DebugFrameContext)?.commands ?? [],
+  useStepPart: (step: StepPart) => {
+    const part = use(DebugFrameContext)?.messages.find(
+      (each) => each.metadata.id === step.metadata.id,
+    );
+    return part && (isToolPart(part) || part.type === "reasoning")
+      ? part
+      : undefined;
+  },
+  useTaskFacts: (id): TaskCardFacts | undefined => {
+    const found = taskFrame(use(DebugFrameContext), id);
+    if (!found) {
+      return undefined;
+    }
+    const messages = lightMessages(found.task.frames[found.at]?.messages ?? []);
+    const row = turnsOf(messages, { isRunning: found.working })
+      .at(-1)
+      ?.rows.findLast((each) => each.kind === "activity");
+    return {
+      ended: found.task.ended,
+      failed: false,
+      ...(row?.kind === "activity" && row.title && { step: row.title }),
+      stoppable: found.working,
+      title: found.task.title,
+      working: found.working,
+    };
+  },
+  useTaskMessages: (id) => {
+    const found = taskFrame(use(DebugFrameContext), id);
+    return found
+      ? lightMessages(found.task.frames[found.at]?.messages ?? [])
+      : [];
+  },
+};
+
+function lightMessages(
+  messages: Frame["messages"],
+  isDeveloperMode = false,
+): TranscriptMessage[] {
+  return messages.flatMap((message) => {
+    const light = transcriptMessage(message, { isDeveloperMode });
+    return light ? [light] : [];
+  });
 }
 
 function RouteComponent() {
@@ -326,7 +449,17 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
   // id it was born with, so React sees a row change rather than a row replaced,
   // which is the thing being looked at on this page.
   const frames = useMemo(
-    () => (scenario ? buildFrames(scenario.script, OPENED_AT) : []),
+    () => (scenario ? framesOf(scenario.script) : []),
+    [scenario],
+  );
+  const tasks = useMemo(
+    () =>
+      new Map(
+        Object.entries(scenario?.tasks ?? {}).map(([id, task]) => [
+          id,
+          { ...task, frames: framesOf(task.script) },
+        ]),
+      ),
     [scenario],
   );
 
@@ -336,7 +469,6 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useAtom(speedAtom);
   const [isDeveloperMode, setIsDeveloperMode] = useAtom(developerModeAtom);
-  const [isChat, setIsChat] = useAtom(chatPresentationAtom);
   const [autoScrolls, setAutoScrolls] = useAtom(autoScrollAtom);
   const [showsBottomEdge, setShowsBottomEdge] = useAtom(showsBottomEdgeAtom);
   const [shownMs, setShownMs] = useState<number>();
@@ -420,33 +552,16 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     renderMs.current = actualDuration;
                   }}
                 >
-                  {/* Drawn flat rather than as the scroller's own items. An
-                      item that anchors a turn to the top of the reading line
-                      buys the room to get there by reserving it below the last
-                      row, which is a scroll behavior of the task view rather
-                      than anything the transcript drew -- and here it would put
-                      the end of the transcript, and the marker that follows it,
-                      somewhere below where the transcript actually stops. */}
-                  {isChat ? (
-                    // What the chat draws: the frame through the feed's
-                    // projection, as `message.live.bubbles` would send it.
-                    <FrameBubbles
-                      frame={frame}
-                      isDeveloperMode={isDeveloperMode}
-                    />
-                  ) : (
-                    <ChatStream
-                      alwaysShowFooter
-                      isAgentRunning={frame.isAgentRunning}
-                      isDeveloperMode={isDeveloperMode}
-                      messages={frame.messages}
-                      onContinue={noop}
-                      onModelChange={noop}
-                      onRetry={noop}
-                      onRunAgain={noop}
-                      chatInfo={chatInfo}
-                    />
-                  )}
+                  <FrameTranscript
+                    commands={scenario.commands}
+                    frame={frame}
+                    frameIndex={shown}
+                    frames={frames}
+                    isDeveloperMode={isDeveloperMode}
+                    key={isDeveloperMode ? "developer" : "person"}
+                    pageTurns={scenario.pageTurns}
+                    tasks={tasks}
+                  />
                 </Profiler>
               </MessageScrollerContent>
             </MessageScrollerViewport>
@@ -543,12 +658,6 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
             label="Dev mode"
             onChange={setIsDeveloperMode}
           />
-          <Toggle
-            checked={isChat}
-            id="transcript-chat"
-            label="Chat"
-            onChange={setIsChat}
-          />
           {/* Both of these are about watching frames land, and nothing lands
               when the transcript is simply there. */}
           {replays && (
@@ -608,29 +717,130 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
   );
 }
 
-/** A frame as the chat's bubbles draw it. */
-function FrameBubbles({
+/**
+ * A frame as the transcript draws it, through the same projection the feed uses,
+ * and for a scenario that says so, a page of turns at a time as the feed gives them.
+ */
+function FrameTranscript({
+  commands,
   frame,
+  frameIndex,
+  frames,
   isDeveloperMode,
+  pageTurns,
+  tasks,
 }: {
+  commands: DebugScenario["commands"];
   frame: Frame;
+  frameIndex: number;
+  frames: Frame[];
   isDeveloperMode: boolean;
+  pageTurns: number | undefined;
+  tasks: DebugFrame["tasks"];
 }) {
-  const { feed } = new BubbleProjection().update({
-    isRunning: frame.isAgentRunning,
-    messages: frame.messages,
-  });
+  const allMessages = useMemo(
+    () => lightMessages(frame.messages, isDeveloperMode),
+    [frame.messages, isDeveloperMode],
+  );
+  const [shownTurns, setShownTurns] = useState(pageTurns);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const turns = useMemo(
+    () =>
+      turnsOf(allMessages, { isRunning: frame.isAgentRunning }).map(
+        (turn) => turn.id,
+      ),
+    [allMessages, frame.isAgentRunning],
+  );
+  const firstShown =
+    shownTurns === undefined ? undefined : turns.at(-shownTurns);
+  const from =
+    firstShown === undefined
+      ? 0
+      : allMessages.findIndex((message) => message.id === firstShown);
+  const messages = useMemo(
+    () => allMessages.slice(Math.max(from, 0)),
+    [allMessages, from],
+  );
+  const taskStarts = useMemo(() => {
+    const starts = new Map<string, number>();
+    for (const [at, each] of frames.entries()) {
+      for (const message of each.messages) {
+        for (const part of message.parts) {
+          if (part.type === "tool-bash" && part.state === "output-available") {
+            for (const handOff of part.output.handOffs ?? []) {
+              if (!starts.has(handOff.sessionId)) {
+                starts.set(handOff.sessionId, at);
+              }
+            }
+          }
+        }
+      }
+    }
+    return starts;
+  }, [frames]);
+  const sessionId = frame.messages[0]?.metadata.sessionId;
+  // Going for a while by now, or ended after its turn did.
+  const [startedAgo] = useState(() => Date.now() - 40_000);
+  const debugFrame = useMemo(
+    (): DebugFrame => ({
+      commands: sessionId
+        ? (commands ?? []).map((command) => ({
+            ...command,
+            sessionId,
+            startedAt: new Date(
+              command.ranMs === undefined ? startedAgo : startedAgo + 40_000,
+            ),
+          }))
+        : [],
+      frameIndex,
+      lastFrameIndex: frames.length - 1,
+      messages: frame.messages.flatMap((message) => message.parts),
+      tasks,
+      taskStarts,
+    }),
+    [
+      commands,
+      frame.messages,
+      frameIndex,
+      frames.length,
+      sessionId,
+      startedAgo,
+      taskStarts,
+      tasks,
+    ],
+  );
+  if (!sessionId) {
+    return null;
+  }
   return (
-    <ChatBubbles
-      chatInfo={chatInfo}
-      drafting={feed.drafting}
-      isAgentRunning={frame.isAgentRunning}
-      isDeveloperMode={isDeveloperMode}
-      messages={feed.messages}
-      onContinue={noop}
-      onModelChange={noop}
-      onRetry={noop}
-      onRunAgain={noop}
-    />
+    <DebugFrameContext value={debugFrame}>
+      <TranscriptSurfaceContext value={debugSurface}>
+        <Transcript
+          chatInfo={chatInfo}
+          hasOlder={from > 0}
+          isDeveloperMode={isDeveloperMode}
+          isLoadingOlder={isLoadingOlder}
+          isRunning={frame.isAgentRunning}
+          messages={messages}
+          onContinue={noop}
+          onLoadOlder={() => {
+            if (isLoadingOlder) {
+              return;
+            }
+            setIsLoadingOlder(true);
+            // A page takes a moment to arrive in the app, and the scroller has
+            // to keep the reader's place when it does.
+            window.setTimeout(() => {
+              setShownTurns((count) => (count ?? 0) + (pageTurns ?? 0));
+              setIsLoadingOlder(false);
+            }, 250);
+          }}
+          onModelChange={noop}
+          onRetry={noop}
+          onRunAgain={noop}
+          sessionId={sessionId}
+        />
+      </TranscriptSurfaceContext>
+    </DebugFrameContext>
   );
 }

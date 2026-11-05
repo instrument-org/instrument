@@ -15,6 +15,7 @@ const ACTIVITY_PURPOSES = [
   "task",
   "chat-title",
   "next-message",
+  "work-summary",
   "title-check",
   "web-search",
   "x-search",

@@ -15,8 +15,6 @@ import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId } from "@instrument-org/workspace/client";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -24,17 +22,10 @@ import { StopIcon } from "@phosphor-icons/react/Stop";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
-import {
-  type ComponentProps,
-  type CSSProperties,
-  type ReactNode,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
+import { TaskBackgroundProcesses } from "../task/task-background-processes";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
-import { ChatStatusLine } from "./chat-status-line";
 import { ProjectPill } from "./chat-row";
 import { ChatTitleButton, ChatTitleField } from "./chat-title";
 import { type Chat, type Project } from "./chats";
@@ -46,28 +37,22 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
 
 /**
- * The head over a chat's conversation, wherever the chat is shown: beside
- * the inbox and popped out into its small window alike. Its title in the
- * middle, which opens the chat's menu, with the project it is filed under
- * after it, and under the title the one line saying where its work stands
- * (`ChatStatusLine`), which is the chat's loading state and lists its
- * tasks. At the right, whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
- * it is out, when pressing it brings the conversation back) and the pane
- * toggle while the pane is closed; popped out, the window's own buttons. The
- * two sides keep one width, the wider one's, so the title stands in the
- * window's middle however unevenly they are filled, and takes all the room
- * between them before it gives way, truncating.
+ * The head over a chat's conversation, wherever the chat is shown: beside the
+ * inbox and popped out into its small window alike. Its title at the left,
+ * which opens the chat's menu, with the project it is filed under after it and,
+ * under a hand, the glyph that pops the conversation out (lit, and always
+ * there, while it is out, when pressing it brings the conversation back). At
+ * the right, the commands the chat and its tasks left running, then whatever
+ * the place it is shown in adds: beside the inbox the pane button, popped out
+ * the window's own buttons.
  */
 export function ChatHeader({
   chat,
   fallbackTitle = "Chat",
-  leading,
   onArchived,
   onDeleted,
   onNewProject,
-  onOpenTask,
   onSetProject,
-  onViewTasks,
   popOut,
   projects,
   trailing,
@@ -75,27 +60,40 @@ export function ChatHeader({
   chat: Chat | undefined;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
-  /** What sits ahead of the title: the toggle that puts the inbox away. */
-  leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
   onDeleted: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
-  /** Opens one of the chat's tasks beside it, from the list under its title. */
-  onOpenTask: (sessionId: StoreId.Session) => void;
   onSetProject: (project: null | string) => void;
-  /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
-  onViewTasks?: () => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
   projects: Project[];
-  /** What sits at the head's right: the pane toggle while the pane is closed, or the popped-out window's buttons. */
+  /** What sits at the head's right: the pane button, or the popped-out window's buttons. */
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
-  const sideWidth = useWiderSide();
+  const popOutButton = popOut && (
+    <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
+      <Button
+        aria-label={popOut.isOut ? "Bring back" : "Pop out"}
+        aria-pressed={popOut.isOut}
+        className={cn(
+          toolbarClassName({ pressed: popOut.isOut }),
+          "shrink-0",
+          popOut.isOut
+            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
+        )}
+        onClick={popOut.onToggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <PictureInPictureIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
+  );
   return (
     <>
       {chat && (
@@ -106,113 +104,38 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      {/* Three columns, the outer two both as wide as the wider side's
-          contents, so the title stands in the middle of the conversation
-          whatever sits at either side. The middle one takes the rest rather
-          than sizing to the title, since the heading is a container and has
-          no width of its own. */}
-      <div
-        className="@container/head grid h-14 w-full min-w-0 shrink-0 grid-cols-[var(--side,max-content)_minmax(0,1fr)_var(--side,max-content)] items-start gap-x-2 bg-background px-3 pt-2"
-        style={
-          sideWidth.width === undefined
-            ? undefined
-            : // A custom property, which CSSProperties has no key for.
-              ({ "--side": `${sideWidth.width}px` } as CSSProperties)
-        }
-      >
-        <div className="flex h-8 items-center">
-          <div
-            className="flex w-max items-center gap-x-1"
-            ref={sideWidth.leading}
-          >
-            {leading}
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-col items-center">
-          <div className="flex h-8 w-full min-w-0 items-center">
-            {chat ? (
-              <ChatHeading
-                centered
-                chat={chat}
-                menu={{ onArchived, onViewTasks }}
-                onDelete={() => {
-                  setDeleting(true);
-                }}
-                onNewProject={onNewProject}
-                onSetProject={onSetProject}
-                titleClassName="text-sm font-medium"
-                projects={projects}
-              />
-            ) : (
-              <h2 className="mx-auto min-w-0 truncate text-sm font-medium">
+      <div className="group/head @container/head flex h-14 w-full min-w-0 shrink-0 items-start gap-x-2 bg-background pt-2 pr-3 pl-4">
+        <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
+          {chat ? (
+            <ChatHeading
+              chat={chat}
+              menu={{ onArchived }}
+              onDelete={() => {
+                setDeleting(true);
+              }}
+              onNewProject={onNewProject}
+              onSetProject={onSetProject}
+              titleClassName="text-sm font-medium"
+              projects={projects}
+            >
+              {popOutButton}
+            </ChatHeading>
+          ) : (
+            <>
+              <h2 className="min-w-0 truncate text-sm font-medium">
                 {fallbackTitle}
               </h2>
-            )}
-          </div>
-          {chat && (
-            <div className="-mt-1 flex h-4 max-w-full min-w-0 justify-center">
-              <ChatStatusLine chat={chat} onOpenTask={onOpenTask} />
-            </div>
+              {popOutButton}
+            </>
           )}
         </div>
-        <div className="flex h-8 items-center justify-end">
-          <div
-            className="flex w-max items-center gap-x-1"
-            ref={sideWidth.trailing}
-          >
-            {popOut && (
-              <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
-                <Button
-                  aria-label={popOut.isOut ? "Bring back" : "Pop out"}
-                  aria-pressed={popOut.isOut}
-                  className={cn(
-                    toolbarClassName({ pressed: popOut.isOut }),
-                    // The grey of the inbox toggle across the head.
-                    !popOut.isOut &&
-                      "text-muted-foreground/70 not-disabled:hover:text-foreground",
-                    popOut.isOut &&
-                      "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300",
-                  )}
-                  onClick={popOut.onToggle}
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <PictureInPictureIcon className="size-4" />
-                </Button>
-              </ToolbarTooltip>
-            )}
-            {trailing}
-          </div>
+        <div className="flex h-8 shrink-0 items-center gap-x-1">
+          {chat && <TaskBackgroundProcesses chatId={chat.id} />}
+          {trailing}
         </div>
       </div>
     </>
   );
-}
-
-/**
- * The width both sides of the head take: the wider side's contents, read in
- * layout px (`offsetWidth`, not a rect) since the app scales with CSS zoom,
- * and read again whenever either side's contents change size.
- */
-function useWiderSide() {
-  const [leading, setLeading] = useState<HTMLDivElement | null>(null);
-  const [trailing, setTrailing] = useState<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState<number>();
-  useLayoutEffect(() => {
-    const sides = [leading, trailing].filter((side) => side !== null);
-    const measure = () => {
-      setWidth(Math.max(0, ...sides.map((side) => side.offsetWidth)));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    for (const side of sides) {
-      observer.observe(side);
-    }
-    return () => {
-      observer.disconnect();
-    };
-  }, [leading, trailing]);
-  return { leading: setLeading, trailing: setTrailing, width };
 }
 
 /**
@@ -224,8 +147,8 @@ function useWiderSide() {
  * mark alone.
  */
 function ChatHeading({
-  centered = false,
   chat,
+  children,
   menu,
   onDelete,
   onNewProject,
@@ -233,11 +156,11 @@ function ChatHeading({
   titleClassName,
   projects,
 }: {
-  /** Whether the title and its project stand in the middle of the room, as the chat's head has them. */
-  centered?: boolean;
   chat: Chat;
+  /** What follows the title and its project. */
+  children?: ReactNode;
   /** What the menu offers beyond what every head's does. */
-  menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived" | "onViewTasks">;
+  menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived">;
   onDelete: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
@@ -267,12 +190,7 @@ function ChatHeading({
     onSetProject(chat.project === id ? null : id);
   };
   return (
-    <div
-      className={cn(
-        "@container/chathead flex min-w-0 flex-1 items-center gap-x-2",
-        centered && "justify-center",
-      )}
-    >
+    <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
       {/* The title opens the chat's menu, Rename among it; renaming puts
           the field in the title's place. */}
       <h2 className="flex min-w-0">
@@ -319,6 +237,7 @@ function ChatHeading({
           </button>
         </ProjectPicker>
       )}
+      {children}
     </div>
   );
 }
@@ -327,14 +246,13 @@ function ChatHeading({
  * The chat's own menu, opened from its title: while the chat works, Stop,
  * which ends its turn and every task's; then the inbox row's menu in the
  * same groups and order (see `chatMenuGroups`), with renaming it, which
- * opens the title's field, and its tasks among the ways to organize it, and
- * deleting it at the foot. Its project is the pill beside the title.
+ * opens the title's field, among the ways to organize it, and deleting it at
+ * the foot. Its project is the pill beside the title.
  */
 function ChatMenu({
   chat,
   onArchived,
   onDelete,
-  onViewTasks,
   rename,
   projectMenu,
   trigger,
@@ -343,8 +261,6 @@ function ChatMenu({
   /** After the chat is archived from this menu, for a head that should go with it. */
   onArchived?: () => void;
   onDelete: () => void;
-  /** Opens the chat's tasks, when the head can reach them. */
-  onViewTasks?: () => void;
   rename: ChatRename;
   /** The projects to file the chat under, as a submenu, when the head that owns the menu files it. */
   projectMenu?: {
@@ -442,16 +358,6 @@ function ChatMenu({
               </div>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-        )}
-        {onViewTasks && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onViewTasks();
-            }}
-          >
-            <ListChecksIcon className="size-3.5" />
-            View tasks
-          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         {groups.files.map(item)}

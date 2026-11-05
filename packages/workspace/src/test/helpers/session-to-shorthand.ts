@@ -194,9 +194,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-outputLimit": {
       return `<data-outputLimit continuations="${part.data.continuations}" />`;
     }
-    case "data-reply": {
-      return `<data-reply>${part.data.text}</data-reply>`;
-    }
     case "data-setupChanges": {
       const changes = part.data.changes
         .map((item) => `${item.change}:${item.kind}:${item.name}`)
@@ -208,6 +205,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .map((item) => `${item.change}:${item.kind}:${item.name}`)
         .join(",");
       return `<setup-news changes="${changes}" />`;
+    }
+    case "data-stepFacts": {
+      return `<data-stepFacts step="${part.data.step}" />`;
+    }
+    case "data-workSummary": {
+      return `<data-workSummary>${part.data.words}</data-workSummary>`;
     }
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;

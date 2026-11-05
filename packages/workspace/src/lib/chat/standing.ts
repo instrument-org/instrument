@@ -52,6 +52,11 @@ export interface TaskStanding {
    * before saying. Never the word "done" alone.
    */
   line: string;
+  /**
+   * The line its finished turn's work came to, for a person's list. `line`
+   * stays its own words, which is what the chat reads of it.
+   */
+  summary?: string;
 }
 
 /**
@@ -254,7 +259,14 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   // fence cut off mid-way is a fence the excerpt cannot read.
   const said = lastAssistantTextIn(transcript);
   if (said) {
-    return settle({ kind: "done", line: excerptOf(said, LINE_MAX) });
+    const summary = transcript
+      .findLast((message) => message.role === "assistant")
+      ?.parts.find((part) => part.type === "data-workSummary")?.data.words;
+    return settle({
+      kind: "done",
+      line: excerptOf(said, LINE_MAX),
+      ...(summary !== undefined && { summary }),
+    });
   }
   const ending = await endingIn(ref, transcript);
   return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });

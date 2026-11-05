@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "2.0.0-beta.128",
+  "version": "2.0.0-beta.129",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
@@ -262,7 +262,6 @@
     "tw-animate-css": "^1.3.5",
     "typescript": "catalog:",
     "unified": "^11.0.5",
-    "use-stick-to-bottom": "^1.1.6",
     "vite": "catalog:",
     "vite-bundle-analyzer": "^1.3.1",
     "vitest": "catalog:",

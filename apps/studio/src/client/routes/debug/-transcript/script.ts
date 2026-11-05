@@ -1,6 +1,7 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessage,
+  type SessionMessageDataPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
@@ -27,6 +28,7 @@ export type Act =
   | { error: TurnError; kind: "fail"; model?: AIGatewayModel.Type }
   | { kind: "context"; realRole: ContextRole; text: string }
   | { kind: "empty-step" }
+  | { facts: Partial<StepFacts>; kind: "facts" }
   | { kind: "max-steps"; maxStepCount: number }
   | { kind: "notes"; parts: DataPart[] }
   | { kind: "pause" }
@@ -36,6 +38,12 @@ export type Act =
 
 /** One of the `data-*` parts a message can carry, minus what the store assigns. */
 export type DataPart = Omit<SessionMessagePart.DataPart, "metadata">;
+
+/** What a shell call was measured doing. */
+type StepFacts = Omit<
+  SessionMessageDataPart.StepFactsDataPart,
+  "settled" | "step"
+>;
 
 export interface Scenario {
   id: string;
@@ -144,17 +152,6 @@ export function call(spec: ToolCallShape): ToolCall {
 }
 
 /**
- * The standing prompt a session opens with, as its own message.
- *
- * Persisted once per session rather than rebuilt per turn, and drawn only in
- * developer mode, so it is the one thing at the top of a transcript that nobody
- * normally sees.
- */
-export function context(realRole: ContextRole, text: string): Act {
-  return { kind: "context", realRole, text };
-}
-
-/**
  * A step that produced nothing to draw.
  *
  * A real one is a step the model opened and closed without saying anything, and
@@ -163,6 +160,11 @@ export function context(realRole: ContextRole, text: string): Act {
  */
 export function emptyStep(): Act {
   return { kind: "empty-step" };
+}
+
+/** What the last call was measured doing, as the shell records it beside the call. */
+export function facts(measured: Partial<StepFacts>): Act {
+  return { facts: measured, kind: "facts" };
 }
 
 /** The turn ends here, badly. */

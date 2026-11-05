@@ -38,6 +38,9 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import {
   type ChatId,
   type SessionMessage,
+  type SessionMessagePart,
+  type TranscriptMessage,
+  type TranscriptPart,
 } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
@@ -124,7 +127,7 @@ export function useChatNote({
   /** The chat a "Contact us" from the note sends feedback about. */
   chatId?: ChatId;
   isAgentRunning: boolean;
-  messages: SessionMessage.WithParts[];
+  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[];
   modelURI: AIGatewayModelURI.Type | undefined;
   /** Sends the stopped turn again. */
   onContinue?: () => void;
@@ -671,7 +674,7 @@ function PlanAccountNote({
  * the way past it the platform gave.
  */
 function lastSearchPause(
-  messages: SessionMessage.WithParts[],
+  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[],
   status: Parameters<typeof featurePause>[0],
   now: Date,
 ) {
@@ -708,7 +711,7 @@ function lastSearchPause(
  * for the plan. The turn is every reply since the last thing the person said.
  */
 function imageBlock(
-  messages: SessionMessage.WithParts[],
+  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[],
 ):
   | { kind: "refused"; refusal: BillingRefusal }
   | { kind: "sign-in" }
@@ -732,7 +735,13 @@ function imageBlock(
 }
 
 /** The parts of the replies since the last thing the person said, in order. */
-function lastTurnParts(messages: SessionMessage.WithParts[]) {
+function lastTurnParts(
+  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[],
+): (SessionMessagePart.Type | TranscriptPart)[] {
   const start = messages.findLastIndex((message) => message.role === "user");
-  return messages.slice(start + 1).flatMap((message) => message.parts);
+  return messages
+    .slice(start + 1)
+    .flatMap(
+      (message): (SessionMessagePart.Type | TranscriptPart)[] => message.parts,
+    );
 }

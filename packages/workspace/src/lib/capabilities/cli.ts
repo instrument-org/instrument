@@ -330,6 +330,11 @@ function rawInput(
     // Words beside a heredoc are most often a path or a title that lost its
     // quotes, which taking stdin alone would silently drop.
     const beside = given.get(stdinField.name) ?? [];
+    // JSON on the line is whole, having parsed above. What stdin has is then
+    // not this value at all, but the list a `while read` loop is reading.
+    if (beside.length > 0 && stdinField.kind === "json") {
+      return raw;
+    }
     if (beside.length > 0) {
       throw new Error(
         `unexpected ${beside.length === 1 ? "argument" : "arguments"} ${beside.map((word) => `"${word}"`).join(", ")} beside the ${stdinField.name} on stdin. A word with a space in it needs quotes.`,

@@ -3,7 +3,7 @@ import { orderAfter } from "@/shared/bookmarks";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
-import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
+import { BrowserFindCard } from "@/client/components/window/browser-find-card";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import {
   CertificateErrorNotice,
@@ -1111,18 +1111,17 @@ export function BrowserPanel({
           </div>
         ) : null;
       })()}
-      {active && find.findOpen && (
-        <BrowserFindBar
-          closeFind={find.closeFind}
-          findInputRef={find.findInputRef}
-          findQuery={find.findQuery}
-          findResult={find.findResult}
-          runFind={find.runFind}
-          setFindQuery={find.setFindQuery}
-        />
-      )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
+          <BrowserFindCard
+            closeFind={find.closeFind}
+            findInputRef={find.findInputRef}
+            findOpen={find.findOpen}
+            findQuery={find.findQuery}
+            findResult={find.findResult}
+            runFind={find.runFind}
+            setFindQuery={find.setFindQuery}
+          />
           {blankPage && !loadError && !signIn && (
             <div
               aria-hidden

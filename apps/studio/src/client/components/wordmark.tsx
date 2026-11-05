@@ -25,27 +25,3 @@ export function InstrumentGlyph({
   );
 }
 
-export function Wordmark({
-  className,
-  ref,
-  size,
-  ...props
-}: React.SVGProps<SVGSVGElement> & {
-  ref?: React.Ref<SVGSVGElement>;
-  size?: number | string;
-}) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      height={size}
-      ref={ref}
-      viewBox="0 0 400 72"
-      width={size}
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <path d={WORDMARK_PATH} fill="currentColor" />
-    </svg>
-  );
-}

@@ -1,3 +1,8 @@
+import os from "node:os";
+import { chatDir, chatOwnFolder } from "../lib/record-folders";
+import { fileTouches, watchCall } from "../lib/transcript/file-changes";
+import { openStepFacts, settleStepFacts } from "../lib/transcript/step-facts";
+import { type ChatId } from "../schemas/chat-id";
 import ms from "ms";
 import { ok } from "neverthrow";
 import fs from "node:fs/promises";
@@ -256,9 +261,25 @@ const bashOutputSchema = z.object({
   spillFilePath: RelativePathSchema.optional(),
 });
 
+/** Starts a look at the folders a chat's programs write in. */
+function watchChatFolders(chatId: ChatId) {
+  const workFolder = workDir(chatId);
+  const outputFolder = chatOwnFolder(chatDir(chatId));
+  return watchCall({
+    folders: outputFolder ? [workFolder, outputFolder] : [workFolder],
+    home: os.homedir(),
+    outputFolder,
+    workFolder,
+  });
+}
+
 const bashCapability = defineCapability({
   input: z.object({
     command: z.string().meta({ description: "The bash command to run" }),
+    counts: z.string().optional().meta({
+      description:
+        'When the command works through many things, what each one that succeeds counts as, a plural phrase in the past tense: "rows added". Instrument does the counting, and the user watches it rise on the step.',
+    }),
     yieldMs: z
       .number()
       .optional()
@@ -282,7 +303,15 @@ const bashCapability = defineCapability({
       // Built per call: the command list it renders describes capabilities that a
       // feature flag can turn on and off while the app is running.
       description: () => createBashDescription(),
-      async execute({ input, model, partId, sessionId, signal, chatId }) {
+      async execute({
+        input,
+        messageId,
+        model,
+        partId,
+        sessionId,
+        signal,
+        chatId,
+      }) {
         const ampersand = ampersandUse(input.command);
         if (ampersand === "refused") {
           return ok({
@@ -296,6 +325,16 @@ const bashCapability = defineCapability({
         }
         const folders = await folderReach(chatId);
         const yieldMs = clampYieldMs(input.yieldMs);
+        const watch = await watchChatFolders(chatId);
+        // What the call touched goes on record once it is over, which for one
+        // moved to the background is when its process ends.
+        const settleFacts = async (output = "") => {
+          const touched = await fileTouches(watch, {
+            command: input.command,
+            output,
+          }).catch(() => ({}));
+          settleStepFacts(partId, touched);
+        };
         const startedAt = performance.now();
         // The chat's own commands are its conversation's: a task of the chat's
         // runs in the same folder with a task's shell.
@@ -312,6 +351,13 @@ const bashCapability = defineCapability({
           sessionId,
           chatId,
           model: model.canonicalId,
+        });
+        openStepFacts({
+          chatId,
+          label: input.counts,
+          messageId,
+          sessionId,
+          step: partId,
         });
         // Interpreter metadata, only available once the run finishes. A promoted
         // command reports none, which is what the empty default stands for.
@@ -377,6 +423,10 @@ const bashCapability = defineCapability({
           movedForMessageFrom?: WaitInterrupt["from"],
         ) => {
           const { omittedBytes, text } = handle.buffer.drain();
+          void handle.completion.then(
+            () => settleFacts(text),
+            () => settleFacts(text),
+          );
           return ok({
             ...(ampersand === "trailing" ? { backgrounded: true } : {}),
             command: input.command,
@@ -408,6 +458,7 @@ const bashCapability = defineCapability({
             });
             if ("error" in promoted) {
               handle.abort();
+              await settleFacts();
               return executeError(promoted.error);
             }
             return promotedResult(promoted.info);
@@ -466,17 +517,21 @@ const bashCapability = defineCapability({
           });
           if ("error" in promoted) {
             handle.abort();
+            await settleFacts();
             return executeError(promoted.error);
           }
           return promotedResult(promoted.info);
         }
 
         if ("errorMessage" in outcome) {
+          await settleFacts();
           return executeError(
             outcome.errorMessage ||
               "The command was stopped before it finished.",
           );
         }
+
+        await settleFacts(outcome.output);
 
         const { truncated } = truncateMiddle(outcome.output);
 

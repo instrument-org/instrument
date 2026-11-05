@@ -25,10 +25,11 @@ const openableClassName =
   "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground";
 
 /**
- * Find lives behind a popover in every viewer rather than as the always-visible
- * bar the browser panel uses, so the toolbar stays the same width at every
- * panel size and the narrow artifact panel does not have to drop it. What is
- * inside the popover is the same {@link FindRow} the browser bar is built from.
+ * Find lives behind a popover in every viewer rather than in the toolbar
+ * itself, so the toolbar stays the same width at every panel size and the
+ * narrow artifact panel does not have to drop it. The popover is the card the
+ * browser's find opens over a page, at the same width, around the same
+ * {@link FindRow}.
  */
 export function ViewerFindControl({
   activeMatch,
@@ -88,7 +89,7 @@ export function ViewerFindControl({
         </TooltipTrigger>
         <TooltipContent>Find in document</TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" className="w-80 p-1.5">
+      <PopoverContent align="end" className="w-90 p-1.5">
         <FindRow
           activeMatch={activeMatch + 1}
           inputRef={inputRef}

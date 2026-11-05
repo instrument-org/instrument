@@ -980,7 +980,12 @@ export async function createLocalBashEnv({
     customCommands: [
       // The tabs the chat or task holds, opening its own behind whatever the
       // user has up.
-      createAgentBrowserCommand({ chatId, layout, sessionId }),
+      createAgentBrowserCommand({
+        callPartId,
+        chatId,
+        layout,
+        sessionId,
+      }),
       // Registered after the bundled commands, which is what lets it shadow
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does

@@ -1,3 +1,4 @@
+import { recordStepPages } from "../transcript/step-facts";
 import { APP_NAME } from "@instrument-org/shared";
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
@@ -768,10 +769,13 @@ interface SpawnAgentBrowserOptions {
 }
 
 export function createAgentBrowserCommand({
+  callPartId,
   chatId,
   layout,
   sessionId,
 }: {
+  /** The shell call it runs in, whose facts name the sites it reached. */
+  callPartId?: StoreId.Part;
   chatId: ChatId;
   /** The layout of the shell it runs in, which its paths resolve against. */
   layout: WorkspaceFsLayout;
@@ -1025,7 +1029,7 @@ export function createAgentBrowserCommand({
       elapsedMs = performance.now() - startedAt;
     } finally {
       if (drivesHeldTabs) {
-        await recordHeldTabHosts({ sessionId, chatId });
+        await recordHeldTabHosts({ callPartId, sessionId, chatId });
       }
     }
 
@@ -1195,9 +1199,11 @@ export function isExternalBrowserInvocation(args: string[]): boolean {
  * page it just reached are both there.
  */
 async function recordHeldTabHosts({
+  callPartId,
   sessionId,
   chatId,
 }: {
+  callPartId: StoreId.Part | undefined;
   sessionId: StoreId.Session;
   chatId: ChatId;
 }) {
@@ -1207,6 +1213,9 @@ async function recordHeldTabHosts({
       const url = browser.getTargetUrl(tab.id);
       return url ? [url] : [];
     });
+    if (callPartId !== undefined) {
+      recordStepPages(callPartId, sessionId, urls);
+    }
     const result = await recordVisitedHosts({ sessionId, chatId, urls });
     if (result.isErr()) {
       getWorkspaceConfig().captureException(result.error);

@@ -151,8 +151,15 @@ export function turnsOf(
       return [];
     }
     const next = slices[index + 1]?.[0];
-    const isLive = next === undefined && isRunning;
     const cutAcross = next !== undefined && joinedMidTurn(next);
+    // A message sent during a step opens the next turn before the agent has
+    // read it, and until then that step is still going in this one.
+    const isLive =
+      isRunning &&
+      (next === undefined ||
+        (index === slices.length - 2 &&
+          !cutAcross &&
+          slice.some(isStillGoing)));
     const kept = cache?.get(first.id);
     if (
       kept &&
@@ -190,6 +197,25 @@ export function isTurnFolded(turn: Turn, now: number): boolean {
   return (
     turn.summary !== undefined ||
     (turn.endedAt !== undefined && now - turn.endedAt.getTime() >= FOLD_WAIT_MS)
+  );
+}
+
+/**
+ * Whether the last turn's message is waiting on a step still going in the turn
+ * before it. The agent reads it when that step ends, and it joins that turn then.
+ */
+export function waitsForStep(turns: readonly Turn[]): boolean {
+  const last = turns.at(-1);
+  return (
+    last?.live?.kind === "thinking" &&
+    last.rows.length === 0 &&
+    turns
+      .at(-2)
+      ?.rows.some(
+        (row) =>
+          (row.kind === "activity" && isRunningRow(row)) ||
+          (row.kind === "text" && row.part.state === "streaming"),
+      ) === true
   );
 }
 
@@ -243,6 +269,15 @@ export function opensTurn(message: {
       }
     }
   });
+}
+
+/** Whether a message has a step or words the agent is still on. */
+function isStillGoing(message: TranscriptMessage): boolean {
+  return message.parts.some((part) =>
+    part.type === "text"
+      ? part.state === "streaming"
+      : isStepPart(part) && isRunningStep(part),
+  );
 }
 
 function joinedMidTurn(message: TranscriptMessage): boolean {
@@ -674,13 +709,16 @@ function wasInterrupted(
   );
 }
 
-function isRunningRow(row: ActivityRow): boolean {
-  return row.steps.some(
-    (step) =>
-      step.status === "writing" ||
-      step.status === "running" ||
-      step.status === "queued",
+function isRunningStep(step: StepPart): boolean {
+  return (
+    step.status === "writing" ||
+    step.status === "running" ||
+    step.status === "queued"
   );
+}
+
+function isRunningRow(row: ActivityRow): boolean {
+  return row.steps.some(isRunningStep);
 }
 
 /**

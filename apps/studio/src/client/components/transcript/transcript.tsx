@@ -10,6 +10,7 @@ import {
   type Turn,
   turnsOf,
   type TurnsCache,
+  waitsForStep,
 } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
@@ -95,6 +96,7 @@ export function Transcript({
       separator={turn.opener && separators.get(turn.opener.message.id)}
       sessionId={sessionId}
       turn={turn}
+      waitsForStep={turn === last && waitsForStep(turns)}
     />
   );
   return (

@@ -15,6 +15,7 @@ import {
   type Turn,
   turnsOf,
   type TurnsCache,
+  waitsForStep,
 } from "./turns-of";
 
 const sessionId = StoreId.newSessionId();
@@ -531,6 +532,27 @@ describe("the slot", () => {
     expect(turn && slotOf(turn)).toBeUndefined();
   });
 
+  it("says a message is waiting while a step goes on above it", () => {
+    const working = message("assistant", (id) => [
+      call(id, "bash", { command: "sleep 9" }, undefined, "input-available"),
+    ]);
+    const waiting = turnsOf([typed("One"), working, typed("Also this")], {
+      isRunning: true,
+    });
+    expect(waitsForStep(waiting)).toBe(true);
+    expect(waiting[0]?.live?.kind).toBe("activity");
+    const finished = message("assistant", (id) => [
+      call(id, "bash", { command: "sleep 9" }, { exitCode: 0 }),
+    ]);
+    expect(
+      waitsForStep(
+        turnsOf([typed("One"), finished, typed("Also this")], {
+          isRunning: true,
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("stays the working line between an activity's calls", () => {
     const [turn] = turnsOf(
       [
@@ -684,6 +706,10 @@ describe("what a step carries", () => {
       { changesPage: true, kind: "page", url: "https://a.example" },
     ],
     ["open https://a.example", { kind: "opened", target: "https://a.example" }],
+    ["cd work && open report.pdf", { kind: "opened", target: "report.pdf" }],
+    ["git commit -m 'open the file'", undefined],
+    ["instrument task new --name x 'agent-browser open a.example'", undefined],
+    ["echo agent-browser", undefined],
     [
       "instrument window show report.md",
       { kind: "opened", target: "report.md" },

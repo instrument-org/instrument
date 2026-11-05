@@ -477,6 +477,8 @@ export function adoptSpareWindow(adopted: SpareWindow) {
     isMaximized: window.isMaximized(),
   });
   publisher.publish("windows.changed", null);
+  // Its pages can come to it now.
+  publisher.publish("browser.targets-changed", null);
   // An instance kept off screen holds it there, as it does any window of its own.
   if (keepsOffScreen()) {
     putOnScreen(window, { maximized: false });
@@ -526,24 +528,27 @@ export function mergeAllWindows() {
     return;
   }
   const manager = getBrowserViewManager();
+  const kept = keptTabsOf(to);
+  const tabs = [...kept.tabs];
+  let floats = getWindowKeptState(to, COMPOSE_KEY);
   for (const other of others) {
     const from = appWindowIdOfWindow(other);
     if (from !== undefined) {
-      for (const tab of keptTabsOf(from).tabs) {
-        sendTabToWindow(tab, to);
-      }
+      tabs.push(...keptTabsOf(from).tabs);
+      floats = mergeFloats(floats, getWindowKeptState(from, COMPOSE_KEY));
       manager.handOffGuestsOf(other.webContents.id, front.webContents.id);
-      tellWindowKeptState(
-        to,
-        front.webContents,
-        COMPOSE_KEY,
-        mergeFloats(
-          getWindowKeptState(to, COMPOSE_KEY),
-          getWindowKeptState(from, COMPOSE_KEY),
-        ),
-      );
-      closeEmptiedWindow(other);
     }
+  }
+  tellWindowKeptState(to, front.webContents, APP_TABS_KEY, { ...kept, tabs });
+  tellWindowKeptState(to, front.webContents, COMPOSE_KEY, floats);
+  for (const other of others) {
+    closeEmptiedWindow(other);
+  }
+  if (!isHeldOffScreen(front)) {
+    if (front.isMinimized()) {
+      front.restore();
+    }
+    front.focus();
   }
 }
 
@@ -856,7 +861,7 @@ function createAppWindow(
   // The guests of the pages this window shows are mounted by its pool and
   // driven by the manager, so a task can be handed a tab by target id.
   getBrowserViewManager().bindHost(window.webContents, {
-    isSpare: () => spareOf(webContentsId) !== undefined,
+    isSpare: () => !openWindows.has(id),
   });
 
   loadWindowURL(window.webContents, studioURL("/chats/"));

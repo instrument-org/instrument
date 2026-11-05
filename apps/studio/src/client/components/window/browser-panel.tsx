@@ -338,9 +338,9 @@ export function BrowserPanel({
   const elsewhere = useQuery(
     rpcClient.browser.live.targetsElsewhere.experimental_liveOptions(),
   ).data;
-  const isShownElsewhere =
-    elsewhere?.some((each) => each.targetId === targetId && each.isInUse) ??
-    false;
+  const standing = elsewhere?.find((each) => each.targetId === targetId);
+  const isShownElsewhere = standing?.isInUse ?? false;
+  const canTake = standing?.canTake ?? true;
   const showHere = () => {
     openBrowser({ take: "always", targetId });
   };
@@ -357,7 +357,7 @@ export function BrowserPanel({
       opens.delete(targetId);
       return;
     }
-    if (active || isShownElsewhere) {
+    if (active || isShownElsewhere || !canTake) {
       return;
     }
     const at = performance.now();
@@ -372,7 +372,7 @@ export function BrowserPanel({
     openHere();
     // The address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, isShownElsewhere, isVisible, openBrowser, targetId]);
+  }, [active, canTake, isShownElsewhere, isVisible, openBrowser, targetId]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);

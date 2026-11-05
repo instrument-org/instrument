@@ -126,6 +126,7 @@ export function TabStrip({
   onReorder,
   onSelect,
   onTabDrag,
+  onTabDragEnd,
   onTabDragStart,
   selectedKey,
   tabs,
@@ -148,6 +149,7 @@ export function TabStrip({
   onSelect: (key: string) => void;
   /** Where a tab being dragged is, which the strip's own reorder keeps to its row. */
   onTabDrag?: (key: string, event: PointerEvent) => void;
+  onTabDragEnd?: (key: string, event: PointerEvent) => void;
   onTabDragStart?: (key: string, event: PointerEvent) => void;
   selectedKey: string | undefined;
   tabs: StripTab[];
@@ -400,8 +402,11 @@ export function TabStrip({
                   onTabDrag?.(tab.key, event);
                 }
               }}
-              onDragEnd={() => {
+              onDragEnd={(event) => {
                 setDraggingKey(undefined);
+                if (event instanceof PointerEvent) {
+                  onTabDragEnd?.(tab.key, event);
+                }
               }}
               onDragStart={(event) => {
                 setDraggingKey(tab.key);

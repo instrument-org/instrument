@@ -128,7 +128,7 @@ export interface BrowserViewManager {
   // page: what a window showing that tab says instead of opening it.
   getTargetsElsewhere: (
     webContentsId: number,
-  ) => { isInUse: boolean; targetId: BrowserTargetId }[];
+  ) => { canTake: boolean; isInUse: boolean; targetId: BrowserTargetId }[];
   // Whether a window's renderer mounts this target, so that what is asked of
   // its guest goes to that window alone.
   isHostOf: (webContentsId: number, targetId: BrowserTargetId) => boolean;
@@ -141,7 +141,8 @@ export interface BrowserViewManager {
     webContentsId: number,
   ) => Promise<void>;
   // Every page one window's renderer mounts, to another, for a window on its way
-  // out with an agent or a person still having use for them.
+  // out with an agent or a person still having use for them. Done as this returns,
+  // since the window closing takes its pages with it.
   handOffGuestsOf: (fromWebContentsId: number, toWebContentsId: number) => void;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
@@ -745,6 +746,13 @@ function createBrowserViewManager(): BrowserViewManager {
   const isInUse = (entry: BrowserEntry) =>
     entry.shown || Date.now() - entry.lastAgentCommandAt < AGENT_KEEPS_GUEST_MS;
 
+  // Whether a window showing a page gets it for asking: not while another window
+  // has a use for it, and not while it is a spare, whose drag says which pages it
+  // has, until it is a window of its own.
+  const canTakeParked = (entry: BrowserEntry, webContentsId: number) =>
+    hostOf(entry.targetId) === null ||
+    (!isInUse(entry) && !isSpareHost(webContentsId));
+
   function noteAgentCommand(entry: BrowserEntry) {
     const wasInUse = isInUse(entry);
     entry.lastAgentCommandAt = Date.now();
@@ -869,9 +877,7 @@ function createBrowserViewManager(): BrowserViewManager {
       if (
         host?.take !== undefined &&
         hostId !== host.webContentsId &&
-        (host.take === "always" ||
-          hostOf(targetId) === null ||
-          (!isInUse(existing) && !isSpareHost(host.webContentsId)))
+        (host.take === "always" || canTakeParked(existing, host.webContentsId))
       ) {
         return moveTarget(existing, partitionDir, host.webContentsId);
       }
@@ -1156,6 +1162,7 @@ function createBrowserViewManager(): BrowserViewManager {
       [...entries.values()]
         .filter((entry) => hostIdOf(entry) !== webContentsId)
         .map((entry) => ({
+          canTake: canTakeParked(entry, webContentsId),
           isInUse: isInUse(entry),
           targetId: entry.targetId,
         })),
@@ -1177,9 +1184,12 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     handOffGuest,
     handOffGuestsOf: (fromWebContentsId, toWebContentsId) => {
+      // A moved page comes round again at the end of the map, in its new window.
       for (const entry of entries.values()) {
         if (hostIdOf(entry) === fromWebContentsId && hasGuest(entry)) {
-          void handOffGuest(entry.targetId, toWebContentsId);
+          moveTarget(entry, entry.partitionDir, toWebContentsId).catch(
+            () => undefined,
+          );
         }
       }
     },

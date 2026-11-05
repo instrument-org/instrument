@@ -98,17 +98,24 @@ function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
   }
 }
 
+/** The note's rows as the model reads them, without their dashes: `21m ago · opened a folder in Files`. */
+export function actionsNoteLines(
+  data: SessionMessageDataPart.ActionsDataPart,
+): string[] {
+  return data.rows.map(
+    (row) =>
+      `${row.minutes < 1 ? "now" : `${row.minutes}m ago`} · ${actionPhrase(row)}`,
+  );
+}
+
 /**
  * Tells the model what kinds of things the user did in the app before the
  * message, and where the names are: a note that named them pulled the agent
  * toward what the user had opened over what their words named.
  */
 export function actionsModelNote(data: SessionMessageDataPart.ActionsDataPart) {
-  const rows = data.rows
-    .map(
-      (row) =>
-        `- ${row.minutes < 1 ? "now" : `${row.minutes}m ago`} · ${actionPhrase(row)}`,
-    )
+  const rows = actionsNoteLines(data)
+    .map((line) => `- ${line}`)
     .join("\n");
   return systemNote`
     Background, not something they sent: what the user did in this app before this message, oldest first, without names. \`${ACTIVITY_COMMAND.name}\` gives the names and paths, for when their words point at one of these.

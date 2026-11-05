@@ -2,7 +2,10 @@ import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { StoreId } from "@instrument-org/workspace/client";
+
 import { ActivitySection } from "./activity-section";
+import { TurnDetail } from "./activity-requests";
 
 const { calls, data } = vi.hoisted(() => ({
   calls: new Map<string, (input: unknown) => unknown>(),
@@ -99,5 +102,76 @@ describe("ActivitySection", () => {
         since: expect.any(Number),
       });
     });
+  });
+
+  it("shows the message a turn answered and the activity sent with it", async () => {
+    const sessionId = StoreId.newSessionId();
+    const messageId = StoreId.newMessageId();
+    const sent = new Date(2026, 10, 5, 14, 43);
+    const metadata = {
+      createdAt: sent,
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    };
+    data.set("workspace.message.list", [
+      {
+        id: messageId,
+        metadata: { createdAt: sent, sessionId },
+        parts: [
+          { metadata, text: "Put those back where they were", type: "text" },
+          {
+            data: { rows: [{ count: 3, kind: "move", minutes: 2 }] },
+            metadata,
+            type: "data-actions",
+          },
+        ],
+        role: "user",
+      },
+    ]);
+    renderWithProviders(
+      <TurnDetail
+        onBack={() => {}}
+        onOpen={() => {}}
+        turn={{
+          id: "req_1",
+          requests: [
+            {
+              cacheReadTokens: null,
+              cacheWriteTokens: null,
+              chatId: "kitchen-remodel-quotes",
+              chatTitle: "Kitchen remodel quotes",
+              connectionName: null,
+              connectionType: "anthropic",
+              device: null,
+              durationMs: 1200,
+              error: null,
+              finishReason: null,
+              id: "req_1",
+              imageQuality: null,
+              inputTokens: null,
+              kind: "language",
+              modelRequested: "anthropic/claude-haiku-5.5",
+              modelServed: null,
+              outputTokens: null,
+              purpose: "chat",
+              reasoningTokens: null,
+              responseId: null,
+              sessionId,
+              startedAt: sent.getTime() + 1000,
+              status: "finished",
+              surface: null,
+              totalTokens: 1000,
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(await screen.findByText(/ · You wrote$/)).toBeTruthy();
+    expect(screen.getByText("Put those back where they were")).toBeTruthy();
+    expect(screen.getByText("Your activity sent with it")).toBeTruthy();
+    expect(screen.getByText("2m ago · moved 3 files")).toBeTruthy();
+    expect(screen.getByText("The chat didn't look up any names.")).toBeTruthy();
   });
 });

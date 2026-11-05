@@ -16,10 +16,15 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { AIProviderTypeSchema } from "@instrument-org/shared";
+import {
+  ChatIdSchema,
+  StoreId,
+  turnMessageOf,
+} from "@instrument-org/workspace/client";
 import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 
@@ -369,6 +374,7 @@ export function TurnDetail({
           </div>
         </div>
       </div>
+      <TurnMessage turn={turn} />
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <div
           className="flex h-9 items-center border-b border-border text-xs font-medium text-muted-foreground"
@@ -413,6 +419,68 @@ export function TurnDetail({
             ))}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+const timeFormat = new Intl.DateTimeFormat(displayLocale, {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/**
+ * What went with the message a chat turn answered: the person's words, the
+ * activity note it carried as the model read it, and whether the chat looked
+ * up names with `instrument activity`. Nothing for a turn no message of
+ * theirs started, or whose chat is gone.
+ */
+function TurnMessage({ turn }: { turn: Turn }) {
+  const first = turn.requests.at(-1);
+  const chat = ChatIdSchema.safeParse(first?.chatId);
+  const session = StoreId.SessionSchema.safeParse(first?.sessionId);
+  const { data: messages } = useQuery({
+    ...rpcClient.workspace.message.list.queryOptions({
+      input:
+        chat.success && session.success
+          ? { id: chat.data, sessionId: session.data }
+          : skipToken,
+    }),
+    retry: false,
+  });
+  const message =
+    messages && first ? turnMessageOf(messages, first.startedAt) : undefined;
+  if (!message) {
+    return null;
+  }
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">
+          {`${timeFormat.format(message.at)} · You wrote`}
+        </div>
+        <p className="line-clamp-3 whitespace-pre-wrap">{message.text}</p>
+      </div>
+      {message.noteLines ? (
+        <div className="space-y-1">
+          <div className="text-xs text-muted-foreground">
+            Your activity sent with it
+          </div>
+          <div className="font-mono text-xs leading-5">
+            {message.noteLines.map((line, index) => (
+              <div key={index}>{line}</div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-xs text-muted-foreground">
+          No activity sent with it.
+        </div>
+      )}
+      <div className="text-xs text-muted-foreground">
+        {message.lookedUp
+          ? "The chat looked up names."
+          : "The chat didn't look up any names."}
       </div>
     </div>
   );

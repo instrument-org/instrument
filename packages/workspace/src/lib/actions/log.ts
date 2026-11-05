@@ -245,6 +245,7 @@ export class ActionLog {
     }
     fs.mkdirSync(this.#dir, { recursive: true });
     const file = path.join(this.#dir, `${day}.jsonl`);
+    // oxlint-disable-next-line studio/no-sync-content-read -- opens for append in the machine folder, which is never synced, and reads nothing
     this.#fd = fs.openSync(file, "a");
     this.#day = day;
     this.#dayBytes = fs.fstatSync(this.#fd).size;

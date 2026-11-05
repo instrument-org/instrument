@@ -104,8 +104,6 @@ export const ActionSchema = z.discriminatedUnion("kind", [
 
 export type Action = z.output<typeof ActionSchema>;
 
-export type ActionKind = Action["kind"];
-
 /** An action as a capture point reports it; the log stamps the time. */
 export type ActionInput = Action extends infer A
   ? A extends { at: string }

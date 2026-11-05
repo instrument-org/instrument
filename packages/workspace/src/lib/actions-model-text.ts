@@ -10,7 +10,7 @@ function things(count: number, noun: string): string {
 }
 
 /** One phrase saying what kind of thing was done and how many, never to what. */
-export function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
+function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
   const one = count === 1;
   switch (kind) {
     case "folder": {

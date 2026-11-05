@@ -214,8 +214,8 @@ const syncGuestSurface = base
 // to answer an agent asking for a viewport.
 const syncRasterBudget = base
   .input(z.object({ height: z.number(), width: z.number() }))
-  .handler(({ input }) => {
-    setRasterBudget(input);
+  .handler(({ context, input }) => {
+    setRasterBudget(context.webContentsId, input);
   });
 
 // The browser panel's device-preview menu calls this on every show and on

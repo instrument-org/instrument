@@ -866,7 +866,9 @@ function createAppWindow(
 
   // The guests of the pages this window shows are mounted by its pool and
   // driven by the manager, so a task can be handed a tab by target id.
-  getBrowserViewManager().bindHost(window.webContents, { isFront: !isSpare });
+  getBrowserViewManager().bindHost(window.webContents, {
+    isSpare: () => spareOf(webContentsId) !== undefined,
+  });
 
   loadWindowURL(window.webContents, studioURL("/chats/"));
 
@@ -908,6 +910,16 @@ export function takePendingAppWindowAsks(
   const spare = spareOf(webContentsId);
   if (spare) {
     spare.isUp = true;
+    // What a drag told it while its page was starting, or took back, may have
+    // gone unheard: it read its state as it loaded and listens only now.
+    for (const key of WINDOW_KEPT_KEYS) {
+      tellWindowKeptState(
+        spare.id,
+        spare.window.webContents,
+        key,
+        getWindowKeptState(spare.id, key),
+      );
+    }
     return [];
   }
   listening.add(webContentsId);

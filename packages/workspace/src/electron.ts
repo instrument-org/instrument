@@ -1,3 +1,5 @@
+export { actionLog, recordAction } from "./lib/actions/log";
+export { type Action, type ActionInput } from "./lib/actions/schema";
 export { ActivityFilterSchema } from "./lib/activity/schema";
 export { activityCsv } from "./lib/activity/store";
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";

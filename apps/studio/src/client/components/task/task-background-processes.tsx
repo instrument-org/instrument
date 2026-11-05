@@ -18,17 +18,18 @@ import { StopProcessButton } from "./stop-process-button";
 const ELAPSED_TICK_MS = 1000;
 
 /**
- * What the agent started and left running in this task.
+ * What the agent started and left running, in a task or across a chat and its
+ * tasks.
  *
  * Renders nothing at all when nothing is running, rather than an empty state:
  * it is reporting rather than offering, so with nothing to report it takes no
- * room in the task header.
+ * room in the header.
  */
 export function TaskBackgroundProcesses({
   sessionId,
   chatId,
 }: {
-  /** One session's of the record alone: a task's, in its chat's. */
+  /** One session's alone, a task's; without one, the whole chat's. */
   sessionId?: StoreId.Session;
   chatId: ChatId;
 }) {
@@ -42,7 +43,7 @@ export function TaskBackgroundProcesses({
     <Popover>
       <PopoverTrigger asChild>
         <button
-          aria-label={`${running.length} still running in this task`}
+          aria-label={`${running.length} still running`}
           className="shrink-0 rounded-full hover:text-foreground data-[state=open]:bg-accent"
           type="button"
         >

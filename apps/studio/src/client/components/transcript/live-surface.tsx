@@ -1,4 +1,5 @@
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useTaskBackgroundProcesses } from "@/client/hooks/use-task-background-processes";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
@@ -82,6 +83,11 @@ function useStepPart(
     (each) => each.metadata.id === step.metadata.id,
   );
   return part && isToolPart(part) ? part : undefined;
+}
+
+function useRunningCommands(): ReadonlySet<string> {
+  const running = useTaskBackgroundProcesses(useLiveChat());
+  return new Set(running.map((process) => process.id));
 }
 
 function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
@@ -295,6 +301,7 @@ export function LiveTranscriptSurface({
       latest.current.stop.mutate({ id: latest.current.chat, sessionId: id });
     },
     PagePicture: LivePagePicture,
+    useRunningCommands,
     useStepPart,
     useTaskFacts,
     useTaskMessages,

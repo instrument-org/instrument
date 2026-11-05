@@ -83,7 +83,7 @@ Asked for ahead of merging the multiple windows work: the difficult bugs, and th
 
 ### M. A fast release before Motion's first frame leaves the carry running
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [use-tab-carry.ts:115](/apps/studio/src/client/components/window/use-tab-carry.ts#L115)
 - What: Motion reports a drag's start on its next frame even when the release has already happened, so a press, a small move and a release during a busy moment left the release listener added too late. The spare came up, the next click was swallowed, and a window's only tab followed the pointer with no button down until that click.
 - Verification: on the macOS VM, a tab flicked while its renderer was held busy stayed held after the release on the build before the fix, and not on the build after it. A window's only tab did not reproduce on either.
@@ -91,56 +91,56 @@ Asked for ahead of merging the multiple windows work: the difficult bugs, and th
 
 ### N. A page the spare asks for and is refused is never asked for again
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [manager.ts:872](/apps/studio/src/electron-main/browser-view/manager.ts#L872), [browser-panel.tsx:355](/apps/studio/src/client/components/window/browser-panel.tsx#L355)
 - What: only the pages of the neighbor at the press are handed over. Drag a tab past that neighbor, or have a float with a page, and the window left behind shows "Opening browser…" on a page it never gets, until the person switches away and back.
 - Verification: traced, on the build before the fix. A first attempt by real pointer took the path where the tab goes to the spare and the pressed window stays, so it could not show this. On the fixed build a used page's tab dragged past its neighbor and out left a window that loaded the page of the tab it brought up, which was not the neighbor at the press.
 
 ### O. Merge could close a window before its pages had moved
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [app-window.ts:535](/apps/studio/src/electron-main/windows/app-window.ts#L535), `handOffGuestsOf` in [manager.ts](/apps/studio/src/electron-main/browser-view/manager.ts)
 - What: a hand-off first waits up to 80ms for the page to say where it is scrolled, and the window closing ends it, so a page lost its back and forward history, and an agent's page with no tab was gone.
 
 ### P. The spare could become the window new pages go to
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [app-window.ts:858](/apps/studio/src/electron-main/windows/app-window.ts#L858), `bindHost` in [manager.ts](/apps/studio/src/electron-main/browser-view/manager.ts)
 - What: `isSpare` read a list the spare joins only after it is bound, so a hidden spare was the front host until a window next took focus, and an agent's blank page or a page whose window closed mounted out of sight.
 
 ### Q. A spare crashing under the drag threw in the poll timer
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: `backToRow` in [tab-carry.ts:597](/apps/studio/src/electron-main/windows/tab-carry.ts#L597)
 - What: `setOpacity` on a destroyed window threw before the window was told its tab was back.
 
 ### R. Straight from one strip to another, a tab landed at the far end
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [tab-carry-view.ts:80](/apps/studio/src/client/components/window/tab-carry-view.ts#L80), `updateCarry` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
 - What: the carried window says where the tab stands only when that changes, and the new phase started with no place, so strips that touch could land it away from where it was drawn.
 
 ### S. An instance kept off screen could never dock
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [tab-carry.ts:496](/apps/studio/src/electron-main/windows/tab-carry.ts#L496)
 - What: its windows are never visible, so a drag driven over CDP always came out as a new window.
 
 ### T. Merge left every window gone when they were all minimized
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: `mergeAllWindows` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
 - What: the window kept stayed minimized and nothing was left on screen.
 
 ### U. Merge past a hundred tabs lost the oldest
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: [publisher.ts:157](/apps/studio/src/electron-main/rpc/publisher.ts#L157)
 - What: each tab was a command in one burst, and a subscription keeps the last hundred.
 
 ### V. A window gone while a landing waits to see it drawn left the carried window open
 
-- Status: open
+- Status: fixed `89f4e88b4`
 - Where: `drawn` in [tab-carry.ts:401](/apps/studio/src/electron-main/windows/tab-carry.ts#L401)
 - What: asking a destroyed window for its web contents threw, so the steps after it never ran. Found while verifying Q.
 

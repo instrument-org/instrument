@@ -2,6 +2,7 @@ import { reportDialogAtom } from "@/client/atoms/report-dialog";
 import { modalBackStackAtom } from "@/client/atoms/tab-navigation-block";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
+import { toast } from "@/client/lib/toast";
 import { type FeedbackItem } from "@/shared/problem-reports";
 import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
@@ -36,8 +37,19 @@ vi.mock("@/client/rpc/client", () => ({
                   {
                     content: `${[
                       { message: { role: "user" }, seq: 0, t: "message" },
-                      { part: { text: "favorite my first email", type: "text" }, seq: 1, t: "part" },
-                      { part: { input: { command: "app test gmail" }, type: "tool-bash" }, seq: 2, t: "part" },
+                      {
+                        part: { text: "favorite my first email", type: "text" },
+                        seq: 1,
+                        t: "part",
+                      },
+                      {
+                        part: {
+                          input: { command: "app test gmail" },
+                          type: "tool-bash",
+                        },
+                        seq: 2,
+                        t: "part",
+                      },
                     ]
                       .map((record) => JSON.stringify(record))
                       .join("\n")}\n`,
@@ -70,7 +82,7 @@ vi.mock("@/client/components/dictation-controls", () => ({
   DictatedTextarea: ({ dictation: _, ...props }: { dictation: unknown }) => (
     <textarea {...props} />
   ),
-  useDictatedText: () => ({ phase: "idle" }),
+  useDictatedText: () => ({ phase: { kind: "idle" } }),
 }));
 
 async function open(writeup?: { text: string; title: string }) {
@@ -115,6 +127,18 @@ describe("FeedbackDialogContent", () => {
       getDefaultStore().get(modalBackStackAtom).at(-1)?.run();
     });
     expect(screen.getByText("Send feedback")).toBeTruthy();
+  });
+
+  it("closes on Send and leaves the rest to a toast", async () => {
+    const work = vi.spyOn(toast, "work");
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(getDefaultStore().get(reportDialogAtom)).toBeNull();
+    expect(work.mock.calls[0]?.[0]).toMatchObject({
+      done: "Thanks, we got your feedback.",
+      failed: "Couldn't send your feedback",
+      running: "Sending your feedback…",
+    });
   });
 
   it("lists the agent's write-up first when there is one", async () => {

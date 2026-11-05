@@ -130,6 +130,56 @@ function showError(message: Message, data?: ErrorToast) {
   );
 }
 
+let workToasts = 0;
+
+/**
+ * Work the person has stepped away from, in one toast from start to finish: a
+ * spinner while it runs, then what came of it, with Try again on a failure.
+ */
+function showWork({
+  done,
+  failed,
+  onDone,
+  run,
+  running,
+}: {
+  done: string;
+  failed: string;
+  onDone?: () => void;
+  run: () => Promise<void>;
+  running: string;
+}) {
+  workToasts += 1;
+  const id = `work-${workToasts}`;
+  const attempt = () => {
+    // A toast shown again under its id keeps what it had, so the failure's
+    // action is taken off here.
+    sonnerToast.loading(running, { action: undefined, id });
+    run().then(
+      () => {
+        sonnerToast.success(done, withDuration({ id }));
+        onDone?.();
+      },
+      (cause: unknown) => {
+        showError(failed, {
+          action: {
+            label: "Try again",
+            onClick: (event) => {
+              // Sonner closes a toast after its action unless told not to,
+              // and this one is about to show the new attempt.
+              event.preventDefault();
+              attempt();
+            },
+          },
+          cause,
+          id,
+        });
+      },
+    );
+  };
+  attempt();
+}
+
 function showDev(message: Message, data?: ExternalToast) {
   if (!isDeveloperMode) {
     return undefined;
@@ -164,5 +214,6 @@ export const toast = Object.assign(
       sonnerToast.success(message, withDuration(data)),
     warning: (message: Message, data?: ExternalToast) =>
       sonnerToast.warning(message, withDuration(data)),
+    work: showWork,
   },
 );

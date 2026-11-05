@@ -5,7 +5,7 @@ import {
   noopModelCache,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
@@ -810,11 +810,12 @@ export async function runEvals(
     os.tmpdir(),
     `${APP_NAME_SLUG}-evals-${ulid()}`,
   );
-  // EVAL_INSTRUMENT_FOLDER=1 names the person's folder as the app does and keeps
-  // the run's machine folder out of it, for a case about how the agent searches
-  // that folder. `report` does not read a run made this way.
+  // EVAL_INSTRUMENT_FOLDER=1 puts the person's folder where a release keeps it,
+  // in Documents under the run's home, with the run's machine folder outside
+  // it, for a case about how the agent searches that folder. `report` does not
+  // read a run made this way.
   const personFolder = process.env.EVAL_INSTRUMENT_FOLDER
-    ? path.join(workspaceRootDir, "Instrument")
+    ? path.join(os.homedir(), "Documents", APP_NAME)
     : workspaceRootDir;
   fs.mkdirSync(personFolder, { recursive: true });
   const runtimeDir = freshRuntime

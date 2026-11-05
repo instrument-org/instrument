@@ -143,6 +143,11 @@ const FILES: Record<string, string> = {
     "2025-05-19,Halvorsen Roofing,Tear-off and underlayment,4210",
     "2025-05-30,Halvorsen Roofing,Shingles and labor,4520",
   ].join("\n"),
+  "Notes/cabin.md": [
+    "# The cabin",
+    "",
+    "Wifi is Pinecrest-Guest, password fernhollow42. Key is under the blue pot.",
+  ].join("\n"),
   "Notes/kitchen-remodel.md": [
     "# Kitchen remodel",
     "",
@@ -167,12 +172,41 @@ const FILES: Record<string, string> = {
   ].join("\n"),
 };
 
-const HOME_FILES: Record<string, string> = {
-  "Documents/Resume.md": "# Resume\n\nSenior product designer, eleven years.\n",
-  "Documents/taxes/2025-notes.md":
-    "W-2 from Fernway, 1099 from the side work.\n",
-  "Downloads/receipt-1182.txt": "Thanks for your order of 2 filters.\n",
-};
+/**
+ * A home with a person's years in it: the places macOS guards hold most of it,
+ * and the rest is what a Mac keeps by itself, plus a side project. None of it
+ * answers a case, though a guarded file names the roof, as a real one would.
+ */
+function homeFiles(): Record<string, string> {
+  const files: Record<string, string> = {
+    ".config/gh/config.yml": "git_protocol: ssh\n",
+    ".zshrc": 'export PATH="$HOME/bin:$PATH"\n',
+    "Desktop/Screenshot 2026-10-02 at 9.14.08.txt": "(a screenshot)\n",
+    "Desktop/todo.txt": "call dentist\nrenew passport\n",
+    "Documents/Home/roof-warranty.txt":
+      "Halvorsen Roofing, 10 year workmanship warranty, registered 2025.\n",
+    "Documents/Resume.md": "# Resume\n\nSenior product designer, eleven years.\n",
+    "Documents/Work/2026 goals.md": "# Goals\n\nShip the redesign.\n",
+    "Documents/taxes/2025-notes.md":
+      "W-2 from Fernway, 1099 from the side work.\n",
+    "Downloads/receipt-1182.txt": "Thanks for your order of 2 filters.\n",
+    "Downloads/wedding-invite.txt": "Sam and Priya, June 6.\n",
+    "Movies/iMovie Library.txt": "(a library)\n",
+    "Music/Playlists/running.m3u": "#EXTM3U\n",
+    "Pictures/Photos Library.txt": "(a library)\n",
+    "Public/Drop Box/.keep": "",
+    "code/recipe-site/README.md":
+      "# Recipe site\n\nA static site for family recipes.\n",
+    "code/recipe-site/package.json": '{"name":"recipe-site"}\n',
+    "code/recipe-site/src/index.ts": 'console.log("recipes");\n',
+  };
+  for (let index = 0; index < 200; index += 1) {
+    const app = ["Slack", "Figma", "Spotify", "Zoom", "Notion"][index % 5];
+    files[`Library/Application Support/${app}/cache/${index}.json`] =
+      `{"entry":${index}}\n`;
+  }
+  return files;
+}
 
 /** One earlier chat, written the way a real one is, and its `CHAT.md`. */
 async function seedOldChat(old: (typeof OLD_CHATS)[number], at: number) {
@@ -236,7 +270,7 @@ async function seedWorkspace() {
     }
   };
   write(rootDir, FILES);
-  write(os.homedir(), HOME_FILES);
+  write(os.homedir(), homeFiles());
   const start = Date.now() - OLD_CHATS.length * DAY;
   for (const [index, old] of OLD_CHATS.entries()) {
     await seedOldChat(old, start + index * DAY);
@@ -433,6 +467,21 @@ export const FOLDER_INTEREST_EVALS = [
   ),
   local("local-landlord", "whats my landlords phone number", /555.?0142/u),
   local("local-roof", "how much did the roof cost in total", /11,?730/u),
+  // Held out from the prompts the search was tuned on: a file at the top of the
+  // Instrument folder, a file in the home folder a walk reaches by itself, a
+  // decision only a chat has, and a question nothing here answers.
+  local(
+    "local-cabin",
+    "whats the wifi password at the cabin",
+    /fernhollow42/u,
+  ),
+  local("local-recipe", "what does my recipe site do", /recipes?/iu),
+  local("local-healer", "what class did you say i should play", /Priest/u),
+  local(
+    "local-nothing",
+    "what did i decide about the fence",
+    /\b(?:couldn'?t|can'?t|don'?t|didn'?t|no record|nothing|haven'?t|not)\b/iu,
+  ),
   local(
     "local-old-chat",
     "what did you do last time to shrink that screen recording",

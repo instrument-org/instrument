@@ -125,7 +125,7 @@ function toolOf(step: TurnStep): ToolName | undefined {
     : (step.tool.slice("tool-".length) as ToolName);
 }
 
-export function StepMark({ step }: { step: TurnStep | undefined }) {
+function StepMark({ step }: { step: TurnStep | undefined }) {
   const tool = step && toolOf(step);
   const Icon = tool ? TOOL_ICONS[tool] : BrainIcon;
   return (

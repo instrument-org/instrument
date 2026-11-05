@@ -9,7 +9,7 @@ describe("isGroupScreenHref", () => {
     "/new-tab",
     "/apps",
     "/apps/linear",
-    "/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-roofer",
     "/files?path=&root=~",
   ])("lets a group's tab stand at %s", (href) => {
     expect(isGroupScreenHref(href)).toBe(true);

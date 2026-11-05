@@ -42,7 +42,6 @@ import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
-import { tasksHref } from "@/client/components/window/tab-location";
 import {
   surfaceLocation,
   tabSurfaceAtom,
@@ -289,11 +288,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         onNewProject={shell.onNewProject}
                         onSetProject={(next) => {
                           shell.setChatProject(chat, next);
-                        }}
-                        onViewTasks={() => {
-                          appWindow.openScreen(tasksHref(chat), {
-                            ownTab: true,
-                          });
                         }}
                         popOut={{
                           isOut: isFloating,

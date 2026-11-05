@@ -49,7 +49,6 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
@@ -592,11 +591,6 @@ function locationMark(location: TabLocation): ReactNode {
         <CheckSquareIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
-    case "tasks": {
-      return (
-        <ListChecksIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
-    }
   }
 }
 
@@ -632,9 +626,6 @@ function locationText(location: TabLocation) {
     }
     case "task": {
       return location.title;
-    }
-    case "tasks": {
-      return "Tasks";
     }
   }
 }

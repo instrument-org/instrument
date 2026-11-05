@@ -14,17 +14,6 @@ export interface RowAction {
 }
 
 /**
- * The tint a row of a divided list wears while the pointer is on it, its
- * menu is open, or it has the keyboard: a rounded field drawn inside the
- * row, a hair in from the hairlines above and below it, rather than the
- * row's whole box tinted edge to edge. The hairlines go on reading as one
- * list, and the row under the pointer reads as a thing in it. The row is
- * the field's box, so it has to be positioned.
- */
-export const ROW_TINT =
-  "before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-0.5 before:rounded-lg before:bg-foreground/4 before:opacity-0 hover:before:opacity-100 focus-visible:before:opacity-100 has-[[data-state=open]]:before:opacity-100 data-[state=open]:before:opacity-100";
-
-/**
  * The inbox's own tint, which is the open row's bar at half strength, so a
  * row under the pointer reads as halfway to open: the list's full width and
  * square, between the row's hairlines, which stay put while the row is

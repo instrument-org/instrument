@@ -169,14 +169,14 @@ describe("where a chat's tasks open", () => {
     [string, OpenOptions, string | undefined, string | undefined, unknown]
   >([
     [
-      "in place, over the tasks the chat on screen has up",
+      "in place, over the task the chat on screen has up",
       {},
       CHAT,
-      `/tasks?chat=${CHAT}`,
+      `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
       { kind: "in-place" },
     ],
     [
-      "in the chat beside a screen that is not its tasks",
+      "in the chat beside a screen that is not a task",
       {},
       CHAT,
       "/files",
@@ -186,14 +186,14 @@ describe("where a chat's tasks open", () => {
       "with the chat brought on screen when another is up",
       {},
       OTHER,
-      `/tasks?chat=${CHAT}`,
+      `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
       { kind: "in-chat", navigatesWindow: true },
     ],
     [
       "in a window tab of the chat's own when asked",
       { newTab: true },
       CHAT,
-      `/tasks?chat=${CHAT}`,
+      `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
       { kind: "in-chat", navigatesWindow: true },
     ],
   ])("opens %s", (_case, options, groupOnScreen, upInOwner, expected) => {

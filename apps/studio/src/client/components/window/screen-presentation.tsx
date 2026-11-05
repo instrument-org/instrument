@@ -6,7 +6,6 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
 
@@ -80,14 +79,7 @@ export function screenLocation(
     case "task": {
       return {
         kind: "task",
-        ...(screen.chat === undefined ? {} : { chat: screen.chat }),
         title: taskTitles?.get(screen.task) ?? "Task",
-      };
-    }
-    case "tasks": {
-      return {
-        kind: "tasks",
-        ...(screen.chat === undefined ? {} : { chat: screen.chat }),
       };
     }
     case "browser":
@@ -186,9 +178,6 @@ export function screenPresentation(
         icon: <CheckSquareIcon className="size-3.5" />,
         title: taskTitles?.get(screen.task) ?? "Task",
       };
-    }
-    case "tasks": {
-      return { icon: <ListChecksIcon className="size-3.5" />, title: "Tasks" };
     }
     case "memory":
     case "namedScreen":

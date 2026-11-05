@@ -15,7 +15,6 @@ import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -54,7 +53,6 @@ export function ChatHeader({
   onDeleted,
   onNewProject,
   onSetProject,
-  onViewTasks,
   popOut,
   projects,
   trailing,
@@ -68,10 +66,7 @@ export function ChatHeader({
   onDeleted: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
-  /** Opens one of the chat's tasks beside it, from the list under its title. */
   onSetProject: (project: null | string) => void;
-  /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
-  onViewTasks?: () => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
   projects: Project[];
@@ -94,7 +89,7 @@ export function ChatHeader({
           {chat ? (
             <ChatHeading
               chat={chat}
-              menu={{ onArchived, onViewTasks }}
+              menu={{ onArchived }}
               onDelete={() => {
                 setDeleting(true);
               }}
@@ -157,7 +152,7 @@ function ChatHeading({
 }: {
   chat: Chat;
   /** What the menu offers beyond what every head's does. */
-  menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived" | "onViewTasks">;
+  menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived">;
   onDelete: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
@@ -242,14 +237,13 @@ function ChatHeading({
  * The chat's own menu, opened from its title: while the chat works, Stop,
  * which ends its turn and every task's; then the inbox row's menu in the
  * same groups and order (see `chatMenuGroups`), with renaming it, which
- * opens the title's field, and its tasks among the ways to organize it, and
- * deleting it at the foot. Its project is the pill beside the title.
+ * opens the title's field, among the ways to organize it, and deleting it at
+ * the foot. Its project is the pill beside the title.
  */
 function ChatMenu({
   chat,
   onArchived,
   onDelete,
-  onViewTasks,
   rename,
   projectMenu,
   trigger,
@@ -258,8 +252,6 @@ function ChatMenu({
   /** After the chat is archived from this menu, for a head that should go with it. */
   onArchived?: () => void;
   onDelete: () => void;
-  /** Opens the chat's tasks, when the head can reach them. */
-  onViewTasks?: () => void;
   rename: ChatRename;
   /** The projects to file the chat under, as a submenu, when the head that owns the menu files it. */
   projectMenu?: {
@@ -357,16 +349,6 @@ function ChatMenu({
               </div>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-        )}
-        {onViewTasks && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onViewTasks();
-            }}
-          >
-            <ListChecksIcon className="size-3.5" />
-            View tasks
-          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         {groups.files.map(item)}

@@ -32,7 +32,7 @@ import { useWindow, WindowContext } from "./context";
 import { ContextChips } from "./context-chip";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
-import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
+import { taskHref, tasksOfHref } from "./tab-location";
 import { useChatContext } from "./use-chat-context";
 import { useWindowTabs } from "./window-tabs";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
@@ -257,9 +257,6 @@ export function ChatWindow({
         onDeleted={onClose}
         onNewProject={onNewProject}
         onSetProject={onSetProject}
-        onViewTasks={() => {
-          openTasksHere(tasksHref(chatId));
-        }}
         projects={projects}
         trailing={
           <div className="flex shrink-0 items-center gap-0.5">
@@ -324,11 +321,7 @@ export function ChatWindow({
                 }
                 const tasks = tasksOfHref(href);
                 if (options?.show && tasks) {
-                  openTasksHere(
-                    tasks.task === undefined
-                      ? tasksHref(chatId)
-                      : taskHref(tasks.task, chatId),
-                  );
+                  openTasksHere(taskHref(tasks.task, chatId));
                   return;
                 }
                 appWindow.openScreen(href, options);

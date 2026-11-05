@@ -155,6 +155,9 @@ function sessionOf(chatId: ChatId, signal?: AbortSignal): Promise<string> {
   return started;
 }
 
+/** The one cursor a chat's session has, by the name each action moves it under. */
+const CURSOR_AGENT = "instrument";
+
 /**
  * One driver command for `chatId`, in its session, its data on success and its
  * refusal thrown as a failure. Refused as a whole where the host carries no
@@ -165,19 +168,27 @@ export async function runDriver(
   { chatId, signal }: { chatId: ChatId; signal?: AbortSignal },
 ): Promise<unknown> {
   const session = await sessionOf(chatId, signal);
-  return execDriver([...args, "--session", session], signal);
+  return execDriver(
+    [...args, "--agent-id", CURSOR_AGENT, "--session", session],
+    signal,
+  );
 }
 
-/** The chats whose cursor is already showing. */
+/** The chats whose cursor is already set up. */
 const cursorShown = new Set<ChatId>();
 
 /** How long the cursor takes to cross to a target, short to long, in ms. */
 const CURSOR_TRAVEL_MS = "30,120";
 
 /**
- * Shows the agent's own cursor from a chat's first action, so the person can
+ * Sets up the agent's own cursor from a chat's first action, so the person can
  * see something is at work on their desktop. It draws over the screen and never
  * touches their pointer, and an action goes ahead if it can't be drawn.
+ *
+ * Enabling a plain cursor draws it at once with a greeting of the driver's own,
+ * whatever label it is given. A multi-agent session's `enable` only saves the
+ * settings, so the cursor first appears on its first move, labeled ours. That
+ * mode takes no agent id here and needs one on every action.
  */
 export async function showCursor({
   chatId,
@@ -190,17 +201,24 @@ export async function showCursor({
     return;
   }
   cursorShown.add(chatId);
-  await runDriver(
-    [
-      "cursor-overlay",
-      "enable",
-      "--label",
-      APP_NAME,
-      "--travel-ms",
-      CURSOR_TRAVEL_MS,
-    ],
-    { chatId, ...(signal === undefined ? {} : { signal }) },
-  ).catch(noop);
+  await sessionOf(chatId, signal)
+    .then((session) =>
+      execDriver(
+        [
+          "cursor-overlay",
+          "enable",
+          "--multi-agent",
+          "--label",
+          APP_NAME,
+          "--travel-ms",
+          CURSOR_TRAVEL_MS,
+          "--session",
+          session,
+        ],
+        signal,
+      ),
+    )
+    .catch(noop);
 }
 
 /**

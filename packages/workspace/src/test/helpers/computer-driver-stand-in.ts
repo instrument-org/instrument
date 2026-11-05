@@ -50,8 +50,15 @@ export function standInDriver(
     },
   });
   return {
-    /** Every call so far, without the session the wrapper adds to each. */
+    /** Every call so far, without the session and cursor the wrapper adds. */
     calls(): string[][] {
+      return this.rawCalls().map((call) => {
+        const bare = call.at(-2) === "--session" ? call.slice(0, -2) : call;
+        return bare.at(-2) === "--agent-id" ? bare.slice(0, -2) : bare;
+      });
+    },
+    /** Every call so far, as the driver received it. */
+    rawCalls(): string[][] {
       const file = path.join(dir, "calls.jsonl");
       if (!fs.existsSync(file)) {
         return [];
@@ -60,10 +67,7 @@ export function standInDriver(
         .readFileSync(file, "utf8")
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as string[])
-        .map((call) =>
-          call.at(-2) === "--session" ? call.slice(0, -2) : call,
-        );
+        .map((line) => JSON.parse(line) as string[]);
     },
     /** The calls that aren't how the wrapper finds its way around. */
     actions(): string[][] {

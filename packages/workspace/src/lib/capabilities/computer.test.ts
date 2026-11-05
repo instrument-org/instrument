@@ -503,11 +503,34 @@ describe("instrument computer", () => {
       [
         "cursor-overlay",
         "enable",
+        "--multi-agent",
         "--label",
         "Instrument",
         "--travel-ms",
         "30,120",
       ],
+    ]);
+  });
+
+  it("names the cursor on every action, but not when enabling it, which the driver refuses", async () => {
+    const chatId = ChatIdSchema.parse("computer-cursor-name-chat");
+    const inChat = { ...scope, chatId };
+    const driver = standInDriver(answers);
+    await grantApp(chatId, "com.apple.TextEdit");
+    await snapshot(["TextEdit"], inChat);
+    await click(["@s1abc:e1"], inChat);
+    const callOf = (word: string) =>
+      driver.rawCalls().find(([first]) => first === word);
+    expect(callOf("cursor-overlay")).not.toContain("--agent-id");
+    expect(callOf("cursor-overlay")?.slice(-2)).toEqual([
+      "--session",
+      "run-stand-in",
+    ]);
+    expect(callOf("click")?.slice(-4)).toEqual([
+      "--agent-id",
+      "instrument",
+      "--session",
+      "run-stand-in",
     ]);
   });
 

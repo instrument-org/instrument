@@ -102,6 +102,7 @@ import {
   requestQuitApproval,
   withdrawQuitApproval,
 } from "./lib/quit";
+import { keepTrapFatal } from "./lib/take-signal";
 import { registerUnattendedQuit } from "./lib/unattended-quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
 import { getWorkspaceRun } from "./lib/workspace-run";
@@ -216,6 +217,7 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  keepTrapFatal();
   registerUnattendedQuit();
 
   // A workspace this build will not open is said in a window of its own, and

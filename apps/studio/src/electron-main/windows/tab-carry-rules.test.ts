@@ -1,29 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { type TabId } from "@/shared/tabs";
+import { describe, expect, it } from "vitest";
 
-vi.mock("electron", () => ({
-  app: {},
-  BrowserWindow: {},
-  screen: {},
-  webContents: {},
-}));
-vi.mock("@/electron-main/windows/traffic-lights", () => ({}));
-vi.mock("@/electron-main/browser-view/manager", () => ({}));
-vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: {} }));
-vi.mock("@/electron-main/stores/workspace/kept-state", () => ({}));
-vi.mock("@/electron-main/stores/workspace/window-state", () => ({}));
-vi.mock("@/electron-main/windows/app-window", () => ({}));
-vi.mock("@/electron-main/windows/on-screen", () => ({}));
-
-const {
+import {
   boundsUnderPointer,
-  carryDestination,
-  carryPhase,
+  carryView,
   dressesAtStart,
   landsBy,
+  mergeFloats,
+  phaseAt,
   placeOnWindow,
   whatGoes,
-} = await import("./tab-drag");
-const { mergeFloats } = await import("./tab-carry-rules");
+} from "./tab-carry-rules";
 
 describe("what goes with the pointer", () => {
   const usual = {
@@ -57,8 +44,8 @@ describe("what goes with the pointer", () => {
 
 describe("when the spare window gets its tabs", () => {
   const usual = {
-    floats: [],
     goes: "window",
+    hasFloats: false,
     isSpareUp: true,
     neighborPages: [],
     pages: [],
@@ -67,12 +54,12 @@ describe("when the spare window gets its tabs", () => {
   it.each([
     ["a screen comes up next door", {}, true],
     ["a page comes up next door", { neighborPages: ["page"] }, false],
-    ["floats would go with the tabs", { floats: [{}] }, false],
+    ["floats would go with the tabs", { hasFloats: true }, false],
     ["the tab going has no page", { goes: "tab" }, true],
     ["the tab going has a page", { goes: "tab", pages: ["page"] }, false],
     [
       "it has only just opened, whatever comes up",
-      { floats: [{}], isSpareUp: false, neighborPages: ["page"] },
+      { hasFloats: true, isSpareUp: false, neighborPages: ["page"] },
       true,
     ],
   ] as const)("when %s", (_case, facts, isAtStart) => {
@@ -122,18 +109,6 @@ describe("who reopens as a tab lands on another window's strip", () => {
   );
 });
 
-describe("where a dragged tab is", () => {
-  it.each([
-    [false, "new", undefined, { kind: "row" }],
-    [false, "band", "other", { kind: "row" }],
-    [true, "none", undefined, { kind: "row" }],
-    [true, "new", undefined, { kind: "free" }],
-    [true, "band", "other", { kind: "docked", window: "other" }],
-  ] as const)("off its row %s, over %s %s", (isOff, place, window, phase) => {
-    expect(carryPhase(isOff, place, window)).toEqual(phase);
-  });
-});
-
 describe("a window under the pointer", () => {
   const work = { height: 1000, width: 1600 };
 
@@ -161,9 +136,18 @@ describe("a window under the pointer", () => {
 });
 
 const BAND = 40;
-const left = { bounds: { height: 500, width: 500, x: 0, y: 0 } };
-const right = { bounds: { height: 500, width: 500, x: 600, y: 0 } };
-const over = { bounds: { height: 500, width: 500, x: 100, y: 100 } };
+const left = {
+  bounds: { height: 500, width: 500, x: 0, y: 0 },
+  window: "left",
+};
+const right = {
+  bounds: { height: 500, width: 500, x: 600, y: 0 },
+  window: "right",
+};
+const over = {
+  bounds: { height: 500, width: 500, x: 100, y: 100 },
+  window: "over",
+};
 
 describe("where a window puts a point", () => {
   it.each([
@@ -191,57 +175,105 @@ describe("where a window puts a point", () => {
   });
 });
 
-describe("where a tab let go lands", () => {
-  const land = (
-    point: undefined | { x: number; y: number },
-    windows = [left, right],
-    { canceled = false, from = left } = {},
-  ) => carryDestination({ bandHeight: BAND, canceled, from, point, windows });
+describe("where a tab off its row stands", () => {
+  const at = (
+    point: { x: number; y: number },
+    windows: Parameters<typeof phaseAt<string>>[0]["windows"] = [left, right],
+    from = left.window,
+  ) => phaseAt({ bandHeight: BAND, from, point, windows });
+  const free = { isPlaced: false, kind: "free" };
 
-  it("joins the strip of another window", () => {
-    expect(land({ x: 700, y: 20 })).toEqual({ place: "band", window: right });
+  it("is docked in the strip of another window", () => {
+    expect(at({ x: 700, y: 20 })).toEqual({ kind: "docked", window: "right" });
   });
 
-  it("stays put over its own strip", () => {
-    expect(land({ x: 100, y: 20 })).toEqual({ place: "none" });
+  it("is back on its row over its own strip", () => {
+    expect(at({ x: 100, y: 20 })).toEqual({ kind: "row" });
   });
 
   it("stays in a strip a little past its edge only where it is held already", () => {
     const below = { x: 700, y: 50 };
-    expect(land(below)).toEqual({ place: "new" });
-    const held = { ...right, reach: 24 };
-    expect(land(below, [left, held])).toEqual({ place: "band", window: held });
+    expect(at(below)).toEqual(free);
+    expect(at(below, [left, { ...right, reach: 24 }])).toEqual({
+      kind: "docked",
+      window: "right",
+    });
   });
 
-  it("is a window of its own over nothing", () => {
-    expect(land({ x: 550, y: 300 })).toEqual({ place: "new" });
-  });
-
-  it("is a window of its own over another window's page", () => {
-    expect(land({ x: 700, y: 300 })).toEqual({ place: "new" });
-  });
-
-  it("is a window of its own over its own window's page", () => {
-    expect(land({ x: 100, y: 300 })).toEqual({ place: "new" });
+  it("is free over nothing, and over the page of either window", () => {
+    expect(at({ x: 550, y: 300 })).toEqual(free);
+    expect(at({ x: 700, y: 300 })).toEqual(free);
+    expect(at({ x: 100, y: 300 })).toEqual(free);
   });
 
   it("cannot reach a strip another window covers", () => {
-    expect(land({ x: 150, y: 120 }, [over, left])).toEqual({
-      place: "band",
-      window: over,
+    expect(at({ x: 150, y: 120 }, [over, left])).toEqual({
+      kind: "docked",
+      window: "over",
     });
-    expect(
-      land({ x: 150, y: 20 }, [over, left, right], { from: right }),
-    ).toEqual({ place: "band", window: left });
-    expect(
-      land({ x: 150, y: 200 }, [over, left, right], { from: right }),
-    ).toEqual({ place: "new" });
+    expect(at({ x: 150, y: 20 }, [over, left, right], "right")).toEqual({
+      kind: "docked",
+      window: "left",
+    });
+    expect(at({ x: 150, y: 200 }, [over, left, right], "right")).toEqual(free);
+  });
+});
+
+describe("what a window's strip shows", () => {
+  const usual = {
+    carried: "from",
+    docked: () => ({ clientX: 5, tabs: [] }),
+    goes: "window",
+    heldId: "held" as TabId,
+    spare: "spare",
+  } as const;
+  const free = { isPlaced: true, kind: "free" } as const;
+  const docked = { kind: "docked", window: "other" } as const;
+
+  it.each([
+    [
+      "on its row, the pressed window",
+      { kind: "row" },
+      "from",
+      { kind: "row" },
+    ],
+    [
+      "on its row, the spare beneath",
+      { kind: "row" },
+      "spare",
+      { kind: "beneath" },
+    ],
+    [
+      "free, the window carried",
+      free,
+      "from",
+      { heldId: "held", kind: "free" },
+    ],
+    ["free, the spare it uncovers", free, "spare", { kind: "row" }],
+    [
+      "docked, the window carried",
+      docked,
+      "from",
+      { clientX: 5, heldId: "held", kind: "docked", tabs: [] },
+    ],
+    ["docked, the spare", docked, "spare", { kind: "row" }],
+  ] as const)("%s", (_case, phase, window, view) => {
+    expect(carryView({ ...usual, phase, window })).toEqual(view);
   });
 
-  it("stays put when canceled or never moved", () => {
-    expect(land({ x: 700, y: 20 }, undefined, { canceled: true })).toEqual({
-      place: "none",
+  it("with the tab rebuilt in the spare, draws it there and leaves the pressed window alone", () => {
+    const rebuilt = { ...usual, carried: "spare", goes: "tab" } as const;
+    expect(carryView({ ...rebuilt, phase: free, window: "spare" })).toEqual({
+      kind: "row",
     });
-    expect(land(undefined)).toEqual({ place: "none" });
+    expect(carryView({ ...rebuilt, phase: docked, window: "spare" })).toEqual({
+      clientX: 5,
+      heldId: "held",
+      kind: "docked",
+      tabs: [],
+    });
+    expect(carryView({ ...rebuilt, phase: docked, window: "from" })).toEqual({
+      kind: "row",
+    });
   });
 });

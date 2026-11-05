@@ -15,7 +15,6 @@ export const RECORD_ACTION_CHANNEL = "record-action";
 export const WINDOW_ACTION_KINDS = [
   "chat",
   "error",
-  "file",
   "folder",
   "screen",
 ] as const;

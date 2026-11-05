@@ -4,7 +4,7 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { ChatReads } from "../chat-reads";
 import { isFromUser } from "../message-gap";
-import { actionLog } from "./log";
+import { readActions } from "./read";
 import { type Action } from "./schema";
 import { mayShareActions } from "./sharing";
 
@@ -96,7 +96,7 @@ export async function createActionsPart({
       )
     : Number.NEGATIVE_INFINITY;
   const until = createdAt.getTime();
-  const actions = await actionLog().read({
+  const actions = await readActions({
     since: Math.max(until - NOTE_WINDOW_MS, previous + 1),
     until,
   });

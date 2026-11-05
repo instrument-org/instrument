@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
@@ -249,6 +250,97 @@ describe("opened files", () => {
     history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
     history.clear();
     expect(history.openedFiles(10)).toHaveLength(1);
+  });
+});
+
+describe("what the person did, as the activity readers take it", () => {
+  it("lists their visible visits and the files they opened in a range, newest first", () => {
+    const history = store();
+    const visit = (url: string, at: number, actor: "agent" | "user" = "user") =>
+      history.addVisit({ actor, at, transition: "link", url });
+    visit("https://before.test/", 1);
+    const titled = visit("https://irs.test/refunds", 10);
+    history.setTitle([titled], "Where's My Refund?");
+    visit("https://agent.test/", 11, "agent");
+    history.hideVisit(visit("https://hop.test/", 12), "redirect");
+    history.addFileOpen({ at: 13, path: "/a/w2.pdf", via: "tab" });
+    history.addFileOpen({
+      app: "Preview",
+      at: 14,
+      path: "/a/1099.pdf",
+      via: "external",
+    });
+    history.addFileOpen({ at: 15, path: "/a/budget.xlsx", via: "external" });
+    history.addFileOpen({ at: 99, path: "/a/later.txt", via: "tab" });
+
+    expect(history.personHistory({ since: 10, until: 15 }))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "at": "1970-01-01T00:00:00.015Z",
+            "kind": "open-with",
+            "path": "/a/budget.xlsx",
+          },
+          {
+            "app": "Preview",
+            "at": "1970-01-01T00:00:00.014Z",
+            "kind": "open-with",
+            "path": "/a/1099.pdf",
+          },
+          {
+            "at": "1970-01-01T00:00:00.013Z",
+            "kind": "file",
+            "path": "/a/w2.pdf",
+          },
+          {
+            "at": "1970-01-01T00:00:00.010Z",
+            "kind": "page",
+            "title": "Where's My Refund?",
+            "url": "https://irs.test/refunds",
+          },
+        ]
+      `);
+    expect(
+      history.personHistory({ limit: 1, since: 10, until: 15 }),
+    ).toHaveLength(1);
+  });
+
+  it("gives a history made before external opens kept their app the column it lacks", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "history-app-"));
+    const file = path.join(dir, "history.db");
+    try {
+      const old = new DatabaseSync(file);
+      old.exec(
+        "CREATE TABLE file_opens (id INTEGER PRIMARY KEY, file_id INTEGER NOT NULL, at INTEGER NOT NULL, via TEXT NOT NULL) STRICT; PRAGMA user_version = 2;",
+      );
+      old.exec(
+        "CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, open_count INTEGER NOT NULL DEFAULT 0, last_open INTEGER NOT NULL) STRICT;",
+      );
+      old.exec(
+        "INSERT INTO files (path, open_count, last_open) VALUES ('/a/kept.txt', 1, 5); INSERT INTO file_opens (file_id, at, via) VALUES (1, 5, 'tab');",
+      );
+      old.close();
+
+      const history = createHistoryStore(file);
+      history.addFileOpen({
+        app: "Numbers",
+        at: 6,
+        path: "/a/b.xlsx",
+        via: "external",
+      });
+      expect(history.personHistory({ since: 0, until: 10 })).toEqual([
+        {
+          app: "Numbers",
+          at: new Date(6).toISOString(),
+          kind: "open-with",
+          path: "/a/b.xlsx",
+        },
+        { at: new Date(5).toISOString(), kind: "file", path: "/a/kept.txt" },
+      ]);
+      history.close();
+    } finally {
+      fs.rmSync(dir, { force: true, recursive: true });
+    }
   });
 });
 

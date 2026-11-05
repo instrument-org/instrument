@@ -30,7 +30,7 @@ describe("screenActionOf", () => {
       { kind: "screen", name: "Settings › Providers" },
     ],
     [
-      "a file a viewer shows",
+      "nothing for a file a viewer shows, which history records",
       {
         href: "/files",
         view: {
@@ -38,7 +38,7 @@ describe("screenActionOf", () => {
           screen: "file" as const,
         },
       },
-      { kind: "file", path: "/Users/sam/a.pdf" },
+      null,
     ],
     [
       "a folder by where it is, with what is selected in it",

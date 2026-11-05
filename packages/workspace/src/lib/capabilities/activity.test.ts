@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { ActionLog, actionLog, actionsDir } from "../actions/log";
-import { type ActionInput } from "../actions/schema";
+import {
+  forgetRecordedActions,
+  type RecordedAction,
+  recordActions,
+} from "../../test/helpers/recorded-actions";
 import { createActivityCommand } from "../shell-commands/activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
@@ -13,18 +16,9 @@ const HOME = "/Users/mac-user";
 /** 2:30 PM on Thursday, November 5, on this computer's clock. */
 const NOW = new Date(2026, 10, 5, 14, 30);
 
-/** Writes each action at its own time on this computer's clock. */
-function logged(actions: [Date, ActionInput][]) {
-  let at = 0;
-  const log = new ActionLog(
-    actionsDir(getWorkspaceConfig().workspaceMachineDir),
-    { now: () => at },
-  );
-  for (const [when, action] of actions) {
-    at = when.getTime();
-    log.record(action);
-  }
-  log.close();
+/** Records each action at its own time on this computer's clock. */
+function logged(actions: [Date, RecordedAction][]) {
+  recordActions(actions.map(([when, action]) => [when.getTime(), action]));
 }
 
 /** A time `minutes` before `NOW`. */
@@ -55,7 +49,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   vi.useRealTimers();
-  await actionLog().clear();
+  await forgetRecordedActions();
 });
 
 describe("instrument activity", () => {

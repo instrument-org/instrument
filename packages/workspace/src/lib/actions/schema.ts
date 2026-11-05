@@ -1,32 +1,47 @@
 import { z } from "zod";
 
 /**
- * One thing the person did in the app, as one line of the action log. Only
- * what happens in Instrument is ever recorded: the app's own screens, the
- * files and folders opened or changed through it, the chats read in it, the
- * pages visited in its browser, and what it showed them. A field is the
- * place's own name or path as the person sees it, never content.
+ * One thing the person did in the app, as the action log or the app's
+ * history keeps it. Only what happens in Instrument is ever recorded: the
+ * app's own screens, the files and folders opened or changed through it, the
+ * chats read in it, the pages visited in its browser, and what it showed
+ * them. A field is the place's own name or path as the person sees it, never
+ * content.
  */
 const At = z.iso.datetime();
 
 const PathsSchema = z.array(z.string()).min(1);
 
-export const ActionSchema = z.discriminatedUnion("kind", [
+/** A page the person (not an agent) visited in the app's browser. */
+const PageSchema = z.object({
+  at: At,
+  kind: z.literal("page"),
+  title: z.string().optional(),
+  url: z.string(),
+});
+
+/** A file the person opened in one of the app's tabs. */
+const FileSchema = z.object({
+  at: At,
+  kind: z.literal("file"),
+  path: z.string(),
+});
+
+/** A file the person opened in another app from Instrument, and that app's name when it is known. */
+const OpenWithSchema = z.object({
+  app: z.string().optional(),
+  at: At,
+  kind: z.literal("open-with"),
+  path: z.string(),
+});
+
+const LOGGED = [
   /** A folder shown in Files, with what was selected in it once the selection settled. */
   z.object({
     at: At,
     kind: z.literal("folder"),
     path: z.string(),
     selected: z.array(z.string()).optional(),
-  }),
-  /** A file shown in one of the app's viewers or editors. */
-  z.object({ at: At, kind: z.literal("file"), path: z.string() }),
-  /** A file opened in another app from Instrument. */
-  z.object({
-    app: z.string().optional(),
-    at: At,
-    kind: z.literal("open-with"),
-    path: z.string(),
   }),
   /** A file the person saved an edit to in the app. */
   z.object({ at: At, kind: z.literal("edit"), path: z.string() }),
@@ -52,13 +67,6 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     id: z.string(),
     kind: z.literal("chat"),
     title: z.string(),
-  }),
-  /** A page the person (not an agent) visited in the app's browser. */
-  z.object({
-    at: At,
-    kind: z.literal("page"),
-    title: z.string().optional(),
-    url: z.string(),
   }),
   /** A file the person downloaded in the app's browser, where it landed. */
   z.object({
@@ -100,12 +108,32 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("capped"),
     of: z.string(),
   }),
+] as const;
+
+/**
+ * One line of the action log. Pages and files opened are not among them:
+ * the app's history keeps those (`readPersonHistory` on the workspace's
+ * config), and the readers put the two together.
+ */
+export const LoggedActionSchema = z.discriminatedUnion("kind", [...LOGGED]);
+
+export type LoggedAction = z.output<typeof LoggedActionSchema>;
+
+/** What the person did, as every reader of it answers: the action log's lines and the history's pages and files. */
+export const ActionSchema = z.discriminatedUnion("kind", [
+  ...LOGGED,
+  PageSchema,
+  FileSchema,
+  OpenWithSchema,
 ]);
 
 export type Action = z.output<typeof ActionSchema>;
 
-/** An action as a capture point reports it; the log stamps the time. */
-export type ActionInput = Action extends infer A
+/** A page visited or a file opened, as the app's history answers them. */
+export type HistoryAction = Exclude<Action, LoggedAction>;
+
+/** An action as a capture point reports it to the log, which stamps the time. */
+export type ActionInput = LoggedAction extends infer A
   ? A extends { at: string }
     ? Omit<A, "at">
     : never

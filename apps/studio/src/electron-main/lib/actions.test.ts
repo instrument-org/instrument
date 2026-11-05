@@ -12,7 +12,6 @@ describe("windowActionOf", () => {
         selected: ["a.pdf", "Taxes/"],
       },
     ],
-    [{ kind: "file", path: "/Users/sam/Downloads/a.pdf" }],
     [{ id: "kitchen-quotes", kind: "chat", title: "Kitchen remodel quotes" }],
     [{ kind: "error", message: "Couldn't move that file." }],
   ])("takes what a window sees: %j", (payload) => {
@@ -32,10 +31,11 @@ describe("windowActionOf", () => {
   it.each([
     // Kinds the main process records where they happen.
     [{ kind: "page", url: "https://example.test/" }],
+    [{ kind: "file", path: "/Users/sam/Downloads/a.pdf" }],
     [{ kind: "edit", path: "/Users/sam/a.md" }],
     [{ dropped: 5, kind: "capped", of: "day" }],
     // What the schema would not keep.
-    [{ kind: "file" }],
+    [{ kind: "folder" }],
     [{ kind: "screen", name: 3 }],
     [{ kind: "nothing" }],
     ["screen"],

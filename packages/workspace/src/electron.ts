@@ -1,8 +1,11 @@
 export { actionLog, recordAction } from "./lib/actions/log";
+export { readActions, readActionsNewestFirst } from "./lib/actions/read";
 export {
   type Action,
   type ActionInput,
-  ActionSchema,
+  type HistoryAction,
+  type LoggedAction,
+  LoggedActionSchema,
 } from "./lib/actions/schema";
 export { ActivityFilterSchema } from "./lib/activity/schema";
 export { activityCsv } from "./lib/activity/store";

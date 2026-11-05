@@ -15,10 +15,10 @@ export const SCREEN_SETTLE_MS = 1500;
 
 /**
  * The screen in front as the action log keeps it: Settings while it is
- * open, then what the tab in view says it shows (a file, a folder and what
- * is selected in it, Apps, Tasks), then what its address names (a chat, an
- * app's page). Nothing for a new tab, the browser, whose pages are recorded
- * as they are visited, or a screen not listed here.
+ * open, then what the tab in view says it shows (a folder and what is
+ * selected in it, Apps, Tasks), then what its address names (a chat, an
+ * app's page). Nothing for a file or a page, which the app's history
+ * records as they are opened, a new tab, or a screen not listed here.
  */
 export function screenActionOf({
   appName,
@@ -41,7 +41,7 @@ export function screenActionOf({
     return { kind: "screen", name: `Settings › ${settingsTab}` };
   }
   if (view?.file) {
-    return { kind: "file", path: view.file.path };
+    return null;
   }
   if (view?.folder) {
     const { selected } = view.folder;

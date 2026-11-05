@@ -18,7 +18,6 @@ import {
 } from "electron";
 import { noop } from "radashi";
 
-import { recordPersonAction } from "../lib/actions";
 import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { isDrivenInstance } from "../windows/on-screen";
@@ -937,9 +936,6 @@ function recordHistory(entry: BrowserEntry, guest: WebContents): TabRecorder {
         sink: getHistoryStore(),
         takeRestored: (urls) => takeRestored(targetId, urls),
         takeTyped,
-        visited: (page) => {
-          recordPersonAction({ kind: "page", ...page });
-        },
       });
       call(recorder);
     } catch (error) {

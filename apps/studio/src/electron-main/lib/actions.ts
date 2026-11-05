@@ -1,7 +1,7 @@
 import {
-  type Action,
   type ActionInput,
-  ActionSchema,
+  type LoggedAction,
+  LoggedActionSchema,
   recordAction,
 } from "@instrument-org/workspace/electron";
 import { RECORD_ACTION_CHANNEL, WINDOW_ACTION_KINDS } from "@/shared/actions";
@@ -20,7 +20,7 @@ export function recordPersonAction(action: ActionInput) {
   writeDevLogEntry("info", [action], { scope: "Actions" });
 }
 
-function withoutTime({ at: _at, ...action }: Action): ActionInput {
+function withoutTime({ at: _at, ...action }: LoggedAction): ActionInput {
   return action;
 }
 
@@ -40,7 +40,7 @@ export function windowActionOf(payload: unknown): ActionInput | undefined {
   }
   // The schema checks a stored line, so the report is given a time to pass
   // it; the log stamps its own.
-  const parsed = ActionSchema.safeParse({
+  const parsed = LoggedActionSchema.safeParse({
     ...payload,
     at: new Date(0).toISOString(),
   });

@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
+import { type HistoryAction } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 import fs from "node:fs";
 import path from "node:path";
@@ -124,9 +125,12 @@ CREATE TABLE IF NOT EXISTS file_opens (
   id INTEGER PRIMARY KEY,
   file_id INTEGER NOT NULL REFERENCES files(id),
   at INTEGER NOT NULL,
-  via TEXT NOT NULL
+  via TEXT NOT NULL,
+  -- The app an external open handed the file to, by its name, when known.
+  app TEXT
 ) STRICT;
 CREATE INDEX IF NOT EXISTS file_opens_file ON file_opens(file_id);
+CREATE INDEX IF NOT EXISTS file_opens_at ON file_opens(at);
 CREATE INDEX IF NOT EXISTS files_last_open ON files(last_open);
 -- Titles asked of pages a person's sent message linked to, which no tab has
 -- opened; kept here so clearing history clears them too.
@@ -170,6 +174,15 @@ export function createHistoryStore(file: string) {
     database.exec(`PRAGMA user_version = ${SCHEMA_VERSION.toString()}`);
   }
   database.exec(SCHEMA);
+  // A column added within a version, since a new version starts history
+  // over: a file made before it gets it here.
+  const openColumns = database
+    .prepare("PRAGMA table_info(file_opens)")
+    .all()
+    .map((column) => String(column.name));
+  if (!openColumns.includes("app")) {
+    database.exec("ALTER TABLE file_opens ADD COLUMN app TEXT");
+  }
 
   const changes = new EventPublisher<{ changed: null }>();
   const changed = () => {
@@ -224,10 +237,13 @@ export function createHistoryStore(file: string) {
      * the file is gone, so a file put back is the same recent again.
      */
     addFileOpen({
+      app,
       at,
       path: filePath,
       via,
     }: {
+      /** The app an external open handed it to, by its name. */
+      app?: string;
       at: number;
       path: string;
       via: FileOpenVia;
@@ -239,9 +255,9 @@ export function createHistoryStore(file: string) {
         .run(filePath, at);
       database
         .prepare(
-          "INSERT INTO file_opens (file_id, at, via) SELECT id, ?, ? FROM files WHERE path = ?",
+          "INSERT INTO file_opens (file_id, at, via, app) SELECT id, ?, ?, ? FROM files WHERE path = ?",
         )
-        .run(at, via, filePath);
+        .run(at, via, app ?? null, filePath);
       changed();
     },
 
@@ -366,6 +382,59 @@ export function createHistoryStore(file: string) {
           openCount: Number(row.open_count),
           path: String(row.path),
         }));
+    },
+
+    /**
+     * What the person did that history keeps, as the activity readers take
+     * it: their visible visits and the files they opened, from `since` to
+     * `until`, both included, newest first, at most `limit` (all without
+     * one). A page goes by the title it has now and a file by the path it
+     * is at now.
+     */
+    personHistory({
+      limit,
+      since,
+      until,
+    }: {
+      limit?: number;
+      since: number;
+      until: number;
+    }): HistoryAction[] {
+      return database
+        .prepare(
+          `SELECT * FROM (
+            SELECT visits.at AS at, 'page' AS kind, visits.id AS id, urls.url AS url, urls.title AS title, NULL AS path, NULL AS app
+              FROM visits JOIN urls ON urls.id = visits.url_id
+              WHERE ${VISIBLE} AND visits.at BETWEEN ? AND ?
+            UNION ALL
+            SELECT file_opens.at, CASE file_opens.via WHEN 'external' THEN 'open-with' ELSE 'file' END, file_opens.id, NULL, NULL, files.path, file_opens.app
+              FROM file_opens JOIN files ON files.id = file_opens.file_id
+              WHERE file_opens.at BETWEEN ? AND ?
+          ) ORDER BY at DESC, kind DESC, id DESC LIMIT ?`,
+        )
+        .all(since, until, since, until, limit ?? -1)
+        .map((row): HistoryAction => {
+          const at = new Date(Number(row.at)).toISOString();
+          if (row.kind === "page") {
+            const title = String(row.title);
+            return {
+              at,
+              kind: "page",
+              ...(title ? { title } : {}),
+              url: String(row.url),
+            };
+          }
+          const filePath = String(row.path);
+          if (row.kind === "file") {
+            return { at, kind: "file", path: filePath };
+          }
+          return {
+            ...(typeof row.app === "string" ? { app: row.app } : {}),
+            at,
+            kind: "open-with",
+            path: filePath,
+          };
+        });
     },
 
     /** The person's visible pages, newest first. */
@@ -549,13 +618,23 @@ export function rewriteRecentFiles(
 }
 
 /**
- * Writes a file the person opened into history, now. A failure is reported
- * and swallowed: the open itself has happened, and history is what follows
- * it rather than a gate in front of it.
+ * Writes a file the person opened into history, now, with the app an
+ * external open handed it to when that is known. A failure is reported and
+ * swallowed: the open itself has happened, and history is what follows it
+ * rather than a gate in front of it.
  */
-export function recordFileOpen(filePath: string, via: FileOpenVia) {
+export function recordFileOpen(
+  filePath: string,
+  via: FileOpenVia,
+  app?: string,
+) {
   try {
-    getHistoryStore().addFileOpen({ at: Date.now(), path: filePath, via });
+    getHistoryStore().addFileOpen({
+      ...(app === undefined ? {} : { app }),
+      at: Date.now(),
+      path: filePath,
+      via,
+    });
   } catch (error) {
     logger.error("Could not record a file open", error);
   }

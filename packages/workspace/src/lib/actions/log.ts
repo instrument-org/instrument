@@ -2,7 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { getWorkspaceConfig } from "../workspace-config";
-import { type Action, type ActionInput, ActionSchema } from "./schema";
+import {
+  type ActionInput,
+  type LoggedAction,
+  LoggedActionSchema,
+} from "./schema";
 
 /**
  * The action log: what the person did in the app, one JSON line per action,
@@ -142,14 +146,14 @@ export class ActionLog {
   }: {
     since: number;
     until?: number;
-  }): Promise<Action[]> {
+  }): Promise<LoggedAction[]> {
     const end = until ?? this.#now();
     const firstDay = new Date(since);
     firstDay.setHours(0, 0, 0, 0);
     const files = dayFiles(this.#dir).filter(
       (each) => each.start >= firstDay.getTime() && each.start <= end,
     );
-    const actions: Action[] = [];
+    const actions: LoggedAction[] = [];
     for (const { file } of files) {
       let text: string;
       try {
@@ -187,13 +191,13 @@ export class ActionLog {
     since: number;
     skip: number;
     until: number;
-  }): Promise<{ actions: Action[]; more: boolean }> {
+  }): Promise<{ actions: LoggedAction[]; more: boolean }> {
     const firstDay = new Date(since);
     firstDay.setHours(0, 0, 0, 0);
     const files = dayFiles(this.#dir)
       .filter((each) => each.start >= firstDay.getTime() && each.start <= until)
       .toReversed();
-    const found: Action[] = [];
+    const found: LoggedAction[] = [];
     for (const { file } of files) {
       let text: string;
       try {
@@ -273,7 +277,7 @@ export class ActionLog {
   }
 
   /** Appends one line to its day's file; false when the day's cap kept it out. */
-  #write(action: Action, now: number): boolean {
+  #write(action: LoggedAction, now: number): boolean {
     this.#openDay(now);
     if (this.#fd === undefined || this.#dayCapped) {
       return false;
@@ -282,7 +286,7 @@ export class ActionLog {
     const bytes = Buffer.byteLength(line);
     if (this.#dayBytes + bytes > MAX_DAY_BYTES) {
       this.#dayCapped = true;
-      const marker = `${JSON.stringify({ at: new Date(now).toISOString(), dropped: 1, kind: "capped", of: "day" } satisfies Action)}\n`;
+      const marker = `${JSON.stringify({ at: new Date(now).toISOString(), dropped: 1, kind: "capped", of: "day" } satisfies LoggedAction)}\n`;
       fs.writeSync(this.#fd, marker);
       return false;
     }
@@ -336,12 +340,12 @@ export class ActionLog {
 }
 
 /** A line read back as the action it was, or nothing for one that will not parse. */
-function actionOf(line: string): Action | undefined {
+function actionOf(line: string): LoggedAction | undefined {
   if (!line.trim()) {
     return undefined;
   }
   try {
-    const parsed = ActionSchema.safeParse(JSON.parse(line));
+    const parsed = LoggedActionSchema.safeParse(JSON.parse(line));
     return parsed.success ? parsed.data : undefined;
   } catch {
     return undefined;

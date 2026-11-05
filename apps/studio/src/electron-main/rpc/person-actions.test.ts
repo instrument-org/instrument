@@ -55,18 +55,6 @@ describe("actionsOfCall", () => {
       [{ kind: "edit", path: "/Users/sam/a.md" }],
     ],
     [
-      "utils.openFileWith",
-      { appPath: "/Applications/Preview.app", filePath: "/Users/sam/a.pdf" },
-      undefined,
-      [{ app: "Preview", kind: "open-with", path: "/Users/sam/a.pdf" }],
-    ],
-    [
-      "utils.openPath",
-      { filepath: "/Users/sam/a.pdf" },
-      undefined,
-      [{ kind: "open-with", path: "/Users/sam/a.pdf" }],
-    ],
-    [
       "preferences.setTheme",
       { theme: "dark" },
       undefined,

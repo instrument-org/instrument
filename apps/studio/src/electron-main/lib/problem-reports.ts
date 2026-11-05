@@ -35,7 +35,6 @@ import {
 } from "@instrument-org/shared/exceptions";
 import {
   type Action,
-  actionLog,
   chatDir,
   type ChatId,
   chatIds,
@@ -44,6 +43,7 @@ import {
   listApps,
   listMemories,
   memoryDir,
+  readActions,
 } from "@instrument-org/workspace/electron";
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
 import { createHash } from "node:crypto";
@@ -634,7 +634,7 @@ export async function describeFeedback(
 /** What the person did in the app in the last `FEEDBACK_ACTIONS_MS`, oldest first; none before a workspace runs. */
 async function recentActions(): Promise<Action[]> {
   try {
-    return await actionLog().read({ since: Date.now() - FEEDBACK_ACTIONS_MS });
+    return await readActions({ since: Date.now() - FEEDBACK_ACTIONS_MS });
   } catch {
     return [];
   }

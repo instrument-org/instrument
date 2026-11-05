@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { actionLog } from "../actions/log";
+import { readActions } from "../actions/read";
 import { ActionSchema } from "../actions/schema";
 import { actionSentence } from "../actions/sentence";
 import { ACTIONS_NOT_SHARED, mayShareActions } from "../actions/sharing";
@@ -95,9 +95,7 @@ export const activityList = defineCapability({
   async run({ grep, limit, since }, ctx) {
     const until = Date.now();
     const needle = grep?.toLowerCase();
-    const rows = (
-      await actionLog().read({ since: until - sinceMs(since), until })
-    )
+    const rows = (await readActions({ since: until - sinceMs(since), until }))
       // Reading this chat is coming back to it, which says nothing the chat
       // does not already know.
       .filter((action) => !(action.kind === "chat" && action.id === ctx.chatId))

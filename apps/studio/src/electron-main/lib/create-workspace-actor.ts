@@ -2,6 +2,7 @@ import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
 } from "@/electron-main/lib/hosted-features";
+import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
@@ -208,6 +209,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         getWorkspacePreferences().get("shareActionsWithChats"),
       maySuggestNextMessage: () =>
         getWorkspacePreferences().get("suggestNextMessage"),
+      readPersonHistory: (range) => getHistoryStore().personHistory(range),
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,
       refreshExpiredCredentials: async (providerConfigId) => {

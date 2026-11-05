@@ -81,7 +81,7 @@ import {
 } from "../src/test/helpers/mac-apps-launch";
 import { getWorkspaceConfig } from "../src/lib/workspace-config";
 import { ActionLog, actionsDir } from "../src/lib/actions/log";
-import { type ActionInput } from "../src/lib/actions/schema";
+import { type Action, type HistoryAction } from "../src/lib/actions/schema";
 import {
   answerSignIn,
   cardOnlySignIns,
@@ -440,16 +440,43 @@ const ANSWER_AFTER_TURN_MAX_MS = 120_000;
 
 /**
  * What the user did in the app before a message, each `ago` minutes before
- * it is sent, as a capture point in the app would have logged it.
+ * it is sent, as the app would have recorded it, in its action log or its
+ * history.
  */
-type CaseActions = ({ ago: number } & ActionInput)[];
+type CaseActions = ({ ago: number } & (Action extends infer A
+  ? A extends { at: string }
+    ? Omit<A, "at">
+    : never
+  : never))[];
+
+/** The pages and files the run's cases say the user opened, which the app's history would hold, oldest first. */
+const seededHistory: HistoryAction[] = [];
+
+/** The seeded history as the app's would answer it (`readPersonHistory`). */
+function readSeededHistory({
+  limit,
+  since,
+  until,
+}: {
+  limit?: number;
+  since: number;
+  until: number;
+}): HistoryAction[] {
+  return seededHistory
+    .filter((action) => {
+      const at = Date.parse(action.at);
+      return at >= since && at <= until;
+    })
+    .toReversed()
+    .slice(0, limit);
+}
 
 /**
- * Writes what the user did into the run's action log, each action `ago`
- * minutes before `sentAt`, oldest first. With `after`, the time the message
- * before was sent, an action is kept after it, in order, so a turn shorter
- * than `ago` still leaves it between the two messages, where the note on
- * the next one reads it.
+ * Writes what the user did into the run's action log and its seeded
+ * history, each action `ago` minutes before `sentAt`, oldest first. With
+ * `after`, the time the message before was sent, an action is kept after
+ * it, in order, so a turn shorter than `ago` still leaves it between the two
+ * messages, where the note on the next one reads it.
  */
 function writeActions(
   actions: CaseActions,
@@ -466,7 +493,15 @@ function writeActions(
       sentAt - ago * 60_000,
       after === undefined ? Number.NEGATIVE_INFINITY : after + index + 1,
     );
-    log.record(action);
+    if (
+      action.kind === "page" ||
+      action.kind === "file" ||
+      action.kind === "open-with"
+    ) {
+      seededHistory.push({ ...action, at: new Date(now).toISOString() });
+    } else {
+      log.record(action);
+    }
   }
   log.close();
 }
@@ -474,8 +509,8 @@ function writeActions(
 export interface EvalCase {
   /**
    * What the user did in the app before the case's first message, written
-   * to the run's action log before it is sent: what the note on it and
-   * `instrument activity` read.
+   * to the run's action log or its history before it is sent: what the note
+   * on it and `instrument activity` read.
    */
   actions?: CaseActions;
   /**
@@ -728,7 +763,8 @@ type FollowUp = FollowUpTiming &
     | {
         /**
          * What the user did in the app since the message before, written
-         * to the run's action log just before this one is sent.
+         * to the run's action log or its history just before this one is
+         * sent.
          */
         actions?: CaseActions;
         prompt: string;
@@ -937,6 +973,7 @@ export async function runEvals(
           : {}),
         ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
         modelCache: noopModelCache,
+        readPersonHistory: readSeededHistory,
         ...(evals.some((evalCase) => evalCase.nativeSandbox)
           ? { nativeSandbox: true }
           : {}),

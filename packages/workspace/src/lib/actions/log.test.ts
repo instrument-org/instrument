@@ -24,11 +24,11 @@ describe("ActionLog", () => {
   it("reads back what it wrote, oldest first, within the window", async () => {
     log.record({ kind: "folder", path: "/Users/mac-user/Downloads" });
     now += 60_000;
-    log.record({ kind: "file", path: "/Users/mac-user/Downloads/a.pdf" });
+    log.record({ kind: "edit", path: "/Users/mac-user/Downloads/a.md" });
     now += 60_000;
     log.record({ id: "c1", kind: "chat", title: "Kitchen remodel quotes" });
     const all = await log.read({ since: now - 10 * 60_000 });
-    expect(all.map((each) => each.kind)).toEqual(["folder", "file", "chat"]);
+    expect(all.map((each) => each.kind)).toEqual(["folder", "edit", "chat"]);
     const last = await log.read({ since: now - 30_000 });
     expect(last.map((each) => each.kind)).toEqual(["chat"]);
   });
@@ -57,15 +57,15 @@ describe("ActionLog", () => {
 
   it("caps a kind at 60 a minute and says how many it left out", async () => {
     for (let index = 0; index < 100; index++) {
-      log.record({ kind: "page", url: `https://example.com/${index}` });
+      log.record({ kind: "edit", path: `/Users/mac-user/${index}.md` });
     }
     now += 60_000;
     log.record({ kind: "screen", name: "Apps" });
     const read = await log.read({ since: 0 });
-    expect(read.filter((each) => each.kind === "page")).toHaveLength(60);
+    expect(read.filter((each) => each.kind === "edit")).toHaveLength(60);
     expect(read.find((each) => each.kind === "capped")).toMatchObject({
       dropped: 40,
-      of: "page",
+      of: "edit",
     });
   });
 

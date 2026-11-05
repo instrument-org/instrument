@@ -5,7 +5,8 @@ import { z } from "zod";
 /**
  * The calls a window makes for the person that the action log keeps, by
  * route, each turned into what they did once the call succeeded: the file
- * actions taken in Files and the editors, and the settings changed. Only
+ * actions taken in Files and the editors, and the settings changed. A file
+ * opened, here or in another app, is the history's (`history-store.ts`). Only
  * these: every other call is the app reading, or something the person's
  * typing or scrolling drives. A route's input arrives as the window sent it,
  * so each is read through a schema of the fields it needs, and a call that
@@ -174,23 +175,6 @@ const ROUTES: Record<string, Mapper> = {
     "Send error reports automatically",
     Enabled,
     ({ enabled }) => onOff(enabled),
-  ),
-  "utils.openFileWith": mapper(
-    z.object({ appPath: z.string(), filePath: z.string() }),
-    z.unknown(),
-    (input) => [
-      {
-        app: path.basename(input.appPath).replace(/\.app$/, ""),
-        kind: "open-with",
-        path: input.filePath,
-      },
-    ],
-  ),
-  // In the app the system opens it with, a folder in the file manager.
-  "utils.openPath": mapper(
-    z.object({ filepath: z.string() }),
-    z.unknown(),
-    (input) => [{ kind: "open-with", path: input.filepath }],
   ),
 };
 

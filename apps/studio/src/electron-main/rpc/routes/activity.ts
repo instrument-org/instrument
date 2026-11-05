@@ -2,7 +2,7 @@ import { activityExportCsv } from "@/electron-main/lib/activity-csv";
 import { base } from "@/electron-main/rpc/base";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { APP_NAME } from "@instrument-org/shared";
-import { actionLog, activityCsv } from "@instrument-org/workspace/electron";
+import { activityCsv, readActions } from "@instrument-org/workspace/electron";
 import { app, dialog } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -38,7 +38,7 @@ const saveCsv = base
         actions:
           input.view === "ai"
             ? undefined
-            : (await actionLog().read({ since: 0 }))
+            : (await readActions({ since: 0 }))
                 .filter((action) => action.kind !== "capped")
                 .toReversed(),
         requests: input.view === "yours" ? undefined : await activityCsv({}),

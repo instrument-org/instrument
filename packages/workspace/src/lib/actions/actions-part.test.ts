@@ -8,15 +8,19 @@ import { actionsModelNote } from "../actions-model-text";
 import { ChatWrites } from "../chat-writes";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { actionsNoteRows, createActionsPart } from "./actions-part";
-import { ActionLog, actionLog, actionsDir } from "./log";
-import { type Action, type ActionInput } from "./schema";
+import {
+  forgetRecordedActions,
+  type RecordedAction,
+  recordActions,
+} from "../../test/helpers/recorded-actions";
+import { type Action } from "./schema";
 
 const MIN = 60_000;
 const SENT = new Date("2026-11-05T20:30:00Z");
 const chatId = ChatIdSchema.parse("actions-part");
 
 /** An action as the log reads it back, `minutes` before the message. */
-function at(minutes: number, input: ActionInput): Action {
+function at(minutes: number, input: RecordedAction): Action {
   return {
     ...input,
     at: new Date(SENT.getTime() - minutes * MIN).toISOString(),
@@ -125,18 +129,11 @@ describe("createActionsPart", () => {
       chatId,
     );
 
-    /** Writes each action `ago` minutes before the message. */
-    function logged(actions: [ago: number, ActionInput][]) {
-      let now = 0;
-      const log = new ActionLog(
-        actionsDir(getWorkspaceConfig().workspaceMachineDir),
-        { now: () => now },
+    /** Records each action `ago` minutes before the message. */
+    function logged(actions: [ago: number, RecordedAction][]) {
+      recordActions(
+        actions.map(([ago, action]) => [SENT.getTime() - ago * MIN, action]),
       );
-      for (const [ago, action] of actions) {
-        now = SENT.getTime() - ago * MIN;
-        log.record(action);
-      }
-      log.close();
     }
 
     /** A message the user typed in the chat, `ago` minutes before this one. */
@@ -205,7 +202,7 @@ describe("createActionsPart", () => {
   }
 
   afterEach(async () => {
-    await actionLog().clear();
+    await forgetRecordedActions();
   });
 
   it("reaches 30 minutes back on the chat's first message", async () => {

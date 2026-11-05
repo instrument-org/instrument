@@ -266,6 +266,12 @@ export interface WorkspaceConfig {
    */
   maySuggestNextMessage?: () => boolean;
   /**
+   * Whether the person lets the chat's agent hear what they did in the app
+   * (`lib/actions/`): the note on each message they type and
+   * `instrument activity`. Absent means it may.
+   */
+  mayShareActions?: () => boolean;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;

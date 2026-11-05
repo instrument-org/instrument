@@ -524,13 +524,16 @@ describe("the registry", () => {
   it("generates every instrument subcommand", () => {
     expect(
       Object.fromEntries(
-        ["app", "memory", "task", "window", "x"].map((word) => [
+        ["activity", "app", "memory", "task", "window", "x"].map((word) => [
           word,
           Object.keys(cliSubcommands(word).subcommands).toSorted(),
         ]),
       ),
     ).toMatchInlineSnapshot(`
       {
+        "activity": [
+          "list",
+        ],
         "app": [
           "account",
           "call",

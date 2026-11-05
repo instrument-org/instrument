@@ -18,6 +18,7 @@ import {
   appsNew,
   appsTest,
 } from "./apps-setup";
+import { activityList } from "./activity";
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
 import { taskNew } from "./task/fork";
@@ -41,6 +42,7 @@ import { xSearch, xThread } from "./x";
  * definitions; a capability with both surfaces is in both.
  */
 export const CAPABILITIES: readonly Capability[] = [
+  activityList,
   // In the order `instrument app help` lists them: setting an app up, using
   // it, then its guide, icon and account.
   appsCatalog,

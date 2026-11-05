@@ -522,7 +522,11 @@ export function generatedCommand(
     usage,
     word,
   }: {
-    /** The subcommand a bare command runs; the usage where none. */
+    /**
+     * The subcommand a bare command runs, flags and all, so
+     * `instrument activity --since 1d` is `instrument activity list --since 1d`;
+     * the usage where none.
+     */
     bare?: string;
     /** The command as the shell names it: `instrument app`. */
     name: string;
@@ -550,7 +554,13 @@ export function generatedCommand(
   // `--help`, `-h` and `help`, alone or anywhere after the subcommand, print
   // the usage; an unknown subcommand is refused with it.
   return defineCommand(name, async (args, ctx) => {
-    const [given, ...rest] = args;
+    const words =
+      bare !== undefined &&
+      args[0]?.startsWith("--") === true &&
+      args[0] !== "--help"
+        ? [bare, ...args]
+        : args;
+    const [given, ...rest] = words;
     const chosen = given ?? bare;
     if (
       chosen === undefined ||

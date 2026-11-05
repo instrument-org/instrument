@@ -44,12 +44,16 @@ export type TurnRow =
       message: TranscriptMessage & { role: "assistant" };
     }
   | { id: StoreId.Part; kind: "note"; part: SessionMessagePart.DataPart }
-  | { id: StoreId.Part; kind: "task"; sessionId: StoreId.Session }
+  | {
+      id: StoreId.Part;
+      kind: "task";
+      sessionId: StoreId.Session;
+      startedAt: Date;
+    }
   | { id: StoreId.Part; kind: "text"; part: SessionMessagePart.TextPart };
 
 /** What opens a turn: what the person sent, or what the chat told a task. */
 export interface TurnOpener {
-  asks?: SessionMessageDataPart.AsksDataPart;
   chips: SessionMessageDataPart.SentChip[];
   files: SessionMessageDataPart.FileAttachmentDataPart[];
   folders: SessionMessageDataPart.SentFolderDataPart[];
@@ -90,7 +94,7 @@ export interface Turn {
   opener?: TurnOpener;
   phase: "done" | "interrupted" | "working";
   /** Its assistant messages, for what its footer says of them. */
-  replies: SessionMessage.Assistant[];
+  replies: (SessionMessage.Assistant & { parts: TranscriptPart[] })[];
   rows: TurnRow[];
   sites: string[];
   sources: (
@@ -266,7 +270,7 @@ function buildTurn(
   const body = opener ? slice.slice(1) : slice;
   const rows = rowsOf(body, options);
   const replies = body.filter(
-    (message): message is SessionMessage.Assistant & TranscriptMessage =>
+    (message): message is Turn["replies"][number] =>
       message.role === "assistant",
   );
   const phase = isLive
@@ -328,10 +332,6 @@ function openerOf(
         if (part.text.trim() !== "" || part.state === "streaming") {
           opener.text = part;
         }
-        break;
-      }
-      case "data-asks": {
-        opener.asks = part.data;
         break;
       }
       case "data-attachments": {
@@ -431,7 +431,12 @@ function rowsOf(
         // activity above it. Calls after it open a new row.
         open = undefined;
         for (const sessionId of started) {
-          rows.push({ id: part.metadata.id, kind: "task", sessionId });
+          rows.push({
+            id: part.metadata.id,
+            kind: "task",
+            sessionId,
+            startedAt: part.metadata.startedAt ?? part.metadata.createdAt,
+          });
         }
       } else if (isAsk(part)) {
         open = undefined;
@@ -575,7 +580,6 @@ function drawsNote(
   switch (part.type) {
     case "data-appEvent":
     // Drawn with the message it came on, or by the line above it.
-    case "data-asks":
     case "data-fromChat":
     case "data-modelChange": {
       return false;
@@ -729,8 +733,12 @@ function liveOf(
   body: readonly TranscriptMessage[],
   first: TranscriptMessage,
 ): TurnLive {
+  // An activity stays the working line between its calls, which is most of
+  // its time: a browser's commands take a fraction of a second, with seconds of
+  // the model thinking between them, and a line flipping to Thinking for each
+  // would only flicker. It says Thinking before there is any work to name.
   const last = rows.findLast((row) => row.kind !== "note");
-  if (last?.kind === "activity" && isRunningRow(last)) {
+  if (last?.kind === "activity") {
     return { activityId: last.id, kind: "activity" };
   }
   if (last?.kind === "text" && last.part.state === "streaming") {

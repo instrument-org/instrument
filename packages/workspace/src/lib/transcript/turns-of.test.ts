@@ -491,6 +491,39 @@ describe("the slot", () => {
     expect(turn && slotOf(turn)?.kind).toBe("page");
   });
 
+  it("gives way to a task's card, which carries its own", () => {
+    const task = StoreId.newSessionId();
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "web_search", { activity: "Looking", query: "x" }),
+          call(
+            id,
+            "bash",
+            { command: "task new" },
+            { exitCode: 0, handOffs: [{ kind: "created", sessionId: task }] },
+          ),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn && slotOf(turn)).toBeUndefined();
+  });
+
+  it("stays the working line between an activity's calls", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "bash", { activity: "Browsing" }, { exitCode: 0 }),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn?.live?.kind).toBe("activity");
+  });
+
   it("says when the work has moved past the card", () => {
     const [behind] = turnsOf(
       [

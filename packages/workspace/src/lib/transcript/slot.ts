@@ -32,7 +32,7 @@ const KIND_OF: Record<StepShows["kind"], SlotKind> = {
  * shows, and all of them:
  *
  * 1. A card stays until a different kind of card replaces it. A call with
- *    nothing to show changes nothing.
+ *    nothing to show changes nothing, and a call that failed has nothing to show.
  * 2. Things of one kind share a card, so a burst of files is one card and
  *    a browser's commands update one page.
  */
@@ -43,6 +43,9 @@ export function cardsOf(turn: Pick<Turn, "rows">): SlotCard[] {
       continue;
     }
     for (const step of row.steps) {
+      if (step.status === "failed") {
+        continue;
+      }
       const changedFiles = (step.facts?.files ?? []).flatMap((file) =>
         file.via === "disk" && file.change !== "deleted" ? [file.path] : [],
       );

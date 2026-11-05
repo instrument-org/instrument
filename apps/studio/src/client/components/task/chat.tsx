@@ -102,7 +102,6 @@ const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
  */
 export function ChatConversation({
   asks,
-  beforeComposer,
   composerLead,
   draftKey,
   selectedModelURI: initialSelectedModelURI,
@@ -123,8 +122,6 @@ export function ChatConversation({
       | undefined
       | { done: () => void; part: SessionMessageDataPart.AsksDataPart };
   };
-  /** Drawn between the transcript and the composer, outside the scroll: a standing row the transcript's end does not move for. */
-  beforeComposer?: ReactNode;
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
@@ -693,7 +690,6 @@ export function ChatConversation({
             <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
-              {beforeComposer}
               <PermissionAsksFoot chatId={id} />
               {draftKey.scope === "chat" && (
                 <RepliesWaiting
@@ -745,7 +741,7 @@ function SentPrompt({
   );
   return (
     <div className="flex flex-col gap-4">
-      <UserMessage compact part={part} />
+      <UserMessage part={part} />
       <ThinkingRow since={part.metadata.createdAt} />
     </div>
   );

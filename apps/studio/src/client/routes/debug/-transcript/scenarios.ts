@@ -1,34 +1,44 @@
 import { MID_TURN_NOTE, StoreId } from "@instrument-org/workspace/client";
 
+import { file } from "./parts";
 import {
   activity,
   batch,
   call,
+  emptyStep,
   fail,
   facts,
   maxSteps,
   notes,
+  pause,
   prose,
   reasoning,
   type Act,
   type Scenario,
   stop,
+  unknownTool,
   user,
 } from "./script";
 import {
+  chose,
   edited,
   fetched,
   generated,
+  loadedSkill,
   ran,
   ranAndFailed,
   read,
   readImage,
+  readMissing,
   searched,
+  searchedForSummary,
+  searchUnavailable,
+  threw,
   wrote,
 } from "./tools";
 
 /** A task a scenario's chat starts: what its card and tab play out. */
-export interface DebugTask {
+interface DebugTask {
   /** The line its card ends on. */
   ended: string;
   script: Act[];
@@ -435,6 +445,66 @@ export const scenarios: DebugScenario[] = [
       activity("Sending the report"),
       reasoning("The mail server may be rate limiting us."),
       maxSteps(25),
+    ],
+  },
+  {
+    id: "failed-calls",
+    name: "Calls that fail",
+    script: [
+      user("Update the notes and look up the release date."),
+      activity("Reading the notes"),
+      readMissing({
+        explanation: "Reading the old notes",
+        filePath: "notes/old.md",
+      }),
+      activity("Looking up the release date"),
+      searchUnavailable({
+        explanation: "Searching for the release date",
+        query: "release date",
+      }),
+      activity("Writing the notes"),
+      threw({
+        error: "The disk is full.",
+        explanation: "Saving the new notes",
+        filePath: "notes/new.md",
+      }),
+      unknownTool({ error: "Tool 'grep' is not available", input: {} }),
+      emptyStep(),
+      prose("None of that worked, so the notes are as they were."),
+    ],
+  },
+  {
+    id: "asks",
+    name: "A question, a skill and what was sent",
+    script: [
+      user("Plan the launch from this brief.", {
+        data: {
+          files: [
+            file({ filePath: "brief.pdf", mimeType: "application/pdf" }),
+          ],
+        },
+        type: "data-attachments",
+      }),
+      activity("Reading the brief"),
+      loadedSkill({
+        explanation: "Loading the launch skill",
+        name: "launch-plans",
+      }),
+      read({ explanation: "Reading the brief", filePath: "brief.pdf" }),
+      pause(),
+      chose({
+        answer: { selectedChoice: "Friday" },
+        choices: ["Friday", "Monday"],
+        explanation: "Asking which day it goes out",
+        question: "Which day should it go out?",
+      }),
+      activity("Checking the date"),
+      searchedForSummary({
+        explanation: "Checking for conflicts that Friday",
+        query: "major product launches this Friday",
+        text: "Two larger launches are planned for that Friday.",
+      }),
+      prose("Friday works, though two larger launches land the same day."),
     ],
   },
   {

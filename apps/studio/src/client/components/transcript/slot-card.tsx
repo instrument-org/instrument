@@ -302,7 +302,7 @@ function filesCard(
           {newest.before}
         </p>
       )}
-      <p className="rounded-sm bg-emerald-500/10 px-1 whitespace-pre-wrap text-foreground/80">
+      <p className="rounded-sm bg-brand-500/10 px-1 whitespace-pre-wrap text-foreground/80">
         {newest.after}
       </p>
     </div>

@@ -644,7 +644,6 @@ const NOTES_KEPT = new Set([
   "data-outputFormat",
   "data-permissionAnswer",
   "data-questionAnswer",
-  "data-reply",
   "data-setupChanges",
   "data-skillMentions",
   "data-taskEvent",

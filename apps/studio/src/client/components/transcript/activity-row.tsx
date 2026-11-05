@@ -2,8 +2,9 @@ import { getToolLabel, TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
   type ActivityRow,
-  type ToolName,
   type ChatInfo,
+  thoughtText,
+  type ToolName,
   type TurnStep,
 } from "@instrument-org/workspace/client";
 import { BrainIcon } from "@phosphor-icons/react/Brain";
@@ -14,9 +15,17 @@ import { PlanningDotIcon } from "../icons/planning-dot";
 import { ToolCallBody } from "../message-part/tool-call";
 import { Favicon } from "../favicon";
 import { AppChipIcon } from "../inline-link";
+import { SessionMarkdown } from "../session-markdown";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { TranscriptSurfaceContext } from "./surface";
 import { formatClock, useTicking } from "./time";
+
+/**
+ * A thought's words, set back from the work around them, with the space a
+ * section label takes pulled in: a written answer's rhythm is too loose here.
+ */
+export const THOUGHT_PROSE =
+  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&>p.markdown-section-label]:mt-4! [&>p.markdown-section-label]:mb-0! [&>p.markdown-section-label+p]:mt-1!";
 
 /** One line: a mark at the left, words, the places it touched, and how long. */
 export function RowLine({
@@ -191,10 +200,10 @@ export function ActivityRowView({
       )}
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-0.5">
-          {steps.length === 1 && lastStep ? (
-            <StepDetail chatInfo={chatInfo} step={lastStep} />
+          {row.steps.length === 1 && row.steps[0] ? (
+            <StepDetail chatInfo={chatInfo} step={row.steps[0]} />
           ) : (
-            steps.map((step) => (
+            row.steps.map((step) => (
               <StepRow chatInfo={chatInfo} key={step.metadata.id} step={step} />
             ))
           )}
@@ -205,11 +214,11 @@ export function ActivityRowView({
 }
 
 function stepLabel(step: TurnStep): string {
-  if (step.explanation) {
-    return step.explanation;
-  }
   const tool = toolOf(step);
-  return tool ? getToolLabel(tool) : "Thought";
+  if (!tool) {
+    return "Thought";
+  }
+  return step.explanation || getToolLabel(tool);
 }
 
 function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
@@ -247,7 +256,7 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
   );
 }
 
-/** What an opened call shows: the card the app draws for it, read whole. */
+/** What an opened step shows, read whole: a call's card, a thought's words. */
 function StepDetail({
   chatInfo,
   step,
@@ -260,6 +269,17 @@ function StepDetail({
   if (!part) {
     return (
       <p className="py-1 text-xs text-muted-foreground">Opening the call…</p>
+    );
+  }
+  if (part.type === "reasoning") {
+    return (
+      <SessionMarkdown
+        assetVersion={part.metadata.id}
+        chatId={chatInfo.id}
+        className={cn("w-full text-sm", THOUGHT_PROSE)}
+        isStreaming={part.state === "streaming"}
+        markdown={thoughtText(part.text)}
+      />
     );
   }
   return <ToolCallBody chatInfo={chatInfo} onRetry={() => {}} part={part} />;

@@ -194,9 +194,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-outputLimit": {
       return `<data-outputLimit continuations="${part.data.continuations}" />`;
     }
-    case "data-reply": {
-      return `<data-reply>${part.data.text}</data-reply>`;
-    }
     case "data-setupChanges": {
       const changes = part.data.changes
         .map((item) => `${item.change}:${item.kind}:${item.name}`)

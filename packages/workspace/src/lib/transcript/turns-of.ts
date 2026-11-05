@@ -197,7 +197,7 @@ export function isTurnFolded(turn: Turn, now: number): boolean {
  * The messages cut into turns: each message a person typed opens one, and what
  * follows belongs to it until the next.
  */
-export function turnSlices<T extends TranscriptMessage>(
+function turnSlices<T extends TranscriptMessage>(
   messages: readonly T[],
 ): T[][] {
   const slices: T[][] = [];

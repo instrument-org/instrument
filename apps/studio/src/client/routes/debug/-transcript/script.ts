@@ -152,17 +152,6 @@ export function call(spec: ToolCallShape): ToolCall {
 }
 
 /**
- * The standing prompt a session opens with, as its own message.
- *
- * Persisted once per session rather than rebuilt per turn, and drawn only in
- * developer mode, so it is the one thing at the top of a transcript that nobody
- * normally sees.
- */
-export function context(realRole: ContextRole, text: string): Act {
-  return { kind: "context", realRole, text };
-}
-
-/**
  * A step that produced nothing to draw.
  *
  * A real one is a step the model opened and closed without saying anything, and

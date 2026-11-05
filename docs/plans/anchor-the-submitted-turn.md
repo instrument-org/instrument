@@ -27,7 +27,7 @@ None of this needs to be built. There is also nothing to gain by updating: upstr
 
 ## Why it is off today, and what is actually wrong
 
-[chat-stream.tsx](../../apps/studio/src/client/components/chat-stream.tsx) opts out with a comment blaming the spacer: "opting into the primitive's per-turn anchor-to-top inflates a spacer and jumps the view up mid-stream as tool-call DOM churns in". The spacer is innocent. Three separate defects account for the symptom, and each is fixable.
+`chat-stream.tsx` opts out with a comment blaming the spacer: "opting into the primitive's per-turn anchor-to-top inflates a spacer and jumps the view up mid-stream as tool-call DOM churns in". The spacer is innocent. Three separate defects account for the symptom, and each is fixable.
 
 ### 1. The equal-count branch jumps to the wrong anchor
 
@@ -121,7 +121,7 @@ Then push, update the sha in `apps/studio/package.json`, `pnpm install` outside 
 
 ### Studio: four changes
 
-**1. Mark user messages as anchors.** In [chat-stream.tsx](../../apps/studio/src/client/components/chat-stream.tsx), in the `renderAsItems` branch, pass `scrollAnchor={message.role === "user"}` on the per-message `MessageScrollerItem` and replace the comment that explains the opt-out. The trailing wordmark item is not an anchor. A turn is one message per step, so the user message is the only row per turn that means "a new turn starts here".
+**1. Mark user messages as anchors.** In `chat-stream.tsx`, in the `renderAsItems` branch, pass `scrollAnchor={message.role === "user"}` on the per-message `MessageScrollerItem` and replace the comment that explains the opt-out. The trailing wordmark item is not an anchor. A turn is one message per step, so the user message is the only row per turn that means "a new turn starts here".
 
 **2. Tune the reading line.** On the provider in [chat.tsx](../../apps/studio/src/client/components/task/chat.tsx), set `scrollPreviousItemPeek` and, if needed, `scrollMargin`. The default 64px peek was chosen for a generic thread; the transcript already has 16px of content padding (which the placement math accounts for) and a 24px top fade over it.
 

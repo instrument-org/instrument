@@ -40,7 +40,6 @@ export function ComposeLayer({
   onChangeDraft,
   onCloseChat,
   onCloseDraft,
-  onCloseTab,
   onDiscardDraft,
   onExpandChat,
   onModelChange,
@@ -62,8 +61,6 @@ export function ComposeLayer({
   onCloseChat: (chatId: ChatId) => void;
   /** A window closed, with the words as its box had them and whether it was dictating more: the draft is kept or thrown away by them. */
   onCloseDraft: (id: string, words: string, dictating?: boolean) => void;
-  /** A tab closed from a chat window's tiles: asks first while a task is working in it. */
-  onCloseTab: (id: string) => void;
   /** A draft thrown away from its window's head. */
   onDiscardDraft: (id: string) => void;
   /** A popped-out chat expanded: the window goes and the chat comes up in a tab of the window's own, its pane open when asked. */
@@ -205,7 +202,6 @@ export function ComposeLayer({
                 onClose={() => {
                   onCloseChat(chatId);
                 }}
-                onCloseTab={onCloseTab}
                 onExpand={(options) => {
                   onExpandChat(chatId, options);
                 }}

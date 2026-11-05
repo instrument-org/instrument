@@ -35,7 +35,10 @@ export interface TranscriptSurface {
   useStepPart: (
     step: StepPart,
     isOpen: boolean,
-  ) => SessionMessagePart.ToolPart | undefined;
+  ) =>
+    | SessionMessagePart.ReasoningPart
+    | SessionMessagePart.ToolPart
+    | undefined;
   useTaskFacts: (id: StoreId.Session) => TaskCardFacts | undefined;
   useTaskMessages: (
     id: StoreId.Session,

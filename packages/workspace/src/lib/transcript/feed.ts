@@ -17,7 +17,7 @@ export interface TranscriptFeed {
 }
 
 /** One part that moved: its whole self, or just the words added to it. */
-export type PartPatch =
+type PartPatch =
   | {
       kind: "append";
       messageId: StoreId.Message;
@@ -41,7 +41,7 @@ export type TranscriptFeedEvent =
     };
 
 /** How many turns a reader is given at a time. */
-export const TURNS_PER_PAGE = 20;
+const TURNS_PER_PAGE = 20;
 
 /**
  * The messages of the last `turns` turns of `messages` (a session, oldest

@@ -58,6 +58,7 @@ export {
   type StepShows,
   type StepStatus,
   type TranscriptMessage,
+  thoughtText,
   transcriptMessage,
   type TranscriptPart,
   type WebResult,
@@ -86,7 +87,6 @@ export {
   parseMessage,
 } from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
-export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { shellPath } from "./lib/shell-path";
 export { stateNotes } from "./lib/state-notes";
 export { systemNoteBody } from "./lib/system-note";
@@ -115,12 +115,6 @@ export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export { setupChangeSentence } from "./lib/setup-change-sentence";
-export {
-  applyBubbleFeedEvent,
-  BubbleProjection,
-  type BubbleFeed,
-  type BubbleFeedEvent,
-} from "./lib/bubble-messages";
 export {
   dataPartVisibility,
   type DataPartVisibility,

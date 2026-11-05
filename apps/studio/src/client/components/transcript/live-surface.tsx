@@ -67,7 +67,7 @@ function useLiveChat(): ChatId {
 function useStepPart(
   step: StepPart,
   isOpen: boolean,
-): SessionMessagePart.ToolPart | undefined {
+): SessionMessagePart.ReasoningPart | SessionMessagePart.ToolPart | undefined {
   const chat = useLiveChat();
   const whole = useQuery({
     ...rpcClient.workspace.message.live.whole.experimental_liveOptions({
@@ -82,7 +82,9 @@ function useStepPart(
   const part = whole.data?.parts.find(
     (each) => each.metadata.id === step.metadata.id,
   );
-  return part && isToolPart(part) ? part : undefined;
+  return part && (isToolPart(part) || part.type === "reasoning")
+    ? part
+    : undefined;
 }
 
 function useRunningCommands(): ReadonlySet<string> {

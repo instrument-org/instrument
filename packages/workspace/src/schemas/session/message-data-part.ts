@@ -39,7 +39,6 @@ export namespace SessionMessageDataPart {
     "messageGap",
     "modelChange",
     "outputLimit",
-    "reply",
     "taskEvent",
     "toolResultsCleared",
     "chatContext",
@@ -103,7 +102,6 @@ export namespace SessionMessageDataPart {
     outputLimit: "event",
     permissionAnswer: "event",
     questionAnswer: "event",
-    reply: "event",
     setupChanges: "event",
     setupNews: "diff",
     signedIn: "event",
@@ -416,21 +414,6 @@ export namespace SessionMessageDataPart {
   });
 
   export type AsksDataPart = z.output<typeof AsksDataPartSchema>;
-
-  /**
-   * The earlier message the user is replying to: which bubble, by its message
-   * and part, so the transcript can draw the quote and find the original, and
-   * the start of its words, which is all the model is shown. The model already
-   * has the whole message in its history and knows it by no id, so the words
-   * are how it tells which one is meant.
-   */
-  export const ReplyDataPartSchema = z.object({
-    messageId: StoreId.MessageSchema,
-    partId: StoreId.PartSchema,
-    text: z.string().trim().min(1).max(1000),
-  });
-
-  export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
 
   /**
    * What a turn did to the person's setup: the skills, apps and memories it
@@ -1420,7 +1403,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
-    [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
     [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,
     [NameSchema.enum.signedIn]: SignedInDataPartSchema,

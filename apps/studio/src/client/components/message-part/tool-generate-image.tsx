@@ -24,7 +24,7 @@ import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
-import { isActiveToolPart } from "../transcript-layout";
+import { isActiveToolPart } from "./tool-call-utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import {
@@ -33,7 +33,6 @@ import {
   ToolCardEmpty,
   ToolCardHeader,
   ToolCardSection,
-  ToolChip,
 } from "./tool-card";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
@@ -53,73 +52,6 @@ type GenerateImagePart = Extract<
   SessionMessagePart.ToolPart,
   { type: "tool-generate_image" }
 >;
-
-export function SourceImagesChip({
-  id,
-  part,
-}: {
-  id: ChatId;
-  part: SessionMessagePart.ToolPart;
-}) {
-  // Once generation succeeds the output carries `modifiedAt` for cache-busting.
-  // While streaming we only have the input paths, so render those (no version)
-  // so the references show up on the right immediately.
-  const sourceImages: { filePath: string; modifiedAt?: number }[] =
-    part.type === "tool-generate_image"
-      ? part.state === "output-available" && part.output.state === "success"
-        ? // `sourceImages` was added after initial release; old persisted outputs lack it
-          (part.output.sourceImages ?? [])
-        : Array.isArray(part.input?.sourceImages)
-          ? part.input.sourceImages.flatMap((p) =>
-              typeof p === "string" && p.length > 0 ? [{ filePath: p }] : [],
-            )
-          : []
-      : [];
-  const hostPaths = useHostPaths(
-    id,
-    sourceImages.map((file) => file.filePath),
-  );
-
-  if (sourceImages.length === 0) {
-    return null;
-  }
-
-  return (
-    <ToolChip className="gap-0 px-1">
-      {sourceImages.slice(0, 3).map((file, index) => {
-        const fallback = (
-          <span
-            className="-ml-0.5 flex size-4 items-center justify-center rounded-full border border-border/50 bg-muted first:ml-0"
-            key={index}
-            title={filenameFromFilePath(file.filePath)}
-          >
-            <ImagesIcon className="size-2.5 text-muted-foreground/50" />
-          </span>
-        );
-        const hostPath = hostPaths[file.filePath];
-        if (!hostPath) {
-          return fallback;
-        }
-        return (
-          <ImageWithFallback
-            alt="Reference"
-            arrival="icon"
-            className="-ml-0.5 size-4 rounded-full border border-border/50 object-cover first:ml-0"
-            fallback={fallback}
-            filename={filenameFromFilePath(file.filePath)}
-            key={index}
-            src={getComputerFileUrl({ hostPath, version: file.modifiedAt })}
-          />
-        );
-      })}
-      {sourceImages.length > 3 && (
-        <span className="ml-1 text-xs text-foreground/40">
-          +{sourceImages.length - 3}
-        </span>
-      )}
-    </ToolChip>
-  );
-}
 
 export function ToolGenerateImage({
   id,

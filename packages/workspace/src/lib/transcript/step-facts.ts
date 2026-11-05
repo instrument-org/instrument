@@ -163,15 +163,6 @@ export function settleStepFacts(
   write(ledger, true);
 }
 
-/** Lets go of a call's facts with nothing written, for a call that never ran. */
-export function dropStepFacts(step: StoreId.Part): void {
-  const ledger = ledgers.get(step);
-  if (ledger) {
-    clearTimeout(ledger.timer);
-    ledgers.delete(step);
-  }
-}
-
 function soon(ledger: Ledger) {
   ledger.timer ??= setTimeout(() => {
     ledger.timer = undefined;

@@ -19,7 +19,6 @@ import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
 import { AttachmentsCard } from "../attachments-card";
 import { ChatSeparatorRow } from "../chat-separator";
-import { renderDataPart } from "../chat-stream-data-parts";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { MessageError } from "../message-error";
 import { ToolCallBody } from "../message-part/tool-call";
@@ -30,8 +29,12 @@ import { UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
 import { ActivityRowView, Badges, RowLine, StepMark } from "./activity-row";
 import { DeveloperNote } from "./developer-note";
+import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
-import { TranscriptActionsContext } from "./transcript-actions";
+import {
+  StateNotesContext,
+  TranscriptActionsContext,
+} from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
 
@@ -96,7 +99,7 @@ function OpenerView({
         <AttachmentsCard chatId={chatInfo.id} files={files} />
       )}
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
-      {text && <UserMessage compact part={text} />}
+      {text && <UserMessage part={text} />}
       {notes.map((part) => (
         <NoteRow chatInfo={chatInfo} key={part.metadata.id} part={part} />
       ))}
@@ -356,19 +359,12 @@ function NoteRow({
   chatInfo: ChatInfo;
   part: SessionMessagePart.DataPart;
 }) {
-  const actions = use(TranscriptActionsContext);
+  const { isDeveloperMode } = use(TranscriptActionsContext);
+  const stateNotes = use(StateNotesContext);
   const node = renderDataPart({
-    ctx: {
-      chatInfo,
-      isAgentRunning: false,
-      isDeveloperMode: actions.isDeveloperMode,
-      isToolStreaming: () => false,
-      lastMessageId: undefined,
-      onRetry: actions.onRetry,
-    },
+    ctx: { chatInfo, isDeveloperMode },
     part,
-    pathsAlreadyShown: undefined,
-    stateNote: undefined,
+    stateNote: stateNotes.get(part.metadata.id),
   });
   if (node === null) {
     return null;

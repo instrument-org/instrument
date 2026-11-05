@@ -983,7 +983,6 @@ function WindowShell({
                 onCloseDraft={closeDraft}
                 onDiscardDraft={discardDraft}
                 onExpandChat={expandChat}
-                onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
                 onNewChatProject={(chatId, name) => {
                   setNewProject({ chatId, ...(name ? { name } : {}) });

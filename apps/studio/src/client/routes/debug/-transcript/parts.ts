@@ -7,8 +7,6 @@ import {
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import {
-  AbsolutePathSchema,
-  MountedFolder,
   RelativePathSchema,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
@@ -41,22 +39,6 @@ export const OUR_MODEL: AIGatewayModel.Type = {
   providerName: "Anthropic",
   tags: ["default"],
   uri: `anthropic/claude-sonnet-5?provider=${OUR_PROVIDER_CONFIG.type}&providerConfigId=${OUR_PROVIDER_CONFIG.id}` as AIGatewayModelURI.Type,
-};
-
-/** A model on the user's ChatGPT account, for the errors only that plan sends. */
-export const CHATGPT_ACCOUNT_MODEL: AIGatewayModel.Type = {
-  author: "openai",
-  canonicalId: "gpt-5.6-sol" as AIGatewayModel.CanonicalId,
-  features: ["inputText", "outputText", "tools"],
-  name: "GPT-5.6 Sol",
-  params: {
-    provider: "chatgpt-account",
-    providerConfigId: AIProviderConfigIdSchema.parse("chatgpt-account"),
-  },
-  providerId: "gpt-5.6-sol" as AIGatewayModel.ProviderId,
-  providerName: "ChatGPT account",
-  tags: [],
-  uri: "openai/gpt-5.6-sol?provider=chatgpt-account&providerConfigId=chatgpt-account" as AIGatewayModelURI.Type,
 };
 
 /** A model on the user's Claude subscription, run through Claude Code. */
@@ -92,24 +74,6 @@ export function file({
     modifiedAt: AT,
     size,
   };
-}
-
-/** A folder on the user's own disk, mounted into the task. */
-export function folder({
-  access,
-  path,
-}: {
-  access: MountedFolder.Access;
-  path: string;
-}): MountedFolder.Type {
-  const name = path.split("/").at(-1) ?? path;
-  return MountedFolder.Schema.parse({
-    access,
-    createdAt: AT,
-    id: name,
-    path: AbsolutePathSchema.parse(path),
-    source: "user",
-  });
 }
 
 /**

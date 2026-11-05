@@ -61,10 +61,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("a reply's message fence stands under the bubble as a card", async () => {
+test("a reply's message fence stands in its words as a card", async () => {
   const screen = await renderInBrowser(
     <div style={{ width: 560 }}>
-      <AssistantMessage bubble part={textPart(EMAIL)} chatId={chatId} />
+      <AssistantMessage part={textPart(EMAIL)} chatId={chatId} />
     </div>,
   );
 
@@ -73,7 +73,6 @@ test("a reply's message fence stands under the bubble as a card", async () => {
     .toBeVisible();
   await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
     "- paragraph: Here's a note for Marcy.
-    - button "Copy message"
     - text: Email to Marcy <
     - button "marcy@example.com"
     - text: ">"

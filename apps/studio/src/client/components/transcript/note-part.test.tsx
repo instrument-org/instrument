@@ -4,8 +4,9 @@ import {
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { dataPartVisibility, renderDataPart } from "./chat-stream-data-parts";
-import { type RenderPartContext } from "./chat-stream-render-part";
+import { dataPartVisibility, renderDataPart } from "./note-part";
+
+type NoteContext = Parameters<typeof renderDataPart>[0]["ctx"];
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
@@ -40,7 +41,7 @@ describe("a data part this build has never heard of", () => {
     expect(
       renderDataPart({
         stateNote: undefined,
-        ctx: { isDeveloperMode: true } as unknown as RenderPartContext,
+        ctx: { isDeveloperMode: true } as unknown as NoteContext,
         part: retiredPart,
       }),
     ).toBeNull();
@@ -76,7 +77,7 @@ describe("a file-changes part from before the fence", () => {
   ) =>
     renderDataPart({
       stateNote: undefined,
-      ctx: { isDeveloperMode: false } as unknown as RenderPartContext,
+      ctx: { isDeveloperMode: false } as unknown as NoteContext,
       part,
       pathsAlreadyShown,
     });
@@ -147,8 +148,7 @@ describe("a task event in the chat", () => {
       stateNote: undefined,
       ctx: {
         isDeveloperMode: false,
-        presentation: "chat",
-      } as unknown as RenderPartContext,
+      } as unknown as NoteContext,
       part: partWith(stoppedBy),
     });
 

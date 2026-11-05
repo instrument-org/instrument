@@ -479,9 +479,7 @@ export const scenarios: DebugScenario[] = [
     script: [
       user("Plan the launch from this brief.", {
         data: {
-          files: [
-            file({ filePath: "brief.pdf", mimeType: "application/pdf" }),
-          ],
+          files: [file({ filePath: "brief.pdf", mimeType: "application/pdf" })],
         },
         type: "data-attachments",
       }),

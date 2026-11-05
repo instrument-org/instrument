@@ -140,6 +140,7 @@ const sendFeedback = base
       items: z.array(FeedbackItemSchema),
       note: z.string().max(5000).optional(),
       surface: ReportInputSchema.shape.surface,
+      tag: ReportInputSchema.shape.tag,
       title: ReportInputSchema.shape.title,
     }),
   )

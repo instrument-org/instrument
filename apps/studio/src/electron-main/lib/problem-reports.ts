@@ -13,6 +13,7 @@ import {
   type FeedbackDescription,
   type FeedbackFile,
   type FeedbackItem,
+  type FeedbackTag,
   MAX_REPORT_BYTES,
   MAX_REPORT_DETAILS,
   MAX_REPORT_EVENTS,
@@ -752,11 +753,13 @@ export function feedbackReportInput({
   items,
   note,
   surface,
+  tag,
   title,
 }: {
   items: readonly FeedbackItem[];
   note?: string;
   surface: string;
+  tag?: FeedbackTag;
   title: string;
 }): ReportInput {
   const files = items.flatMap((item) =>
@@ -773,6 +776,7 @@ export function feedbackReportInput({
     kind: "feedback",
     ...(note && { note }),
     surface,
+    ...(tag && { tag }),
     title,
   });
 

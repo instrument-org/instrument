@@ -1,5 +1,9 @@
 import { studioModalAtom } from "@/client/atoms/studio-modal";
-import { type Condition, type ReportKind } from "@/shared/problem-reports";
+import {
+  type Condition,
+  type FeedbackTag,
+  type ReportKind,
+} from "@/shared/problem-reports";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
@@ -19,6 +23,8 @@ export type FeedbackRequest = {
   onSent?: () => void;
   /** Where it started: "chat-menu", "slash-command", "help-menu", ... */
   surface: string;
+  /** The tag picked ahead of time: the card's answer, or a bug for the agent's report. */
+  tag?: FeedbackTag;
   /** What the agent wrote up when it offered this, sent as a part of its own. */
   writeup?: { text: string; title: string };
 };

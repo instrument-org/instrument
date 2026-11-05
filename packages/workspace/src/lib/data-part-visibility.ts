@@ -93,6 +93,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
   "data-project": "dev",
+  // The card asking how the chat went, for the person alone.
+  "data-ratingCard": "always",
   "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
@@ -101,6 +103,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
 export function dataPartVisibility(
   part: SessionMessagePart.DataPart,
 ): DataPartVisibility {
+  // A card the person closed is gone from the chat.
+  if (part.type === "data-ratingCard" && part.data.outcome === "dismissed") {
+    return "hidden";
+  }
   return declaredVisibility(part.type);
 }
 

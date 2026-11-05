@@ -49,6 +49,19 @@ const ReportFileSchema = z.object({
   path: ReportFilePathSchema,
 });
 
+/** What a person says their feedback is about, one pick in the dialog. */
+const FeedbackTagSchema = z.enum([
+  "good",
+  "okay",
+  "bad",
+  "bug",
+  "slow",
+  "idea",
+  "other",
+]);
+
+export type FeedbackTag = z.output<typeof FeedbackTagSchema>;
+
 /** The longest note a report carries, which the dialog holds typing and dictation to. */
 export const REPORT_NOTE_MAX_LENGTH = 5000;
 
@@ -81,6 +94,8 @@ export const ReportInputSchema = z.object({
   note: z.string().max(REPORT_NOTE_MAX_LENGTH).optional(),
   /** Where the report started: "crash", "help-menu", "route-error", ... */
   surface: z.string().regex(/^[a-z-]{1,40}$/),
+  /** What the person says their feedback is about, when they picked one. */
+  tag: FeedbackTagSchema.optional(),
   title: z.string().min(1).max(300),
 });
 

@@ -35,6 +35,7 @@ import {
 import {
   FEEDBACK_TOO_LARGE,
   type FeedbackItem,
+  type FeedbackTag,
   MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
@@ -65,6 +66,25 @@ const DIALOG_WIDTH = "38rem";
 const REVIEW_HEIGHT = "40rem";
 
 const NOTE_MAX_LENGTH = 5000;
+
+/** The tags as the dialog offers them, with the question each one's note answers. */
+const TAGS: readonly {
+  label: string;
+  placeholder?: string;
+  tag: FeedbackTag;
+}[] = [
+  { label: "Good result", placeholder: "What worked well?", tag: "good" },
+  {
+    label: "Okay result",
+    placeholder: "What could have gone better?",
+    tag: "okay",
+  },
+  { label: "Bad result", placeholder: "What went wrong?", tag: "bad" },
+  { label: "Bug", tag: "bug" },
+  { label: "Too slow", placeholder: "What took too long?", tag: "slow" },
+  { label: "Idea", placeholder: "What's your idea?", tag: "idea" },
+  { label: "Other", tag: "other" },
+];
 
 /** An image the person attached: a picked, pasted or dropped file. */
 type AttachedImage = {
@@ -143,6 +163,7 @@ export function FeedbackDialogContent({
   request: FeedbackRequest;
 }) {
   const [note, setNote] = useState("");
+  const [tag, setTag] = useState(request.tag);
   const noteDictation = useDictatedText({
     maxLength: NOTE_MAX_LENGTH,
     onChange: setNote,
@@ -218,6 +239,7 @@ export function FeedbackDialogContent({
       items: going,
       note: trimmed || undefined,
       surface: request.surface,
+      tag,
       title:
         trimmed.split("\n")[0]?.slice(0, 300) ||
         request.writeup?.title ||
@@ -332,6 +354,32 @@ export function FeedbackDialogContent({
             </DialogDescription>
           </div>
 
+          <div className="flex flex-col gap-2">
+            <p className="text-[13px] font-medium text-muted-foreground">
+              What's it about?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {TAGS.map((each) => (
+                <button
+                  aria-pressed={tag === each.tag}
+                  className={cn(
+                    "inline-flex h-7 items-center rounded-full px-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                    tag === each.tag
+                      ? "bg-brand-600 text-white"
+                      : "border border-border bg-card text-foreground/80 hover:bg-accent",
+                  )}
+                  key={each.tag}
+                  onClick={() => {
+                    setTag(tag === each.tag ? undefined : each.tag);
+                  }}
+                  type="button"
+                >
+                  {each.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <DictatedTextarea
             aria-label="Your note"
             autoFocus
@@ -344,7 +392,8 @@ export function FeedbackDialogContent({
             placeholder={
               request.writeup
                 ? "Anything to add? You can also send it as it is."
-                : "What happened, and what did you expect?"
+                : (TAGS.find((each) => each.tag === tag)?.placeholder ??
+                  "What happened, and what did you expect?")
             }
             value={note}
           />

@@ -104,6 +104,7 @@ export function ToolOfferFeedback({
                           settleAs("sent");
                         },
                         surface: "agent-offer",
+                        tag: "bug",
                         writeup: { text: writeup, title },
                       }),
                     );

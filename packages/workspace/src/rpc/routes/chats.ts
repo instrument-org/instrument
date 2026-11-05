@@ -495,11 +495,46 @@ const settleFeedbackOfferRoute = base
     }
   });
 
+/**
+ * What the person did with the card asking how the chat went: sent feedback
+ * or closed it. Written onto the card for it to draw, and never wakes the
+ * chat, so the agent never hears how it went.
+ */
+const settleRatingCardRoute = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      messageId: StoreId.MessageSchema,
+      outcome: z.enum(["sent", "dismissed"]),
+      partId: StoreId.PartSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ errors, input }) => {
+    const written = await ChatWrites.updatePart(
+      {
+        chatId: input.id,
+        messageId: input.messageId,
+        partId: input.partId,
+        sessionId: input.sessionId,
+      },
+      (part) =>
+        part.type === "data-ratingCard" && part.data.outcome === undefined
+          ? { ...part, data: { outcome: input.outcome } }
+          : part,
+    );
+    if (written.isErr()) {
+      throw toORPCError(written.error, errors);
+    }
+  });
+
 export const chats = {
   ...chatRoutes,
   answerQuestion: answerQuestionRoute,
   declineSignIn: declineSignInRoute,
   settleFeedbackOffer: settleFeedbackOfferRoute,
+  settleRatingCard: settleRatingCardRoute,
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,

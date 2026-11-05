@@ -463,6 +463,17 @@ describe("feedback", () => {
       title: "It never checked the per-resolution price.",
     });
 
+  it("sends the tag the person picked", () => {
+    expect(
+      reports.feedbackReportInput({
+        items: [],
+        surface: "rating-card",
+        tag: "bad",
+        title: "Feedback about a chat",
+      }).tag,
+    ).toBe("bad");
+  });
+
   it("sends the items' files and events, with no details", () => {
     const sent = input([
       item("chat", [{ content: "{}\n", path: `chat/${OWN}.mac1.jsonl` }]),

@@ -756,12 +756,11 @@ function FeedbackOffers() {
   return (
     <label className="flex items-start justify-between gap-4 border-t border-border pt-3">
       <span className="space-y-1">
-        <span className="block text-sm font-medium">
-          Offer to report problems
-        </span>
+        <span className="block text-sm font-medium">Ask for feedback</span>
         <span className="block text-xs text-muted-foreground">
-          When something in {APP_NAME} breaks during a chat, it can offer to
-          send us what happened. Nothing is sent unless you say so.
+          Now and then, {APP_NAME} asks how a chat went, and it can offer to
+          send us what happened when something breaks. Nothing is sent unless
+          you say so.
         </span>
       </span>
       <Switch

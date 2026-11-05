@@ -27,6 +27,46 @@ function baseMetadata() {
 }
 
 describe("SessionMessage.toModelMessages", () => {
+  it("sends the same request with or without the card asking how a chat went", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+    const reply = (
+      parts: SessionMessagePart.Type[],
+    ): SessionMessage.WithParts => ({
+      id: messageId,
+      metadata: {
+        ...messageMetadata,
+        aiGatewayModel: undefined,
+        finishReason: "stop",
+        modelId: "gpt-4o",
+        providerId: "openai",
+      },
+      parts,
+      role: "assistant",
+    });
+    const words: SessionMessagePart.Type = {
+      metadata: partMetadata,
+      state: "done",
+      text: "The comparison is ready.",
+      type: "text",
+    };
+    const card: SessionMessagePart.Type = {
+      data: { outcome: "sent" },
+      metadata: { ...partMetadata, id: StoreId.newPartId() },
+      type: "data-ratingCard",
+    };
+    expect(
+      await SessionMessage.toModelMessages(
+        [reply([words, card])],
+        TOOLS_FOR_MODEL_OUTPUT,
+      ),
+    ).toEqual(
+      await SessionMessage.toModelMessages(
+        [reply([words])],
+        TOOLS_FOR_MODEL_OUTPUT,
+      ),
+    );
+  });
+
   it("leaves out a call the provider ran and never answered", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 

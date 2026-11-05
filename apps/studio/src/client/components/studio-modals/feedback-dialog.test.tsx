@@ -3,7 +3,7 @@ import { modalBackStackAtom } from "@/client/atoms/tab-navigation-block";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
-import { type FeedbackItem } from "@/shared/problem-reports";
+import { type FeedbackItem, type FeedbackTag } from "@/shared/problem-reports";
 import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
 import { getDefaultStore } from "jotai";
@@ -85,18 +85,43 @@ vi.mock("@/client/components/dictation-controls", () => ({
   useDictatedText: () => ({ phase: { kind: "idle" } }),
 }));
 
-async function open(writeup?: { text: string; title: string }) {
+async function open(
+  writeup?: { text: string; title: string },
+  tag?: FeedbackTag,
+) {
   renderWithDefaultStore(<ReportDialog />);
   act(() => {
     getDefaultStore().set(
       reportDialogAtom,
-      feedbackReport({ surface: "test", writeup }),
+      feedbackReport({ surface: "test", tag, writeup }),
     );
   });
   await screen.findByRole("button", { name: "View Diagnostics" });
 }
 
 describe("FeedbackDialogContent", () => {
+  const pressed = () =>
+    screen
+      .getAllByRole("button", { pressed: true })
+      .map((chip) => chip.textContent);
+
+  it("opens with the card's answer tagged and asks its question", async () => {
+    await open(undefined, "bad");
+    expect(pressed()).toEqual(["Bad result"]);
+    expect(screen.getByPlaceholderText("What went wrong?")).toBeTruthy();
+  });
+
+  it("lets a person pick one tag, change it, or take it off", async () => {
+    await open();
+    expect(screen.queryAllByRole("button", { pressed: true })).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Idea" }));
+    expect(pressed()).toEqual(["Idea"]);
+    fireEvent.click(screen.getByRole("button", { name: "Too slow" }));
+    expect(pressed()).toEqual(["Too slow"]);
+    fireEvent.click(screen.getByRole("button", { name: "Too slow" }));
+    expect(screen.queryAllByRole("button", { pressed: true })).toEqual([]);
+  });
+
   it("lists the chat by its title and the diagnostics, with nothing to check", async () => {
     await open();
     expect(screen.getByText("“Star my first email”")).toBeTruthy();

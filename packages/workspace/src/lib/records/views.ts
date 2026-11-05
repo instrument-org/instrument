@@ -45,6 +45,7 @@ const CONVERSATION_PARTS = new Set<string>([
   "data-maxSteps",
   "data-modelChange",
   "data-permissionAnswer",
+  "data-ratingCard",
   "data-reply",
   "data-setupChanges",
   "data-viewContext",

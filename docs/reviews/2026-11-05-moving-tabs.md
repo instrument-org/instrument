@@ -2,7 +2,7 @@
 
 Reviewed: `b4f59f275..19da6c4f5`
 
-Asked for ahead of merging the multiple windows work: the difficult bugs, and the refactors worth doing first. Two blind readers took `b4f59f275..6689ff9b5`, one for defects and one for structure, reading the tab carry in main, the renderer's half of the drag, the browser view manager, kept state and the menus. Findings A to L are theirs, each read again at that head and A reproduced by real pointer on a macOS VM. The refactors that followed (`703c9247a`, `19da6c4f5`) went to a third blind reader, who traced the new code against the old with nothing booted; M to V are that reader's, each read again against the code, with M reproduced by real pointer.
+Asked for ahead of merging the multiple windows work: the difficult bugs, and the refactors worth doing first. Two blind readers took `b4f59f275..6689ff9b5`, one for defects and one for structure, reading the tab carry in main, the renderer's half of the drag, the browser view manager, kept state and the menus. Findings A to L are theirs, each read again at that head and A reproduced by real pointer on a macOS VM. The refactors that followed (`703c9247a`, `19da6c4f5`) went to a third blind reader, who traced the new code against the old with nothing booted; M to U are that reader's, each read again against the code, with M reproduced by real pointer, and V came up while verifying them.
 
 ## Findings
 
@@ -77,9 +77,10 @@ Asked for ahead of merging the multiple windows work: the difficult bugs, and th
 
 ### L. An idle restart gives every window the front window's state
 
-- Status: open
-- Where: [on-screen.ts](/apps/studio/src/electron-main/windows/on-screen.ts)
-- What: `comeBackAsLeft` records one view, so a minimized front window brings every window back minimized.
+- Status: fixed `a354e5a7a`
+- Where: [on-screen.ts](/apps/studio/src/electron-main/windows/on-screen.ts), `windowView` in [idle-restart.ts](/apps/studio/src/electron-main/lib/idle-restart.ts)
+- What: `comeBackAsLeft` records one view, so a minimized front window brought every window back minimized.
+- Note: there is still one view for every window. A window in view decides it, so none of those goes missing, and a minimized one beside it comes back up.
 
 ### M. A fast release before Motion's first frame leaves the carry running
 

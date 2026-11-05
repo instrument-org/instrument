@@ -329,6 +329,19 @@ export function setWindowKeptState(
   windowStoreOf(windowId).set(WINDOW_KEPT_FILE, key, value);
 }
 
+/** A value a window keeps, written from outside it and told to its page as it runs. */
+export function tellWindowKeptState(
+  windowId: string,
+  contents: Electron.WebContents,
+  key: string,
+  value: unknown,
+) {
+  setWindowKeptState(windowId, key, value);
+  if (!contents.isDestroyed()) {
+    contents.send(KEPT_STATE_CHANNEL.changed, WINDOW_KEPT_FILE, key, value);
+  }
+}
+
 /** Every other window's kept value of a key, for windows on disk and in memory alike. */
 function otherWindowsValues(key: string, exceptId: string | undefined) {
   const windowsDir = path.join(workspaceWindowDir(), WINDOWS_FOLDER);

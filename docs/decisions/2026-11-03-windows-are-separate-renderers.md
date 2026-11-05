@@ -10,7 +10,7 @@ Each window is its own renderer. A window keeps its own strip of tabs, and share
 
 ## Alternatives
 
-**One renderer drawing into several native windows** (`window.open` children, as VS Code's auxiliary windows are) would move a tab without touching its state and would move a `<webview>` too, since none of it leaves the renderer. The whole of the client reads the global `document` and `window` for focus, keyboard homes, floating positions, zoom and pointer math, so every one of those would have to learn which window it is in. That is a rewrite with a long tail of bugs that look like nothing.
+**One renderer drawing into several native windows** (`window.open` children, as VS Code's auxiliary windows are) would move a tab without touching most of its state, though not a `<webview>`, whose guest goes when its element leaves the document. The whole of the client reads the global `document` and `window` for focus, keyboard homes, floating positions, zoom and pointer math, so every one of those would have to learn which window it is in. That is a rewrite with a long tail of bugs that look like nothing.
 
 **A chat lives in one window**, as a document does in a document-based Mac app, where opening it again brings its window forward. Every question about shared state would go away. But stepping through the inbox with the arrows would throw the person into another window partway down the list, and one window could not be used to read a chat that another is merely holding in a background tab. The tabs in one window already allow a chat twice.
 
@@ -20,6 +20,6 @@ Each window is its own renderer. A window keeps its own strip of tabs, and share
 
 ## Consequences
 
-- A moved page reloads. Its address and the pages behind it come with it; the pages ahead of it, and what a page held only in memory, do not.
+- A page moved to another renderer reloads, which [tearing a tab off](2026-11-04-a-pulled-tab-keeps-its-window.md) mostly avoids. Its address and the pages behind it come with it; the pages ahead of it, and what a page held only in memory, do not.
 - What one window does has to reach the others on its own. State that a mutation refreshes only in the renderer that made it goes stale in the rest, so what a person can change is a live route or an event stream.
 - The tabs of a chat open in two windows are the same tabs, and the one up is the same in both.

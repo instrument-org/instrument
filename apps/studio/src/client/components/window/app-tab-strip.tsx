@@ -3,6 +3,7 @@ import {
   tabsWithoutDeveloperModeAtom,
   useDeveloperMode,
 } from "@/client/hooks/use-developer-mode";
+import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
@@ -33,10 +34,12 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { XIcon } from "@phosphor-icons/react/X";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { useAtom } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { zoomAtom } from "@/client/atoms/zoom";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { getDefaultStore, useAtom, useAtomValue } from "jotai";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { INBOX_HREF } from "./app-tabs";
+import { appTabsAtom, INBOX_HREF } from "./app-tabs";
 import { ChatMarkIcon } from "./chat-mark";
 import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
@@ -51,8 +54,23 @@ import {
   segmentsOf,
 } from "./host-path";
 import { siteTabTitles } from "./site-tab-titles";
+import { isOffRow, type PointerSample, recentPath } from "./tab-pull";
 import { type StripTab, TabStrip } from "./tab-strip";
-import { type TabMoveDestination } from "./move-tab";
+import {
+  keepOnlyTab,
+  letTabGo,
+  type TabMoveDestination,
+  type TabStanding,
+} from "./move-tab";
+import {
+  isTabHeldHere,
+  measureCarryIndex,
+  showTabCarryView,
+  tabCarryIndexAtom,
+  tabCarryViewAtom,
+  tabsInView,
+  useTabCarryView,
+} from "./tab-carry-view";
 import { matchScreen } from "./window-href";
 
 /**
@@ -75,6 +93,7 @@ export function AppTabStrip({
   onReorder,
   onSelect,
   selectedId,
+  standingOf,
   tabs,
 }: {
   /** Each chat's mark, as the rail would wear it for that chat alone. */
@@ -85,13 +104,15 @@ export function AppTabStrip({
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;
   onDuplicate: (id: TabId) => void;
-  onMove: (id: TabId, to: TabMoveDestination) => void;
+  onMove: (id: TabId, to: TabMoveDestination) => Promise<void>;
   onNew: () => void;
   /** The tab's own reload, for a site's page; undefined where a tab has none. */
   onReload: (id: TabId) => (() => void) | undefined;
   onReorder: (ids: TabId[]) => void;
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
+  /** A tab as it stands now, as it would be handed to another window. */
+  standingOf: (id: TabId) => TabStanding | undefined;
   tabs: { id: TabId; pathname: string }[];
 }) {
   const presentationOf = useAppTabPresentation({ chatTitles, childTitles });
@@ -103,7 +124,20 @@ export function AppTabStrip({
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
-  const whole = tabs.map((tab) => ({
+  useTabCarryView();
+  const carryView = useAtomValue(tabCarryViewAtom);
+  const carryIndex = useAtomValue(tabCarryIndexAtom);
+  // Measured from the strip as drawn, so the tab comes to rest where the
+  // pointer is once it has joined the strip, moved or not.
+  useLayoutEffect(() => {
+    measureCarryIndex(carryView);
+  }, [carryView, carryIndex]);
+  const shownTabs = tabsInView(tabs, carryView, carryIndex);
+  const shownSelectedId = isTabHeldHere(carryView)
+    ? carryView.heldId
+    : selectedId;
+
+  const whole = shownTabs.map((tab) => ({
     key: tab.id,
     ...presentationOf(tab.pathname || INBOX_HREF),
   }));
@@ -112,12 +146,12 @@ export function AppTabStrip({
   const short = siteTabTitles(whole);
   const presented = whole.map(({ url: _url, ...tab }, index) => {
     const { dot, isWorking } = chatTabMark(
-      tabs[index]?.pathname || INBOX_HREF,
+      shownTabs[index]?.pathname || INBOX_HREF,
       chatMarks,
-      { isUp: tab.key === selectedId },
+      { isUp: tab.key === shownSelectedId },
     );
     const tooltip = tabTooltip(
-      tabs[index]?.pathname || INBOX_HREF,
+      shownTabs[index]?.pathname || INBOX_HREF,
       whole[index],
     );
     return {
@@ -131,20 +165,36 @@ export function AppTabStrip({
   // The window is called what its tab up is, alone, as a document window is:
   // the OS already names the app beside it in the Dock, the switcher and
   // Mission Control. Whole, since the window's title stands alone.
-  const selectedTitle = whole.find((tab) => tab.key === selectedId)?.title;
+  const selectedTitle = whole.find((tab) => tab.key === shownSelectedId)?.title;
   useEffect(() => {
     document.title = selectedTitle ?? APP_NAME;
   }, [selectedTitle]);
 
+  const reorderKeys = (keys: string[]) => {
+    onReorder(
+      keys.flatMap((key) => {
+        const id = idOf(key);
+        return id ? [id] : [];
+      }),
+    );
+  };
+
   const carry = useTabCarry({
     isOnlyTab: tabs.length === 1,
-    onLand: (key, to) => {
+    onCancel: (keys) => {
+      reorderKeys(keys);
+    },
+    onSelect: (key) => {
       const id = idOf(key);
       if (id) {
-        onMove(id, to);
+        onSelect(id);
       }
     },
-    titleOf: (key) => whole.find((tab) => tab.key === key)?.title ?? APP_NAME,
+    order: presented.map((tab) => tab.key),
+    standingOf: (key) => {
+      const id = idOf(key);
+      return id ? standingOf(id) : undefined;
+    },
   });
 
   return (
@@ -152,6 +202,10 @@ export function AppTabStrip({
       <TabStrip
         carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
+        groupKey={carryView.kind}
+        heldAwayKey={
+          isTabHeldHere(carryView) ? carryView.heldId : carry.canceledKey
+        }
         onClose={(key) => {
           const id = idOf(key);
           if (id) {
@@ -174,12 +228,9 @@ export function AppTabStrip({
         }
         onNew={onNew}
         onReorder={(keys) => {
-          onReorder(
-            keys.flatMap((key) => {
-              const id = idOf(key);
-              return id ? [id] : [];
-            }),
-          );
+          if (carry.followsReorder()) {
+            reorderKeys(keys);
+          }
         }}
         onSelect={(key) => {
           const id = idOf(key);
@@ -189,10 +240,10 @@ export function AppTabStrip({
         }}
         onTabDrag={carry.onDrag}
         onTabDragEnd={carry.onDragEnd}
-        selectedKey={selectedId ?? undefined}
+        onTabDragStart={carry.onDragStart}
+        selectedKey={shownSelectedId ?? undefined}
         tabs={presented}
       />
-      <TabDropMark />
       {/* The menu a right click on a tab raises, anchored at the pointer:
           what a browser's tab menu offers, marks and all, the way the
           system's own menus draw them. */}
@@ -231,144 +282,223 @@ export function AppTabStrip({
   );
 }
 
-/** How far past the strip a tab goes before it is being carried out of the window rather than along the row. */
-const CARRY_MARGIN_PX = 24;
+/** One drag of a tab, from its first movement to its release. */
+interface TabDrag {
+  canceled: boolean;
+  /** Off its row, it leaves its strip for a window that follows the pointer. */
+  collapsesOffRow: boolean;
+  /** Its window went off with it: the pointer's place in the window no longer says where it is. */
+  isHeldAway: boolean;
+  /** Its neighbor came up in its place, since the tab went to another window. */
+  isNeighborUp: boolean;
+  isOffRow: boolean;
+  key: string;
+  orderAtStart: string[];
+  path: PointerSample[];
+  /** Its window goes with it, so it is off its row until main says otherwise. */
+  staysOffRow: boolean;
+  stopListening: () => void;
+}
 
 /**
- * Carrying a tab out of the strip. The strip's own reorder goes on holding the
- * pointer, whose events keep arriving past the window's edge while the button
- * is down; once the tab is far enough off the row the main process, which sees
- * every window, follows it and says where it lands. Escape puts it back.
+ * A tab's drag past what the strip's own reorder can see. The reorder goes on
+ * holding the pointer, whose events keep arriving past the window's edge while
+ * the button is down, and the main process, which sees every window, is told
+ * from the first movement so a window is ready to go up. Pulled off the row, the
+ * window goes with the tab and the rest stay put in the spare window beneath, or
+ * the tab goes to the spare window where that would lose less. Back on the row
+ * both undo. The strip keeps its order while the tab is off, and Escape gives
+ * back the order and the tab from the start of the drag.
  */
 function useTabCarry({
   isOnlyTab,
-  onLand,
-  titleOf,
+  onCancel,
+  onSelect,
+  order,
+  standingOf,
 }: {
   isOnlyTab: boolean;
-  onLand: (key: string, to: TabMoveDestination) => void;
-  titleOf: (key: string) => string;
+  onCancel: (keys: string[]) => void;
+  onSelect: (key: string) => void;
+  order: string[];
+  standingOf: (key: string) => TabStanding | undefined;
 }) {
+  const zoom = useAtomValue(zoomAtom);
   const [carriedKey, setCarriedKey] = useState<string>();
-  const carrying = useRef<{ canceled: boolean; stopListening: () => void }>(
-    undefined,
-  );
+  // Escape puts the window back at once, with the button yet to come up: the tab
+  // stays where it stands until it does.
+  const [canceledKey, setCanceledKey] = useState<string>();
+  const dragging = useRef<TabDrag>(undefined);
 
-  const onDrag = (key: string, event: PointerEvent) => {
-    if (!carrying.current) {
+  const showWhereItIs = (drag: TabDrag) => {
+    const isGone = drag.isOffRow && drag.collapsesOffRow && !drag.canceled;
+    setCarriedKey(isGone ? drag.key : undefined);
+    if (isGone && !drag.isNeighborUp) {
+      const at = drag.orderAtStart.indexOf(drag.key);
+      const neighbor = drag.orderAtStart[at + 1] ?? drag.orderAtStart[at - 1];
+      if (neighbor !== undefined) {
+        drag.isNeighborUp = true;
+        onSelect(neighbor);
+      }
+    } else if (!isGone && drag.isNeighborUp) {
+      drag.isNeighborUp = false;
+      onSelect(drag.key);
+    }
+  };
+
+  const onDragStart = (key: string, event: PointerEvent) => {
+    const pressed = document.querySelector(
+      `[data-app-tab-strip] [data-tab-key="${key}"]`,
+    );
+    if (!pressed) {
+      return;
+    }
+    const pointInTab = event.clientX - pressed.getBoundingClientRect().left;
+    // A page runs in a process of its own, which takes a pointer that crosses
+    // it, and the release with it, unless the press has been captured.
+    pressed.setPointerCapture(event.pointerId);
+    const onKeyDown = (keyEvent: KeyboardEvent) => {
+      const drag = dragging.current;
+      if (keyEvent.key === "Escape" && drag && !drag.canceled) {
+        drag.canceled = true;
+        showWhereItIs(drag);
+        onCancel(drag.orderAtStart);
+        setCanceledKey(drag.key);
+        void rpcClient.window.endTabDrag.call({ canceled: true }).then(() => {
+          showTabCarryView({ kind: "row" });
+        });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    const drag: TabDrag = {
+      canceled: false,
+      collapsesOffRow: false,
+      isHeldAway: false,
+      isNeighborUp: false,
+      // A window's only tab has no row to be on: the window goes with it.
+      isOffRow: isOnlyTab,
+      key,
+      orderAtStart: order,
+      path: [],
+      staysOffRow: false,
+      stopListening: () => {
+        window.removeEventListener("keydown", onKeyDown, { capture: true });
+      },
+    };
+    dragging.current = drag;
+    // The press selected the tab, which is what a tab's page has to show.
+    void afterNextPaint().then(async () => {
+      const moving = standingOf(key);
       const strip = document
         .querySelector("[data-app-tab-strip] [role=tablist]")
         ?.getBoundingClientRect();
-      if (
-        !strip ||
-        (event.clientY >= strip.top - CARRY_MARGIN_PX &&
-          event.clientY <= strip.bottom + CARRY_MARGIN_PX &&
-          event.clientX >= 0 &&
-          event.clientX <= window.innerWidth)
-      ) {
+      if (dragging.current !== drag || drag.canceled || !moving || !strip) {
         return;
       }
-      const onKeyDown = (keyEvent: KeyboardEvent) => {
-        if (keyEvent.key === "Escape" && carrying.current) {
-          carrying.current.canceled = true;
-          setCarriedKey(undefined);
-        }
-      };
-      window.addEventListener("keydown", onKeyDown, { capture: true });
-      carrying.current = {
-        canceled: false,
-        stopListening: () => {
-          window.removeEventListener("keydown", onKeyDown, { capture: true });
-        },
-      };
-      setCarriedKey(key);
-      void rpcClient.window.startTabDrag.call({
+      const started = await rpcClient.window.startTabDrag.call({
+        // In the window that goes with it, the tab stands first in the strip, so
+        // the pointer holds it there at the same point of the tab it pressed.
+        grab: { x: strip.left + pointInTab, y: event.clientY },
+        isOffRow: drag.isOffRow,
         isOnlyTab,
-        title: titleOf(key),
+        moving,
       });
+      if (dragging.current === drag) {
+        drag.collapsesOffRow = started.collapsesOffRow;
+        drag.staysOffRow = started.staysOffRow;
+        showWhereItIs(drag);
+      }
+    });
+  };
+
+  const onDrag = (key: string, event: PointerEvent) => {
+    const drag = dragging.current;
+    if (drag?.key !== key || drag.canceled) {
+      return;
     }
-    if (!carrying.current.canceled) {
-      void rpcClient.window.moveTabDrag.call({
-        x: event.screenX,
-        y: event.screenY,
+    const isHeldAway = isTabHeldHere(getDefaultStore().get(tabCarryViewAtom));
+    if (drag.isHeldAway !== isHeldAway) {
+      drag.isHeldAway = isHeldAway;
+      if (!isHeldAway) {
+        // Main has put the window back on the row, which it alone can tell.
+        drag.isOffRow = isOnlyTab;
+        drag.path = [];
+      }
+    }
+    drag.path = recentPath(drag.path, {
+      at: event.timeStamp,
+      x: event.clientX,
+      y: event.clientY,
+    });
+    // Where the window goes with the tab, the pointer stays where it is on the
+    // window, so a tab off its row is off it until main says otherwise.
+    drag.isOffRow =
+      isOnlyTab ||
+      (drag.staysOffRow && drag.isOffRow) ||
+      isOffRow({
+        path: drag.path,
+        // The whole bar, since main takes all of it for the strip: anywhere on
+        // it the tab is back in its row.
+        strip: { bottom: TOOLBAR_HEIGHT * zoom, top: 0 },
+        wasOff: drag.isOffRow,
+        windowWidth: window.innerWidth,
       });
-    }
+    showWhereItIs(drag);
+    void rpcClient.window.moveTabDrag.call({
+      isOffRow: drag.isOffRow,
+      x: event.screenX,
+      y: event.screenY,
+    });
   };
 
   const onDragEnd = (key: string, event: PointerEvent) => {
-    const ending = carrying.current;
-    if (!ending) {
+    const drag = dragging.current;
+    if (drag?.key !== key) {
       return;
     }
-    carrying.current = undefined;
-    ending.stopListening();
-    setCarriedKey(undefined);
+    dragging.current = undefined;
+    drag.stopListening();
+    if (drag.canceled) {
+      setCanceledKey(undefined);
+      return;
+    }
+    const store = getDefaultStore();
     void rpcClient.window.endTabDrag
       .call({
-        canceled: ending.canceled,
+        canceled: false,
         point: { x: event.screenX, y: event.screenY },
       })
-      .then((to) => {
-        if (to.kind !== "none") {
-          onLand(key, to);
+      .then((end) => {
+        if (end.kind === "keepsTab") {
+          keepOnlyTab(key);
+        } else if (end.kind === "takesStrip") {
+          store.set(appTabsAtom, end.model);
+        } else if (end.kind === "losesTab") {
+          letTabGo(key);
+        } else if (end.kind === "none" && drag.isNeighborUp) {
+          onSelect(key);
         }
+        // A window closing goes on showing what it shows until it has gone.
+        if (end.kind !== "closes") {
+          showTabCarryView({ kind: "row" });
+        }
+        setCarriedKey(undefined);
       });
   };
 
-  return { carriedKey, onDrag, onDragEnd };
-}
+  const followsReorder = () => {
+    const drag = dragging.current;
+    return !drag || (!drag.isOffRow && !drag.canceled);
+  };
 
-/** Where a tab carried from another window would land along this strip. */
-function TabDropMark() {
-  const [clientX, setClientX] = useState<null | number>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    void (async () => {
-      try {
-        const previews = await rpcClient.window.events.tabDropPreview.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const preview of previews) {
-          setClientX(preview.clientX);
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  const edges = [
-    ...document.querySelectorAll<HTMLElement>(
-      "[data-app-tab-strip] [data-tab-key]",
-    ),
-  ].flatMap((element) => {
-    const { left, right, top, height } = element.getBoundingClientRect();
-    return [
-      { height, top, x: left },
-      { height, top, x: right },
-    ];
-  });
-  const nearest =
-    clientX === null
-      ? undefined
-      : edges.toSorted(
-          (a, b) => Math.abs(a.x - clientX) - Math.abs(b.x - clientX),
-        )[0];
-  const style = useWindowPointStyle({
-    x: nearest?.x ?? 0,
-    y: nearest?.top ?? 0,
-  });
-  return nearest ? (
-    <span
-      aria-hidden
-      className="pointer-events-none fixed z-50 h-8 w-0.5 -translate-x-1/2 rounded-full bg-ring"
-      data-tab-drop-mark=""
-      style={style}
-    />
-  ) : null;
+  return {
+    canceledKey,
+    carriedKey,
+    followsReorder,
+    onDrag,
+    onDragEnd,
+    onDragStart,
+  };
 }
 
 /**

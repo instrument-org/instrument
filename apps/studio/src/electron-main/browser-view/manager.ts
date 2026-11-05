@@ -83,6 +83,10 @@ import {
 // the timeout only fires if no renderer is available to host the guest.
 const ATTACH_TIMEOUT_MS = 15_000;
 
+// How long a page leaving for another window gets to say where it is scrolled.
+const PAGE_SCROLL_WAIT_MS = 80;
+// How long a window waits on a page handed to it before showing what there is.
+const PAGE_LOAD_WAIT_MS = 2000;
 // How long before a navigation starts an agent's command still claims it.
 // Electron says nothing about who started a navigation, so it is read off
 // the agent's own traffic: a command arrives just before the click or the
@@ -106,7 +110,15 @@ export interface BrowserViewManager {
   // Called once the window exists, whether or not a workspace has started:
   // the manager is the app's, so a window opened during setup hosts the
   // guests of the workspace setup starts.
-  bindHost: (host: WebContents) => void;
+  bindHost: (host: WebContents, options?: { isFront?: boolean }) => void;
+  // Whether a person has used a page this window's renderer mounts, those named
+  // left out: what taking the renderer away from them would lose.
+  hasUsedPage: (
+    webContentsId: number,
+    except?: readonly BrowserTargetId[],
+  ) => boolean;
+  // Whether a person has used any of these pages.
+  isPageUsed: (targets: readonly BrowserTargetId[]) => boolean;
   browser: BrowserConfig;
   // The targets one window's renderer mounts and whether each guest has
   // attached yet. Its pool mounts a guest for every id; the UI treats only
@@ -120,9 +132,14 @@ export interface BrowserViewManager {
   // Whether a window's renderer mounts this target, so that what is asked of
   // its guest goes to that window alone.
   isHostOf: (webContentsId: number, targetId: BrowserTargetId) => boolean;
-  // The window it was in is letting the guest's tab go, so a window showing
-  // it next may take it without waiting to hear that it has stopped.
-  releaseGuest: (targetId: BrowserTargetId) => void;
+  // The guest goes to this window now, as its tab does, with nothing left for
+  // the windows to settle between them. Resolves with its page loaded there
+  // and scrolled back to where it stood, or once that is no longer worth
+  // waiting for.
+  handOffGuest: (
+    targetId: BrowserTargetId,
+    webContentsId: number,
+  ) => Promise<void>;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
   // this is safe here (the caller always computes scale from live bounds and
@@ -587,9 +604,19 @@ function createBrowserViewManager(): BrowserViewManager {
     }
   }
 
-  function bindHost(host: WebContents) {
+  const isUsed = (entry: BrowserEntry) => {
+    const guestId = entry.webContents?.id;
+    return guestId !== undefined && (guests.get(guestId)?.userInputAt ?? 0) > 0;
+  };
+
+  function bindHost(
+    host: WebContents,
+    { isFront = true }: { isFront?: boolean } = {},
+  ) {
     liveHosts.add(host);
-    frontHost = host;
+    if (isFront) {
+      frontHost = host;
+    }
     const hostWindow = BrowserWindow.fromWebContents(host);
     if (hostWindow) {
       resyncPagesAfterFullScreen(hostWindow);
@@ -712,6 +739,49 @@ function createBrowserViewManager(): BrowserViewManager {
       entry,
       setTimeout(notifyEntriesChanged, AGENT_KEEPS_GUEST_MS),
     );
+  }
+
+  /** Where a page stands, asked briefly: a page too busy to say comes back at its top. */
+  async function pageScrollOf(guest: BrowserEntry["webContents"]) {
+    if (!guest || guest.isDestroyed()) {
+      return null;
+    }
+    const asked: unknown = await Promise.race([
+      guest.executeJavaScript("[scrollX, scrollY]").catch(() => null),
+      new Promise((resolve) => {
+        setTimeout(resolve, PAGE_SCROLL_WAIT_MS, null);
+      }),
+    ]);
+    return Array.isArray(asked) && asked.every(Number.isFinite)
+      ? { x: Number(asked[0]), y: Number(asked[1]) }
+      : null;
+  }
+
+  /** Resolves when a guest come up in a new window has loaded, and has its place on the page back. */
+  async function settlePage(
+    guest: NonNullable<BrowserEntry["webContents"]>,
+    scroll: { x: number; y: number } | null,
+  ) {
+    if (
+      guest.isLoading() ||
+      guest.getURL() === "" ||
+      guest.getURL() === "about:blank"
+    ) {
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(limit);
+          guest.off("did-stop-loading", done);
+          resolve();
+        };
+        const limit = setTimeout(done, PAGE_LOAD_WAIT_MS);
+        guest.once("did-stop-loading", done);
+      });
+    }
+    if (scroll && (scroll.x !== 0 || scroll.y !== 0) && !guest.isDestroyed()) {
+      await guest
+        .executeJavaScript(`scrollTo(${scroll.x}, ${scroll.y})`)
+        .catch(() => undefined);
+    }
   }
 
   /**
@@ -1050,15 +1120,38 @@ function createBrowserViewManager(): BrowserViewManager {
           shown: isInUse(entry),
           targetId: entry.targetId,
         })),
+    hasUsedPage: (webContentsId, except = []) =>
+      [...entries.values()].some(
+        (entry) =>
+          hostIdOf(entry) === webContentsId &&
+          !except.includes(entry.targetId) &&
+          isUsed(entry),
+      ),
+    isPageUsed: (targets) =>
+      targets.some((target) => {
+        const entry = entries.get(target);
+        return entry !== undefined && isUsed(entry);
+      }),
     isHostOf: (webContentsId, targetId) => {
       const entry = entries.get(targetId);
       return entry !== undefined && hostIdOf(entry) === webContentsId;
     },
-    releaseGuest: (targetId) => {
-      const entry = entries.get(targetId);
-      if (entry?.shown) {
-        entry.shown = false;
-        notifyEntriesChanged();
+    handOffGuest: async (targetId, webContentsId) => {
+      const existing = entries.get(targetId);
+      if (!existing || hostIdOf(existing) === webContentsId) {
+        return;
+      }
+      const scroll = await pageScrollOf(existing.webContents);
+      // Handed on again, or closed, while the page answered.
+      if (entries.get(targetId) !== existing) {
+        return;
+      }
+      await moveTarget(existing, existing.partitionDir, webContentsId).catch(
+        () => undefined,
+      );
+      const guest = entries.get(targetId)?.webContents;
+      if (guest && !guest.isDestroyed()) {
+        await settlePage(guest, scroll);
       }
     },
     setEmulatedDevice,

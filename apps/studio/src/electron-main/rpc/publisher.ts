@@ -1,7 +1,7 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
-import { type Tab } from "@/shared/tabs";
+import { type Tab, type TabCarryView } from "@/shared/tabs";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
@@ -108,8 +108,8 @@ interface PublisherEvents {
   "windows.changed": null;
   // Where a tab being carried from another window would land in this one's
   // strip, or null when it no longer would.
-  "window.tab-drop-preview": {
-    clientX: null | number;
+  "window.tab-carry": {
+    view: TabCarryView;
     webContentsId: number;
   };
   // A window came to the front, or one closed, which names none.
@@ -158,7 +158,7 @@ export type WindowCommand =
   | "zoomReset"
   | "moveTabToNewWindow"
   | AppWindowAsk
-  | { clientX?: number; tab: Tab; type: "receiveTab" }
+  | { index?: number; tab: Tab; type: "receiveTab" }
   | { index: number; type: "selectTab" }
   | { to: string; type: "sendEveryTab" };
 

@@ -216,6 +216,21 @@ export function selectTab(model: TabsModel, { id }: { id: TabId }): TabsModel {
   return { ...model, selectedId: id };
 }
 
+/** Brings up the first tab `matches` finds, or a new one at `pathname` when none does. */
+export function selectOrAddTab(
+  model: TabsModel,
+  {
+    id,
+    matches,
+    pathname,
+  }: { id: TabId; matches: (tab: Tab) => boolean; pathname: string },
+): TabsModel {
+  const existing = model.tabs.find(matches);
+  return existing
+    ? selectTab(model, { id: existing.id })
+    : addTab(model, { id, pathname });
+}
+
 /**
  * Mirror a per-tab router navigation back into the model (drives the tab bar).
  * Also captures the router's live back/forward stack so persistence always

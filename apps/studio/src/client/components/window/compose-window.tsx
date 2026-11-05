@@ -41,7 +41,7 @@ import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
-import { motion } from "motion/react";
+import { motion, useIsPresent } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -143,12 +143,14 @@ export function ComposeBar({
   /** Where the bar stands along the foot, in layout px from the right edge. */
   right: number;
 }) {
+  const isPresent = useIsPresent();
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
       className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
+      inert={!isPresent}
       initial={{ opacity: 0, right, y: 36 }}
       style={{ width: COMPOSE_BAR_WIDTH }}
       transition={COMPOSE_MOTION}
@@ -229,6 +231,9 @@ export function ComposeWindow({
   /** A docked window's width, narrower than its own on a row with less room. */
   width?: number;
 }) {
+  // On its way out it is still drawn, with the handlers of the render before
+  // it left, so it takes no input then.
+  const isPresent = useIsPresent();
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
   const group = draftGroupOf(draft.id);
@@ -461,6 +466,7 @@ export function ComposeWindow({
       )}
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
+      inert={!isPresent}
       initial={{ opacity: 0, right: isExpanded ? 0 : right, y: 24 }}
       style={isExpanded ? GROWN : { height: COMPOSE_HEIGHT, width }}
       transition={COMPOSE_MOTION}

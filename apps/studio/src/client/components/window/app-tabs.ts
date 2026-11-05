@@ -20,17 +20,20 @@ import {
   reorderTabs,
   selectAdjacent,
   selectByIndex,
+  selectOrAddTab,
   selectTab,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 
 import { openLinkAddress } from "./open-link-address";
 import {
   chatHref,
   chatOfGroup,
+  chatOfHref,
   matchScreen,
   pathOf,
   SCREEN_ROUTES,
@@ -253,6 +256,20 @@ export function useAppTabs() {
     model,
     navigate,
     open,
+    /**
+     * Brings up the tab that has a chat, or a new one at it. Decided from the
+     * tabs as they stand at the call rather than as this render saw them, so a
+     * caller holding an older render cannot open a second.
+     */
+    openOrFocusChat: (chatId: ChatId) => {
+      setModel((current) =>
+        selectOrAddTab(current, {
+          id: freshTabId(),
+          matches: (tab) => chatOfHref(tab.pathname) === chatId,
+          pathname: chatHref(chatId),
+        }),
+      );
+    },
     /** A new tab: the command menu, until something is picked there. */
     openNewTab: () => {
       open(NEW_TAB_HREF);

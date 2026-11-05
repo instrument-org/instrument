@@ -12,7 +12,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { motion } from "motion/react";
+import { motion, useIsPresent } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -67,6 +67,7 @@ export function ChatBar({
   /** Where the bar stands along the foot, in layout px from the right edge. */
   right: number;
 }) {
+  const isPresent = useIsPresent();
   // Put down, the chat is off screen, so it wears what its tab behind would.
   const { dot, isWorking } = chatMarkShown(
     chat ? railMarkOf([chat]) : undefined,
@@ -78,6 +79,7 @@ export function ChatBar({
       className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
       data-slot="chat-bar"
       exit={{ opacity: 0, y: 36 }}
+      inert={!isPresent}
       initial={{ opacity: 0, right, y: 36 }}
       style={{ width: COMPOSE_BAR_WIDTH }}
       transition={COMPOSE_MOTION}
@@ -177,6 +179,10 @@ export function ChatWindow({
   /** The window's width, narrower than its own on a row with less room. */
   width?: number;
 }) {
+  // On its way out it is still drawn, with the handlers of the render before
+  // it left, so it takes no input then: a second press of Expand would act on
+  // tabs as they stood before the first.
+  const isPresent = useIsPresent();
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
@@ -344,6 +350,7 @@ export function ChatWindow({
       )}
       data-slot="chat-window"
       exit={{ opacity: 0, y: 24 }}
+      inert={!isPresent}
       initial={arrives ? { opacity: 0, right, y: 24 } : false}
       style={{
         height: CHAT_WINDOW_HEIGHT,

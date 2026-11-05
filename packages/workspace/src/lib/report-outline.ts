@@ -503,6 +503,30 @@ function envelope(part: Obj): Obj {
 
 const SAID = ["explanation", "activity"];
 
+/**
+ * What of a `ran` row goes as written, every one a fact about the run rather
+ * than anything it read (`CommandRunSchema`): a command's name is no more than
+ * `program` says, the source, sandbox and reason are enums, and `stderr` holds
+ * only what `command-runs.ts` lists as naming nothing but a path and an error.
+ */
+const RUN_FIELDS = [
+  "count",
+  "durationMs",
+  "exitCode",
+  "failed",
+  "name",
+  "program",
+  "reason",
+  "sandbox",
+  "source",
+  "stderr",
+];
+
+/**
+ * A failed stage shows in `ran` and leaves `output` as its length: what a call
+ * printed is kept only when the call itself failed, since a stage failing says
+ * nothing about what the others printed (`cat missing mail.txt | head`).
+ */
 function toolBash(part: Obj, sources: OutlineSources): Obj {
   const input = isObj(part.input) ? part.input : {};
   const command = typeof input.command === "string" ? input.command : "";
@@ -522,6 +546,7 @@ function toolBash(part: Obj, sources: OutlineSources): Obj {
       [
         "exitCode",
         "durationMs",
+        "movedForMessageFrom",
         "omittedBytes",
         "logOmittedBytes",
         "commands",
@@ -541,9 +566,7 @@ function toolBash(part: Obj, sources: OutlineSources): Obj {
       kept.output = capped(output.output);
     }
     if (Array.isArray(output.ran)) {
-      kept.ran = output.ran.map((ran) =>
-        pick(ran, ["program", "exitCode", "durationMs"]),
-      );
+      kept.ran = output.ran.map((ran) => pick(ran, RUN_FIELDS));
     }
     if (output.browserSkill !== undefined) {
       kept.browserSkill = { loaded: true };

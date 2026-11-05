@@ -194,6 +194,100 @@ describe("outlineSessionLog", () => {
     });
   });
 
+  it.each([
+    {
+      name: "a failed stage behind a pipe",
+      command: "find . | head -5",
+      output: "Error: .: Access is denied. (os error 5)",
+      ran: [
+        {
+          count: 1,
+          exitCode: 1,
+          failed: 1,
+          name: "find",
+          program: "/d/find.exe",
+          sandbox: "mxc",
+          source: "bundled",
+          stderr: "Error: .: Access is denied. (os error 5)",
+        },
+        {
+          count: 1,
+          name: "head",
+          program: "/d/coreutils.exe",
+          sandbox: "mxc",
+          source: "bundled",
+        },
+      ],
+    },
+    {
+      name: "a record with no status on its runs",
+      command: "find . | head -5",
+      output: "a.txt",
+      ran: [
+        {
+          count: 1,
+          name: "find",
+          program: "/d/find.exe",
+          reason: "builtin-args",
+          sandbox: "seatbelt",
+          source: "bundled",
+        },
+      ],
+    },
+  ])("sends the facts of $name, and its output as a length", (run) => {
+    const outlined = outlineRecord(
+      part({
+        type: "tool-bash",
+        input: { command: run.command },
+        output: {
+          commands: ["find", "head"],
+          exitCode: 0,
+          output: run.output,
+          ran: run.ran,
+        },
+      }),
+      emptySources(),
+    );
+    expect(outlined).toMatchObject({
+      part: {
+        output: {
+          output: `<${run.output.length} chars>`,
+          ran: run.ran,
+        },
+      },
+    });
+  });
+
+  it("keeps out what an exit-0 command printed and any field of a run not named", () => {
+    const outlined = JSON.stringify(
+      outlineRecord(
+        part({
+          type: "tool-bash",
+          input: { command: "cat mail.txt 2>&1 | head -5" },
+          output: {
+            exitCode: 0,
+            movedForMessageFrom: "user",
+            output: SECRET,
+            ran: [
+              {
+                count: 1,
+                failed: 1,
+                exitCode: 1,
+                name: "cat",
+                source: "builtin",
+                somethingNew: SECRET,
+              },
+            ],
+          },
+        }),
+        emptySources(),
+      ),
+    );
+    expect(outlined).not.toContain(SECRET);
+    expect(outlined).toContain('"movedForMessageFrom":"user"');
+    expect(outlined).toContain('"somethingNew":"<11 chars>"');
+  });
+
   it("keeps the output of Instrument's own status commands, trimmed or not", () => {
     const output = (command: string) =>
       outlineRecord(

@@ -1,9 +1,8 @@
-import { featuresAtom } from "@/client/atoms/features";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
-import { BROWSER_EXTENSIONS_SESSION } from "@/shared/browser-extensions";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
+import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import {
@@ -607,10 +606,6 @@ export function BrowserPanel({
       : undefined;
   const bookmarks = useAtomValue(bookmarksAtom);
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
-  // The extensions' buttons, each opening its popup under itself.
-  const extensionButtons = useAtomValue(featuresAtom).browser_extensions && (
-    <browser-action-list partition={BROWSER_EXTENSIONS_SESSION} />
-  );
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
   const toggleBookmark = () => {
     if (!pageUrl) {
@@ -879,12 +874,11 @@ export function BrowserPanel({
         );
         // The page's controls and the menu, which the row above can carry as
         // they are, and reload, which it keeps beside its arrows; the
-        // address, and the way out to the app that opens the page, are drawn
-        // there by the row itself.
+        // address, the extensions' buttons and the way out to the app that
+        // opens the page are drawn there by the row itself.
         const controls = (
           <>
             {pageControls}
-            {extensionButtons}
             <BrowserDownloadsButton />
             {menu}
           </>
@@ -1065,7 +1059,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
-            {extensionButtons}
+            <BrowserExtensionButtons />
             <BrowserDownloadsButton />
             {menu}
           </>

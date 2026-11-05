@@ -59,6 +59,7 @@ import { type StripTab, TabStrip } from "./tab-strip";
 import {
   keepOnlyTab,
   letTabGo,
+  stripIndexAt,
   type TabMoveDestination,
   type TabStanding,
 } from "./move-tab";
@@ -184,6 +185,16 @@ export function AppTabStrip({
     onCancel: (keys) => {
       reorderKeys(keys);
     },
+    onPlace: (key, left) => {
+      const id = idOf(key);
+      if (id) {
+        const others = tabs.filter((tab) => tab.id !== id);
+        const at = stripIndexAt(left, others, id);
+        if (tabs[at]?.id !== id) {
+          reorderKeys(others.map((tab) => tab.id).toSpliced(at, 0, id));
+        }
+      }
+    },
     onSelect: (key) => {
       const id = idOf(key);
       if (id) {
@@ -287,6 +298,8 @@ interface TabDrag {
   canceled: boolean;
   /** Off its row, it leaves its strip for a window that follows the pointer. */
   collapsesOffRow: boolean;
+  /** It has been off its row, so where it stands comes from the pointer (`onPlace`). */
+  hasLeftRow: boolean;
   /** Its window went off with it: the pointer's place in the window no longer says where it is. */
   isHeldAway: boolean;
   /** Its neighbor came up in its place, since the tab went to another window. */
@@ -295,9 +308,12 @@ interface TabDrag {
   key: string;
   orderAtStart: string[];
   path: PointerSample[];
+  pointInTab: number;
   /** Its window goes with it, so it is off its row until main says otherwise. */
   staysOffRow: boolean;
   stopListening: () => void;
+  /** Where a pointer event read the window as the drag started. */
+  windowX: number;
 }
 
 /**
@@ -308,17 +324,22 @@ interface TabDrag {
  * window goes with the tab and the rest stay put in the spare window beneath, or
  * the tab goes to the spare window where that would lose less. Back on the row
  * both undo. The strip keeps its order while the tab is off, and Escape gives
- * back the order and the tab from the start of the drag.
+ * back the order and the tab from the start of the drag. The reorder's measures
+ * date from the press and a strip since drawn differently, and one reorder it is
+ * refused stops it until the order changes, so a tab back on its row is placed by
+ * where its left edge is (`onPlace`).
  */
 function useTabCarry({
   isOnlyTab,
   onCancel,
+  onPlace,
   onSelect,
   order,
   standingOf,
 }: {
   isOnlyTab: boolean;
   onCancel: (keys: string[]) => void;
+  onPlace: (key: string, left: number) => void;
   onSelect: (key: string) => void;
   order: string[];
   standingOf: (key: string) => TabStanding | undefined;
@@ -373,6 +394,7 @@ function useTabCarry({
     const drag: TabDrag = {
       canceled: false,
       collapsesOffRow: false,
+      hasLeftRow: isOnlyTab,
       isHeldAway: false,
       isNeighborUp: false,
       // A window's only tab has no row to be on: the window goes with it.
@@ -380,10 +402,12 @@ function useTabCarry({
       key,
       orderAtStart: order,
       path: [],
+      pointInTab,
       staysOffRow: false,
       stopListening: () => {
         window.removeEventListener("keydown", onKeyDown, { capture: true });
       },
+      windowX: event.screenX - event.clientX,
     };
     dragging.current = drag;
     // The press selected the tab, which is what a tab's page has to show.
@@ -443,6 +467,15 @@ function useTabCarry({
         wasOff: drag.isOffRow,
         windowWidth: window.innerWidth,
       });
+    drag.hasLeftRow ||= drag.isOffRow;
+    // An event still on its way as the window comes back reads it where it was.
+    if (
+      drag.hasLeftRow &&
+      !drag.isOffRow &&
+      Math.abs(event.screenX - event.clientX - drag.windowX) <= 1
+    ) {
+      onPlace(key, event.clientX - drag.pointInTab);
+    }
     showWhereItIs(drag);
     void rpcClient.window.moveTabDrag.call({
       isOffRow: drag.isOffRow,
@@ -488,7 +521,7 @@ function useTabCarry({
 
   const followsReorder = () => {
     const drag = dragging.current;
-    return !drag || (!drag.isOffRow && !drag.canceled);
+    return !drag || (!drag.hasLeftRow && !drag.canceled);
   };
 
   return {

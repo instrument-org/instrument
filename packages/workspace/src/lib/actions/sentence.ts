@@ -1,4 +1,4 @@
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, pageAddress } from "@instrument-org/shared";
 
 import { FOLDER_VARIABLES } from "../../constants";
 import { shellPath as shellSpelling } from "../shell-path";
@@ -49,8 +49,8 @@ export function actionSentence(
     }
     case "page": {
       return action.title
-        ? `visited "${action.title}" at ${action.url}`
-        : `visited ${action.url}`;
+        ? `visited "${action.title}" at ${pageAddress(action.url)}`
+        : `visited ${pageAddress(action.url)}`;
     }
     case "download": {
       return `downloaded ${shellPath(action.path)}${action.url ? ` from ${action.url}` : ""}`;

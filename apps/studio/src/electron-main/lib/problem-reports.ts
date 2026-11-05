@@ -27,6 +27,7 @@ import {
   type FeedbackImageType,
 } from "@/shared/feedback-images";
 import { osConventionsFor } from "@/shared/os-conventions";
+import { pageAddress } from "@instrument-org/shared";
 import { app } from "electron";
 import {
   type ExceptionEvent,
@@ -643,7 +644,8 @@ async function recentActions(): Promise<Action[]> {
 /**
  * What the person did in the app as one item of feedback, a JSON line per
  * action, redacted as the rest is (the home folder as `~`, other chats'
- * ids taken out, their titles kept): the newest that fit
+ * ids taken out, their titles kept, a page's address without its query):
+ * the newest that fit
  * `FEEDBACK_ACTIONS_BYTES`, or nothing when they did nothing.
  */
 export function actionsFeedback(
@@ -653,7 +655,11 @@ export function actionsFeedback(
   const lines: string[] = [];
   let bytes = 0;
   for (const action of actions.toReversed()) {
-    const line = `${JSON.stringify(redactor.deep(action))}\n`;
+    const sent =
+      action.kind === "page"
+        ? { ...action, url: pageAddress(action.url) }
+        : action;
+    const line = `${JSON.stringify(redactor.deep(sent))}\n`;
     bytes += Buffer.byteLength(line);
     if (bytes > FEEDBACK_ACTIONS_BYTES) {
       break;

@@ -99,7 +99,7 @@ describe("instrument activity", () => {
         {
           kind: "page",
           title: "Where's My Refund?",
-          url: "https://www.irs.gov/refunds",
+          url: "https://www.irs.gov/refunds?session=8f2k#status",
         },
       ],
       [

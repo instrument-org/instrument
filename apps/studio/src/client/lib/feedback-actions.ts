@@ -53,7 +53,7 @@ function shortAddress(url: string): string {
   if (!parsed) {
     return url;
   }
-  const rest = `${parsed.pathname === "/" ? "" : parsed.pathname}${parsed.search}`;
+  const rest = parsed.pathname === "/" ? "" : parsed.pathname;
   return `${parsed.host}${rest}`;
 }
 

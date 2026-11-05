@@ -555,6 +555,12 @@ describe("feedback", () => {
         kind: "chat" as const,
         title: "Roof quotes",
       },
+      {
+        at: "2026-11-05T22:20:00.000Z",
+        kind: "page" as const,
+        title: "Reset your password",
+        url: "https://accounts.example.com/reset?token=k39fz#done",
+      },
     ];
     expect(reports.actionsFeedback(actions, redactor)?.files)
       .toMatchInlineSnapshot(`
@@ -562,6 +568,7 @@ describe("feedback", () => {
           {
             "content": "{"at":"2026-11-05T22:18:00.000Z","kind":"folder","path":"~/Downloads"}
         {"at":"2026-11-05T22:19:00.000Z","id":"[other chat]","kind":"chat","title":"Roof quotes"}
+        {"at":"2026-11-05T22:20:00.000Z","kind":"page","title":"Reset your password","url":"https://accounts.example.com/reset"}
         ",
             "label": "Your activity",
             "path": "diagnostics/actions.jsonl",

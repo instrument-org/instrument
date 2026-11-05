@@ -186,9 +186,8 @@ export async function raiseCaptureConsent(): Promise<void> {
       env: { ...process.env, AGENT_DESKTOP_HOME: stateDir() },
       timeout: 60_000,
     },
-  )
-    .catch(noop)
-    .finally(() => rm(dir, { force: true, recursive: true }));
+  ).catch(noop);
+  await rm(dir, { force: true, recursive: true });
 }
 
 /** Brings the app back over System Settings once a switch has turned on. */

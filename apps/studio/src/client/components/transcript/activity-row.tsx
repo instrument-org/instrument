@@ -147,7 +147,12 @@ export function ActivityRowView({
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   const now = useTicking(isLive);
+  const surface = use(TranscriptSurfaceContext);
   const steps = row.steps.filter((step) => step.tool !== "reasoning");
+  const running = surface?.useRunningCommands();
+  const isStillRunning = steps.some(
+    (step) => step.processId !== undefined && running?.has(step.processId),
+  );
   const current = row.steps.findLast((step) => step.explanation !== undefined);
   const lastStep = steps.at(-1);
   const counts = countsText(row);
@@ -171,6 +176,7 @@ export function ActivityRowView({
       places={<Badges apps={row.apps} sites={row.sites} />}
       right={
         <>
+          {isStillRunning && <span className="mr-1.5">Still running</span>}
           {counts && (
             <span className="mr-1.5 text-foreground/70">{counts}</span>
           )}

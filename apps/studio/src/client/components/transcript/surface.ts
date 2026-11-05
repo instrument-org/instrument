@@ -21,8 +21,8 @@ export interface TaskCardFacts {
 /**
  * What the transcript reads from outside what it is handed, so it draws the
  * same in the app and on the debug page, which supplies scripted answers: the
- * call behind an opened step, the picture of a page, and a task's standing and
- * messages.
+ * call behind an opened step, the picture of a page, the commands still running,
+ * and a task's standing and messages.
  */
 export interface TranscriptSurface {
   PagePicture: ComponentType<{ sessionId: StoreId.Session }>;
@@ -30,6 +30,8 @@ export interface TranscriptSurface {
   onOpenTask: (id: StoreId.Session) => void;
   onOpenUrl: (url: string) => void;
   onStopTask: (id: StoreId.Session) => void;
+  /** The ids of the commands the chat and its tasks left running. */
+  useRunningCommands: () => ReadonlySet<string>;
   useStepPart: (
     step: StepPart,
     isOpen: boolean,

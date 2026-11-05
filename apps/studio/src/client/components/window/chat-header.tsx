@@ -32,6 +32,7 @@ import {
   useState,
 } from "react";
 
+import { TaskBackgroundProcesses } from "../task/task-background-processes";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ProjectPill } from "./chat-row";
 import { ChatTitleButton, ChatTitleField } from "./chat-title";
@@ -47,7 +48,8 @@ import { useTitleArrival } from "./use-title-arrival";
  * The head over a chat's conversation, wherever the chat is shown: beside
  * the inbox and popped out into its small window alike. Its title in the
  * middle, which opens the chat's menu, with the project it is filed under
- * after it. At the right, whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
+ * after it. At the right, the commands the chat and its tasks left running,
+ * then whatever the place it is shown in adds: beside the inbox the glyph that pops the conversation out (lit while
  * it is out, when pressing it brings the conversation back) and the pane
  * toggle while the pane is closed; popped out, the window's own buttons. The
  * two sides keep one width, the wider one's, so the title stands in the
@@ -149,6 +151,7 @@ export function ChatHeader({
             className="flex w-max items-center gap-x-1"
             ref={sideWidth.trailing}
           >
+            {chat && <TaskBackgroundProcesses chatId={chat.id} />}
             {popOut && (
               <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
                 <Button

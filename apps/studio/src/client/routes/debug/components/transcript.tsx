@@ -210,12 +210,15 @@ function taskFrame(frame: DebugFrame | undefined, id: StoreId.Session) {
   return { at, task, working: at < task.frames.length - 1 };
 }
 
+const NOTHING_RUNNING: ReadonlySet<string> = new Set();
+
 const debugSurface: TranscriptSurface = {
   onOpenFile: noop,
   onOpenTask: noop,
   onOpenUrl: noop,
   onStopTask: noop,
   PagePicture: DebugPagePicture,
+  useRunningCommands: () => NOTHING_RUNNING,
   useStepPart: (step: StepPart) => {
     const part = use(DebugFrameContext)?.messages.find(
       (each) => each.metadata.id === step.metadata.id,

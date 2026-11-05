@@ -531,8 +531,8 @@ export function mergeAllWindows() {
 }
 
 /**
- * Hands a tab, history and all, to another window: one opening around it at a
- * point, or one already open, which puts it at a place along its strip.
+ * Hands a tab, history and all, to another window: one opening around it beside
+ * the window in front, or one already open, which puts it at a place along its strip.
  * Says whether it moved, where to, and the window it opened if it opened one.
  * It did not move when that window has gone since.
  */
@@ -540,12 +540,7 @@ export function moveTabToWindow(
   tab: Tab,
   to:
     | { id: string; index?: number | undefined; kind: "window" }
-    | {
-        bounds?:
-          | undefined
-          | { height: number; width: number; x: number; y: number };
-        kind: "new";
-      },
+    | { kind: "new" },
   /** Leaves the window where it is, for a caller with another window standing over it. */
   { isQuiet = false }: { isQuiet?: boolean } = {},
 ): { destination?: BrowserWindow; moved: boolean; opened?: BrowserWindow } {
@@ -579,10 +574,13 @@ export function moveTabToWindow(
     selectedId: tab.id,
     tabs: [tab],
   });
-  const opened = createAppWindow(id, {
-    bounds: to.bounds ? keepBoundsOnScreen(to.bounds) : cascadedBounds(),
-  });
+  const opened = createAppWindow(id, { bounds: cascadedBounds() });
   return { destination: opened, moved: true, opened };
+}
+
+/** An open window by the id a tab's menu names it by. */
+export function appWindowById(id: string) {
+  return openWindows.get(id);
 }
 
 function newWindowId() {
@@ -590,7 +588,7 @@ function newWindowId() {
 }
 
 /** The size of the window in front and a step off it, or a first window's. */
-function cascadedBounds() {
+export function cascadedBounds() {
   const front = getAppWindow();
   if (!front) {
     return rememberedStateOf(FIRST_APP_WINDOW_ID).bounds;

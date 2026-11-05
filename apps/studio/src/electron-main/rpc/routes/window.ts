@@ -13,6 +13,7 @@ import {
 import {
   endTabCarry,
   moveTabCarry,
+  moveTabNow,
   placeHeldTab,
   startTabCarry,
   tabCarryViewOf,
@@ -26,9 +27,12 @@ import {
 import { z } from "zod";
 
 const PointSchema = z.object({ x: z.number(), y: z.number() });
-const BoundsSchema = PointSchema.extend({
-  height: z.number(),
-  width: z.number(),
+
+/** A tab as another window would take it: see `tabStanding`. */
+const MovingSchema = z.object({
+  neighborPages: z.array(BrowserTargetIdSchema),
+  pages: z.array(BrowserTargetIdSchema),
+  tab: TabSchema,
 });
 
 const AskSchema = z.discriminatedUnion("type", [
@@ -109,24 +113,35 @@ const reopenClosed = base.input(z.void()).handler(() => ({
   reopened: reopenClosedAppWindow(),
 }));
 
-/**
- * A tab handed to another window, with its history: a new window where it was
- * let go or beside this one, or one already open, at a point along its strip.
- * The pages it shows go with it in the same step. A page another tab here shows
- * is not among them.
- */
+const WindowToMoveToSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("new") }),
+  z.object({ id: z.string(), kind: z.literal("window") }),
+]);
+
+/** A tab moved from a menu, the way a drag let go there would move it: see `windows/tab-drag.ts`. */
 const moveTab = base
+  .input(
+    z.object({
+      isOnlyTab: z.boolean(),
+      moving: MovingSchema,
+      to: WindowToMoveToSchema,
+    }),
+  )
+  .handler(({ context, input }) =>
+    moveTabNow({ ...input, webContentsId: context.webContentsId }),
+  );
+
+/**
+ * A tab that opens afresh in another window, with its history: a new window
+ * beside this one, or one already open. The pages it shows go with it in the
+ * same step. A page another tab here shows is not among them.
+ */
+const sendTab = base
   .input(
     z.object({
       pages: z.array(BrowserTargetIdSchema),
       tab: TabSchema,
-      to: z.discriminatedUnion("kind", [
-        z.object({ bounds: BoundsSchema.optional(), kind: z.literal("new") }),
-        z.object({
-          id: z.string(),
-          kind: z.literal("window"),
-        }),
-      ]),
+      to: WindowToMoveToSchema,
     }),
   )
   .handler(({ context, input }) => {
@@ -163,11 +178,7 @@ const startTabDrag = base
       grab: PointSchema,
       isOffRow: z.boolean(),
       isOnlyTab: z.boolean(),
-      moving: z.object({
-        neighborPages: z.array(BrowserTargetIdSchema),
-        pages: z.array(BrowserTargetIdSchema),
-        tab: TabSchema,
-      }),
+      moving: MovingSchema,
     }),
   )
   .handler(({ context, input }) =>
@@ -208,6 +219,7 @@ export const window = {
   placeTabDrag,
   openNew,
   reopenClosed,
+  sendTab,
   startTabDrag,
   takePending,
 };

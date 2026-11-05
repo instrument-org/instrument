@@ -29,7 +29,7 @@ function sitesItCanGoTo(tab: Tab) {
   return siteGroupsOf([...(history?.entries ?? []), tab.pathname]);
 }
 
-/** Where a tab can go: a new window, at a point on the screen or beside this one, or one open already. */
+/** Where a tab can go: a new window beside this one, or one open already. */
 export type TabMoveDestination = RPCInput["window"]["moveTab"]["to"];
 
 /**
@@ -38,8 +38,8 @@ export type TabMoveDestination = RPCInput["window"]["moveTab"]["to"];
  * behind in a window of their own.
  */
 export interface TabStanding {
-  neighborPages: RPCInput["window"]["moveTab"]["pages"];
-  pages: RPCInput["window"]["moveTab"]["pages"];
+  neighborPages: RPCInput["window"]["moveTab"]["moving"]["pages"];
+  pages: RPCInput["window"]["moveTab"]["moving"]["pages"];
   tab: Tab;
 }
 
@@ -85,12 +85,12 @@ export function tabStanding(
 }
 
 /**
- * Hands a tab to another window with its history. The tab leaves this strip
- * only once the other window has it, and a window left with nothing closes,
- * with nothing of it to come back to. The pages the tab shows go with it,
- * unless another tab here still shows them.
+ * Hands a tab to another window, where it opens afresh with its history. The tab
+ * leaves this strip only once the other window has it, and a window left with
+ * nothing closes, with nothing of it to come back to. The pages the tab shows go
+ * with it, unless another tab here still shows them.
  */
-export async function moveTabOut(
+async function sendTabOut(
   id: TabId,
   to: TabMoveDestination,
   allTabs: readonly WindowTab[],
@@ -105,7 +105,7 @@ export async function moveTabOut(
   for (const group of groups) {
     groupsMovedAway.add(group);
   }
-  const { moved: landed } = await rpcClient.window.moveTab
+  const { moved: landed } = await rpcClient.window.sendTab
     .call({ pages, tab: moved, to })
     .catch(() => ({ moved: false }));
   if (!landed) {
@@ -159,7 +159,7 @@ export function keepOnlyTab(key: string) {
 
 /** An address in a window of its own, beside this one. */
 export function openInNewWindow(href: string) {
-  void rpcClient.window.moveTab.call({
+  void rpcClient.window.sendTab.call({
     pages: [],
     tab: { id: freshTabId(), pathname: href },
     to: { kind: "new" },
@@ -218,6 +218,6 @@ export function receiveTab(tab: Tab, index?: number) {
 export async function sendEveryTab(to: string, allTabs: readonly WindowTab[]) {
   const { tabs } = getDefaultStore().get(appTabsAtom);
   for (const tab of tabs) {
-    await moveTabOut(tab.id, { id: to, kind: "window" }, allTabs);
+    await sendTabOut(tab.id, { id: to, kind: "window" }, allTabs);
   }
 }

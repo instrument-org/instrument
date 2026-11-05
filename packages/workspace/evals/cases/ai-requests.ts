@@ -91,8 +91,6 @@ const slowAnswer: EvalCase = {
   viewing: onChat(),
 };
 
-let kitchenChat: ChatId | undefined;
-
 /** Another chat's last request failed as overloaded a minute before the message. */
 const failedChat: EvalCase = {
   assertions: [
@@ -102,29 +100,21 @@ const failedChat: EvalCase = {
   kind: "chat",
   name: "ai-requests-failed-chat",
   prompt: "The kitchen quotes chat failed a minute ago. What happened?",
-  requests: () => {
-    const kitchen = kitchenChat;
-    return kitchen === undefined
-      ? []
-      : [
-          request(kitchen, 88),
-          request(kitchen, 80, { ...overloaded, durationMs: 1800 }),
-          request(kitchen, 74, { ...overloaded, durationMs: 2100 }),
-        ];
-  },
-  setup: async () => {
-    kitchenChat = await seedChat("Kitchen remodel quotes", 90 / 86_400, [
+  requests: async () => {
+    const kitchen = await seedChat("Kitchen remodel quotes", 90 / 86_400, [
       {
         role: "user",
         text: "Can you compare BrightBuild, Oakline and Castillo & Sons on price and timeline?",
       },
     ]);
+    return [
+      request(kitchen, 88),
+      request(kitchen, 80, { ...overloaded, durationMs: 1800 }),
+      request(kitchen, 74, { ...overloaded, durationMs: 2100 }),
+    ];
   },
   viewing: onChat(),
 };
-
-let taxesChat: ChatId | undefined;
-let lisbonChat: ChatId | undefined;
 
 /** One chat's requests all went to GPT-6 Luna, another's to Claude Haiku 5.5. */
 const modelAnswered: EvalCase = {
@@ -135,35 +125,15 @@ const modelAnswered: EvalCase = {
   kind: "chat",
   name: "ai-requests-model",
   prompt: "Which model answered in my taxes chat?",
-  requests: () => {
-    const luna = { modelRequested: "openai/gpt-6-luna" };
-    return [
-      ...(taxesChat === undefined
-        ? []
-        : [
-            request(taxesChat, 2400, luna),
-            request(taxesChat, 2392, luna),
-            request(taxesChat, 2385, luna),
-            request(taxesChat, 2377, luna),
-          ]),
-      ...(lisbonChat === undefined
-        ? []
-        : [
-            request(lisbonChat, 1200),
-            request(lisbonChat, 1193),
-            request(lisbonChat, 1185),
-          ]),
-    ];
-  },
-  setup: async () => {
-    taxesChat = await seedChat("Taxes 2025", 2400 / 86_400, [
+  requests: async () => {
+    const taxes = await seedChat("Taxes 2025", 2400 / 86_400, [
       {
         role: "user",
         text: "Add up the interest on my two 1099-INTs: Chase $412.18 and Ally $1,203.55.",
       },
       { role: "assistant", text: "The two come to $1,615.73 in interest." },
     ]);
-    lisbonChat = await seedChat("Lisbon trip", 1200 / 86_400, [
+    const lisbon = await seedChat("Lisbon trip", 1200 / 86_400, [
       {
         role: "user",
         text: "What's the weather like in Lisbon in late March?",
@@ -173,6 +143,16 @@ const modelAnswered: EvalCase = {
         text: "Mild: highs around 19 °C, cool evenings, and a few rainy days.",
       },
     ]);
+    const luna = { modelRequested: "openai/gpt-6-luna" };
+    return [
+      request(taxes, 2400, luna),
+      request(taxes, 2392, luna),
+      request(taxes, 2385, luna),
+      request(taxes, 2377, luna),
+      request(lisbon, 1200),
+      request(lisbon, 1193),
+      request(lisbon, 1185),
+    ];
   },
   viewing: onChat(),
 };

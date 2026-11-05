@@ -1208,7 +1208,6 @@ export namespace SessionMessageDataPart {
             "permission-refused-app",
             "permission-refused-folder",
             "rename",
-            "screen",
             "setting",
             "trash",
             "update",

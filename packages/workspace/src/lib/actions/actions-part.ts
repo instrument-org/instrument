@@ -18,7 +18,8 @@ type Row = SessionMessageDataPart.ActionsDataPart["rows"][number];
 
 /**
  * The kind a note row says for an action: its own, or for an app or a
- * permission, what was done with it; nothing for what a cap left out.
+ * permission, what was done with it; nothing for what a cap left out or a
+ * screen of the app's own.
  */
 function noteKindOf(action: Action): Row["kind"] | undefined {
   switch (action.kind) {
@@ -32,7 +33,10 @@ function noteKindOf(action: Action): Row["kind"] | undefined {
     case "permission": {
       return `permission-${action.did}-${action.path === undefined ? "app" : "folder"}`;
     }
-    case "capped": {
+    // Which of the app's own screens was in front says nothing a message
+    // leans on; it stays in the log and the command.
+    case "capped":
+    case "screen": {
       return undefined;
     }
     default: {

@@ -47,7 +47,7 @@ function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
       return one ? "made a folder" : `made ${things(count, "folder")}`;
     }
     case "chat": {
-      return one ? "read another chat" : `read ${count} other chats`;
+      return one ? "opened another chat" : `opened ${count} other chats`;
     }
     case "page": {
       return one ? "visited a page" : `visited ${things(count, "page")}`;
@@ -91,11 +91,6 @@ function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
     }
     case "error": {
       return one ? "saw an error" : `saw ${things(count, "error")}`;
-    }
-    case "screen": {
-      return one
-        ? "opened a screen in the app"
-        : `opened ${things(count, "screen")} in the app`;
     }
     case "setting": {
       return one ? "changed a setting" : `changed ${things(count, "setting")}`;

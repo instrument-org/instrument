@@ -129,7 +129,7 @@ describe("instrument activity", () => {
       Thursday, November 5
         1:50 PM  opened the folder /Users/mac-user/Downloads in Files, with invoice-0931.pdf, invoice-0932.pdf selected
         2:14 PM  moved invoice-0931.pdf, invoice-0932.pdf from /Users/mac-user/Downloads into /Users/mac-user/Documents/Archive/2023
-        2:18 PM  read the chat "Kitchen remodel quotes", its records in $INSTRUMENT_CHATS/kitchen-remodel-quotes
+        2:18 PM  opened the chat "Kitchen remodel quotes", its records in $INSTRUMENT_CHATS/kitchen-remodel-quotes
         2:21 PM  visited "Where's My Refund?" at https://www.irs.gov/refunds
         2:22 PM  downloaded /Users/mac-user/Downloads/Globex NDA.txt from https://globex.example/nda.txt
         2:23 PM  edited and saved /Users/mac-user/Documents/Trips/Lisbon.md

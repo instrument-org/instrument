@@ -127,18 +127,30 @@ describe("actionsNoteRows", () => {
   });
 
   it("keeps the newest 8 rows", () => {
-    const kinds = ["file", "screen"] as const;
     const rows = actionsNoteRows(
       Array.from({ length: 12 }, (_, index) =>
-        kinds[index % 2] === "file"
+        index % 2 === 0
           ? at(20 - index, { kind: "file", path: `/f${index}` })
-          : at(20 - index, { kind: "screen", name: `Screen ${index}` }),
+          : at(20 - index, { kind: "folder", path: `/d${index}` }),
       ),
       { chatId, sentAt: SENT },
     );
     expect(rows).toHaveLength(8);
     expect(rows[0]).toEqual({ count: 1, kind: "file", minutes: 16 });
-    expect(rows.at(-1)).toEqual({ count: 1, kind: "screen", minutes: 9 });
+    expect(rows.at(-1)).toEqual({ count: 1, kind: "folder", minutes: 9 });
+  });
+
+  it("leaves out the app's own screens, which run on between what is kept", () => {
+    expect(
+      actionsNoteRows(
+        [
+          at(9, { kind: "file", path: "/Users/mac-user/a.txt" }),
+          at(8, { kind: "screen", name: "Settings › Models" }),
+          at(7, { kind: "file", path: "/Users/mac-user/b.txt" }),
+        ],
+        { chatId, sentAt: SENT },
+      ),
+    ).toEqual([{ count: 2, kind: "file", minutes: 7 }]);
   });
 });
 
@@ -191,7 +203,7 @@ describe("actionsModelNote", () => {
       - 12m ago · opened a folder in Files
       - 9m ago · opened 3 files
       - 6m ago · moved 3 files
-      - 2m ago · read another chat
+      - 2m ago · opened another chat
       - now · saw an error
       </instrument-system-note>"
     `);

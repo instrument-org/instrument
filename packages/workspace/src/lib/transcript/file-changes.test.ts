@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FOLDER_VARIABLES } from "../../constants";
+import {
+  CHAT_FILE_NAME,
+  CHAT_FOLDER_NAMES,
+  FOLDER_VARIABLES,
+} from "../../constants";
 import {
   fileTouches,
   foldersEntered,
@@ -54,6 +58,23 @@ describe("fileTouches", () => {
         .map((file) => `${file.change} ${path.basename(file.path)}`)
         .toSorted(),
     ).toEqual(["changed kept.md", "created new.md", "deleted gone.md"]);
+  });
+
+  it("leaves out the chat's own file, command logs and the system's clutter", async () => {
+    const watching = await watch();
+    await fs.mkdir(path.join(work, CHAT_FOLDER_NAMES.toolOutput));
+    const log = path.join(work, CHAT_FOLDER_NAMES.toolOutput, "bg_1.log");
+    await write(log);
+    await write(path.join(work, CHAT_FILE_NAME));
+    await write(path.join(work, ".DS_Store"));
+    await write(path.join(work, "report.csv"));
+    const { files } = await fileTouches(watching, {
+      command: "python build.py",
+      output: `The log is at ${log}`,
+    });
+    expect(files.map((touch) => path.basename(touch.path))).toEqual([
+      "report.csv",
+    ]);
   });
 
   it("finds a file outside those folders by a name in the command", async () => {

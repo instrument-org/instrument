@@ -1,14 +1,46 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { FOLDER_VARIABLES } from "../../constants";
+import {
+  CHAT_FILE_NAME,
+  CHAT_FOLDER_NAMES,
+  FOLDER_VARIABLES,
+} from "../../constants";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { isSystemClutter } from "../system-clutter";
 
 export type FileTouch =
   SessionMessageDataPart.StepFactsDataPart["files"][number];
 
 /** What's in a folder that no one means by "the files it changed". */
-const SKIPPED = new Set([".git", ".venv", "__pycache__", "node_modules"]);
+const SKIPPED = new Set([
+  ".git",
+  ".venv",
+  "__pycache__",
+  CHAT_FOLDER_NAMES.toolOutput,
+  "node_modules",
+]);
+
+/**
+ * How far before a call's start a file's modified time may fall and still be
+ * the call's: a filesystem stamps files from a coarser clock than `Date.now()`
+ * reads, by up to about 16ms on Windows.
+ */
+const CLOCK_SLACK_MS = 50;
+
+/**
+ * Whether a file is the app's or the system's rather than the work's: the
+ * transcript the app keeps in a chat's folder, a background command's log, and
+ * what file managers and programs leave beside things.
+ */
+function isTheWork(file: string): boolean {
+  const name = path.basename(file);
+  return (
+    name !== CHAT_FILE_NAME &&
+    !isSystemClutter(name) &&
+    !file.split(/[/\\]/).some((segment) => SKIPPED.has(segment))
+  );
+}
 
 /** How many files a look at one folder reads before it stops. */
 const FILES_PER_FOLDER = 2000;
@@ -55,7 +87,7 @@ async function addFolder(root: string, snapshot: FolderSnapshot) {
         if (!SKIPPED.has(entry.name)) {
           waiting.push(at);
         }
-      } else if (entry.isFile()) {
+      } else if (entry.isFile() && isTheWork(at)) {
         read += 1;
         const stat = await fs.stat(at).catch(() => undefined);
         if (stat) {
@@ -90,7 +122,7 @@ function changesBetween(
 
 const QUOTED = /"([^"\n]+)"|'([^'\n]+)'/g;
 const BARE =
-  /(?:^|[\s=(>|;:,])((?:~|\$\w+|\$\{\w+\}|\.{0,2}\/|\w)[^\s"'`|;&<>()=,:]*\.\w{1,8}|(?:~|\$\w+|\$\{\w+\}|\.{0,2})\/[^\s"'`|;&<>()=,:]+)/g;
+  /(?:^|[\s=(>|;:,])((?:[A-Za-z]:[\\/]|~|\$\w+|\$\{\w+\}|\.{0,2}\/|\w)[^\s"'`|;&<>()=,:]*\.\w{1,8}|(?:~|\$\w+|\$\{\w+\}|\.{0,2})\/[^\s"'`|;&<>()=,:]+)/g;
 const CD = /(?:^|[;&|(]|\n)\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|)]+))/g;
 const LOOKS_LIKE_A_PATH = /[/\\]|\.\w{1,8}$/;
 
@@ -148,7 +180,7 @@ function placesOf(
     return home === undefined ? [] : [path.join(home, expanded.slice(2))];
   }
   return path.isAbsolute(expanded)
-    ? [expanded]
+    ? [path.normalize(expanded)]
     : bases.map((base) => path.resolve(base, expanded));
 }
 
@@ -167,16 +199,17 @@ async function namedPathChanges({
   startedAtMs: number;
 }): Promise<FileTouch[]> {
   const unique = [...new Set(places)]
-    .filter((place) => !known.has(place))
+    .filter((place) => !known.has(place) && isTheWork(place))
     .slice(0, NAMED_PATHS_CHECKED);
+  const since = startedAtMs - CLOCK_SLACK_MS;
   const touches = await Promise.all(
     unique.map(async (place): Promise<FileTouch | undefined> => {
       const stat = await fs.stat(place).catch(() => undefined);
-      if (!stat?.isFile() || stat.mtimeMs < startedAtMs) {
+      if (!stat?.isFile() || stat.mtimeMs < since) {
         return undefined;
       }
       return {
-        change: stat.birthtimeMs >= startedAtMs ? "created" : "changed",
+        change: stat.birthtimeMs >= since ? "created" : "changed",
         path: place,
         via: "disk",
       };
@@ -232,7 +265,7 @@ async function readsNamedIn(
   }
   const touches = await Promise.all(
     [...places]
-      .filter((place) => !known.has(place))
+      .filter((place) => !known.has(place) && isTheWork(place))
       .slice(0, NAMED_PATHS_CHECKED)
       .map(async (place): Promise<FileTouch | undefined> => {
         const stat = await fs.stat(place).catch(() => undefined);

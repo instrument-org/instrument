@@ -23,7 +23,7 @@ export function RunningBadge({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center rounded-full border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground",
+        "flex shrink-0 items-center rounded-full border border-border bg-card px-2 py-0.5 text-xs whitespace-nowrap text-muted-foreground",
         className,
       )}
     >

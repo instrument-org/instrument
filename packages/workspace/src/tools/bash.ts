@@ -276,13 +276,10 @@ function watchChatFolders(chatId: ChatId) {
 const bashCapability = defineCapability({
   input: z.object({
     command: z.string().meta({ description: "The bash command to run" }),
-    counts: z
-      .string()
-      .optional()
-      .meta({
-        description:
-          'When the command works through many things, what each one that succeeds counts as, a plural phrase in the past tense: "rows added". Instrument does the counting, and the user watches it rise on the step.',
-      }),
+    counts: z.string().optional().meta({
+      description:
+        'When the command works through many things, what each one that succeeds counts as, a plural phrase in the past tense: "rows added". Instrument does the counting, and the user watches it rise on the step.',
+    }),
     yieldMs: z
       .number()
       .optional()

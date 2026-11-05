@@ -52,6 +52,7 @@ const ChildTaskSchema = ChatTaskSchema.extend({
   standing: z.object({
     kind: TaskStandingKindSchema,
     line: z.string(),
+    summary: z.string().optional(),
   }),
   /** The label of its newest step of its own, when it gave one. */
   step: z.string().optional(),

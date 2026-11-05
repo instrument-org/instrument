@@ -741,5 +741,7 @@ function lastTurnParts(
   const start = messages.findLastIndex((message) => message.role === "user");
   return messages
     .slice(start + 1)
-    .flatMap((message): (SessionMessagePart.Type | TranscriptPart)[] => message.parts);
+    .flatMap(
+      (message): (SessionMessagePart.Type | TranscriptPart)[] => message.parts,
+    );
 }

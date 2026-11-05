@@ -17,6 +17,7 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/client/lib/utils";
+import { type RunAgain } from "../message-error";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { MessageScrollerItem } from "../ui/message-scroller";
@@ -62,7 +63,7 @@ export function Transcript({
   onLoadOlder?: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
   sessionId: StoreId.Session;
 }) {
   const [cache] = useState<TurnsCache>(() => new Map());
@@ -250,8 +251,8 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
     onRetry: (prompt: string) => {
       latest.current.onRetry(prompt);
     },
-    onRunAgain: () => {
-      latest.current.onRunAgain?.();
+    onRunAgain: (options?: { ifIdle: boolean }) => {
+      latest.current.onRunAgain?.(options);
     },
   }));
   return useMemo(

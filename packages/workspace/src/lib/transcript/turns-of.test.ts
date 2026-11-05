@@ -969,3 +969,39 @@ describe("what a step carries", () => {
     expect(stepOf({ command }, { exitCode: 0 })?.shows).toEqual(shows);
   });
 });
+
+describe("a failed attempt", () => {
+  const failed = () =>
+    message(
+      "assistant",
+      (id) => [
+        { metadata: meta(id), type: "step-start" } as SessionMessagePart.Type,
+      ],
+      {
+        error: {
+          classification: "transient",
+          kind: "provider",
+          message: "fetch failed",
+        },
+      },
+    );
+  const retry = (words?: string) =>
+    message("assistant", (id) => [
+      { metadata: meta(id), type: "step-start" } as SessionMessagePart.Type,
+      ...(words === undefined ? [] : [said(id, words)]),
+    ]);
+  const errorRows = (messages: TranscriptMessage[]) =>
+    (turnsOf([typed("Do the thing"), ...messages], { isRunning: true })[0]?.rows ?? []).flatMap(
+      (row) => (row.kind === "error" ? [row.isLatestAttempt] : []),
+    );
+
+  it.each([
+    ["stands as the last message", () => [failed()], [true]],
+    ["stands above a retry that has said nothing", () => [failed(), retry()], [true]],
+    ["goes once the retry says something", () => [failed(), retry("Hi")], []],
+    ["gives way to a retry that failed too", () => [failed(), failed()], [true]],
+    ["gives way when two retries are past it", () => [failed(), failed(), retry()], [true]],
+  ])("%s", (_name, messages, expected) => {
+    expect(errorRows(messages())).toEqual(expected);
+  });
+});

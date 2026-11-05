@@ -47,6 +47,8 @@ export type TurnRow =
       endedTurn: boolean;
       id: string;
       isLastMessage: boolean;
+      /** Last, or above a retry that has said nothing yet, so what it says stands. */
+      isLatestAttempt: boolean;
       kind: "error";
       message: TranscriptMessage & { role: "assistant" };
     }
@@ -446,6 +448,12 @@ function rowsOf(
     const next = body[index + 1];
     const endedTurn = next?.role !== "assistant";
     const isLastMessage = message.id === lastMessage?.id;
+    const isLatestAttempt =
+      isLastMessage ||
+      (next?.id === lastMessage?.id &&
+        next?.role === "assistant" &&
+        !next.metadata.error &&
+        next.parts.length === 0);
     const error = message.metadata.error;
     const superseded = error?.kind === "aborted";
     const retriedAway =
@@ -501,7 +509,7 @@ function rowsOf(
     if (
       error &&
       (isDeveloperMode || !superseded) &&
-      !retriedAway &&
+      (!retriedAway || isLatestAttempt) &&
       (isDeveloperMode || !isSameRefusal(message, next))
     ) {
       open = undefined;
@@ -509,6 +517,7 @@ function rowsOf(
         endedTurn,
         id: `error-${message.id}`,
         isLastMessage,
+        isLatestAttempt,
         kind: "error",
         message,
       });

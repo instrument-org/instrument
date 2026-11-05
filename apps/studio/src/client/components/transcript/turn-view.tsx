@@ -51,7 +51,7 @@ function FoldingRow({ children }: { children: ReactNode }) {
   const isReduced = useReducedMotion();
   return (
     <motion.div
-      className="flex min-w-0 flex-col gap-2"
+      className="flex min-w-0 flex-col gap-2 empty:hidden"
       exit={{ height: 0, marginTop: -ROW_GAP, opacity: 0, overflow: "hidden" }}
       transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
     >
@@ -430,6 +430,7 @@ function RowView({
           isAgentRunning={isLast && actions.isRunning}
           isDeveloperMode={actions.isDeveloperMode}
           isLastMessage={row.isLastMessage}
+          isLatestAttempt={row.isLatestAttempt}
           message={row.message}
           onModelChange={actions.onModelChange}
           onRunAgain={actions.onRunAgain}

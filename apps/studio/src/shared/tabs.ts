@@ -81,8 +81,8 @@ export type TabMoveDestination = z.output<typeof TabMoveDestinationSchema>;
  * its own tabs with nobody looking at them, until the tab leaves its row.
  */
 export type TabCarryView =
-  | { clientX: number; heldId: TabId; kind: "joined"; tabs: TabCarryNeighbor[] }
-  | { heldId: TabId; kind: "alone" }
+  | { clientX: number; heldId: TabId; kind: "docked"; tabs: TabCarryNeighbor[] }
+  | { heldId: TabId; kind: "free" }
   | { kind: "beneath" }
   | { kind: "row" };
 

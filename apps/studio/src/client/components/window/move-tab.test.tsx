@@ -71,7 +71,7 @@ describe("what a strip draws of a held tab", () => {
 
   it("is the tab alone while its window follows the pointer", () => {
     expect(
-      ids(tabsInView(tabs, { heldId: asId("held"), kind: "alone" }, 0)),
+      ids(tabsInView(tabs, { heldId: asId("held"), kind: "free" }, 0)),
     ).toEqual(["held"]);
   });
 
@@ -79,7 +79,7 @@ describe("what a strip draws of a held tab", () => {
     const view: TabCarryView = {
       clientX: 0,
       heldId: asId("held"),
-      kind: "joined",
+      kind: "docked",
       tabs: [asTab("x"), asTab("y")],
     };
     expect(ids(tabsInView(tabs, view, 1))).toEqual(["x", "held", "y"]);
@@ -194,7 +194,7 @@ describe("moving a tab from a menu", () => {
       tabs: [asTab("a"), asTab("b")],
     }));
     // As a drag or a move leaves it, held away from the row.
-    showTabCarryView({ heldId: asId("a"), kind: "alone" });
+    showTabCarryView({ heldId: asId("a"), kind: "free" });
   });
 
   afterEach(() => {
@@ -242,7 +242,7 @@ describe("moving a tab from a menu", () => {
   it("goes on showing what it shows while its window closes", async () => {
     moveTabCall.mockResolvedValue({ kind: "closes" });
     await moveTabOut(asId("a"), { id: "w2", kind: "window" });
-    expect(store.get(tabCarryViewAtom).kind).toBe("alone");
+    expect(store.get(tabCarryViewAtom).kind).toBe("free");
   });
 
   it("stays as it was and back on its row when the call fails", async () => {

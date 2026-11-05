@@ -149,6 +149,7 @@ import {
   moveTabOut,
   receiveTab,
 } from "./move-tab";
+import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -581,40 +582,24 @@ function WindowShell({
       sitesHeldHere.current.add(group);
       forgetMovedAway(group);
     }
-    // The windows share every site's tabs, so one this window never had a tab
-    // on is another's to let go. One it did leaves unless a tab of another
-    // window, open or closed, stands on it now.
-    const noLongerHere = siteGroups
-      .split("\n")
-      .filter(
-        (group) =>
-          group && !open.has(group) && sitesHeldHere.current.has(group),
-      );
-    const inOtherWindows =
-      noLongerHere.length === 0
-        ? new Set<string>()
-        : siteGroupsInOtherWindows();
-    const leaving = noLongerHere.filter(
-      (group) => !inOtherWindows.has(group) && !hasMovedAway(group),
+    const noLongerHere = sitesNoLongerHere(
+      siteGroups.split("\n").filter(Boolean),
+      open,
+      sitesHeldHere.current,
     );
-    setPutAway((current) => {
-      const next: typeof current = {};
-      // Kept while a closed tab can bring it back, or while an open one is
-      // on its way to (the site's view takes it back itself).
-      for (const [group, stashed] of Object.entries(current)) {
-        if (reopenable.has(group) || open.has(group)) {
-          next[group] = stashed;
-        }
-      }
-      // Another window standing on it now can let it go before this one's
-      // closed tab comes back.
-      for (const group of noLongerHere) {
-        if (reopenable.has(group)) {
-          next[group] = windowTabs.allTabs.filter((tab) => tab.group === group);
-        }
-      }
-      return next;
-    });
+    const leaving =
+      noLongerHere.length === 0
+        ? []
+        : sitesLeaving(noLongerHere, siteGroupsInOtherWindows(), hasMovedAway);
+    setPutAway((current) =>
+      sitesPutAway(current, {
+        noLongerHere,
+        open,
+        recordOf: (group) =>
+          windowTabs.allTabs.filter((tab) => tab.group === group),
+        reopenable,
+      }),
+    );
     for (const group of leaving) {
       windowTabs.dropGroup(group);
     }

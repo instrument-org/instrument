@@ -9,13 +9,13 @@ import {
   takePendingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
 import {
-  endTabCarry,
-  moveTabCarry,
+  endTabCarry as endCarry,
   moveTabNow,
-  placeHeldTab,
-  startTabCarry,
+  noteTabCarry as noteCarry,
+  placeTabCarry as placeCarry,
+  startTabCarry as startCarry,
   tabCarryViewOf,
-} from "@/electron-main/windows/tab-drag";
+} from "@/electron-main/windows/tab-carry";
 import {
   TabMoveDestinationSchema,
   TabSchema,
@@ -107,7 +107,7 @@ const reopenClosed = base.input(z.void()).handler(() => ({
   reopened: reopenClosedAppWindow(),
 }));
 
-/** A tab moved from a menu, the way a drag let go there would move it: see `windows/tab-drag.ts`. */
+/** A tab moved from a menu, the way a drag let go there would move it: see `windows/tab-carry.ts`. */
 const moveTab = base
   .input(
     z.object({
@@ -125,8 +125,8 @@ const mergeAll = base.input(z.void()).handler(() => {
   mergeAllWindows();
 });
 
-/** Starts carrying a tab: see `windows/tab-drag.ts`. */
-const startTabDrag = base
+/** Starts carrying a tab: see `windows/tab-carry.ts`. */
+const startTabCarry = base
   .input(
     z.object({
       at: PointSchema,
@@ -137,20 +137,20 @@ const startTabDrag = base
     }),
   )
   .handler(({ context, input }) =>
-    startTabCarry({ ...input, webContentsId: context.webContentsId }),
+    startCarry({ ...input, webContentsId: context.webContentsId }),
   );
 
-const moveTabDrag = base
+const noteTabCarry = base
   .input(PointSchema.extend({ isOffRow: z.boolean() }))
   .handler(({ input }) => {
-    moveTabCarry(input);
+    noteCarry(input);
   });
 
 /** Where the tab stands in the strip it is held over, from the window showing it. */
-const placeTabDrag = base
+const placeTabCarry = base
   .input(z.object({ index: z.number() }))
   .handler(({ input }) => {
-    placeHeldTab(input.index);
+    placeCarry(input.index);
   });
 
 /** The window's menu, drawn by the system at a point of the window, where no bar of the system's shows it. */
@@ -166,26 +166,26 @@ const showAppMenu = base.input(PointSchema).handler(({ context, input }) => {
 });
 
 /** Lets the tab go, and says where it lands. */
-const endTabDrag = base
+const endTabCarry = base
   .input(
     z.object({
       canceled: z.boolean(),
       point: PointSchema.optional(),
     }),
   )
-  .handler(({ input }) => endTabCarry(input));
+  .handler(({ input }) => endCarry(input));
 
 export const window = {
-  endTabDrag,
+  endTabCarry,
   events,
   live: { others },
   mergeAll,
   moveTab,
-  moveTabDrag,
-  placeTabDrag,
+  noteTabCarry,
+  placeTabCarry,
   openNew,
   reopenClosed,
   showAppMenu,
-  startTabDrag,
+  startTabCarry,
   takePending,
 };

@@ -80,6 +80,8 @@ import {
   macAppsStandIn,
 } from "../src/test/helpers/mac-apps-launch";
 import { getWorkspaceConfig } from "../src/lib/workspace-config";
+import { ActionLog, actionsDir } from "../src/lib/actions/log";
+import { type ActionInput } from "../src/lib/actions/schema";
 import {
   answerSignIn,
   cardOnlySignIns,
@@ -436,7 +438,46 @@ const TREE_POLL_MS = 500;
  */
 const ANSWER_AFTER_TURN_MAX_MS = 120_000;
 
+/**
+ * What the user did in the app before a message, each `ago` minutes before
+ * it is sent, as a capture point in the app would have logged it.
+ */
+type CaseActions = ({ ago: number } & ActionInput)[];
+
+/**
+ * Writes what the user did into the run's action log, each action `ago`
+ * minutes before `sentAt`, oldest first. With `after`, the time the message
+ * before was sent, an action is kept after it, in order, so a turn shorter
+ * than `ago` still leaves it between the two messages, where the note on
+ * the next one reads it.
+ */
+function writeActions(
+  actions: CaseActions,
+  { after, sentAt }: { after?: number; sentAt: number },
+) {
+  let now = 0;
+  const log = new ActionLog(
+    actionsDir(getWorkspaceConfig().workspaceMachineDir),
+    { now: () => now },
+  );
+  const oldestFirst = actions.toSorted((a, b) => b.ago - a.ago);
+  for (const [index, { ago, ...action }] of oldestFirst.entries()) {
+    now = Math.max(
+      sentAt - ago * 60_000,
+      after === undefined ? Number.NEGATIVE_INFINITY : after + index + 1,
+    );
+    log.record(action);
+  }
+  log.close();
+}
+
 export interface EvalCase {
+  /**
+   * What the user did in the app before the case's first message, written
+   * to the run's action log before it is sent: what the note on it and
+   * `instrument activity` read.
+   */
+  actions?: CaseActions;
   /**
    * What the user answers to each `choose` card the agent puts to them, in
    * the order it asks, sent through the same route the card answers with. A
@@ -684,7 +725,14 @@ export function pickChoice(
 
 type FollowUp = FollowUpTiming &
   (
-    | { prompt: string }
+    | {
+        /**
+         * What the user did in the app since the message before, written
+         * to the run's action log just before this one is sent.
+         */
+        actions?: CaseActions;
+        prompt: string;
+      }
     | {
         /**
          * The user pressing Stop on one of the chat's tasks, by its handle,
@@ -1019,6 +1067,9 @@ export async function runEvals(
             ensureWorkspaceFolder();
           }
           await evalCase.setup?.();
+          if (evalCase.actions) {
+            writeActions(evalCase.actions, { sentAt: Date.now() });
+          }
           const folders = privateFoldersFor(evalCase, index) ?? [];
           if (evalCase.project && evalCase.kind === "chat") {
             return openChatUnderProject(evalCase, evalCase.project, {
@@ -1698,6 +1749,12 @@ export async function runEvals(
             `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
           );
           const sendingAt = Date.now();
+          if (followUp.actions) {
+            writeActions(followUp.actions, {
+              after: lastSentAt,
+              sentAt: sendingAt,
+            });
+          }
           for (const mark of marks) {
             if (
               mark.sentAt === undefined &&

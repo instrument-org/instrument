@@ -99,6 +99,22 @@ describe("where a held tab stands along a strip", () => {
     expect(stripIndexAt(x, tabs, asId("a"))).toBe(at);
   });
 
+  // A tab back on its row is placed by its left edge, which keeps it in its own
+  // slot until it is half a slot off, either way.
+  it.each([
+    ["in its own slot", "a", 0, 0],
+    ["in its own slot", "b", 100, 1],
+    ["in its own slot", "c", 200, 2],
+    ["just under half a slot right", "b", 149, 1],
+    ["just over half a slot right", "b", 151, 2],
+    ["just under half a slot left", "b", 51, 1],
+    ["just over half a slot left", "b", 49, 0],
+  ])("given a tab's left edge: %s, %s at %i", (_case, held, left, at) => {
+    expect(stripIndexAt(left, store.get(appTabsAtom).tabs, asId(held))).toBe(
+      at,
+    );
+  });
+
   it("reads the pointer in on-screen px, at any zoom", () => {
     layOutStrip(["a", "b", "c"], 2);
     expect(stripIndexAt(90, store.get(appTabsAtom).tabs, asId("a"))).toBe(0);

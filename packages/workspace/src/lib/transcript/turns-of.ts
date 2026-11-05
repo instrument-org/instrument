@@ -2,6 +2,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
+import { askedOnCard } from "../../tools/connect-app-output";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
 import {
@@ -604,9 +605,9 @@ function isDataRow(part: TranscriptPart): part is SessionMessagePart.DataPart {
 
 /**
  * Whether a card still waits on the person, read from what the turn went on to
- * record: a question not answered yet, or a sign-in no app event has settled.
- * What a sign-in asked is on its call whatever became of it, so the event is
- * what says it is over.
+ * record: a question not answered yet, or a sign-in with an app on its card not
+ * settled yet. What a sign-in asked is on its call whatever became of it, so
+ * the events after it are what say it is over.
  */
 function stillAsks(
   part: SessionMessagePart.ToolPart,
@@ -617,14 +618,32 @@ function stillAsks(
       return part.state !== "output-available";
     }
     case "tool-connect_app": {
-      return !later.some((message) =>
-        message.parts.some((other) => other.type === "data-appEvent"),
-      );
+      if (part.state !== "output-available") {
+        return true;
+      }
+      const settled = new Set(later.flatMap(appsSettledBy));
+      return askedOnCard(part.output).some((app) => !settled.has(app.slug));
     }
     default: {
       return false;
     }
   }
+}
+
+/**
+ * The apps a message's events finish with. A failed sign-in leaves its card up
+ * to try again, and other news of an app leaves the question of signing in open.
+ */
+function appsSettledBy(message: TranscriptMessage): string[] {
+  return message.parts.flatMap((part) =>
+    part.type === "data-appEvent"
+      ? part.data.events.flatMap(({ event, slug }) =>
+          event === "connected" || event === "declined" || event === "removed"
+            ? [slug]
+            : [],
+        )
+      : [],
+  );
 }
 
 function isAsk(part: TranscriptPart): part is SessionMessagePart.ToolPart {

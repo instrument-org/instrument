@@ -67,6 +67,14 @@ const said = (
 
 const typed = (text: string) => message("user", (id) => [said(id, text)]);
 
+/** A sign-in on a call's card, as `connect_app` records it. */
+const asked = (slug: string) => ({
+  kind: "sign-in",
+  name: slug,
+  slug,
+  state: "asked",
+});
+
 function call(
   id: StoreId.Message,
   tool: string,
@@ -585,7 +593,7 @@ describe("the slot", () => {
       "a sign-in nothing has settled",
       "connect_app",
       { apps: ["notion"] },
-      { state: "asked" },
+      asked("notion"),
       "output-available",
     ],
   ] as const)(
@@ -608,26 +616,50 @@ describe("the slot", () => {
     },
   );
 
-  it("folds a sign-in an app event has settled", () => {
+  it.each([
+    ["connecting", ["notion"], [["connected", "notion"]], true],
+    ["being declined", ["notion"], [["declined", "notion"]], true],
+    ["the app going", ["notion"], [["removed", "notion"]], true],
+    ["a failure, to try again", ["notion"], [["failed", "notion"]], false],
+    ["a retry that worked", ["notion"], [["failed", "notion"], ["connected", "notion"]], true],
+    ["another app's news", ["notion"], [["connected", "linear"]], false],
+    ["one app of two", ["notion", "linear"], [["connected", "notion"]], false],
+    [
+      "both apps of two",
+      ["notion", "linear"],
+      [["connected", "notion"], ["declined", "linear"]],
+      true,
+    ],
+  ])("folds a sign-in or not after %s", (_name, apps, events, folds) => {
     const [turn] = turnsOf(
       [
         typed("Do the thing"),
         message("assistant", (id) => [
-          call(id, "connect_app", { apps: ["notion"] }, { state: "asked" }),
+          call(
+            id,
+            "connect_app",
+            { apps },
+            { apps: apps.map((app) => asked(app)) },
+          ),
         ]),
-        message("user", (id) => [
-          {
-            data: { app: "notion", kind: "connected" },
-            metadata: meta(id),
-            type: "data-appEvent",
-          } as unknown as SessionMessagePart.Type,
-        ]),
-        message("assistant", (id) => [said(id, "Connected.")]),
+        ...events.map(([event, slug]) =>
+          message("user", (id) => [
+            {
+              data: {
+                apps: [],
+                events: [{ event, name: slug, slug }],
+              },
+              metadata: meta(id),
+              type: "data-appEvent",
+            } as unknown as SessionMessagePart.Type,
+          ]),
+        ),
+        message("assistant", (id) => [said(id, "Here's where that got to.")]),
       ],
       { isRunning: false },
     );
     const ask = turn?.rows.find((row) => row.kind === "ask");
-    expect(ask && turn?.foldedRowIds.has(ask.id)).toBe(true);
+    expect(ask && turn?.foldedRowIds.has(ask.id)).toBe(folds);
   });
 
   it("shows nothing for a call that failed", () => {

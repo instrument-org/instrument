@@ -46,6 +46,10 @@ The person reads the log in Settings › Activity, interleaved newest first with
 
 The section holds the `shareActionsWithChats` switch, a filter kept as the `view` state `activity.view.v1`, Export CSV of what the filter shows (both logs in one file for All, [activity-csv.ts](../../apps/studio/src/electron-main/lib/activity-csv.ts)), and Clear your activity, which calls `actions.clear` at once and leaves the AI requests.
 
+## The Activity screen
+
+Settings › Activity lists the person's activity and the AI requests their chats made in one timeline, newest first under day heads ([activity-section.tsx](../../apps/studio/src/client/components/settings/activity-section.tsx)). The requests one chat turn made are one row, which opens the requests themselves. A page of the person's activity reads day files from the newest back until it is full. Clear empties only the person's activity; the AI requests are the record of what the chats used. Export CSV saves what the filter shows.
+
 ## Reports
 
 The feedback dialog offers the 30 minutes before it opened as a row, "Your activity", the one row with a switch to leave it out, since it is about more than the chat or error being reported ([feedback-dialog.tsx](../../apps/studio/src/client/components/studio-modals/feedback-dialog.tsx)). It is sent as `diagnostics/actions.jsonl`, through the report's redactor like everything else ([problem-reports.ts](../../apps/studio/src/electron-main/lib/problem-reports.ts)).

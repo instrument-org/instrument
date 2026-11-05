@@ -33,7 +33,7 @@ import { ChatSeparatorRow } from "./chat-separator";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { TailFirst, TypingRow } from "./chat-stream";
-import { MessageError } from "./message-error";
+import { MessageError, type RunAgain } from "./message-error";
 import { ToolCallBody } from "./message-part/tool-call";
 import { SentReplyQuote } from "./reply-quote";
 import {
@@ -86,7 +86,7 @@ export function ChatBubbles({
   onContinue: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
 }) {
   const actions = useStableActions({
     onContinue,
@@ -656,7 +656,7 @@ type BubbleActions = {
   onContinue: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain?: () => void;
+  onRunAgain?: RunAgain;
 };
 
 const BubbleActionsContext = createContext<BubbleActions>({
@@ -684,8 +684,8 @@ function useStableActions(actions: BubbleActions): BubbleActions {
     onRetry: (prompt) => {
       latest.current.onRetry(prompt);
     },
-    onRunAgain: () => {
-      latest.current.onRunAgain?.();
+    onRunAgain: (options?: { ifIdle: boolean }) => {
+      latest.current.onRunAgain?.(options);
     },
   }));
   return stable;

@@ -7,6 +7,16 @@
 // whose message is one of these, with no informative cause to inspect.
 const FETCH_FAILURE_MESSAGES = new Set(["fetch failed", "terminated"]);
 
+/**
+ * Whether a stored message is undici's for a connection that never opened,
+ * where "terminated" is one that dropped after the server had answered. The
+ * error itself is gone by then, and a proxy between the request and the network
+ * relays that message under a status of its own.
+ */
+export function isConnectFailureMessage(message: string): boolean {
+  return message === "fetch failed";
+}
+
 const NETWORK_ERROR_NAMES = new Set([
   "BodyTimeoutError",
   "ConnectTimeoutError",

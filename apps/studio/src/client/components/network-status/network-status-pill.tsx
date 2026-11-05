@@ -5,14 +5,13 @@ import {
   HoverCardTrigger,
 } from "@/client/components/ui/hover-card";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useNetworkStatus } from "@/client/hooks/use-network-status";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { rpcClient } from "@/client/rpc/client";
 import { type NetworkStatus } from "@/shared/network-status";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CloudSlashIcon } from "@phosphor-icons/react/CloudSlash";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { WifiSlashIcon } from "@phosphor-icons/react/WifiSlash";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 const START_COMMAND = "pnpm --filter @instrument/api dev";
@@ -21,13 +20,6 @@ const PILL_CLASS =
   "h-6 cursor-default gap-1.5 border-transparent bg-warning-500/10 px-2.5 text-xs text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3.5";
 
 type Shown = Exclude<NetworkStatus, "online">;
-
-function useNetworkStatus() {
-  const { data } = useQuery(
-    rpcClient.network.live.status.experimental_liveOptions({}),
-  );
-  return data;
-}
 
 function StatusIcon({ status }: { status: Shown }) {
   return status === "offline" ? (

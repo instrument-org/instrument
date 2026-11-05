@@ -1,4 +1,8 @@
-import { STREAM_ENDED_EARLY_MESSAGE } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  isConnectFailureMessage,
+  STREAM_ENDED_EARLY_MESSAGE,
+} from "@instrument-org/shared";
 
 import { type SessionMessage } from "../schemas/session/message";
 
@@ -64,6 +68,14 @@ export function describeMessageError(
       };
     }
     case "transient": {
+      // The connection failed, so the provider had no say in it. The local
+      // gateway relays this as a 500, which is why the status can't tell.
+      if (isConnectFailureMessage(error.message)) {
+        return {
+          detail: `${APP_NAME} couldn't reach the model. Check your connection, then try again.`,
+          summary: "Couldn't connect",
+        };
+      }
       return {
         detail: "The model provider had a temporary problem. Try again.",
         summary: "Provider problem",

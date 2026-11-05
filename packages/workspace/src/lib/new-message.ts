@@ -46,7 +46,6 @@ export async function newMessage({
   fromDraft,
   modelURI,
   prompt,
-  replyTo,
   sessionId,
   chatId,
   viewing,
@@ -66,8 +65,6 @@ export async function newMessage({
   fromDraft?: string;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
-  /** The earlier message this one answers; see the reply part. */
-  replyTo?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
   chatId: ChatId;
   /** What the sending surface had on screen; see the view-context part. */
@@ -152,19 +149,6 @@ export async function newMessage({
         sessionId,
       },
       type: "data-asks",
-    });
-  }
-
-  if (replyTo) {
-    parts.push({
-      data: replyTo,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-reply",
     });
   }
 

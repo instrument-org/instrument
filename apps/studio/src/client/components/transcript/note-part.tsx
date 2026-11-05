@@ -1,5 +1,6 @@
 import {
   backgroundProcessesModelNote,
+  type ChatInfo,
   dateChangeModelNote,
   environmentChangeModelNote,
   dataPartVisibility,
@@ -15,24 +16,17 @@ import { type ReactNode } from "react";
 
 export { dataPartVisibility };
 
-import { FilePathsGrid } from "./agent-files-block";
-import { AppEventNote } from "./app-event-note";
-import { FolderChangesNote } from "./folder-changes-note";
-import { ChatDevOnly } from "./dev-mode-card";
-import { type RenderPartContext } from "./chat-stream-render-part";
-import { RatingCard } from "./message-part/rating-card";
-import { PermissionAnswerNote } from "./permission-asks";
-import { ModelChangeNote } from "./model-change-note";
-import { ModelContextDebugCard } from "./model-context-debug-card";
-import { SetupChangesNote } from "./setup-changes-note";
-import { TaskEventNote } from "./task-event-note";
-import { SentAsksNote } from "./window/ask-pills";
-
-export function isDataPart(
-  part: SessionMessagePart.Type,
-): part is SessionMessagePart.DataPart {
-  return part.type.startsWith("data-");
-}
+import { FilePathsGrid } from "../agent-files-block";
+import { AppEventNote } from "../app-event-note";
+import { FolderChangesNote } from "../folder-changes-note";
+import { ChatDevOnly } from "../dev-mode-card";
+import { RatingCard } from "../message-part/rating-card";
+import { PermissionAnswerNote } from "../permission-asks";
+import { ModelChangeNote } from "../model-change-note";
+import { ModelContextDebugCard } from "../model-context-debug-card";
+import { SetupChangesNote } from "../setup-changes-note";
+import { TaskEventNote } from "../task-event-note";
+import { SentAsksNote } from "../window/ask-pills";
 
 export function renderDataPart({
   ctx,
@@ -40,7 +34,7 @@ export function renderDataPart({
   pathsAlreadyShown,
   stateNote,
 }: {
-  ctx: RenderPartContext;
+  ctx: { chatInfo: ChatInfo; isDeveloperMode: boolean };
   part: SessionMessagePart.DataPart;
   /**
    * Files this message already puts on screen, so the retired file-changes grid
@@ -62,20 +56,13 @@ export function renderDataPart({
     return null;
   }
 
-  // The narrow transcript draws a developer note as one line.
-  const compact = ctx.presentation === "chat";
-  const noteClassName = compact ? "mt-1" : "mt-2";
-
   switch (part.type) {
     case "data-appEvent": {
-      if (ctx.presentation === "chat") {
-        return ctx.isDeveloperMode ? (
-          <ChatDevOnly key={part.metadata.id}>
-            <AppEventNote data={part.data} />
-          </ChatDevOnly>
-        ) : null;
-      }
-      return <AppEventNote data={part.data} key={part.metadata.id} />;
+      return ctx.isDeveloperMode ? (
+        <ChatDevOnly key={part.metadata.id}>
+          <AppEventNote data={part.data} />
+        </ChatDevOnly>
+      ) : null;
     }
     case "data-permissionAnswer": {
       return <PermissionAnswerNote data={part.data} key={part.metadata.id} />;
@@ -105,15 +92,12 @@ export function renderDataPart({
     case "data-stepFacts":
     case "data-workSummary":
     case "data-questionAnswer":
-    case "data-reply":
     case "data-signedIn": {
       return null;
     }
     case "data-backgroundProcesses": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={backgroundProcessesModelNote(part.data)}
         />
@@ -124,19 +108,12 @@ export function renderDataPart({
     case "data-viewContext":
     case "data-workspaceInstructions": {
       return stateNote === undefined ? null : (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={stateNote}
-        />
+        <ModelContextDebugCard key={part.metadata.id} text={stateNote} />
       );
     }
     case "data-chatContext": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={
             part.data.chats.length === 0
@@ -149,8 +126,6 @@ export function renderDataPart({
     case "data-contextRollover": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={`Context rollover: dropped ${part.data.droppedMessages} messages, retained ${part.data.retainedUserMessages} user messages`}
         />
@@ -159,8 +134,6 @@ export function renderDataPart({
     case "data-toolResultsCleared": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={`Tool results cleared: ${part.data.results} older results sent as placeholders`}
         />
@@ -169,8 +142,6 @@ export function renderDataPart({
     case "data-dateChange": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={dateChangeModelNote(part.data)}
         />
@@ -179,8 +150,6 @@ export function renderDataPart({
     case "data-environmentChange": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={environmentChangeModelNote(part.data) ?? ""}
         />
@@ -212,8 +181,6 @@ export function renderDataPart({
     case "data-fromChat": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={`From the chat: ${part.data.text}`}
         />
@@ -221,19 +188,12 @@ export function renderDataPart({
     }
     case "data-intent": {
       return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={part.data.text}
-        />
+        <ModelContextDebugCard key={part.metadata.id} text={part.data.text} />
       );
     }
     case "data-maxSteps": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
         />
@@ -251,20 +211,11 @@ export function renderDataPart({
           : count === 0
             ? "Memory is empty"
             : `Memory (${count}): ${texts.join(" · ")}`;
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={text}
-        />
-      );
+      return <ModelContextDebugCard key={part.metadata.id} text={text} />;
     }
     case "data-messageGap": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={messageGapModelNote(part.data)}
         />
@@ -276,8 +227,6 @@ export function renderDataPart({
     case "data-outputLimit": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={outputLimitModelNote(part.data)}
         />
@@ -286,8 +235,6 @@ export function renderDataPart({
     case "data-setupNews": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={setupNewsModelNote(part.data)}
         />
@@ -301,8 +248,6 @@ export function renderDataPart({
     case "data-jobEvent": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={jobEventModelNote(part.data)}
         />
@@ -311,8 +256,6 @@ export function renderDataPart({
     case "data-skillMentions": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={`Skills mentioned: ${part.data.names.join(", ")}`}
         />
@@ -324,7 +267,6 @@ export function renderDataPart({
       // reply follows it and it is the only word in the chat that the task
       // ended.
       if (
-        ctx.presentation === "chat" &&
         !part.data.events.some(
           (event) => event.stoppedBy === "app" || event.stoppedBy === "person",
         )
@@ -343,8 +285,6 @@ export function renderDataPart({
       // cannot read, and the reason is the useful half.
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
         />

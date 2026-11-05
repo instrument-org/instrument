@@ -1,11 +1,8 @@
-import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import {
   type ChatId,
-  browserTargetOf,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -13,13 +10,10 @@ import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { motion, useIsPresent } from "motion/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-import { useAppsBySlug } from "./apps-by-slug";
-import { type PageChromeSlots } from "./browser-tabs";
 import { ChatHeader } from "./chat-header";
 import { ChatScreen } from "./chat-screen";
-import { ChatTiles } from "./chat-tiles";
 import { ChatMarkIcon } from "./chat-mark";
 import {
   type Chat,
@@ -31,18 +25,14 @@ import {
 import {
   CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
-  COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
 } from "./compose-layout";
 import { BarMarks, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
 import { ContextChips } from "./context-chip";
-import { GroupItem } from "./group-item";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
-import { usePageHost } from "./page-hosts";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
-import { useTaskTitles } from "./task-titles";
 import { useChatContext } from "./use-chat-context";
 import { useWindowTabs } from "./window-tabs";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
@@ -126,22 +116,18 @@ export function ChatBar({
 /**
  * A chat popped out: its conversation in a small window docked to the row's
  * bottom-right corner, over whatever place the window stands in, the way a
- * video keeps playing in its small window over the page that owns it, with
- * what the chat holds in a row of tiles over its composer. Its head carries
- * the chat's title, projects and menu as the chat's own head draws them, and
- * the window's buttons.
+ * video keeps playing in its small window over the page that owns it. Its head
+ * carries the chat's title, projects and menu as the chat's own head draws
+ * them, and the window's buttons.
  *
- * Pressing a tile peeks at that thing in a card over the conversation.
- * Expand takes the chat out of the corner into a tab of the window's own;
- * Expand on the card, and anything the conversation asks to have shown, do
- * the same with that thing up in the chat's pane. What the agent opens
- * behind stays behind.
+ * Expand takes the chat out of the corner into a tab of the window's own, and
+ * anything the conversation asks to have shown does the same with that thing up
+ * in the chat's pane. What the agent opens behind stays behind.
  */
 export function ChatWindow({
   arrives,
   chat,
   onClose,
-  onCloseTab,
   onMinimize,
   onExpand,
   onNewProject,
@@ -157,8 +143,6 @@ export function ChatWindow({
   arrives: boolean;
   chat: Chat | undefined;
   onClose: () => void;
-  /** Closes one of the chat's tabs, the way the window's strip does: asking first while a task is working in it. */
-  onCloseTab: (id: string) => void;
   onMinimize: () => void;
   /** Takes the chat into a tab of the window's own, its pane open when the window asked for something to be shown. */
   onExpand: (options: { showsPane: boolean }) => void;
@@ -185,72 +169,6 @@ export function ChatWindow({
   const isPresent = useIsPresent();
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  const outputFolder = useOutputFolder();
-  const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
-  const isWorking = chat === undefined ? sentWords !== undefined : chat.working;
-  const taskTitles = useTaskTitles();
-
-  // The tab peeked at in the small window: a look, kept here and nowhere
-  // else, so the tab the chat has up, which is what its pane shows in a
-  // tab, is not moved by it.
-  const [peekId, setPeekId] = useState<string>();
-  const peekTab = tabs.find((tab) => tab.id === peekId);
-  const [peekHost, setPeekHost] = useState<HTMLDivElement | null>(null);
-  const [peekChrome, setPeekChrome] = useState<PageChromeSlots>();
-  const peekPageId = peekTab?.kind === "page" ? peekTab.id : undefined;
-  // The card stands over the conversation from near the window's head down
-  // to just over the tiles, however tall the composer under them grows.
-  // Measured in layout px, which the card's height is set in under the
-  // window's zoom.
-  const [body, setBody] = useState<HTMLDivElement | null>(null);
-  const [tilesRow, setTilesRow] = useState<HTMLDivElement | null>(null);
-  const [peekRoom, setPeekRoom] = useState(0);
-  const isPeeking = peekTab !== undefined;
-  useLayoutEffect(() => {
-    if (!isPeeking || !body || !tilesRow) {
-      return;
-    }
-    const measure = () => {
-      const box = body.getBoundingClientRect();
-      const scale = body.offsetHeight > 0 ? box.height / body.offsetHeight : 1;
-      setPeekRoom((tilesRow.getBoundingClientRect().top - box.top) / scale);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(body);
-    // The composer's column: the tiles move whenever it changes height.
-    if (tilesRow.parentElement) {
-      observer.observe(tilesRow.parentElement);
-    }
-    return () => {
-      observer.disconnect();
-    };
-  }, [body, isPeeking, tilesRow]);
-  /** Takes the chat into a tab with the thing peeked at up in its pane. */
-  const expandPeek = () => {
-    if (peekTab) {
-      select(peekTab.id);
-    }
-  };
-  const chatTitles = new Map<ChatId, string>(
-    chat === undefined ? [] : [[chat.id, chat.title]],
-  );
-
-  // The window draws only the page it peeks at, in the card's host.
-  usePageHost(
-    chatId,
-    peekPageId === undefined
-      ? undefined
-      : {
-          chrome: peekChrome ?? false,
-          into: peekHost,
-          isActive: true,
-          layer: COMPOSE_GUEST_LAYER,
-          place: `peek:${right}:${width ?? ""}`,
-          tabId: peekPageId,
-        },
-  );
 
   // What goes with each message besides its words, as the chips over the
   // composer: what is in view behind the chat, each until its x is pressed.
@@ -275,8 +193,7 @@ export function ChatWindow({
     showUp();
   };
   // A new tab each time: the person asked for another, even of a kind the
-  // chat already has open. One a link opened closes on back from its start;
-  // one the person added from the tiles stays.
+  // chat already has open. One a link opened closes on back from its start.
   const openHere = (href: string, { isOpened }: { isOpened: boolean }) => {
     windowTabs.openScreen(href, {
       group: chatId,
@@ -300,34 +217,6 @@ export function ChatWindow({
       select(id);
     }
   };
-
-  const tiles = tabs.length > 0 && (
-    <div ref={setTilesRow}>
-      <ChatTiles
-        appsBySlug={appsBySlug}
-        chatTitles={chatTitles}
-        chosenId={peekTab?.id}
-        isChatWorking={isWorking}
-        onAddComputer={() => {
-          openHere(outputFolderHref(outputFolder), { isOpened: false });
-        }}
-        onAddWeb={() => {
-          openHere(BROWSER_HREF, { isOpened: false });
-        }}
-        onClose={onCloseTab}
-        onReorder={(keys) => {
-          windowTabs.reorder(keys, chatId);
-        }}
-        // A press peeks, and a press on the tile peeked at puts it down.
-        onSelect={(id) => {
-          setPeekId((current) => (current === id ? undefined : id));
-        }}
-        tabs={tabs}
-        targetOf={(tab) => browserTargetOf(tab.id)}
-        taskTitles={taskTitles}
-      />
-    </div>
-  );
 
   return (
     <motion.div
@@ -391,7 +280,7 @@ export function ChatWindow({
           </div>
         }
       />
-      <div className="relative flex min-h-0 flex-1" ref={setBody}>
+      <div className="relative flex min-h-0 flex-1">
         {/* The sizes are the chat column's. */}
         <div
           className={cn(
@@ -478,38 +367,12 @@ export function ChatWindow({
                     sendContext={contextToSend}
                     sentPrompt={sentWords}
                     chatId={chatId}
-                    tiles={tiles}
                   />
                 </ActiveTabProvider>
               </LinkSurface>
             </FileOpenContext>
           </WindowContext>
         </div>
-        {peekTab && (
-          <div
-            className="absolute inset-x-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl-soft ring-1 ring-gray-300 [--guest-bottom-radius:var(--radius-xl)] dark:ring-gray-600"
-            data-slot="chat-peek"
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setPeekId(undefined);
-              }
-            }}
-            style={{ height: Math.max(0, peekRoom - 16) }}
-          >
-            <GroupItem
-              closeTab={onCloseTab}
-              group={chatId}
-              isFramed={false}
-              onClose={() => {
-                setPeekId(undefined);
-              }}
-              onExpand={expandPeek}
-              onPageChrome={setPeekChrome}
-              onPageHost={setPeekHost}
-              up={peekTab}
-            />
-          </div>
-        )}
       </div>
     </motion.div>
   );

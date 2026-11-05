@@ -4,7 +4,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { debounce } from "radashi";
 import { useEffect, useRef, useState } from "react";
 
-import { ChatDevOnly, DevModeCard, DevModeCardHeader } from "./dev-mode-card";
+import { DevModeCard, DevModeCardHeader } from "./dev-mode-card";
 
 // Three and a half lines of the note's mono text (`text-xs` sets a 16px line
 // box). Enough to tell one note from another while scanning a turn, short
@@ -16,16 +16,7 @@ import { ChatDevOnly, DevModeCard, DevModeCardHeader } from "./dev-mode-card";
 // over text that was never cut off.
 const COLLAPSED_MAX_HEIGHT_PX = 56;
 
-export function ModelContextDebugCard({
-  className,
-  compact = false,
-  text,
-}: {
-  className?: string;
-  /** One small line, the note's first, that opens to the whole note on a click: for a narrow transcript. */
-  compact?: boolean;
-  text: string;
-}) {
+export function ModelContextDebugCard({ text }: { text: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLPreElement>(null);
@@ -61,27 +52,8 @@ export function ModelContextDebugCard({
     setIsExpanded((expanded) => !expanded);
   };
 
-  if (compact) {
-    const firstLine = body.split("\n").find((line) => line.trim()) ?? "";
-    return (
-      <ChatDevOnly className={className}>
-        <button
-          className={cn(
-            "block w-full py-1 text-left font-mono text-[10px] leading-4 text-dev-700/70 dark:text-dev-300/60",
-            isExpanded ? "whitespace-pre-wrap" : "truncate",
-          )}
-          onClick={toggle}
-          title={isExpanded ? undefined : body}
-          type="button"
-        >
-          {isExpanded ? body : firstLine}
-        </button>
-      </ChatDevOnly>
-    );
-  }
-
   return (
-    <DevModeCard className={cn("relative", className)}>
+    <DevModeCard className="relative">
       <button
         className="block w-full cursor-default text-left"
         disabled={!isOverflowing}

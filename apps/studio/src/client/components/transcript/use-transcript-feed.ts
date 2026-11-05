@@ -20,7 +20,7 @@ interface FeedInput {
  * is its end and each after it only what moved, merged into what the query
  * holds, so the messages that did not move keep their objects.
  */
-export function transcriptFeedOptions(input: FeedInput) {
+function transcriptFeedOptions(input: FeedInput) {
   const queryKey = [
     "transcript-feed",
     input.id,

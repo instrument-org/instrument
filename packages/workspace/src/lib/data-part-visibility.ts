@@ -72,9 +72,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // turn carries. What a reader of a chat gets is the reply stopping mid-word,
   // which is not enough; the card that says so is still to design.
   "data-outputLimit": "dev",
-  // Drawn by the chat stream over the user's bubble, not in the part's place
-  // under it.
-  "data-reply": "hidden",
   // What the turn did to the person's skills, apps and memories, from its own
   // writes; see `setup-changes.ts`.
   "data-setupChanges": "always",

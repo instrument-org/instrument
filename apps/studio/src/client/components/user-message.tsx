@@ -10,12 +10,9 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { debounce } from "radashi";
-import { memo, useContext, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
-import { BubbleActions } from "./bubble-actions";
-import { FollowedBubblesContext } from "./bubble-run-context";
 import { CopyButton } from "./copy-button";
-import { RelativeTime } from "./relative-time";
 import { SkillMentionText } from "./skill-mention-text";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import {
@@ -23,13 +20,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-
-interface UserMessageProps {
-  /** A tighter bubble with no footer under it, for a narrow transcript. */
-  compact?: boolean;
-  part: SessionMessagePart.TextPart;
-}
 
 // The height a collapsed message clamps to: fifteen and a half of `text-sm`'s
 // 20px lines, so the cut lands in the middle of a line rather than between two,
@@ -46,14 +36,14 @@ const TOGGLE_ROW_CLASS =
   "flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground";
 
 export const UserMessage = memo(function UserMessage({
-  compact = false,
   part,
-}: UserMessageProps) {
+}: {
+  part: SessionMessagePart.TextPart;
+}) {
   const releaseAutoScroll = useReleaseAutoScroll();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  const isFollowed = useContext(FollowedBubblesContext).has(part.metadata.id);
 
   const messageText = part.text;
 
@@ -92,23 +82,21 @@ export const UserMessage = memo(function UserMessage({
   return (
     <div className="group flex w-full flex-col items-end">
       {/* The bubble's row, full width so the bubble's share is of the column,
-          and the room beside it where the conversation puts its controls. */}
+          with Copy in the room beside it, showing while the pointer is on the
+          row and holding its place either way, so the bubble never moves. */}
       <div className="group/bubble-row flex w-full items-end justify-end gap-1">
-        {compact && <BubbleActions onCopy={handleCopy} />}
-        <div
-          className={cn(
-            "relative max-w-[80%] text-foreground",
-            // In the conversation the user's bubble wears the brand's tint,
-            // rebuilt light and soft from the brand's hue since no token of the
-            // scale sits there, with soft corners and, on the last of a run,
-            // the short one at the bottom right, facing the assistant's on the
-            // card's ground; on a task page it is a card of its own.
-            compact
-              ? "rounded-2xl bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]"
-              : "rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm dark:from-card dark:to-card",
-            compact && !isFollowed && "rounded-br-md",
-          )}
-        >
+        <div className="flex shrink-0 items-center pb-0.5 opacity-0 group-hover/bubble-row:opacity-100 focus-within:opacity-100">
+          <CopyButton
+            className={SHARED.messageFooterButton}
+            iconSize={MESSAGE_FOOTER_ICON_SIZE}
+            label="Copy message"
+            onCopy={handleCopy}
+            tooltip="Copy message"
+          />
+        </div>
+        {/* The brand's tint, rebuilt light and soft from its hue since no token
+            of the scale sits there. */}
+        <div className="relative max-w-[80%] rounded-2xl rounded-br-md bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 text-foreground dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]">
           <Collapsible
             onOpenChange={(open) => {
               releaseAutoScroll();
@@ -141,14 +129,7 @@ export const UserMessage = memo(function UserMessage({
               {/* Over the text rather than the bubble's edge, so the last lines
                   visibly thin out above the row that says there is more. */}
               {!isExpanded && isOverflowing && (
-                <div
-                  className={cn(
-                    "pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t",
-                    compact
-                      ? "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]"
-                      : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",
-                  )}
-                />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]" />
               )}
             </div>
 
@@ -195,24 +176,6 @@ export const UserMessage = memo(function UserMessage({
         <div className="mt-1 flex items-center gap-1 pr-1 text-xs text-muted-foreground">
           <MicrophoneIcon className="size-3.5" />
           <span>Dictated</span>
-        </div>
-      )}
-      {compact ? null : (
-        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100">
-          <RelativeTime
-            className="cursor-default"
-            date={part.metadata.createdAt}
-          />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CopyButton
-                className={SHARED.messageFooterButton}
-                iconSize={MESSAGE_FOOTER_ICON_SIZE}
-                onCopy={handleCopy}
-              />
-            </TooltipTrigger>
-            <TooltipContent>Copy message</TooltipContent>
-          </Tooltip>
         </div>
       )}
     </div>

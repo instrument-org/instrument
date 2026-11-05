@@ -64,7 +64,6 @@ const VISIBLE = new Set<string>([
   "data-modelChange",
   "data-permissionAnswer",
   "data-questionAnswer",
-  "data-reply",
   "data-setupChanges",
   "data-taskEvent",
   "file",
@@ -264,12 +263,6 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
     }
     case "file": {
       return `${part.filename ?? "A file"} (${part.mediaType})`;
-    }
-    case "data-reply": {
-      return part.data.text
-        .split("\n")
-        .map((line) => `> ${line}`)
-        .join("\n");
     }
     case "data-attachments": {
       const sent = [

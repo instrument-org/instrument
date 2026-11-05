@@ -20,14 +20,14 @@ const NAMED_PATHS_CHECKED = 64;
 const FILES_KEPT = 100;
 
 /** A file's size and time, by path. */
-export type FolderSnapshot = Map<string, { mtimeMs: number; size: number }>;
+type FolderSnapshot = Map<string, { mtimeMs: number; size: number }>;
 
 /**
  * What the folders hold now, by size and modified time. A script is a black
  * box, so what it did is read from the disk: comparing two of these says what
  * changed whatever the program was, with nothing about it understood.
  */
-export async function snapshotFolders(
+async function snapshotFolders(
   folders: readonly string[],
 ): Promise<FolderSnapshot> {
   const snapshot: FolderSnapshot = new Map();
@@ -67,7 +67,7 @@ async function addFolder(root: string, snapshot: FolderSnapshot) {
 }
 
 /** What differs between two looks at the same folders. */
-export function changesBetween(
+function changesBetween(
   before: FolderSnapshot,
   after: FolderSnapshot,
 ): FileTouch[] {
@@ -156,7 +156,7 @@ function placesOf(
  * Paths the call's words name that the disk says changed during it. This is
  * what finds a file outside the chat's folders, wherever a script put it.
  */
-export async function namedPathChanges({
+async function namedPathChanges({
   known,
   places,
   startedAtMs,

@@ -223,7 +223,9 @@ const debugSurface: TranscriptSurface = {
     const part = use(DebugFrameContext)?.messages.find(
       (each) => each.metadata.id === step.metadata.id,
     );
-    return part && isToolPart(part) ? part : undefined;
+    return part && (isToolPart(part) || part.type === "reasoning")
+      ? part
+      : undefined;
   },
   useTaskFacts: (id): TaskCardFacts | undefined => {
     const found = taskFrame(use(DebugFrameContext), id);

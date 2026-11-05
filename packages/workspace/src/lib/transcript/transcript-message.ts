@@ -122,6 +122,11 @@ export function transcriptMessage(
   return { ...message, parts };
 }
 
+/** A thought's words: a provider that keeps them to itself leaves a marker. */
+export function thoughtText(text: string): string {
+  return text.replaceAll("[REDACTED]", "");
+}
+
 function transcriptParts(
   part: SessionMessagePart.Type,
   siblings: readonly SessionMessagePart.Type[],
@@ -136,11 +141,11 @@ function transcriptParts(
   }
   switch (part.type) {
     case "reasoning": {
-      return part.text.trim() === "" && part.state !== "streaming"
+      return thoughtText(part.text).trim() === "" && part.state !== "streaming"
         ? []
         : [
             {
-              explanation: part.text.slice(0, THOUGHT_CHARS),
+              explanation: thoughtText(part.text).slice(0, THOUGHT_CHARS),
               metadata: part.metadata,
               status: part.state === "streaming" ? "running" : "done",
               tool: "reasoning",

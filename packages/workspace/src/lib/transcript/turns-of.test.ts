@@ -74,7 +74,8 @@ function call(
   state:
     | "input-available"
     | "input-streaming"
-    | "output-available" = "output-available",
+    | "output-available"
+    | "output-error" = "output-available",
 ): SessionMessagePart.Type {
   const startedAt = tick();
   return {
@@ -491,6 +492,25 @@ describe("the slot", () => {
     expect(turn && slotOf(turn)?.kind).toBe("page");
   });
 
+  it("shows nothing for a call that failed", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(
+            id,
+            "write_file",
+            { content: "", filePath: "notes.md" },
+            undefined,
+            "output-error",
+          ),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn && slotOf(turn)).toBeUndefined();
+  });
+
   it("gives way to a task's card, which carries its own", () => {
     const task = StoreId.newSessionId();
     const [turn] = turnsOf(
@@ -523,6 +543,17 @@ describe("the slot", () => {
     );
     expect(turn?.live?.kind).toBe("activity");
   });
+
+  it.each(["", "  \n", "```", "```\n```", "~~~"])(
+    "draws no row for a reply of only %j",
+    (text) => {
+      const [turn] = turnsOf(
+        [typed("Do the thing"), message("assistant", (id) => [said(id, text)])],
+        { isRunning: false },
+      );
+      expect(turn?.rows).toEqual([]);
+    },
+  );
 
   it("says when the work has moved past the card", () => {
     const [behind] = turnsOf(

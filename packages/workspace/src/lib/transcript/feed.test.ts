@@ -61,20 +61,23 @@ describe("TranscriptProjection", () => {
     const reply = (words: string) =>
       stored("assistant", (id) => [text(id, words, partId)], messageId);
     const projection = new TranscriptProjection(false);
-    const first = projection.reset([typed("Hi"), reply("Hel")]);
+    const first = projection.reset([typed("Hi"), reply("Good")]);
     const next = projection.update({
-      changed: [reply("Hello")],
+      changed: [reply("Good day")],
       removed: [],
     });
     expect(next).toEqual({
       kind: "change",
-      patches: [{ kind: "append", messageId, partId, text: "lo" }],
+      patches: [{ kind: "append", messageId, partId, text: " day" }],
       removed: [],
       upserted: [],
     });
-    const held = applyFeedEvent(applyFeedEvent(undefined, first), next!);
+    if (!next) {
+      throw new Error("Nothing was sent");
+    }
+    const held = applyFeedEvent(applyFeedEvent(undefined, first), next);
     const last = held.messages.at(-1)?.parts[0];
-    expect(last?.type === "text" && last.text).toBe("Hello");
+    expect(last?.type === "text" && last.text).toBe("Good day");
   });
 
   it("sends nothing when what changed does not show", () => {
@@ -101,10 +104,11 @@ describe("TranscriptProjection", () => {
     const projection = new TranscriptProjection(false);
     const held = applyFeedEvent(undefined, projection.reset([a]));
     const added = stored("assistant", (id) => [text(id, "Reply")]);
-    const next = applyFeedEvent(
-      held,
-      projection.update({ changed: [added], removed: [] })!,
-    );
+    const event = projection.update({ changed: [added], removed: [] });
+    if (!event) {
+      throw new Error("Nothing was sent");
+    }
+    const next = applyFeedEvent(held, event);
     expect(next.messages[0]).toBe(held.messages[0]);
     expect(next.messages).toHaveLength(2);
   });

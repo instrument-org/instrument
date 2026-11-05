@@ -49,7 +49,7 @@ Two bugs **in the instrument**, both of which moved the transcript on the debug 
 
 ## What is suspected, and not yet shown
 
-The footer is the leading candidate. `shouldRenderFooter` in [chat-stream.tsx](../../apps/studio/src/client/components/chat-stream.tsx) depends on `lastAssistantMessageHasVisibleParts`, which is computed from the last assistant message's *visible* parts — and in an unannounced run the fold changes which of those are visible. So the footer can appear and vanish between consecutive frames, which would oscillate the height by its own height. That matches the report being about unannounced runs specifically.
+The footer is the leading candidate. `shouldRenderFooter` in `chat-stream.tsx` depends on `lastAssistantMessageHasVisibleParts`, which is computed from the last assistant message's *visible* parts — and in an unannounced run the fold changes which of those are visible. So the footer can appear and vanish between consecutive frames, which would oscillate the height by its own height. That matches the report being about unannounced runs specifically.
 
 **This is a hypothesis with an instrument pointed at it, not a diagnosis.** Nobody has yet stepped a scenario frame by frame and confirmed the delta flips sign as the footer comes and goes.
 

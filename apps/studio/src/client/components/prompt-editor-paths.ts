@@ -8,6 +8,7 @@ import { keymap } from "prosemirror-keymap";
 import { type Node as ProseMirrorNode } from "prosemirror-model";
 import {
   type Command,
+  type EditorState,
   Plugin,
   PluginKey,
   TextSelection,
@@ -51,6 +52,10 @@ const pathsKey = new PluginKey<DecorationSet>("paths");
  */
 export const pathsPlugin = (platform: string) =>
   new Plugin<DecorationSet>({
+    appendTransaction: (transactions, _previous, state) =>
+      transactions.some((tr) => tr.getMeta("pointer") === true)
+        ? caretOutsidePathQuote(state)
+        : undefined,
     key: pathsKey,
     props: {
       decorations: (state) => pathsKey.getState(state),
@@ -81,10 +86,13 @@ export function pathDecorations(doc: ProseMirrorNode, platform: string) {
           class: PATH_QUOTE_CLASS_NAME,
           "data-path-quote": "",
         };
-        const spec = { pathQuote: true };
         decorations.push(
-          Decoration.inline(start + from - 1, start + from, attributes, spec),
-          Decoration.inline(start + to, start + to + 1, attributes, spec),
+          Decoration.inline(start + from - 1, start + from, attributes, {
+            pathQuote: "open",
+          }),
+          Decoration.inline(start + to, start + to + 1, attributes, {
+            pathQuote: "close",
+          }),
         );
       }
       decorations.push(
@@ -103,6 +111,42 @@ export function pathDecorations(doc: ProseMirrorNode, platform: string) {
   return DecorationSet.create(doc, decorations);
 }
 
+/** Which quote beside a path starts at a position, if one does. */
+function pathQuoteAt(state: EditorState, from: number) {
+  const quote = pathsKey
+    .getState(state)
+    ?.find(
+      from,
+      from + 1,
+      (spec: { pathQuote?: "close" | "open" }) => spec.pathQuote !== undefined,
+    )
+    .find((found) => found.from === from);
+  // A decoration's spec is `any`; this plugin alone sets `pathQuote` on one.
+  return (quote?.spec as undefined | { pathQuote?: "close" | "open" })
+    ?.pathQuote;
+}
+
+/**
+ * Where a click beside a path puts the caret, which reads the same on either
+ * side of a quote: outside it, so what is typed next goes beside the path.
+ */
+function caretOutsidePathQuote(state: EditorState) {
+  const { $cursor } = state.selection as TextSelection;
+  if (!$cursor) {
+    return;
+  }
+  const { pos } = $cursor;
+  const outside =
+    pathQuoteAt(state, pos - 1) === "open"
+      ? pos - 1
+      : pathQuoteAt(state, pos) === "close"
+        ? pos + 1
+        : undefined;
+  return outside === undefined
+    ? undefined
+    : state.tr.setSelection(TextSelection.create(state.doc, outside));
+}
+
 /**
  * A key that moves or deletes by a letter treats a quote beside a path as not
  * there: the caret steps past it first and the key goes on to do what it does,
@@ -115,16 +159,7 @@ const stepOverPathQuote =
     if (!$cursor) {
       return false;
     }
-    const from = direction < 0 ? $cursor.pos - 1 : $cursor.pos;
-    const isQuote = pathsKey
-      .getState(state)
-      ?.find(
-        from,
-        from + 1,
-        (spec: { pathQuote?: boolean }) => spec.pathQuote === true,
-      )
-      .some((quote) => quote.from === from);
-    if (isQuote) {
+    if (pathQuoteAt(state, direction < 0 ? $cursor.pos - 1 : $cursor.pos)) {
       dispatch?.(
         state.tr.setSelection(
           TextSelection.create(state.doc, $cursor.pos + direction),
@@ -141,6 +176,11 @@ export const pathQuoteKeys = () =>
     ArrowRight: stepOverPathQuote(1),
     Backspace: stepOverPathQuote(-1),
     Delete: stepOverPathQuote(1),
+    // Deleting a word: Option on a Mac, Control elsewhere.
+    "Alt-Backspace": stepOverPathQuote(-1),
+    "Alt-Delete": stepOverPathQuote(1),
+    "Ctrl-Backspace": stepOverPathQuote(-1),
+    "Ctrl-Delete": stepOverPathQuote(1),
   });
 
 /** How long the disk gets to answer about a pasted path before the paste stays as it is. */

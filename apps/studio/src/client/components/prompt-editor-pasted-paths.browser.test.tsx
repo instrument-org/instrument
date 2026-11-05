@@ -42,6 +42,13 @@ async function renderEditor() {
 
 const editor = () => page.getByLabelText("Prompt");
 
+const editorRect = () =>
+  (
+    document.querySelector('[aria-label="Prompt"]') as Element
+  ).getBoundingClientRect();
+const editorLeft = () => editorRect().left;
+const editorTop = () => editorRect().top;
+
 async function paste(text: string) {
   await userEvent.click(editor());
   const clipboardData = new DataTransfer();
@@ -306,7 +313,7 @@ describe("the caret around a quoted path", () => {
     const ref = await pasted();
 
     await userEvent.keyboard("{Backspace}");
-    expect(ref.current?.getValue()).toBe('"/Users/me/My Doc"');
+    await expect.poll(() => ref.current?.getValue()).toBe('"/Users/me/My Doc"');
   });
 
   it("crosses the quote in one press of the Left arrow", async () => {
@@ -330,7 +337,51 @@ describe("the caret around a quoted path", () => {
     await userEvent.keyboard("!");
     await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowRight}");
     await userEvent.keyboard("{Delete}");
-    expect(ref.current?.getValue()).toBe(QUOTED);
+    await expect.poll(() => ref.current?.getValue()).toBe(QUOTED);
+  });
+
+  it("deletes the path's last word on Option+Backspace after it", async () => {
+    const ref = await pasted();
+
+    await userEvent.keyboard("{Alt>}{Backspace}{/Alt}");
+    await expect.poll(() => ref.current?.getValue()).toBe('"/Users/me/My "');
+  });
+
+  it.each([
+    ["at its end", (right: number) => right],
+    ["just inside its end", (right: number) => right - 1],
+  ])("types beside the path after a click %s", async (_name, xOf) => {
+    const ref = await pasted();
+    await userEvent.keyboard(" dude");
+
+    const tint = document.querySelector("[data-path]");
+    const range = document.createRange();
+    range.selectNodeContents(tint as Node);
+    const line = [...range.getClientRects()].at(-1) as DOMRect;
+    // Vitest's own coordinates are from the element's corner.
+    await userEvent.click(editor(), {
+      position: {
+        x: xOf(line.right) - editorLeft(),
+        y: line.top + line.height / 2 - editorTop(),
+      },
+    });
+    await userEvent.keyboard("x");
+    expect(ref.current?.getValue()).toBe(`${QUOTED}x dude`);
+  });
+
+  it("types in front of the path after a click on its start", async () => {
+    const ref = await pasted();
+
+    const tint = document.querySelector("[data-path]");
+    const rect = (tint as Element).getBoundingClientRect();
+    await userEvent.click(editor(), {
+      position: {
+        x: rect.left - editorLeft(),
+        y: rect.top + rect.height / 2 - editorTop(),
+      },
+    });
+    await userEvent.keyboard("x");
+    expect(ref.current?.getValue()).toBe(`x${QUOTED}`);
   });
 
   it("joins the line with Backspace from the path's first letter", async () => {
@@ -344,6 +395,6 @@ describe("the caret around a quoted path", () => {
     });
     await userEvent.keyboard(`{ArrowLeft>${PATH.length.toString()}/}`);
     await userEvent.keyboard("{Backspace}");
-    expect(ref.current?.getValue()).toBe(QUOTED);
+    await expect.poll(() => ref.current?.getValue()).toBe(QUOTED);
   });
 });

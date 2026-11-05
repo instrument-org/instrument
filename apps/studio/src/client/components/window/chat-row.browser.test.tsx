@@ -451,6 +451,19 @@ describe("ChatRow", () => {
     expect(peek?.getBoundingClientRect().height).toBeLessThan(24);
   });
 
+  it("shows a path in the latest line without its quotes", async () => {
+    const { row } = await renderRow(
+      chat({
+        latest: {
+          at: MOVED_AT.getTime(),
+          kind: "reply",
+          text: '"/Users/casey/My Docs" dude',
+        },
+      }),
+    );
+    expect(peekOf(row)?.textContent).toBe("/Users/casey/My Docs dude");
+  });
+
   it("carries no reply count, and the time", async () => {
     const { row } = await renderRow(chat());
     expect(row.querySelector('[aria-label="3 replies"]')).toBeNull();

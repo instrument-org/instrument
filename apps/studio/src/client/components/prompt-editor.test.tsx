@@ -241,7 +241,7 @@ describe("pathDecorations", () => {
       .find(
         undefined,
         undefined,
-        (spec: { pathQuote?: boolean }) => spec.pathQuote === true,
+        (spec: { pathQuote?: string }) => spec.pathQuote !== undefined,
       )
       .map(({ from }) => from - 1);
     expect(quotes).toEqual([15, 36]);

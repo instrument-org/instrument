@@ -52,6 +52,13 @@ export function splitPaths(line: string, platform: string): PathTextSegment[] {
   return segments;
 }
 
+/** A line as it reads with its paths shown as chips, for a place that shows only text. */
+export function withoutPathQuotes(line: string, platform: string) {
+  return splitPaths(line, platform)
+    .map(({ text }) => text)
+    .join("");
+}
+
 /**
  * The paths on this computer a line of someone's own words names, for a
  * file or folder icon beside each.

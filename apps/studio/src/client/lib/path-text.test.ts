@@ -5,6 +5,7 @@ import {
   pathToQuote,
   shortPathLabel,
   splitPaths,
+  withoutPathQuotes,
 } from "./path-text";
 
 describe("pathToQuote", () => {
@@ -38,6 +39,17 @@ describe("pathToQuote", () => {
     ["darwin", "two plain words"],
   ])("leaves anything else alone: %s %s", (platform, line) => {
     expect(pathToQuote(line, platform)).toBeUndefined();
+  });
+});
+
+describe("withoutPathQuotes", () => {
+  it("takes the quotes off a path and leaves every other word", () => {
+    expect(
+      withoutPathQuotes(
+        'say "hi there" about "/Users/me/My Docs" now',
+        "darwin",
+      ),
+    ).toBe('say "hi there" about /Users/me/My Docs now');
   });
 });
 

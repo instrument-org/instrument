@@ -55,12 +55,12 @@ beforeEach(() => {
 });
 
 describe("ActivitySection", () => {
-  it("turns off letting chats use the person's activity", async () => {
+  it("turns off letting chats see the person's activity from the toolbar", async () => {
     const setShare = vi.fn(() => null);
     calls.set("preferences.setShareActionsWithChats", setShare);
     renderWithProviders(<ActivitySection />);
     const toggle = await screen.findByRole("switch", {
-      name: /^Let chats use your activity/,
+      name: "Chats can see this",
     });
     await waitFor(() => {
       expect(toggle.getAttribute("aria-checked")).toBe("true");
@@ -69,6 +69,16 @@ describe("ActivitySection", () => {
     await waitFor(() => {
       expect(setShare).toHaveBeenCalledWith({ enabled: false });
     });
+  });
+
+  it("says what a chat gets behind the switch's ⓘ", async () => {
+    renderWithProviders(<ActivitySection />);
+    fireEvent.click(await screen.findByRole("button", { name: "More info" }));
+    expect(
+      await screen.findByText(
+        "Each message you send includes a short list of what you just did here, without names. A chat looks up a name when it needs one.",
+      ),
+    ).toBeTruthy();
   });
 
   it("clears what the person picks from the last hour, saying how much is there", async () => {

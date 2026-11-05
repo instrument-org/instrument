@@ -83,16 +83,16 @@ describe("matchSettings", () => {
       {
         "activity": [
           "Your activity",
-          "Clear your activity",
-          "Let chats use your activity",
+          "Clear activity",
           "Export CSV",
+          "Chats can see this",
         ],
         "chats": [
+          "Chats can see this",
           "Chats that can’t be opened",
-          "Let chats use your activity",
         ],
         "clear": [
-          "Clear your activity",
+          "Clear activity",
         ],
       }
     `);

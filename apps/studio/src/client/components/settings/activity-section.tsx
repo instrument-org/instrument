@@ -23,6 +23,11 @@ import { ClearActivityDialog } from "@/client/components/settings/clear-activity
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { WindowContext } from "@/client/components/window/context";
 import { Button } from "@/client/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -48,6 +53,8 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { InfoIcon } from "@phosphor-icons/react/Info";
+import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlugsIcon } from "@phosphor-icons/react/Plugs";
 import { TextboxIcon } from "@phosphor-icons/react/Textbox";
@@ -83,9 +90,9 @@ const activityViewAtom = keptAtom<ActivityView>(
 );
 
 const VIEW_LABELS: Record<ActivityView, string> = {
-  ai: "AI requests",
+  ai: "AI",
   all: "All",
-  yours: "Your activity",
+  yours: "You",
 };
 
 const EMPTY: Record<ActivityView, string> = {
@@ -235,13 +242,13 @@ function ActivityTimeline({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0">
         <h3 className="text-base font-semibold">Activity</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {`${APP_NAME} records what you do in it, so chats can tell what you're referring to. It records nothing outside ${APP_NAME}, and your activity is kept only on this computer.`}
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <LockSimpleIcon className="size-3.25 shrink-0" />
+          {`${APP_NAME} keeps a history of what you do in it on this computer.`}
         </p>
       </div>
-      <ChatsSwitch />
       <div
-        className="mt-4 flex min-h-8 shrink-0 flex-wrap items-center gap-2"
+        className="mt-5 flex min-h-8 shrink-0 flex-wrap items-center gap-2"
         {...settingAnchor("activity-history")}
       >
         <Tabs
@@ -266,6 +273,7 @@ function ActivityTimeline({
           </TabsList>
         </Tabs>
         <span className="flex-1" />
+        <ChatsSwitch />
         <Button
           disabled={empty}
           onClick={() => {
@@ -301,7 +309,7 @@ function ActivityTimeline({
           open={clearing}
         />
       </div>
-      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         {empty ? (
           <div className="grid h-full place-items-center p-6 text-sm text-muted-foreground">
             {EMPTY[view]}
@@ -323,7 +331,10 @@ function ActivityTimeline({
   );
 }
 
-/** Whether chats may read what the person did, with what that means either way. */
+/**
+ * Whether chats may read what the person did, as a switch in the toolbar,
+ * with what a chat gets behind its ⓘ.
+ */
 function ChatsSwitch() {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -337,19 +348,30 @@ function ChatsSwitch() {
   );
   const on = preferences?.shareActionsWithChats !== false;
   return (
-    <div className="mt-3 shrink-0 overflow-hidden rounded-xl border border-border bg-card">
-      <label
-        className="flex items-center gap-4 px-4 py-2"
-        {...settingAnchor("share-activity")}
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm">Let chats use your activity</span>
-          <span className="block text-[13px] text-muted-foreground">
-            {on
-              ? "Before each message, chats see what you just did, like a folder you opened or files you moved."
-              : `Chats don't see your activity. ${APP_NAME} still records it, so you can send it with a report.`}
-          </span>
-        </span>
+    <div
+      className="flex items-center gap-2 pr-2 text-sm"
+      {...settingAnchor("share-activity")}
+    >
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            aria-label="More info"
+            className="grid size-6 place-items-center rounded-md text-muted-foreground hover:text-foreground"
+            type="button"
+          >
+            <InfoIcon className="size-3.75" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          className="w-75 text-[13px] leading-4.5 text-muted-foreground"
+        >
+          Each message you send includes a short list of what you just did here,
+          without names. A chat looks up a name when it needs one.
+        </PopoverContent>
+      </Popover>
+      <label className="flex items-center gap-2">
+        Chats can see this
         <Switch
           checked={on}
           disabled={setShare.isPending}

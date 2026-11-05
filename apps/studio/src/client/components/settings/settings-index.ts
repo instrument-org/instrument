@@ -244,7 +244,7 @@ export const SETTINGS_INDEX = [
     detail: `Whether chats see what you just did in ${APP_NAME}, like a folder you opened or files you moved, so they can tell what you mean.`,
     id: "share-activity",
     tab: "Activity",
-    title: "Let chats use your activity",
+    title: "Chats can see this",
   },
   {
     detail: `The history of what you did in ${APP_NAME} and when: folders and files you opened, chats you read, pages you visited, with its AI requests in between.`,
@@ -253,11 +253,11 @@ export const SETTINGS_INDEX = [
     title: "Your activity",
   },
   {
-    detail: `Delete the history of what you did in ${APP_NAME}.`,
+    detail: `Delete what you did in ${APP_NAME}, its AI requests, or both, from a time range.`,
     id: "clear-activity",
     mark: "activity-history",
     tab: "Activity",
-    title: "Clear your activity",
+    title: "Clear activity",
   },
   {
     detail: "Save your activity and AI requests as a spreadsheet.",

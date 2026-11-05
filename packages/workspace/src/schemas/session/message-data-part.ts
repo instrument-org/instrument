@@ -14,6 +14,7 @@ import { ToldAppsSchema, ToldDigestsSchema } from "../told";
 
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
+    "actions",
     "appEvent",
     "asks",
     "folderChanges",
@@ -80,6 +81,7 @@ export namespace SessionMessageDataPart {
    * added without a line here does not compile.
    */
   export const CADENCE = {
+    actions: "event",
     appEvent: "event",
     asks: "event",
     attachments: "event",
@@ -1172,6 +1174,46 @@ export namespace SessionMessageDataPart {
   export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
 
   /**
+   * What the user did in the app before a message they typed, as the kinds
+   * of things done and never what they were done to (`lib/actions/`): a row
+   * per run of one kind, how many in it, and the whole minutes before the
+   * message of the newest. The names and paths stay in the log on this
+   * computer, which `instrument activity` reads, since the chat's records
+   * sync and go into feedback reports.
+   */
+  const ActionsDataPartSchema = z.object({
+    rows: z
+      .array(
+        z.object({
+          /** Things done in the run: files moved for a move, actions for the rest. */
+          count: z.number().int().min(1),
+          kind: z.enum([
+            "app",
+            "chat",
+            "copy",
+            "download",
+            "edit",
+            "error",
+            "file",
+            "folder",
+            "move",
+            "new-folder",
+            "open-with",
+            "page",
+            "rename",
+            "screen",
+            "setting",
+            "trash",
+          ]),
+          minutes: z.number().int().min(0),
+        }),
+      )
+      .min(1),
+  });
+
+  export type ActionsDataPart = z.output<typeof ActionsDataPartSchema>;
+
+  /**
    * The user's other chats at the moment a new chat opened, newest first:
    * each one's title, projects, latest line, and when it last moved, on the
    * root message of a chat an earlier build opened. Nothing writes it and
@@ -1342,6 +1384,7 @@ export namespace SessionMessageDataPart {
   export type RatingCardDataPart = z.output<typeof RatingCardDataPartSchema>;
 
   const DataPartsSchema = z.object({
+    [NameSchema.enum.actions]: ActionsDataPartSchema,
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,

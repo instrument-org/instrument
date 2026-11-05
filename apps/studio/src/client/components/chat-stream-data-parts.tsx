@@ -1,4 +1,5 @@
 import {
+  actionsModelNote,
   backgroundProcessesModelNote,
   dateChangeModelNote,
   environmentChangeModelNote,
@@ -67,6 +68,16 @@ export function renderDataPart({
   const noteClassName = compact ? "mt-1" : "mt-2";
 
   switch (part.type) {
+    case "data-actions": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={actionsModelNote(part.data)}
+        />
+      );
+    }
     case "data-appEvent": {
       if (ctx.presentation === "chat") {
         return ctx.isDeveloperMode ? (

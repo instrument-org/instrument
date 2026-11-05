@@ -46,6 +46,11 @@ const COMPOSE_KEY = "compose.v2";
  * when that window moves off it.
  */
 const SEE_THROUGH_OPACITY = 0.996;
+/**
+ * How far past another window's strip a tab held in it stays there, so that a
+ * tab does not come straight back out for a pointer that barely moved.
+ */
+const DOCKED_REACH_PX = 24;
 
 /**
  * Sets how see-through a window is, where that means anything. Linux does not stop
@@ -81,21 +86,25 @@ export type TabCarryEnd =
   /** The tab is in another window now, and this window closes. */
   | { kind: "closes" };
 
-/** Whether a point is on a window at all, and on the band its strip draws in. */
+/**
+ * Whether a point is on a window at all, and on the band its strip draws in.
+ * `reach` is how far past its top and sides and below its strip that band goes.
+ */
 export function placeOnWindow(
   bounds: Bounds,
   point: Point,
   bandHeight: number,
+  reach = 0,
 ): "band" | "body" | "off" {
   if (
-    point.x < bounds.x ||
-    point.x >= bounds.x + bounds.width ||
-    point.y < bounds.y ||
+    point.x < bounds.x - reach ||
+    point.x >= bounds.x + bounds.width + reach ||
+    point.y < bounds.y - reach ||
     point.y >= bounds.y + bounds.height
   ) {
     return "off";
   }
-  return point.y - bounds.y < bandHeight ? "band" : "body";
+  return point.y - bounds.y < bandHeight + reach ? "band" : "body";
 }
 
 /**
@@ -121,7 +130,7 @@ export function carryDestination<W extends WindowForCarry>({
     return { place: "none" };
   }
   for (const window of windows) {
-    const place = placeOnWindow(window.bounds, point, bandHeight);
+    const place = placeOnWindow(window.bounds, point, bandHeight, window.reach);
     if (place === "band") {
       return window === from ? { place: "none" } : { place: "band", window };
     }
@@ -182,6 +191,8 @@ function isSamePhase<W>(a: CarryPhase<W>, b: CarryPhase<W>) {
 
 interface WindowForCarry {
   bounds: Bounds;
+  /** How far past its strip it still counts as over it. */
+  reach?: number;
 }
 
 /** What a tab takes to another window if it goes there: the tab, and the pages that come with it. */
@@ -317,6 +328,11 @@ interface Carry {
   moving: Moving;
   /** Where the window was, and where a tab coming back finds it. */
   origin: Bounds;
+  /**
+   * The window whose strip the press was already over, which the tab has not
+   * been carried to: it takes the tab only once the pointer has left that strip.
+   */
+  overAtStart: BrowserWindow | null;
   phase: CarryPhase<BrowserWindow>;
   point: null | Point;
   poll: NodeJS.Timeout | null;
@@ -397,12 +413,15 @@ function carriedWindow({ from, goes, spare }: Carry) {
  * leaves its row: collapses it, or stays off the row until main says otherwise.
  */
 export function startTabCarry({
+  at,
   grab,
   isOffRow,
   isOnlyTab,
   moving,
   webContentsId,
 }: {
+  /** Where on the screen the drag starts. */
+  at?: Point | undefined;
   grab: Point;
   isOffRow: boolean;
   isOnlyTab: boolean;
@@ -447,6 +466,14 @@ export function startTabCarry({
     landsAt: undefined,
     moving,
     origin,
+    overAtStart:
+      at && canPlace
+        ? (windowsToLandOn({ from, spare }).find(
+            (window) =>
+              placeOnWindow(window.getBounds(), at, stripBandHeight()) ===
+              "band",
+          ) ?? null)
+        : null,
     phase: { kind: "row" },
     point: null,
     poll: null,
@@ -643,26 +670,38 @@ function followCursor() {
   }
 }
 
-function hitTest(
-  { from, isOnlyTab, origin, spare }: Carry,
-  point: Point | undefined,
-  canceled = false,
-) {
+/** How tall the band a window's strip draws in stands, at the zoom it is drawn at. */
+function stripBandHeight() {
+  return TOOLBAR_HEIGHT * getAppZoom();
+}
+
+/** The windows a carried tab could land in, front to back. */
+function windowsToLandOn({ from, spare }: Pick<Carry, "from" | "spare">) {
+  return getAppWindows().filter(
+    (window) =>
+      window !== from && window !== spare?.window && !window.isMinimized(),
+  );
+}
+
+function hitTest(current: Carry, point: Point | undefined, canceled = false) {
+  const { from, isOnlyTab, origin, overAtStart, phase } = current;
   // Home is where the window was, whichever window stands there now.
   const home = { bounds: origin, window: from };
   // Without a real place for each window, as on Wayland, no other strip can be told apart.
   const others = canPlaceWindows()
-    ? getAppWindows()
-        .filter(
-          (window) =>
-            window !== from &&
-            window !== spare?.window &&
-            !window.isMinimized(),
-        )
-        .map((window) => ({ bounds: window.getBounds(), window }))
+    ? windowsToLandOn(current)
+        .filter((window) => window !== overAtStart)
+        .map((window) => ({
+          bounds: window.getBounds(),
+          reach:
+            phase.kind === "docked" && phase.window === window
+              ? DOCKED_REACH_PX
+              : 0,
+          window,
+        }))
     : [];
   return carryDestination({
-    bandHeight: TOOLBAR_HEIGHT * getAppZoom(),
+    bandHeight: stripBandHeight(),
     canceled,
     from: home,
     point,
@@ -678,6 +717,15 @@ function updateCarry() {
   if (isBroken(carry)) {
     stopCarry();
     return;
+  }
+  const { overAtStart } = carry;
+  if (
+    overAtStart &&
+    (overAtStart.isDestroyed() ||
+      placeOnWindow(overAtStart.getBounds(), carry.point, stripBandHeight()) !==
+        "band")
+  ) {
+    carry.overAtStart = null;
   }
   const { place, window } = carry.isOffRow
     ? hitTest(carry, carry.point)
@@ -954,8 +1002,15 @@ function land(
     { isQuiet: true },
   );
   if (!moved) {
-    // Its page cannot take it right now, so the tab stays in a window of its own.
-    return standAlone(ending, at);
+    // Its page cannot take the tab right now. The carried window can still take
+    // on its strip, which needs nothing of that page.
+    if (goes === "tab") {
+      return standAlone(ending, at);
+    }
+    carry = null;
+    stopFollowing(ending);
+    leaveOthersBehind(ending);
+    return takeStrip(ending, target, targetId);
   }
   carry = null;
   stopFollowing(ending);

@@ -176,6 +176,19 @@ describe("where a window puts a point", () => {
   ] as const)("%o is %s", (point, place) => {
     expect(placeOnWindow(left.bounds, point, BAND)).toBe(place);
   });
+
+  it.each([
+    [{ x: 10, y: 63 }, "band"],
+    [{ x: 10, y: 64 }, "body"],
+    [{ x: 10, y: -24 }, "band"],
+    [{ x: 10, y: -25 }, "off"],
+    [{ x: -24, y: 10 }, "band"],
+    [{ x: -25, y: 10 }, "off"],
+    [{ x: 523, y: 10 }, "band"],
+    [{ x: 524, y: 10 }, "off"],
+  ] as const)("with reach, %o is %s", (point, place) => {
+    expect(placeOnWindow(left.bounds, point, BAND, 24)).toBe(place);
+  });
 });
 
 describe("where a tab let go lands", () => {
@@ -191,6 +204,13 @@ describe("where a tab let go lands", () => {
 
   it("stays put over its own strip", () => {
     expect(land({ x: 100, y: 20 })).toEqual({ place: "none" });
+  });
+
+  it("stays in a strip a little past its edge only where it is held already", () => {
+    const below = { x: 700, y: 50 };
+    expect(land(below)).toEqual({ place: "new" });
+    const held = { ...right, reach: 24 };
+    expect(land(below, [left, held])).toEqual({ place: "band", window: held });
   });
 
   it("is a window of its own over nothing", () => {

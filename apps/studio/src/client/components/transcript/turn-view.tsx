@@ -4,7 +4,6 @@ import { cn } from "@/client/lib/utils";
 import {
   type ChatInfo,
   FOLD_WAIT_MS,
-  isSlotBehind,
   isTurnFolded,
   slotOf,
   type SessionMessagePart,
@@ -232,7 +231,7 @@ function TurnBody({
           {index === lastWork && card && (
             <SlotCardView
               card={card}
-              isCurrent={!isSlotBehind(card, turn)}
+              isCurrent={turn.phase === "working"}
               sessionId={sessionId}
             />
           )}

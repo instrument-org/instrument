@@ -1,6 +1,5 @@
 import { cn } from "@/client/lib/utils";
 import {
-  isSlotBehind,
   slotOf,
   type StoreId,
   turnsOf,
@@ -89,7 +88,7 @@ export function TaskCardRow({
                   <WorkingDots />
                 </span>
               ) : facts?.failed ? (
-                <WarningIcon className="size-3.5 shrink-0 text-warning-600" />
+                <WarningIcon className="text-warning-600 size-3.5 shrink-0" />
               ) : (
                 <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
               )}
@@ -117,7 +116,7 @@ export function TaskCardRow({
       {card && turn && (
         <SlotCardView
           card={card}
-          isCurrent={!isSlotBehind(card, turn)}
+          isCurrent={turn.phase === "working"}
           sessionId={sessionId}
         />
       )}

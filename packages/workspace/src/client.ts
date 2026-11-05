@@ -48,7 +48,6 @@ export {
 } from "./lib/transcript/feed";
 export {
   cardsOf,
-  isSlotBehind,
   type SlotCard,
   type SlotKind,
   slotOf,

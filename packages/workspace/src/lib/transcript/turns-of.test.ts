@@ -4,7 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
-import { cardsOf, isSlotBehind, slotOf } from "./slot";
+import { cardsOf, slotOf } from "./slot";
 import {
   type TranscriptMessage,
   transcriptMessage,
@@ -422,13 +422,15 @@ describe("turnsOf", () => {
 
 describe("the slot", () => {
   const cardKinds = (turn: Turn | undefined) =>
-    turn
-      ? cardsOf(turn).map(
-          (card) => `${card.kind} x${card.steps.length.toString()}`,
-        )
-      : [];
+    (turn?.rows ?? []).flatMap((row) =>
+      row.kind === "activity"
+        ? cardsOf(row).map(
+            (card) => `${card.kind} x${card.steps.length.toString()}`,
+          )
+        : [],
+    );
 
-  it("gives a burst of one kind one card, and calls that show nothing change nothing", () => {
+  it("gives a run of one kind one card, and a file a card of its own", () => {
     const [turn] = turnsOf(
       [
         typed("Do the thing"),
@@ -485,7 +487,9 @@ describe("the slot", () => {
     );
     expect(cardKinds(turn)).toMatchInlineSnapshot(`
       [
-        "files x3",
+        "files x1",
+        "files x1",
+        "files x1",
         "web x2",
         "page x1",
       ]
@@ -741,20 +745,28 @@ describe("the slot", () => {
     },
   );
 
-  it("says when the work has moved past the card", () => {
-    const [behind] = turnsOf(
+  it("takes a card away with its activity, so a page left behind stays behind", () => {
+    const browsed = (id: Parameters<typeof call>[0]) =>
+      call(
+        id,
+        "bash",
+        { activity: "Browsing", command: "agent-browser open a.example" },
+        { exitCode: 0 },
+      );
+    const [browsing] = turnsOf(
+      [typed("Do the thing"), message("assistant", (id) => [browsed(id)])],
+      { isRunning: true },
+    );
+    expect(browsing && slotOf(browsing)?.kind).toBe("page");
+    const [movedOn] = turnsOf(
       [
         typed("Do the thing"),
         message("assistant", (id) => [
-          call(id, "write_file", {
-            activity: "Writing",
-            content: "a",
-            filePath: "/a.md",
-          }),
+          browsed(id),
           call(
             id,
             "bash",
-            { activity: "Checking", command: "sleep 5" },
+            { activity: "Adding it up", command: "sleep 5" },
             undefined,
             "input-available",
           ),
@@ -762,8 +774,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    const card = behind && slotOf(behind);
-    expect(card && behind && isSlotBehind(card, behind)).toBe(true);
+    expect(movedOn && slotOf(movedOn)).toBeUndefined();
   });
 
   it("shows a file a command changed, from what the disk told", () => {
@@ -804,11 +815,51 @@ describe("the slot", () => {
     );
     const card = turn && slotOf(turn);
     expect(card?.kind).toBe("files");
-    expect(card?.changedFiles).toEqual(["/work/report.csv"]);
+    expect(card?.changedFile).toBe("/work/report.csv");
     const row = turn?.rows[0];
     expect(row?.kind === "activity" && row.counts).toEqual([
       { count: 9, label: "rows added" },
     ]);
+  });
+
+  it("shows no card for a command that changed several files", () => {
+    const step = StoreId.newPartId();
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => {
+          const bash = call(
+            id,
+            "bash",
+            { activity: "Building", command: "python build.py" },
+            { exitCode: 0 },
+          );
+          return [
+            {
+              ...bash,
+              metadata: { ...bash.metadata, id: step },
+            } as SessionMessagePart.Type,
+            {
+              data: {
+                apps: [],
+                counts: [],
+                files: [
+                  { change: "created", path: "/work/a.csv", via: "disk" },
+                  { change: "created", path: "/work/b.csv", via: "disk" },
+                ],
+                hosts: [],
+                settled: true,
+                step,
+              },
+              metadata: meta(id),
+              type: "data-stepFacts",
+            } as SessionMessagePart.Type,
+          ];
+        }),
+      ],
+      { isRunning: true },
+    );
+    expect(turn && slotOf(turn)).toBeUndefined();
   });
 });
 

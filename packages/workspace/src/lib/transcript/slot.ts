@@ -1,7 +1,7 @@
 import { type StepShows } from "./transcript-message";
 import { type ActivityRow, type Turn, type TurnStep } from "./turns-of";
 
-/** The kinds of card, one card per run of a kind. */
+/** The kinds of card. */
 export type SlotKind = "files" | "generated" | "images" | "page" | "web";
 
 /**
@@ -9,10 +9,8 @@ export type SlotKind = "files" | "generated" | "images" | "page" | "web";
  * place, however many there are.
  */
 export interface SlotCard {
-  /** The activity its newest step belongs to, to tell whether work has moved on. */
-  activityId: ActivityRow["id"];
-  /** The files a shell call changed, which the disk told rather than the call. */
-  changedFiles: string[];
+  /** The one file a shell call changed, which the disk told rather than the call. */
+  changedFile: string | undefined;
   kind: SlotKind;
   steps: TurnStep[];
 }
@@ -28,69 +26,56 @@ const KIND_OF: Record<StepShows["kind"], SlotKind> = {
 };
 
 /**
- * The cards a turn's work comes to, in order. The rules for what the slot
- * shows, and all of them:
+ * The cards an activity's calls come to, in order. The rules for what a call
+ * puts up:
  *
- * 1. A card stays until a different kind of card replaces it or the agent
- *    speaks (`slotOf`). A call with nothing to show changes nothing, and a call
- *    that failed has nothing to show.
- * 2. Things of one kind share a card, so a burst of files is one card and
- *    a browser's commands update one page.
+ * 1. A call with nothing to show changes nothing, and a call that failed has
+ *    nothing to show.
+ * 2. Things of one kind share a card, so a browser's commands update one page.
+ * 3. A file card is one file: each file a call names replaces the last, and a
+ *    shell call that changed several shows none, since no one of them is what
+ *    it made.
  */
-export function cardsOf(turn: Pick<Turn, "rows">): SlotCard[] {
+export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
   const cards: SlotCard[] = [];
-  for (const row of turn.rows) {
-    if (row.kind !== "activity") {
+  for (const step of steps) {
+    if (step.status === "failed") {
       continue;
     }
-    for (const step of row.steps) {
-      if (step.status === "failed") {
-        continue;
-      }
-      const changedFiles = (step.facts?.files ?? []).flatMap((file) =>
-        file.via === "disk" && file.change !== "deleted" ? [file.path] : [],
-      );
-      const kind = step.shows
-        ? KIND_OF[step.shows.kind]
-        : changedFiles.length > 0
-          ? "files"
-          : undefined;
-      if (kind === undefined) {
-        continue;
-      }
-      const last = cards.at(-1);
-      if (last?.kind === kind) {
-        last.steps.push(step);
-        last.activityId = row.id;
-        last.changedFiles.push(...changedFiles);
-      } else {
-        cards.push({ activityId: row.id, changedFiles, kind, steps: [step] });
-      }
+    const changed = (step.facts?.files ?? []).flatMap((file) =>
+      file.via === "disk" && file.change !== "deleted" ? [file.path] : [],
+    );
+    const changedFile =
+      !step.shows && changed.length === 1 ? changed[0] : undefined;
+    const kind = step.shows
+      ? KIND_OF[step.shows.kind]
+      : changedFile !== undefined
+        ? "files"
+        : undefined;
+    if (kind === undefined) {
+      continue;
+    }
+    const last = cards.at(-1);
+    if (last?.kind === kind && kind !== "files") {
+      last.steps.push(step);
+    } else {
+      cards.push({ changedFile, kind, steps: [step] });
     }
   }
   return cards;
 }
 
 /**
- * The card up now: the turn's newest since the agent last spoke. Words go under
- * the work they follow and never move, and a card under those words would take
- * them from below it to above it at the next step, so the card goes as they
- * start. A task's card takes over from the work before it the same way, since
- * the task is what is moving now and carries a card of its own.
+ * The card up now: the newest of the activity going on. A card belongs to its
+ * activity and goes when the activity does, so a page the work has left never
+ * follows it down the chat. It goes as the agent speaks too, since words go
+ * under the work they follow and never move, and a task's card takes over the
+ * same way, since the task is what is moving now and carries a card of its own.
  */
 export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
-  const lastSaid = turn.rows.findLastIndex(
-    (row) => row.kind === "task" || row.kind === "text",
+  const newest = turn.rows.findLast(
+    (row) =>
+      row.kind === "activity" || row.kind === "task" || row.kind === "text",
   );
-  return cardsOf({ rows: turn.rows.slice(lastSaid + 1) }).at(-1);
-}
-
-/** Whether the work has moved past what the card shows. */
-export function isSlotBehind(
-  card: SlotCard,
-  turn: Pick<Turn, "live">,
-): boolean {
-  return (
-    turn.live?.kind !== "activity" || turn.live.activityId !== card.activityId
-  );
+  return newest?.kind === "activity" ? cardsOf(newest).at(-1) : undefined;
 }

@@ -17,8 +17,6 @@ import { Favicon } from "../favicon";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
-/** The most files a set names beside its newest. */
-const NAMES_SHOWN = 5;
 /** The earlier pictures a row of reads keeps beside its newest. */
 const EARLIER_SHOWN = 3;
 
@@ -41,9 +39,9 @@ type ShowsOf<K extends StepShows["kind"]> = Extract<StepShows, { kind: K }>;
 type PlaceOf = (path: string) => string | undefined;
 
 /** The paths a card names, as the calls spelled them. */
-function pathsOf({ changedFiles, steps }: SlotCard): string[] {
+function pathsOf({ changedFile, steps }: SlotCard): string[] {
   return [
-    ...changedFiles,
+    ...(changedFile === undefined ? [] : [changedFile]),
     ...steps.flatMap(({ shows }) => {
       switch (shows?.kind) {
         case "file": {
@@ -78,9 +76,9 @@ function shownBy<K extends StepShows["kind"]>(
 }
 
 /**
- * The live card: what the work is showing, in one place, so a person can watch
- * it without the transcript moving. Its foot always names what it shows, since
- * it can stay up after the work has moved on, and it loses its glow when it has.
+ * The live card: what the activity going on is showing, so a person can watch
+ * it without the transcript moving. It loses its glow if the turn ends with it
+ * still up.
  */
 export function SlotCardView({
   card,
@@ -88,7 +86,7 @@ export function SlotCardView({
   sessionId,
 }: {
   card: SlotCard;
-  /** The work is still on what this shows. */
+  /** The turn it belongs to is still working. */
   isCurrent: boolean;
   sessionId: StoreId.Session;
 }) {
@@ -311,84 +309,52 @@ function ResultList({ results }: { results: readonly WebResult[] }) {
 }
 
 function filesCard(
-  { changedFiles, steps }: SlotCard,
+  { changedFile, steps }: SlotCard,
   surface: TranscriptSurface | undefined,
   placeOf: PlaceOf,
 ): CardBody {
-  const written = shownBy(steps, "file");
-  const names = [
-    ...new Set([...written.map((file) => file.path), ...changedFiles]),
-  ];
-  const newestPath = changedFiles.at(-1) ?? written.at(-1)?.path;
-  const newest = written.findLast((file) => file.path === newestPath);
-  const place = newestPath && placeOf(newestPath);
-  const isWriting = newest?.status === "writing";
-  const list =
-    names.length > 1 ? (
-      <ul className="absolute inset-y-0 left-0 flex w-28 flex-col gap-1 overflow-hidden bg-muted/60 p-2 text-[11px]">
-        {names.slice(-NAMES_SHOWN).map((name) => (
-          <li className="truncate text-foreground/80" key={name}>
-            {baseName(name)}
-          </li>
-        ))}
-      </ul>
-    ) : null;
-  const offset = list ? "left-28" : "left-0";
-  const body = !newestPath ? null : newest?.after !== undefined ? (
-    <div
-      className={cn(
-        "absolute inset-y-0 right-0 overflow-hidden bg-card p-3 text-xs",
-        offset,
-      )}
-    >
-      {newest.before && (
-        <p className="mb-1.5 rounded-sm bg-destructive/10 px-1 whitespace-pre-wrap text-foreground/70">
-          {newest.before}
-        </p>
-      )}
-      <p className="rounded-sm bg-brand-500/10 px-1 whitespace-pre-wrap text-foreground/80">
-        {newest.after}
-      </p>
-    </div>
-  ) : newest?.words !== undefined ? (
-    <TypedWords className={offset} isWriting={isWriting} words={newest.words} />
-  ) : place ? (
-    <div className={cn("absolute inset-y-0 right-0", offset)}>
-      <FilePicture path={place} />
-    </div>
-  ) : null;
+  const written = shownBy(steps, "file").at(-1);
+  const path = changedFile ?? written?.path;
+  const place = path && placeOf(path);
+  const isWriting = written?.status === "writing";
   return {
     mark: <FileTextIcon className="size-3.5" />,
-    meta:
-      names.length > 1
-        ? `${names.length.toString()} files`
-        : isWriting
-          ? "Writing"
-          : newest?.after !== undefined
-            ? "Edited"
-            : "Written",
+    meta: isWriting
+      ? "Writing"
+      : written?.after !== undefined
+        ? "Edited"
+        : "Written",
     ...(place && {
       open: () => {
         surface?.onOpenFile(place);
       },
     }),
-    title: newestPath ? baseName(newestPath) : "A file",
-    view: (
-      <>
-        {list}
-        {body}
-      </>
-    ),
+    title: path ? baseName(path) : "A file",
+    view:
+      written?.after !== undefined ? (
+        <div className="absolute inset-0 overflow-hidden bg-card p-3 text-xs">
+          {written.before && (
+            <p className="mb-1.5 rounded-sm bg-destructive/10 px-1 whitespace-pre-wrap text-foreground/70">
+              {written.before}
+            </p>
+          )}
+          <p className="rounded-sm bg-brand-500/10 px-1 whitespace-pre-wrap text-foreground/80">
+            {written.after}
+          </p>
+        </div>
+      ) : written?.words !== undefined ? (
+        <TypedWords isWriting={isWriting} words={written.words} />
+      ) : place ? (
+        <FilePicture path={place} />
+      ) : null,
   };
 }
 
 /** A file's words as they arrive, kept at the end while they do. */
 function TypedWords({
-  className,
   isWriting,
   words,
 }: {
-  className?: string;
   isWriting: boolean;
   words: string;
 }) {
@@ -400,10 +366,7 @@ function TypedWords({
   }, [isWriting, words]);
   return (
     <div
-      className={cn(
-        "absolute inset-y-0 right-0 overflow-hidden bg-card px-3 py-2.5 text-xs whitespace-pre-wrap text-foreground/80",
-        className,
-      )}
+      className="absolute inset-0 overflow-hidden bg-card px-3 py-2.5 text-xs whitespace-pre-wrap text-foreground/80"
       ref={ref}
     >
       {words}

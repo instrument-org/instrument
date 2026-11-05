@@ -113,11 +113,6 @@ export interface BrowserViewManager {
   // guests of the workspace setup starts.
   bindHost: (host: WebContents, options?: { isSpare?: () => boolean }) => void;
   // Whether a person has used a page this window's renderer mounts, those named
-  // left out: what taking the renderer away from them would lose.
-  hasUsedPage: (
-    webContentsId: number,
-    except?: readonly BrowserTargetId[],
-  ) => boolean;
   // Whether a person has used any of these pages.
   isPageUsed: (targets: readonly BrowserTargetId[]) => boolean;
   browser: BrowserConfig;
@@ -502,8 +497,12 @@ function createBrowserViewManager(): BrowserViewManager {
       focusGuard.onGuestFocus(targetId);
     });
     guest.on("input-event", (_event, input) => {
+      const record = guests.get(guest.id);
+      if (record && input.type === "mouseWheel") {
+        record.wasScrolled = true;
+      }
       const byPerson = noteUserInput(
-        guests.get(guest.id),
+        record,
         input.type,
         focusGuard.isGuarded(targetId),
       );
@@ -617,9 +616,10 @@ function createBrowserViewManager(): BrowserViewManager {
   // A person's input, or an agent's commands: either leaves state a reload loses.
   const isUsed = (entry: BrowserEntry) => {
     const guestId = entry.webContents?.id;
+    const record = guestId === undefined ? undefined : guests.get(guestId);
     return (
       entry.lastAgentCommandAt > 0 ||
-      (guestId !== undefined && (guests.get(guestId)?.userInputAt ?? 0) > 0)
+      (record !== undefined && (record.userInputAt > 0 || record.wasScrolled))
     );
   };
 
@@ -1168,13 +1168,6 @@ function createBrowserViewManager(): BrowserViewManager {
           isInUse: isInUse(entry),
           targetId: entry.targetId,
         })),
-    hasUsedPage: (webContentsId, except = []) =>
-      [...entries.values()].some(
-        (entry) =>
-          hostIdOf(entry) === webContentsId &&
-          !except.includes(entry.targetId) &&
-          isUsed(entry),
-      ),
     isPageUsed: (targets) =>
       targets.some((target) => {
         const entry = entries.get(target);

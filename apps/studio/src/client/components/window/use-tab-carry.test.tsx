@@ -1,12 +1,10 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { endTabCarry, noteTabCarry, startTabCarry } = vi.hoisted(() => ({
   endTabCarry: vi.fn(() => Promise.resolve({ kind: "none" })),
   noteTabCarry: vi.fn(() => Promise.resolve()),
-  startTabCarry: vi.fn(() =>
-    Promise.resolve({ collapsesOffRow: false, staysOffRow: true }),
-  ),
+  startTabCarry: vi.fn(() => Promise.resolve({ collapsesOffRow: true })),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
@@ -62,13 +60,15 @@ const isHeld = () =>
 
 const flush = () => new Promise((resolve) => setTimeout(resolve));
 
+const onSelect = vi.fn();
+
 function renderCarry() {
   return renderHook(() =>
     useTabCarry({
       isOnlyTab: false,
       onCancel: vi.fn(),
       onPlace: vi.fn(),
-      onSelect: vi.fn(),
+      onSelect,
       order: ["a", "b"],
     }),
   ).result;
@@ -78,6 +78,7 @@ beforeEach(() => {
   endTabCarry.mockClear();
   noteTabCarry.mockClear();
   startTabCarry.mockClear();
+  onSelect.mockClear();
   document.body.innerHTML = `<div data-app-tab-strip><div role="tablist"><div data-tab-key="a"></div></div></div>`;
 });
 
@@ -149,5 +150,49 @@ describe("a tab's release", () => {
     expect(noteTabCarry.mock.invocationCallOrder[0]).toBeLessThan(
       endTabCarry.mock.invocationCallOrder[0] ?? 0,
     );
+  });
+});
+
+describe("a tab pulled off its row", () => {
+  const OFF_ROW = 400;
+
+  it("leaves its strip as if it had gone, with the tab beside it up", async () => {
+    const carry = renderCarry();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", moved(1, OFF_ROW));
+    });
+
+    expect(carry.current.carriedKey).toBe("a");
+    expect(onSelect).toHaveBeenLastCalledWith("b");
+  });
+
+  it("comes back to its place and its selection on the row", async () => {
+    const carry = renderCarry();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", moved(1, OFF_ROW));
+    });
+    act(() => {
+      carry.current.onDrag("a", moved(2, 20));
+    });
+
+    expect(carry.current.carriedKey).toBeUndefined();
+    expect(onSelect).toHaveBeenLastCalledWith("a");
+  });
+
+  it("stays in its strip where nothing can go with the pointer", async () => {
+    startTabCarry.mockResolvedValueOnce({ collapsesOffRow: false });
+    const carry = renderCarry();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", moved(1, OFF_ROW));
+    });
+
+    expect(carry.current.carriedKey).toBeUndefined();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

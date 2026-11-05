@@ -4,19 +4,19 @@ import { atom, getDefaultStore } from "jotai";
 import { useEffect } from "react";
 
 /**
- * What this window's strip shows of a tab held by the pointer. The renderer keeps
- * its tabs as they are until the tab is let go, which is what makes going back to
- * the row or Escape cost nothing, so this is only what is drawn meanwhile.
+ * What main has this window's strip show of a tab's drag. A tab held over the
+ * strip is only drawn here until it is let go, which is what makes taking it away
+ * again cost nothing.
  */
 export const tabCarryViewAtom = atom<TabCarryView>({ kind: "row" });
 
-/** Where the tab held over another window's strip stands along it. */
+/** Where the tab held over this window's strip stands along it. */
 export const tabCarryIndexAtom = atom<number | undefined>(undefined);
 
 export function showTabCarryView(view: TabCarryView) {
   const store = getDefaultStore();
   store.set(tabCarryViewAtom, view);
-  if (view.kind !== "docked") {
+  if (view.kind !== "incoming") {
     store.set(tabCarryIndexAtom, undefined);
   }
 }
@@ -43,40 +43,32 @@ export function useTabCarryView() {
   }, []);
 }
 
-/** Whether a tab held by the pointer is what this window's strip is showing. */
-export function isTabHeldHere(
-  view: TabCarryView,
-): view is Extract<TabCarryView, { heldId: TabId }> {
-  return view.kind === "free" || view.kind === "docked";
-}
-
-/** The tabs a strip draws, as the held tab stands. */
+/** The tabs a strip draws, with a tab held over it among them. */
 export function tabsInView(
   tabs: readonly { id: TabId; pathname: string }[],
   view: TabCarryView,
   index = 0,
 ): readonly { id: TabId; pathname: string }[] {
-  if (!isTabHeldHere(view)) {
+  if (view.kind !== "incoming") {
     return tabs;
   }
-  const held = tabs.filter((tab) => tab.id === view.heldId);
-  if (view.kind === "free") {
-    return held;
-  }
-  const others = view.tabs.filter((tab) => tab.id !== view.heldId);
-  return [...others.slice(0, index), ...held, ...others.slice(index)];
+  const others = tabs.filter((tab) => tab.id !== view.tab.id);
+  return [...others.slice(0, index), view.tab, ...others.slice(index)];
 }
 
 /**
- * Where the held tab stands over another window's strip, read off the strip as
- * laid out, and told to main, which lands it there.
+ * Where the held tab stands over this window's strip, read off the strip as laid
+ * out, and told to main, which lands it there.
  */
-export function measureCarryIndex(view: TabCarryView) {
-  if (view.kind !== "docked") {
+export function measureCarryIndex(
+  view: TabCarryView,
+  tabs: readonly { id: TabId }[],
+) {
+  if (view.kind !== "incoming") {
     return;
   }
   const store = getDefaultStore();
-  const index = stripIndexAt(view.clientX, view.tabs, view.heldId);
+  const index = stripIndexAt(view.clientX, tabs, view.tab.id);
   if (store.get(tabCarryIndexAtom) !== index) {
     store.set(tabCarryIndexAtom, index);
     void rpcClient.window.placeTabCarry.call({ index });

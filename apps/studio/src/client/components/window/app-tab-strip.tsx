@@ -54,7 +54,6 @@ import { useTabCarry } from "./use-tab-carry";
 import { type StripTab, TabStrip } from "./tab-strip";
 import { moveTabOut } from "./move-tab";
 import {
-  isTabHeldHere,
   measureCarryIndex,
   stripIndexAt,
   tabCarryIndexAtom,
@@ -116,12 +115,11 @@ export function AppTabStrip({
   // Measured from the strip as drawn, so the tab comes to rest where the
   // pointer is once it has joined the strip, moved or not.
   useLayoutEffect(() => {
-    measureCarryIndex(carryView);
-  }, [carryView, carryIndex]);
+    measureCarryIndex(carryView, tabs);
+  }, [carryView, carryIndex, tabs]);
   const shownTabs = tabsInView(tabs, carryView, carryIndex);
-  const shownSelectedId = isTabHeldHere(carryView)
-    ? carryView.heldId
-    : selectedId;
+  const incoming = carryView.kind === "incoming" ? carryView : undefined;
+  const shownSelectedId = incoming ? incoming.tab.id : selectedId;
 
   const whole = shownTabs.map((tab) => ({
     key: tab.id,
@@ -151,7 +149,7 @@ export function AppTabStrip({
   // The window is called what its tab up is, alone, as a document window is:
   // the OS already names the app beside it in the Dock, the switcher and
   // Mission Control. Whole, since the window's title stands alone.
-  const selectedTitle = whole.find((tab) => tab.key === shownSelectedId)?.title;
+  const selectedTitle = whole.find((tab) => tab.key === selectedId)?.title;
   useEffect(() => {
     document.title = selectedTitle ?? APP_NAME;
   }, [selectedTitle]);
@@ -194,10 +192,14 @@ export function AppTabStrip({
       <TabStrip
         carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
-        groupKey={carryView.kind}
-        heldAwayKey={
-          isTabHeldHere(carryView) ? carryView.heldId : carry.canceledKey
+        heldAt={
+          incoming && {
+            key: incoming.tab.id,
+            left: incoming.clientX - incoming.pointInTab,
+          }
         }
+        heldAwayKey={carry.heldAwayKey}
+        isStill={carryView.kind === "reshaping"}
         onClose={(key) => {
           const id = idOf(key);
           if (id) {

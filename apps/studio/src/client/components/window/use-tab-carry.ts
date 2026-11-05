@@ -3,27 +3,21 @@ import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type TabId } from "@/shared/tabs";
-import { getDefaultStore, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { useRef, useState } from "react";
 
 import { settleTabMove, tabStanding } from "./move-tab";
-import {
-  isTabHeldHere,
-  showTabCarryView,
-  tabCarryViewAtom,
-} from "./tab-carry-view";
+import { showTabCarryView } from "./tab-carry-view";
 import { isOffRow, type PointerSample, recentPath } from "./tab-pull";
 
 /** One drag of a tab, from its first movement to its release. */
 interface TabDrag {
   canceled: boolean;
-  /** Off its row, it leaves its strip for a window that follows the pointer. */
+  /** Off its row, its strip closes up behind it, with its picture going with the pointer. */
   collapsesOffRow: boolean;
   /** It has been off its row, so where it stands comes from the pointer (`onPlace`). */
   hasLeftRow: boolean;
-  /** Its window went off with it: the pointer's place in the window no longer says where it is. */
-  isHeldAway: boolean;
-  /** Its neighbor came up in its place, since the tab went to another window. */
+  /** Its neighbor came up in its place, as if it had gone. */
   isNeighborUp: boolean;
   isOffRow: boolean;
   key: string;
@@ -32,25 +26,22 @@ interface TabDrag {
   pointInTab: number;
   /** When the movement that started it happened, which a release older than this is not part of. */
   startedAt: number;
-  /** Its window goes with it, so it is off its row until main says otherwise. */
-  staysOffRow: boolean;
   stop: () => void;
-  /** Where a pointer event read the window as the drag started. */
-  windowX: number;
 }
 
 /**
  * A tab's drag past what the strip's own reorder can see. The reorder goes on
  * holding the pointer, whose events keep arriving past the window's edge while
  * the button is down, and the main process, which sees every window, is told
- * from the first movement so a window is ready to go up. Pulled off the row, the
- * window goes with the tab and the rest stay put in the spare window beneath, or
- * the tab goes to the spare window where that would lose less. Back on the row
- * both undo. The strip keeps its order while the tab is off, and Escape gives
- * back the order and the tab from the start of the drag. The reorder's measures
- * date from the press and a strip since drawn differently, and one reorder it is
- * refused stops it until the order changes, so a tab back on its row is placed by
- * where its left edge is (`onPlace`).
+ * from the first movement. Pulled off the row, the tab leaves its strip as if it
+ * had gone, with the tab beside it coming up, and main has a picture of it follow
+ * the pointer. Nothing else happens until it is let go, so back on the row or
+ * Escape it simply returns. The strip keeps its order while the tab is off, and
+ * Escape gives back the order and the tab from the start of the drag. The
+ * reorder's measures date from the press and a strip since drawn differently, and
+ * one reorder it is refused stops it until the order changes, so a tab back on its
+ * row is placed by where its left edge is (`onPlace`). A window's only tab has no
+ * row to leave, and its window goes with the pointer.
  */
 export function useTabCarry({
   isOnlyTab,
@@ -67,9 +58,10 @@ export function useTabCarry({
 }) {
   const zoom = useAtomValue(zoomAtom);
   const [carriedKey, setCarriedKey] = useState<string>();
-  // Escape puts the window back at once, with the button yet to come up: the tab
-  // stays where it stands until it does.
-  const [canceledKey, setCanceledKey] = useState<string>();
+  // The tab whose place in the strip the pointer does not say: a window's only
+  // tab moves with its window, and Escape has the tab back with the button yet to
+  // come up.
+  const [heldAwayKey, setHeldAwayKey] = useState<string>();
   const dragging = useRef<TabDrag>(undefined);
 
   const showWhereItIs = (drag: TabDrag) => {
@@ -105,7 +97,7 @@ export function useTabCarry({
         drag.canceled = true;
         showWhereItIs(drag);
         onCancel(drag.orderAtStart);
-        setCanceledKey(drag.key);
+        setHeldAwayKey(drag.key);
         void rpcClient.window.endTabCarry
           .call({ canceled: true })
           .catch(() => undefined)
@@ -129,11 +121,13 @@ export function useTabCarry({
     };
     window.addEventListener("pointerup", onRelease, { capture: true });
     window.addEventListener("pointercancel", onRelease, { capture: true });
+    if (isOnlyTab) {
+      setHeldAwayKey(key);
+    }
     const drag: TabDrag = {
       canceled: false,
       collapsesOffRow: false,
       hasLeftRow: isOnlyTab,
-      isHeldAway: false,
       isNeighborUp: false,
       // A window's only tab has no row to be on: the window goes with it.
       isOffRow: isOnlyTab,
@@ -142,7 +136,6 @@ export function useTabCarry({
       path: [],
       pointInTab,
       startedAt: event.timeStamp,
-      staysOffRow: false,
       stop: () => {
         window.removeEventListener("keydown", onKeyDown, { capture: true });
         window.removeEventListener("pointerup", onRelease, { capture: true });
@@ -151,7 +144,6 @@ export function useTabCarry({
         });
         document.documentElement.removeAttribute("data-tab-held");
       },
-      windowX: event.screenX - event.clientX,
     };
     dragging.current = drag;
     // The press selected the tab, which is what a tab's page has to show.
@@ -165,16 +157,16 @@ export function useTabCarry({
       }
       const started = await rpcClient.window.startTabCarry.call({
         at: { x: event.screenX, y: event.screenY },
-        // In the window that goes with it, the tab stands first in the strip, so
-        // the pointer holds it there at the same point of the tab it pressed.
+        // In a window of its own, the tab stands first in the strip, so the pointer
+        // holds it there at the same point of the tab it pressed.
         grab: { x: strip.left + pointInTab, y: event.clientY },
         isOffRow: drag.isOffRow,
         isOnlyTab,
         moving,
+        pointInTab,
       });
       if (dragging.current === drag) {
         drag.collapsesOffRow = started.collapsesOffRow;
-        drag.staysOffRow = started.staysOffRow;
         showWhereItIs(drag);
       }
     });
@@ -185,25 +177,13 @@ export function useTabCarry({
     if (drag?.key !== key || drag.canceled) {
       return;
     }
-    const isHeldAway = isTabHeldHere(getDefaultStore().get(tabCarryViewAtom));
-    if (drag.isHeldAway !== isHeldAway) {
-      drag.isHeldAway = isHeldAway;
-      if (!isHeldAway) {
-        // Main has put the window back on the row, which it alone can tell.
-        drag.isOffRow = isOnlyTab;
-        drag.path = [];
-      }
-    }
     drag.path = recentPath(drag.path, {
       at: event.timeStamp,
       x: event.clientX,
       y: event.clientY,
     });
-    // Where the window goes with the tab, the pointer stays where it is on the
-    // window, so a tab off its row is off it until main says otherwise.
     drag.isOffRow =
       isOnlyTab ||
-      (drag.staysOffRow && drag.isOffRow) ||
       isOffRow({
         path: drag.path,
         // The whole bar, since main takes all of it for the strip: anywhere on
@@ -213,12 +193,7 @@ export function useTabCarry({
         windowWidth: window.innerWidth,
       });
     drag.hasLeftRow ||= drag.isOffRow;
-    // An event still on its way as the window comes back reads it where it was.
-    if (
-      drag.hasLeftRow &&
-      !drag.isOffRow &&
-      Math.abs(event.screenX - event.clientX - drag.windowX) <= 1
-    ) {
+    if (drag.hasLeftRow && !drag.isOffRow) {
       onPlace(key, event.clientX - drag.pointInTab);
     }
     showWhereItIs(drag);
@@ -241,8 +216,8 @@ export function useTabCarry({
     }
     dragging.current = undefined;
     drag.stop();
+    setHeldAwayKey(undefined);
     if (drag.canceled) {
-      setCanceledKey(undefined);
       return;
     }
     const backOnRow = () => {
@@ -270,9 +245,9 @@ export function useTabCarry({
   };
 
   return {
-    canceledKey,
     carriedKey,
     followsReorder,
+    heldAwayKey,
     onDrag,
     onDragEnd,
     onDragStart,

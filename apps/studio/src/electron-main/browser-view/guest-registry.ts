@@ -69,6 +69,8 @@ export interface GuestRecord {
    * not counted; see `noteUserInput` in `external-app-links.ts`.
    */
   userInputAt: number;
+  /** A person has scrolled it, which leaves a place a reload can lose. It lets a page do nothing, unlike a click or a key. */
+  wasScrolled: boolean;
 }
 
 const keyOf = ({ processId, routingId }: FrameId) =>
@@ -107,6 +109,7 @@ export function createGuestRegistry() {
       id,
       role,
       userInputAt: 0,
+      wasScrolled: false,
     };
     records.set(id, record);
     contents.on("enter-html-full-screen", () => {

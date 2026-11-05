@@ -8,7 +8,11 @@ export {
   LoggedActionSchema,
 } from "./lib/actions/schema";
 export { ActivityFilterSchema } from "./lib/activity/schema";
-export { activityCsv } from "./lib/activity/store";
+export {
+  activityCsv,
+  clearOwnActivity,
+  countOwnActivity,
+} from "./lib/activity/store";
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,

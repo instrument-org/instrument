@@ -1,7 +1,4 @@
-import {
-  actionLog,
-  readActionsNewestFirst,
-} from "@instrument-org/workspace/electron";
+import { readActionsNewestFirst } from "@instrument-org/workspace/electron";
 import { base } from "@/electron-main/rpc/base";
 import { z } from "zod";
 
@@ -33,9 +30,4 @@ const list = base
     return { actions, next: more ? skip + actions.length : null, until };
   });
 
-/** Deletes everything the action log has kept. */
-const clear = base.handler(async () => {
-  await actionLog().clear();
-});
-
-export const actions = { clear, list };
+export const actions = { list };

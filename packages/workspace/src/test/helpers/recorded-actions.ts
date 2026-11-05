@@ -53,7 +53,7 @@ export function recordActions(actions: [at: number, RecordedAction][]) {
 }
 
 /** Forgets everything `recordActions` recorded. */
-export async function forgetRecordedActions() {
+export function forgetRecordedActions() {
   history.length = 0;
-  await actionLog().clear();
+  actionLog().clear();
 }

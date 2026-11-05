@@ -245,6 +245,20 @@ describe("opened files", () => {
     ]);
   });
 
+  it("clears the opens from a time, keeping a file's earlier ones and its count", () => {
+    const history = store();
+    history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
+    history.addFileOpen({ at: 5, path: "/a/one.txt", via: "external" });
+    history.addFileOpen({ at: 6, path: "/a/two.txt", via: "tab" });
+    expect(history.clearFileOpens(5)).toEqual({ removed: 2 });
+    expect(history.openedFiles(10)).toEqual([
+      { at: 1, openCount: 1, path: "/a/one.txt" },
+    ]);
+    expect(history.personHistory({ since: 0, until: 10 })).toHaveLength(1);
+    history.clearFileOpens();
+    expect(history.openedFiles(10)).toEqual([]);
+  });
+
   it("is left alone by clearing browsing history", () => {
     const history = store();
     history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });

@@ -125,9 +125,37 @@ describe("ActionLog", () => {
 
   it("clears every day", async () => {
     log.record({ kind: "screen", name: "Apps" });
-    await log.clear();
+    log.clear();
     expect(fs.readdirSync(dir)).toEqual([]);
     log.record({ kind: "screen", name: "Skills" });
     expect(await log.read({ since: 0 })).toHaveLength(1);
+  });
+
+  it("clears from a time, writing the day it starts in again with its earlier lines", async () => {
+    for (const [day, hour] of [
+      [3, 9],
+      [4, 9],
+      [5, 9],
+      [5, 13],
+      [5, 14],
+    ] as const) {
+      now = new Date(2026, 10, day, hour).getTime();
+      log.record({ kind: "screen", name: `${day} ${hour}` });
+    }
+    log.clear(new Date(2026, 10, 5, 12).getTime());
+    expect(fs.readdirSync(dir).toSorted()).toEqual([
+      "2026-11-03.jsonl",
+      "2026-11-04.jsonl",
+      "2026-11-05.jsonl",
+    ]);
+    log.record({ kind: "screen", name: "after" });
+    expect(
+      (await log.read({ since: 0 })).map(
+        (each) => each.kind === "screen" && each.name,
+      ),
+    ).toEqual(["3 9", "4 9", "5 9", "after"]);
+
+    log.clear(new Date(2026, 10, 4).getTime());
+    expect(fs.readdirSync(dir)).toEqual(["2026-11-03.jsonl"]);
   });
 });

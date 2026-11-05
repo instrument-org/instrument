@@ -82,6 +82,12 @@ export function activityFileOf(
   return path.join(activityDirOf(rootDir, device), `${month}.jsonl`);
 }
 
+/** When the month a file is named for ends, in UTC. */
+export function monthEndOf(file: string): number {
+  const [year, month] = path.basename(file, ".jsonl").split("-").map(Number);
+  return Date.UTC(year ?? 0, month ?? 0);
+}
+
 /** Every device's activity files in the workspace, each with its device. */
 export function activityFiles(
   rootDir: string,

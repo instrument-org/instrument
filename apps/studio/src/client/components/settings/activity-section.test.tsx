@@ -71,16 +71,23 @@ describe("ActivitySection", () => {
     });
   });
 
-  it("clears the person's activity at once, with nothing to confirm", async () => {
+  it("clears what the person picks from the last hour, saying how much is there", async () => {
     const clear = vi.fn(() => null);
-    calls.set("actions.clear", clear);
+    calls.set("activity.clear", clear);
+    data.set("activity.summary", { actions: 14, requests: 1 });
     renderWithProviders(<ActivitySection />);
     expect(await screen.findByText("No activity yet.")).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Clear your activity" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear activity…" }));
+    expect(await screen.findByText("14 things")).toBeTruthy();
+    expect(screen.getByText("1 request made on this computer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "AI requests" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     await waitFor(() => {
-      expect(clear).toHaveBeenCalledTimes(1);
+      expect(clear).toHaveBeenCalledWith({
+        actions: true,
+        requests: true,
+        since: expect.any(Number),
+      });
     });
   });
 });

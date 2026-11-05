@@ -23,8 +23,8 @@ const named = (actions: { at: string; kind: string }[]) =>
         : each.kind,
   );
 
-afterEach(async () => {
-  await forgetRecordedActions();
+afterEach(() => {
+  forgetRecordedActions();
 });
 
 describe("readActions", () => {

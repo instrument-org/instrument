@@ -6,7 +6,13 @@ import { ulid } from "ulid";
 import { getWorkspaceConfig } from "../workspace-config";
 import { versionMatches, workspaceTables } from "../workspace-db";
 import { type LinesRead, readLinesFrom } from "../workspace-files";
-import { activityFileOf, activityFiles, lineOf, rowOf } from "./log-file";
+import {
+  activityFileOf,
+  activityFiles,
+  lineOf,
+  monthEndOf,
+  rowOf,
+} from "./log-file";
 import {
   ACTIVITY_FACETS,
   type ActivityEntry,
@@ -309,6 +315,86 @@ export function insertActivity(entry: ActivityEntry): void {
   } catch (error) {
     report(error);
   }
+}
+
+/** When a line says its request started, or nothing for one that will not parse. */
+function startOf(line: string): number | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    const at =
+      typeof parsed === "object" && parsed !== null && "at" in parsed
+        ? Date.parse(String(parsed.at))
+        : Number.NaN;
+    return Number.isNaN(at) ? undefined : at;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Removes the requests this device made at or after `since`, or all of
+ * them without it, from its own files and from the index, so the list reads
+ * without them. Another device's files are that device's alone to write and
+ * are left as they are. A month wholly in that time goes; the month it
+ * starts in is written again with its earlier lines. Answers how many went
+ * from the index.
+ */
+export async function clearOwnActivity(
+  since?: number,
+): Promise<{ removed: number }> {
+  const { deviceId, rootDir } = getWorkspaceConfig();
+  const from = since ?? Number.NEGATIVE_INFINITY;
+  const own = activityFiles(rootDir).filter(
+    ({ device, file }) => device === deviceId && monthEndOf(file) > from,
+  );
+  for (const { file } of own) {
+    // Read once off the main thread, so a file a sync service had made
+    // name-only is on disk before the synchronous pass below.
+    await fs.promises.readFile(file).catch(() => undefined);
+  }
+  for (const { file } of own) {
+    let text: string;
+    try {
+      // oxlint-disable-next-line studio/no-sync-content-read -- this device's own file, just read above; synchronous so no request appended meanwhile is lost
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    const kept = text
+      .split("\n")
+      .filter((line) => (startOf(line) ?? Number.POSITIVE_INFINITY) < from);
+    if (kept.length === 0) {
+      fs.rmSync(file, { force: true });
+    } else {
+      const copy = `${file}.clearing`;
+      fs.writeFileSync(copy, kept.map((line) => `${line}\n`).join(""));
+      fs.renameSync(copy, file);
+    }
+  }
+  const db = openStore();
+  if (!db) {
+    return { removed: 0 };
+  }
+  const forget = db.prepare("DELETE FROM activity_files WHERE path = ?");
+  for (const { file } of own) {
+    forget.run(file);
+  }
+  const removed = Number(
+    db
+      .prepare("DELETE FROM activity WHERE device = ? AND started_at >= ?")
+      .run(deviceId, since ?? Number.MIN_SAFE_INTEGER).changes,
+  );
+  return { removed };
+}
+
+/** How many requests this device made at or after `since`, or ever without it. */
+export async function countOwnActivity(since?: number): Promise<number> {
+  const row = (await readable())
+    ?.prepare(
+      "SELECT count(*) AS count FROM activity WHERE device = ? AND started_at >= ?",
+    )
+    .get(getWorkspaceConfig().deviceId, since ?? Number.MIN_SAFE_INTEGER);
+  return Number(row?.count ?? 0);
 }
 
 /** A WHERE clause and its parameters for the filters. */

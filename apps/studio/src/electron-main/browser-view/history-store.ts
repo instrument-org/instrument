@@ -307,6 +307,27 @@ export function createHistoryStore(file: string) {
       return { removed };
     },
 
+    /**
+     * Removes every file open at or after `since` (all of them without it),
+     * and every file left with none, so the recents and the activity list
+     * lose them alike. Answers how many opens went.
+     */
+    clearFileOpens(since?: number): { removed: number } {
+      const removed = Number(
+        database
+          .prepare("DELETE FROM file_opens WHERE at >= ?")
+          .run(since ?? Number.MIN_SAFE_INTEGER).changes,
+      );
+      database.exec(
+        "DELETE FROM files WHERE id NOT IN (SELECT DISTINCT file_id FROM file_opens)",
+      );
+      database.exec(
+        "UPDATE files SET open_count = (SELECT count(*) FROM file_opens WHERE file_id = files.id), last_open = (SELECT max(at) FROM file_opens WHERE file_id = files.id)",
+      );
+      changed();
+      return { removed };
+    },
+
     close() {
       database.close();
     },

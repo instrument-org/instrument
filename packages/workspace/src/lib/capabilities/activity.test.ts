@@ -47,9 +47,9 @@ beforeEach(() => {
   vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.useRealTimers();
-  await forgetRecordedActions();
+  forgetRecordedActions();
 });
 
 describe("instrument activity", () => {

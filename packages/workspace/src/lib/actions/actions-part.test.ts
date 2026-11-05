@@ -201,8 +201,8 @@ describe("createActionsPart", () => {
     return { logged, rows, typed, wake };
   }
 
-  afterEach(async () => {
-    await forgetRecordedActions();
+  afterEach(() => {
+    forgetRecordedActions();
   });
 
   it("reaches 30 minutes back on the chat's first message", async () => {

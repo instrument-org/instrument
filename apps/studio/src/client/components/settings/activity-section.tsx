@@ -19,6 +19,7 @@ import {
   turnText,
   withDayHeads,
 } from "@/client/components/settings/activity-timeline";
+import { ClearActivityDialog } from "@/client/components/settings/clear-activity-dialog";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { WindowContext } from "@/client/components/window/context";
 import { Button } from "@/client/components/ui/button";
@@ -69,8 +70,9 @@ const PAGE_SIZE = 100;
 const ROW_HEIGHT = 40;
 const DAY_HEIGHT = 28;
 
-/** The query key of the person's actions, which Clear starts over. */
+/** The query keys of the person's actions and the AI requests, which Clear starts over. */
 const ACTIONS_KEY = ["actions", "list"];
+const REQUESTS_KEY = ["activity", "timeline"];
 
 /** Which of the two logs the list shows, kept per viewer. */
 const activityViewAtom = keptAtom<ActivityView>(
@@ -196,7 +198,7 @@ function ActivityTimeline({
         },
         { signal },
       ),
-    queryKey: ["activity", "timeline", until],
+    queryKey: [...REQUESTS_KEY, until],
   });
 
   const { entries, waitingOn } = timelineOf({
@@ -227,17 +229,7 @@ function ActivityTimeline({
     }
   };
 
-  const clear = useMutation(
-    rpcClient.actions.clear.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't clear your activity", { cause: error });
-      },
-      onSuccess: async () => {
-        toast.success("Your activity is cleared. AI requests are kept.");
-        await queryClient.resetQueries({ queryKey: ACTIONS_KEY });
-      },
-    }),
-  );
+  const [clearing, setClearing] = useState(false);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -292,15 +284,22 @@ function ActivityTimeline({
           Export CSV
         </Button>
         <Button
-          disabled={clear.isPending}
           onClick={() => {
-            clear.mutate(undefined);
+            setClearing(true);
           }}
           size="sm"
           variant="outline"
         >
-          Clear your activity
+          Clear activity…
         </Button>
+        <ClearActivityDialog
+          onCleared={() => {
+            void queryClient.resetQueries({ queryKey: ACTIONS_KEY });
+            void queryClient.resetQueries({ queryKey: REQUESTS_KEY });
+          }}
+          onOpenChange={setClearing}
+          open={clearing}
+        />
       </div>
       <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         {empty ? (

@@ -58,6 +58,39 @@ function dayStartOf(name: string): number | undefined {
   ).getTime();
 }
 
+/** The start of the local day after the one starting at `start`. */
+function nextDayStart(start: number): number {
+  const next = new Date(start);
+  next.setDate(next.getDate() + 1);
+  return next.getTime();
+}
+
+/** When a line says it was recorded, or nothing for one that will not parse. */
+function timeOf(line: string): number | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    const at =
+      typeof parsed === "object" && parsed !== null && "at" in parsed
+        ? Date.parse(String(parsed.at))
+        : Number.NaN;
+    return Number.isNaN(at) ? undefined : at;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Writes a day's file again with only the lines recorded before `since`, through a copy renamed over it. */
+function keepLinesBefore(file: string, since: number) {
+  // oxlint-disable-next-line studio/no-sync-content-read -- a day file in the machine folder, which is never synced, read whole while nothing appends to it
+  const kept = fs
+    .readFileSync(file, "utf8")
+    .split("\n")
+    .filter((line) => (timeOf(line) ?? Number.POSITIVE_INFINITY) < since);
+  const copy = `${file}.clearing`;
+  fs.writeFileSync(copy, kept.map((line) => `${line}\n`).join(""));
+  fs.renameSync(copy, file);
+}
+
 /** The day files in `dir`, oldest first. */
 function dayFiles(dir: string): { file: string; start: number }[] {
   let names: string[];
@@ -226,14 +259,22 @@ export class ActionLog {
     };
   }
 
-  /** Deletes every day's file; the log starts again with the next action. */
-  async clear(): Promise<void> {
+  /**
+   * Deletes what was recorded at or after `since`, or everything without
+   * it: a day wholly in that time goes, and the day it starts in is written
+   * again with only its earlier lines. Synchronous, so no action recorded
+   * meanwhile lands in a file being taken away. The log goes on with the
+   * next action.
+   */
+  clear(since?: number): void {
     this.close();
-    await Promise.all(
-      dayFiles(this.#dir).map(({ file }) =>
-        fs.promises.rm(file, { force: true }),
-      ),
-    );
+    for (const { file, start } of dayFiles(this.#dir)) {
+      if (since === undefined || start >= since) {
+        fs.rmSync(file, { force: true });
+      } else if (nextDayStart(start) > since) {
+        keepLinesBefore(file, since);
+      }
+    }
     this.#last = undefined;
   }
 

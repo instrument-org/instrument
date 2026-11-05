@@ -111,6 +111,8 @@ export interface SpareWindow {
   id: string;
   /** Its page can hear what it is given. */
   isUp: boolean;
+  /** Kept apart from `window`, whose contents can no longer be read once it is destroyed. */
+  webContentsId: number;
   window: BrowserWindow;
 }
 
@@ -387,19 +389,19 @@ export function openNewAppWindow(): BrowserWindow | null {
 
 function openSpareWindow(): SpareWindow {
   const id = newWindowId();
+  const window = createAppWindow(id, { isSpare: true });
   const opened = {
     id,
     isUp: false,
-    window: createAppWindow(id, { isSpare: true }),
+    webContentsId: window.webContents.id,
+    window,
   };
   spares.add(opened);
   return opened;
 }
 
 function spareOf(webContentsId: number) {
-  return [...spares].find(
-    ({ window }) => window.webContents.id === webContentsId,
-  );
+  return [...spares].find((spare) => spare.webContentsId === webContentsId);
 }
 
 /** Starts a spare window before long, if there is not one. */

@@ -29,6 +29,10 @@ What to avoid:
 - **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
 - **Odd verbs** in place of everyday ones: a chat "can hold" so much, a folder "holds" your keys, a task "carries on", an app "sends back" an answer. Say has, fits, continues, or shows. Agents reach for "hold" far more often than people do, so when it turns up in your own draft, rewrite the line.
 
+- **Software that hears, knows or is told things**: "Before each message, a chat hears what you just did." Say what goes where: "Each message you send includes a short list of what you just did here."
+- **Vague nouns** standing in for the real one: "what kind of thing you did", "something like". Name it, or cut the clause.
+- **A clause another screen already says**: a caveat the send dialog or the report already covers makes this line longer and no clearer.
+
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 
 Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.

@@ -109,7 +109,10 @@ const askPermissionCapability = defineCapability({
         return ok(askedFor(input.kind, decided.target));
       },
       readOnly: true,
-      timeoutMs: () => ms("10 seconds"),
+      // An app on Windows is looked up before its card goes up: its window, then
+      // its name, which has seconds of its own.
+      timeoutMs: ({ input }) =>
+        ms(input.kind === "app" ? "20 seconds" : "10 seconds"),
       toModelOutput: ({ output }) => {
         switch (output.state) {
           case "asked": {

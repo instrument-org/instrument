@@ -11,7 +11,13 @@ import {
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { Reorder, useMotionValue, useReducedMotion } from "motion/react";
+import { clamp } from "radashi";
+import {
+  animate,
+  Reorder,
+  useMotionValue,
+  useReducedMotion,
+} from "motion/react";
 import {
   type ReactNode,
   useEffect,
@@ -62,6 +68,15 @@ const FIXED_MARGIN = 12;
 // Lands a tab at its new place rather than moving it there; the projection
 // stays on so a drag can still reorder around it.
 const LAND_IN_PLACE = { layout: { duration: 0 } };
+
+// How a tab let go at the pointer settles into its place.
+const SETTLE = { duration: 0.15, ease: "easeOut" } as const;
+
+// A tab gives its place in the row up and takes it back with a motion, the tabs
+// beside it following: a transition on real layout, and the one thing about a tab
+// being dragged that does not follow the pointer.
+const GIVES_PLACE_UP =
+  "transition-[flex-grow,margin-right,min-width,opacity,padding] duration-(--tab-motion) ease-out";
 
 // A closing tab gives its share of the row up rather than being taken out of
 // it, so the tabs beside it widen as it narrows: a transition on real layout
@@ -118,9 +133,11 @@ type TabDensity = "compact" | "full" | "icon";
  */
 export function TabStrip({
   carriedKey,
+  heldAt,
   heldAwayKey,
   className,
   groupKey,
+  isStill,
   onClose,
   onContextMenu,
   newMenu,
@@ -135,12 +152,16 @@ export function TabStrip({
 }: {
   /** A tab being carried out of the strip, which gives its place up to the tabs beside it. */
   carriedKey?: string | undefined;
-  /** The tab a window is following the pointer with, which stands where the strip puts it. */
+  /** A tab held over the strip from elsewhere, drawn with its left edge at this on-screen point. */
+  heldAt?: { key: string; left: number } | undefined;
+  /** A tab the pointer's drag does not place, which stands where the strip puts it. */
   heldAwayKey?: string | undefined;
   className?: string;
   /** Drawn as a plus at the end of the row when given. */
   /** The set these tabs belong to; when it changes the strip adopts them silently. */
   groupKey?: string;
+  /** The tabs are changing with nobody to see it, so nothing comes or goes with a motion. */
+  isStill?: boolean;
   onClose: (key: string) => void;
   /** A right click on a tab, for a menu the caller draws. */
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
@@ -181,11 +202,15 @@ export function TabStrip({
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, movableTabs.length, fixedTabs.length));
 
+  const isListChanged =
+    movableKeys.length !== seen.length ||
+    movableKeys.some((key, index) => key !== seen[index]?.key);
   if (
     group !== groupKey ||
     (seen.length > 0 &&
       !seen.some((tab) => movableKeys.includes(tab.key)) &&
-      movableKeys.length > 0)
+      movableKeys.length > 0) ||
+    (isStill && (isListChanged || arriving.length + closing.length > 0))
   ) {
     // The whole strip was swapped for another set (another window), so
     // none of these tabs are arriving: they were already open, somewhere the
@@ -195,10 +220,7 @@ export function TabStrip({
     setSeen(movableTabs);
     setArriving([]);
     setClosing([]);
-  } else if (
-    movableKeys.length !== seen.length ||
-    movableKeys.some((key, index) => key !== seen[index]?.key)
-  ) {
+  } else if (isListChanged) {
     const seenKeys = seen.map((tab) => tab.key);
     const opened = movableKeys.filter((key) => !seenKeys.includes(key));
     const closed = seen.flatMap((tab, index) =>
@@ -314,7 +336,7 @@ export function TabStrip({
   if (draggingKey !== undefined && !visibleKeys.includes(draggingKey)) {
     setDraggingKey(undefined);
   }
-  const isReordering = draggingKey !== undefined;
+  const isReordering = draggingKey !== undefined || heldAt !== undefined;
 
   const selectRelative = (from: string, direction: -1 | 1) => {
     const index = orderedKeys.indexOf(from);
@@ -386,8 +408,9 @@ export function TabStrip({
               isCarried={carriedKey === tab.key}
               isClosing={isClosing}
               isDragging={draggingKey === tab.key}
-              isHeldAway={heldAwayKey === tab.key}
+              isHeldAway={isStill || heldAwayKey === tab.key}
               isReordering={isReordering}
+              {...(heldAt?.key === tab.key ? { heldLeft: heldAt.left } : {})}
               isSelected={tab.key === selectedKey}
               key={tab.key}
               nextIsSelected={drawnKeys[index + 1] === selectedKey}
@@ -533,6 +556,7 @@ function stripLayout(
 
 function Tab({
   density,
+  heldLeft,
   isArriving,
   isCarried,
   isHeldAway,
@@ -554,9 +578,11 @@ function Tab({
   value,
 }: {
   density: TabDensity;
+  /** Held over the strip from elsewhere: where its left edge stands, on screen. */
+  heldLeft?: number;
   isArriving?: boolean;
   isCarried?: boolean;
-  /** The pointer's drag no longer moves it: its window moves instead. */
+  /** The pointer's drag does not place it: it stands where the strip puts it. */
   isHeldAway?: boolean;
   isClosing?: boolean;
   isDragging?: boolean;
@@ -577,9 +603,9 @@ function Tab({
   value?: string;
 }) {
   const isClosable = !isFixed && onClose !== undefined;
-  // What the strip's drag has moved the tab by. Once its window has moved too
-  // that means nothing, so it is drawn with none of it and has none to give back
-  // as it is let go.
+  const prefersReducedMotion = useReducedMotion();
+  // What the strip's drag has moved the tab by. Where that does not place it, it
+  // is drawn with none of it and has none to give back as it is let go.
   const dragX = useMotionValue(0);
   const wasHeldAway = useRef(false);
   useLayoutEffect(() => {
@@ -588,6 +614,23 @@ function Tab({
     }
     wasHeldAway.current = Boolean(isHeldAway);
   }, [dragX, isDragging, isHeldAway]);
+  // Held over the strip from elsewhere it stands at the pointer, wherever its place
+  // in the row has got to, and settles into that place when it is let go.
+  const tabRef = useRef<HTMLDivElement>(null);
+  const wasHeld = useRef(false);
+  useLayoutEffect(() => {
+    const element = tabRef.current;
+    if (heldLeft !== undefined && element) {
+      dragX.set(offsetToStandAt(element, heldLeft));
+    } else if (wasHeld.current) {
+      if (prefersReducedMotion) {
+        dragX.jump(0);
+      } else {
+        void animate(dragX, 0, SETTLE);
+      }
+    }
+    wasHeld.current = heldLeft !== undefined;
+  });
 
   const sizing = cn(
     isFixed
@@ -612,13 +655,18 @@ function Tab({
           "text-foreground/55",
           !isDragging && "hover:bg-foreground/8 hover:text-foreground",
         ),
-    isDragging && "z-10 shadow-xs-soft",
-    // Gone from the row with the window under the pointer showing it, the tabs
-    // beside it taking its place. Classes rather than `style`: a `Reorder.Item`
-    // keeps a style value it was once given, which a tab that closes never
-    // finds out and a tab that comes back would be drawn with.
+    (isDragging || heldLeft !== undefined) && "z-10 shadow-xs-soft",
+    // Takes its place back as it left it, the tabs beside it making room.
+    isDragging && GIVES_PLACE_UP,
+    // Gone from the row with its picture on the pointer, the tabs beside it taking
+    // its place. Classes rather than `style`: a `Reorder.Item` keeps a style value
+    // it was once given, which a tab that closes never finds out and a tab that
+    // comes back would be drawn with.
     isCarried &&
-      "pointer-events-none -mr-1! min-w-0! grow-0! px-0! opacity-0! transition-all duration-(--tab-motion) ease-out",
+      cn(
+        "pointer-events-none -mr-1! min-w-0! grow-0! px-0! opacity-0!",
+        GIVES_PLACE_UP,
+      ),
     isArriving && "pane-tab-arriving",
     isFixed && showSeparator && "mr-3",
     showSeparator &&
@@ -741,12 +789,13 @@ function Tab({
         {...handlers}
         as="div"
         layout="position"
+        ref={tabRef}
         style={{ ...surface, x: dragX }}
         onDrag={onDrag}
         onDragEnd={onDragEnd}
         onDragStart={onDragStart}
         transition={isReordering ? undefined : LAND_IN_PLACE}
-        {...(isHeldAway ? { transformTemplate: () => "none" } : {})}
+        {...transformOf(dragX, heldLeft, isHeldAway)}
         value={value}
       >
         {contents}
@@ -788,6 +837,40 @@ function Tab({
       )}
     </Tooltip>
   );
+}
+
+/**
+ * How a tab is moved where the strip's own motion would misplace it. A tab held
+ * from elsewhere is where the pointer says and nowhere its place in the row is on
+ * its way to, and a tab the pointer does not place stands in its place.
+ */
+function transformOf(
+  dragX: { get: () => number },
+  heldLeft: number | undefined,
+  isHeldAway: boolean | undefined,
+) {
+  if (heldLeft !== undefined) {
+    return { transformTemplate: () => `translateX(${dragX.get()}px)` };
+  }
+  return isHeldAway ? { transformTemplate: () => "none" } : {};
+}
+
+/**
+ * How far a tab moves, in the layout px a transform is in, for its left edge to
+ * stand at an on-screen point, or as near as the row, which cuts off anything past
+ * its ends, lets it.
+ */
+function offsetToStandAt(element: HTMLElement, left: number) {
+  const list = element.closest<HTMLElement>("[role=tablist]");
+  if (!list) {
+    return 0;
+  }
+  const { left: listLeft, width } = list.getBoundingClientRect();
+  // On screen px from layout px, which differ by the window's zoom.
+  const zoom = width / list.offsetWidth;
+  const standsAt = listLeft + (element.offsetLeft - list.offsetLeft) * zoom;
+  const farthest = listLeft + width - element.offsetWidth * zoom;
+  return (clamp(left, listLeft, farthest) - standsAt) / zoom;
 }
 
 function tabDensity(width: number): TabDensity {

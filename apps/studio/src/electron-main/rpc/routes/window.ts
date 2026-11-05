@@ -134,6 +134,7 @@ const startTabCarry = base
       isOffRow: z.boolean(),
       isOnlyTab: z.boolean(),
       moving: TabStandingSchema,
+      pointInTab: z.number(),
     }),
   )
   .handler(({ context, input }) =>
@@ -149,8 +150,8 @@ const noteTabCarry = base
 /** Where the tab stands in the strip it is held over, from the window showing it. */
 const placeTabCarry = base
   .input(z.object({ index: z.number() }))
-  .handler(({ input }) => {
-    placeCarry(input.index);
+  .handler(({ context, input }) => {
+    placeCarry(context.webContentsId, input.index);
   });
 
 /** The window's menu, drawn by the system at a point of the window, where no bar of the system's shows it. */

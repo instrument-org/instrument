@@ -1,10 +1,7 @@
-import { type TabId } from "@/shared/tabs";
 import { describe, expect, it } from "vitest";
 
 import {
   boundsUnderPointer,
-  carryView,
-  dressesAtStart,
   landsBy,
   mergeFloats,
   phaseAt,
@@ -12,26 +9,27 @@ import {
   whatGoes,
 } from "./tab-carry-rules";
 
-describe("what goes with the pointer", () => {
+describe("what leaves as the tab is let go", () => {
   const usual = {
     canPlace: true,
     isFullScreen: false,
     isOnlyTab: false,
-    isPageUsedBehind: false,
     isTabPageUsed: false,
   };
 
   it.each([
-    ["nothing is at stake", {}, "window"],
+    ["nothing is at stake", {}, "tab"],
     ["the tab's own page is used", { isTabPageUsed: true }, "window"],
-    ["a used page stays behind", { isPageUsedBehind: true }, "tab"],
     [
-      "both sides have a used page",
-      { isPageUsedBehind: true, isTabPageUsed: true },
-      "window",
+      "the tab's own page is used, from full screen",
+      { isFullScreen: true, isTabPageUsed: true },
+      "tab",
     ],
-    ["the window is full screen", { isFullScreen: true }, "tab"],
-    ["windows cannot be placed", { canPlace: false }, "tab"],
+    [
+      "the tab's own page is used, where windows cannot be placed",
+      { canPlace: false, isTabPageUsed: true },
+      "tab",
+    ],
     [
       "it is the window's only tab",
       { canPlace: false, isOnlyTab: true },
@@ -39,31 +37,6 @@ describe("what goes with the pointer", () => {
     ],
   ] as const)("when %s", (_case, facts, goes) => {
     expect(whatGoes({ ...usual, ...facts })).toBe(goes);
-  });
-});
-
-describe("when the spare window gets its tabs", () => {
-  const usual = {
-    goes: "window",
-    hasFloats: false,
-    isSpareUp: true,
-    neighborPages: [],
-    pages: [],
-  } as const;
-
-  it.each([
-    ["a screen comes up next door", {}, true],
-    ["a page comes up next door", { neighborPages: ["page"] }, false],
-    ["floats would go with the tabs", { hasFloats: true }, false],
-    ["the tab going has no page", { goes: "tab" }, true],
-    ["the tab going has a page", { goes: "tab", pages: ["page"] }, false],
-    [
-      "it has only just opened, whatever comes up",
-      { hasFloats: true, isSpareUp: false, neighborPages: ["page"] },
-      true,
-    ],
-  ] as const)("when %s", (_case, facts, isAtStart) => {
-    expect(dressesAtStart({ ...usual, ...facts })).toBe(isAtStart);
   });
 });
 
@@ -96,17 +69,13 @@ describe("two windows' floats as one", () => {
 
 describe("who reopens as a tab lands on another window's strip", () => {
   it.each([
-    ["window", false, false, "takingStrip"],
-    ["window", true, false, "takingStrip"],
-    ["window", false, true, "joining"],
-    ["window", true, true, "takingStrip"],
-    ["tab", true, false, "joining"],
-  ] as const)(
-    "%s going, tab's page used %s, target's %s",
-    (goes, isTabPageUsed, isTargetPageUsed, by) => {
-      expect(landsBy({ goes, isTabPageUsed, isTargetPageUsed })).toBe(by);
-    },
-  );
+    ["window", false, "joining"],
+    ["window", true, "takingStrip"],
+    ["tab", false, "joining"],
+    ["tab", true, "joining"],
+  ] as const)("%s leaving, tab's page used %s", (goes, isTabPageUsed, by) => {
+    expect(landsBy({ goes, isTabPageUsed })).toBe(by);
+  });
 });
 
 describe("a window under the pointer", () => {
@@ -181,7 +150,7 @@ describe("where a tab off its row stands", () => {
     windows: Parameters<typeof phaseAt<string>>[0]["windows"] = [left, right],
     from = left.window,
   ) => phaseAt({ bandHeight: BAND, from, point, windows });
-  const free = { isPlaced: false, kind: "free" };
+  const free = { kind: "free" };
 
   it("is docked in the strip of another window", () => {
     expect(at({ x: 700, y: 20 })).toEqual({ kind: "docked", window: "right" });
@@ -216,64 +185,5 @@ describe("where a tab off its row stands", () => {
       window: "left",
     });
     expect(at({ x: 150, y: 200 }, [over, left, right], "right")).toEqual(free);
-  });
-});
-
-describe("what a window's strip shows", () => {
-  const usual = {
-    carried: "from",
-    docked: () => ({ clientX: 5, tabs: [] }),
-    goes: "window",
-    heldId: "held" as TabId,
-    spare: "spare",
-  } as const;
-  const free = { isPlaced: true, kind: "free" } as const;
-  const docked = { kind: "docked", window: "other" } as const;
-
-  it.each([
-    [
-      "on its row, the pressed window",
-      { kind: "row" },
-      "from",
-      { kind: "row" },
-    ],
-    [
-      "on its row, the spare beneath",
-      { kind: "row" },
-      "spare",
-      { kind: "beneath" },
-    ],
-    [
-      "free, the window carried",
-      free,
-      "from",
-      { heldId: "held", kind: "free" },
-    ],
-    ["free, the spare it uncovers", free, "spare", { kind: "row" }],
-    [
-      "docked, the window carried",
-      docked,
-      "from",
-      { clientX: 5, heldId: "held", kind: "docked", tabs: [] },
-    ],
-    ["docked, the spare", docked, "spare", { kind: "row" }],
-  ] as const)("%s", (_case, phase, window, view) => {
-    expect(carryView({ ...usual, phase, window })).toEqual(view);
-  });
-
-  it("with the tab rebuilt in the spare, draws it there and leaves the pressed window alone", () => {
-    const rebuilt = { ...usual, carried: "spare", goes: "tab" } as const;
-    expect(carryView({ ...rebuilt, phase: free, window: "spare" })).toEqual({
-      kind: "row",
-    });
-    expect(carryView({ ...rebuilt, phase: docked, window: "spare" })).toEqual({
-      clientX: 5,
-      heldId: "held",
-      kind: "docked",
-      tabs: [],
-    });
-    expect(carryView({ ...rebuilt, phase: docked, window: "from" })).toEqual({
-      kind: "row",
-    });
   });
 });

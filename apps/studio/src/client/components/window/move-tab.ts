@@ -1,4 +1,3 @@
-import { composeAtom } from "@/client/atoms/window";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { captureTabView, tabViewRoot } from "@/client/lib/tab-view-state";
@@ -100,19 +99,6 @@ export function letTabGo(key: string) {
   );
 }
 
-/** The other tabs went to the window left behind, with the floats: this window keeps the one. */
-export function keepOnlyTab(key: string) {
-  const store = getDefaultStore();
-  store.set(appTabsAtom, (current) => {
-    const kept = current.tabs.filter((tab) => tab.id === key);
-    // Closed while it was held: a window has a tab to show, or it shows nothing.
-    const tabs =
-      kept.length > 0 ? kept : [{ id: freshTabId(), pathname: INBOX_HREF }];
-    return { recentlyClosed: [], selectedId: tabs[0]?.id ?? null, tabs };
-  });
-  store.set(composeAtom, []);
-}
-
 /** An address in a window of its own, beside this one. */
 export function openInNewWindow(href: string) {
   void rpcClient.window.openNew.call({
@@ -132,15 +118,12 @@ export function settleTabMove(
   key: string,
   end: RPCOutput["window"]["endTabCarry"],
 ) {
-  if (end.kind === "keepsTab") {
-    keepOnlyTab(key);
-  } else if (end.kind === "takesStrip") {
-    getDefaultStore().set(appTabsAtom, end.model);
-  } else if (end.kind === "losesTab") {
+  if (end.kind === "losesTab") {
     letTabGo(key);
   }
-  // A window closing goes on showing what it shows until it has gone.
-  if (end.kind !== "closes") {
+  // A window main is giving other tabs hears from main when that is done, and a
+  // window closing goes on showing what it shows until it has gone.
+  if (end.kind === "none" || end.kind === "losesTab") {
     showTabCarryView({ kind: "row" });
   }
 }

@@ -1,4 +1,4 @@
-import { type ComposeEntry, composeAtom } from "@/client/atoms/window";
+import { composeAtom } from "@/client/atoms/window";
 import { type Tab, type TabCarryView, type TabId } from "@/shared/tabs";
 import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,14 +12,8 @@ vi.mock("@/client/rpc/client", () => ({
 }));
 
 const { appTabsAtom, groupOfHref } = await import("./app-tabs");
-const {
-  forgetMovedAway,
-  hasMovedAway,
-  keepOnlyTab,
-  letTabGo,
-  moveTabOut,
-  receiveTab,
-} = await import("./move-tab");
+const { forgetMovedAway, hasMovedAway, letTabGo, moveTabOut, receiveTab } =
+  await import("./move-tab");
 const { showTabCarryView, stripIndexAt, tabCarryViewAtom, tabsInView } =
   await import("./tab-carry-view");
 
@@ -69,21 +63,26 @@ describe("what a strip draws of a held tab", () => {
     ]);
   });
 
-  it("is the tab alone while its window follows the pointer", () => {
-    expect(
-      ids(tabsInView(tabs, { heldId: asId("held"), kind: "free" }, 0)),
-    ).toEqual(["held"]);
-  });
-
-  it("is the tab among the other window's while held over its strip", () => {
+  it("is the tab among its own while held over its strip", () => {
     const view: TabCarryView = {
       clientX: 0,
-      heldId: asId("held"),
-      kind: "docked",
-      tabs: [asTab("x"), asTab("y")],
+      kind: "incoming",
+      pointInTab: 0,
+      tab: asTab("held"),
     };
-    expect(ids(tabsInView(tabs, view, 1))).toEqual(["x", "held", "y"]);
-    expect(ids(tabsInView(tabs, view, 2))).toEqual(["x", "y", "held"]);
+    const own = [asTab("x"), asTab("y")];
+    expect(ids(tabsInView(own, view, 1))).toEqual(["x", "held", "y"]);
+    expect(ids(tabsInView(own, view, 2))).toEqual(["x", "y", "held"]);
+  });
+
+  it("does not draw it twice once it has really arrived", () => {
+    const view: TabCarryView = {
+      clientX: 0,
+      kind: "incoming",
+      pointInTab: 0,
+      tab: asTab("held"),
+    };
+    expect(ids(tabsInView(tabs, view, 1))).toEqual(["a", "held", "b"]);
   });
 });
 
@@ -136,22 +135,6 @@ describe("where a held tab stands along a strip", () => {
 });
 
 describe("a window as a tab is let go", () => {
-  it("is left with a tab to show when the one it kept was closed while held", () => {
-    keepOnlyTab("gone");
-    const { selectedId, tabs } = store.get(appTabsAtom);
-    expect(tabs).toHaveLength(1);
-    expect(selectedId).toBe(tabs[0]?.id);
-  });
-
-  it("keeps only the tab when it went off with it, its floats left behind", () => {
-    // Only its being there matters here, not what a float has in it.
-    store.set(composeAtom, [{ chatId: "chat", kind: "chat" } as ComposeEntry]);
-    keepOnlyTab("b");
-    expect(seen()).toEqual({ selectedId: "b", tabs: ["b"] });
-    expect(store.get(appTabsAtom).recentlyClosed).toEqual([]);
-    expect(store.get(composeAtom)).toEqual([]);
-  });
-
   it("leaves another window every site the tab can go back to when it goes there", () => {
     const sites = ["/sites/one", "/sites/two"];
     store.set(appTabsAtom, (current) => ({
@@ -193,8 +176,8 @@ describe("moving a tab from a menu", () => {
       selectedId: asId("a"),
       tabs: [asTab("a"), asTab("b")],
     }));
-    // As a drag or a move leaves it, held away from the row.
-    showTabCarryView({ heldId: asId("a"), kind: "free" });
+    // Whatever main last had it show.
+    showTabCarryView({ kind: "reshaping" });
   });
 
   afterEach(() => {
@@ -216,7 +199,6 @@ describe("moving a tab from a menu", () => {
   });
 
   it.each([
-    ["keeps only the tab where the others stay behind", "keepsTab", ["a"]],
     ["lets the tab go where the tab went instead", "losesTab", ["b"]],
     ["changes nothing where nothing moved", "none", ["a", "b"]],
   ])("%s", async (_case, kind, tabs) => {
@@ -226,24 +208,17 @@ describe("moving a tab from a menu", () => {
     expect(store.get(tabCarryViewAtom)).toEqual({ kind: "row" });
   });
 
-  it("takes on the strip of the window it joined", async () => {
-    moveTabCall.mockResolvedValue({
-      kind: "takesStrip",
-      model: {
-        recentlyClosed: [],
-        selectedId: "a",
-        tabs: [asTab("x"), asTab("a")],
-      },
-    });
-    await moveTabOut(asId("a"), { id: "w2", kind: "window" });
-    expect(seen().tabs).toEqual(["x", "a"]);
-  });
-
-  it("goes on showing what it shows while its window closes", async () => {
-    moveTabCall.mockResolvedValue({ kind: "closes" });
-    await moveTabOut(asId("a"), { id: "w2", kind: "window" });
-    expect(store.get(tabCarryViewAtom).kind).toBe("free");
-  });
+  // Main tells it what it holds from here, and when it has come out from under
+  // the window left in its place.
+  it.each(["keepsTab", "takesStrip", "closes"])(
+    "leaves it all to main: %s",
+    async (kind) => {
+      moveTabCall.mockResolvedValue({ kind });
+      await moveTabOut(asId("a"), { kind: "new" });
+      expect(seen().tabs).toEqual(["a", "b"]);
+      expect(store.get(tabCarryViewAtom).kind).toBe("reshaping");
+    },
+  );
 
   it("stays as it was and back on its row when the call fails", async () => {
     moveTabCall.mockRejectedValue(new Error("the connection went"));

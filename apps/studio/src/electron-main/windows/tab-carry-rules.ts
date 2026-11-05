@@ -1,4 +1,3 @@
-import { type TabCarryView, type TabId } from "@/shared/tabs";
 import { z } from "zod";
 
 export interface Point {
@@ -13,8 +12,8 @@ export interface Bounds extends Point {
 
 /**
  * Where a tab being carried is, which everything it shows follows from: on its
- * own row, free of every strip with a window under the pointer, or held in
- * another window's strip. Each effect belongs to going in or out of a phase.
+ * own row, free of every strip, or held in another window's strip. Each effect
+ * belongs to going in or out of a phase.
  */
 export type CarryPhase<W> =
   | {
@@ -23,11 +22,7 @@ export type CarryPhase<W> =
       kind: "docked";
       window: W;
     }
-  | {
-      /** The carried window stands where the pointer holds it, drawn as it should be there. */
-      isPlaced: boolean;
-      kind: "free";
-    }
+  | { kind: "free" }
   | { kind: "row" };
 
 export function isSamePhase<W>(a: CarryPhase<W>, b: CarryPhase<W>) {
@@ -89,7 +84,7 @@ export function phaseAt<W>({
       break;
     }
   }
-  return { isPlaced: false, kind: "free" };
+  return { kind: "free" };
 }
 
 /**
@@ -111,115 +106,44 @@ export function boundsUnderPointer(
 }
 
 /**
- * What goes with the pointer. The window that held the press, by default: its
- * renderer already has the tab as it is, page and all, so the tab is simply left
- * alone with the pointer and the spare window opens beneath on the tabs it leaves
- * behind. The tab goes instead, rebuilt in the spare window with the pressed window
- * staying where it is, only where that costs less or there is no choice.
+ * What leaves when the tab is let go. The tab, by default: it opens in the spare
+ * window and the window it came from stays as it is, along with every page in it.
+ * The window that held the press leaves instead where the tab has a page someone
+ * has used, since that page cannot change renderers and keep what it holds: the
+ * spare window takes the other tabs in its place. A window that cannot be placed,
+ * or stands full screen, stays. A window's only tab has its window to itself.
  */
 export function whatGoes({
   canPlace,
   isFullScreen,
   isOnlyTab,
-  isPageUsedBehind,
   isTabPageUsed,
 }: {
   canPlace: boolean;
   isFullScreen: boolean;
   isOnlyTab: boolean;
-  isPageUsedBehind: boolean;
   isTabPageUsed: boolean;
 }): "tab" | "window" {
   if (isOnlyTab) {
     return "window";
   }
-  return !canPlace || isFullScreen || (isPageUsedBehind && !isTabPageUsed)
-    ? "tab"
-    : "window";
+  return canPlace && !isFullScreen && isTabPageUsed ? "window" : "tab";
 }
 
 /**
- * Whether the spare window has its tabs as the drag starts, so that it is ready the
- * moment the tab leaves its row. A page can be in one renderer at a time and comes
- * back afresh in another, which no drag along the row should cost it, so a spare
- * window that would ask for a page waits until the tab has really left. One just
- * opened cannot wait: it reads its tabs once as it loads, and hears nothing until
- * its page is up.
- */
-export function dressesAtStart({
-  goes,
-  hasFloats,
-  isSpareUp,
-  neighborPages,
-  pages,
-}: {
-  goes: "tab" | "window";
-  hasFloats: boolean;
-  isSpareUp: boolean;
-  neighborPages: readonly unknown[];
-  pages: readonly unknown[];
-}) {
-  if (!isSpareUp) {
-    return true;
-  }
-  return goes === "tab"
-    ? pages.length === 0
-    : !hasFloats && neighborPages.length === 0;
-}
-
-/**
- * Who reopens when a tab is let go over another window's strip. The window under
- * the pointer stays and the other reopens, unless the window held over has a used
- * page and the tab has none: then the tab goes to it. With used pages on both
+ * Who reopens when a tab is let go over another window's strip. The tab goes to
+ * that window, which stays as it is, unless the tab has a used page: then the
+ * pressed window stays and takes on that window's tabs. With used pages on both
  * sides the tab in hand wins.
  */
 export function landsBy({
   goes,
   isTabPageUsed,
-  isTargetPageUsed,
 }: {
   goes: "tab" | "window";
   isTabPageUsed: boolean;
-  isTargetPageUsed: boolean;
 }): "joining" | "takingStrip" {
-  return goes === "tab" || (isTargetPageUsed && !isTabPageUsed)
-    ? "joining"
-    : "takingStrip";
-}
-
-/** What a window's strip shows of the tab, as the drag stands. */
-export function carryView<W>({
-  carried,
-  docked,
-  goes,
-  heldId,
-  phase,
-  spare,
-  window,
-}: {
-  /** The window under the pointer as the tab is held. */
-  carried: W;
-  /** Where the tab is held along the strip it is over, and that strip's tabs. */
-  docked: () => Omit<
-    Extract<TabCarryView, { kind: "docked" }>,
-    "heldId" | "kind"
-  >;
-  goes: "tab" | "window";
-  heldId: TabId;
-  phase: CarryPhase<unknown>;
-  spare: null | W;
-  window: W;
-}): TabCarryView {
-  if (phase.kind === "row") {
-    return window === spare ? { kind: "beneath" } : { kind: "row" };
-  }
-  if (window !== carried) {
-    return { kind: "row" };
-  }
-  if (phase.kind === "free") {
-    return goes === "window" ? { heldId, kind: "free" } : { kind: "row" };
-  }
-  return { ...docked(), heldId, kind: "docked" };
+  return goes === "tab" || !isTabPageUsed ? "joining" : "takingStrip";
 }
 
 const FloatsSchema = z

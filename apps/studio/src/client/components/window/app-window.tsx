@@ -118,7 +118,6 @@ import { ProjectDialog } from "./project-dialog";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
-import { isTabHeldHere, tabCarryViewAtom } from "./tab-carry-view";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
@@ -385,15 +384,6 @@ function focusField() {
   );
   field?.focus();
   field?.select();
-}
-
-/**
- * The floats, which stay in the window left behind while a tab is held out: out
- * of sight here, and mounted as they are for the drag that comes back.
- */
-function FloatsOfThisWindow({ children }: { children: React.ReactNode }) {
-  const isHeld = isTabHeldHere(useAtomValue(tabCarryViewAtom));
-  return <div className={isHeld ? "hidden" : "contents"}>{children}</div>;
 }
 
 function WindowShell({
@@ -1079,7 +1069,6 @@ function WindowShell({
               />
             }
             overlay={
-              <FloatsOfThisWindow>
                 <ComposeLayer
                   browser={browser}
                   chats={chats.data ?? []}
@@ -1109,7 +1098,6 @@ function WindowShell({
                   sentWords={sentWords}
                   projects={projects}
                 />
-              </FloatsOfThisWindow>
             }
             rail={
               <AppRail

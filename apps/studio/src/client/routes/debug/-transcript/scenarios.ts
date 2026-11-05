@@ -1,5 +1,7 @@
 import { MID_TURN_NOTE, StoreId } from "@instrument-org/workspace/client";
 
+import { type CommandFacts } from "@/client/components/transcript/surface";
+
 import { file } from "./parts";
 import {
   activity,
@@ -27,6 +29,7 @@ import {
   loadedSkill,
   ran,
   ranAndFailed,
+  ranInBackground,
   read,
   readImage,
   readMissing,
@@ -47,6 +50,8 @@ interface DebugTask {
 
 /** A scenario, with the tasks it starts and whether it arrives a page at a time. */
 export type DebugScenario = Scenario & {
+  /** What the registry says of the commands its calls started. */
+  commands?: Omit<CommandFacts, "sessionId" | "startedAt">[];
   /** Turns shown at first, with the rest asked for as the reader nears the top. */
   pageTurns?: number;
   tasks?: Record<string, DebugTask>;
@@ -341,6 +346,50 @@ export const scenarios: DebugScenario[] = [
         filePath: "preview-start.png",
       }),
       prose("Here's the animated curve.\n\n```files\nnashville.gif\n```"),
+    ],
+  },
+  {
+    commands: [
+      {
+        command:
+          'sleep 120; osascript -e \'display notification "Your 2 minutes are up." sound name "Glass"\'',
+        explanation: "2-minute timer with an alert",
+        id: "bg_1",
+      },
+      {
+        command: "fswatch ~/Downloads | ./file-contract.sh",
+        explanation: "Watching Downloads for the signed contract",
+        id: "bg_2",
+      },
+      {
+        command: "sleep 30",
+        explanation: "A shorter timer that went off",
+        id: "bg_3",
+        ranMs: 30_000,
+      },
+    ],
+    id: "commands",
+    name: "Commands left running",
+    script: [
+      user("Set a timer for 2 minutes, and keep an eye on my downloads."),
+      activity("Setting it all going"),
+      ranInBackground({
+        command:
+          'sleep 120; osascript -e \'display notification "Your 2 minutes are up." sound name "Glass"\'',
+        explanation: "Setting a 2-minute timer",
+        processId: "bg_1",
+      }),
+      ranInBackground({
+        command: "fswatch ~/Downloads | ./file-contract.sh",
+        explanation: "Watching Downloads",
+        processId: "bg_2",
+      }),
+      ranInBackground({
+        command: "sleep 30",
+        explanation: "Setting a short timer",
+        processId: "bg_3",
+      }),
+      prose("Your timer is running, and I'm watching your Downloads folder."),
     ],
   },
   {

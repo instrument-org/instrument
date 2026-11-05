@@ -1,6 +1,6 @@
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
-import { useTaskBackgroundProcesses } from "@/client/hooks/use-task-background-processes";
+import { useChatCommands } from "@/client/hooks/use-task-background-processes";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
@@ -92,9 +92,8 @@ function useChatHostPaths(paths: readonly string[]) {
   return useHostPaths(useLiveChat(), paths);
 }
 
-function useRunningCommands(): ReadonlySet<string> {
-  const running = useTaskBackgroundProcesses(useLiveChat());
-  return new Set(running.map((process) => process.id));
+function useCommands() {
+  return useChatCommands(useLiveChat());
 }
 
 function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
@@ -289,11 +288,14 @@ export function LiveTranscriptSurface({
   const appWindow = useContext(WindowContext);
   const openFile = useOpenFile();
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
+  const stopCommand = useMutation(
+    rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions(),
+  );
   // Every chat's tasks are read once here, so each card shares one subscription.
   useChatTasks(chat);
-  const latest = useRef({ appWindow, chat, openFile, stop });
+  const latest = useRef({ appWindow, chat, openFile, stop, stopCommand });
   useLayoutEffect(() => {
-    latest.current = { appWindow, chat, openFile, stop };
+    latest.current = { appWindow, chat, openFile, stop, stopCommand };
   });
   const [surface] = useState<TranscriptSurface>(() => ({
     onOpenFile: (path) => {
@@ -305,12 +307,19 @@ export function LiveTranscriptSurface({
     onOpenUrl: (url) => {
       latest.current.appWindow?.openPage(url, { show: true });
     },
+    onStopCommand: ({ id, sessionId }) => {
+      latest.current.stopCommand.mutate({
+        id: latest.current.chat,
+        processId: id,
+        sessionId,
+      });
+    },
     onStopTask: (id) => {
       latest.current.stop.mutate({ id: latest.current.chat, sessionId: id });
     },
     PagePicture: LivePagePicture,
     useHostPaths: useChatHostPaths,
-    useRunningCommands,
+    useCommands,
     useStepPart,
     useTaskFacts,
     useTaskMessages,

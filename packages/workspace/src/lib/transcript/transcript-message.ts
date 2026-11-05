@@ -32,7 +32,7 @@ export type StepShows =
       words?: string;
     }
   | { kind: "fetch"; title?: string; url?: string; words?: string }
-  | { kind: "generated"; path?: string }
+  | { kind: "generated"; modifiedAt?: number; path?: string }
   | {
       blob?: string;
       kind: "image";
@@ -241,7 +241,12 @@ const StepOutputSchema = z
     handOffs: z.array(
       z.looseObject({ kind: z.string(), sessionId: z.string() }),
     ),
-    images: z.array(z.looseObject({ filePath: z.string() })),
+    images: z.array(
+      z.looseObject({
+        filePath: z.string(),
+        modifiedAt: z.number().optional(),
+      }),
+    ),
     mimeType: z.string(),
     modifiedAt: z.number(),
     processId: z.string(),
@@ -395,8 +400,14 @@ function stepShows(
         : undefined;
     }
     case "tool-generate_image": {
-      const path = output.images?.[0]?.filePath;
-      return { kind: "generated", ...(path !== undefined && { path }) };
+      const image = output.images?.[0];
+      return {
+        kind: "generated",
+        ...(image?.filePath !== undefined && { path: image.filePath }),
+        ...(image?.modifiedAt !== undefined && {
+          modifiedAt: image.modifiedAt,
+        }),
+      };
     }
     case "tool-web_search": {
       const sources = output.results?.sources ?? [];

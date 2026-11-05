@@ -277,6 +277,31 @@ export function ran({
   });
 }
 
+/** A command the shell moved to the background, still going as the call returned. */
+export function ranInBackground({
+  command,
+  explanation,
+  processId,
+}: {
+  command: string;
+  explanation?: string;
+  processId: string;
+}): ToolCall {
+  return call({
+    input: { command, explanation },
+    output: {
+      backgrounded: true,
+      command,
+      commands: [command.split(" ")[0] ?? command],
+      durationMs: 120,
+      omittedBytes: 0,
+      output: "",
+      processId,
+    },
+    type: "tool-bash",
+  });
+}
+
 /** A command that ran and came back non-zero, which is not a tool failure. */
 export function ranAndFailed({
   command,

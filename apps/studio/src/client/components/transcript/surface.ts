@@ -20,10 +20,23 @@ export interface TaskCardFacts {
   working: boolean;
 }
 
+/** A command the agent left going, or that has since ended. */
+export interface CommandFacts {
+  command: string;
+  /** What the agent called it. */
+  explanation?: string;
+  id: string;
+  /** How long it ran, once it has ended. */
+  ranMs?: number;
+  /** The session that started it, whose own its id is. */
+  sessionId: StoreId.Session;
+  startedAt: Date;
+}
+
 /**
  * What the transcript reads from outside what it is handed, so it draws the
  * same in the app and on the debug page, which supplies scripted answers: the
- * call behind an opened step, the picture of a page, the commands still running,
+ * call behind an opened step, the picture of a page, the commands left going,
  * and a task's standing and messages.
  */
 export interface TranscriptSurface {
@@ -31,11 +44,12 @@ export interface TranscriptSurface {
   onOpenFile: (path: string) => void;
   onOpenTask: (id: StoreId.Session) => void;
   onOpenUrl: (url: string) => void;
+  onStopCommand: (command: Pick<CommandFacts, "id" | "sessionId">) => void;
   onStopTask: (id: StoreId.Session) => void;
   /** Where the paths a call named are on this computer, once that is known. */
   useHostPaths: (paths: readonly string[]) => Record<string, null | string>;
-  /** The ids of the commands the chat and its tasks left running. */
-  useRunningCommands: () => ReadonlySet<string>;
+  /** The commands the chat and its tasks left going, and those that have since ended. */
+  useCommands: () => readonly CommandFacts[];
   useStepPart: (
     step: StepPart,
     isOpen: boolean,

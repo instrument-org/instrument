@@ -200,12 +200,18 @@ function cardBody(
           },
         }),
         title: newest?.path ? baseName(newest.path) : "An image",
-        view:
-          newest?.status === "done" && place ? (
-            <FilePicture path={place} />
-          ) : (
-            <Waiting>Generating the image</Waiting>
-          ),
+        // The tool writes each partial frame over the file, so the picture
+        // fills in as it is made.
+        view: place ? (
+          <FilePicture
+            path={place}
+            {...(newest?.modifiedAt !== undefined && {
+              version: newest.modifiedAt,
+            })}
+          />
+        ) : (
+          <Waiting>Generating the image</Waiting>
+        ),
       };
     }
     case "web": {

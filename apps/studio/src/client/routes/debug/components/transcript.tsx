@@ -1,4 +1,5 @@
 import {
+  type CommandFacts,
   type TaskCardFacts,
   type TranscriptSurface,
   TranscriptSurfaceContext,
@@ -163,6 +164,7 @@ function noop() {
 
 /** What a frame is, for the surface: its messages, its place in the run, and its tasks. */
 interface DebugFrame {
+  commands: readonly CommandFacts[];
   frameIndex: number;
   lastFrameIndex: number;
   messages: readonly SessionMessagePart.Type[];
@@ -210,17 +212,16 @@ function taskFrame(frame: DebugFrame | undefined, id: StoreId.Session) {
   return { at, task, working: at < task.frames.length - 1 };
 }
 
-const NOTHING_RUNNING: ReadonlySet<string> = new Set();
-
 const debugSurface: TranscriptSurface = {
   onOpenFile: noop,
   onOpenTask: noop,
   onOpenUrl: noop,
+  onStopCommand: noop,
   onStopTask: noop,
   PagePicture: DebugPagePicture,
   useHostPaths: (paths) =>
     Object.fromEntries(paths.map((path) => [path, path])),
-  useRunningCommands: () => NOTHING_RUNNING,
+  useCommands: () => use(DebugFrameContext)?.commands ?? [],
   useStepPart: (step: StepPart) => {
     const part = use(DebugFrameContext)?.messages.find(
       (each) => each.metadata.id === step.metadata.id,
@@ -552,6 +553,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                   }}
                 >
                   <FrameTranscript
+                    commands={scenario.commands}
                     frame={frame}
                     frameIndex={shown}
                     frames={frames}
@@ -720,6 +722,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
  * and for a scenario that says so, a page of turns at a time as the feed gives them.
  */
 function FrameTranscript({
+  commands,
   frame,
   frameIndex,
   frames,
@@ -727,6 +730,7 @@ function FrameTranscript({
   pageTurns,
   tasks,
 }: {
+  commands: DebugScenario["commands"];
   frame: Frame;
   frameIndex: number;
   frames: Frame[];
@@ -774,17 +778,37 @@ function FrameTranscript({
     }
     return starts;
   }, [frames]);
+  const sessionId = frame.messages[0]?.metadata.sessionId;
+  // Going for a while by now, or ended after its turn did.
+  const [startedAgo] = useState(() => Date.now() - 40_000);
   const debugFrame = useMemo(
     (): DebugFrame => ({
+      commands: sessionId
+        ? (commands ?? []).map((command) => ({
+            ...command,
+            sessionId,
+            startedAt: new Date(
+              command.ranMs === undefined ? startedAgo : startedAgo + 40_000,
+            ),
+          }))
+        : [],
       frameIndex,
       lastFrameIndex: frames.length - 1,
       messages: frame.messages.flatMap((message) => message.parts),
       tasks,
       taskStarts,
     }),
-    [frame.messages, frameIndex, frames.length, taskStarts, tasks],
+    [
+      commands,
+      frame.messages,
+      frameIndex,
+      frames.length,
+      sessionId,
+      startedAgo,
+      taskStarts,
+      tasks,
+    ],
   );
-  const sessionId = frame.messages[0]?.metadata.sessionId;
   if (!sessionId) {
     return null;
   }

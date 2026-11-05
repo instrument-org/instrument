@@ -20,6 +20,11 @@ const RunningProcessSchema = z.object({
   startedAt: z.date(),
 });
 
+/** A process that has ended, while the registry still remembers it. */
+const EndedProcessSchema = RunningProcessSchema.extend({
+  durationMs: z.number(),
+});
+
 /** Which processes a call names: a record's, or one session's of it. */
 const OwnerSchema = z.object({
   id: ChatIdSchema,
@@ -133,7 +138,28 @@ const changed = base
     }
   });
 
+/**
+ * What has ended, so a command's card can say how long it ran and whether it
+ * outlasted its turn. Nothing survives a restart, as with the running ones.
+ */
+const ended = base
+  .input(OwnerSchema)
+  .output(z.array(EndedProcessSchema))
+  .handler(({ input }) =>
+    processesOf(input)
+      .filter((process) => process.status !== "running")
+      .map((process) => ({
+        command: process.command,
+        durationMs: process.durationMs,
+        explanation: process.explanation,
+        id: process.id,
+        sessionId: process.sessionId,
+        startedAt: process.startedAt,
+      })),
+  );
+
 export const chatBackgroundProcesses = {
+  ended,
   events: { changed },
   list,
   stop,

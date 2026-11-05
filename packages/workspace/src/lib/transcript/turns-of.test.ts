@@ -646,7 +646,7 @@ describe("the slot", () => {
   });
 
   it("takes the card away when the agent speaks, so its words never move", () => {
-    const searched = (id: string) =>
+    const searched = (id: Parameters<typeof call>[0]) =>
       call(id, "web_search", { activity: "Looking", query: "x" }, {});
     const [speaking] = turnsOf(
       [

@@ -20,6 +20,7 @@ import { memo, type ReactNode, use, useState } from "react";
 import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
 import { AttachmentsCard } from "../attachments-card";
+import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { MessageError } from "../message-error";
@@ -33,6 +34,7 @@ import { ActivityRowView, Badges, RowLine } from "./activity-row";
 import { DeveloperNote } from "./developer-note";
 import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
+import { TranscriptSurfaceContext } from "./surface";
 import {
   StateNotesContext,
   TranscriptActionsContext,
@@ -255,11 +257,55 @@ function TurnBody({
       {turn.live?.kind === "thinking" && !waitsForStep && (
         <ThinkingRow since={turn.live.since} />
       )}
+      {turn.phase !== "working" && (
+        <CommandCards sessionId={sessionId} turn={turn} />
+      )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
         <AssistantMessagesFooter messages={turn.replies} />
       )}
     </>
   );
+}
+
+/**
+ * The commands that outlasted this turn, under its reply: those still going and
+ * those that ended after it. One that ended while the turn went on is part of
+ * the work the reply already covers.
+ */
+function CommandCards({
+  sessionId,
+  turn,
+}: {
+  sessionId: StoreId.Session;
+  turn: Turn;
+}) {
+  const surface = use(TranscriptSurfaceContext);
+  const commands = surface?.useCommands() ?? [];
+  const endedAt = turn.endedAt?.getTime() ?? 0;
+  const started = new Set(
+    turn.rows.flatMap((row) =>
+      row.kind === "activity"
+        ? row.steps.flatMap((step) => step.processId ?? [])
+        : [],
+    ),
+  );
+  return commands
+    .filter(
+      (command) =>
+        command.sessionId === sessionId &&
+        started.has(command.id) &&
+        (command.ranMs === undefined ||
+          command.startedAt.getTime() + command.ranMs > endedAt),
+    )
+    .map((command) => (
+      <CommandCard
+        command={command}
+        key={command.id}
+        onStop={() => {
+          surface?.onStopCommand(command);
+        }}
+      />
+    ));
 }
 
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */

@@ -8,21 +8,13 @@ import {
   createRouter as createTanStackRouter,
 } from "@tanstack/react-router";
 
+import { LOCAL_RPC_DEFAULTS } from "./lib/local-rpc-defaults";
 import { shouldRestoreScroll } from "./lib/scroll-restoration";
 import { captureComponentError } from "./lib/capture-exception";
 import { routeTree } from "./routeTree.gen";
 
 function createRouter(options?: { history?: RouterHistory }) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        // 99% of queries are local RPC and won't fix if we retry. Zero retries
-        // ensures fast error states. Exceptions for remote API calls are set in
-        // rpc/client.ts.
-        retry: 0,
-      },
-    },
-  });
+  const queryClient = new QueryClient({ defaultOptions: LOCAL_RPC_DEFAULTS });
 
   const router = createTanStackRouter({
     context: { queryClient },

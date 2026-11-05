@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 
 import { routeTree } from "../routeTree.gen";
+import { LOCAL_RPC_DEFAULTS } from "./local-rpc-defaults";
 import { shouldRestoreScroll } from "./scroll-restoration";
 import { routerEntries } from "./tab-router-history";
 import { captureComponentError } from "./capture-exception";
@@ -19,12 +20,7 @@ import { captureComponentError } from "./capture-exception";
  * gives each tab independent back/forward, like browser tabs.
  */
 export const sharedQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // 99% of queries are local RPC and won't change on retry; fail fast.
-      retry: 0,
-    },
-  },
+  defaultOptions: LOCAL_RPC_DEFAULTS,
 });
 
 export type TabRouter = ReturnType<typeof createTabRouter>;

@@ -141,6 +141,56 @@ describe("TranscriptProjection", () => {
     ]);
   });
 
+  it.each([
+    [
+      "a sign-in's running step when its card lands",
+      "tool-connect_app",
+      { state: "input-available" },
+      {
+        output: {
+          kind: "sign-in",
+          name: "Notion",
+          slug: "notion",
+          state: "asked",
+        },
+        state: "output-available",
+      },
+    ],
+    [
+      "a question's step when it finishes streaming",
+      "tool-choose",
+      { state: "input-streaming" },
+      { state: "input-available" },
+    ],
+  ])("replaces %s", (_name, type, before, after) => {
+    const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const call = (state: object) =>
+      stored(
+        "assistant",
+        (id) => [
+          {
+            input: { apps: ["notion"], questions: [] },
+            metadata: partMeta(id, partId),
+            toolCallId: "call",
+            type,
+            ...state,
+          },
+        ],
+        messageId,
+      );
+    const projection = new TranscriptProjection(false);
+    const first = projection.reset([typed("Hi"), call(before)]);
+    const next = projection.update({ changed: [call(after)], removed: [] });
+    if (!next) {
+      throw new Error("Nothing was sent");
+    }
+    const held = applyFeedEvent(applyFeedEvent(undefined, first), next);
+    expect(held.messages.at(-1)?.parts.map((part) => part.type)).toEqual([
+      type,
+    ]);
+  });
+
   it("leaves what did not move as the same objects", () => {
     const a = typed("One");
     const projection = new TranscriptProjection(false);

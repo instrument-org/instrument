@@ -137,7 +137,11 @@ export class TranscriptProjection {
   }
 }
 
-/** The patches from one message to the next, or `whole` where patches cannot say it. */
+/**
+ * The patches from one message to the next, or `whole` where patches cannot say
+ * it. A patch finds its part by id and type, so a part that became another kind,
+ * as a call's step does when its card lands, has to go out with its message.
+ */
 function whatMoved(
   previous: TranscriptMessage | undefined,
   next: TranscriptMessage,
@@ -152,7 +156,10 @@ function whatMoved(
   const patches: PartPatch[] = [];
   for (const [index, part] of next.parts.entries()) {
     const before = previous.parts[index];
-    if (before && before.metadata.id !== part.metadata.id) {
+    if (
+      before &&
+      (before.metadata.id !== part.metadata.id || before.type !== part.type)
+    ) {
       return "whole";
     }
     if (before === undefined) {

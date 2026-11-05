@@ -45,6 +45,8 @@ Fields:
 - `source` — present only on entries forwarded from the **renderer** process (value `"renderer"`). Absent on main-process entries.
 - `msg` — string for plain messages; object for `Error` instances (`name`, `message`, `stack`, optional `cause`); array when multiple arguments were passed
 
+What the person did in the app (folders and files opened, file actions, pages, settings, errors shown) is also in the dev log as entries with scope `Actions`, so you can read what they did between the main process's lines. The action log itself is in the workspace's machine folder, a file per local day: `<userData>/machine/<local id>/actions/<YYYY-MM-DD>.jsonl`, where a development run's userData is `Instrument (Dev)`.
+
 Most entries are from the Electron **main** process. Renderer errors (uncaught exceptions, unhandled promise rejections, and explicit `logger.error` calls) are forwarded over IPC and tagged `"source":"renderer"`; other renderer `console.*` output still only lands in the DevTools console, not this file.
 
 Filter to errors only:

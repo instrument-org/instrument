@@ -7,6 +7,8 @@ import {
 } from "@instrument-org/workspace/electron";
 import { z } from "zod";
 
+import { recordPersonAction } from "./actions";
+
 /** Where an app stands, as the Apps screen draws it. */
 export const AppStandingSchema = z.enum([
   "connected",
@@ -59,7 +61,8 @@ export type ConnectionOutcome =
  * Record where an app's connection moved and say so, as one step: every list
  * of apps reads again, and the chat hears what the user did when it was the
  * user's doing (connected, declined, or a sign-in that failed). A key or
- * sign-in the server refused is no news to the chat until someone writes.
+ * sign-in the server refused is no news to the chat until someone writes. A
+ * sign-in that failed goes in the action log too, by the app's id.
  */
 export async function settleConnection(
   slug: string,
@@ -82,6 +85,9 @@ export async function settleConnection(
     default: {
       await recordConnection(slug, outcome);
     }
+  }
+  if (outcome.status === "failed") {
+    recordPersonAction({ did: "sign-in failed", kind: "app", name: slug });
   }
   const happened = eventOf(outcome);
   if (happened) {

@@ -92,6 +92,13 @@ export interface RecorderDeps {
   takeRestored: (urls: readonly string[]) => boolean;
   /** Whether the person typed this page in the address field or opened it from a bookmark, consuming the mark. */
   takeTyped: (urls: readonly string[]) => boolean;
+  /**
+   * A page the person, not an agent, went to, for the action log: once the
+   * page names itself or finishes loading without a name, or at once for a
+   * move within a page. A page a client redirect stood in for, one that
+   * failed, and a sign-in's pages are not told.
+   */
+  visited: (page: { title?: string; url: string }) => void;
 }
 
 interface Start {
@@ -120,6 +127,15 @@ export function createTabRecorder(deps: RecorderDeps) {
   /** The document's own title, as it last set it. */
   let documentTitle: string | undefined;
   const titleWindow = { changes: 0, loading: false, stoppedAt: 0 };
+  /** The person's visit to the page now committed, waiting on its title before it is told. */
+  let untold: { url: string; visitId: number } | undefined;
+
+  const tell = (title?: string) => {
+    if (untold) {
+      deps.visited({ ...(title ? { title } : {}), url: untold.url });
+      untold = undefined;
+    }
+  };
 
   const inSignIn = () => {
     if (signIn !== undefined && !deps.signInPending(signIn)) {
@@ -142,6 +158,13 @@ export function createTabRecorder(deps: RecorderDeps) {
     url: string;
   }) => {
     const kind = classifyCommit(snapshot, after, url);
+    // A page a client redirect replaced was a hop on the way, and is never
+    // told; the page before any other commit is told as it was.
+    if (kind === "replace") {
+      untold = undefined;
+    } else if (kind !== "reload") {
+      tell();
+    }
     if (!isRecordable(url)) {
       current = undefined;
       return;
@@ -183,6 +206,13 @@ export function createTabRecorder(deps: RecorderDeps) {
       url,
       visitId,
     };
+    if (actor === "user" && hiddenBy === undefined) {
+      if (isSameDocument) {
+        deps.visited({ url });
+      } else {
+        untold = { url, visitId };
+      }
+    }
   };
 
   return {
@@ -194,6 +224,9 @@ export function createTabRecorder(deps: RecorderDeps) {
       documentTitle = title;
       if (!current) {
         return;
+      }
+      if (untold?.visitId === current.visitId) {
+        tell(title);
       }
       const inWindow =
         titleWindow.loading ||
@@ -257,6 +290,9 @@ export function createTabRecorder(deps: RecorderDeps) {
 
     /** A main-frame load failed; a page that committed and then failed is kept out like an error status. */
     failed(url: string) {
+      if (untold?.url === url) {
+        untold = undefined;
+      }
       if (current?.url === url) {
         deps.sink.hideVisit(current.visitId, "error");
       }
@@ -293,6 +329,7 @@ export function createTabRecorder(deps: RecorderDeps) {
     stoppedLoading() {
       titleWindow.loading = false;
       titleWindow.stoppedAt = deps.now();
+      tell(documentTitle);
     },
   };
 }

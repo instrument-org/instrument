@@ -35,6 +35,7 @@ function tab({
     return hit !== undefined;
   };
   let who = actor;
+  const visits: { title?: string; url: string }[] = [];
   const recorder = createTabRecorder({
     actorSince: () => who,
     now: () => now,
@@ -43,6 +44,7 @@ function tab({
     sink: store,
     takeRestored: take(restored),
     takeTyped: take(typed),
+    visited: (page) => visits.push(page),
   });
   let urls: string[] = ["about:blank"];
   let index = 0;
@@ -141,6 +143,8 @@ function tab({
       typed.add(url);
       crossDocument(url, options);
     },
+    /** The person's visits the action log was told of, in order. */
+    visits,
   };
 }
 
@@ -340,6 +344,46 @@ describe("history recorder", () => {
     expect(browser.recent()).toEqual([
       { title: "Found it", url: "https://agent.test/", visits: 1 },
     ]);
+  });
+
+  it("tells the action log the person's pages once each names itself or loads", () => {
+    const browser = tab();
+    browser.go("https://docs.example.test/q3");
+    expect(browser.visits).toEqual([]);
+    browser.title("Q3 budget");
+    browser.title("Q3 budget (edited)");
+    browser.go("https://plain.example.test/");
+    browser.loaded();
+    browser.pushState("https://plain.example.test/#two");
+    browser.reload();
+    browser.go("https://missing.example.test/", { status: 404 });
+    browser.loaded();
+    expect(browser.visits).toEqual([
+      { title: "Q3 budget", url: "https://docs.example.test/q3" },
+      { url: "https://plain.example.test/" },
+      { url: "https://plain.example.test/#two" },
+    ]);
+  });
+
+  it("tells the action log nothing of a client redirect's hop, a sign-in, or the agent's pages", () => {
+    let pending = true;
+    const browser = tab({
+      signIn: {
+        pending: () => pending,
+        slug: "linear",
+        url: "https://mcp.linear.app/authorize",
+      },
+    });
+    browser.go("https://hop.example.test/");
+    browser.replace("https://landed.example.test/");
+    browser.loaded();
+    browser.go("https://mcp.linear.app/authorize");
+    browser.loaded();
+    pending = false;
+    browser.as("agent");
+    browser.go("https://agent.example.test/");
+    browser.loaded();
+    expect(browser.visits).toEqual([{ url: "https://landed.example.test/" }]);
   });
 
   it("counts a typed address through its server redirects", () => {

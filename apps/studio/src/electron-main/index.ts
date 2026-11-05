@@ -80,6 +80,7 @@ import { serveKeptState } from "./stores/workspace/kept-state";
 import { serveSetupState } from "./lib/serve-setup-state";
 import { serveBookmarks } from "./bookmarks/serve-bookmarks";
 import { serveRendererExceptions } from "./lib/renderer-exceptions";
+import { serveWindowActions } from "./lib/actions";
 import {
   configureAppSession,
   waitForPreviousDevInstance,
@@ -317,6 +318,7 @@ async function bootstrapPrimaryInstance() {
   serveDrafts();
   serveBookmarks();
   serveRendererExceptions();
+  serveWindowActions();
   servePageEditorBoot();
 
   // Early, so the first requests to a local API server that is not running

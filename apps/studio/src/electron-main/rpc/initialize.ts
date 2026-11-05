@@ -8,12 +8,14 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
+import { recordPersonAction } from "../lib/actions";
 import { breadcrumbRPC } from "../lib/breadcrumbs";
 import { captureServerException } from "../lib/capture-server-exception";
 import { trackRPCForStalls } from "../lib/main-thread-stalls";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
 import { type InitialRPCContext } from "./context";
 import { createErrorClientInterceptor } from "./error-interceptor";
+import { actionsOfCall } from "./person-actions";
 import { isReportableRPCError } from "./report-policy";
 import { router } from "./routes";
 
@@ -22,10 +24,27 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+/**
+ * An oRPC interceptor that records, once a call has succeeded, what the
+ * person did by it, for the calls `actionsOfCall` names.
+ */
+async function recordPersonActions<T>(options: {
+  input: unknown;
+  next: () => Promise<T>;
+  path: readonly string[];
+}): Promise<T> {
+  const output = await options.next();
+  for (const action of actionsOfCall(options.path, options.input, output)) {
+    recordPersonAction(action);
+  }
+  return output;
+}
+
 const handler = new RPCHandler<InitialRPCContext>(router, {
   clientInterceptors: [
     trackRPCForStalls,
     breadcrumbRPC,
+    recordPersonActions,
     createErrorClientInterceptor({
       onAsyncIteratorError: (e, options) => {
         if (isReportableRPCError(e)) {

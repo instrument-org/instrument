@@ -56,9 +56,8 @@ const chat = log([
 describe("recordRows", () => {
   it("draws every record the outline sends as a label and its first line", () => {
     const rows = recordRows(outlineSessionLog(`${chat}\nnot json\n`).content);
-    expect(
-      rows.map(({ label, text }) => `${label} | ${text}`),
-    ).toMatchInlineSnapshot(`
+    expect(rows.map(({ label, text }) => `${label} | ${text}`))
+      .toMatchInlineSnapshot(`
       [
         "You | favorite my first email",
         "On screen | https://mail.google.com/…",

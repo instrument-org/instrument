@@ -232,6 +232,19 @@ describe("ImageViewer", () => {
     });
   });
 
+  it("keeps the zoom word's width at every reading", async () => {
+    const screen = await renderInBrowser(<Viewer />);
+    const fit = screen.getByRole("button", { name: "Zoom: Fit" });
+    await expect.element(fit).toBeVisible();
+    const width = fit.element().getBoundingClientRect().width;
+    const image = screen.getByRole("img").element();
+
+    wheel(image, { ctrlKey: true, deltaY: -600 });
+    const zoomed = screen.getByRole("button", { name: /^Zoom: \d+%$/ });
+    await expect.element(zoomed).toBeVisible();
+    expect(zoomed.element().getBoundingClientRect().width).toBe(width);
+  });
+
   it("answers the zoom chords only while it has the keyboard", async () => {
     const screen = await renderInBrowser(<Viewer />);
     await expect

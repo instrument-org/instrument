@@ -162,7 +162,8 @@ function ImageZoomMenu({
           type="button"
         >
           <MagnifyingGlassIcon className="size-3.5" />
-          <span>{label}</span>
+          {/* As wide as the longest reading, so the row stays still as it changes. */}
+          <span className="w-[5ch] text-right">{label}</span>
           <CaretDownIcon className="size-2.5 opacity-60" weight="bold" />
         </button>
       </DropdownMenuTrigger>

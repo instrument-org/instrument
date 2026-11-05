@@ -372,10 +372,17 @@ function otherWindowsValues(key: string, exceptId: string | undefined) {
 export function forgetWindowKeptState(windowId: string) {
   windowStores.get(windowId)?.discard();
   windowStores.delete(windowId);
-  fs.rmSync(
-    path.join(workspaceWindowDir(), WINDOWS_FOLDER, `${windowId}.json`),
-    { force: true },
+  const file = path.join(
+    workspaceWindowDir(),
+    WINDOWS_FOLDER,
+    `${windowId}.json`,
   );
+  try {
+    fs.rmSync(file, { force: true });
+  } catch (error) {
+    // Another program holding it, and this runs as a window closes.
+    logger.warn(`Could not remove kept state in ${file}`, error);
+  }
 }
 
 /** One kept value, for the main process's own use of what a window keeps. */

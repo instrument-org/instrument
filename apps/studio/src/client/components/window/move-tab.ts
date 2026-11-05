@@ -151,7 +151,10 @@ export function letTabGo(key: string) {
 export function keepOnlyTab(key: string) {
   const store = getDefaultStore();
   store.set(appTabsAtom, (current) => {
-    const tabs = current.tabs.filter((tab) => tab.id === key);
+    const kept = current.tabs.filter((tab) => tab.id === key);
+    // Closed while it was held: a window has a tab to show, or it shows nothing.
+    const tabs =
+      kept.length > 0 ? kept : [{ id: freshTabId(), pathname: INBOX_HREF }];
     return { recentlyClosed: [], selectedId: tabs[0]?.id ?? null, tabs };
   });
   store.set(composeAtom, []);

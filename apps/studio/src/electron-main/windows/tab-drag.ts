@@ -682,11 +682,19 @@ function stripBandHeight() {
   return TOOLBAR_HEIGHT * getAppZoom();
 }
 
-/** The windows a carried tab could land in, front to back. */
+/**
+ * The windows a carried tab could land in, front to back. A full-screen window on
+ * macOS is in a Space of its own, out of sight of a tab carried on this one, and
+ * its bounds would make the top of the screen its strip.
+ */
 function windowsToLandOn({ from, spare }: Pick<Carry, "from" | "spare">) {
   return getAppWindows().filter(
     (window) =>
-      window !== from && window !== spare?.window && !window.isMinimized(),
+      window !== from &&
+      window !== spare?.window &&
+      window.isVisible() &&
+      !window.isMinimized() &&
+      !(process.platform === "darwin" && window.isFullScreen()),
   );
 }
 
@@ -811,7 +819,7 @@ async function enterPhase(current: Carry, point: Point) {
       handPages(unusedPages(moving.neighborPages), from);
     } else if (spare && followsCursor) {
       setOpacity(spare.window, 0);
-      handPages(moving.pages, from);
+      handPages(unusedPages(moving.pages), from);
     }
     return;
   }
@@ -831,7 +839,7 @@ async function enterPhase(current: Carry, point: Point) {
     return;
   }
   if (goes === "tab") {
-    handPages(moving.pages, window);
+    handPages(unusedPages(moving.pages), window);
   } else if (spare) {
     handPages(unusedPages(moving.neighborPages), spare.window);
   }
@@ -979,9 +987,13 @@ function stopFollowing(current: Carry) {
 
 /** The tabs left behind are a window of their own now, as the one they came from stood. */
 function leaveOthersBehind(ending: Carry) {
-  const { goes, isWindowMaximized, moving, spare } = ending;
+  const { followsCursor, goes, isWindowMaximized, moving, spare } = ending;
   if (!spare || goes !== "window") {
     return;
+  }
+  // Let go before the first look at the pointer, a spare on Linux is not up yet.
+  if (followsCursor) {
+    showSpare(ending);
   }
   // As the window has them now, with what opened or closed in it since it was dressed.
   ending.isSpareDressed = false;

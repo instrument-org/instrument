@@ -214,7 +214,12 @@ export function reorderTabs(
   const reordered = ids
     .map((id) => byId.get(id))
     .filter((tab): tab is Tab => tab !== undefined);
-  return { ...model, tabs: reordered };
+  // A tab opened since the order was read stays, past the ones it names.
+  const listed = new Set(ids);
+  return {
+    ...model,
+    tabs: [...reordered, ...model.tabs.filter((tab) => !listed.has(tab.id))],
+  };
 }
 
 export function selectAdjacent(

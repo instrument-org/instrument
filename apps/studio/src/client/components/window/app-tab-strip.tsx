@@ -248,7 +248,6 @@ export function AppTabStrip({
           }
         }}
         onTabDrag={carry.onDrag}
-        onTabDragEnd={carry.onDragEnd}
         onTabDragStart={carry.onDragStart}
         selectedKey={shownSelectedId ?? undefined}
         tabs={presented}
@@ -392,6 +391,13 @@ function useTabCarry({
       }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
+    // Heard as it happens: the reorder reports the end of its drag with a later
+    // frame, and a window out of sight draws none.
+    const onRelease = (releaseEvent: PointerEvent) => {
+      onDragEnd(key, releaseEvent);
+    };
+    window.addEventListener("pointerup", onRelease, { capture: true });
+    window.addEventListener("pointercancel", onRelease, { capture: true });
     const drag: TabDrag = {
       canceled: false,
       collapsesOffRow: false,
@@ -407,6 +413,10 @@ function useTabCarry({
       staysOffRow: false,
       stop: () => {
         window.removeEventListener("keydown", onKeyDown, { capture: true });
+        window.removeEventListener("pointerup", onRelease, { capture: true });
+        window.removeEventListener("pointercancel", onRelease, {
+          capture: true,
+        });
         document.documentElement.removeAttribute("data-tab-held");
       },
       windowX: event.screenX - event.clientX,
@@ -527,7 +537,6 @@ function useTabCarry({
     carriedKey,
     followsReorder,
     onDrag,
-    onDragEnd,
     onDragStart,
   };
 }

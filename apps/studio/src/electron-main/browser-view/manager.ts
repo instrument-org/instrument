@@ -42,6 +42,7 @@ import {
 } from "./focus-guard";
 import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
+import { forgetRasterBudget } from "./guest-surface";
 import { noteUserInput } from "./external-app-links";
 import { resyncPagesAfterFullScreen } from "./full-screen-exit";
 import { guests } from "./guest-registry";
@@ -109,7 +110,7 @@ export interface BrowserViewManager {
   // Called once the window exists, whether or not a workspace has started:
   // the manager is the app's, so a window opened during setup hosts the
   // guests of the workspace setup starts.
-  bindHost: (host: WebContents, options?: { isFront?: boolean }) => void;
+  bindHost: (host: WebContents, options?: { isSpare?: () => boolean }) => void;
   // Whether a person has used a page this window's renderer mounts, those named
   // left out: what taking the renderer away from them would lose.
   hasUsedPage: (
@@ -210,6 +211,11 @@ function createBrowserViewManager(): BrowserViewManager {
   // in front.
   let frontHost: null | WebContents = null;
   const liveHosts = new Set<WebContents>();
+  // A spare window draws the tabs a drag gives it while nothing has changed
+  // hands, and the drag says which pages come over. It is no window to go to, and
+  // a page it happens to show is not one it gets to take.
+  const spareChecks = new Map<number, () => boolean>();
+  const isSpareHost = (id: number) => spareChecks.get(id)?.() ?? false;
   // The window whose renderer mounts a target, settled on it for good as soon
   // as there is a window to ask.
   const hostIdOf = (entry: BrowserEntry) => {
@@ -602,17 +608,24 @@ function createBrowserViewManager(): BrowserViewManager {
     }
   }
 
+  // A person's input, or an agent's commands: either leaves state a reload loses.
   const isUsed = (entry: BrowserEntry) => {
     const guestId = entry.webContents?.id;
-    return guestId !== undefined && (guests.get(guestId)?.userInputAt ?? 0) > 0;
+    return (
+      entry.lastAgentCommandAt > 0 ||
+      (guestId !== undefined && (guests.get(guestId)?.userInputAt ?? 0) > 0)
+    );
   };
 
   function bindHost(
     host: WebContents,
-    { isFront = true }: { isFront?: boolean } = {},
+    { isSpare }: { isSpare?: () => boolean } = {},
   ) {
     liveHosts.add(host);
-    if (isFront) {
+    if (isSpare) {
+      spareChecks.set(host.id, isSpare);
+    }
+    if (!isSpareHost(host.id)) {
       frontHost = host;
     }
     const hostWindow = BrowserWindow.fromWebContents(host);
@@ -624,8 +637,11 @@ function createBrowserViewManager(): BrowserViewManager {
     }
     host.once("destroyed", () => {
       liveHosts.delete(host);
+      spareChecks.delete(host.id);
+      forgetRasterBudget(host.id);
       if (frontHost === host) {
-        frontHost = [...liveHosts].at(-1) ?? null;
+        frontHost =
+          [...liveHosts].filter((each) => !isSpareHost(each.id)).at(-1) ?? null;
       }
       // A guest not yet mounted goes to a window that can mount it; one that
       // was is gone with its window, and comes back when its tab is shown.
@@ -829,8 +845,8 @@ function createBrowserViewManager(): BrowserViewManager {
         host?.take !== undefined &&
         hostId !== host.webContentsId &&
         (host.take === "always" ||
-          !isInUse(existing) ||
-          hostOf(targetId) === null)
+          hostOf(targetId) === null ||
+          (!isInUse(existing) && !isSpareHost(host.webContentsId)))
       ) {
         return moveTarget(existing, partitionDir, host.webContentsId);
       }

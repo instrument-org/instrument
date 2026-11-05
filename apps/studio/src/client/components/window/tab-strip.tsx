@@ -766,8 +766,8 @@ function Tab({
     <Tooltip disableHoverableContent>
       <TooltipTrigger
         asChild
-        // A held pointer stays captured by the tab it pressed, wherever the
-        // window has gone, which would otherwise read as hovering it.
+        // A held pointer is carrying a tab, which over any tab would otherwise
+        // read as hovering it.
         onPointerMove={(event) => {
           if (event.buttons !== 0) {
             event.preventDefault();

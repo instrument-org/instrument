@@ -2,11 +2,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { AbsolutePathSchema } from "../../schemas/paths";
+import { StoreId } from "../../schemas/store-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import {
   forgetRecordedActions,
   recordActions,
 } from "../../test/helpers/recorded-actions";
-import { getWorkspaceConfig } from "../workspace-config";
+import { ChatWrites } from "../chat-writes";
+import { updatePermissionSettings } from "../permissions/rules";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { actionLog, actionsDir } from "./log";
 import { readActions, readActionsNewestFirst } from "./read";
 
@@ -67,6 +73,79 @@ describe("readActions", () => {
     expect(
       named(await readActions({ since: NOW - 10 * MIN, until: NOW })),
     ).toEqual(["screen"]);
+  });
+});
+
+describe("the permissions the person answered", () => {
+  it("are read from each chat's grants and refusals, naming the chat by its title", async () => {
+    const original = getWorkspaceConfig();
+    const kitchen = ChatIdSchema.parse("kitchen-remodel-quotes");
+    createMockChatConfig(kitchen);
+    try {
+      await ChatWrites.saveSession(
+        {
+          createdAt: new Date(0),
+          id: StoreId.newSessionId(),
+          title: "Kitchen remodel quotes",
+        },
+        kitchen,
+      );
+      const at = (minutes: number) => new Date(NOW - minutes * MIN);
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        chats: {
+          [kitchen]: {
+            appGrants: [{ app: "Mail", grantedAt: at(4) }],
+            denials: [
+              { deniedAt: at(3), kind: "folder", target: "/Users/mac-user" },
+              { deniedAt: at(2), kind: "app", target: "Music" },
+            ],
+            grants: [
+              {
+                grantedAt: at(6),
+                path: AbsolutePathSchema.parse("/Users/mac-user/Downloads"),
+                source: "card",
+              },
+              // A file sent with a message is no answer.
+              {
+                grantedAt: at(5),
+                kind: "file",
+                path: AbsolutePathSchema.parse("/Users/mac-user/quote.pdf"),
+                source: "attached",
+              },
+            ],
+          },
+          // A chat with nothing to read a title from is left out.
+          "gone-chat": {
+            appGrants: [{ app: "Notes", grantedAt: at(1) }],
+            denials: [],
+            grants: [],
+          },
+          // Before the range.
+          [`${kitchen}-old`]: {
+            appGrants: [{ app: "Notes", grantedAt: at(90) }],
+            denials: [],
+            grants: [],
+          },
+        },
+      }));
+
+      expect(
+        (await readActions({ since: NOW - 10 * MIN, until: NOW })).map(
+          (action) =>
+            action.kind === "permission"
+              ? `${action.did} ${action.title}: ${action.path ?? action.app ?? ""}`
+              : action.kind,
+        ),
+      ).toEqual([
+        "allowed Kitchen remodel quotes: /Users/mac-user/Downloads",
+        "allowed Kitchen remodel quotes: Mail",
+        "refused Kitchen remodel quotes: /Users/mac-user",
+        "refused Kitchen remodel quotes: Music",
+      ]);
+    } finally {
+      setWorkspaceConfig(original);
+    }
   });
 });
 

@@ -5,12 +5,16 @@ import {
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
 
-/** Anything the person did, without its time, as a test states it. */
-export type RecordedAction = Action extends infer A
-  ? A extends { at: string }
-    ? Omit<A, "at">
-    : never
-  : never;
+/**
+ * What the person did, without its time, as a test states it: anything but
+ * a permission answered, which the chat's permissions keep.
+ */
+export type RecordedAction =
+  Exclude<Action, { kind: "permission" }> extends infer A
+    ? A extends { at: string }
+      ? Omit<A, "at">
+      : never
+    : never;
 
 const history: HistoryAction[] = [];
 

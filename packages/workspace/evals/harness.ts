@@ -443,7 +443,10 @@ const ANSWER_AFTER_TURN_MAX_MS = 120_000;
  * it is sent, as the app would have recorded it, in its action log or its
  * history.
  */
-type CaseActions = ({ ago: number } & (Action extends infer A
+type CaseActions = ({ ago: number } & (Exclude<
+  Action,
+  { kind: "permission" }
+> extends infer A
   ? A extends { at: string }
     ? Omit<A, "at">
     : never

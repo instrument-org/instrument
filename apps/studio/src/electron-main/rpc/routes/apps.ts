@@ -53,8 +53,10 @@ import {
 import { call, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { recordPersonAction } from "../../lib/actions";
 import {
   announceConnected,
+  appName,
   appOAuthRedirectUrl,
   appOAuthRelayUrl,
   appOAuthTokenUrl,
@@ -862,11 +864,17 @@ const dismiss = base
     await settleConnection(input.slug, { status: "declined" });
   });
 
-/** Take the key or sign-in away; the folder stays, for connecting again. */
+/**
+ * Take the key or sign-in away; the folder stays, for connecting again. The
+ * person asked from the app's page, so the action log keeps it, by the
+ * app's name.
+ */
 const disconnect = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ input }) => {
+  .handler(async ({ context, input }) => {
+    const name = await appName(context.workspaceConfig.appsDir, input.slug);
     await disconnectApp(input.slug);
+    recordPersonAction({ did: "disconnected", kind: "app", name });
   });
 
 /** The app's folder to the trash, with everything the stores hold about it. */

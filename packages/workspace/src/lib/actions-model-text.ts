@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { ACTIVITY_COMMAND } from "./shell-commands/activity-command";
 import { systemNote } from "./system-note";
@@ -53,8 +55,39 @@ function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
     case "download": {
       return one ? "downloaded a file" : `downloaded ${things(count, "file")}`;
     }
-    case "app": {
-      return one ? "used an app" : `used apps ${count} times`;
+    case "app-signed-in": {
+      return one ? "signed in to an app" : `signed in to ${count} apps`;
+    }
+    case "app-disconnected": {
+      return one ? "disconnected an app" : `disconnected ${count} apps`;
+    }
+    case "app-sign-in-failed": {
+      return one
+        ? "couldn't sign in to an app"
+        : `couldn't sign in to ${count} apps`;
+    }
+    case "update": {
+      return one ? `updated ${APP_NAME}` : `updated ${APP_NAME} ${count} times`;
+    }
+    case "permission-allowed-folder": {
+      return one
+        ? "allowed a chat to use a folder"
+        : `allowed chats to use ${things(count, "folder")}`;
+    }
+    case "permission-allowed-app": {
+      return one
+        ? "allowed a chat to use an app"
+        : `allowed chats to use ${things(count, "app")}`;
+    }
+    case "permission-refused-folder": {
+      return one
+        ? "refused a chat a folder"
+        : `refused chats ${things(count, "folder")}`;
+    }
+    case "permission-refused-app": {
+      return one
+        ? "refused a chat an app"
+        : `refused chats ${things(count, "app")}`;
     }
     case "error": {
       return one ? "saw an error" : `saw ${things(count, "error")}`;

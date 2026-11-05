@@ -20,6 +20,25 @@ export function recordPersonAction(action: ActionInput) {
   writeDevLogEntry("info", [action], { scope: "Actions" });
 }
 
+/** An update installed since this computer last ran the app, until a workspace's log takes it. */
+let installedUpdate: { from: string; to: string } | undefined;
+
+/**
+ * Holds an update the launch found for `recordInstalledUpdate`: the log is
+ * a workspace's, and none may run yet when the launch looks.
+ */
+export function noteInstalledUpdate(update: { from: string; to: string }) {
+  installedUpdate = update;
+}
+
+/** Records the update the launch found, once, in the first workspace to start. */
+export function recordInstalledUpdate() {
+  if (installedUpdate) {
+    recordPersonAction({ kind: "update", ...installedUpdate });
+    installedUpdate = undefined;
+  }
+}
+
 function withoutTime({ at: _at, ...action }: LoggedAction): ActionInput {
   return action;
 }

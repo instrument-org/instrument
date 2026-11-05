@@ -43,6 +43,7 @@ import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowCircleUpIcon } from "@phosphor-icons/react/ArrowCircleUp";
 import { ArrowBendDownRightIcon } from "@phosphor-icons/react/ArrowBendDownRight";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -57,6 +58,7 @@ import { InfoIcon } from "@phosphor-icons/react/Info";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlugsIcon } from "@phosphor-icons/react/Plugs";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { TextboxIcon } from "@phosphor-icons/react/Textbox";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -628,6 +630,9 @@ function ActionIcon({ action }: { action: ShownAction }) {
     case "page": {
       return <GlobeIcon className={ICON_CLASS} />;
     }
+    case "permission": {
+      return <ShieldCheckIcon className={ICON_CLASS} />;
+    }
     case "rename": {
       return <TextboxIcon className={ICON_CLASS} />;
     }
@@ -639,6 +644,9 @@ function ActionIcon({ action }: { action: ShownAction }) {
     }
     case "trash": {
       return <TrashIcon className={ICON_CLASS} />;
+    }
+    case "update": {
+      return <ArrowCircleUpIcon className={ICON_CLASS} />;
     }
   }
 }

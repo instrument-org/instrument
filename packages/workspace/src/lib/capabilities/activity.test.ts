@@ -2,12 +2,16 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import {
   forgetRecordedActions,
   type RecordedAction,
   recordActions,
 } from "../../test/helpers/recorded-actions";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { ChatWrites } from "../chat-writes";
+import { updatePermissionSettings } from "../permissions/rules";
 import { createActivityCommand } from "../shell-commands/activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
@@ -137,6 +141,61 @@ describe("instrument activity", () => {
         2:30 PM  opened /Users/mac-user/a.pdf in Preview
       "
     `);
+  });
+
+  it("says what the user did with apps, permissions and an update", async () => {
+    // Before the chat's config, whose machine folder the running log does
+    // not read.
+    logged([
+      [ago(50), { from: "2.0.13", kind: "update", to: "2.0.14" }],
+      [ago(40), { did: "signed in", kind: "app", name: "Gmail" }],
+      [ago(39), { did: "sign-in failed", kind: "app", name: "Linear" }],
+      [ago(38), { did: "disconnected", kind: "app", name: "Gmail" }],
+    ]);
+    const original = getWorkspaceConfig();
+    const kitchen = ChatIdSchema.parse("kitchen-remodel-quotes");
+    createMockChatConfig(kitchen);
+    try {
+      await ChatWrites.saveSession(
+        {
+          createdAt: new Date(0),
+          id: StoreId.newSessionId(),
+          title: "Kitchen remodel quotes",
+        },
+        kitchen,
+      );
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        chats: {
+          [kitchen]: {
+            appGrants: [{ app: "Mail", grantedAt: ago(20) }],
+            denials: [{ deniedAt: ago(10), kind: "folder", target: HOME }],
+            grants: [
+              {
+                grantedAt: ago(30),
+                path: AbsolutePathSchema.parse(`${HOME}/Downloads`),
+                source: "card",
+              },
+            ],
+          },
+        },
+      }));
+
+      expect((await activity()).stdout).toMatchInlineSnapshot(`
+        "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+        Thursday, November 5
+          1:40 PM  updated Instrument from 2.0.13 to 2.0.14
+          1:50 PM  signed in to the app "Gmail"
+          1:51 PM  couldn't sign in to the app "Linear"
+          1:52 PM  disconnected the app "Gmail"
+          2:00 PM  allowed the chat "Kitchen remodel quotes" to use /Users/mac-user/Downloads
+          2:10 PM  allowed the chat "Kitchen remodel quotes" to use Mail
+          2:20 PM  refused the chat "Kitchen remodel quotes" /Users/mac-user
+        "
+      `);
+    } finally {
+      setWorkspaceConfig(original);
+    }
   });
 
   it("reaches back 2 hours when not told, and keeps the newest rows under --limit", async () => {

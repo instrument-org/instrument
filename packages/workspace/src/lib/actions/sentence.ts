@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { FOLDER_VARIABLES } from "../../constants";
 import { shellPath as shellSpelling } from "../shell-path";
 import { type Action, type ActionInput } from "./schema";
@@ -54,7 +56,21 @@ export function actionSentence(
       return `downloaded ${shellPath(action.path)}${action.url ? ` from ${action.url}` : ""}`;
     }
     case "app": {
-      return `used the app "${action.name}": ${action.did}`;
+      return action.did === "signed in"
+        ? `signed in to the app "${action.name}"`
+        : action.did === "disconnected"
+          ? `disconnected the app "${action.name}"`
+          : `couldn't sign in to the app "${action.name}"`;
+    }
+    case "update": {
+      return `updated ${APP_NAME} from ${action.from} to ${action.to}`;
+    }
+    case "permission": {
+      const what =
+        action.path === undefined ? (action.app ?? "") : shellPath(action.path);
+      return action.did === "allowed"
+        ? `allowed the chat "${action.title}" to use ${what}`
+        : `refused the chat "${action.title}" ${what}`;
     }
     case "error": {
       return `saw the error "${action.message}"${action.where ? ` (${action.where})` : ""}`;

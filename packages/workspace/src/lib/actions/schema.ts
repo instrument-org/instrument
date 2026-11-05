@@ -35,6 +35,21 @@ const OpenWithSchema = z.object({
   path: z.string(),
 });
 
+/**
+ * A folder or a Mac app the person allowed a chat to use from its card, or
+ * refused it, as the chat's permissions keep it: the chat by its id and
+ * title, the folder by its path or the app by its name.
+ */
+const PermissionSchema = z.object({
+  app: z.string().optional(),
+  at: At,
+  did: z.enum(["allowed", "refused"]),
+  id: z.string(),
+  kind: z.literal("permission"),
+  path: z.string().optional(),
+  title: z.string(),
+});
+
 const LOGGED = [
   /** A folder shown in Files, with what was selected in it once the selection settled. */
   z.object({
@@ -75,12 +90,19 @@ const LOGGED = [
     path: z.string(),
     url: z.string().optional(),
   }),
-  /** Something that happened with a connected app: "sign-in failed". */
+  /** A sign-in to a connected app that went through or failed, or a disconnect, by the app's name. */
   z.object({
     at: At,
-    did: z.string(),
+    did: z.enum(["disconnected", "sign-in failed", "signed in"]),
     kind: z.literal("app"),
     name: z.string(),
+  }),
+  /** The app updated since this computer last ran it, from one version to another. */
+  z.object({
+    at: At,
+    from: z.string(),
+    kind: z.literal("update"),
+    to: z.string(),
   }),
   /** An error or warning the app showed the person, in its own words. */
   z.object({
@@ -111,26 +133,34 @@ const LOGGED = [
 ] as const;
 
 /**
- * One line of the action log. Pages and files opened are not among them:
- * the app's history keeps those (`readPersonHistory` on the workspace's
- * config), and the readers put the two together.
+ * One line of the action log. Pages and files opened are not among them,
+ * nor permissions answered: the app's history keeps the first
+ * (`readPersonHistory` on the workspace's config) and the chats'
+ * permissions the second, and the readers put them together.
  */
 export const LoggedActionSchema = z.discriminatedUnion("kind", [...LOGGED]);
 
 export type LoggedAction = z.output<typeof LoggedActionSchema>;
 
-/** What the person did, as every reader of it answers: the action log's lines and the history's pages and files. */
+/**
+ * What the person did, as every reader of it answers: the action log's
+ * lines, the history's pages and files, and the permissions they answered.
+ */
 export const ActionSchema = z.discriminatedUnion("kind", [
   ...LOGGED,
   PageSchema,
   FileSchema,
   OpenWithSchema,
+  PermissionSchema,
 ]);
 
 export type Action = z.output<typeof ActionSchema>;
 
 /** A page visited or a file opened, as the app's history answers them. */
-export type HistoryAction = Exclude<Action, LoggedAction>;
+export type HistoryAction = Extract<
+  Action,
+  { kind: "file" | "open-with" | "page" }
+>;
 
 /** An action as a capture point reports it to the log, which stamps the time. */
 export type ActionInput = LoggedAction extends infer A

@@ -1177,7 +1177,8 @@ export namespace SessionMessageDataPart {
    * What the user did in the app before a message they typed, as the kinds
    * of things done and never what they were done to (`lib/actions/`): a row
    * per run of one kind, how many in it, and the whole minutes before the
-   * message of the newest. The names and paths stay in the log on this
+   * message of the newest. A kind is an action's, or for an app or a
+   * permission, what was done with it. The names and paths stay in the log on this
    * computer, which `instrument activity` reads, since the chat's records
    * sync and go into feedback reports.
    */
@@ -1188,7 +1189,9 @@ export namespace SessionMessageDataPart {
           /** Things done in the run: files moved for a move, actions for the rest. */
           count: z.number().int().min(1),
           kind: z.enum([
-            "app",
+            "app-disconnected",
+            "app-sign-in-failed",
+            "app-signed-in",
             "chat",
             "copy",
             "download",
@@ -1200,10 +1203,15 @@ export namespace SessionMessageDataPart {
             "new-folder",
             "open-with",
             "page",
+            "permission-allowed-app",
+            "permission-allowed-folder",
+            "permission-refused-app",
+            "permission-refused-folder",
             "rename",
             "screen",
             "setting",
             "trash",
+            "update",
           ]),
           minutes: z.number().int().min(0),
         }),

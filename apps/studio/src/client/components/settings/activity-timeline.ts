@@ -4,6 +4,7 @@ import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 // Types alone: the client opens its channel to the main process on import.
 import type { RPCInput, RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { APP_NAME } from "@instrument-org/shared";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 
 /**
@@ -313,10 +314,26 @@ export function actionText(action: ShownAction, words: Words): RowText {
     case "app": {
       return {
         primary:
-          action.did === "sign-in failed"
-            ? `Couldn't sign in to ${action.name}`
-            : `${action.name}: ${action.did}`,
+          action.did === "signed in"
+            ? `Signed in to ${action.name}`
+            : action.did === "disconnected"
+              ? `Disconnected ${action.name}`
+              : `Couldn't sign in to ${action.name}`,
         secondary: "App",
+      };
+    }
+    case "update": {
+      return {
+        primary: `Updated ${APP_NAME} to ${action.to}`,
+        secondary: `From ${action.from}`,
+      };
+    }
+    case "permission": {
+      const what =
+        action.path === undefined ? (action.app ?? "") : nameOf(action.path);
+      return {
+        primary: `${action.did === "allowed" ? "Allowed" : "Didn't allow"} ${quoted(action.title)} to use ${what}`,
+        secondary: "Permission",
       };
     }
     case "error": {
@@ -339,7 +356,8 @@ export function actionText(action: ShownAction, words: Words): RowText {
 
 /**
  * Where clicking a row of the person's own goes: the folder, file, chat or
- * page it names, or nowhere for what has no place to open.
+ * page it names (the chat a permission was for), or nowhere for what has no
+ * place to open.
  */
 export function placeOf(action: ShownAction): OpenTarget | undefined {
   switch (action.kind) {
@@ -370,7 +388,8 @@ export function placeOf(action: ShownAction): OpenTarget | undefined {
         kind: "screen",
       };
     }
-    case "chat": {
+    case "chat":
+    case "permission": {
       const id = ChatIdSchema.safeParse(action.id);
       return id.success
         ? { href: chatHref(id.data), kind: "screen" }

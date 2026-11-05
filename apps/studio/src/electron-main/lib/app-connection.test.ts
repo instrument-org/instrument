@@ -16,9 +16,6 @@ vi.mock("@instrument-org/workspace/electron", () => ({
     mocks.calls.push(["appChanged", ...args]);
     return Promise.resolve();
   },
-  recordAction: (...args: unknown[]) => {
-    mocks.calls.push(["recordAction", ...args]);
-  },
   recordConnection: (...args: unknown[]) => {
     mocks.calls.push(["recordConnection", ...args]);
     return Promise.resolve();
@@ -129,14 +126,6 @@ describe("settleConnection", () => {
             {
               "error": "no client",
               "status": "failed",
-            },
-          ],
-          [
-            "recordAction",
-            {
-              "did": "sign-in failed",
-              "kind": "app",
-              "name": "linear",
             },
           ],
           [

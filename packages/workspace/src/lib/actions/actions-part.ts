@@ -16,6 +16,31 @@ const NOTE_ROWS_MAX = 8;
 
 type Row = SessionMessageDataPart.ActionsDataPart["rows"][number];
 
+/**
+ * The kind a note row says for an action: its own, or for an app or a
+ * permission, what was done with it; nothing for what a cap left out.
+ */
+function noteKindOf(action: Action): Row["kind"] | undefined {
+  switch (action.kind) {
+    case "app": {
+      return action.did === "signed in"
+        ? "app-signed-in"
+        : action.did === "disconnected"
+          ? "app-disconnected"
+          : "app-sign-in-failed";
+    }
+    case "permission": {
+      return `permission-${action.did}-${action.path === undefined ? "app" : "folder"}`;
+    }
+    case "capped": {
+      return undefined;
+    }
+    default: {
+      return action.kind;
+    }
+  }
+}
+
 /** How many things one action did: the files of a move, copy or trash, else one. */
 function countOf(action: Action): number {
   switch (action.kind) {
@@ -45,8 +70,9 @@ export function actionsNoteRows(
 ): Row[] {
   const rows: Row[] = [];
   for (const action of actions) {
+    const kind = noteKindOf(action);
     if (
-      action.kind === "capped" ||
+      kind === undefined ||
       (action.kind === "chat" && action.id === chatId)
     ) {
       continue;
@@ -56,12 +82,12 @@ export function actionsNoteRows(
       Math.floor((sentAt.getTime() - Date.parse(action.at)) / 60_000),
     );
     const last = rows.at(-1);
-    if (last?.kind === action.kind) {
+    if (last?.kind === kind) {
       last.count += countOf(action);
       last.minutes = minutes;
       continue;
     }
-    rows.push({ count: countOf(action), kind: action.kind, minutes });
+    rows.push({ count: countOf(action), kind, minutes });
   }
   return rows.slice(-NOTE_ROWS_MAX);
 }

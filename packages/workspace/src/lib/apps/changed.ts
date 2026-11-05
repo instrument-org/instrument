@@ -1,4 +1,5 @@
 import { publisher } from "../../rpc/publisher";
+import { recordAction } from "../actions/log";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type SignInEnd } from "./connection";
@@ -33,8 +34,23 @@ export async function appChanged(
   if (!happened) {
     return;
   }
-  publisher.publish("app.event", await appEventOf(slug, happened));
+  const event = await appEventOf(slug, happened);
+  publisher.publish("app.event", event);
+  const did = PERSON_DID[happened.event];
+  if (did) {
+    recordAction({ did, kind: "app", name: event.name });
+  }
 }
+
+/**
+ * What the action log says the person did, for the events that are a
+ * sign-in of theirs going through or failing. A disconnect is recorded
+ * where the person asks for one, since the agent can disconnect an app too.
+ */
+const PERSON_DID: Partial<Record<AppEvent, "sign-in failed" | "signed in">> = {
+  connected: "signed in",
+  failed: "sign-in failed",
+};
 
 type Happened = {
   detail?: string;

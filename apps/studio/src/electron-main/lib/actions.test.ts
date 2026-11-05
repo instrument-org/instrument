@@ -1,6 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { windowActionOf } from "./actions";
+const recorded = vi.hoisted((): unknown[] => []);
+
+vi.mock("@instrument-org/workspace/electron", async (original) => ({
+  ...(await original<object>()),
+  recordAction: (action: unknown) => {
+    recorded.push(action);
+  },
+}));
+
+vi.mock("./dev-file-logger", () => ({ writeDevLogEntry: () => {} }));
+
+import {
+  noteInstalledUpdate,
+  recordInstalledUpdate,
+  windowActionOf,
+} from "./actions";
+
+describe("an update the launch found", () => {
+  it("goes in the first workspace's log once it starts, and only once", () => {
+    recordInstalledUpdate();
+    expect(recorded).toEqual([]);
+    noteInstalledUpdate({ from: "2.0.13", to: "2.0.14" });
+    recordInstalledUpdate();
+    recordInstalledUpdate();
+    expect(recorded).toEqual([
+      { from: "2.0.13", kind: "update", to: "2.0.14" },
+    ]);
+  });
+});
 
 describe("windowActionOf", () => {
   it.each([

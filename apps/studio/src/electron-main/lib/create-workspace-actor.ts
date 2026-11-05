@@ -61,6 +61,7 @@ import { createActor, fromPromise } from "xstate";
 import { getBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
+import { recordInstalledUpdate } from "./actions";
 import { createAppsConfig, rememberAppsDir } from "./apps";
 import { timeBootStep } from "./boot-timing";
 import { captureFor, captureServerException } from "./capture-server-exception";
@@ -245,6 +246,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
+  recordInstalledUpdate();
   // What another device writes into the chats folder reaches the app while
   // it runs: the folder is watched, and looked at whenever the window comes
   // forward and every minute while it is in front.

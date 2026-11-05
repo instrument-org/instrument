@@ -52,6 +52,7 @@ import {
 import {
   CommandRunSchema,
   CommandRuns,
+  keptStderr,
   withCommandRuns,
 } from "../lib/shell-commands/command-runs";
 import {
@@ -222,6 +223,11 @@ const bashOutputSchema = z.object({
    */
   ran: z.array(CommandRunSchema).optional(),
   /**
+   * The end of what a call that exited non-zero wrote to stderr, whatever
+   * wrote it; for the session log, never the model, which reads `output`.
+   */
+  stderr: z.string().optional(),
+  /**
    * The page after the call's agent-browser commands changed it, when
    * nothing in the call read it afterwards.
    */
@@ -315,6 +321,7 @@ const bashCapability = defineCapability({
         const asks: string[] = [];
         const appGuides: RecordedAppGuide[] = [];
         const commandRuns = new CommandRuns();
+        let stderr = "";
         const ran = () => {
           const rows = commandRuns.rows();
           return rows.length > 0 ? { ran: rows } : {};
@@ -342,6 +349,7 @@ const bashCapability = defineCapability({
                     (command): command is string => typeof command === "string",
                   )
                 : [];
+              stderr = keptStderr(result.stderr);
               return {
                 exitCode: result.exitCode,
                 output: [result.stdout, result.stderr]
@@ -356,10 +364,10 @@ const bashCapability = defineCapability({
               // read-only mount) as thrown errors instead of exit codes. Report them
               // like a failed command so the agent adjusts its command instead of
               // treating the tool itself as broken.
-              return {
-                exitCode: 1,
-                output: error instanceof Error ? error.message : String(error),
-              };
+              const output =
+                error instanceof Error ? error.message : String(error);
+              stderr = keptStderr(output);
+              return { exitCode: 1, output };
             }
           },
         });
@@ -517,6 +525,7 @@ const bashCapability = defineCapability({
           output: outcome.output,
           ...(pageAfter ? { pageAfter } : {}),
           ...ran(),
+          ...(outcome.exitCode !== 0 && stderr ? { stderr } : {}),
           ...(screenshot ? { screenshot } : {}),
           spillFilePath,
         });

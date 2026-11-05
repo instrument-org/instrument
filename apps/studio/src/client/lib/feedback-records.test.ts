@@ -56,9 +56,8 @@ const chat = log([
 describe("recordRows", () => {
   it("draws every record the outline sends as a label and its first line", () => {
     const rows = recordRows(outlineSessionLog(`${chat}\nnot json\n`).content);
-    expect(
-      rows.map(({ label, text }) => `${label} | ${text}`),
-    ).toMatchInlineSnapshot(`
+    expect(rows.map(({ label, text }) => `${label} | ${text}`))
+      .toMatchInlineSnapshot(`
       [
         "You | favorite my first email",
         "On screen | https://mail.google.com/…",
@@ -68,6 +67,92 @@ describe("recordRows", () => {
         "Read file | /notes.md",
         "Sites | mail.google.com",
         "Unreadable | …",
+      ]
+    `);
+  });
+
+  it("marks a call whose stage failed behind a pipe and lists what ran, its output left out", () => {
+    const rows = recordRows(
+      outlineSessionLog(
+        log([
+          part(1, {
+            input: { command: "find . | head -5" },
+            output: {
+              exitCode: 0,
+              output: "Error: .: Access is denied. (os error 5)",
+              ran: [
+                {
+                  count: 1,
+                  exitCode: 1,
+                  failed: 1,
+                  name: "find",
+                  sandbox: "mxc",
+                  source: "bundled",
+                  stderr: "Error: .: Access is denied. (os error 5)",
+                },
+              ],
+            },
+            type: "tool-bash",
+          }),
+          part(2, {
+            input: { command: "ls | head -5" },
+            output: {
+              exitCode: 0,
+              output: "a.txt",
+              ran: [{ count: 1, name: "ls", source: "builtin" }],
+            },
+            type: "tool-bash",
+          }),
+        ]),
+      ).content,
+    );
+    expect(rows.map((row) => `${row.label} | ${row.text}`)).toEqual([
+      "Failed | find . | head -5",
+      "Ran | ls | head -5",
+    ]);
+    expect(rows[0]?.fields).toMatchInlineSnapshot(`
+      [
+        {
+          "name": "input.command",
+          "value": "find . | head -5",
+        },
+        {
+          "name": "output.exitCode",
+          "value": "0",
+        },
+        {
+          "name": "output.output",
+          "redacted": true,
+          "value": "",
+        },
+        {
+          "name": "output.ran[0].count",
+          "value": "1",
+        },
+        {
+          "name": "output.ran[0].exitCode",
+          "value": "1",
+        },
+        {
+          "name": "output.ran[0].failed",
+          "value": "1",
+        },
+        {
+          "name": "output.ran[0].name",
+          "value": "find",
+        },
+        {
+          "name": "output.ran[0].sandbox",
+          "value": "mxc",
+        },
+        {
+          "name": "output.ran[0].source",
+          "value": "bundled",
+        },
+        {
+          "name": "output.ran[0].stderr",
+          "value": "Error: .: Access is denied. (os error 5)",
+        },
       ]
     `);
   });

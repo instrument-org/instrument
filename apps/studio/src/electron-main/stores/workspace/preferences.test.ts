@@ -15,6 +15,7 @@ describe("the feature flags in a workspace's preferences", () => {
     ],
   ])("keeps what it can read from %s", (_, features) => {
     expect(WorkspacePreferencesSchema.parse({ features }).features).toEqual({
+      browser_extensions: false,
       computer_use: false,
       context_ring: true,
       suggestions_from_your_chats: false,
@@ -23,6 +24,7 @@ describe("the feature flags in a workspace's preferences", () => {
 
   it("starts with every flag off", () => {
     expect(WorkspacePreferencesSchema.parse({}).features).toEqual({
+      browser_extensions: false,
       computer_use: false,
       context_ring: false,
       suggestions_from_your_chats: false,

@@ -179,6 +179,11 @@ export const WORKSPACE_MACHINE_ENTRIES = {
    * offers stay days apart across every chat.
    */
   feedbackOffers: "feedback-offers.json",
+  /**
+   * When a chat last got the card asking how it went, so cards stay days
+   * apart across every chat.
+   */
+  ratingCards: "rating-cards.json",
   /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
   keys: "keys",
   /**

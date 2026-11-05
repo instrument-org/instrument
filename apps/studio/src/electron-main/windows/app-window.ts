@@ -132,6 +132,11 @@ export function openAppWindow(): BrowserWindow {
 
   appWindow = new BrowserWindow({
     ...(isSetupSized ? setupBounds() : remembered.bounds),
+    // Left to itself, Electron paints the active window's edge from Windows'
+    // accent setting and can get the color wrong (default blue where the
+    // system's own windows use the person's accent). Off, Windows draws its
+    // usual quiet edge.
+    accentColor: false,
     backgroundColor: getBackgroundColor(),
     // On macOS the native NSWindow frame is kept, since `hiddenInset` already
     // gives the chromeless look and a frameless window cannot host modal

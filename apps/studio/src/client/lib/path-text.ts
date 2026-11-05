@@ -5,11 +5,13 @@ export interface FoundPath {
   /** Where the path starts in the line, quotes excluded. */
   from: number;
   path: TypedPath;
+  /** Whether a quote stands on each side of it, right outside `from` and `to`. */
+  quoted: boolean;
   /** Where it ends, exclusive. */
   to: number;
 }
 
-/** A line split into the paths it carries and the text around them. */
+/** A line split into the paths it carries, without their quotes, and the text around them. */
 export type PathTextSegment =
   | { path: TypedPath; text: string; type: "path" }
   | { text: string; type: "text" };
@@ -30,20 +32,31 @@ export function splitPaths(line: string, platform: string): PathTextSegment[] {
   const segments: PathTextSegment[] = [];
   let cursor = 0;
   for (const found of findPaths(line, platform)) {
-    if (found.from > cursor) {
-      segments.push({ text: line.slice(cursor, found.from), type: "text" });
+    const quote = found.quoted ? 1 : 0;
+    if (found.from - quote > cursor) {
+      segments.push({
+        text: line.slice(cursor, found.from - quote),
+        type: "text",
+      });
     }
     segments.push({
       path: found.path,
       text: line.slice(found.from, found.to),
       type: "path",
     });
-    cursor = found.to;
+    cursor = found.to + quote;
   }
   if (cursor < line.length) {
     segments.push({ text: line.slice(cursor), type: "text" });
   }
   return segments;
+}
+
+/** A line as it reads with its paths shown as chips, for a place that shows only text. */
+export function withoutPathQuotes(line: string, platform: string) {
+  return splitPaths(line, platform)
+    .map(({ text }) => text)
+    .join("");
 }
 
 /**
@@ -84,6 +97,26 @@ export function findPaths(line: string, platform: string): FoundPath[] {
   return found;
 }
 
+/**
+ * The path a pasted line names when only quotes would keep it whole once more
+ * is written after it: one line that reads as a path with its spaces, which
+ * {@link findPaths} would cut short followed by another word.
+ */
+export function pathToQuote(
+  line: string,
+  platform: string,
+): TypedPath | undefined {
+  if (!/\s/u.test(line) || /[\r\n]/u.test(line)) {
+    return;
+  }
+  const [quoted, ...others] = findPaths(`"${line}"`, platform);
+  if (!quoted || others.length > 0 || quoted.to !== line.length + 1) {
+    return;
+  }
+  const [bare] = findPaths(`${line} word`, platform);
+  return bare?.from === 0 && bare.to === line.length ? undefined : quoted.path;
+}
+
 /** The line as one path, spaces and all, when it plainly is one. */
 function wholeLinePath(line: string, platform: string): FoundPath | undefined {
   const trimmed = line.trim();
@@ -100,7 +133,7 @@ function wholeLinePath(line: string, platform: string): FoundPath | undefined {
     return;
   }
   const from = line.indexOf(trimmed);
-  return { from, path, to: from + trimmed.length };
+  return { from, path, quoted: false, to: from + trimmed.length };
 }
 
 /** A path starting at `at`, quoted or not, and where reading should go on from. */
@@ -119,7 +152,10 @@ function pathAt(
     const inside = line.slice(at + 1, close);
     const path = inside.trim() === inside && strongPath(inside, platform);
     return path
-      ? { end: close + 1, found: { from: at + 1, path, to: close } }
+      ? {
+          end: close + 1,
+          found: { from: at + 1, path, quoted: true, to: close },
+        }
       : undefined;
   }
   if (!OPENS_PATH.test(before)) {
@@ -155,7 +191,7 @@ function pathAt(
   }
   return {
     end,
-    found: { from: at, path, to: at + candidate.length },
+    found: { from: at, path, quoted: false, to: at + candidate.length },
   };
 }
 

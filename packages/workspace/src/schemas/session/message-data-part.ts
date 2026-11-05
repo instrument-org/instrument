@@ -43,6 +43,7 @@ export namespace SessionMessageDataPart {
     "toolResultsCleared",
     "chatContext",
     "project",
+    "ratingCard",
     "unknown",
     "viewContext",
     "workspaceInstructions",
@@ -108,6 +109,7 @@ export namespace SessionMessageDataPart {
     taskEvent: "event",
     toolResultsCleared: "event",
     project: "state",
+    ratingCard: "event",
     unknown: "unwritten",
     viewContext: "state",
     workspaceInstructions: "state",
@@ -1327,6 +1329,18 @@ export namespace SessionMessageDataPart {
     typeof WorkspaceInstructionsDataPartSchema
   >;
 
+  /**
+   * The card asking the person how a chat went, which the app adds after a
+   * reply (`lib/chat/rating-card.ts`). `outcome` is what they did with it,
+   * absent while it waits. The model never reads it, and answering wakes
+   * nothing.
+   */
+  export const RatingCardDataPartSchema = z.object({
+    outcome: z.enum(["dismissed", "sent"]).optional(),
+  });
+
+  export type RatingCardDataPart = z.output<typeof RatingCardDataPartSchema>;
+
   const DataPartsSchema = z.object({
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
@@ -1338,6 +1352,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.project]: ProjectDataPartSchema,
+    [NameSchema.enum.ratingCard]: RatingCardDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,

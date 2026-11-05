@@ -12,6 +12,7 @@ import {
   reorderTabs,
   selectAdjacent,
   selectByIndex,
+  selectOrAddTab,
   selectTab,
   setTabPathname,
   type TabsModel,
@@ -68,6 +69,40 @@ describe("addTab", () => {
     );
     const next = addTab(start, { id: id("b"), pathname: "/tasks/456" });
     expect(next.tabs.map((t) => t.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("selectOrAddTab", () => {
+  const atChat = (candidate: Tab) => candidate.pathname === "/chats/a";
+
+  it("selects the tab that matches, adding none", () => {
+    const start = model(
+      [tab({ id: id("a"), pathname: "/chats/a" }), tab({ id: id("b") })],
+      id("b"),
+    );
+
+    const next = selectOrAddTab(start, {
+      id: id("new"),
+      matches: atChat,
+      pathname: "/chats/a",
+    });
+
+    expect(next.selectedId).toBe(id("a"));
+    expect(next.tabs).toBe(start.tabs);
+  });
+
+  it("adds and selects a tab when none matches", () => {
+    const next = selectOrAddTab(model([tab({ id: id("b") })], id("b")), {
+      id: id("new"),
+      matches: atChat,
+      pathname: "/chats/a",
+    });
+
+    expect(next.selectedId).toBe(id("new"));
+    expect(next.tabs.map((entry) => entry.pathname)).toEqual([
+      "/new-tab",
+      "/chats/a",
+    ]);
   });
 });
 

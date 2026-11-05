@@ -8,6 +8,7 @@ import { startChatListFile } from "./chat-list-file";
 import { startChatSettle, startChatUnreadOnSettle } from "./chats";
 import { startJobWake } from "./job-wake";
 import { startNextMessageSuggestions } from "./next-message";
+import { startRatingCards } from "./rating-card";
 import { startChatRetitle } from "./retitle";
 import { startSignInWake } from "./sign-in-wake";
 import { startChatWake } from "./wake";
@@ -21,7 +22,8 @@ import { startWorkDirReap } from "./work-dir-reap";
  * asked for, the one that takes another device's answers to this
  * computer's permission cards, the one
  * that names a chat again once its first exchange settles, the one that
- * marks a chat unread each time it settles, the one that writes the
+ * marks a chat unread each time it settles, the one that adds the card
+ * asking how a chat went, the one that writes the
  * chat's transcript into its folder as each turn ends, the one that
  * records the folder of each chat this computer has no name for, the one that
  * removes a work folder a chat at rest left empty, and the one that writes
@@ -40,6 +42,7 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startChatSettle();
   startChatRetitle();
   startNextMessageSuggestions();
+  startRatingCards();
   startChatUnreadOnSettle();
   startChatFolderWrites();
   startChatFolderNames();

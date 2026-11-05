@@ -82,6 +82,7 @@ describe("ToolOfferFeedback", () => {
       chatId,
       kind: "feedback",
       surface: "agent-offer",
+      tag: "bug",
       writeup: { text: input.writeup, title: input.title },
     });
   });

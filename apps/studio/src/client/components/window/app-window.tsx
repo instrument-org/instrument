@@ -567,14 +567,7 @@ function WindowShell({
     { showsPane }: { showsPane: boolean },
   ) => {
     compose.remove(chatId);
-    const tab = appTabs.model.tabs.find(
-      (candidate) => chatOfHref(candidate.pathname) === chatId,
-    );
-    if (tab) {
-      appTabs.select(tab.id);
-    } else {
-      appTabs.open(chatHref(chatId));
-    }
+    appTabs.openOrFocusChat(chatId);
     if (showsPane) {
       setPaneOpen(chatId, true);
     }

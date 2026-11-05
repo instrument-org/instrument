@@ -1,6 +1,7 @@
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
 import { session, type Session } from "electron";
+import { ElectronChromeExtensions } from "electron-chrome-extensions";
 import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -12,7 +13,8 @@ import { applyStandardUserAgent } from "./user-agent";
 /**
  * What every session that draws the app's own windows needs: the standard user
  * agent for the app's remote requests (avatars, embedded remote images), the
- * permission policy, and the `app:` protocol.
+ * permission policy, the `app:` protocol, and the `crx:` protocol the browser
+ * extensions' action icons load over.
  */
 export function configureAppSession(ses: Session): void {
   // Present the identity of an ordinary Chromium-derived browser, with matching
@@ -26,6 +28,11 @@ export function configureAppSession(ses: Session): void {
   });
 
   registerAppProtocol(ses);
+  // Before any window loads: a frame is given its loaders for custom schemes
+  // when its page commits, so a handler registered later never serves it.
+  // Answers 404 until the extensions are enabled on the browser session
+  // (`browser-view/extensions.ts`).
+  ElectronChromeExtensions.handleCRXProtocol(ses);
 }
 
 let appSession: null | Session = null;

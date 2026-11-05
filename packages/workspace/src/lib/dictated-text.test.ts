@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   dictatedToken,
+  isAllDictated,
   renderDictatedForModel,
   splitDictatedText,
   stripDictatedMarks,
@@ -69,5 +70,18 @@ describe("dictated text", () => {
     const wire = dictatedToken("one\ntwo");
     expect(wire).toBe("[one](dictated:)\n[two](dictated:)");
     expect(stripDictatedMarks(wire)).toBe("one\ntwo");
+  });
+
+  it.each([
+    ["one take", "[One take.](dictated:)", true],
+    ["two takes on a line", "[One.](dictated:) [Two.](dictated:)", true],
+    ["takes on separate lines", "[One.](dictated:)\n\n[Two.](dictated:)", true],
+    ["words typed after", "[Said](dictated:) typed", false],
+    ["words typed before", "Typed [said](dictated:)", false],
+    ["a skill before", "[$release](skill:release) [now](dictated:)", false],
+    ["nothing dictated", "Typed", false],
+    ["nothing at all", "", false],
+  ])("says whether all of it was dictated: %s", (_case, text, expected) => {
+    expect(isAllDictated(text)).toBe(expected);
   });
 });

@@ -20,6 +20,7 @@ import { type PageChromeSlots } from "./browser-tabs";
 import { WebStart } from "./compose-zero-state";
 import { useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
+import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAskButton } from "./file-ask-button";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
@@ -187,6 +188,9 @@ export function GroupItem({
         {...rowProps}
         trailing={
           <>
+            {/* The extensions' buttons go before Ask, with the page's own
+              controls after it. */}
+            {location.kind === "page" && <BrowserExtensionButtons />}
             {/* A page's file has the file's own Ask among its actions. */}
             {before && location.kind === "page" && (
               <PageAskButton onAsk={appWindow.focusComposer} />

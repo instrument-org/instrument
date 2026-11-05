@@ -20,6 +20,7 @@ import { AppEventNote } from "./app-event-note";
 import { FolderChangesNote } from "./folder-changes-note";
 import { ChatDevOnly } from "./dev-mode-card";
 import { type RenderPartContext } from "./chat-stream-render-part";
+import { RatingCard } from "./message-part/rating-card";
 import { PermissionAnswerNote } from "./permission-asks";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
@@ -81,6 +82,15 @@ export function renderDataPart({
     }
     case "data-asks": {
       return <SentAsksNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-ratingCard": {
+      return (
+        <RatingCard
+          chatId={ctx.chatInfo.id}
+          key={part.metadata.id}
+          part={part}
+        />
+      );
     }
     case "data-folderChanges": {
       return (

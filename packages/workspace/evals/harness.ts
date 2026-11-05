@@ -5,7 +5,7 @@ import {
   noopModelCache,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
@@ -818,6 +818,14 @@ export async function runEvals(
     os.tmpdir(),
     `${APP_NAME_SLUG}-evals-${ulid()}`,
   );
+  // EVAL_INSTRUMENT_FOLDER=1 puts the person's folder where a release keeps it,
+  // in Documents under the run's home, with the run's machine folder outside
+  // it, for a case about how the agent searches that folder. `report` does not
+  // read a run made this way.
+  const personFolder = process.env.EVAL_INSTRUMENT_FOLDER
+    ? path.join(os.homedir(), "Documents", APP_NAME)
+    : workspaceRootDir;
+  fs.mkdirSync(personFolder, { recursive: true });
   const runtimeDir = freshRuntime
     ? freshRuntimeDir(workspaceRootDir)
     : sharedRuntimeDir();
@@ -866,7 +874,7 @@ export async function runEvals(
     macAppsStandInFor?.refuse(
       _.unique(evals.flatMap((evalCase) => evalCase.macApps?.refused ?? [])),
     );
-    await loadChatIndex(workspaceLayout(workspaceRootDir).chatsDir);
+    await loadChatIndex(workspaceLayout(personFolder).chatsDir);
     const actor = createActor(workspaceMachine, {
       input: {
         aiGatewayApp,
@@ -912,10 +920,10 @@ export async function runEvals(
         // finished work goes, as it is for anyone who picked where their
         // Instrument folder is kept. Without this a run measures the
         // fallback, and nothing measures what the prompt tells the agent.
-        outputDir: workspaceRootDir,
+        outputDir: personFolder,
         pnpmBinPath: PNPM_BIN,
         registryDir,
-        rootDir: workspaceRootDir,
+        rootDir: personFolder,
         runtimeDir,
         // Inside the run's own folder, so a saved run keeps the chats' work
         // folders beside their records (`buildReportWorkspaceConfig`).
@@ -989,7 +997,7 @@ export async function runEvals(
     );
     const appFixtures = await seedConnectedApps(declaredApps, {
       apps: appsConfig,
-      appsDir: workspaceLayout(workspaceRootDir).appsDir,
+      appsDir: workspaceLayout(personFolder).appsDir,
     });
     for (const app of declaredApps) {
       write(
@@ -1597,7 +1605,7 @@ export async function runEvals(
             );
             await answerSignIn(slug, answer, {
               ...(served ? {} : { account: "you@example.com" }),
-              appsDir: workspaceLayout(workspaceRootDir).appsDir,
+              appsDir: workspaceLayout(personFolder).appsDir,
             });
           }
           signInCards.clear();

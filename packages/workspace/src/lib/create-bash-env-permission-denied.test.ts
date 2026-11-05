@@ -51,6 +51,7 @@ beforeAll(async () => {
   await fs.writeFile(path.join(elsewhere, "open.txt"), "open\n");
   await fs.mkdir(closed);
   await fs.mkdir(path.join(docs, "asks"));
+  await fs.writeFile(path.join(closed, "asked.txt"), "secret\n");
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // Settings live in the workspace's machine folder, which the app hands the
   // bash worker with the rest of the config, so the worker's cases fail if
@@ -184,6 +185,37 @@ describe.each(Object.entries(shells))(
       expect(result.stderr).toContain("Permission denied");
       expect(result.stderr).toContain("Instrument's own data");
       expect(result.stderr).not.toContain("ask_permission");
+    });
+
+    it("rg searches what it may and names what it may not", async () => {
+      const bash = await shell();
+      const open = `${shown(docs)}/open`;
+      await bash.exec(`mkdir -p ${open}; echo secret > ${open}/note.txt`);
+
+      const said = await bash.exec(`rg -l secret ${open} ${shown(closed)}`);
+      expect(said.stdout).toContain("note.txt");
+      expect(said.stderr).toContain(
+        `rg: ${shown(closed)}: Permission denied\n`,
+      );
+      expect(said.exitCode).toBe(2);
+
+      const hidden = await bash.exec(
+        `rg -l secret ${open} ${shown(closed)} 2>/dev/null`,
+      );
+      expect(hidden.stdout).toContain("note.txt");
+      expect(hidden.stdout).not.toContain("asked.txt");
+      expect(hidden.exitCode).toBe(2);
+    });
+
+    it("rg refuses rather than walking the working folder with no path left", async () => {
+      const bash = await shell();
+      await bash.exec("echo secret > here.txt");
+      const result = await bash.exec(`rg -l secret ${shown(closed)}`);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(
+        `rg: ${shown(closed)}: Permission denied\n`,
+      );
+      expect(result.exitCode).toBe(2);
     });
 
     it("still says a missing file is missing", async () => {

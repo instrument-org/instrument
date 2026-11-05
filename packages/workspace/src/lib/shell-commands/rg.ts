@@ -1,3 +1,4 @@
+import { skippablePaths } from "./skippable-paths";
 import { defineCommand } from "just-bash";
 import { readdirSync, realpathSync } from "node:fs";
 import nodePath from "node:path";
@@ -145,6 +146,7 @@ export function createRgCommand({
       return { exitCode: 2, stderr: `${searched.error}\n`, stdout: "" };
     }
     const stdin = subprocessStdin(ctx.stdin);
+    const leftOut = bridged.leftOut.map((line) => `${line}\n`).join("");
 
     return runNative(
       ctx,
@@ -189,8 +191,9 @@ export function createRgCommand({
             ),
         );
         return {
-          exitCode: result.exitCode ?? 1,
+          exitCode: leftOut === "" ? (result.exitCode ?? 1) : 2,
           ...streams,
+          stderr: `${streams.stderr}${leftOut}`,
           ...binaryStdout(result),
         };
       },
@@ -224,14 +227,16 @@ function bridgePathArgs(
     hostCwd,
     resolvePath,
   }: { hostCwd: string; resolvePath: (arg: string) => string },
-): { args: string[] } | { error: string } {
+): { args: string[]; leftOut: string[] } | { error: string } {
   const roots = [layout.chat, ...otherFolders(layout)].map(
     (folder) => folder.shellRoot,
   );
 
+  const skippable = skippablePaths(args);
+  const leftOut: string[] = [];
   const bridged: string[] = [];
   let operandsOnly = false;
-  for (const arg of args) {
+  for (const [at, arg] of args.entries()) {
     const isOperand = operandsOnly || !arg.startsWith("-");
     operandsOnly ||= arg === "--";
     // The part of the argument that names a path: an operand whole, the value
@@ -257,18 +262,24 @@ function bridgePathArgs(
         ? operandRefusal(layout, resolved)
         : outsideFolderRefusal(layout, resolved, "read");
       if (refusal) {
-        return {
-          error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
-        };
+        const error = `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`;
+        if (!skippable.has(at)) {
+          return { error };
+        }
+        leftOut.push(error);
+        continue;
       }
       bridged.push(arg);
       continue;
     }
     const refusal = operandRefusal(layout, named);
     if (refusal) {
-      return {
-        error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
-      };
+      const error = `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`;
+      if (!skippable.has(at)) {
+        return { error };
+      }
+      leftOut.push(error);
+      continue;
     }
     const hostPath = resolveReadOnlyHostPath(layout, named);
     if (hostPath === null) {
@@ -278,7 +289,11 @@ function bridgePathArgs(
     }
     bridged.push(`${prefix}${hostPath}`);
   }
-  return { args: bridged };
+  // With no path left ripgrep would walk the working folder instead.
+  if (leftOut.length > 0 && leftOut.length === skippable.size) {
+    return { error: leftOut.join("\n") };
+  }
+  return { args: bridged, leftOut };
 }
 
 function deniedFlag(arg: string): null | string {

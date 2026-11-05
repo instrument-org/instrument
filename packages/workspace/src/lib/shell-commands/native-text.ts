@@ -1,3 +1,4 @@
+import { skippablePaths, withoutRefused } from "./skippable-paths";
 import {
   type Command,
   type CommandContext,
@@ -692,22 +693,23 @@ export function nativeTextRoutes(): NativeTextRoute[] {
  * or a key names nothing on disk and passes. A folder the program walks past
  * is the native sandbox's to refuse, quietly.
  */
-function operandRefusal(
+function operandRefusals(
   route: NativeTextRoute,
   args: string[],
   layout: WorkspaceFsLayout,
   resolvePath: (arg: string) => string,
-): string | undefined {
+): { at: number; message: string }[] {
   if (route.opensNothing === true) {
-    return undefined;
+    return [];
   }
+  const refusals: { at: number; message: string }[] = [];
   const roots = [layout.chat, ...otherFolders(layout)].map(
     (folder) => folder.shellRoot,
   );
   const written = new Set(route.writes?.(args) ?? []);
   const hostCwd = hostPathOf(resolvePath("."));
   let operandsOnly = false;
-  for (const arg of [...args, ...written]) {
+  for (const [at, arg] of [...args, ...written].entries()) {
     const isOperand = written.has(arg) || operandsOnly || !arg.startsWith("-");
     operandsOnly ||= arg === "--";
     if (!isOperand || arg === "" || arg === "-") {
@@ -722,10 +724,27 @@ function operandRefusal(
       ? mountedRefusal(layout, resolved, op)
       : outsideFolderRefusal(layout, resolved, op);
     if (refusal) {
-      return `${route.name}: ${arg}: Permission denied\n${refusal}`;
+      refusals.push({
+        at,
+        message: `${route.name}: ${arg}: Permission denied\n${refusal}`,
+      });
     }
   }
-  return undefined;
+  return refusals;
+}
+
+/**
+ * Where a refused path can be left out and the rest still searched, in what
+ * `operandRefusals` was given: every start point of a `find`, and the paths at
+ * the end of a `grep`. Nothing for any other command, where one refused file
+ * changes what the result means.
+ */
+function skippableOperands(route: NativeTextRoute, operands: string[]) {
+  return route.name === "find"
+    ? new Set(operands.keys())
+    : route.name === "grep"
+      ? skippablePaths(operands)
+      : new Set<number>();
 }
 
 /** The rules' answer for a path inside a folder the chat reaches. */
@@ -824,7 +843,8 @@ export function createNativeTextCommand(
   route: NativeTextRoute,
   { chatId, layout }: { chatId: ChatId; layout: WorkspaceFsLayout },
 ): Command {
-  const command = defineCommand(route.name, async (args, ctx) => {
+  const command = defineCommand(route.name, async (given, ctx) => {
+    let args = given;
     const program = routeProgram(route);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
       recordBuiltinAnswered(
@@ -857,12 +877,25 @@ export function createNativeTextCommand(
         stdout: "",
       };
     }
-    const refusal =
+    const operands = starts ?? args;
+    const refusals =
       listing === undefined
-        ? operandRefusal(route, starts ?? args, layout, resolvePath)
-        : undefined;
-    if (refusal) {
-      return { exitCode: 2, stderr: `${refusal}\n`, stdout: "" };
+        ? operandRefusals(route, operands, layout, resolvePath)
+        : [];
+    let leftOut = "";
+    if (refusals.length > 0) {
+      const lines = refusals.map(({ message }) => `${message}\n`).join("");
+      const kept = withoutRefused(
+        args,
+        refusals.map(({ at }) => at),
+        skippableOperands(route, operands),
+        starts ? splitFind(args).options.length : 0,
+      );
+      if (kept === undefined) {
+        return { exitCode: 2, stderr: lines, stdout: "" };
+      }
+      args = kept;
+      leftOut = lines;
     }
     const outside = unsandboxedRun(
       route,
@@ -942,8 +975,8 @@ export function createNativeTextCommand(
             filterShellOutput(text),
           );
           return {
-            exitCode: result.exitCode ?? 1,
-            stderr:
+            exitCode: leftOut === "" ? (result.exitCode ?? 1) : 2,
+            stderr: `${
               route.name === "find"
                 ? quietRefusedFolders(
                     streams.stderr,
@@ -951,7 +984,8 @@ export function createNativeTextCommand(
                       reachOf(layout.rules, hostPath, "list").level !== "allow",
                     shellPath,
                   )
-                : streams.stderr,
+                : streams.stderr
+            }${leftOut}`,
             stdout:
               route.printsPaths && process.platform === "win32"
                 ? streams.stdout.replaceAll("\\", "/")

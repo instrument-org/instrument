@@ -13,7 +13,9 @@ import {
 import {
   endTabCarry,
   moveTabCarry,
+  placeHeldTab,
   startTabCarry,
+  tabCarryViewOf,
 } from "@/electron-main/windows/tab-drag";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { TabSchema } from "@/shared/tabs";
@@ -24,6 +26,10 @@ import {
 import { z } from "zod";
 
 const PointSchema = z.object({ x: z.number(), y: z.number() });
+const BoundsSchema = PointSchema.extend({
+  height: z.number(),
+  width: z.number(),
+});
 
 const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
@@ -58,14 +64,18 @@ const events = {
       }
     }
   }),
-  /** Where a tab carried from another window would land in this one's strip. */
-  tabDropPreview: base.handler(async function* ({ context, signal }) {
-    for await (const { clientX, webContentsId } of publisher.subscribe(
-      "window.tab-drop-preview",
+  /** What this window's strip shows of a tab held by the pointer. */
+  tabCarry: base.handler(async function* ({ context, signal }) {
+    const now = tabCarryViewOf(context.webContentsId);
+    if (now) {
+      yield now;
+    }
+    for await (const { view, webContentsId } of publisher.subscribe(
+      "window.tab-carry",
       { signal },
     )) {
       if (webContentsId === context.webContentsId) {
-        yield { clientX };
+        yield view;
       }
     }
   }),
@@ -102,7 +112,8 @@ const reopenClosed = base.input(z.void()).handler(() => ({
 /**
  * A tab handed to another window, with its history: a new window where it was
  * let go or beside this one, or one already open, at a point along its strip.
- * The pages it shows are let go here, so the window it lands in takes them.
+ * The pages it shows go with it in the same step. A page another tab here shows
+ * is not among them.
  */
 const moveTab = base
   .input(
@@ -110,9 +121,8 @@ const moveTab = base
       pages: z.array(BrowserTargetIdSchema),
       tab: TabSchema,
       to: z.discriminatedUnion("kind", [
-        z.object({ kind: z.literal("new"), point: PointSchema.optional() }),
+        z.object({ bounds: BoundsSchema.optional(), kind: z.literal("new") }),
         z.object({
-          clientX: z.number().optional(),
           id: z.string(),
           kind: z.literal("window"),
         }),
@@ -121,13 +131,11 @@ const moveTab = base
   )
   .handler(({ context, input }) => {
     const manager = getBrowserViewManager();
-    // Before a new window can load and ask for them. A page another window
-    // is showing stays with it.
-    const moved = moveTabToWindow(input.tab, input.to);
-    if (moved) {
+    const { destination, moved } = moveTabToWindow(input.tab, input.to);
+    if (destination) {
       for (const page of input.pages) {
         if (manager.isHostOf(context.webContentsId, page)) {
-          manager.releaseGuest(page);
+          void manager.handOffGuest(page, destination.webContents.id);
         }
       }
     }
@@ -149,18 +157,43 @@ const mergeAll = base.input(z.void()).handler(() => {
 
 /** Starts carrying a tab: see `windows/tab-drag.ts`. */
 const startTabDrag = base
-  .input(z.object({ isOnlyTab: z.boolean(), title: z.string() }))
-  .handler(({ context, input }) => {
-    startTabCarry({ ...input, webContentsId: context.webContentsId });
+  .input(
+    z.object({
+      grab: PointSchema,
+      isOffRow: z.boolean(),
+      isOnlyTab: z.boolean(),
+      moving: z.object({
+        neighborPages: z.array(BrowserTargetIdSchema),
+        pages: z.array(BrowserTargetIdSchema),
+        tab: TabSchema,
+      }),
+    }),
+  )
+  .handler(({ context, input }) =>
+    startTabCarry({ ...input, webContentsId: context.webContentsId }),
+  );
+
+const moveTabDrag = base
+  .input(PointSchema.extend({ isOffRow: z.boolean() }))
+  .handler(({ input }) => {
+    moveTabCarry(input);
   });
 
-const moveTabDrag = base.input(PointSchema).handler(({ input }) => {
-  moveTabCarry(input);
-});
+/** Where the tab stands in the strip it is held over, from the window showing it. */
+const placeTabDrag = base
+  .input(z.object({ index: z.number() }))
+  .handler(({ input }) => {
+    placeHeldTab(input.index);
+  });
 
 /** Lets the tab go, and says where it lands. */
 const endTabDrag = base
-  .input(z.object({ canceled: z.boolean(), point: PointSchema.optional() }))
+  .input(
+    z.object({
+      canceled: z.boolean(),
+      point: PointSchema.optional(),
+    }),
+  )
   .handler(({ input }) => endTabCarry(input));
 
 export const window = {
@@ -171,6 +204,7 @@ export const window = {
   mergeAll,
   moveTab,
   moveTabDrag,
+  placeTabDrag,
   openNew,
   reopenClosed,
   startTabDrag,

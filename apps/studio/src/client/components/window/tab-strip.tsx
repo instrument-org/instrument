@@ -11,7 +11,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { Reorder, useReducedMotion } from "motion/react";
+import { Reorder, useMotionValue, useReducedMotion } from "motion/react";
 import {
   type ReactNode,
   useEffect,
@@ -118,6 +118,7 @@ type TabDensity = "compact" | "full" | "icon";
  */
 export function TabStrip({
   carriedKey,
+  heldAwayKey,
   className,
   groupKey,
   onClose,
@@ -128,11 +129,14 @@ export function TabStrip({
   onSelect,
   onTabDrag,
   onTabDragEnd,
+  onTabDragStart,
   selectedKey,
   tabs,
 }: {
-  /** A tab being carried out of the strip, drawn as what it leaves behind. */
+  /** A tab being carried out of the strip, which gives its place up to the tabs beside it. */
   carriedKey?: string | undefined;
+  /** The tab a window is following the pointer with, which stands where the strip puts it. */
+  heldAwayKey?: string | undefined;
   className?: string;
   /** Drawn as a plus at the end of the row when given. */
   /** The set these tabs belong to; when it changes the strip adopts them silently. */
@@ -148,6 +152,7 @@ export function TabStrip({
   /** Where a tab being dragged is, which the strip's own reorder keeps to its row. */
   onTabDrag?: (key: string, event: PointerEvent) => void;
   onTabDragEnd?: (key: string, event: PointerEvent) => void;
+  onTabDragStart?: (key: string, event: PointerEvent) => void;
   selectedKey: string | undefined;
   tabs: StripTab[];
 }) {
@@ -176,7 +181,12 @@ export function TabStrip({
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, movableTabs.length, fixedTabs.length));
 
-  if (group !== groupKey) {
+  if (
+    group !== groupKey ||
+    (seen.length > 0 &&
+      !seen.some((tab) => movableKeys.includes(tab.key)) &&
+      movableKeys.length > 0)
+  ) {
     // The whole strip was swapped for another set (another window), so
     // none of these tabs are arriving: they were already open, somewhere the
     // user was not looking, and animating them in makes a switch feel like
@@ -376,6 +386,7 @@ export function TabStrip({
               isCarried={carriedKey === tab.key}
               isClosing={isClosing}
               isDragging={draggingKey === tab.key}
+              isHeldAway={heldAwayKey === tab.key}
               isReordering={isReordering}
               isSelected={tab.key === selectedKey}
               key={tab.key}
@@ -402,8 +413,11 @@ export function TabStrip({
                   onTabDragEnd?.(tab.key, event);
                 }
               }}
-              onDragStart={() => {
+              onDragStart={(event) => {
                 setDraggingKey(tab.key);
+                if (event instanceof PointerEvent) {
+                  onTabDragStart?.(tab.key, event);
+                }
               }}
               onSelect={() => {
                 onSelect(tab.key);
@@ -521,6 +535,7 @@ function Tab({
   density,
   isArriving,
   isCarried,
+  isHeldAway,
   isClosing,
   isDragging,
   isFixed,
@@ -541,6 +556,8 @@ function Tab({
   density: TabDensity;
   isArriving?: boolean;
   isCarried?: boolean;
+  /** The pointer's drag no longer moves it: its window moves instead. */
+  isHeldAway?: boolean;
   isClosing?: boolean;
   isDragging?: boolean;
   isFixed?: boolean;
@@ -551,7 +568,7 @@ function Tab({
   onContextMenu?: (event: React.MouseEvent) => void;
   onDrag?: (event: Event) => void;
   onDragEnd?: (event: Event) => void;
-  onDragStart?: () => void;
+  onDragStart?: (event: Event) => void;
   onSelect: () => void;
   onSelectRelative: (direction: -1 | 1) => void;
   showSeparator: boolean;
@@ -560,6 +577,17 @@ function Tab({
   value?: string;
 }) {
   const isClosable = !isFixed && onClose !== undefined;
+  // What the strip's drag has moved the tab by. Once its window has moved too
+  // that means nothing, so it is drawn with none of it and has none to give back
+  // as it is let go.
+  const dragX = useMotionValue(0);
+  const wasHeldAway = useRef(false);
+  useLayoutEffect(() => {
+    if (wasHeldAway.current && !isHeldAway && !isDragging) {
+      dragX.jump(0);
+    }
+    wasHeldAway.current = Boolean(isHeldAway);
+  }, [dragX, isDragging, isHeldAway]);
 
   const sizing = cn(
     isFixed
@@ -585,7 +613,12 @@ function Tab({
           !isDragging && "hover:bg-foreground/8 hover:text-foreground",
         ),
     isDragging && "z-10 shadow-xs-soft",
-    isCarried && "opacity-40",
+    // Gone from the row with the window under the pointer showing it, the tabs
+    // beside it taking its place. Classes rather than `style`: a `Reorder.Item`
+    // keeps a style value it was once given, which a tab that closes never
+    // finds out and a tab that comes back would be drawn with.
+    isCarried &&
+      "pointer-events-none -mr-1! min-w-0! grow-0! px-0! opacity-0! transition-all duration-(--tab-motion) ease-out",
     isArriving && "pane-tab-arriving",
     isFixed && showSeparator && "mr-3",
     showSeparator &&
@@ -708,10 +741,12 @@ function Tab({
         {...handlers}
         as="div"
         layout="position"
+        style={{ ...surface, x: dragX }}
         onDrag={onDrag}
         onDragEnd={onDragEnd}
         onDragStart={onDragStart}
         transition={isReordering ? undefined : LAND_IN_PLACE}
+        {...(isHeldAway ? { transformTemplate: () => "none" } : {})}
         value={value}
       >
         {contents}
@@ -729,7 +764,18 @@ function Tab({
   // guest below sends none, so it would stay up over the page.
   return (
     <Tooltip disableHoverableContent>
-      <TooltipTrigger asChild>{element}</TooltipTrigger>
+      <TooltipTrigger
+        asChild
+        // A held pointer stays captured by the tab it pressed, wherever the
+        // window has gone, which would otherwise read as hovering it.
+        onPointerMove={(event) => {
+          if (event.buttons !== 0) {
+            event.preventDefault();
+          }
+        }}
+      >
+        {element}
+      </TooltipTrigger>
       {isClosing || isDragging ? null : (
         <TooltipContent maxWidth="28rem" side="bottom">
           <div className="font-medium break-words">{tab.tooltip.title}</div>

@@ -178,8 +178,12 @@ const syncFocus = base
 // each change. Main grants a page full screen only in a shown guest.
 const syncGuestShown = base
   .input(z.object({ shown: z.boolean(), targetId: BrowserTargetIdSchema }))
-  .handler(({ input }) => {
-    getBrowserViewManager().setGuestShown(input.targetId, input.shown);
+  .handler(({ context, input }) => {
+    // A window a guest has left can still have word of it on the way, which is
+    // no longer its to give.
+    if (isForHost(context.webContentsId, input.targetId)) {
+      getBrowserViewManager().setGuestShown(input.targetId, input.shown);
+    }
   });
 
 const syncHostFocus = base.handler(() => {

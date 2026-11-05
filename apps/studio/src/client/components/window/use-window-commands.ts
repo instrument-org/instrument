@@ -92,7 +92,7 @@ export function useWindowCommands(
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
-    receiveTab: (tab: Tab, clientX?: number) => void;
+    receiveTab: (tab: Tab, index?: number) => void;
     reopenTab: () => void;
     /** Every tab of this window to another. */
     sendEveryTab: (to: string) => void;
@@ -222,7 +222,7 @@ export function useWindowCommands(
                 latest.current.selectTab(command.index);
               }
             } else if (command.type === "receiveTab") {
-              latest.current.receiveTab(command.tab, command.clientX);
+              latest.current.receiveTab(command.tab, command.index);
             } else if (command.type === "sendEveryTab") {
               latest.current.sendEveryTab(command.to);
             } else {

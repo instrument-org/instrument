@@ -1,6 +1,6 @@
-import { skippablePaths } from "./skippable-paths";
+import { leavesAPath, skippablePaths } from "./skippable-paths";
 import { defineCommand } from "just-bash";
-import { readdirSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -20,6 +20,7 @@ import {
   resolveReadOnlyHostPath,
   shellPathOfHostSpelling,
   type WorkspaceFsLayout,
+  hostPathOf,
 } from "../workspace-fs-layout";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
@@ -234,6 +235,7 @@ function bridgePathArgs(
 
   const skippable = skippablePaths(args);
   const leftOut: string[] = [];
+  const refused: number[] = [];
   const bridged: string[] = [];
   let operandsOnly = false;
   for (const [at, arg] of args.entries()) {
@@ -267,6 +269,7 @@ function bridgePathArgs(
           return { error };
         }
         leftOut.push(error);
+        refused.push(at);
         continue;
       }
       bridged.push(arg);
@@ -279,6 +282,7 @@ function bridgePathArgs(
         return { error };
       }
       leftOut.push(error);
+      refused.push(at);
       continue;
     }
     const hostPath = resolveReadOnlyHostPath(layout, named);
@@ -289,8 +293,12 @@ function bridgePathArgs(
     }
     bridged.push(`${prefix}${hostPath}`);
   }
-  // With no path left ripgrep would walk the working folder instead.
-  if (leftOut.length > 0 && leftOut.length === skippable.size) {
+  if (
+    refused.length > 0 &&
+    !leavesAPath(args, refused, skippable, (operand) =>
+      existsSync(hostPathOf(resolvePath(operand))),
+    )
+  ) {
     return { error: leftOut.join("\n") };
   }
   return { args: bridged, leftOut };

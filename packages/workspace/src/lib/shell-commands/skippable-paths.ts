@@ -18,23 +18,18 @@ export function skippablePaths(args: readonly string[]): Set<number> {
 }
 
 /**
- * `args` with the refused paths taken out, or nothing when the search should
- * be refused whole: a refusal it cannot go without, or no path left, where the
- * program would walk the working folder instead. `refused` and `skippable`
- * count from `offset` in `args`.
+ * Whether a search still has somewhere to look once its refused paths are out:
+ * one of the other words it could go without names something on disk. A word
+ * may instead be the pattern, in `rg -A 3 needle ~/.ssh`, where nothing is left
+ * and the program would walk the working folder.
  */
-export function withoutRefused(
-  args: readonly string[],
+export function leavesAPath(
+  operands: readonly string[],
   refused: readonly number[],
   skippable: ReadonlySet<number>,
-  offset = 0,
-): string[] | undefined {
-  if (
-    refused.length >= skippable.size ||
-    refused.some((at) => !skippable.has(at))
-  ) {
-    return undefined;
-  }
-  const out = new Set(refused.map((at) => at + offset));
-  return args.filter((_, at) => !out.has(at));
+  isPath: (operand: string) => boolean,
+): boolean {
+  return [...skippable].some(
+    (at) => !refused.includes(at) && isPath(operands[at] ?? ""),
+  );
 }

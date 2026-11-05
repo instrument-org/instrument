@@ -1,4 +1,4 @@
-import { skippablePaths, withoutRefused } from "./skippable-paths";
+import { leavesAPath, skippablePaths } from "./skippable-paths";
 import {
   type Command,
   type CommandContext,
@@ -885,16 +885,18 @@ export function createNativeTextCommand(
     let leftOut = "";
     if (refusals.length > 0) {
       const lines = refusals.map(({ message }) => `${message}\n`).join("");
-      const kept = withoutRefused(
-        args,
-        refusals.map(({ at }) => at),
-        skippableOperands(route, operands),
-        starts ? splitFind(args).options.length : 0,
-      );
-      if (kept === undefined) {
+      const refused = refusals.map(({ at }) => at);
+      const skippable = skippableOperands(route, operands);
+      if (
+        refused.some((at) => !skippable.has(at)) ||
+        !leavesAPath(operands, refused, skippable, (operand) =>
+          existsSync(hostPathOf(resolvePath(operand))),
+        )
+      ) {
         return { exitCode: 2, stderr: lines, stdout: "" };
       }
-      args = kept;
+      const offset = starts ? splitFind(args).options.length : 0;
+      args = args.filter((_, at) => !refused.includes(at - offset));
       leftOut = lines;
     }
     const outside = unsandboxedRun(

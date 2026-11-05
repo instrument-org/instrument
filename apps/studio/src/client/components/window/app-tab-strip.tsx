@@ -385,9 +385,12 @@ function useTabCarry({
         showWhereItIs(drag);
         onCancel(drag.orderAtStart);
         setCanceledKey(drag.key);
-        void rpcClient.window.endTabDrag.call({ canceled: true }).then(() => {
-          showTabCarryView({ kind: "row" });
-        });
+        void rpcClient.window.endTabDrag
+          .call({ canceled: true })
+          .catch(() => undefined)
+          .then(() => {
+            showTabCarryView({ kind: "row" });
+          });
       }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });

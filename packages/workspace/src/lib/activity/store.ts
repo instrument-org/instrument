@@ -80,12 +80,6 @@ const FACET_EXPRESSIONS: Record<ActivityFacet, string> = {
   status: "status",
 };
 
-// The facets whose values are shown with their connection's mark.
-const FACETS_WITH_CONNECTION_TYPE = new Set<ActivityFacet>([
-  "connection",
-  "model",
-]);
-
 const SORT_EXPRESSIONS: Record<ActivitySort["column"], string> = {
   durationMs: "duration_ms",
   kind: "kind",
@@ -317,8 +311,8 @@ export function insertActivity(entry: ActivityEntry): void {
   }
 }
 
-/** A WHERE clause and its parameters for the filters, leaving out one field's own (for its facet counts). */
-function where(filter: ActivityFilter, except?: ActivityFacet) {
+/** A WHERE clause and its parameters for the filters. */
+function where(filter: ActivityFilter) {
   const clauses: string[] = [];
   const params: SQLInputValue[] = [];
   const anyOf = (expression: string, values: readonly string[] | undefined) => {
@@ -329,9 +323,7 @@ function where(filter: ActivityFilter, except?: ActivityFacet) {
     params.push(...values);
   };
   for (const facet of ACTIVITY_FACETS) {
-    if (facet !== except) {
-      anyOf(FACET_EXPRESSIONS[facet], filter[facet]);
-    }
+    anyOf(FACET_EXPRESSIONS[facet], filter[facet]);
   }
   if (filter.since !== undefined) {
     clauses.push("started_at >= ?");
@@ -383,47 +375,6 @@ export async function getActivity(
     ?.prepare(`SELECT ${SELECT_ROW} FROM activity WHERE id = ?`)
     .get(id);
   return row ? ActivityRowSchema.parse(row) : undefined;
-}
-
-type FacetEntry = {
-  count: number;
-  /** The connection kind behind a model or connection value, for its mark. */
-  connectionType?: null | string;
-  value: string;
-};
-
-/**
- * The totals under the filters, and for each field the values it can take
- * with how many rows have each, counted under every filter but that field's
- * own, so picking one value leaves its alternatives countable.
- */
-export async function summarizeActivity(filter: ActivityFilter) {
-  const db = await readable();
-  const facets = Object.fromEntries(
-    ACTIVITY_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
-  ) as Record<ActivityFacet, FacetEntry[]>; // filled per facet below
-  if (!db) {
-    return { facets, requests: 0, tokens: 0 };
-  }
-  const { params, sql } = where(filter);
-  const totals = db
-    .prepare(
-      `SELECT COUNT(*) AS requests, COALESCE(SUM(total_tokens), 0) AS tokens FROM activity ${sql}`,
-    )
-    .get(...params) as { requests: number; tokens: number }; // an aggregate always returns its row
-  for (const facet of ACTIVITY_FACETS) {
-    const scoped = where(filter, facet);
-    const expression = FACET_EXPRESSIONS[facet];
-    const scopedWhere = scoped.sql
-      ? `${scoped.sql} AND ${expression} IS NOT NULL`
-      : `WHERE ${expression} IS NOT NULL`;
-    facets[facet] = db
-      .prepare(
-        `SELECT ${expression} AS value, COUNT(*) AS count${FACETS_WITH_CONNECTION_TYPE.has(facet) ? ", MAX(connection_type) AS connectionType" : ""} FROM activity ${scopedWhere} GROUP BY value ORDER BY count DESC, value LIMIT 50`,
-      )
-      .all(...scoped.params) as FacetEntry[]; // the columns selected above
-  }
-  return { facets, requests: totals.requests, tokens: totals.tokens };
 }
 
 const CSV_COLUMNS: [

@@ -18,12 +18,7 @@ import { closeWorkspaceDb } from "../workspace-db";
 import { lineOf, rowOf } from "./log-file";
 import { activityTelemetry, registerActivityTelemetry } from "./record";
 import { type ActivityEntry } from "./schema";
-import {
-  activityCsv,
-  insertActivity,
-  listActivity,
-  summarizeActivity,
-} from "./store";
+import { activityCsv, insertActivity, listActivity } from "./store";
 
 const SECRET = "the words nobody may keep";
 const NEWEST_FIRST = { column: "startedAt", direction: "desc" } as const;
@@ -244,34 +239,6 @@ describe("the store", () => {
         startedAt: Date.UTC(2026, 9, 9),
       }),
     );
-  });
-
-  it("stacks filters and totals what they leave", async () => {
-    expect(await summarizeActivity({ kind: ["decision"] })).toMatchObject({
-      requests: 2,
-      tokens: 5400,
-    });
-    expect(
-      await summarizeActivity({
-        kind: ["decision"],
-        origin: ["chat:c-lisbon"],
-      }),
-    ).toMatchObject({ requests: 1, tokens: 400 });
-    expect(
-      (await summarizeActivity({ since: Date.UTC(2026, 9, 10) })).requests,
-    ).toBe(2);
-  });
-
-  it("counts each filter's values under every filter but its own", async () => {
-    const { facets } = await summarizeActivity({ kind: ["decision"] });
-    expect(facets.kind).toEqual([
-      { count: 2, value: "decision" },
-      { count: 1, value: "language" },
-    ]);
-    expect(facets.origin).toEqual([
-      { count: 1, value: "chat:c-lisbon" },
-      { count: 1, value: "surface:settings" },
-    ]);
   });
 
   it("sorts by any column, keeping rows with nothing to sort by last", async () => {

@@ -403,10 +403,15 @@ async function act(
   args: readonly string[],
   headed: boolean | undefined,
   ctx: CapabilityContext,
+  value?: string,
 ): Promise<ActionOutput> {
   await showCursor(ctx);
   return ActionData.parse(
-    await runDriver([...args, ...(headed === true ? ["--headed"] : [])], ctx),
+    await runDriver(
+      [...args, ...(headed === true ? ["--headed"] : [])],
+      ctx,
+      value,
+    ),
   );
 }
 
@@ -519,7 +524,7 @@ const computerSelect = defineCapability({
   }),
   name: "computer.select",
   output: ActionData,
-  run: ({ option, ref }, ctx) => act(["select", ref, option], false, ctx),
+  run: ({ option, ref }, ctx) => act(["select", ref], false, ctx, option),
   summary: "Picks an option in a list or pop-up menu.",
   surfaces: {
     cli: {

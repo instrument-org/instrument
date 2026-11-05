@@ -114,6 +114,7 @@ describe("PermissionAsksFoot", () => {
     "Finder",
     "com.apple.Terminal",
     "Windows PowerShell",
+    "Windows Terminal",
     "powershell",
     "org.gnome.Terminal",
     "xterm",

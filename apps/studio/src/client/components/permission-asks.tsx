@@ -107,7 +107,9 @@ const APPS_THAT_REACH_EVERYTHING = new Set([
   "regedit",
   "systemsettings",
   "windows powershell",
+  "windows terminal",
   "windowsterminal",
+  "wt",
   // Linux, by name, program and desktop id.
   "alacritty",
   "console",

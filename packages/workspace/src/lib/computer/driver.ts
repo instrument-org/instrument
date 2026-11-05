@@ -161,15 +161,24 @@ const CURSOR_AGENT = "instrument";
 /**
  * One driver command for `chatId`, in its session, its data on success and its
  * refusal thrown as a failure. Refused as a whole where the host carries no
- * driver.
+ * driver. `value` goes after every flag, for a value that can start with a dash
+ * in a command that would read it as one.
  */
 export async function runDriver(
   args: readonly string[],
   { chatId, signal }: { chatId: ChatId; signal?: AbortSignal },
+  value?: string,
 ): Promise<unknown> {
   const session = await sessionOf(chatId, signal);
   return execDriver(
-    [...args, "--agent-id", CURSOR_AGENT, "--session", session],
+    [
+      ...args,
+      "--agent-id",
+      CURSOR_AGENT,
+      "--session",
+      session,
+      ...(value === undefined ? [] : ["--", value]),
+    ],
     signal,
   );
 }

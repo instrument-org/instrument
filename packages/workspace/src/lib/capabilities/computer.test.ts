@@ -539,6 +539,31 @@ describe("instrument computer", () => {
     ]);
   });
 
+  it.each(["-5", "- Buy milk"])(
+    "picks the option %s, past where the driver reads flags",
+    async (option) => {
+      const chatId = ChatIdSchema.parse("computer-select-chat");
+      const inChat = { ...scope, chatId };
+      const driver = standInDriver(answers);
+      await grantApp(chatId, "com.apple.TextEdit");
+      await snapshot(["TextEdit"], inChat);
+      await capabilityRunner("computer", "select")(
+        ["@s1abc:e1", option],
+        inChat,
+      );
+      expect(driver.rawCalls().find(([word]) => word === "select")).toEqual([
+        "select",
+        "@s1abc:e1",
+        "--agent-id",
+        "instrument",
+        "--session",
+        "run-stand-in",
+        "--",
+        option,
+      ]);
+    },
+  );
+
   it("keeps a chat in one session of the driver's, with no trace of the windows", async () => {
     const chatId = ChatIdSchema.parse("computer-session-chat");
     const inChat = { ...scope, chatId };

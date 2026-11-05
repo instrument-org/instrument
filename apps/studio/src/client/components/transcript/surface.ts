@@ -30,6 +30,8 @@ export interface TranscriptSurface {
   onOpenTask: (id: StoreId.Session) => void;
   onOpenUrl: (url: string) => void;
   onStopTask: (id: StoreId.Session) => void;
+  /** Where the paths a call named are on this computer, once that is known. */
+  useHostPaths: (paths: readonly string[]) => Record<string, null | string>;
   /** The ids of the commands the chat and its tasks left running. */
   useRunningCommands: () => ReadonlySet<string>;
   useStepPart: (

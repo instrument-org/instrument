@@ -1,4 +1,5 @@
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useTaskBackgroundProcesses } from "@/client/hooks/use-task-background-processes";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
@@ -85,6 +86,10 @@ function useStepPart(
   return part && (isToolPart(part) || part.type === "reasoning")
     ? part
     : undefined;
+}
+
+function useChatHostPaths(paths: readonly string[]) {
+  return useHostPaths(useLiveChat(), paths);
 }
 
 function useRunningCommands(): ReadonlySet<string> {
@@ -295,14 +300,13 @@ export function LiveTranscriptSurface({
       latest.current.appWindow?.openScreen(taskHref(id, latest.current.chat));
     },
     onOpenUrl: (url) => {
-      latest.current.appWindow?.browser?.openOrFocus(url, {
-        group: latest.current.chat,
-      });
+      latest.current.appWindow?.openPage(url, { show: true });
     },
     onStopTask: (id) => {
       latest.current.stop.mutate({ id: latest.current.chat, sessionId: id });
     },
     PagePicture: LivePagePicture,
+    useHostPaths: useChatHostPaths,
     useRunningCommands,
     useStepPart,
     useTaskFacts,

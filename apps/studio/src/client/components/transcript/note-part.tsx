@@ -31,17 +31,10 @@ import { SentAsksNote } from "../window/ask-pills";
 export function renderDataPart({
   ctx,
   part,
-  pathsAlreadyShown,
   stateNote,
 }: {
   ctx: { chatInfo: ChatInfo; isDeveloperMode: boolean };
   part: SessionMessagePart.DataPart;
-  /**
-   * Files this message already puts on screen, so the retired file-changes grid
-   * does not draw a second copy of one. Computed once for the message rather
-   * than per part.
-   */
-  pathsAlreadyShown?: ReadonlySet<string>;
   /**
    * What the model heard of a `state` part, from the stream's `stateNotes`:
    * none when it heard nothing new, and then there is no card either.
@@ -162,15 +155,13 @@ export function renderDataPart({
       // agent wrote to make the deliverable, not the deliverable. Showing
       // those is what made the card worth deleting in the first place.
       //
-      // A deleted file has nothing to show, and one the reply already fenced or
-      // linked is on screen already.
+      // A deleted file has nothing to show.
       const paths = part.data.files
         .filter(
           (file) =>
             file.status !== "deleted" &&
             file.filePath.startsWith("output/") &&
-            isAddressableChatFilePath(file.filePath) &&
-            pathsAlreadyShown?.has(file.filePath) !== true,
+            isAddressableChatFilePath(file.filePath),
         )
         .map((file) => file.filePath);
 

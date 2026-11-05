@@ -35,7 +35,13 @@ export interface ActivityRow {
 /** Everything a turn draws, in order. */
 export type TurnRow =
   | ActivityRow
-  | { id: StoreId.Part; kind: "ask"; part: SessionMessagePart.ToolPart }
+  | {
+      id: StoreId.Part;
+      /** It still waits on the person, so it stays out of the fold. */
+      isOpen: boolean;
+      kind: "ask";
+      part: SessionMessagePart.ToolPart;
+    }
   | {
       endedTurn: boolean;
       id: string;
@@ -45,7 +51,7 @@ export type TurnRow =
     }
   | { id: StoreId.Part; kind: "note"; part: SessionMessagePart.DataPart }
   | {
-      id: StoreId.Part;
+      id: StoreId.Session;
       kind: "task";
       sessionId: StoreId.Session;
       startedAt: Date;
@@ -123,6 +129,8 @@ export type TurnsCache = Map<
   StoreId.Message,
   {
     cutAcross: boolean;
+    /** It holds the session's last message, which its error row's actions read. */
+    holdsLast: boolean;
     isLive: boolean;
     slice: TranscriptMessage[];
     turn: Turn;
@@ -160,11 +168,14 @@ export function turnsOf(
         (index === slices.length - 2 &&
           !cutAcross &&
           slice.some(isStillGoing)));
+    const holdsLast = next === undefined;
     const kept = cache?.get(first.id);
     if (
       kept &&
       kept.isLive === isLive &&
       kept.cutAcross === cutAcross &&
+      (kept.holdsLast === holdsLast ||
+        !kept.turn.rows.some((row) => row.kind === "error")) &&
       kept.slice.length === slice.length &&
       kept.slice.every((message, at) => message === slice[at])
     ) {
@@ -177,7 +188,7 @@ export function turnsOf(
       lastMessage,
       sessionId,
     });
-    cache?.set(first.id, { cutAcross, isLive, slice, turn });
+    cache?.set(first.id, { cutAcross, holdsLast, isLive, slice, turn });
     return [turn];
   });
 }
@@ -420,8 +431,10 @@ function rowsOf(
 
   for (const [index, message] of body.entries()) {
     if (message.role === "user") {
-      // A wake. What it says is the app's, and what comes of it is the reply.
+      // A wake. What it says is the app's, and what comes of it is the reply,
+      // which may well be the same words as before it.
       open = undefined;
+      lastSaid = undefined;
       for (const part of message.parts) {
         if (isDataRow(part) && drawsNote(part, { isDeveloperMode })) {
           rows.push({ id: part.metadata.id, kind: "note", part });
@@ -440,7 +453,6 @@ function rowsOf(
     for (const part of message.parts) {
       if (part.type === "text") {
         if (
-          superseded ||
           retriedAway ||
           (part.state !== "streaming" && saysNothing(part.text))
         ) {
@@ -467,7 +479,7 @@ function rowsOf(
         open = undefined;
         for (const sessionId of started) {
           rows.push({
-            id: part.metadata.id,
+            id: sessionId,
             kind: "task",
             sessionId,
             startedAt: part.metadata.startedAt ?? part.metadata.createdAt,
@@ -475,7 +487,12 @@ function rowsOf(
         }
       } else if (isAsk(part)) {
         open = undefined;
-        rows.push({ id: part.metadata.id, kind: "ask", part });
+        rows.push({
+          id: part.metadata.id,
+          isOpen: stillAsks(part, body.slice(index + 1)),
+          kind: "ask",
+          part,
+        });
       } else if (isDataRow(part) && drawsNote(part, { isDeveloperMode })) {
         rows.push({ id: part.metadata.id, kind: "note", part });
       }
@@ -583,6 +600,31 @@ function isDataRow(part: TranscriptPart): part is SessionMessagePart.DataPart {
     part.type !== "data-stepFacts" &&
     part.type !== "data-workSummary"
   );
+}
+
+/**
+ * Whether a card still waits on the person, read from what the turn went on to
+ * record: a question not answered yet, or a sign-in no app event has settled.
+ * What a sign-in asked is on its call whatever became of it, so the event is
+ * what says it is over.
+ */
+function stillAsks(
+  part: SessionMessagePart.ToolPart,
+  later: readonly TranscriptMessage[],
+): boolean {
+  switch (part.type) {
+    case "tool-choose": {
+      return part.state !== "output-available";
+    }
+    case "tool-connect_app": {
+      return !later.some((message) =>
+        message.parts.some((other) => other.type === "data-appEvent"),
+      );
+    }
+    default: {
+      return false;
+    }
+  }
 }
 
 function isAsk(part: TranscriptPart): part is SessionMessagePart.ToolPart {
@@ -737,7 +779,7 @@ function foldedRows(
 ): { ids: ReadonlySet<string>; whenDone: boolean } {
   const none = { ids: new Set<string>(), whenDone: false };
   const foldable = (row: TurnRow) =>
-    row.kind === "ask" ||
+    (row.kind === "ask" && !row.isOpen) ||
     row.kind === "text" ||
     (row.kind === "activity" && !isRunningRow(row));
   if (cutAcross) {

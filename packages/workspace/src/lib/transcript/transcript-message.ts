@@ -470,8 +470,12 @@ const AGENT_BROWSER = new RegExp(String.raw`${COMMAND_START}agent-browser\b`);
 const BROWSER_SUBCOMMAND =
   /\bagent-browser\b(?:\s+--?[\w-]+(?:[= ]\S+)?)*\s+([a-z][\w-]*)/g;
 const OPENS_A_PLACE = new RegExp(
-  String.raw`${COMMAND_START}(?:(?:instrument\s+)?(?:window|tab)\s+(?:open|show)|open)\s+(?:"([^"]+)"|'([^']+)'|(\S+))`,
+  String.raw`${COMMAND_START}(?:(?:instrument\s+)?(?:window|tab)\s+(?:open|show)|open)\s+(?:-\S+\s+(?:"[^"]*"\s+|'[^']*'\s+|[A-Z]\w*\s+)?)*(?:"([^"]+)"|'([^']+)'|(\S+))`,
 );
+/** What a command hands a program to read, which is that program's words. */
+const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g;
+/** A word that could be a place: a file's name, a path or an address. */
+const NAMES_A_PLACE = /[/.:]/;
 /** What the chat tells a task is the task's to do, whatever it names. */
 const STARTS_A_TASK = /^\s*(?:instrument\s+)?task\b/;
 const URL_IN_COMMAND = /(?:https?|file):\/\/[^\s"')]+/;
@@ -508,16 +512,19 @@ function commandShows(command: string): StepShows | undefined {
   if (STARTS_A_TASK.test(command)) {
     return undefined;
   }
-  if (AGENT_BROWSER.test(command)) {
-    const url = URL_IN_COMMAND.exec(command)?.[0];
-    const changesPage = [...command.matchAll(BROWSER_SUBCOMMAND)].some(
+  const words = command.replaceAll(HEREDOC, "");
+  if (AGENT_BROWSER.test(words)) {
+    const url = URL_IN_COMMAND.exec(words)?.[0];
+    const changesPage = [...words.matchAll(BROWSER_SUBCOMMAND)].some(
       (match) => match[1] !== undefined && CHANGES_THE_PAGE.has(match[1]),
     );
     return { changesPage, kind: "page", ...(url && { url }) };
   }
-  const opened = OPENS_A_PLACE.exec(command);
+  const opened = OPENS_A_PLACE.exec(words);
   const target = opened?.[1] ?? opened?.[2] ?? opened?.[3];
-  return target === undefined ? undefined : { kind: "opened", target };
+  return target !== undefined && NAMES_A_PLACE.test(target)
+    ? { kind: "opened", target }
+    : undefined;
 }
 
 /** Whether a part is one of a transcript message's steps. */

@@ -218,6 +218,8 @@ const debugSurface: TranscriptSurface = {
   onOpenUrl: noop,
   onStopTask: noop,
   PagePicture: DebugPagePicture,
+  useHostPaths: (paths) =>
+    Object.fromEntries(paths.map((path) => [path, path])),
   useRunningCommands: () => NOTHING_RUNNING,
   useStepPart: (step: StepPart) => {
     const part = use(DebugFrameContext)?.messages.find(

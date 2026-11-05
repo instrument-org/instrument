@@ -247,8 +247,11 @@ function patched(
   const parts = [...message.parts];
   for (const patch of patches) {
     if (patch.kind === "part") {
+      // A call a card reads whole is a step and its part, under one id.
       const at = parts.findIndex(
-        (part) => part.metadata.id === patch.part.metadata.id,
+        (part) =>
+          part.metadata.id === patch.part.metadata.id &&
+          part.type === patch.part.type,
       );
       if (at === -1) {
         parts.push(patch.part);

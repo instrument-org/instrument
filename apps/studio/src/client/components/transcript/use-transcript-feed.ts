@@ -37,7 +37,11 @@ function transcriptFeedOptions(input: FeedInput) {
         if (signal.aborted) {
           throw signal.reason;
         }
-        feed = applyFeedEvent(feed, event);
+        // From what the query holds, which has the older turns asked for since.
+        feed = applyFeedEvent(
+          client.getQueryData<TranscriptFeed>(queryKey),
+          event,
+        );
         client.setQueryData(queryKey, feed);
       }
       if (!feed) {

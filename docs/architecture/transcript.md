@@ -16,7 +16,7 @@ Everything since the message the person typed. A wake stays inside it: a sign-in
 
 A turn's rows are its activities, asks, task cards, notes, errors and words. An activity is a run of calls the agent gave one `activity` label, shown with its explanation while it works and its counts and clock once done.
 
-**The fold.** A turn that ended with words folds what came before them into one Worked row, which reads the turn's summary, or how long it worked until one lands. It folds when the summary arrives or `FOLD_WAIT_MS` after the turn ended, whichever is first. A turn that was stopped, failed or ended without words stays open, since that is there to read. A message that joined mid-turn folds the finished work above it at once. Task cards, notes and errors never fold.
+**The fold.** A turn that ended with words folds what came before them into one Worked row, which reads the turn's summary, or how long it worked until one lands. It folds when the summary arrives or `FOLD_WAIT_MS` after the turn ended, whichever is first. A turn that was stopped, failed or ended without words stays open, since that is there to read. A message that joined mid-turn folds the finished work above it at once. Task cards, notes and errors never fold, and neither does a card still waiting on the person: a question not answered yet, or a sign-in no app event has settled.
 
 **A message sent during a step.** It is stored on arrival and opens the next turn with nothing under it, and says "Read after this step" (`waitsForStep`) while the step above keeps its working line. At the next point between steps the agent writes it again with `MID_TURN_NOTE`, which is what `joinedMidTurn` reads, and the work above folds.
 
@@ -40,7 +40,7 @@ Each time a session finishes a turn whose work folds, one call on the turn's own
 
 ## Reading back
 
-A chat opens on its last turns, and `OlderTurns` asks for the page before as the reader nears the top. The scroller keeps what is on screen in place as turns arrive above it. Nothing is virtualized: a chat's DOM grows only as far as someone scrolls back.
+A chat opens on its last turns, and `OlderTurns` asks for the page before as the reader nears the top. The scroller keeps what is on screen in place as turns arrive above it. Following a turn stops when its reply's first line reaches the top of the window (`useHoldAtReplyStart`), so a reply taller than the window is read from its start. Nothing is virtualized: a chat's DOM grows only as far as someone scrolls back.
 
 ## Developer mode
 

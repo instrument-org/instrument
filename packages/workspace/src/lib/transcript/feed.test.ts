@@ -7,6 +7,8 @@ import {
   applyFeedEvent,
   applyOlder,
   lastTurnsOf,
+  type TranscriptFeed,
+  type TranscriptFeedEvent,
   TranscriptProjection,
 } from "./feed";
 
@@ -97,6 +99,46 @@ describe("TranscriptProjection", () => {
     expect(
       projection.update({ changed: [reply()], removed: [] }),
     ).toBeUndefined();
+  });
+
+  it("patches a call's part without touching its step, which shares its id", () => {
+    const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const metadata = {
+      createdAt: new Date(0),
+      id: partId,
+      messageId,
+      sessionId,
+    };
+    const step = { metadata, status: "done", tool: "tool-x", type: "step" };
+    const tool = {
+      input: {},
+      metadata,
+      state: "input-available",
+      type: "tool-x",
+    };
+    const held = {
+      hasOlder: false,
+      messages: [
+        { id: messageId, metadata: {}, parts: [step, tool], role: "assistant" },
+      ],
+    } as unknown as TranscriptFeed;
+    const next = applyFeedEvent(held, {
+      kind: "change",
+      patches: [
+        {
+          kind: "part",
+          messageId,
+          part: { ...tool, state: "output-available" },
+        },
+      ],
+      removed: [],
+      upserted: [],
+    } as unknown as TranscriptFeedEvent);
+    expect(next.messages[0]?.parts.map((part) => part.type)).toEqual([
+      "step",
+      "tool-x",
+    ]);
   });
 
   it("leaves what did not move as the same objects", () => {

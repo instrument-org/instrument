@@ -1,6 +1,62 @@
 import { describe, expect, it } from "vitest";
 
-import { findPaths, shortPathLabel } from "./path-text";
+import {
+  findPaths,
+  pathToQuote,
+  shortPathLabel,
+  splitPaths,
+} from "./path-text";
+
+describe("pathToQuote", () => {
+  it.each([
+    ["win32", "D:\\Games\\World of Warcraft", "D:\\Games\\World of Warcraft"],
+    ["win32", "\\\\nas\\Media\\TV Shows", "\\\\nas\\Media\\TV Shows"],
+    ["darwin", "/Users/me/My Docs", "/Users/me/My Docs"],
+    ["darwin", "~/My Docs", "~/My Docs"],
+    ["darwin", "file:///Users/me/My Docs", "/Users/me/My Docs"],
+    // Read whole only as a question for the disk, which finds nothing.
+    [
+      "win32",
+      "D:\\Games\\World of Warcraft dude",
+      "D:\\Games\\World of Warcraft dude",
+    ],
+  ])("asks about a path with spaces: %s %s", (platform, line, shown) => {
+    expect(pathToQuote(line, platform)?.shown).toBe(shown);
+  });
+
+  it.each([
+    ["win32", "look in D:\\Games\\World of Warcraft please"],
+    ["win32", "D:\\Games\\World"],
+    ["win32", 'D:\\Games\\"World of Warcraft"'],
+    ["win32", '"D:\\Games\\World of Warcraft"'],
+    ["win32", "D:\\Games\\World of Warcraft\nand more"],
+    ["win32", "D:\\Games\\World of Warcraft\r\nand more"],
+    ["win32", " D:\\Games\\World of Warcraft "],
+    ["darwin", "/Users/me/My Docs/report.pdf"],
+    ["darwin", "/Users/me/My\\ Docs"],
+    ["darwin", "D:\\Games\\World of Warcraft"],
+    ["darwin", "two plain words"],
+  ])("leaves anything else alone: %s %s", (platform, line) => {
+    expect(pathToQuote(line, platform)).toBeUndefined();
+  });
+});
+
+describe("splitPaths", () => {
+  it.each(['"', "'", "`"])("leaves the %s around a path out", (quote) => {
+    expect(
+      splitPaths(`see ${quote}D:\\My Games${quote} dude`, "win32").map(
+        ({ text }) => text,
+      ),
+    ).toEqual(["see ", "D:\\My Games", " dude"]);
+  });
+
+  it("keeps a quote around words that are no path", () => {
+    expect(splitPaths('say "hello there" /etc/hosts', "darwin")).toMatchObject([
+      { text: 'say "hello there" ', type: "text" },
+      { text: "/etc/hosts", type: "path" },
+    ]);
+  });
+});
 
 /** Each line with the paths found in it as the text they span. */
 const pathsIn = (lines: string[], platform: string) =>

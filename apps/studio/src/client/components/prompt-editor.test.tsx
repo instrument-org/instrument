@@ -234,4 +234,16 @@ describe("pathDecorations", () => {
       ]
     `);
   });
+
+  it("marks the quotes around a path, and no others", () => {
+    const doc = promptDocFromText('say "hi there" "/Users/casey/My Docs" now');
+    const quotes = pathDecorations(doc, "darwin")
+      .find(
+        undefined,
+        undefined,
+        (spec: { pathQuote?: boolean }) => spec.pathQuote === true,
+      )
+      .map(({ from }) => from - 1);
+    expect(quotes).toEqual([15, 36]);
+  });
 });

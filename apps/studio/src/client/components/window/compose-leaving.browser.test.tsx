@@ -5,6 +5,7 @@ import { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { ComposerFrame } from "../composer-frame";
 import { ChatBar } from "./chat-window";
 import { ComposeBar } from "./compose-window";
 
@@ -80,5 +81,41 @@ describe("a bar on its way out", () => {
     expect(leaving).not.toBeNull();
     expect(leaving?.hasAttribute("inert")).toBe(true);
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the attachments row on its way out", () => {
+  it("takes no press, since the chips in it are not told they are going", async () => {
+    function WithAttachment() {
+      const [isAttached, setAttached] = useState(true);
+      return (
+        <ComposerFrame
+          actions={null}
+          attachments={
+            isAttached && (
+              <button
+                onClick={() => {
+                  setAttached(false);
+                }}
+                type="button"
+              >
+                Remove
+              </button>
+            )
+          }
+          layout="bare"
+          maxHeight={null}
+        >
+          Words
+        </ComposerFrame>
+      );
+    }
+    await renderInBrowser(<WithAttachment />);
+
+    await userEvent.click(page.getByRole("button", { name: "Remove" }));
+
+    const row = document.querySelector("[data-slot=composer-attachments]");
+    expect(row).not.toBeNull();
+    expect(row?.hasAttribute("inert")).toBe(true);
   });
 });

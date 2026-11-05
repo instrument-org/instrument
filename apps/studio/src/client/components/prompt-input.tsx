@@ -74,7 +74,7 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   Fragment,
   useEffect,
@@ -241,6 +241,26 @@ interface PromptInputProps {
   suggestion?: string;
   /** A pill is one row, the height of a text field, that grows with the draft; bare is the editor above its button row with no box drawn around them, for a host that draws its own. */
   variant: "bare" | "pill";
+}
+
+/**
+ * A file or folder in the box's row, growing in and shrinking away. On its way
+ * out it takes no press: a second one on its remove button would run the
+ * removal again from the render before it left.
+ */
+function AttachedChip({ children }: { children: React.ReactNode }) {
+  const isPresent = useIsPresent();
+  return (
+    <motion.div
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      inert={!isPresent}
+      initial={{ opacity: 0, scale: 0.9 }}
+      transition={ITEM_IN}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 export const PromptInput = ({
@@ -1185,13 +1205,7 @@ export const PromptInput = ({
               <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
               <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
               {attachedItems.map((item) => (
-                <motion.div
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  key={item.id}
-                  transition={ITEM_IN}
-                >
+                <AttachedChip key={item.id}>
                   {item.type === "folder" ? (
                     <AttachedItemPreview
                       hostPath={item.path}
@@ -1229,7 +1243,7 @@ export const PromptInput = ({
                       url={item.url}
                     />
                   )}
-                </motion.div>
+                </AttachedChip>
               ))}
             </AnimatePresence>
           )

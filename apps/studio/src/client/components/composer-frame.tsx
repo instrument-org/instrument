@@ -1,7 +1,26 @@
 import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { createPortal } from "react-dom";
+
+/**
+ * What is attached, scrolling under the box's cap. The row leaves whole with
+ * its last file, and the chips in it are not told they are going, so it takes
+ * no press on its way out: a second one on a remove button would run the
+ * removal again from the render before it left.
+ */
+function AttachmentsScroller({ children }: { children: React.ReactNode }) {
+  const isPresent = useIsPresent();
+  return (
+    <div
+      className="flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto scroll-fade-y p-2"
+      data-slot="composer-attachments"
+      inert={!isPresent}
+    >
+      {children}
+    </div>
+  );
+}
 
 /**
  * The box the prompt is composed in: rows stacked around an editor that takes
@@ -266,12 +285,7 @@ export function ComposerFrame({
               key="attachments"
               transition={BLOCK_OPEN}
             >
-              <div
-                className="flex max-h-32 min-h-0 flex-wrap items-start gap-2 overflow-y-auto scroll-fade-y p-2"
-                data-slot="composer-attachments"
-              >
-                {attachments}
-              </div>
+              <AttachmentsScroller>{attachments}</AttachmentsScroller>
             </motion.div>
           )}
         </AnimatePresence>

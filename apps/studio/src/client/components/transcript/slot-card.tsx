@@ -14,6 +14,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { Favicon } from "../favicon";
+import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
 /** The most files a set names beside its newest. */
@@ -418,10 +419,11 @@ function FilePicture({
   path: string;
   version?: number;
 }) {
+  const { resolvedTheme } = useTheme();
   const src = getComputerThumbnailUrl({
     hostPath: path,
     size: 1024,
-    theme: "light",
+    theme: resolvedTheme,
     ...(version !== undefined && { version }),
   });
   return (

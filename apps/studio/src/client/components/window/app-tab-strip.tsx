@@ -231,6 +231,7 @@ export function AppTabStrip({
           }
         }}
         onTabDrag={carry.onDrag}
+        onTabDragEnd={carry.onDragEnd}
         onTabDragStart={carry.onDragStart}
         selectedKey={shownSelectedId ?? undefined}
         tabs={presented}

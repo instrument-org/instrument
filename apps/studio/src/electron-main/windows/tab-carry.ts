@@ -74,7 +74,7 @@ const DOCKED_REACH_PX = 24;
  * percent see-through, even set back to 1.
  */
 function setOpacity(window: BrowserWindow, opacity: number) {
-  if (process.platform !== "linux") {
+  if (process.platform !== "linux" && !window.isDestroyed()) {
     window.setOpacity(opacity);
   }
 }
@@ -399,6 +399,9 @@ function showSpare({ from, ...carrying }: Carry) {
 
 /** Resolves when a window has drawn what it was just told, or soon anyway. */
 async function drawn(window: BrowserWindow) {
+  if (window.isDestroyed()) {
+    return;
+  }
   await Promise.race([
     window.webContents
       .executeJavaScript(
@@ -493,7 +496,7 @@ function windowsToLandOn(from: BrowserWindow, spare: null | SpareWindow) {
     (window) =>
       window !== from &&
       window !== spare?.window &&
-      window.isVisible() &&
+      (window.isVisible() || keepsOffScreen()) &&
       !window.isMinimized() &&
       !(process.platform === "darwin" && window.isFullScreen()),
   );
@@ -548,6 +551,11 @@ function updateCarry() {
     ? hitTest(carry, point)
     : ({ kind: "row" } as const);
   if (!isSamePhase(phase, next)) {
+    // Straight from one strip to another, the tab may stand at the same place
+    // along it, which its window has no cause to say again.
+    if (phase.kind === "docked" && next.kind === "docked") {
+      next.landsAt = phase.landsAt;
+    }
     carry.phase = next;
     void enterPhase(carry, point);
   } else if (phase.kind === "docked") {

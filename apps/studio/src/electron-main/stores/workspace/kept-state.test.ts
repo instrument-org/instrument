@@ -231,6 +231,48 @@ it("writes where a folder went in what each window keeps for itself too", () => 
   });
 });
 
+describe("what an earlier build kept for its only window", () => {
+  const KEPT = { "app-tabs.v2": { tabs: ["kept"] } };
+
+  /** A launch of this build, on the folder under test. */
+  async function launch() {
+    vi.resetModules();
+    vi.doMock("@/electron-main/lib/get-workspace-folder", () => ({
+      workspaceWindowDir: () => dir,
+    }));
+    return import("./kept-state");
+  }
+
+  beforeEach(() => {
+    fs.writeFileSync(path.join(dir, "layout.json"), JSON.stringify(KEPT));
+  });
+
+  afterEach(() => {
+    vi.doUnmock("@/electron-main/lib/get-workspace-folder");
+  });
+
+  it("goes into the first window's own file", async () => {
+    const { flushKeptState, getWindowKeptState } = await launch();
+    expect(getWindowKeptState("app", "app-tabs.v2")).toEqual(
+      KEPT["app-tabs.v2"],
+    );
+    flushKeptState();
+    expect(read("windows/app.json")).toEqual(KEPT);
+    expect(read("layout.json")).toEqual({});
+  });
+
+  it("stays for the next launch while the window's own file cannot take it", async () => {
+    // A folder in the file's place: there, and not something a read can use.
+    fs.mkdirSync(path.join(dir, "windows/app.json"), { recursive: true });
+    const { flushKeptState, getWindowKeptState } = await launch();
+    expect(getWindowKeptState("app", "app-tabs.v2")).toEqual(
+      KEPT["app-tabs.v2"],
+    );
+    flushKeptState();
+    expect(read("layout.json")).toEqual(KEPT);
+  });
+});
+
 it("writes nothing it was told to drop, for a file about to be removed", () => {
   vi.useFakeTimers();
   const store = createKeptStateStore(() => dir);

@@ -62,27 +62,29 @@ export function createKeptStateStore(
     return files;
   };
 
+  /** Writes what is waiting, and says whether all of it reached the disk. */
   const flush = () => {
     clearTimeout(timer);
     timer = undefined;
-    if (dirty.size === 0) {
-      return;
-    }
+    let isWritten = true;
     for (const file of dirty) {
       const target = pathOf(file);
       if (unreadable.has(file)) {
         logger.warn(
           `Not writing kept state over ${target}, which could not be read`,
         );
+        isWritten = false;
         continue;
       }
       try {
         writeObject(target, loaded().get(file) ?? {});
       } catch (error) {
         logger.error(`Could not write kept state to ${target}`, error);
+        isWritten = false;
       }
     }
     dirty.clear();
+    return isWritten;
   };
 
   return {
@@ -302,12 +304,18 @@ function windowStoreOf(windowId: string) {
   );
   windowStores.set(windowId, store);
   if (windowId === FIRST_APP_WINDOW_ID) {
-    for (const key of WINDOW_KEPT_KEYS) {
-      const value = getStore().get("layout", key);
-      if (value !== undefined) {
-        if (store.get(WINDOW_KEPT_FILE, key) === undefined) {
-          store.set(WINDOW_KEPT_FILE, key, value);
-        }
+    const earlier = WINDOW_KEPT_KEYS.filter(
+      (key) => getStore().get("layout", key) !== undefined,
+    );
+    for (const key of earlier) {
+      if (store.get(WINDOW_KEPT_FILE, key) === undefined) {
+        store.set(WINDOW_KEPT_FILE, key, getStore().get("layout", key));
+      }
+    }
+    // Out of `layout` only once they are on disk in the window's own file, or
+    // the next launch has them nowhere. Until then it takes them again.
+    if (store.flush()) {
+      for (const key of earlier) {
         getStore().set("layout", key, undefined);
       }
     }

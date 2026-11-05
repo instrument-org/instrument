@@ -2,7 +2,7 @@
 
 The action log is what the person did in Instrument: folders and files opened, edits saved, files moved, copied, renamed or trashed, other chats read, pages visited and files downloaded in the app's browser, settings changed, failed app sign-ins, and errors the app showed them. Only what happens in Instrument is recorded. Nothing the person does in another app is, and nothing about what a page or file says.
 
-It has three readers: the chat's agent, so "put them back" or "the weather there" resolves without the person attaching anything; a feedback report, when the person leaves its row on; and a developer debugging the app, who reads the same files beside the dev log.
+It has four readers: the person, in Settings › Activity; the chat's agent, so "put them back" or "the weather there" resolves without the person attaching anything; a feedback report, when the person leaves its row on; and a developer debugging the app, who reads the same files beside the dev log.
 
 ## The files
 
@@ -39,6 +39,12 @@ Background, not something they sent: what the user did in this app before this m
 `instrument activity` ([activity.ts](../../packages/workspace/src/lib/capabilities/activity.ts)) lists the log with names and paths, for a chat and its tasks: `--since`, `--grep`, `--limit`, `--json`. A chat row names that chat's records folder, so the agent can open it. Why the note carries kinds and the command the names: [the decision](../decisions/2026-11-05-the-chat-hears-kinds-not-names.md).
 
 The person's `shareActionsWithChats` preference, through `mayShareActions` on the workspace config, turns both off. The log is kept either way, for reports.
+
+## Settings › Activity
+
+The person reads the log in Settings › Activity, interleaved newest first with the AI requests the app made, under day heads ([activity-section.tsx](../../apps/studio/src/client/components/settings/activity-section.tsx)). Each log is paged on its own (`actions.list` and the workspace's `activity.list`, both read up to when the section opened), and the list shows only as far back as the log that has loaded least, so a later page never lands above a row already shown ([activity-timeline.ts](../../apps/studio/src/client/components/settings/activity-timeline.ts)). The requests of one chat and session are one row while each follows the next within five minutes with nothing the person did in between; it opens to those requests, and each of them to everything recorded about it. A row of the person's own opens the folder, file, chat or page it names.
+
+The section holds the `shareActionsWithChats` switch, a filter kept as the `view` state `activity.view.v1`, Export CSV of what the filter shows (both logs in one file for All, [activity-csv.ts](../../apps/studio/src/electron-main/lib/activity-csv.ts)), and Clear your activity, which calls `actions.clear` at once and leaves the AI requests.
 
 ## Reports
 

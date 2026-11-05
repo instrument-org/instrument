@@ -1,23 +1,22 @@
+import { activityExportCsv } from "@/electron-main/lib/activity-csv";
 import { base } from "@/electron-main/rpc/base";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { APP_NAME } from "@instrument-org/shared";
-import {
-  activityCsv,
-  ActivityFilterSchema,
-} from "@instrument-org/workspace/electron";
+import { actionLog, activityCsv } from "@instrument-org/workspace/electron";
 import { app, dialog } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
 /**
- * Saves the activity log, as the filters show it, to a CSV file the person
- * picks. A copy of their own rather than the record itself: the record is
- * the only copy of what it holds, so it is never shown in the Finder for
- * someone to move or delete by accident.
+ * Saves what the Activity screen shows, as its `view` picks it, to a CSV
+ * file the person picks: the AI requests, what the person did, or both. A
+ * copy of their own rather than the records themselves: a record is the
+ * only copy of what it holds, so it is never shown in the Finder for someone
+ * to move or delete by accident.
  */
 const saveCsv = base
-  .input(z.object({ filter: ActivityFilterSchema }))
+  .input(z.object({ view: z.enum(["all", "yours", "ai"]) }))
   .output(z.object({ status: z.enum(["canceled", "failed", "saved"]) }))
   .handler(async ({ context, input }) => {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -35,7 +34,16 @@ const saveCsv = base
       return { status: "canceled" as const };
     }
     try {
-      await fs.writeFile(result.filePath, await activityCsv(input.filter));
+      const csv = activityExportCsv({
+        actions:
+          input.view === "ai"
+            ? undefined
+            : (await actionLog().read({ since: 0 }))
+                .filter((action) => action.kind !== "capped")
+                .toReversed(),
+        requests: input.view === "yours" ? undefined : await activityCsv({}),
+      });
+      await fs.writeFile(result.filePath, csv);
       return { status: "saved" as const };
     } catch {
       return { status: "failed" as const };

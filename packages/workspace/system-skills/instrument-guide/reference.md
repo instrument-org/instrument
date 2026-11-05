@@ -71,7 +71,12 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 
 ### Activity (`activity`)
 
-Everything Instrument asked an AI model to do, which you can filter, sort, and export.
+What you did in Instrument and every request it made to an AI, as one history newest first, which you can filter, export, or clear, and whether chats can use your activity.
+
+- **Let chats use your activity** (`share-activity`): Whether chats see what you just did in Instrument, like a folder you opened or files you moved, so they can tell what you mean.
+- **Your activity** (`activity-history`): The history of what you did in Instrument and when: folders and files you opened, chats you read, pages you visited, with its AI requests in between. On it: Clear your activity (`clear-activity`), Export CSV (`export-activity`).
+- **Clear your activity** (`clear-activity`): Delete the history of what you did in Instrument.
+- **Export CSV** (`export-activity`): Save your activity and AI requests as a spreadsheet.
 
 ## Screens
 

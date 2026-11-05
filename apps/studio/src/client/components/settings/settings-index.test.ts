@@ -74,6 +74,30 @@ describe("matchSettings", () => {
     expect(titles("release notes")).toEqual(["Release notes"]);
   });
 
+  it("finds Activity's switch and history by the words on them", () => {
+    expect({
+      activity: titles("activity"),
+      chats: titles("chats"),
+      clear: titles("clear activity"),
+    }).toMatchInlineSnapshot(`
+      {
+        "activity": [
+          "Your activity",
+          "Clear your activity",
+          "Let chats use your activity",
+          "Export CSV",
+        ],
+        "chats": [
+          "Chats that can’t be opened",
+          "Let chats use your activity",
+        ],
+        "clear": [
+          "Clear your activity",
+        ],
+      }
+    `);
+  });
+
   it("finds the rows on a page by the page name under them, after title matches", () => {
     expect(titles("memory")).toEqual([
       "Memory folder",

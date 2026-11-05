@@ -470,8 +470,8 @@ export function startTabCarry({
     }
   }
   if (started.followsCursor) {
-    // On Linux a spare once shown cannot be used again (`returnSpareWindow`), so
-    // one a drag along the row has no use for stays as it is.
+    // GNOME on X11 says a window shown without focus "is ready", which a drag along
+    // the row should not cost.
     if (process.platform !== "linux") {
       showSpare(started);
     }

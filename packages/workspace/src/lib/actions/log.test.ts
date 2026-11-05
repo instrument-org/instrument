@@ -99,6 +99,30 @@ describe("ActionLog", () => {
     ]);
   });
 
+  it("pages newest first across days, saying when older ones are left", async () => {
+    for (const [day, hour] of [
+      [3, 9],
+      [4, 9],
+      [5, 9],
+      [5, 10],
+    ] as const) {
+      now = new Date(2026, 10, day, hour).getTime();
+      log.record({ kind: "screen", name: `${day} ${hour}` });
+    }
+    const page = async (skip: number) =>
+      log.newestFirst({ limit: 2, since: 0, skip, until: now });
+    const first = await page(0);
+    expect(
+      first.actions.map((each) => each.kind === "screen" && each.name),
+    ).toEqual(["5 10", "5 9"]);
+    expect(first.more).toBe(true);
+    const second = await page(2);
+    expect(
+      second.actions.map((each) => each.kind === "screen" && each.name),
+    ).toEqual(["4 9", "3 9"]);
+    expect(second.more).toBe(false);
+  });
+
   it("clears every day", async () => {
     log.record({ kind: "screen", name: "Apps" });
     await log.clear();

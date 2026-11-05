@@ -20,13 +20,14 @@ const list = base
   )
   .handler(async ({ input }) => {
     const until = input.until ?? Date.now();
-    const newestFirst = (
-      await actionLog().read({ since: input.since, until })
-    ).toReversed();
-    const start = input.cursor ?? 0;
-    const actions = newestFirst.slice(start, start + input.limit);
-    const end = start + actions.length;
-    return { actions, next: end < newestFirst.length ? end : null, until };
+    const skip = input.cursor ?? 0;
+    const { actions, more } = await actionLog().newestFirst({
+      limit: input.limit,
+      since: input.since,
+      skip,
+      until,
+    });
+    return { actions, next: more ? skip + actions.length : null, until };
   });
 
 /** Deletes everything the action log has kept. */

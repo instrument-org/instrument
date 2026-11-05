@@ -171,6 +171,57 @@ export class ActionLog {
     return actions.toSorted((a, b) => Date.parse(a.at) - Date.parse(b.at));
   }
 
+  /**
+   * A page of the actions from `since` to `until`, newest first: `limit` of
+   * them after the first `skip`, and whether older ones are left. Day files
+   * are read from the newest back until the page is full, so a page costs
+   * the days it covers rather than the whole folder.
+   */
+  async newestFirst({
+    limit,
+    since,
+    skip,
+    until,
+  }: {
+    limit: number;
+    since: number;
+    skip: number;
+    until: number;
+  }): Promise<{ actions: Action[]; more: boolean }> {
+    const firstDay = new Date(since);
+    firstDay.setHours(0, 0, 0, 0);
+    const files = dayFiles(this.#dir)
+      .filter((each) => each.start >= firstDay.getTime() && each.start <= until)
+      .toReversed();
+    const found: Action[] = [];
+    for (const { file } of files) {
+      let text: string;
+      try {
+        text = await fs.promises.readFile(file, "utf8");
+      } catch {
+        continue;
+      }
+      const day = text.split("\n").flatMap((line) => {
+        const action = actionOf(line);
+        if (!action) {
+          return [];
+        }
+        const at = Date.parse(action.at);
+        return at >= since && at <= until ? [action] : [];
+      });
+      found.push(
+        ...day.toSorted((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+      );
+      if (found.length > skip + limit) {
+        break;
+      }
+    }
+    return {
+      actions: found.slice(skip, skip + limit),
+      more: found.length > skip + limit,
+    };
+  }
+
   /** Deletes every day's file; the log starts again with the next action. */
   async clear(): Promise<void> {
     this.close();

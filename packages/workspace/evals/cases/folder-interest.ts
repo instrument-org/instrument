@@ -185,7 +185,8 @@ function homeFiles(): Record<string, string> {
     "Desktop/todo.txt": "call dentist\nrenew passport\n",
     "Documents/Home/roof-warranty.txt":
       "Halvorsen Roofing, 10 year workmanship warranty, registered 2025.\n",
-    "Documents/Resume.md": "# Resume\n\nSenior product designer, eleven years.\n",
+    "Documents/Resume.md":
+      "# Resume\n\nSenior product designer, eleven years.\n",
     "Documents/Work/2026 goals.md": "# Goals\n\nShip the redesign.\n",
     "Documents/taxes/2025-notes.md":
       "W-2 from Fernway, 1099 from the side work.\n",
@@ -201,7 +202,8 @@ function homeFiles(): Record<string, string> {
     "code/recipe-site/src/index.ts": 'console.log("recipes");\n',
   };
   for (let index = 0; index < 200; index += 1) {
-    const app = ["Slack", "Figma", "Spotify", "Zoom", "Notion"][index % 5];
+    const app =
+      ["Slack", "Figma", "Spotify", "Zoom", "Notion"][index % 5] ?? "Slack";
     files[`Library/Application Support/${app}/cache/${index}.json`] =
       `{"entry":${index}}\n`;
   }
@@ -470,11 +472,7 @@ export const FOLDER_INTEREST_EVALS = [
   // Held out from the prompts the search was tuned on: a file at the top of the
   // Instrument folder, a file in the home folder a walk reaches by itself, a
   // decision only a chat has, and a question nothing here answers.
-  local(
-    "local-cabin",
-    "whats the wifi password at the cabin",
-    /fernhollow42/u,
-  ),
+  local("local-cabin", "whats the wifi password at the cabin", /fernhollow42/u),
   local("local-recipe", "what does my recipe site do", /recipes?/iu),
   local("local-healer", "what class did you say i should play", /Priest/u),
   local(

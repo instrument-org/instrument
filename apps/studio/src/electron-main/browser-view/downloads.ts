@@ -117,6 +117,7 @@ export function routeGuestDownloads(
       entry.downloadsRunning -= 1;
     });
     if (takeAskedSave(webContents.id, item)) {
+      recordWhenSaved(item);
       askWhereToSave(item);
     } else if (entry.authorizedDownloadPath) {
       saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);

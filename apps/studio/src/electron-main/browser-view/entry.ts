@@ -111,6 +111,8 @@ export interface BrowserEntry {
   // commands that only read existing state, so an entry existing does not mean
   // anything asked for a browser to be shown.
   navigated: boolean;
+  // An agent has clicked or typed in it, which leaves state a reload loses.
+  hasAgentInput: boolean;
   // When an agent's command last reached the guest, which keeps another window
   // from taking the page out from under it.
   lastAgentCommandAt: number;
@@ -186,6 +188,7 @@ export function createEntry({
     eventListeners: new Set(),
     generation: ++generationCounter,
     hostId,
+    hasAgentInput: false,
     lastAgentCommandAt: 0,
     navigated: false,
     partitionDir,

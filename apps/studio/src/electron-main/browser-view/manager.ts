@@ -613,12 +613,14 @@ function createBrowserViewManager(): BrowserViewManager {
     }
   }
 
-  // A person's input, or an agent's commands: either leaves state a reload loses.
+  // A person's input, or an agent's: either leaves state a reload loses. Being sent
+  // to an address does not, and a person's address bar goes the way an agent's
+  // command does.
   const isUsed = (entry: BrowserEntry) => {
     const guestId = entry.webContents?.id;
     const record = guestId === undefined ? undefined : guests.get(guestId);
     return (
-      entry.lastAgentCommandAt > 0 ||
+      entry.hasAgentInput ||
       (record !== undefined && (record.userInputAt > 0 || record.wasScrolled))
     );
   };
@@ -1044,6 +1046,7 @@ function createBrowserViewManager(): BrowserViewManager {
       const driven = entries.get(targetId);
       if (driven) {
         noteAgentCommand(driven);
+        driven.hasAgentInput ||= method.startsWith("Input.");
       }
       const settle = focusGuard.armCommand(
         targetId,

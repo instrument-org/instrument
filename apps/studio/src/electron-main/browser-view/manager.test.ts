@@ -298,6 +298,25 @@ describe("getBrowserViewManager", () => {
       expect(idsIn(602)).toContain(targetId);
     });
 
+    it("counts a page as used once an agent has clicked or typed in it, and not for being sent to an address", async () => {
+      hostWith(701);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 701 })
+        .catch(() => undefined);
+
+      await manager.browser
+        .sendCommand(targetId, "Page.navigate", { url: "https://example.com" })
+        .catch(() => undefined);
+      expect(manager.isPageUsed([targetId])).toBe(false);
+
+      await manager.browser
+        .sendCommand(targetId, "Input.dispatchMouseEvent", {})
+        .catch(() => undefined);
+      expect(manager.isPageUsed([targetId])).toBe(true);
+    });
+
     it("hands a guest to another window even while its own shows it", async () => {
       hostWith(501);
       hostWith(502);

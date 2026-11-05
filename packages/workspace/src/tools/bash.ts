@@ -326,13 +326,6 @@ const bashCapability = defineCapability({
         const folders = await folderReach(chatId);
         const yieldMs = clampYieldMs(input.yieldMs);
         const watch = await watchChatFolders(chatId);
-        openStepFacts({
-          chatId,
-          label: input.counts,
-          messageId,
-          sessionId,
-          step: partId,
-        });
         // What the call touched goes on record once it is over, which for one
         // moved to the background is when its process ends.
         const settleFacts = async (output = "") => {
@@ -358,6 +351,13 @@ const bashCapability = defineCapability({
           sessionId,
           chatId,
           model: model.canonicalId,
+        });
+        openStepFacts({
+          chatId,
+          label: input.counts,
+          messageId,
+          sessionId,
+          step: partId,
         });
         // Interpreter metadata, only available once the run finishes. A promoted
         // command reports none, which is what the empty default stands for.

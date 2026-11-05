@@ -493,6 +493,139 @@ describe("the slot", () => {
     expect(turn && slotOf(turn)?.kind).toBe("page");
   });
 
+  it("keeps the words of a reply that was stopped", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "Halfway through")], {
+          error: { kind: "aborted" },
+        }),
+      ],
+      { isRunning: false },
+    );
+    expect(turn?.rows.map((row) => row.kind)).toEqual(["text"]);
+  });
+
+  it("keeps the same words after a wake", () => {
+    const wake = message("user", (id) => [
+      {
+        data: { events: [] },
+        metadata: meta(id),
+        type: "data-taskEvent",
+      } as SessionMessagePart.Type,
+    ]);
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "Done.")]),
+        wake,
+        message("assistant", (id) => [said(id, "Done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(turn?.rows.filter((row) => row.kind === "text")).toHaveLength(2);
+  });
+
+  it("gives each task a call started its own row", () => {
+    const [one, two] = [StoreId.newSessionId(), StoreId.newSessionId()];
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(
+            id,
+            "bash",
+            { command: "task new" },
+            {
+              exitCode: 0,
+              handOffs: [
+                { kind: "created", sessionId: one },
+                { kind: "created", sessionId: two },
+              ],
+            },
+          ),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(new Set(turn?.rows.map((row) => row.id)).size).toBe(2);
+  });
+
+  it("tells an old error it is no longer the last message", () => {
+    const cache: TurnsCache = new Map();
+    const failed = [
+      typed("Do the thing"),
+      message("assistant", () => [], { error: { kind: "provider" } }),
+    ];
+    const lastness = (turn: Turn | undefined) =>
+      turn?.rows.find((row) => row.kind === "error")?.isLastMessage;
+    expect(lastness(turnsOf(failed, { isRunning: false }, cache)[0])).toBe(
+      true,
+    );
+    expect(
+      lastness(
+        turnsOf([...failed, typed("Again")], { isRunning: true }, cache)[0],
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    [
+      "a question not answered",
+      "choose",
+      { questions: [] },
+      undefined,
+      "input-available",
+    ],
+    [
+      "a sign-in nothing has settled",
+      "connect_app",
+      { apps: ["notion"] },
+      { state: "asked" },
+      "output-available",
+    ],
+  ] as const)(
+    "keeps %s out of the fold",
+    (_name, tool, input, output, state) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+            call(id, tool, input, output, state),
+            said(id, "Waiting on you."),
+          ]),
+        ],
+        { isRunning: false },
+      );
+      const ask = turn?.rows.find((row) => row.kind === "ask");
+      expect(ask && turn?.foldedRowIds.has(ask.id)).toBe(false);
+      expect(turn?.foldedRowIds.size).toBe(1);
+    },
+  );
+
+  it("folds a sign-in an app event has settled", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "connect_app", { apps: ["notion"] }, { state: "asked" }),
+        ]),
+        message("user", (id) => [
+          {
+            data: { app: "notion", kind: "connected" },
+            metadata: meta(id),
+            type: "data-appEvent",
+          } as unknown as SessionMessagePart.Type,
+        ]),
+        message("assistant", (id) => [said(id, "Connected.")]),
+      ],
+      { isRunning: false },
+    );
+    const ask = turn?.rows.find((row) => row.kind === "ask");
+    expect(ask && turn?.foldedRowIds.has(ask.id)).toBe(true);
+  });
+
   it("shows nothing for a call that failed", () => {
     const [turn] = turnsOf(
       [
@@ -710,6 +843,9 @@ describe("what a step carries", () => {
     ["git commit -m 'open the file'", undefined],
     ["instrument task new --name x 'agent-browser open a.example'", undefined],
     ["echo agent-browser", undefined],
+    ["cat > note <<'EOF'\nopen the door\nagent-browser open x\nEOF", undefined],
+    ["open -a Preview chart.png", { kind: "opened", target: "chart.png" }],
+    ["open the", undefined],
     [
       "instrument window show report.md",
       { kind: "opened", target: "report.md" },

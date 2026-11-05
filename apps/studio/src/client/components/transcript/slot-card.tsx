@@ -37,6 +37,33 @@ function hostOf(url: string | undefined): string | undefined {
 
 type ShowsOf<K extends StepShows["kind"]> = Extract<StepShows, { kind: K }>;
 
+/** Where a path a call named is on this computer, once that is known. */
+type PlaceOf = (path: string) => string | undefined;
+
+/** The paths a card names, as the calls spelled them. */
+function pathsOf({ changedFiles, steps }: SlotCard): string[] {
+  return [
+    ...changedFiles,
+    ...steps.flatMap(({ shows }) => {
+      switch (shows?.kind) {
+        case "file": {
+          return [shows.path];
+        }
+        case "generated":
+        case "image": {
+          return shows.path === undefined ? [] : [shows.path];
+        }
+        case "opened": {
+          return /^[a-z]+:\/\//.test(shows.target) ? [] : [shows.target];
+        }
+        default: {
+          return [];
+        }
+      }
+    }),
+  ];
+}
+
 /** Each step's `shows` of the given kinds, oldest first. */
 function shownBy<K extends StepShows["kind"]>(
   steps: readonly TurnStep[],
@@ -66,7 +93,13 @@ export function SlotCardView({
   sessionId: StoreId.Session;
 }) {
   const surface = use(TranscriptSurfaceContext);
-  const body = cardBody(card, surface, sessionId);
+  const places = surface?.useHostPaths(pathsOf(card));
+  const body = cardBody(
+    card,
+    surface,
+    sessionId,
+    (path) => places?.[path] ?? undefined,
+  );
   return (
     <button
       className={cn(
@@ -111,6 +144,7 @@ function cardBody(
   card: SlotCard,
   surface: TranscriptSurface | undefined,
   sessionId: StoreId.Session,
+  placeOf: PlaceOf,
 ): CardBody {
   const { kind, steps } = card;
   switch (kind) {
@@ -130,7 +164,7 @@ function cardBody(
             if (/^[a-z]+:\/\//.test(place)) {
               surface?.onOpenUrl(place);
             } else {
-              surface?.onOpenFile(place);
+              surface?.onOpenFile(placeOf(place) ?? place);
             }
           },
         }),
@@ -141,33 +175,34 @@ function cardBody(
     case "images": {
       const images = shownBy(steps, "image");
       const newest = images.at(-1);
+      const place = newest?.path && placeOf(newest.path);
       return {
         mark: <ImageIcon className="size-3.5" />,
         meta: images.length > 1 ? `${images.length.toString()} images` : "Read",
-        ...(newest?.path && {
+        ...(place && {
           open: () => {
-            surface?.onOpenFile(newest.path ?? "");
+            surface?.onOpenFile(place);
           },
         }),
         title: newest?.path ? baseName(newest.path) : "An image",
-        view: <PictureRow images={images} />,
+        view: <PictureRow images={images} placeOf={placeOf} />,
       };
     }
     case "generated": {
       const generated = shownBy(steps, "generated");
       const newest = generated.at(-1);
-      const isDone = newest?.status === "done";
+      const place = newest?.path && placeOf(newest.path);
       return {
         mark: <ImageIcon className="size-3.5" />,
-        ...(newest?.path && {
+        ...(place && {
           open: () => {
-            surface?.onOpenFile(newest.path ?? "");
+            surface?.onOpenFile(place);
           },
         }),
         title: newest?.path ? baseName(newest.path) : "An image",
         view:
-          isDone && newest.path ? (
-            <FilePicture path={newest.path} />
+          newest?.status === "done" && place ? (
+            <FilePicture path={place} />
           ) : (
             <Waiting>Generating the image</Waiting>
           ),
@@ -177,7 +212,7 @@ function cardBody(
       return webCard(steps, surface);
     }
     case "files": {
-      return filesCard(card, surface);
+      return filesCard(card, surface, placeOf);
     }
   }
 }
@@ -272,6 +307,7 @@ function ResultList({ results }: { results: readonly WebResult[] }) {
 function filesCard(
   { changedFiles, steps }: SlotCard,
   surface: TranscriptSurface | undefined,
+  placeOf: PlaceOf,
 ): CardBody {
   const written = shownBy(steps, "file");
   const names = [
@@ -279,6 +315,7 @@ function filesCard(
   ];
   const newestPath = changedFiles.at(-1) ?? written.at(-1)?.path;
   const newest = written.findLast((file) => file.path === newestPath);
+  const place = newestPath && placeOf(newestPath);
   const isWriting = newest?.status === "writing";
   const list =
     names.length > 1 ? (
@@ -309,11 +346,11 @@ function filesCard(
     </div>
   ) : newest?.words !== undefined ? (
     <TypedWords className={offset} isWriting={isWriting} words={newest.words} />
-  ) : (
+  ) : place ? (
     <div className={cn("absolute inset-y-0 right-0", offset)}>
-      <FilePicture path={newestPath} />
+      <FilePicture path={place} />
     </div>
-  );
+  ) : null;
   return {
     mark: <FileTextIcon className="size-3.5" />,
     meta:
@@ -324,9 +361,9 @@ function filesCard(
           : newest?.after !== undefined
             ? "Edited"
             : "Written",
-    ...(newestPath && {
+    ...(place && {
       open: () => {
-        surface?.onOpenFile(newestPath);
+        surface?.onOpenFile(place);
       },
     }),
     title: newestPath ? baseName(newestPath) : "A file",
@@ -377,24 +414,30 @@ function Waiting({ children }: { children: string }) {
 }
 
 /** The newest large, with a few earlier ones beside it so each stays legible. */
-function PictureRow({ images }: { images: readonly ShowsOf<"image">[] }) {
+function PictureRow({
+  images,
+  placeOf,
+}: {
+  images: readonly ShowsOf<"image">[];
+  placeOf: PlaceOf;
+}) {
   const newest = images.at(-1);
-  if (!newest?.path) {
+  const place = newest?.path && placeOf(newest.path);
+  if (!place) {
     return <Waiting>Reading the image</Waiting>;
   }
   const earlier = images
     .slice(0, -1)
     .slice(-EARLIER_SHOWN)
     .toReversed()
-    .flatMap((image) => (image.path ? [image.path] : []));
+    .flatMap((image) => {
+      const earlierPlace = image.path && placeOf(image.path);
+      return earlierPlace ? [earlierPlace] : [];
+    });
   return (
     <div className="flex h-full gap-0.5">
       <div className="min-w-0 flex-1">
-        <FilePicture
-          fit="contain"
-          path={newest.path}
-          version={newest.modifiedAt}
-        />
+        <FilePicture fit="contain" path={place} version={newest?.modifiedAt} />
       </div>
       {earlier.length > 0 && (
         <div className="flex w-20 shrink-0 flex-col gap-0.5">

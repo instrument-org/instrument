@@ -52,7 +52,11 @@ const NAMED_PATHS_CHECKED = 64;
 const FILES_KEPT = 100;
 
 /** A file's size and time, by path. */
-type FolderSnapshot = Map<string, { mtimeMs: number; size: number }>;
+interface FolderSnapshot {
+  files: Map<string, { mtimeMs: number; size: number }>;
+  /** A folder held more than a look reads, so a file missing may be unread. */
+  isPartial: boolean;
+}
 
 /**
  * What the folders hold now, by size and modified time. A script is a black
@@ -62,7 +66,7 @@ type FolderSnapshot = Map<string, { mtimeMs: number; size: number }>;
 async function snapshotFolders(
   folders: readonly string[],
 ): Promise<FolderSnapshot> {
-  const snapshot: FolderSnapshot = new Map();
+  const snapshot: FolderSnapshot = { files: new Map(), isPartial: false };
   await Promise.all(folders.map((folder) => addFolder(folder, snapshot)));
   return snapshot;
 }
@@ -80,6 +84,7 @@ async function addFolder(root: string, snapshot: FolderSnapshot) {
       .catch(() => []);
     for (const entry of entries) {
       if (read >= FILES_PER_FOLDER) {
+        snapshot.isPartial = true;
         break;
       }
       const at = path.join(folder, entry.name);
@@ -91,30 +96,40 @@ async function addFolder(root: string, snapshot: FolderSnapshot) {
         read += 1;
         const stat = await fs.stat(at).catch(() => undefined);
         if (stat) {
-          snapshot.set(at, { mtimeMs: stat.mtimeMs, size: stat.size });
+          snapshot.files.set(at, { mtimeMs: stat.mtimeMs, size: stat.size });
         }
       }
     }
   }
 }
 
-/** What differs between two looks at the same folders. */
+/**
+ * What differs between two looks at the same folders. Where either stopped at
+ * its limit, a file only one of them read says nothing by itself, so a new one
+ * counts only by its time and nothing counts as deleted.
+ */
 function changesBetween(
   before: FolderSnapshot,
   after: FolderSnapshot,
+  since: number,
 ): FileTouch[] {
+  const isPartial = before.isPartial || after.isPartial;
   const touches: FileTouch[] = [];
-  for (const [file, now] of after) {
-    const was = before.get(file);
+  for (const [file, now] of after.files) {
+    const was = before.files.get(file);
     if (!was) {
-      touches.push({ change: "created", path: file, via: "disk" });
+      if (!isPartial || now.mtimeMs >= since) {
+        touches.push({ change: "created", path: file, via: "disk" });
+      }
     } else if (was.mtimeMs !== now.mtimeMs || was.size !== now.size) {
       touches.push({ change: "changed", path: file, via: "disk" });
     }
   }
-  for (const file of before.keys()) {
-    if (!after.has(file)) {
-      touches.push({ change: "deleted", path: file, via: "disk" });
+  if (!isPartial) {
+    for (const file of before.files.keys()) {
+      if (!after.files.has(file)) {
+        touches.push({ change: "deleted", path: file, via: "disk" });
+      }
     }
   }
   return touches;
@@ -325,6 +340,7 @@ export async function fileTouches(
   const disk = changesBetween(
     watch.before,
     await snapshotFolders(watch.folders),
+    watch.startedAtMs - CLOCK_SLACK_MS,
   );
   const bases = [
     watch.workFolder,

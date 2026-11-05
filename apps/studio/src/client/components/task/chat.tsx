@@ -48,6 +48,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -73,6 +74,7 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
+import { useHoldAtReplyStart } from "../transcript/use-hold-at-reply-start";
 import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
@@ -646,6 +648,10 @@ export function ChatConversation({
                   ) : (
                     <TranscriptStream
                       chatInfo={chatInfo}
+                      contentRef={contentRef}
+                      isFollowing={
+                        isAgentAlive || isFollowingSubmit || isSettlingTurn
+                      }
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
                       isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}
@@ -755,8 +761,21 @@ function SentPrompt({
 
 // The conversation, wired to the scroller it is drawn in: what a bubble opens
 // (a long table, a code block) hands following the end back through it.
-function TranscriptStream(props: ComponentProps<typeof Transcript>) {
+function TranscriptStream({
+  contentRef,
+  isFollowing,
+  ...props
+}: ComponentProps<typeof Transcript> & {
+  contentRef: RefObject<HTMLElement | null>;
+  /** The scroller is following the end, rather than left where the reader put it. */
+  isFollowing: boolean;
+}) {
   const { releaseAutoScroll } = useMessageScroller();
+  useHoldAtReplyStart({
+    contentRef,
+    isFollowing,
+    release: releaseAutoScroll,
+  });
 
   return (
     <TranscriptScrollContext value={releaseAutoScroll}>

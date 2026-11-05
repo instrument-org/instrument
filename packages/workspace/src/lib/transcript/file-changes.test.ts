@@ -60,6 +60,23 @@ describe("fileTouches", () => {
     ).toEqual(["changed kept.md", "created new.md", "deleted gone.md"]);
   });
 
+  it("says nothing was deleted when a folder holds more than a look reads", async () => {
+    await Promise.all(
+      Array.from({ length: 2100 }, (_, index) =>
+        write(path.join(work, `old-${index.toString()}.txt`)),
+      ),
+    );
+    await fs.utimes(work, new Date(0), new Date(0));
+    const watching = await watch();
+    await fs.mkdir(path.join(work, "a-new-folder"));
+    await write(path.join(work, "a-new-folder", "new.txt"));
+    const { files } = await fileTouches(watching, {
+      command: "python build.py",
+      output: "",
+    });
+    expect(files.filter((file) => file.change === "deleted")).toEqual([]);
+  });
+
   it("leaves out the chat's own file, command logs and the system's clutter", async () => {
     const watching = await watch();
     await fs.mkdir(path.join(work, CHAT_FOLDER_NAMES.toolOutput));

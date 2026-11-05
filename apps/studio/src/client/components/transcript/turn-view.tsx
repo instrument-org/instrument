@@ -215,7 +215,8 @@ function TurnBody({
     }
     return out;
   });
-  const hasReply = turn.rows.at(-1)?.kind === "text";
+  const hasReply =
+    turn.rows.findLast((row) => row.kind !== "note")?.kind === "text";
   return (
     <>
       {rows}
@@ -240,8 +241,8 @@ function useIsFolded(turn: Turn): boolean {
     turn.foldsWhenDone && turn.endedAt
       ? turn.endedAt.getTime() + FOLD_WAIT_MS
       : undefined;
-  usePassed(foldsAt);
-  return isTurnFolded(turn, Date.now());
+  const hasPassed = usePassed(foldsAt);
+  return isTurnFolded(turn, hasPassed && foldsAt ? foldsAt : 0);
 }
 
 /** "Thinking", and for how long, while no call is running. */
@@ -343,7 +344,11 @@ function RowView({
       );
     }
     case "text": {
-      return <AssistantMessage chatId={chatInfo.id} part={row.part} />;
+      return (
+        <div data-reply-row={row.part.metadata.id}>
+          <AssistantMessage chatId={chatInfo.id} part={row.part} />
+        </div>
+      );
     }
   }
 }

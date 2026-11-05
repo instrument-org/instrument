@@ -71,15 +71,11 @@ describe("a file-changes part from before the fence", () => {
       type: "data-fileChanges",
     }) as unknown as SessionMessagePart.DataPart;
 
-  const render = (
-    part: SessionMessagePart.DataPart,
-    pathsAlreadyShown?: ReadonlySet<string>,
-  ) =>
+  const render = (part: SessionMessagePart.DataPart) =>
     renderDataPart({
       stateNote: undefined,
       ctx: { isDeveloperMode: false } as unknown as NoteContext,
       part,
-      pathsAlreadyShown,
     });
 
   it("shows a deliverable to everyone, not just developers", () => {
@@ -107,13 +103,6 @@ describe("a file-changes part from before the fence", () => {
     expect(
       render(partWith([{ filePath: "output/gone.png", status: "deleted" }])),
     ).toBeNull();
-  });
-
-  it("leaves out a file the reply already showed", () => {
-    const part = partWith([{ filePath: "output/chart.png", status: "added" }]);
-
-    expect(render(part)).not.toBeNull();
-    expect(render(part, new Set(["output/chart.png"]))).toBeNull();
   });
 });
 

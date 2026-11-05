@@ -22,6 +22,7 @@ import { AppChipIcon } from "../inline-link";
 import { SessionMarkdown } from "../session-markdown";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { TranscriptSurfaceContext } from "./surface";
+import { TranscriptActionsContext } from "./transcript-actions";
 import { formatClock, useTicking } from "./time";
 
 /**
@@ -274,6 +275,7 @@ function StepDetail({
   step: TurnStep;
 }) {
   const surface = use(TranscriptSurfaceContext);
+  const { onRetry } = use(TranscriptActionsContext);
   const part = surface?.useStepPart(step, true);
   if (!part) {
     return (
@@ -291,5 +293,5 @@ function StepDetail({
       />
     );
   }
-  return <ToolCallBody chatInfo={chatInfo} onRetry={() => {}} part={part} />;
+  return <ToolCallBody chatInfo={chatInfo} onRetry={onRetry} part={part} />;
 }

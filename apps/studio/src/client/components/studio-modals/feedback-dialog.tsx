@@ -213,7 +213,7 @@ export function FeedbackDialogContent({
             item: chat.item,
             line: chatTooLarge
               ? FEEDBACK_TOO_LARGE
-              : `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}.`,
+              : `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}, though an error message can quote a little of it.`,
             title: chat.title,
           },
         ]

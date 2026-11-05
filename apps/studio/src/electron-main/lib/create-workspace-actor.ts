@@ -204,6 +204,8 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       isHostedFeatureAvailable,
       isPlatformSearchForEveryModel,
       mayOfferFeedback: () => getMachinePreferences().get("offerFeedback"),
+      mayShareActions: () =>
+        getWorkspacePreferences().get("shareActionsWithChats"),
       maySuggestNextMessage: () =>
         getWorkspacePreferences().get("suggestNextMessage"),
       pnpmBinPath: getPNPMBinPath(),

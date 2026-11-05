@@ -75,6 +75,9 @@ export const WorkspacePreferencesSchema = z.object({
         ),
       }),
     ),
+  // Chats may read what the person did in the app, from the action log in
+  // the machine folder; see `mayShareActions` in the workspace's config.
+  shareActionsWithChats: z.boolean().catch(true),
   // A next message offered in a chat's empty box once it settles; see
   // next-message.ts in the workspace package.
   suggestNextMessage: z.boolean().catch(true),

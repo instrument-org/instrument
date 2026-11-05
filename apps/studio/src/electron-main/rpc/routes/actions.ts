@@ -1,0 +1,37 @@
+import { actionLog } from "@instrument-org/workspace/electron";
+import { base } from "@/electron-main/rpc/base";
+import { z } from "zod";
+
+/**
+ * What the person did in the app from `since` to `until`, newest first, a
+ * page at a time. The first page settles `until` (now when absent) and
+ * answers it, and each later page passes it back with `next` as its
+ * `cursor`, so actions recorded while paging never shift a page. `next` is
+ * null on the last page.
+ */
+const list = base
+  .input(
+    z.object({
+      cursor: z.number().int().min(0).optional(),
+      limit: z.number().int().min(1).max(500).default(100),
+      since: z.number(),
+      until: z.number().optional(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const until = input.until ?? Date.now();
+    const newestFirst = (
+      await actionLog().read({ since: input.since, until })
+    ).toReversed();
+    const start = input.cursor ?? 0;
+    const actions = newestFirst.slice(start, start + input.limit);
+    const end = start + actions.length;
+    return { actions, next: end < newestFirst.length ? end : null, until };
+  });
+
+/** Deletes everything the action log has kept. */
+const clear = base.handler(async () => {
+  await actionLog().clear();
+});
+
+export const actions = { clear, list };

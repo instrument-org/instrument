@@ -377,9 +377,6 @@ importers:
       '@oxlint/plugins':
         specifier: 1.87.0
         version: 1.87.0
-      '@panzoom/panzoom':
-        specifier: ^4.6.2
-        version: 4.6.2
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -2958,9 +2955,6 @@ packages:
   '@oxlint/plugins@1.87.0':
     resolution: {integrity: sha512-OtSZ6NxNkS7bkVy7zk9zGnajz2hVIu0uRPP/dJvJesGRaXtimpA4lpxap7FaIJndG2UIoKhnBU4DxyDQIWv6yg==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
-
-  '@panzoom/panzoom@4.6.2':
-    resolution: {integrity: sha512-Zn3B5/hwa6eYIPRSKX0xf2clv8nviTX8AnAU5kU/EugiTDhG41ya2wlBqYrZJYCWQROr/5XkWObZhIkepi89qw==}
 
   '@peculiar/asn1-schema@2.8.0':
     resolution: {integrity: sha512-7YT0U/ze0tF2QOBbE15gKZwy5tvgGyLRiRHLzhlbOpf7BT032oBSd0haZqXn5W6l26WLlu3dyxzjM+2638/z2Q==}
@@ -12080,8 +12074,6 @@ snapshots:
     optional: true
 
   '@oxlint/plugins@1.87.0': {}
-
-  '@panzoom/panzoom@4.6.2': {}
 
   '@peculiar/asn1-schema@2.8.0':
     dependencies:

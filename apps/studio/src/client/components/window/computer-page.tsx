@@ -144,6 +144,7 @@ import {
   onPageEdge,
   pageHasLayer,
 } from "@/client/lib/browser-pool";
+import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
 import { useWindow } from "./context";
 import { arrivalView } from "./files-step";
@@ -1784,7 +1785,12 @@ export function ComputerPage({
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.isTrusted || !event.key.startsWith("Arrow")) {
+      if (
+        !event.isTrusted ||
+        !event.key.startsWith("Arrow") ||
+        // A zoomed picture's arrows move around it, and its menu's walk the menu.
+        pictureHoldingKeyboard()?.canPan()
+      ) {
         return;
       }
       const row = selectedRowIn(browserRef.current);

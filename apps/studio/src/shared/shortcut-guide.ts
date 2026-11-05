@@ -157,6 +157,37 @@ const LIST_KEYS: ShortcutGuideEntry[] = [
 ];
 
 /**
+ * What a picture holding the keyboard does with the window's zoom chords and
+ * the arrows (`use-image-panzoom.ts`).
+ */
+const PICTURE_KEYS: ShortcutGuideEntry[] = [
+  {
+    accelerator: WINDOW_MENU_SHORTCUTS.zoomIn.accelerator,
+    group: "Files",
+    id: "pictureZoomIn",
+    label: "Zoom In on Picture",
+  },
+  {
+    accelerator: WINDOW_MENU_SHORTCUTS.zoomOut.accelerator,
+    group: "Files",
+    id: "pictureZoomOut",
+    label: "Zoom Out of Picture",
+  },
+  {
+    accelerator: WINDOW_MENU_SHORTCUTS.actualSize.accelerator,
+    group: "Files",
+    id: "pictureFit",
+    label: "Fit Picture",
+  },
+  {
+    accelerator: "↑↓←→",
+    group: "Files",
+    id: "picturePan",
+    label: "Move Around Zoomed Picture",
+  },
+];
+
+/**
  * Every chord the app window answers to, read off the tables the menus and
  * key binders are built from, so the guide cannot list a chord the window
  * lacks or miss one it has. Key order carries no meaning; the guide orders
@@ -166,6 +197,7 @@ export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...SHORTCUT_GUIDE, group: "General", id: "shortcutGuide" },
   { ...PASTE_AS_TEXT, group: "Chats", id: "pasteAsText" },
   ...LIST_KEYS,
+  ...PICTURE_KEYS,
   ...Object.entries(WINDOW_CHORDS).map(([id, { accelerator, label }]) => ({
     accelerator,
     // `Object.entries` widens the keys to `string`; they are the tables' ids.

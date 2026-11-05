@@ -138,7 +138,6 @@
     "@milkdown/crepe": "7.22.3",
     "@milkdown/kit": "7.22.3",
     "@oxlint/plugins": "1.87.0",
-    "@panzoom/panzoom": "^4.6.2",
     "@phosphor-icons/react": "^2.1.10",
     "@pierre/trees": "1.0.0-beta.6",
     "@radix-ui/react-accordion": "^1.2.21",

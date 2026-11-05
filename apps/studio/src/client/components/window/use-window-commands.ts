@@ -23,6 +23,7 @@ import {
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { runPageChord } from "@/client/lib/page-chords";
+import { runPictureChord } from "@/client/lib/picture-keys";
 import { commandKeyHeld, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -369,8 +370,8 @@ export function useWindowCommands(
             case "zoomIn":
             case "zoomOut":
             case "zoomReset": {
-              // The page holding the keyboard, else the app's own zoom.
-              if (!runPageChord(command)) {
+              // The page or picture holding the keyboard, else the app's own zoom.
+              if (!runPageChord(command) && !runPictureChord(command)) {
                 getDefaultStore().set(zoomAtom, (z) =>
                   appZoomAfter(command, z),
                 );

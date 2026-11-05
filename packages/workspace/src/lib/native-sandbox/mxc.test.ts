@@ -301,6 +301,30 @@ describe("mxcFilesystemPolicy", () => {
   });
 });
 
+describe("mxcFilesystemPolicy's drive root", () => {
+  const rules: Rule[] = [{ level: "allow", path: base, source: "grant" }];
+  const reach = () => reachOver(path.join(base, "home"), rules);
+
+  it("lists the root of a drive with a folder open on it", () => {
+    const policy = mxcFilesystemPolicy(reach(), {
+      appFolders: [],
+      closed: [],
+      root: path.join(base, "other"),
+    });
+    expect(policy.enumeratePaths).toContain(path.parse(base).root);
+  });
+
+  it("leaves a root that is read already to be read", () => {
+    const policy = mxcFilesystemPolicy(reach(), {
+      appFolders: [],
+      closed: [],
+      root: ROOT,
+    });
+    expect(policy.enumeratePaths).not.toContain(ROOT);
+    expect(policy.readonlyPaths).toContain(ROOT);
+  });
+});
+
 describe("mxcFilesystemPolicy over a whole drive", () => {
   const entry = (name: string) => ({ name }) as Dirent;
   const disk: Disk = {

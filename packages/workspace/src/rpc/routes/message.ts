@@ -19,6 +19,12 @@ import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import {
+  lastTurnsOf,
+  type TranscriptFeed,
+  type TranscriptFeedEvent,
+  TranscriptProjection,
+} from "../../lib/transcript/feed";
+import {
   removeSentFromDraft,
   withDraftFolder,
 } from "../../lib/drafts/send-from-folder";
@@ -428,8 +434,137 @@ const liveBubbles = base
     }
   });
 
+/**
+ * What the transcript draws of a session (`transcript/feed.ts`), as it changes:
+ * the end of the session, then only what moved. A reader that scrolls up asks
+ * `older` for the turns before.
+ */
+const liveFeed = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      isDeveloperMode: z.boolean().default(false),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(eventIterator(type<TranscriptFeedEvent>()))
+  .handler(async function* ({ errors, input, signal }) {
+    // Subscribed before the first read, so no change lands unobserved.
+    const batches = changedMessageBatches(input, signal);
+    const unattend = attendChatArrivals(input.id);
+    try {
+      const read = (only?: Set<StoreId.Message>) =>
+        ChatReads.transcript({
+          chatId: input.id,
+          sessionId: input.sessionId,
+          ...(only ? { only } : {}),
+        });
+      const projection = new TranscriptProjection(input.isDeveloperMode);
+      const initial = await read();
+      if (initial.isErr()) {
+        throw toORPCError(initial.error, errors);
+      }
+      yield projection.reset(initial.value);
+
+      for await (const batch of batches) {
+        const changed = await read(batch.updated);
+        if (changed.isErr()) {
+          // A message and its parts are written together, so a read that fails
+          // falls back to the whole session.
+          const reload = await read();
+          if (reload.isErr()) {
+            throw toORPCError(reload.error, errors);
+          }
+          yield projection.reset(reload.value);
+          continue;
+        }
+        const messages = changed.value;
+        const found = new Set(messages.map(({ id }) => id));
+        const event = projection.update({
+          changed: messages,
+          removed: [
+            ...batch.removed,
+            ...[...batch.updated].filter((id) => !found.has(id)),
+          ],
+        });
+        if (event) {
+          yield event;
+        }
+      }
+    } finally {
+      unattend();
+      await batches.return();
+    }
+  });
+
+/** The turns before `before`, for a reader scrolling up. */
+const older = base
+  .input(
+    z.object({
+      before: StoreId.MessageSchema,
+      id: ChatIdSchema,
+      isDeveloperMode: z.boolean().default(false),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(type<TranscriptFeed>())
+  .handler(async ({ errors, input }) => {
+    const messages = await ChatReads.transcript({
+      chatId: input.id,
+      sessionId: input.sessionId,
+    });
+    if (messages.isErr()) {
+      throw toORPCError(messages.error, errors);
+    }
+    return lastTurnsOf(messages.value, input);
+  });
+
+/**
+ * One message whole, as it changes: what a step opened in the transcript reads
+ * for the command and output the feed leaves out.
+ */
+const liveWhole = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      messageId: StoreId.MessageSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(eventIterator(type<SessionMessage.WithParts | null>()))
+  .handler(async function* ({ errors, input, signal }) {
+    const batches = changedMessageBatches(input, signal);
+    const only = new Set([input.messageId]);
+    const read = async () => {
+      const messages = await ChatReads.transcript({
+        bytes: true,
+        chatId: input.id,
+        only,
+        sessionId: input.sessionId,
+      });
+      if (messages.isErr()) {
+        throw toORPCError(messages.error, errors);
+      }
+      return messages.value[0] ?? null;
+    };
+    try {
+      yield await read();
+      for await (const batch of batches) {
+        if (
+          batch.updated.has(input.messageId) ||
+          batch.removed.has(input.messageId)
+        ) {
+          yield await read();
+        }
+      }
+    } finally {
+      await batches.return();
+    }
+  });
+
 export const message = {
   create,
   list: listWithParts,
-  live: { ...live, bubbles: liveBubbles },
+  live: { ...live, bubbles: liveBubbles, feed: liveFeed, whole: liveWhole },
+  older,
 };

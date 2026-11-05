@@ -7,6 +7,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getWindowKeptState,
   tellWindowKeptState,
+  windowKeptKeys,
 } from "@/electron-main/stores/workspace/kept-state";
 import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import {
@@ -16,32 +17,32 @@ import {
   cascadedBounds,
   closeEmptiedWindow,
   getAppWindows,
-  moveTabToWindow,
+  keptTabsOf,
   returnSpareWindow,
+  sendTabToWindow,
   type SpareWindow,
   takeSpareWindow,
 } from "@/electron-main/windows/app-window";
 import { keepsOffScreen } from "@/electron-main/windows/on-screen";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { WINDOW_KEPT_KEYS } from "@/shared/kept-state";
+import { APP_TABS_KEY, COMPOSE_KEY } from "@/shared/kept-state";
 import {
+  neighborAt,
   type Tab,
-  TabIdSchema,
-  TabSchema,
   type TabCarryView,
+  type TabMoveDestination,
+  type TabsModel,
+  type TabStanding,
 } from "@/shared/tabs";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { app, BrowserWindow, screen, webContents } from "electron";
-import { z } from "zod";
+
+import { mergeFloats } from "./tab-carry-rules";
 
 /** How often main reads the cursor while a tab is carried: a window follows it at the display's pace. */
 const FOLLOW_MS = 8;
 /** How long a window waits for a tab that came to it to draw, before going ahead anyway. */
 const DRAWN_LIMIT_MS = 400;
-/** The key a window keeps its strip of tabs under. */
-const APP_TABS_KEY = "app-tabs.v2";
-/** The key a window keeps its floating drafts and chats under. */
-const COMPOSE_KEY = "compose.v2";
 /**
  * A window wholly covered by an opaque one counts as out of sight on macOS and
  * stops drawing, and the spare under the carried window has to be drawn already
@@ -82,7 +83,7 @@ export type TabCarryEnd =
   /** It keeps the tab alone: the others are in the window left behind. */
   | { kind: "keepsTab" }
   /** It keeps the tab and takes on the tabs of the window it landed on, which closes. */
-  | { kind: "takesStrip"; model: KeptTabs }
+  | { kind: "takesStrip"; model: TabsModel }
   /** The tab is in another window now, and it keeps the others. */
   | { kind: "losesTab" }
   /** The tab is in another window now, and this window closes. */
@@ -197,14 +198,6 @@ interface WindowForCarry {
   reach?: number;
 }
 
-/** What a tab takes to another window if it goes there: the tab, and the pages that come with it. */
-interface Moving {
-  /** The pages of the tab that comes up in its place in the window left behind. */
-  neighborPages: BrowserTargetId[];
-  pages: BrowserTargetId[];
-  tab: Tab;
-}
-
 /**
  * What goes with the pointer. The window that held the press, by default: its
  * renderer already has the tab as it is, page and all, so the tab is simply left
@@ -265,30 +258,6 @@ export function dressesAtStart({
   );
 }
 
-const FloatsSchema = z
-  .array(
-    z.looseObject({
-      chatId: z.string().optional(),
-      draftId: z.string().optional(),
-    }),
-  )
-  .catch([]);
-
-/** Two windows' floats as one, a chat or a draft floating in both counted once. */
-export function mergeFloats(kept: unknown, more: unknown) {
-  const seen = new Set<string | undefined>();
-  return [...FloatsSchema.parse(kept), ...FloatsSchema.parse(more)].filter(
-    ({ chatId, draftId }) => {
-      const key = draftId ?? chatId;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    },
-  );
-}
-
 /**
  * Who reopens when a tab is let go over another window's strip. The window under
  * the pointer stays and the other reopens, unless the window held over has a used
@@ -327,7 +296,7 @@ interface Carry {
   isWindowMaximized: boolean;
   /** Where the tab stands in the strip it is held over, as the window showing it says. */
   landsAt: number | undefined;
-  moving: Moving;
+  moving: TabStanding;
   /** Where the window was, and where a tab coming back finds it. */
   origin: Bounds;
   /**
@@ -369,29 +338,6 @@ function canFollowWithAnotherWindow() {
   return process.platform !== "linux";
 }
 
-const KeptTabsSchema = z.object({
-  recentlyClosed: z
-    .array(TabSchema.extend({ index: z.number().optional() }))
-    .catch([]),
-  selectedId: TabIdSchema.nullable().catch(null),
-  tabs: z.array(TabSchema).catch([]),
-});
-type KeptTabs = z.output<typeof KeptTabsSchema>;
-
-function keptTabsOf(windowId: string): KeptTabs {
-  const parsed = KeptTabsSchema.safeParse(
-    getWindowKeptState(windowId, APP_TABS_KEY),
-  );
-  return parsed.success
-    ? parsed.data
-    : { recentlyClosed: [], selectedId: null, tabs: [] };
-}
-
-function neighborOf(tabs: readonly Tab[], tab: Tab) {
-  const at = tabs.findIndex((each) => each.id === tab.id);
-  return tabs[at + 1] ?? tabs[at - 1];
-}
-
 function tell(window: BrowserWindow, view: TabCarryView) {
   if (!window.isDestroyed()) {
     publisher.publish("window.tab-carry", {
@@ -430,7 +376,7 @@ export function startTabCarry({
   isHeld?: boolean;
   isOffRow: boolean;
   isOnlyTab: boolean;
-  moving: Moving;
+  moving: TabStanding;
   webContentsId: number;
 }): { collapsesOffRow: boolean; staysOffRow: boolean } {
   stopCarry();
@@ -533,7 +479,7 @@ function dressSpare(current: Carry) {
     });
     return;
   }
-  for (const key of WINDOW_KEPT_KEYS) {
+  for (const key of windowKeptKeys(fromId)) {
     if (key !== APP_TABS_KEY) {
       tellWindowKeptState(
         spare.id,
@@ -544,9 +490,10 @@ function dressSpare(current: Carry) {
     }
   }
   const model = keptTabsOf(fromId);
+  const at = model.tabs.findIndex((each) => each.id === moving.tab.id);
   tellWindowKeptState(spare.id, contents, APP_TABS_KEY, {
     ...model,
-    selectedId: neighborOf(model.tabs, moving.tab)?.id ?? null,
+    selectedId: neighborAt(model.tabs, at)?.id ?? null,
     tabs: model.tabs.filter((each) => each.id !== moving.tab.id),
   });
 }
@@ -933,8 +880,8 @@ export async function moveTabNow({
   webContentsId,
 }: {
   isOnlyTab: boolean;
-  moving: Moving;
-  to: { id: string; kind: "window" } | { kind: "new" };
+  moving: TabStanding;
+  to: TabMoveDestination;
   webContentsId: number;
 }): Promise<TabCarryEnd> {
   startTabCarry({
@@ -1068,12 +1015,7 @@ function land(
     leaveOthersBehind(ending);
     return takeStrip(ending, target, targetId);
   }
-  const { moved } = moveTabToWindow(
-    moving.tab,
-    { id: targetId, index: landsAt, kind: "window" },
-    { isQuiet: true },
-  );
-  if (!moved) {
+  if (!sendTabToWindow(moving.tab, targetId, landsAt)) {
     // Its page cannot take the tab right now. The carried window can still take
     // on its strip, which needs nothing of that page.
     if (goes === "tab") {
@@ -1124,7 +1066,10 @@ function takeStrip(
   const targetModel = keptTabsOf(targetId);
   const tabs = targetModel.tabs.filter((each) => each.id !== moving.tab.id);
   tabs.splice(landsAt ?? tabs.length, 0, moving.tab);
-  for (const key of WINDOW_KEPT_KEYS) {
+  for (const key of new Set([
+    ...windowKeptKeys(targetId),
+    ...windowKeptKeys(fromId),
+  ])) {
     if (key !== APP_TABS_KEY) {
       const value = getWindowKeptState(targetId, key);
       tellWindowKeptState(

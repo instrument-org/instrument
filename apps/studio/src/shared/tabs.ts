@@ -1,4 +1,5 @@
 import { TabIconsSchema } from "@instrument-org/shared/icons";
+import { BrowserTargetIdSchema } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
 // A tab's memory-history stack, captured on close so reopening restores the
@@ -41,6 +42,36 @@ export const TabSchema = z.object({
 });
 
 export type Tab = z.output<typeof TabSchema>;
+
+/** A closed tab, with where it stood in the strip so a reopen puts it back there. */
+const ClosedTabSchema = TabSchema.extend({ index: z.number().optional() });
+
+export const TabsModelSchema = z.object({
+  recentlyClosed: z.array(ClosedTabSchema),
+  selectedId: TabIdSchema.nullable(),
+  tabs: z.array(TabSchema),
+});
+export type TabsModel = z.output<typeof TabsModelSchema>;
+
+/** What comes up in place of the tab at a place along a strip: the one to its right, or else its left. */
+export function neighborAt<T>(tabs: readonly T[], at: number): T | undefined {
+  return tabs[at + 1] ?? tabs[at - 1];
+}
+
+/** A tab as another window would take it: the tab, the pages that go with it, and those of the tab that comes up in its place. */
+export const TabStandingSchema = z.object({
+  neighborPages: z.array(BrowserTargetIdSchema),
+  pages: z.array(BrowserTargetIdSchema),
+  tab: TabSchema,
+});
+export type TabStanding = z.output<typeof TabStandingSchema>;
+
+/** Where a tab can go: a new window beside this one, or one open already. */
+export const TabMoveDestinationSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("new") }),
+  z.object({ id: z.string(), kind: z.literal("window") }),
+]);
+export type TabMoveDestination = z.output<typeof TabMoveDestinationSchema>;
 
 /**
  * What a window shows of a tab held by the pointer. Its renderer keeps every tab

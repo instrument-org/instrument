@@ -106,8 +106,7 @@ interface PublisherEvents {
   // The windows open changed, or one of them is called something else: what a
   // tab's menu offers to move it to, and what the Window menu's commands can do.
   "windows.changed": null;
-  // Where a tab being carried from another window would land in this one's
-  // strip, or null when it no longer would.
+  // What a window's strip shows of a tab held by the pointer.
   "window.tab-carry": {
     view: TabCarryView;
     webContentsId: number;
@@ -159,8 +158,7 @@ export type WindowCommand =
   | "moveTabToNewWindow"
   | AppWindowAsk
   | { index?: number; tab: Tab; type: "receiveTab" }
-  | { index: number; type: "selectTab" }
-  | { to: string; type: "sendEveryTab" };
+  | { index: number; type: "selectTab" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that
 // is still busy with one event holds of the ones after it. Several of these

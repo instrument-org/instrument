@@ -24,11 +24,17 @@ const KEPT_FILES = [...SHARED_KEPT_FILES, WINDOW_KEPT_FILE] as const;
 
 export type KeptFile = (typeof KEPT_FILES)[number];
 
+/** The key a window keeps its strip of tabs under. */
+export const APP_TABS_KEY = "app-tabs.v2";
+
+/** The key a window keeps its floating drafts and chats under. */
+export const COMPOSE_KEY = "compose.v2";
+
 /** The keys an earlier build kept for its one window in `layout`, which the first window takes as its own. */
 export const WINDOW_KEPT_KEYS = [
-  "app-tabs.v2",
+  APP_TABS_KEY,
   "chat-group.v2",
-  "compose.v2",
+  COMPOSE_KEY,
   "files-folder.v1",
   "inbox-open.v1",
 ] as const;

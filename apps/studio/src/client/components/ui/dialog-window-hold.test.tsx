@@ -49,7 +49,6 @@ function Commands({
       selectTab: vi.fn(),
       moveTabToNewWindow: vi.fn(),
       receiveTab: vi.fn(),
-      sendEveryTab: vi.fn(),
       toggleInbox: vi.fn(),
     },
     { isReady: false },

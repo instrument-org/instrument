@@ -1,4 +1,3 @@
-import { stripIndexAt } from "@/client/components/window/move-tab";
 import { rpcClient } from "@/client/rpc/client";
 import { type TabCarryView, type TabId } from "@/shared/tabs";
 import { atom, getDefaultStore } from "jotai";
@@ -82,4 +81,45 @@ export function measureCarryIndex(view: TabCarryView) {
     store.set(tabCarryIndexAtom, index);
     void rpcClient.window.placeTabDrag.call({ index });
   }
+}
+
+/**
+ * Where a tab held at a point stands among the tabs other than itself, which are
+ * taken where they would stand without it, as the strip lays them out. Layout and
+ * not what is drawn, since a tab making way is on its way there, and the answer
+ * would move it again.
+ */
+export function stripIndexAt(
+  clientX: number,
+  tabs: readonly { id: TabId }[],
+  except: TabId,
+) {
+  const list = document.querySelector<HTMLElement>(
+    "[data-app-tab-strip] [role=tablist]",
+  );
+  if (!list) {
+    return 0;
+  }
+  const { left: listLeft, width: listWidth } = list.getBoundingClientRect();
+  // On screen px from layout px, which differ by the window's zoom.
+  const zoom = listWidth / list.offsetWidth;
+  const drawn = [...list.querySelectorAll<HTMLElement>("[data-tab-key]")].map(
+    (element) => ({
+      key: element.dataset.tabKey,
+      left: element.offsetLeft - list.offsetLeft,
+      width: element.offsetWidth,
+    }),
+  );
+  const heldAt = drawn.findIndex(({ key }) => key === except);
+  const held = drawn[heldAt];
+  const slot = held
+    ? (drawn[heldAt + 1]?.left ?? held.left + held.width) - held.left
+    : 0;
+  const before = drawn.filter(({ key, left, width }, index) => {
+    const standsAt = held && index > heldAt ? left - slot : left;
+    return key !== except && clientX > listLeft + (standsAt + width / 2) * zoom;
+  });
+  const others = tabs.filter((tab) => tab.id !== except);
+  const at = others.findIndex((tab) => tab.id === before.at(-1)?.key);
+  return at === -1 ? 0 : at + 1;
 }

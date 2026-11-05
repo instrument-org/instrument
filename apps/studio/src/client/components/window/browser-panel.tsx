@@ -345,7 +345,7 @@ export function BrowserPanel({
     rpcClient.browser.live.targetsElsewhere.experimental_liveOptions(),
   ).data;
   const isShownElsewhere =
-    elsewhere?.some((each) => each.targetId === targetId && each.shown) ??
+    elsewhere?.some((each) => each.targetId === targetId && each.isInUse) ??
     false;
   const showHere = () => {
     openBrowser({ take: "always", targetId });

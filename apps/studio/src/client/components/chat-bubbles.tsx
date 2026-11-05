@@ -20,7 +20,7 @@ import {
 } from "react";
 
 import { type ChatSeparator, chatSeparators } from "../lib/chat-separators";
-import { isRetriedAway } from "../lib/retried-away";
+import { isLatestAttempt, isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
 import {
   AssistantMessage,
@@ -189,6 +189,7 @@ type BubbleRow =
       isAgentRunning: boolean;
       isDeveloperMode: boolean;
       isLastMessage: boolean;
+      isLatestAttempt: boolean;
       kind: "error";
       message: SessionMessage.AssistantWithParts;
     }
@@ -380,6 +381,7 @@ function bubbleBoxes(
         isAgentRunning,
         isDeveloperMode,
         isLastMessage,
+        isLatestAttempt: isLatestAttempt(regular, index),
         kind: "error",
         message,
       });
@@ -618,7 +620,8 @@ function sameRow(a: BubbleRow, b: BubbleRow | undefined): boolean {
         a.endedTurn === b.endedTurn &&
         a.isAgentRunning === b.isAgentRunning &&
         a.isDeveloperMode === b.isDeveloperMode &&
-        a.isLastMessage === b.isLastMessage
+        a.isLastMessage === b.isLastMessage &&
+        a.isLatestAttempt === b.isLatestAttempt
       );
     }
     case "typing": {
@@ -921,6 +924,7 @@ const BubbleRowView = memo(function BubbleRowView({
           isAgentRunning={row.isAgentRunning}
           isDeveloperMode={row.isDeveloperMode}
           isLastMessage={row.isLastMessage}
+          isLatestAttempt={row.isLatestAttempt}
           message={row.message}
           onModelChange={actions.onModelChange}
           onRunAgain={actions.onRunAgain}

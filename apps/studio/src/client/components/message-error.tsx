@@ -72,6 +72,8 @@ interface MessageErrorProps {
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isLastMessage: boolean;
+  /** Last, or above a retry that hasn't said anything yet (`isLatestAttempt`). */
+  isLatestAttempt?: boolean;
   message: SessionMessage.Assistant;
   /** Retries the pending request with another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
@@ -104,6 +106,7 @@ export function MessageError({
   isAgentRunning,
   isDeveloperMode,
   isLastMessage,
+  isLatestAttempt = isLastMessage,
   message,
   onModelChange,
   onRunAgain,
@@ -126,7 +129,7 @@ export function MessageError({
       error !== undefined && isConnectFailureMessage(error.message),
     // Where there's a way to run it again, and the person hasn't stopped it.
     isRetryable:
-      isLastMessage &&
+      isLatestAttempt &&
       onRunAgain !== undefined &&
       chatState !== "stopped" &&
       error !== undefined &&
@@ -174,6 +177,9 @@ export function MessageError({
       />
     );
   }
+  if (onlineRetry) {
+    return <OnlineRetryNotice retry={onlineRetry} />;
+  }
   const classification =
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
@@ -186,9 +192,6 @@ export function MessageError({
     isRetriedAway(message.metadata, { endedTurn, isLastMessage });
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
-  }
-  if (onlineRetry) {
-    return <OnlineRetryNotice retry={onlineRetry} />;
   }
 
   const provider = message.metadata.aiGatewayModel?.params.provider;

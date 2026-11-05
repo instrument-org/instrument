@@ -126,6 +126,7 @@ function renderError({
   },
   isDeveloperMode = false,
   isLastMessage = true,
+  isLatestAttempt,
   provider = OUR_MODELS.providerType,
   onModelChange = vi.fn(),
 }: {
@@ -134,6 +135,7 @@ function renderError({
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
+  isLatestAttempt?: boolean;
   provider?: null | string;
   onModelChange?: (uri: string) => void;
 }) {
@@ -144,6 +146,7 @@ function renderError({
         isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
+        isLatestAttempt={isLatestAttempt}
         message={messageWithError(error, provider)}
         onModelChange={onModelChange}
         onRunAgain={canRunAgain ? vi.fn() : undefined}
@@ -430,6 +433,30 @@ describe("MessageError", () => {
       expect(
         screen.queryByRole("button", { name: "Send a report" }),
       ).toBeNull();
+    });
+
+    it("keeps saying so while the next attempt hasn't said anything yet", () => {
+      network.status = "offline";
+      renderError({
+        error: NEVER_CONNECTED,
+        isAgentRunning: true,
+        isLastMessage: false,
+        isLatestAttempt: true,
+        provider: "openrouter",
+      });
+      expect(screen.getByText(/You're offline/)).toBeTruthy();
+    });
+
+    it("gives way once a later attempt has said something", () => {
+      network.status = "offline";
+      const { container } = renderError({
+        error: NEVER_CONNECTED,
+        isAgentRunning: true,
+        isLastMessage: false,
+        isLatestAttempt: false,
+        provider: "openrouter",
+      });
+      expect(container.textContent).toBe("");
     });
 
     it("promises nothing once the person has stopped the chat", async () => {

@@ -12,7 +12,7 @@ import {
   type TurnsCache,
   waitsForStep,
 } from "@instrument-org/workspace/client";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -173,19 +173,20 @@ function EarlierInTheChat({
     <>
       <MessageScrollerItem>
         <button
-          className="group/earlier flex w-full items-center gap-2 text-xs text-muted-foreground outline-none hover:text-foreground"
+          className="flex w-full items-center gap-3 text-xs text-muted-foreground outline-none hover:text-foreground"
           onClick={() => {
             setIsOpen((open) => !open);
           }}
           type="button"
         >
-          <CaretRightIcon
+          <span className="h-px flex-1 bg-border" />
+          Earlier in the chat · {count} {count === 1 ? "message" : "messages"}
+          <CaretDownIcon
             className={cn(
-              "size-3 transition duration-150",
-              isOpen && "rotate-90",
+              "-ml-2 size-3 transition duration-150",
+              isOpen && "rotate-180",
             )}
           />
-          Earlier in the chat · {count} {count === 1 ? "message" : "messages"}
           <span className="h-px flex-1 bg-border" />
         </button>
       </MessageScrollerItem>

@@ -1,7 +1,4 @@
-import { type WindowTab } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
-import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
 import {
   MessageScroller,
   MessageScrollerContent,
@@ -14,12 +11,8 @@ import { Transcript } from "@/client/components/transcript/transcript";
 import { useTranscriptFeed } from "@/client/components/transcript/use-transcript-feed";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
-import { reachModel } from "@/client/lib/model-status";
-import { useOutputFolder } from "@/client/lib/output-folder";
-import { folderLabel } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
   type ChatId,
   isFolderPath,
@@ -28,13 +21,9 @@ import {
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
-import { type ReactNode } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";
-import { windowTabsAtom } from "./window-tabs";
 
 const noop = () => {
   // A transcript with nothing to type into has nothing to retry.
@@ -81,15 +70,11 @@ export function ChildTranscript({
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TaskBrief chatInfo={chatInfo} taskSession={sessionId} />
       <MessageScrollerProvider
         autoScroll={isWorking}
         defaultScrollPosition="end"
         key={sessionId}
       >
-        {/* The rest of the column, not the whole of it: with the brief above,
-            a full-height scroller ran past the bottom and its end was never
-            on screen. */}
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport
             className="@container/transcript"
@@ -129,150 +114,6 @@ export function ChildTranscript({
           </MessageScrollerViewport>
         </MessageScroller>
       </MessageScrollerProvider>
-    </div>
-  );
-}
-
-/**
- * One fact about the task: a label in muted type, the value beside it, and an
- * optional note for where the value came from when that is not the task's own
- * doing.
- */
-function Chip({
-  children,
-  label,
-  note,
-  title,
-}: {
-  children: ReactNode;
-  label: string;
-  note?: string;
-  title?: string;
-}) {
-  return (
-    <span
-      className="flex h-6 max-w-64 items-center gap-1 rounded-md bg-foreground/5 px-1.5"
-      title={title}
-    >
-      <span className="text-muted-foreground">{label}</span>
-      <span className="truncate font-medium">{children}</span>
-      {note ? <span className="text-muted-foreground">{note}</span> : null}
-    </span>
-  );
-}
-
-/**
- * The level this task's model thinks at: the model's own catalog default,
- * which is what the request falls back to, so the chip resolves it the same
- * way the request does.
- */
-function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
-  const models = useQuery(
-    rpcClient.gateway.models.live.list.experimental_liveOptions(),
-  );
-  const { model } = reachModel(models.data, chatInfo.modelURI);
-  const effort = model ? catalogEffort(model) : undefined;
-  if (!effort) {
-    return (
-      <Chip label="Effort" title="This task uses the model’s default effort.">
-        provider default
-      </Chip>
-    );
-  }
-  return (
-    <Chip
-      label="Effort"
-      title="No level chosen; this model reasons by default"
-      note="model default"
-    >
-      {effort}
-    </Chip>
-  );
-}
-
-/** The window's tab the task was handed, drawn as the strip draws it: its icon and name, the address on hover. */
-function HeldTabChip({ sessionId }: { sessionId: string }) {
-  const { tabs } = useAtomValue(windowTabsAtom);
-  const tab = tabs.find(
-    (entry): entry is Extract<WindowTab, { kind: "page" }> =>
-      entry.kind === "page" && entry.id === sessionId,
-  );
-  return (
-    <span
-      className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
-      title={tab?.url ?? "A tab of this window"}
-    >
-      <span className="text-muted-foreground">Tab</span>
-      <TabIcon favicon={tab?.favicon} url={tab?.url} />
-      <span className="truncate font-medium">
-        {tab?.title || tab?.url || "closed"}
-      </span>
-    </span>
-  );
-}
-
-/**
- * Everything that constrains the task, along the top, for whoever is checking
- * its work: the model it runs on and the level it thinks at, the folders it
- * reaches and whether it may write to them, and the tabs it drives. One chip
- * per thing something enforces, and nothing else -- what the chat asked of
- * the task is the first message below, in the words it was asked in, where
- * it cannot be mistaken for a rule. Chips open to their full value on hover.
- */
-function TaskBrief({
-  chatInfo,
-  taskSession,
-}: {
-  chatInfo: ChatInfo;
-  /** The task's session, in the chat's store. */
-  taskSession: StoreId.Session;
-}) {
-  const chatId = chatInfo.id;
-  const reach = useQuery(
-    rpcClient.workspace.chats.live.folders.experimental_liveOptions({
-      input: { id: chatId },
-    }),
-  );
-  const state = useQuery(
-    rpcClient.workspace.chats.state.queryOptions({ input: { id: chatId } }),
-  );
-  const outputFolder = useOutputFolder();
-  // The output folder is every task's, so only the ones its chat was handed
-  // besides are worth a chip.
-  const folders = Object.values(reach.data ?? {}).filter(
-    (folder) => folder.path !== outputFolder,
-  );
-  // The chat's tabs this task drives.
-  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) =>
-    held.driver === taskSession ? [held.id] : [],
-  );
-  return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">
-      <span
-        className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5"
-        title="The model the task runs on"
-      >
-        <ModelPreview id={chatId} />
-      </span>
-      <EffortChip chatInfo={chatInfo} />
-      {folders.map((folder) => (
-        <span
-          className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
-          key={folder.id}
-          title={`${folder.path} · ${folder.access}`}
-        >
-          <SystemFolderIcon className="size-4 shrink-0" />
-          <span className="truncate font-medium">
-            {folderLabel(folder.path)}
-          </span>
-          <span className="text-muted-foreground">
-            {folder.access === "read-write" ? "read, write" : "read"}
-          </span>
-        </span>
-      ))}
-      {heldTabs.map((sessionId) => (
-        <HeldTabChip key={sessionId} sessionId={sessionId} />
-      ))}
     </div>
   );
 }

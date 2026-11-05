@@ -949,9 +949,7 @@ function WindowShell({
               <WindowBar
                 leading={
                   <>
-                    <InboxToggle
-                      isChatUp={matchScreen(activeHref).kind === "chat"}
-                    />
+                    <InboxToggle isChatUp={isChat} />
                     <NavControls steps={windowSteps} />
                   </>
                 }

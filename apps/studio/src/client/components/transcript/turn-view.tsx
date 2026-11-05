@@ -132,8 +132,9 @@ function OpenerView({
   );
 }
 
-/** How many lines of an assignment show before Show all. */
+/** How many lines of an assignment show before Show all, by its breaks and by its length. */
 const ASSIGNMENT_LINES = 6;
+const ASSIGNMENT_CHARS = 360;
 
 /** What the chat told a task: its words, not the person's, so gray and labeled. */
 function AssignmentBubble({
@@ -142,33 +143,37 @@ function AssignmentBubble({
   fromChat: NonNullable<TurnOpener["fromChat"]>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const isLong = fromChat.text.split("\n").length > ASSIGNMENT_LINES;
+  const isLong =
+    fromChat.text.length > ASSIGNMENT_CHARS ||
+    fromChat.text.split("\n").length > ASSIGNMENT_LINES;
   return (
-    <div className="ml-auto flex w-fit max-w-[85%] flex-col gap-1 rounded-2xl bg-muted px-3.5 py-2.5 text-sm">
-      <span className="text-xs text-muted-foreground">
+    <div className="ml-auto flex w-fit max-w-[85%] flex-col items-end gap-1">
+      <span className="pr-1 text-xs text-muted-foreground">
         {fromChat.kind === "assignment"
           ? "Assignment from the chat"
           : "From the chat"}
       </span>
-      <p
-        className={cn(
-          "whitespace-pre-wrap",
-          isLong && !isOpen && "line-clamp-6",
-        )}
-      >
-        {fromChat.text}
-      </p>
-      {isLong && (
-        <button
-          className="w-fit text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setIsOpen((open) => !open);
-          }}
-          type="button"
+      <div className="flex flex-col gap-1 rounded-2xl bg-muted px-3.5 py-2.5 text-sm">
+        <p
+          className={cn(
+            "whitespace-pre-wrap",
+            isLong && !isOpen && "line-clamp-6",
+          )}
         >
-          {isOpen ? "Show less" : "Show all"}
-        </button>
-      )}
+          {fromChat.text}
+        </p>
+        {isLong && (
+          <button
+            className="w-fit text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setIsOpen((open) => !open);
+            }}
+            type="button"
+          >
+            {isOpen ? "Show less" : "Show all"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

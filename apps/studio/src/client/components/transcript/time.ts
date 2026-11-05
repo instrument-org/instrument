@@ -11,6 +11,25 @@ export function formatClock(ms: number): string {
     : `${minutes.toString()}:${seconds}`;
 }
 
+/** How long something has gone, in words: `12s`, `1 min 12s`, `1 hr 4 min`. */
+export function formatSpan(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) {
+    return `${hours.toString()} hr ${minutes.toString()} min`;
+  }
+  return minutes > 0
+    ? `${minutes.toString()} min ${seconds.toString()}s`
+    : `${seconds.toString()}s`;
+}
+
+/** The same to the minute once it has reached one: `12s`, `3 min`, `1 hr 4 min`. */
+export function formatRoughSpan(ms: number): string {
+  return formatSpan(ms).replace(/ min \d+s$/, " min");
+}
+
 /** The time now, ticking once a second while `active`. */
 export function useTicking(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());

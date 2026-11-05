@@ -503,6 +503,7 @@ function RouteScreen({ href }: { href: string }) {
   const screenKind = matchScreen(href).kind;
   const hasLocationRow =
     location.kind !== "apps" &&
+    location.kind !== "task" &&
     screenKind !== "newTab" &&
     screenKind !== "releaseNotes";
   return (

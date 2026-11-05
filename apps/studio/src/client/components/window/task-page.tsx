@@ -1,11 +1,9 @@
-import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
 import { TaskUsageSummary } from "@/client/components/task/usage-summary";
-import { formatClock, useTicking } from "@/client/components/transcript/time";
+import { formatSpan, useTicking } from "@/client/components/transcript/time";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChildTranscript } from "@/client/components/window/child-tasks";
 import { useChildTask } from "@/client/components/window/child-tasks-query";
-import { TaskMenu } from "@/client/components/window/task-menu";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
@@ -14,14 +12,11 @@ import { useMutation } from "@tanstack/react-query";
 
 /**
  * One task's own conversation, in its chat's pane: how the user looks over
- * the agent's shoulder. Headed by the task's title and its menu, which
- * travel together so the menu reads as acting on the task named beside it.
- * A task that left commands running shows how many, opening onto a list
- * that stops them. While the task works or waits on a card, a Stop at the
- * header's far end halts it, with how long it has run while it works; once it
- * is done, how long that took stands there instead. In developer mode the
- * task's message and token totals sit beside it. Nothing names the chat: the
- * page stands under it.
+ * the agent's shoulder. Headed by the task's title. While the task works or
+ * waits on a card, a Stop at the header's far end halts it, with how long it
+ * has run while it works; once it is done, how long that took stands there
+ * instead. In developer mode the task's message and token totals sit beside it.
+ * Nothing names the chat: the page stands under it.
  */
 export function TaskPage({
   chat,
@@ -44,36 +39,33 @@ export function TaskPage({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
-        <h2 className="min-w-0 truncate text-sm font-medium">{task.title}</h2>
-        <TaskMenu sessionId={sessionId} chatId={chat} />
-        <TaskBackgroundProcesses sessionId={sessionId} chatId={chat} />
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {isDeveloperMode && (
-            <TaskUsageSummary sessionId={sessionId} chatId={chat} />
-          )}
-          {task.stoppable && (
-            <Button
-              className="shrink-0 tabular-nums"
-              disabled={stop.isPending}
-              onClick={() => {
-                stop.mutate({ id: chat, sessionId });
-              }}
-              size="xs"
-              variant="outline"
-            >
-              <StopIcon weight="fill" />
-              Stop
-              {task.working &&
-                ` · ${formatClock(now - task.createdAt.getTime())}`}
-            </Button>
-          )}
-          {!task.stoppable && task.standing.kind === "done" && (
-            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-              Done in{" "}
-              {formatClock(task.updatedAt.getTime() - task.createdAt.getTime())}
-            </span>
-          )}
-        </div>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
+          {task.title}
+        </h2>
+        {isDeveloperMode && (
+          <TaskUsageSummary sessionId={sessionId} chatId={chat} />
+        )}
+        {task.stoppable && (
+          <Button
+            className="shrink-0 tabular-nums"
+            disabled={stop.isPending}
+            onClick={() => {
+              stop.mutate({ id: chat, sessionId });
+            }}
+            size="xs"
+            variant="outline"
+          >
+            <StopIcon weight="fill" />
+            Stop
+            {task.working && ` · ${formatSpan(now - task.createdAt.getTime())}`}
+          </Button>
+        )}
+        {!task.stoppable && task.standing.kind === "done" && (
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            Done in{" "}
+            {formatSpan(task.updatedAt.getTime() - task.createdAt.getTime())}
+          </span>
+        )}
       </div>
       <div className="min-h-0 flex-1">
         <ChildTranscript

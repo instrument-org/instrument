@@ -7,17 +7,33 @@ import {
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { StopIcon } from "@phosphor-icons/react/Stop";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { use } from "react";
 
-import { PlanningDotIcon } from "../icons/planning-dot";
 import { Badges } from "./activity-row";
 import { SlotCardView } from "./slot-card";
 import { TranscriptSurfaceContext } from "./surface";
-import { formatClock, useTicking } from "./time";
+import { formatRoughSpan, useTicking } from "./time";
+
+/** The dots after a working task's step. */
+function WorkingDots() {
+  return (
+    <span aria-hidden className="flex shrink-0 items-center gap-0.5">
+      {[0, 200, 400].map((delay) => (
+        <span
+          className="size-1 animate-pulse rounded-full bg-current"
+          key={delay}
+          style={{ animationDelay: `${delay.toString()}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
 
 /**
- * A task the chat started, where it started it. Two lines, the mark at the
- * left and the task's own Stop on hover, and while it works the task's own live
+ * A task the chat started, where it started it. Two lines, tinted while it
+ * works and flat once it has finished, the sites and apps it reached at the
+ * right, the task's own Stop on hover, and while it works the task's own live
  * card, since a chat's visual work is mostly its tasks'. It never folds.
  */
 export function TaskCardRow({
@@ -40,13 +56,14 @@ export function TaskCardRow({
   const firstLine = isWorking
     ? (facts?.step ?? "Starting")
     : (facts?.ended ?? title);
+  const span = isWorking ? now - startedAt.getTime() : facts?.ranMs;
   return (
-    <div className="flex max-w-100 flex-col gap-2">
+    <div className="flex max-w-130 flex-col gap-2">
       <div
         className={cn(
-          "group/task flex items-center gap-2.5 rounded-2xl border px-3 py-2",
+          "group/task flex items-center gap-2.5 rounded-2xl border px-3.5 py-2.5",
           isWorking
-            ? "border-border bg-card"
+            ? "border-brand-600/40 bg-brand-500/10"
             : "border-transparent bg-muted/60",
         )}
       >
@@ -57,32 +74,29 @@ export function TaskCardRow({
           }}
           type="button"
         >
-          <span className="flex size-5 shrink-0 items-center justify-center">
-            {isWorking ? (
-              <PlanningDotIcon />
-            ) : (
-              <CheckIcon
-                className={cn(
-                  "size-3.5",
-                  facts?.failed ? "text-warning-600" : "text-muted-foreground",
-                )}
-              />
-            )}
-          </span>
           <span className="min-w-0 flex-1">
-            <span
-              className={cn(
-                "block truncate text-sm",
-                isWorking
-                  ? "font-medium text-foreground"
-                  : "text-foreground/80",
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span
+                className={cn(
+                  "min-w-0 truncate text-sm",
+                  isWorking ? "brand-shiny-text" : "text-foreground",
+                )}
+              >
+                {firstLine}
+              </span>
+              {isWorking ? (
+                <span className="brand-shiny-text">
+                  <WorkingDots />
+                </span>
+              ) : facts?.failed ? (
+                <WarningIcon className="size-3.5 shrink-0 text-warning-600" />
+              ) : (
+                <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
               )}
-            >
-              {firstLine}
             </span>
             <span className="block truncate text-xs text-muted-foreground tabular-nums">
               Task · {title}
-              {isWorking && ` · ${formatClock(now - startedAt.getTime())}`}
+              {span !== undefined && ` · ${formatRoughSpan(span)}`}
             </span>
           </span>
           {turn && <Badges apps={turn.apps} sites={turn.sites} />}

@@ -237,7 +237,11 @@ export function GroupItem({
     surface,
   );
   return (
-    <Frame anchorRef={anchorRef} head={row(location)}>
+    <Frame
+      anchorRef={anchorRef}
+      // A task's page heads itself with its title and Stop.
+      {...(location.kind === "task" ? {} : { head: row(location) })}
+    >
       <GroupTabContext
         key={up.id}
         value={{

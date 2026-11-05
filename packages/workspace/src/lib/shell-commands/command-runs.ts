@@ -1,3 +1,4 @@
+import type { ExecResult } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
@@ -35,14 +36,70 @@ export const CommandRunSchema = z.object({
     .enum(["builtin-args", "no-bundled-program", "no-system-program"])
     .optional(),
   count: z.number(),
+  /**
+   * How many of the row's runs ended in failure. Absent where none did, in a
+   * record from before a run's end was recorded, and for just-bash's own
+   * commands, whose ends the shell does not tell.
+   */
+  failed: z.number().optional(),
+  /** The status the row's last failed run ended with. */
+  exitCode: z.number().optional(),
+  /**
+   * The end of what the row's last failed run wrote to stderr, where that is
+   * only ever the command's own complaint (`keepsStderr`). A redirect such as
+   * `2>/dev/null` happens after this is read.
+   */
+  stderr: z.string().optional(),
 });
 
 export type CommandRun = z.output<typeof CommandRunSchema>;
 
-type RunKey = Omit<CommandRun, "count">;
+type RunKey = Pick<
+  CommandRun,
+  "name" | "program" | "reason" | "sandbox" | "source"
+>;
 
 /** Distinct rows one call keeps; a pathological script's further ones are dropped. */
 export const MAX_COMMAND_RUN_ROWS = 64;
+
+/** The status of a producer its reader stopped early (`pipe-stage.ts`), which is not a failure. */
+const CUT_OFF_STATUS = 141;
+
+/** The most of a failed run's stderr a row keeps: its end, where the error is. */
+const KEPT_STDERR = 500;
+
+/** `find` arguments that run another program or name another file for its output. */
+const FIND_HANDS_ON = new Set([
+  "-exec",
+  "-execdir",
+  "-fls",
+  "-fprint",
+  "-fprint0",
+  "-fprintf",
+  "-ok",
+  "-okdir",
+]);
+
+/**
+ * The commands whose stderr names only a path and the system's error, so it
+ * says why a file could not be reached and nothing that was in one. Most
+ * others can quote what they read: `sort -c` and `join` the offending line,
+ * `grep -f` a pattern from its file, and `python`, `node`, `git` or `curl`
+ * anything at all.
+ */
+const COMPLAINS_ONLY_OF_PATHS = new Map<
+  string,
+  (args: readonly string[]) => boolean
+>([
+  ["find", (args) => !args.some((arg) => FIND_HANDS_ON.has(arg))],
+  ["head", () => true],
+  ["stat", () => true],
+  ["tail", () => true],
+]);
+
+function keepsStderr(name: string, args: readonly string[]) {
+  return COMPLAINS_ONLY_OF_PATHS.get(name)?.(args) === true;
+}
 
 function keyOf(run: RunKey): string {
   return [run.name, run.source, run.program, run.sandbox, run.reason].join(
@@ -75,6 +132,21 @@ export class CommandRuns {
     this.onNewRow?.();
   }
 
+  /** One run of a recorded row ended in failure. */
+  recordFailure(run: RunKey, exitCode: number, stderr?: string): void {
+    const row = this.local.get(keyOf(run));
+    if (!row) {
+      return;
+    }
+    row.failed = (row.failed ?? 0) + 1;
+    row.exitCode = exitCode;
+    if (stderr) {
+      row.stderr = stderr;
+    } else {
+      delete row.stderr;
+    }
+  }
+
   /** The bash worker's rows for this call, replacing what it reported before. */
   setRemote(rows: CommandRun[]): void {
     this.remote = rows;
@@ -87,6 +159,11 @@ export class CommandRuns {
       const seen = merged.get(key);
       if (seen) {
         seen.count += row.count;
+        if (row.failed) {
+          seen.failed = (seen.failed ?? 0) + row.failed;
+          seen.exitCode = row.exitCode;
+          seen.stderr = row.stderr;
+        }
       } else if (merged.size < MAX_COMMAND_RUN_ROWS) {
         merged.set(key, { ...row });
       }
@@ -114,7 +191,8 @@ export function recordCommandRun(run: RunKey): void {
 /** One of the app's commands, running. */
 interface Dispatch {
   name: string;
-  recorded: boolean;
+  /** The row its end belongs to: the last it recorded. */
+  run?: RunKey;
   source: CommandRun["source"];
 }
 
@@ -123,21 +201,53 @@ const dispatchStorage = new AsyncLocalStorage<Dispatch>();
 /**
  * Runs one of the app's commands so what it records is filed under its name:
  * each process it starts is a row with the program and sandbox, and one that
- * started none is a row of its own when it returns.
+ * started none is a row of its own when it returns. A failure lands on the
+ * row when the command ends, which for a stage handing its stdout to the next
+ * is when the shell settles the handoff.
  */
-export async function runDispatched<T>(
+export async function runDispatched(
   name: string,
   source: CommandRun["source"],
-  run: () => Promise<T>,
-): Promise<T> {
-  const dispatch: Dispatch = { name, recorded: false, source };
+  args: readonly string[],
+  run: () => Promise<ExecResult>,
+): Promise<ExecResult> {
+  const dispatch: Dispatch = { name, source };
+  const runs = currentCommandRuns();
+  const ended = (result: ExecResult) => {
+    if (
+      dispatch.run &&
+      result.exitCode !== 0 &&
+      result.exitCode !== CUT_OFF_STATUS
+    ) {
+      runs?.recordFailure(
+        dispatch.run,
+        result.exitCode,
+        keepsStderr(name, args)
+          ? result.stderr.slice(-KEPT_STDERR).trimEnd()
+          : undefined,
+      );
+    }
+    return result;
+  };
+  let result: ExecResult;
   try {
-    return await dispatchStorage.run(dispatch, run);
+    result = await dispatchStorage.run(dispatch, run);
   } finally {
-    if (!dispatch.recorded) {
-      recordCommandRun({ name, source });
+    if (!dispatch.run) {
+      dispatch.run = { name, source };
+      recordCommandRun(dispatch.run);
     }
   }
+  const { pipeHandoff } = result;
+  return pipeHandoff
+    ? {
+        ...result,
+        pipeHandoff: {
+          ...pipeHandoff,
+          settle: async (options) => ended(await pipeHandoff.settle(options)),
+        },
+      }
+    : ended(result);
 }
 
 /** A process started for the running command, held as `sandbox` says. */
@@ -149,13 +259,13 @@ export function recordProgramStart(
   if (!dispatch) {
     return;
   }
-  dispatch.recorded = true;
-  recordCommandRun({
+  dispatch.run = {
     name: dispatch.name,
     program,
     sandbox,
     source: dispatch.source,
-  });
+  };
+  recordCommandRun(dispatch.run);
 }
 
 /** The running command handed its call to the builtin it shadows. */
@@ -166,6 +276,6 @@ export function recordBuiltinAnswered(
   if (!dispatch) {
     return;
   }
-  dispatch.recorded = true;
-  recordCommandRun({ name: dispatch.name, reason, source: "builtin" });
+  dispatch.run = { name: dispatch.name, reason, source: "builtin" };
+  recordCommandRun(dispatch.run);
 }

@@ -645,6 +645,37 @@ describe("the slot", () => {
     expect(turn && slotOf(turn)).toBeUndefined();
   });
 
+  it("takes the card away when the agent speaks, so its words never move", () => {
+    const searched = (id: string) =>
+      call(id, "web_search", { activity: "Looking", query: "x" }, {});
+    const [speaking] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [searched(id), said(id, "Found it.")]),
+      ],
+      { isRunning: true },
+    );
+    expect(speaking && slotOf(speaking)).toBeUndefined();
+    const [movedOn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          searched(id),
+          said(id, "Found it."),
+          call(
+            id,
+            "write_file",
+            { activity: "Writing", content: "a", filePath: "/a.md" },
+            undefined,
+            "input-available",
+          ),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(movedOn && slotOf(movedOn)?.kind).toBe("files");
+  });
+
   it("gives way to a task's card, which carries its own", () => {
     const task = StoreId.newSessionId();
     const [turn] = turnsOf(

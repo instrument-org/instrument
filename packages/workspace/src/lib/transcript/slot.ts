@@ -31,8 +31,9 @@ const KIND_OF: Record<StepShows["kind"], SlotKind> = {
  * The cards a turn's work comes to, in order. The rules for what the slot
  * shows, and all of them:
  *
- * 1. A card stays until a different kind of card replaces it. A call with
- *    nothing to show changes nothing, and a call that failed has nothing to show.
+ * 1. A card stays until a different kind of card replaces it or the agent
+ *    speaks (`slotOf`). A call with nothing to show changes nothing, and a call
+ *    that failed has nothing to show.
  * 2. Things of one kind share a card, so a burst of files is one card and
  *    a browser's commands update one page.
  */
@@ -71,14 +72,17 @@ export function cardsOf(turn: Pick<Turn, "rows">): SlotCard[] {
 }
 
 /**
- * The card up now: the turn's newest, for as long as the turn shows one. It
- * goes with the fold, so it stays through the reply. A task's card takes over
- * from the work before it, since the task is what is moving now and carries
- * a card of its own.
+ * The card up now: the turn's newest since the agent last spoke. Words go under
+ * the work they follow and never move, and a card under those words would take
+ * them from below it to above it at the next step, so the card goes as they
+ * start. A task's card takes over from the work before it the same way, since
+ * the task is what is moving now and carries a card of its own.
  */
 export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
-  const lastTask = turn.rows.findLastIndex((row) => row.kind === "task");
-  return cardsOf({ rows: turn.rows.slice(lastTask + 1) }).at(-1);
+  const lastSaid = turn.rows.findLastIndex(
+    (row) => row.kind === "task" || row.kind === "text",
+  );
+  return cardsOf({ rows: turn.rows.slice(lastSaid + 1) }).at(-1);
 }
 
 /** Whether the work has moved past what the card shows. */

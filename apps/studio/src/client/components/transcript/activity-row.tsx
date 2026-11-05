@@ -70,7 +70,7 @@ export function RowLine({
           className={cn(
             "min-w-0 truncate",
             isLive
-              ? "font-medium text-foreground"
+              ? "brand-shiny-text"
               : "text-muted-foreground group-hover/row:text-foreground",
           )}
         >
@@ -82,11 +82,11 @@ export function RowLine({
             {right}
           </span>
         )}
-        {onClick && (
+        {onClick && !isLive && (
           <CaretRightIcon
             className={cn(
-              "size-3 shrink-0 text-muted-foreground opacity-0 transition duration-150 group-hover/row:opacity-100",
-              isOpen && "rotate-90 opacity-100",
+              "size-3 shrink-0 text-muted-foreground transition duration-150",
+              isOpen && "rotate-90",
             )}
           />
         )}
@@ -147,7 +147,8 @@ const countsText = (row: Pick<ActivityRow, "counts">) =>
 
 /**
  * An activity: while it works the line with its clock and the current call's
- * explanation under it, and once done a quiet line opening onto its calls.
+ * explanation under it, and once done a quiet line opening onto its calls. Only
+ * the one working has a clock.
  */
 export function ActivityRowView({
   chatInfo,
@@ -170,10 +171,6 @@ export function ActivityRowView({
   const current = row.steps.findLast((step) => step.explanation !== undefined);
   const lastStep = steps.at(-1);
   const counts = countsText(row);
-  const elapsed = isLive
-    ? now - row.startedAt.getTime()
-    : (row.endedAt?.getTime() ?? row.startedAt.getTime()) -
-      row.startedAt.getTime();
   const label =
     row.title ??
     (lastStep ? stepLabel(lastStep) : isLive ? "Thinking" : "Thought");
@@ -194,7 +191,7 @@ export function ActivityRowView({
           {counts && (
             <span className="mr-1.5 text-foreground/70">{counts}</span>
           )}
-          {formatClock(elapsed)}
+          {isLive && `· ${formatClock(now - row.startedAt.getTime())}`}
         </>
       }
     >
@@ -234,10 +231,6 @@ function stepLabel(step: TurnStep): string {
 function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
-  const endedAt = step.metadata.endedAt?.getTime();
-  const startedAt = (
-    step.metadata.startedAt ?? step.metadata.createdAt
-  ).getTime();
   return (
     <RowLine
       isOpen={isOpen}
@@ -252,9 +245,6 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
           apps={[...new Set((step.facts?.apps ?? []).map((call) => call.app))]}
           sites={step.facts?.hosts ?? []}
         />
-      }
-      right={
-        endedAt === undefined ? undefined : formatClock(endedAt - startedAt)
       }
     >
       {isOpen && (

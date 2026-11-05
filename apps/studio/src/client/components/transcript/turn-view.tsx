@@ -13,7 +13,9 @@ import {
   type TurnOpener,
   type TurnRow,
 } from "@instrument-org/workspace/client";
-import { memo, use, useState } from "react";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { memo, type ReactNode, use, useState } from "react";
 
 import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
@@ -27,7 +29,7 @@ import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
-import { ActivityRowView, Badges, RowLine, StepMark } from "./activity-row";
+import { ActivityRowView, Badges, RowLine } from "./activity-row";
 import { DeveloperNote } from "./developer-note";
 import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
@@ -37,6 +39,25 @@ import {
 } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
+
+/** How long the work takes to close into its one line, so the reply slides up to it. */
+const FOLD_TRANSITION = { duration: 0.24, ease: [0.32, 0.72, 0, 1] } as const;
+/** The gap between a turn's rows, which a row closing takes with it. */
+const ROW_GAP = 8;
+
+/** A row that closes as the fold takes it. */
+function FoldingRow({ children }: { children: ReactNode }) {
+  const isReduced = useReducedMotion();
+  return (
+    <motion.div
+      className="min-w-0"
+      exit={{ height: 0, marginTop: -ROW_GAP, opacity: 0, overflow: "hidden" }}
+      transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 /**
  * One turn: what the person sent, anchored where reading starts, then the work
@@ -199,15 +220,16 @@ function TurnBody({
     }
     if (!isFolded || !turn.foldedRowIds.has(row.id)) {
       out.push(
-        <RowView
-          chatInfo={chatInfo}
-          isLive={
-            turn.live?.kind === "activity" && turn.live.activityId === row.id
-          }
-          isLast={isLast}
-          key={row.id}
-          row={row}
-        />,
+        <FoldingRow key={row.id}>
+          <RowView
+            chatInfo={chatInfo}
+            isLive={
+              turn.live?.kind === "activity" && turn.live.activityId === row.id
+            }
+            isLast={isLast}
+            row={row}
+          />
+        </FoldingRow>,
       );
     }
     if (index === lastWork && cardRow) {
@@ -219,7 +241,7 @@ function TurnBody({
     turn.rows.findLast((row) => row.kind !== "note")?.kind === "text";
   return (
     <>
-      {rows}
+      <AnimatePresence initial={false}>{rows}</AnimatePresence>
       {waitsForStep && (
         <p className="-mt-1 pr-1 text-right text-xs text-muted-foreground">
           Read after this step
@@ -253,7 +275,7 @@ export function ThinkingRow({ since }: { since: Date }) {
       isLive
       label="Thinking"
       mark={<PlanningDotIcon />}
-      right={formatClock(now - since.getTime())}
+      right={`· ${formatClock(now - since.getTime())}`}
     />
   );
 }
@@ -270,36 +292,69 @@ function WorkedRow({
   onToggle: () => void;
   turn: Turn;
 }) {
-  const lastActivity = turn.rows.findLast((row) => row.kind === "activity");
+  const isReduced = useReducedMotion();
+  const transition = isReduced ? { duration: 0 } : FOLD_TRANSITION;
   return (
-    <RowLine
-      isOpen={isOpened}
-      label={workedLine(turn)}
-      mark={<StepMark step={lastActivity?.steps.at(-1)} />}
-      onClick={onToggle}
-      places={<Badges apps={turn.apps} sites={turn.sites} />}
-      {...(turn.summary !== undefined && {
-        right: formatClock(turn.workedMs),
-      })}
+    <motion.div
+      animate={{
+        height: "auto",
+        marginTop: 0,
+        opacity: 1,
+        transitionEnd: { overflow: "visible" },
+      }}
+      className="min-w-0"
+      initial={{
+        height: 0,
+        marginTop: -ROW_GAP,
+        opacity: 0,
+        overflow: "hidden",
+      }}
+      transition={transition}
     >
-      {isOpened && (
-        <div className="mt-1 ml-7 flex flex-col gap-0.5">
-          {turn.rows
-            .filter(
-              (row) => turn.foldedRowIds.has(row.id) && row.kind !== "text",
-            )
-            .map((row) => (
-              <RowView
-                chatInfo={chatInfo}
-                isLast={false}
-                isLive={false}
-                key={row.id}
-                row={row}
-              />
-            ))}
-        </div>
-      )}
-    </RowLine>
+      <RowLine
+        isOpen={isOpened}
+        label={workedLine(turn)}
+        mark={
+          <span className="flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
+            <CheckIcon className="size-3 text-foreground/70" />
+          </span>
+        }
+        onClick={onToggle}
+        places={<Badges apps={turn.apps} sites={turn.sites} />}
+      >
+        <AnimatePresence initial={false}>
+          {isOpened && (
+            <motion.div
+              animate={{
+                height: "auto",
+                opacity: 1,
+                transitionEnd: { overflow: "visible" },
+              }}
+              exit={{ height: 0, opacity: 0, overflow: "hidden" }}
+              initial={{ height: 0, opacity: 0, overflow: "hidden" }}
+              transition={transition}
+            >
+              <div className="mt-1 ml-2.5 flex flex-col gap-0.5 border-l border-border pl-4">
+                {turn.rows
+                  .filter(
+                    (row) =>
+                      turn.foldedRowIds.has(row.id) && row.kind !== "text",
+                  )
+                  .map((row) => (
+                    <RowView
+                      chatInfo={chatInfo}
+                      isLast={false}
+                      isLive={false}
+                      key={row.id}
+                      row={row}
+                    />
+                  ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </RowLine>
+    </motion.div>
   );
 }
 

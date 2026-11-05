@@ -83,7 +83,6 @@ describe("screenActionOf", () => {
       { href: "/apps/linear" },
       { kind: "screen", name: "Apps › Linear" },
     ],
-    ["Tasks", { href: "/tasks/" }, { kind: "screen", name: "Tasks" }],
     ["nothing for the browser", { href: "/browser" }, null],
     ["nothing for the inbox", { href: "/chats/" }, null],
   ])("names %s", (_name, patch, action) => {

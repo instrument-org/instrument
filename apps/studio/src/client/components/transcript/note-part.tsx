@@ -54,8 +54,6 @@ export function renderDataPart({
     case "data-actions": {
       return (
         <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
           key={part.metadata.id}
           text={actionsModelNote(part.data)}
         />

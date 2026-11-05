@@ -79,8 +79,7 @@ export function screenActionOf({
         ? null
         : { id: screen.chat, kind: "chat", title };
     }
-    case "task":
-    case "tasks": {
+    case "task": {
       return { kind: "screen", name: "Tasks" };
     }
     default: {

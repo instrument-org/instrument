@@ -73,7 +73,11 @@ describe("getErrorAction", () => {
     },
     {
       case: "hands back a streamed failure it cannot name",
-      error: { classification: "unknown", kind: "unknown", message: "Test error" },
+      error: {
+        classification: "unknown",
+        kind: "unknown",
+        message: "Test error",
+      },
       expected: { error: new Error("Test error"), type: "error" },
     },
     {
@@ -106,7 +110,11 @@ describe("getErrorAction", () => {
     },
     {
       case: "retries invalid tool input",
-      error: { input: "x", kind: "invalid-tool-input", message: "Invalid input" },
+      error: {
+        input: "x",
+        kind: "invalid-tool-input",
+        message: "Invalid input",
+      },
       expected: { type: "retry" },
     },
     {

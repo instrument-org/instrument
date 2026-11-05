@@ -5,11 +5,11 @@ import { registerForegroundBrowser } from "@/client/lib/foreground-browser-regis
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
-/** The last search run in any browser panel, which an empty find bar opens with. */
+/** The last search run in any browser panel, which an empty find card opens with. */
 let lastFindQuery = "";
 
 /**
- * Find-in-page state and wiring for a browser panel's guest. Owns the find bar's
+ * Find-in-page state and wiring for a browser panel's guest. Owns the find card's
  * open/query/result state, mirrors the guest's `found-in-page` matches, registers
  * as the Cmd+F and Cmd+G target while foreground, and focuses the input on open. Resets
  * when the guest is reaped (`active` -> false) so a later reopen starts clean.
@@ -43,13 +43,18 @@ export function useBrowserFind({
     matches: number;
   }>(null);
 
-  // Mirror the guest's match count into the find bar. Runs whenever the guest
+  // Mirror the guest's match count into the find card. Runs whenever the guest
   // is there; it fires this for every find and clears its highlights on
   // navigation, so a stale count self-corrects on the next search.
   const guest = useGuest(active ? targetId : null);
   useEffect(
     () =>
       guest?.on("found-in-page", ({ result }) => {
+        // A count of none before the final update is a count still being
+        // taken, which the card would read out as no matches.
+        if (result.matches === 0 && !result.finalUpdate) {
+          return;
+        }
         setFindResult({
           active: result.activeMatchOrdinal,
           matches: result.matches,
@@ -58,8 +63,8 @@ export function useBrowserFind({
     [guest],
   );
 
-  // Close the bar when the page goes to a new address, as a browser does. A
-  // reload commits the same address and keeps the bar, searching again once
+  // Close the card when the page goes to a new address, as a browser does. A
+  // reload commits the same address and keeps the card, searching again once
   // the page has loaded, since the reload took the highlights with it; an
   // in-page (hash) navigation fires `did-navigate-in-page` instead, so it
   // keeps it too.
@@ -97,7 +102,7 @@ export function useBrowserFind({
   }, [guest]);
 
   // The guest outlives this panel (it's pooled, not reaped on panel close), so a
-  // find left highlighted stays highlighted when the panel remounts with the bar
+  // find left highlighted stays highlighted when the panel remounts with the card
   // closed. Clear the guest's highlight on unmount so a reopen starts clean.
   useEffect(() => {
     return () => {
@@ -106,7 +111,7 @@ export function useBrowserFind({
   }, [targetId]);
 
   // Register this panel as the foreground browser, so Cmd+R reloads its guest,
-  // and as a find target, so Cmd+F opens (and re-focuses) its find bar when the
+  // and as a find target, so Cmd+F opens (and re-focuses) its find card when the
   // keyboard is in the panel or its page, or was last; see
   // foreground-browser-registry for why neither chord can be a renderer keydown.
   const isForeground = active && isVisible && !covered;
@@ -127,11 +132,15 @@ export function useBrowserFind({
         openFind();
       }
     },
-    holdsKeyboard: () => pageHoldingKeyboard() === targetId,
+    // The card is portalled out of the panel, so a press with the caret
+    // already in its field is this panel's too.
+    holdsKeyboard: () =>
+      pageHoldingKeyboard() === targetId ||
+      document.activeElement === findInputRef.current,
     openFind,
   });
 
-  // Focus the find input when the bar opens (its first render, when the opener
+  // Focus the find input when the card opens (its first render, when the opener
   // above couldn't focus it yet). Deferred a frame so it wins over Radix
   // returning focus to the overflow trigger when opened from the menu.
   useEffect(() => {
@@ -147,7 +156,7 @@ export function useBrowserFind({
     };
   }, [findOpen]);
 
-  // The guest can be reaped (active -> false) while the bar is open; drop its
+  // The guest can be reaped (active -> false) while the card is open; drop its
   // state during render (the pattern React allows over a cascading effect) so a
   // later reopen starts clean rather than showing a stale query and count.
   const [prevActive, setPrevActive] = useState(active);
@@ -180,7 +189,7 @@ export function useBrowserFind({
     );
   }
 
-  // Opening an empty bar fills in the last search from any page, selected so
+  // Opening an empty card fills in the last search from any page, selected so
   // typing replaces it, and runs it, as a browser does.
   function openFind() {
     setFindOpen(true);

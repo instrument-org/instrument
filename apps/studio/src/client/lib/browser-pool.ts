@@ -108,7 +108,13 @@ export interface GuestEventMap {
   "did-navigate-in-page": { isMainFrame: boolean; url: string };
   "did-start-loading": object;
   "did-stop-loading": object;
-  "found-in-page": { result: { activeMatchOrdinal: number; matches: number } };
+  "found-in-page": {
+    result: {
+      activeMatchOrdinal: number;
+      finalUpdate: boolean;
+      matches: number;
+    };
+  };
   "ipc-message": { args: unknown[]; channel: string };
   "page-favicon-updated": { favicons: string[] };
   "page-title-updated": { title: string };

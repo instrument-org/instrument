@@ -11,7 +11,9 @@ import {
 import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import {
   adoptSpareWindow,
+  appWindowById,
   appWindowIdOfWindow,
+  cascadedBounds,
   closeEmptiedWindow,
   getAppWindows,
   moveTabToWindow,
@@ -415,6 +417,7 @@ function carriedWindow({ from, goes, spare }: Carry) {
 export function startTabCarry({
   at,
   grab,
+  isHeld = true,
   isOffRow,
   isOnlyTab,
   moving,
@@ -423,6 +426,8 @@ export function startTabCarry({
   /** Where on the screen the drag starts. */
   at?: Point | undefined;
   grab: Point;
+  /** A pointer has it, which main follows. A move from a menu has none. */
+  isHeld?: boolean;
   isOffRow: boolean;
   isOnlyTab: boolean;
   moving: Moving;
@@ -502,7 +507,9 @@ export function startTabCarry({
     if (process.platform !== "linux") {
       showSpare(started);
     }
-    started.poll = setInterval(followCursor, FOLLOW_MS);
+    if (isHeld) {
+      started.poll = setInterval(followCursor, FOLLOW_MS);
+    }
   }
   return {
     collapsesOffRow: goes === "tab" && started.followsCursor,
@@ -733,7 +740,7 @@ function updateCarry() {
   const next = carryPhase(carry.isOffRow, place, window?.window);
   if (!isSamePhase(carry.phase, next)) {
     carry.phase = next;
-    enterPhase(carry, carry.point);
+    void enterPhase(carry, carry.point);
   } else if (carry.phase.kind === "docked") {
     tellJoined(carry, carry.phase.window, carry.point);
   } else if (
@@ -789,7 +796,8 @@ function tellJoined(current: Carry, target: BrowserWindow, point: Point) {
   }
 }
 
-function enterPhase(current: Carry, point: Point) {
+/** Takes a phase up, and resolves once the carried window stands where it should. */
+async function enterPhase(current: Carry, point: Point) {
   const { followsCursor, from, goes, moving, phase, spare } = current;
   const window = carriedWindow(current);
   current.isPlaced = false;
@@ -830,24 +838,23 @@ function enterPhase(current: Carry, point: Point) {
   showSpare(current);
   // The window goes once it is drawn as it should be where it is going, and the
   // window it uncovers is drawn too, so that neither is seen catching up.
-  void Promise.all([drawn(window), spare && drawn(spare.window)]).then(() => {
-    if (carry !== current || current.phase !== phase || window.isDestroyed()) {
-      return;
-    }
-    current.isPlaced = true;
-    leaveMaximized(window);
-    window.setBounds(placeFor(current, current.point ?? point));
-    if (phase.kind === "docked") {
-      window.moveTop();
-      // The window beneath has to go on drawing, for the tab to land in it.
-      setOpacity(window, SEE_THROUGH_OPACITY);
-      return;
-    }
-    if (goes === "tab") {
-      window.moveTop();
-      setOpacity(window, 1);
-    }
-  });
+  await Promise.all([drawn(window), spare && drawn(spare.window)]);
+  if (carry !== current || current.phase !== phase || window.isDestroyed()) {
+    return;
+  }
+  current.isPlaced = true;
+  leaveMaximized(window);
+  window.setBounds(placeFor(current, current.point ?? point));
+  if (phase.kind === "docked") {
+    window.moveTop();
+    // The window beneath has to go on drawing, for the tab to land in it.
+    setOpacity(window, SEE_THROUGH_OPACITY);
+    return;
+  }
+  if (goes === "tab") {
+    window.moveTop();
+    setOpacity(window, 1);
+  }
 }
 
 /**
@@ -905,6 +912,59 @@ export function endTabCarry({
   }
   stopCarry();
   return { kind: "none" };
+}
+
+/**
+ * Moves a tab as a menu asks: a drag let go straight away, through the same steps,
+ * so a tab comes out of either the same way.
+ */
+export async function moveTabNow({
+  isOnlyTab,
+  moving,
+  to,
+  webContentsId,
+}: {
+  isOnlyTab: boolean;
+  moving: Moving;
+  to: { id: string; kind: "window" } | { kind: "new" };
+  webContentsId: number;
+}): Promise<TabCarryEnd> {
+  startTabCarry({
+    grab: { x: 0, y: 0 },
+    isHeld: false,
+    isOffRow: true,
+    isOnlyTab,
+    moving,
+    webContentsId,
+  });
+  const current = carry;
+  if (!current) {
+    return { kind: "none" };
+  }
+  if (to.kind === "new") {
+    const point = cascadedBounds();
+    current.phase = { kind: "free" };
+    await enterPhase(current, point);
+    return carry === current ? standAlone(current, point) : { kind: "none" };
+  }
+  const target = appWindowById(to.id);
+  if (!target || target.isDestroyed()) {
+    stopCarry();
+    return { kind: "none" };
+  }
+  const { width, x, y } = target.getBounds();
+  // The far end of the strip, which is where a tab with no place along it goes.
+  const point = { x: x + width, y };
+  current.phase = { kind: "docked", window: target };
+  await enterPhase(current, point);
+  if (carry !== current) {
+    return { kind: "none" };
+  }
+  if (target.isDestroyed()) {
+    stopCarry();
+    return { kind: "none" };
+  }
+  return land(current, target, to.id, point);
 }
 
 function stopFollowing(current: Carry) {

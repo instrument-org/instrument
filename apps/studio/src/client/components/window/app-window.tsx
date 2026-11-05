@@ -145,11 +145,11 @@ import { useWindowTabs } from "./window-tabs";
 import {
   forgetMovedAway,
   hasMovedAway,
-  moveTabOut,
   tabStanding,
   receiveTab,
   sendEveryTab,
 } from "./move-tab";
+import { moveTabOut } from "./move-tab-out";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.

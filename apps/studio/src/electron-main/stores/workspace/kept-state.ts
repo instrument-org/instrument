@@ -19,17 +19,13 @@ import { logger } from "../../lib/electron-logger";
 const WRITE_DELAY_MS = 250;
 
 /**
- * The windows' kept state as JSON files, one object of keys per file in
- * `KEPT_FILES`, each in the folder `dirOf` names for it. Read whole on first use, through `readAs` for a file
- * whose keys are read back in a shape of their own; a write lands in memory
+ * The windows' kept state as JSON files, one object of keys per file, each in
+ * the folder `dirOf` names for it. Read whole on first use; a write lands in memory
  * at once and on disk a beat later, each file replaced by rename so a crash
  * mid-write leaves the old file rather than half of the new one.
  */
 export function createKeptStateStore(
   dirOf: (file: KeptFile) => string,
-  readAs: Partial<
-    Record<KeptFile, (keys: Record<string, unknown>) => Record<string, unknown>>
-  > = {},
   {
     keptFiles = SHARED_KEPT_FILES,
     nameOf = keptFileName,
@@ -56,8 +52,7 @@ export function createKeptStateStore(
       if (read === undefined) {
         unreadable.add(file);
       }
-      const keys = read ?? {};
-      files.set(file, readAs[file]?.(keys) ?? keys);
+      files.set(file, read ?? {});
     }
     return files;
   };
@@ -296,7 +291,6 @@ function windowStoreOf(windowId: string) {
   }
   const store = createKeptStateStore(
     () => path.join(workspaceWindowDir(), WINDOWS_FOLDER),
-    {},
     {
       keptFiles: [WINDOW_KEPT_FILE],
       nameOf: () => `${windowId}.json`,
@@ -321,6 +315,13 @@ function windowStoreOf(windowId: string) {
     }
   }
   return store;
+}
+
+/** What a window keeps for itself, by key, for handing all of it to another. */
+export function windowKeptKeys(windowId: string) {
+  return Object.keys(
+    windowStoreOf(windowId).snapshot()[WINDOW_KEPT_FILE] ?? {},
+  );
 }
 
 /** One value a window keeps for itself, for what the main process does with its tabs. */

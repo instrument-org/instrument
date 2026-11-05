@@ -20,10 +20,10 @@ const {
   carryPhase,
   dressesAtStart,
   landsBy,
-  mergeFloats,
   placeOnWindow,
   whatGoes,
 } = await import("./tab-drag");
+const { mergeFloats } = await import("./tab-carry-rules");
 
 describe("what goes with the pointer", () => {
   const usual = {

@@ -1,5 +1,9 @@
-import { type Tab, type TabId, TabIdSchema, TabSchema } from "@/shared/tabs";
-import { z } from "zod";
+import {
+  neighborAt,
+  type Tab,
+  type TabId,
+  type TabsModel,
+} from "@/shared/tabs";
 
 /**
  * Renderer-owned tab state and the pure transitions over it: selection,
@@ -9,15 +13,7 @@ import { z } from "zod";
  * Every function is pure: it returns a new model and never mutates the input,
  * so it is trivially unit-testable and safe to drive a Jotai atom.
  */
-/** A closed tab, with where it stood in the strip so a reopen puts it back there. */
-const ClosedTabSchema = TabSchema.extend({ index: z.number().optional() });
-
-export const TabsModelSchema = z.object({
-  recentlyClosed: z.array(ClosedTabSchema),
-  selectedId: TabIdSchema.nullable(),
-  tabs: z.array(TabSchema),
-});
-export type TabsModel = z.output<typeof TabsModelSchema>;
+export type { TabsModel };
 
 const MAX_RECENTLY_CLOSED = 10;
 
@@ -292,8 +288,7 @@ export function setTabPathname(
  * to the right, falls back to the left.
  */
 function neighborId(tabs: Tab[], closingIndex: number) {
-  const next = tabs[closingIndex + 1] ?? tabs[closingIndex - 1];
-  return next?.id ?? null;
+  return neighborAt(tabs, closingIndex)?.id ?? null;
 }
 
 /** The tabs a test picks closed, onto the closed list leftmost first, and `id` up. */

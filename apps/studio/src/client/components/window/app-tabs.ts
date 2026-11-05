@@ -23,8 +23,9 @@ import {
   selectByIndex,
   selectOrAddTab,
   selectTab,
-  TabsModelSchema,
 } from "@/client/lib/tabs-model";
+import { APP_TABS_KEY } from "@/shared/kept-state";
+import { TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
@@ -79,9 +80,6 @@ export function pageHrefOf(group: string): string {
 export function siteGroupOf(id: string): string {
   return `${SITE_PREFIX}${id}`;
 }
-
-/** The key each window keeps its strip of tabs under. */
-const APP_TABS_KEY = "app-tabs.v2";
 
 /**
  * The window's tabs, across its bar: each one a chat, a folder or file, the

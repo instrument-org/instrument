@@ -4,8 +4,8 @@ import {
   addTab,
   emptyTabsModel,
   type TabsModel,
-  TabsModelSchema,
 } from "@/client/lib/tabs-model";
+import { TabsModelSchema } from "@/shared/tabs";
 
 function freshTabsModel(pathname: string): TabsModel {
   return addTab(emptyTabsModel(), { id: freshTabId(), pathname });

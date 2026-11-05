@@ -95,7 +95,6 @@ export function useWindowCommands(
     receiveTab: (tab: Tab, index?: number) => void;
     reopenTab: () => void;
     /** Every tab of this window to another. */
-    sendEveryTab: (to: string) => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
     /** The next or previous chat of the inbox, as listed. */
@@ -223,8 +222,6 @@ export function useWindowCommands(
               }
             } else if (command.type === "receiveTab") {
               latest.current.receiveTab(command.tab, command.index);
-            } else if (command.type === "sendEveryTab") {
-              latest.current.sendEveryTab(command.to);
             } else {
               answer(latest.current, command);
             }

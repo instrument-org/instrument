@@ -127,20 +127,6 @@ it("leaves no temporary file behind", () => {
   expect(fs.readdirSync(dir)).toEqual(["view.json"]);
 });
 
-it("reads a file through its own reader as it loads", () => {
-  fs.writeFileSync(
-    path.join(dir, "layout.json"),
-    JSON.stringify({ "app-tabs.v2": { tabs: ["a"] } }),
-  );
-  const store = createKeptStateStore(() => dir, {
-    layout: (keys) => ({ ...keys, read: true }),
-  });
-  expect(store.snapshot().layout).toEqual({
-    "app-tabs.v2": { tabs: ["a"] },
-    read: true,
-  });
-});
-
 describe("the Files addresses a window is left on", () => {
   /** Where the person left off: a tab per Files address, and one on a chat. */
   function writeLayout() {

@@ -20,8 +20,16 @@ describe("PlanningDotIcon", () => {
   it("keeps the sphere itself at 10px inside that column", () => {
     const { container } = render(<PlanningDotIcon />);
 
-    expect(container.querySelector("svg")?.getAttribute("class")).toContain(
-      "size-2.5",
-    );
+    expect(
+      container.querySelector(".planning-dot-core")?.getAttribute("class"),
+    ).toContain("size-2.5");
+  });
+
+  // `transform` on an SVG element cannot run on the compositor, so a sphere drawn
+  // as one takes a style pass on every frame for as long as the agent works.
+  it("draws the sphere as an element the compositor can animate", () => {
+    const { container } = render(<PlanningDotIcon />);
+
+    expect(container.querySelector("svg")).toBeNull();
   });
 });

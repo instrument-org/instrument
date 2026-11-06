@@ -57,6 +57,55 @@ describe("readActions", () => {
     ]);
   });
 
+  it("keeps one opening of a page or file opened again within a minute, the latest", async () => {
+    const a = "/Users/mac-user/wireframes/a.html";
+    const b = "/Users/mac-user/wireframes/b.html";
+    const SEC = 1000;
+    recordActions([
+      [NOW - 5 * MIN, { kind: "file", path: a }],
+      [NOW - 5 * MIN + 10 * SEC, { kind: "file", path: b }],
+      [NOW - 5 * MIN + 20 * SEC, { kind: "file", path: a }],
+      [NOW - 5 * MIN + 30 * SEC, { kind: "file", path: b }],
+      [NOW - 5 * MIN + 40 * SEC, { kind: "file", path: a }],
+      [NOW - 3 * MIN, { kind: "file", path: a }],
+      [NOW - 2 * MIN, { kind: "page", url: "https://irs.gov/" }],
+      [NOW - 2 * MIN + 5 * SEC, { kind: "page", url: "https://irs.gov/" }],
+      [NOW - MIN, { app: "Preview", kind: "open-with", path: a }],
+    ]);
+
+    expect(
+      named(await readActions({ since: NOW - 10 * MIN, until: NOW })),
+    ).toMatchInlineSnapshot(`
+      [
+        "file /Users/mac-user/wireframes/b.html",
+        "file /Users/mac-user/wireframes/a.html",
+        "file /Users/mac-user/wireframes/a.html",
+        "page https://irs.gov/",
+        "open-with /Users/mac-user/wireframes/a.html",
+      ]
+    `);
+
+    const page = await readActionsNewestFirst({
+      limit: 3,
+      since: NOW - 10 * MIN,
+      skip: 0,
+      until: NOW,
+    });
+    expect({
+      more: page.more,
+      named: named(page.actions),
+    }).toMatchInlineSnapshot(`
+      {
+        "more": true,
+        "named": [
+          "open-with /Users/mac-user/wireframes/a.html",
+          "page https://irs.gov/",
+          "file /Users/mac-user/wireframes/a.html",
+        ],
+      }
+    `);
+  });
+
   it("reads past a log line of a kind the history keeps now", async () => {
     recordActions([[NOW - 2 * MIN, { kind: "screen", name: "Apps" }]]);
     actionLog().close();

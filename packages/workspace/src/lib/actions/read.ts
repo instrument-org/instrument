@@ -15,8 +15,58 @@ import { type Action, type HistoryAction } from "./schema";
 
 type Range = { since: number; until: number };
 
+/** How close two openings of one page or file are to read as one, as the log takes a repeated line. */
+const REPEAT_WINDOW_MS = 60_000;
+
+/** What makes two history rows the same opening: the page, or the file and the app it opened in. */
+function sameness(action: HistoryAction): string {
+  return action.kind === "page"
+    ? `page ${action.url}`
+    : `${action.kind} ${action.path} ${action.kind === "open-with" ? (action.app ?? "") : ""}`;
+}
+
+/**
+ * The history without its repeats, newest first in and out: a page or file
+ * opened again within a minute of a later opening of it kept is that later
+ * one. Whether a row stays depends only on the rows after it, so a longer
+ * read keeps the same rows a shorter one did and a page boundary never moves.
+ */
+function withoutRepeats(
+  newestFirst: readonly HistoryAction[],
+): HistoryAction[] {
+  const kept = new Map<string, number>();
+  return newestFirst.filter((action) => {
+    const key = sameness(action);
+    const at = Date.parse(action.at);
+    const later = kept.get(key);
+    if (later !== undefined && later - at < REPEAT_WINDOW_MS) {
+      return false;
+    }
+    kept.set(key, at);
+    return true;
+  });
+}
+
+/**
+ * The pages and files the person opened from `since` to `until`, newest
+ * first and without repeats, at least `limit` of them when there are that
+ * many: the history is read further each time its repeats leave it short.
+ */
 function history(range: Range & { limit?: number }): HistoryAction[] {
-  return getWorkspaceConfig().readPersonHistory?.(range) ?? [];
+  const read = getWorkspaceConfig().readPersonHistory;
+  if (!read) {
+    return [];
+  }
+  if (range.limit === undefined) {
+    return withoutRepeats(read(range));
+  }
+  for (let limit = range.limit; ; limit *= 2) {
+    const raw = read({ ...range, limit });
+    const rows = withoutRepeats(raw);
+    if (rows.length >= range.limit || raw.length < limit) {
+      return rows.slice(0, range.limit);
+    }
+  }
 }
 
 type PermissionAction = Extract<Action, { kind: "permission" }>;

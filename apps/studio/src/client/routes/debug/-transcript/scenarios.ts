@@ -167,7 +167,7 @@ const memoryNote = (count: number): DataPart => ({
   type: "data-memory",
 });
 const dateNote: DataPart = {
-  data: { date: "Friday, November 6, 2026" },
+  data: { date: "2026-11-06" },
   type: "data-dateChange",
 };
 const gapNote: DataPart = { data: { minutes: 5640 }, type: "data-messageGap" };

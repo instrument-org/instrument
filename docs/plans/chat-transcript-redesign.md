@@ -180,7 +180,7 @@ The working line's mark is a nine-dot grid that breathes and bursts into a singl
 When a request to the model fails and the chat tries again, the working line says so ("Couldn't reach the model, trying again (try 3)") rather than sitting on Thinking. A reply that broke off partway and was asked again folds into one quiet row, a circling arrow on its tile ("The reply broke off, so Instrument asked again"), that opens onto what was lost.
 
 - **Why.** In one eval chat four requests failed in a row, and the first words came 55 seconds after the message.
-- **Today.** Changes the app. Outside developer mode, a failed message the turn went past is hidden, error and partial words alike ([retried-away.ts](../../apps/studio/src/client/lib/retried-away.ts)); while the backoff waits, the failed message's error likely shows until the retry lands. A turn that ends on a broken reply shows "Reply was cut off" ([describe-message-error.ts](../../packages/workspace/src/lib/describe-message-error.ts)).
+- **Today.** Changes the app. Outside developer mode, a failed message the turn went past is hidden, error and partial words alike ([error-outcome.ts](../../packages/workspace/src/lib/transcript/error-outcome.ts)); while the backoff waits, the failed message's error likely shows until the retry lands. A turn that ends on a broken reply shows "Reply was cut off" ([describe-message-error.ts](../../packages/workspace/src/lib/describe-message-error.ts)).
 
 ## Open questions
 

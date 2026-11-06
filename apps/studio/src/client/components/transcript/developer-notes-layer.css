@@ -1,0 +1,136 @@
+[data-slot="message-scroller-viewport"]:has(> [data-developer-notes]) {
+  position: relative;
+}
+[data-slot="message-scroller-content"] {
+  anchor-name: --dn-column;
+}
+[data-developer-notes] {
+  display: contents;
+}
+[data-dn="stack"] {
+  /* The margin beside a centered column. fit-content cannot bound a nowrap line, since
+     its min-content is its whole length, so the width is capped by the room itself. */
+  --dn-margin: calc((100cqi - anchor-size(--dn-column width)) / 2);
+  position: absolute;
+  width: max-content;
+  max-width: min(266px, var(--dn-margin));
+  /* In the block axis fit-content is max-content, so only stretch holds a stack to the room
+     its top and bottom anchors leave, which is what keeps it out of the scroller's height. */
+  height: fit-content;
+  max-height: stretch;
+  overflow: clip;
+  font-size: 12px;
+  line-height: 17px;
+  white-space: nowrap;
+  user-select: none;
+}
+[data-dn="stack"][data-side="right"] {
+  left: anchor(--dn-column right);
+  right: 0;
+}
+[data-dn="stack"][data-side="left"] {
+  right: anchor(--dn-column left);
+  left: 0;
+  margin-left: auto;
+  text-align: right;
+}
+[data-dn="line"] {
+  position: relative;
+  display: block;
+  height: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-dn="word"] {
+  color: transparent;
+}
+[data-dn="mark"] {
+  position: absolute;
+  top: 8px;
+  width: 8px;
+  height: 2px;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+[data-side="right"] [data-dn="mark"] {
+  left: 0;
+}
+[data-side="left"] [data-dn="mark"] {
+  right: 0;
+}
+[data-dn="stack"]:hover [data-dn="word"] {
+  color: var(--muted-foreground);
+  transition: color 0s linear 120ms;
+}
+[data-dn="stack"]:hover [data-dn="mark"] {
+  opacity: 0;
+  transition: opacity 0s linear 120ms;
+}
+[data-dn="stack"] [data-dn="line"]:hover [data-dn="word"] {
+  color: var(--foreground);
+}
+[data-dn="card"] {
+  position-anchor: --dn-card-line;
+  position: fixed;
+  inset: auto;
+  top: anchor(top);
+  margin: 0;
+  width: 320px;
+  padding: 8px 12px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--foreground);
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg-soft);
+}
+[data-dn="card"][data-side="right"] {
+  right: calc(anchor(left) + 8px);
+}
+[data-dn="card"][data-side="left"] {
+  left: calc(anchor(right) + 8px);
+}
+@container transcript (width < 1066px) {
+  [data-dn="word"] {
+    display: none;
+  }
+  [data-dn="stack"] {
+    width: min(36px, calc(var(--dn-margin) + 8px));
+    max-width: none;
+  }
+  [data-dn="stack"][data-side="right"] {
+    left: calc(anchor(--dn-column right) - 8px);
+  }
+  [data-dn="stack"][data-side="left"] {
+    right: calc(anchor(--dn-column left) - 8px);
+  }
+  [data-side="right"] [data-dn="mark"] {
+    left: 8px;
+  }
+  [data-side="left"] [data-dn="mark"] {
+    right: 8px;
+  }
+}
+@container transcript (width < 800px) {
+  [data-dn="stack"] {
+    width: 12px;
+    max-width: none;
+  }
+  [data-dn="stack"][data-side="right"] {
+    left: calc(anchor(--dn-column right) - 16px);
+  }
+  [data-dn="stack"][data-side="left"] {
+    right: calc(anchor(--dn-column left) - 16px);
+  }
+  [data-dn="mark"] {
+    width: 6px;
+  }
+  [data-side="right"] [data-dn="mark"] {
+    left: 5px;
+  }
+  [data-side="left"] [data-dn="mark"] {
+    right: 5px;
+  }
+}

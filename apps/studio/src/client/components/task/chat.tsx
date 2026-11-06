@@ -13,6 +13,7 @@ import {
 } from "@/client/drafts/chat-box";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
@@ -183,6 +184,7 @@ export function ChatConversation({
     setSelectedModelURI(initialSelectedModelURI);
   }
 
+  const isDeveloperMode = useTabDeveloperMode();
   const messagesQuery = useTranscriptFeed({
     id,
     sessionId: selectedSessionId,
@@ -652,6 +654,7 @@ export function ChatConversation({
                         isAgentAlive || isFollowingSubmit || isSettlingTurn
                       }
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
+                      isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}
                       // Through the send too, so the turn does not read as finished
                       // between its message being stored and its session starting.

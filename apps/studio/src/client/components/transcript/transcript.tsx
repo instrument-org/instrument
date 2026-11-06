@@ -11,7 +11,15 @@ import {
 } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/client/lib/utils";
 import { type RunAgain } from "../message-error";
@@ -25,6 +33,9 @@ import {
 } from "./transcript-actions";
 import { TurnView } from "./turn-view";
 
+/** What only a developer reads, loaded only for a developer. */
+const DeveloperNotesLayer = lazy(() => import("./developer-notes-layer"));
+
 /**
  * A session's transcript. The one way a chat or a task is drawn: a chat's turns
  * and a task's differ only in the task's first turns being its chat's, folded
@@ -36,6 +47,7 @@ import { TurnView } from "./turn-view";
 export function Transcript({
   chatInfo,
   hasOlder = false,
+  isDeveloperMode = false,
   isLoadingOlder = false,
   isRunning,
   messages,
@@ -49,6 +61,8 @@ export function Transcript({
   chatInfo: ChatInfo;
   /** There are earlier turns than these, asked for as the reader nears them. */
   hasOlder?: boolean;
+  /** Mounts the margin notes beside the rows, which never change for it. */
+  isDeveloperMode?: boolean;
   isLoadingOlder?: boolean;
   /** The session is at work on its last turn, or about to be. */
   isRunning: boolean;
@@ -110,6 +124,15 @@ export function Transcript({
             </AlertDescription>
           </Alert>
         </MessageScrollerItem>
+      )}
+      {isDeveloperMode && (
+        <Suspense fallback={null}>
+          <DeveloperNotesLayer
+            chatId={chatInfo.id}
+            sessionId={sessionId}
+            turns={turns}
+          />
+        </Suspense>
       )}
     </TranscriptActionsContext>
   );

@@ -1,3 +1,4 @@
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
   MessageScroller,
@@ -54,6 +55,7 @@ export function ChildTranscript({
       input: { id: chat },
     }),
   );
+  const isDeveloperMode = useTabDeveloperMode();
   const feed = useTranscriptFeed({ id: chat, sessionId });
 
   const openFile = useOpenFileNamedByTask(chat);
@@ -88,6 +90,7 @@ export function ChildTranscript({
                     <Transcript
                       chatInfo={chatInfo}
                       hasOlder={feed.data.hasOlder}
+                      isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={feed.isLoadingOlder}
                       isRunning={isWorking}
                       messages={feed.data.messages}

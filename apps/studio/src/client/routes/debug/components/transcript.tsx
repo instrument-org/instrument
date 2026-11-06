@@ -4,7 +4,9 @@ import {
   type TranscriptSurface,
   TranscriptSurfaceContext,
 } from "@/client/components/transcript/surface";
+import { DeveloperNotesSourceContext } from "@/client/components/transcript/developer-notes-source";
 import { Transcript } from "@/client/components/transcript/transcript";
+import { useHoldAtReplyStart } from "@/client/components/transcript/use-hold-at-reply-start";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +20,7 @@ import {
   MessageScrollerContent,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/client/components/ui/message-scroller";
 import { Switch } from "@/client/components/ui/switch";
 import { TOOL_ICONS } from "@/client/lib/tool-display";
@@ -26,6 +29,7 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   ChatIdSchema,
+  developerNotes,
   getToolNameByType,
   isToolPart,
   type ChatInfo,
@@ -490,6 +494,23 @@ function Toggle({
   );
 }
 
+/** The chat's hold at a reply's first line, inside the scroller it needs. */
+function HoldAtReplyStart({
+  contentRef,
+  isFollowing,
+}: {
+  contentRef: React.RefObject<HTMLElement | null>;
+  isFollowing: boolean;
+}) {
+  const { releaseAutoScroll } = useMessageScroller();
+  useHoldAtReplyStart({
+    contentRef,
+    isFollowing,
+    release: releaseAutoScroll,
+  });
+  return null;
+}
+
 /** With `frames` it is a real chat's, drawn in place of a script. */
 type Playable = DebugScenario & { chat?: ChatInfo; frames?: Frame[] };
 
@@ -523,6 +544,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
   const [shownMs, setShownMs] = useState<number>();
   const renderMs = useRef(0);
   const transcript = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // The last frame is the whole transcript, so not replaying is not a second way
   // of building one: it is the same fold, read at the end.
@@ -594,7 +616,14 @@ function Viewer({ scenario }: { scenario: Playable }) {
               className="@container/transcript"
               data-transcript
             >
-              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]">
+              <MessageScrollerContent
+                className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]"
+                ref={contentRef}
+              >
+                <HoldAtReplyStart
+                  contentRef={contentRef}
+                  isFollowing={frame.isAgentRunning}
+                />
                 <Profiler
                   id="transcript"
                   onRender={(_id, _phase, actualDuration) => {
@@ -607,6 +636,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
                     frame={frame}
                     frameIndex={shown}
                     frames={frames}
+                    isDeveloperMode={isDeveloperMode}
                     pageTurns={scenario.pageTurns}
                     tasks={tasks}
                   />
@@ -782,6 +812,7 @@ function FrameTranscript({
   frame,
   frameIndex,
   frames,
+  isDeveloperMode,
   pageTurns,
   tasks,
 }: {
@@ -790,6 +821,7 @@ function FrameTranscript({
   frame: Frame;
   frameIndex: number;
   frames: Frame[];
+  isDeveloperMode: boolean;
   pageTurns: number | undefined;
   tasks: DebugFrame["tasks"];
 }) {
@@ -864,36 +896,45 @@ function FrameTranscript({
       tasks,
     ],
   );
+  const noteSource = useMemo(() => {
+    const notes = sessionId
+      ? developerNotes(frame.messages, { sessionId })
+      : [];
+    return { useNotes: () => notes };
+  }, [frame.messages, sessionId]);
   if (!sessionId) {
     return null;
   }
   return (
     <DebugFrameContext value={debugFrame}>
       <TranscriptSurfaceContext value={debugSurface}>
-        <Transcript
-          chatInfo={chat ?? chatInfo}
-          hasOlder={from > 0}
-          isLoadingOlder={isLoadingOlder}
-          isRunning={frame.isAgentRunning}
-          messages={messages}
-          onContinue={noop}
-          onLoadOlder={() => {
-            if (isLoadingOlder) {
-              return;
-            }
-            setIsLoadingOlder(true);
-            // A page takes a moment to arrive in the app, and the scroller has
-            // to keep the reader's place when it does.
-            window.setTimeout(() => {
-              setShownTurns((count) => (count ?? 0) + (pageTurns ?? 0));
-              setIsLoadingOlder(false);
-            }, 250);
-          }}
-          onModelChange={noop}
-          onRetry={noop}
-          onRunAgain={noop}
-          sessionId={sessionId}
-        />
+        <DeveloperNotesSourceContext value={noteSource}>
+          <Transcript
+            chatInfo={chat ?? chatInfo}
+            hasOlder={from > 0}
+            isDeveloperMode={isDeveloperMode}
+            isLoadingOlder={isLoadingOlder}
+            isRunning={frame.isAgentRunning}
+            messages={messages}
+            onContinue={noop}
+            onLoadOlder={() => {
+              if (isLoadingOlder) {
+                return;
+              }
+              setIsLoadingOlder(true);
+              // A page takes a moment to arrive in the app, and the scroller has
+              // to keep the reader's place when it does.
+              window.setTimeout(() => {
+                setShownTurns((count) => (count ?? 0) + (pageTurns ?? 0));
+                setIsLoadingOlder(false);
+              }, 250);
+            }}
+            onModelChange={noop}
+            onRetry={noop}
+            onRunAgain={noop}
+            sessionId={sessionId}
+          />
+        </DeveloperNotesSourceContext>
       </TranscriptSurfaceContext>
     </DebugFrameContext>
   );

@@ -7,6 +7,7 @@ import {
   activity,
   batch,
   call,
+  type DataPart,
   emptyStep,
   fail,
   facts,
@@ -147,6 +148,139 @@ const longChat = (turns: number): Act[] =>
       stop(),
     ];
   }).flat();
+
+const THROUGH = StoreId.MessageSchema.parse("msg_01M0000000000000000000000T");
+
+const memoryNote = (count: number): DataPart => ({
+  data: {
+    forgotten: [],
+    memories: Array.from({ length: count }, (_, index) => ({
+      at: 0,
+      name: `memory-${index.toString()}`,
+      text: `Remembered thing ${index.toString()}`,
+    })),
+    more: 0,
+    sentAt: 0,
+    tells: "whole",
+    told: {},
+  },
+  type: "data-memory",
+});
+const dateNote: DataPart = {
+  data: { date: "Friday, November 6, 2026" },
+  type: "data-dateChange",
+};
+const gapNote: DataPart = { data: { minutes: 5640 }, type: "data-messageGap" };
+const skillsNote: DataPart = {
+  data: { names: ["launch-plans"] },
+  type: "data-skillMentions",
+};
+const clearedNote: DataPart = {
+  data: { results: 38, through: THROUGH },
+  type: "data-toolResultsCleared",
+};
+const rolloverNote: DataPart = {
+  data: { droppedMessages: 41, retainedUserMessages: 12 },
+  type: "data-contextRollover",
+};
+const limitNote: DataPart = {
+  data: { continuations: 3 },
+  type: "data-outputLimit",
+};
+const jobNote: DataPart = {
+  data: {
+    events: [
+      {
+        command: "pnpm build",
+        durationMs: 120_000,
+        exitCode: 1,
+        id: "bg_1",
+        logFilePath: "logs/bg_1.log",
+        status: "failed",
+      },
+    ],
+  },
+  type: "data-jobEvent",
+};
+
+const LONG_ASK =
+  "How does our pricing compare with Zendesk, Intercom and Freshdesk at the team size most of our customers are?\n\nI need the comparison for the pricing review on Thursday, so please check each one's current page rather than last year's numbers, and say which plan each of them would put a ten agent team on.";
+
+/** Notes on messages and rows, folded and not, enough to fill both margins. */
+const devNotesTurns = (name: string): Act[] => [
+  user(`What changed on ${name} since last time?`, memoryNote(2), skillsNote),
+  activity(`Looking at ${name}`),
+  browse("open https://example.com", "Opening the page"),
+  notes(clearedNote),
+  browse("get title", "Reading its title"),
+  prose(`The title of ${name} is the same, and the second section moved up.`),
+  stop(),
+];
+
+const devNotes: Act[] = [
+  ...devNotesTurns("the first page"),
+  user(LONG_ASK, dateNote, gapNote, memoryNote(5), skillsNote, limitNote),
+  prose("I'll read each one's pricing page first."),
+  activity("Reading competitors' pricing pages"),
+  searched({
+    explanation: "Searching for current help desk prices",
+    query: "help desk pricing 2026 Zendesk Intercom Freshdesk",
+    results: [{ title: "Suite plans", url: "https://www.zendesk.com/pricing" }],
+  }),
+  notes(clearedNote, rolloverNote),
+  fetched({
+    explanation: "Reading Zendesk's plans",
+    text: "# Suite plans\n\nSuite Team is $55 per agent a month.",
+    url: "https://www.zendesk.com/pricing",
+  }),
+  activity("Writing up the comparison"),
+  wrote({
+    content: "# Pricing against three competitors\n",
+    explanation: "Writing the comparison",
+    filePath: "pricing-comparison.md",
+  }),
+  notes(limitNote),
+  prose(
+    "We're the cheapest at the team size most customers are: **$49** against Zendesk's $55 and Intercom's $74.\n\nZendesk would put a ten agent team on Suite Team, Intercom on Essential, and Freshdesk on Growth.",
+    12,
+  ),
+  notes({
+    data: { words: "Read the pricing pages and wrote the comparison" },
+    type: "data-workSummary",
+  }),
+  stop(),
+  user("", jobNote),
+  prose("The build you left running failed, so the numbers page is stale."),
+  stop(),
+  user("Check the second one again.", memoryNote(1)),
+  activity("Checking Intercom again"),
+  fetched({
+    explanation: "Reading Intercom's plans",
+    text: "# Pricing\n\nEssential is $74 per seat a month.",
+    url: "https://www.intercom.com/pricing",
+  }),
+  notes(rolloverNote, limitNote, clearedNote, dateNote),
+  activity("Updating the comparison"),
+  edited({
+    explanation: "Correcting Intercom's number",
+    filePath: "pricing-comparison.md",
+    newString: "| Team | $49 | $55 | $74 |",
+    oldString: "| Team | $49 | $55 | $47 |",
+  }),
+  notes(jobNote),
+  prose(
+    Array.from(
+      { length: 40 },
+      (_, index) =>
+        `Line ${index.toString()} of a reply long enough to pass the top of the window as it arrives, so the transcript has to stop following it.`,
+    ).join("\n\n"),
+    40,
+  ),
+];
+
+const devNotesLong: Act[] = Array.from({ length: 40 }, (_, index) =>
+  devNotesTurns(`page ${index.toString()}`),
+).flat();
 
 /**
  * The moments the transcript has to get right, each about one thing. Scrolled
@@ -603,4 +737,57 @@ export const scenarios: DebugScenario[] = [
     pageTurns: 20,
     script: longChat(80),
   },
+  { id: "dev-notes", name: "Developer notes", script: devNotes },
+  {
+    id: "dev-notes-tail",
+    name: "Developer notes running past the end",
+    script: [
+      ...Array.from({ length: 12 }, () => [
+        user("Tell me about this page."),
+        prose("It says the same thing as last time, with one more section."),
+        stop(),
+      ]).flat(),
+      user("Look at the last one."),
+      activity("Reading the last one"),
+      read({ explanation: "Reading it", filePath: "last.md" }),
+      notes(
+        dateNote,
+        gapNote,
+        limitNote,
+        clearedNote,
+        rolloverNote,
+        skillsNote,
+        jobNote,
+        memoryNote(1),
+      ),
+      stop(),
+    ],
+  },
+  {
+    id: "dev-notes-kinds",
+    name: "Developer notes on every kind of row",
+    script: [
+      user("Plan the launch from this brief.", dateNote),
+      activity("Reading the brief"),
+      read({ explanation: "Reading the brief", filePath: "brief.pdf" }),
+      notes(limitNote),
+      startsTask(SHOPIFY_TASK, "Compare the storefront starters"),
+      notes(clearedNote),
+      chose({
+        answer: { selectedChoice: "Friday" },
+        choices: ["Friday", "Monday"],
+        explanation: "Asking which day it goes out",
+        question: "Which day should it go out?",
+      }),
+      notes(skillsNote),
+      fail({
+        classification: "transient",
+        kind: "provider",
+        message: "The provider stopped answering.",
+      } as never),
+      notes(rolloverNote),
+    ],
+    tasks: { [SHOPIFY_TASK]: taskOnly("Compare the storefront starters") },
+  },
+  { id: "dev-notes-long", name: "Developer notes, long", script: devNotesLong },
 ];

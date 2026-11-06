@@ -42,6 +42,11 @@ type Presentation = Parameters<typeof screenPresentation>[1];
 /** A layout change that lands at once, for tabs moved by anything but a drag. */
 const STILL = { layout: { duration: 0 } };
 
+// The room around the tabs inside their scroller, the `p-1` it draws, in layout
+// px. A scroller clips at its padding edge whatever `overflow-clip-margin` says,
+// so a row exactly as tall as its tabs would slice the chosen tab's shadow flat.
+const TAB_ROOM = 4;
+
 function hostOf(url: string): string {
   if (!URL.canParse(url)) {
     return url;
@@ -102,8 +107,8 @@ export function PaneTabs({
     if (!list || !tab) {
       return;
     }
-    const left = tab.offsetLeft;
-    const right = left + tab.offsetWidth;
+    const left = tab.offsetLeft - TAB_ROOM;
+    const right = tab.offsetLeft + tab.offsetWidth + TAB_ROOM;
     if (left < list.scrollLeft) {
       list.scrollTo({ behavior: "smooth", left });
     } else if (right > list.scrollLeft + list.clientWidth) {
@@ -117,7 +122,7 @@ export function PaneTabs({
       role="tablist"
     >
       <motion.div
-        className="relative flex min-w-0 [scrollbar-width:none] overflow-x-auto"
+        className="relative -m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1"
         layoutScroll
         // A wheel that only turns up and down scrolls the row sideways.
         onWheel={(event) => {
@@ -256,9 +261,9 @@ function PaneTab({
   const body = (isWorking: boolean) => (
     <div
       className={cn(
-        "group/tab flex h-7 w-36 items-center gap-0.5 rounded-lg pr-0.5 pl-2 text-xs",
+        "group/tab flex h-8 w-36 items-center gap-0.5 rounded-xl pr-0.5 pl-2 text-xs",
         isChosen
-          ? "bg-card font-medium text-foreground ring-1 ring-border"
+          ? "bg-card font-medium text-foreground shadow-xs-soft"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
       )}
     >

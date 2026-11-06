@@ -198,6 +198,27 @@ export function AssistantMessagesFooter({
                   </TooltipContent>
                 </Tooltip>
               ),
+              sources.length > 0 && (
+                <CollapsibleTrigger asChild key="sources">
+                  {/* The negative margin cancels the button's own padding, so
+                      the mid-dots on either side sit as far from its text as
+                      they do from the plain text beside them. */}
+                  <Button
+                    className="-mx-2.5 font-normal text-muted-foreground hover:text-foreground"
+                    size="xs"
+                    variant="ghost"
+                  >
+                    Sources
+                    {uniqueUrls.length > 0 && (
+                      <span className="flex shrink-0 items-center gap-1">
+                        {uniqueUrls.map((url) => (
+                          <Favicon className="size-3.5" key={url} url={url} />
+                        ))}
+                      </span>
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+              ),
               ...modelsUsed.map((usage) => (
                 <ModelUsageChip
                   key={usage.requested?.uri ?? usage.modelId}
@@ -220,22 +241,6 @@ export function AssistantMessagesFooter({
                 </Fragment>
               ))}
           </div>
-          {sources.length > 0 && (
-            <CollapsibleTrigger asChild>
-              <Button size="sm" variant="ghost">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-xs font-medium">Sources</span>
-                  {uniqueUrls.length > 0 && (
-                    <div className="flex shrink-0 items-center gap-1">
-                      {uniqueUrls.map((url) => (
-                        <Favicon className="size-5" key={url} url={url} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Button>
-            </CollapsibleTrigger>
-          )}
         </div>
 
         {sources.length > 0 && (

@@ -101,12 +101,16 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
   let isShown = false;
   const moveTo = ({ x, y }: Point) => {
     if (!window.isDestroyed()) {
-      window.setPosition(
-        Math.round(x - width / 2),
-        Math.round(
+      // Its size named: at a fractional scale on Windows, a move that names only
+      // where grows a window by a pixel each time.
+      window.setBounds({
+        height,
+        width,
+        x: Math.round(x - width / 2),
+        y: Math.round(
           process.platform === "linux" ? y + BELOW_POINTER_PX : y - height / 2,
         ),
-      );
+      });
     }
   };
   return {

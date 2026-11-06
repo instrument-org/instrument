@@ -37,8 +37,14 @@ function fakeWindow(id: number, name: string, bounds = BOUNDS) {
       }
       window.opacity = opacity;
     },
+    // As at a fractional scale on Windows, where naming only a place grows a window.
     setPosition: (x: number, y: number) => {
-      window.bounds = { ...window.bounds, x, y };
+      window.bounds = {
+        height: window.bounds.height + 1,
+        width: window.bounds.width + 1,
+        x,
+        y,
+      };
     },
     setVisibleOnAllWorkspaces: vi.fn(),
     show: () => {
@@ -902,7 +908,8 @@ describe("a window's only tab", () => {
     expect(state.taken).toBe(0);
     expect(from.bounds).toMatchObject({ x: 1400, y: 1480 });
     moveTo({ x: 1500, y: 1600 });
-    expect(from.bounds).toMatchObject({ x: 1400, y: 1580 });
+    moveTo({ x: 1510, y: 1610 });
+    expect(from.bounds).toEqual({ ...BOUNDS, x: 1410, y: 1590 });
   });
 
   it("does not dock a window onto the strip its press was already over", () => {

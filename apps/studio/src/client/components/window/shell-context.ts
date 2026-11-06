@@ -12,6 +12,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type useAppTabs } from "./app-tabs";
 import { type Chat, type Project } from "./chats";
 import { type DraftSend } from "./compose-window";
+import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -60,9 +61,8 @@ export interface WindowShell {
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
     chatId: ChatId;
-    isPoppedOut: boolean;
     isViewOpen: boolean;
-    leftOut: readonly string[];
+    taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setChatProject: (id: ChatId, project: null | string) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;

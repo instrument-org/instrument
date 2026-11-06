@@ -195,12 +195,6 @@ interface PromptInputProps {
   onShowItem?: (item: { kind: "file" | "folder"; path: string }) => void;
   /** The attached file or folder the host shows now, whose chip is drawn raised. */
   shownPath?: string;
-  /**
-   * Keep the row open whether or not the caret is in it. For a composer that
-   * sits beside the work rather than under it: switching to another tab would
-   * otherwise fold the row shut and unfold it again on the focus that follows.
-   */
-  alwaysOpen?: boolean;
   /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
   attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
@@ -216,13 +210,6 @@ interface PromptInputProps {
   isLoading: boolean;
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
-  /**
-   * Whether a pill shows its lead whether or not it is being written in: for
-   * a draft, whose chips are what is attached to it. A chat's pill shows them
-   * only while it is written in, so they do not come and go with every tab
-   * the person moves between.
-   */
-  leadAlwaysShown?: boolean;
   modelURI?: AIGatewayModelURI.Type;
   /**
    * The chat's note about the account its model runs on. A pill draws one
@@ -275,7 +262,6 @@ interface PromptInputProps {
 export const PromptInput = ({
   actionsInto,
   addMenu = true,
-  alwaysOpen,
   besidePlus,
   onShowItem,
   shownPath,
@@ -289,7 +275,6 @@ export const PromptInput = ({
   id,
   isLoading,
   lead,
-  leadAlwaysShown = false,
   modelURI,
   note,
   onStop,
@@ -323,7 +308,6 @@ export const PromptInput = ({
   }, [attachedItems]);
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   // A pill is one row until it is written in, then opens a row for the rest.
-  const [pillFocused, setPillFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const setLookAt = useSetAtom(lookAtAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
@@ -921,19 +905,6 @@ export const PromptInput = ({
     modelURI &&
     selectedModel;
 
-  // Open while the caret is in it, a menu of its is up, or a draft is waiting:
-  // the model and the message's context have nowhere else to go, and a row
-  // that folded away mid-draft would take them with it.
-  const pillOpen =
-    variant === "pill" &&
-    (alwaysOpen ||
-      pillFocused ||
-      pickerOpen ||
-      menuView !== null ||
-      value.trim().length > 0 ||
-      attachedItems.length > 0 ||
-      hasAttachmentsLead);
-
   // A pill stands beside the work in a column it shares with the conversation
   // it is part of, so it gives way to that conversation sooner than a block on
   // a page of its own does: a handful of lines, then the draft scrolls.
@@ -1289,14 +1260,9 @@ export const PromptInput = ({
             </AnimatePresence>
           )
         }
-        // What goes with the message is said while the person is writing it:
-        // shown always, it comes and goes with every tab they move between.
-        extras={
-          pillOpen &&
-          (leadAlwaysShown || pillFocused || pickerOpen || menuView !== null)
-            ? lead
-            : undefined
-        }
+        // What goes with the message, and what is offered to it, whether or
+        // not the box is being written in.
+        extras={variant === "pill" ? lead : undefined}
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
         // a draft always has room over its words.
@@ -1358,26 +1324,6 @@ export const PromptInput = ({
           ) : undefined
         }
         maxHeight={maxHeight}
-        onBlur={
-          variant === "pill"
-            ? (event) => {
-                if (
-                  event.relatedTarget instanceof Node &&
-                  event.currentTarget.contains(event.relatedTarget)
-                ) {
-                  return;
-                }
-                setPillFocused(false);
-              }
-            : undefined
-        }
-        onFocus={
-          variant === "pill"
-            ? () => {
-                setPillFocused(true);
-              }
-            : undefined
-        }
         below={
           // While dictating, under the words: the wave, then Cancel and Stop
           // together. Send is back once the words land; Enter stops and sends.

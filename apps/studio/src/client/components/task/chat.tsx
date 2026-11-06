@@ -456,9 +456,6 @@ export function ChatConversation({
 
   const promptInput = (
     <PromptInput
-      // Beside the work, the row stays open: a tab switch moves the caret, and
-      // a row that folded and unfolded with it would animate on every switch.
-      alwaysOpen
       attachmentsLead={asks?.pills}
       autoFocus
       keyboardHome

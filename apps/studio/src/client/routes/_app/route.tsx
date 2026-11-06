@@ -27,7 +27,6 @@ import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatScreen } from "@/client/components/window/chat-screen";
-import { ContextChips } from "@/client/components/window/context-chip";
 import { GroupItem } from "@/client/components/window/group-item";
 import { liveHostedFileAddress } from "@/client/components/window/hosted-page";
 import { useWindow, WindowContext } from "@/client/components/window/context";
@@ -44,7 +43,6 @@ import { RightPane } from "@/client/components/window/right-pane";
 import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
-import { useChatContext } from "@/client/components/window/use-chat-context";
 import {
   surfaceLocation,
   tabSurfaceAtom,
@@ -442,9 +440,9 @@ function ChatView({
 const NEW_CHAT_PANE = "new-chat";
 
 /**
- * A chat's screen in the window's place, with the chips over its composer
- * for what goes with a reply: the chat's own tab while its pane is open,
- * until left out, and nothing else, since nothing stands behind it.
+ * A chat's screen in the window's place. A reply carries the chat's own tab
+ * while its pane is open, with no chip, since it is on screen beside the
+ * conversation; nothing stands behind the chat to offer.
  */
 function ChatScreenInPlace({
   chatId,
@@ -458,25 +456,12 @@ function ChatScreenInPlace({
   onGone: () => void;
 }) {
   const shell = useShell();
-  const context = useChatContext({ chatId, isPoppedOut: false, isViewOpen });
   return (
     <ChatScreen
       chatId={chatId}
-      composerLead={
-        context.chips.length > 0 ? (
-          <ContextChips items={context.chips} onLeaveOut={context.leaveOut} />
-        ) : undefined
-      }
       isUp={isUp}
       onGone={onGone}
-      sendContext={() =>
-        shell.sendContext({
-          chatId,
-          isPoppedOut: false,
-          isViewOpen,
-          leftOut: context.leftOut,
-        })
-      }
+      sendContext={() => shell.sendContext({ chatId, isViewOpen, taken: [] })}
       sentPrompt={shell.sentWords.get(chatId)}
     />
   );

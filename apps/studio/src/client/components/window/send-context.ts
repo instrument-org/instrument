@@ -385,30 +385,26 @@ export function contextReaders({
   };
   /**
    * What goes with a message in a chat: the chat's tab up while its view of
-   * it is open, or, for a popped-out chat, what the window has in view
-   * behind it, each unless left out; and the chat's own tabs, by the ids a
-   * task can be handed.
+   * it is open, and what the person took for the message from what was
+   * offered; and the chat's own tabs, by the ids a task can be handed.
    */
   const sendContext = async ({
     chatId,
-    isPoppedOut,
     isViewOpen,
-    leftOut,
+    taken,
   }: {
     chatId: ChatId;
-    /** Whether the chat is in a window of its own over another screen, rather than in the tab's place. */
-    isPoppedOut: boolean;
     /** Whether the chat's view of its tab up is open where the message is written. */
     isViewOpen: boolean;
-    leftOut: readonly string[];
+    /** What the person took for the message. */
+    taken: readonly ContextItem[];
   }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
     contextOf(
       chatId,
       chatContextItems({
         chatId,
         finderOf,
-        inView: isPoppedOut && !isViewOpen ? inView : undefined,
-        leftOut,
+        taken,
         up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
       }),
     );

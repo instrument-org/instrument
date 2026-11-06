@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   chatContextItems,
+  chatSuggestionOf,
+  type ContextItem,
   draftContextItems,
   draftSuggestionOf,
 } from "./context-items";
@@ -22,50 +24,42 @@ const page = (id: string, group: string): WindowTab => ({
   url: "https://example.com/",
 });
 
-/** What a chat composer carries for one tab, in view behind it or up in its own view. */
-function itemsFor(tab: WindowTab, { up = false } = {}) {
-  return chatContextItems({
-    chatId: CHAT,
-    finderOf: () => null,
-    inView: up ? undefined : tab,
-    leftOut: [],
-    up: up ? tab : undefined,
-  });
-}
+const offered = (inView: WindowTab, taken: ContextItem[] = []) =>
+  chatSuggestionOf({ chatId: CHAT, finderOf: () => null, inView, taken });
 
-describe("chatContextItems", () => {
+describe("a chat's next message", () => {
+  it("carries the chat's own tab up in its view, then what was taken", () => {
+    const site = offered(page("site", "site:1"));
+    expect(site).toBeDefined();
+    const items = chatContextItems({
+      chatId: CHAT,
+      finderOf: () => null,
+      taken: site ? [site] : [],
+      up: page("own", CHAT),
+    });
+    expect(
+      items.map((item) => [item.key, item.kind === "tab" && item.owned]),
+    ).toEqual([
+      ["tab:own", true],
+      ["tab:site", false],
+    ]);
+  });
+
+  it("is offered what is behind the chat, until it is taken", () => {
+    const site = offered(page("site", "site:1"));
+    expect(site).toMatchObject({ key: "tab:site", kind: "tab" });
+    expect(offered(page("site", "site:1"), site ? [site] : [])).toBeUndefined();
+  });
+
   it.each([
+    ["the chat's own tab", page("own", CHAT)],
+    ["another chat's tab", page("theirs", OTHER)],
     [
-      "the chat's own tab, up in its view",
-      page("own", CHAT),
-      true,
-      "tab",
-      true,
+      "another chat's screen",
+      { href: `/chats/${OTHER}`, id: "chat", kind: "screen" as const },
     ],
-    ["a page of the window's own", page("site", "site:1"), false, "tab", false],
-  ])("carries %s as a %s item", (_name, tab, up, kind, owned) => {
-    const [item] = itemsFor(tab, { up });
-    expect(item?.kind).toBe(kind);
-    expect(item?.kind === "tab" ? item.owned : undefined).toBe(owned);
-  });
-
-  it("carries nothing for another chat's tab", () => {
-    expect(itemsFor(page("theirs", OTHER))).toEqual([]);
-    expect(
-      itemsFor({ href: `/chats/${OTHER}`, id: "chat", kind: "screen" }),
-    ).toEqual([]);
-  });
-
-  it("carries nothing it was told to leave out", () => {
-    expect(
-      chatContextItems({
-        chatId: CHAT,
-        finderOf: () => null,
-        inView: page("site", "site:1"),
-        leftOut: ["tab:site"],
-        up: undefined,
-      }),
-    ).toEqual([]);
+  ])("is offered nothing for %s", (_name, tab) => {
+    expect(offered(tab)).toBeUndefined();
   });
 });
 

@@ -11,6 +11,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { ChatBar, ChatWindow } from "./chat-window";
 import { type Chat, type Project } from "./chats";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
+import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -67,12 +68,11 @@ export function ComposeLayer({
   onNewProject: (draftId: string, name: string) => void;
   onSetChatProject: (chatId: ChatId, project: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;
-  /** What goes with a reply sent from a chat's small view: what the window has up behind it. */
+  /** What goes with a reply sent from a chat's small view: what the person took from what the window has behind it. */
   sendContext: (options: {
-    isViewOpen: boolean;
-    isPoppedOut: boolean;
     chatId: ChatId;
-    leftOut: readonly string[];
+    isViewOpen: boolean;
+    taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** What each chat being started from a draft sent, by the chat: its window shows the words until its transcript has them. */
   sentWords: ReadonlyMap<ChatId, string>;
@@ -142,9 +142,7 @@ export function ComposeLayer({
                   onSetChatProject(chatId, next);
                 }}
                 right={entry.right}
-                sendContext={(options) =>
-                  sendContext({ ...options, chatId, isPoppedOut: true })
-                }
+                sendContext={(options) => sendContext({ ...options, chatId })}
                 sentWords={sentWords.get(chatId)}
                 chatId={chatId}
                 projects={projects}

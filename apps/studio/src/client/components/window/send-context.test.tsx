@@ -12,6 +12,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { chatSuggestionOf, type ContextItem } from "./context-items";
 import { contextReaders, type SendContextWindow } from "./send-context";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
@@ -96,9 +97,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchObject({
       page: { selection: "Words on the page" },
@@ -114,9 +114,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: false,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -143,14 +142,13 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: other,
-        isPoppedOut: true,
         isViewOpen: false,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("tells a chat in the tab's place nothing about what else is in view", async () => {
+  it("sends what is in view behind a chat only once it is taken", async () => {
     const site: WindowTab = { ...SITE, group: "site:1", id: "site" };
     const { sendContext } = contextReaders(
       windowOf({
@@ -158,15 +156,18 @@ describe("sendContext", () => {
         windowTabs: tabsOf([site], "site:1"),
       }),
     );
-    const send = (isPoppedOut: boolean) =>
-      sendContext({
-        chatId: CHAT,
-        isPoppedOut,
-        isViewOpen: false,
-        leftOut: [],
-      });
-    await expect(send(false)).resolves.toBeUndefined();
-    await expect(send(true)).resolves.toMatchObject({ screen: "browser" });
+    const taken = chatSuggestionOf({
+      chatId: CHAT,
+      finderOf: () => null,
+      inView: site,
+      taken: [],
+    });
+    const send = (items: ContextItem[]) =>
+      sendContext({ chatId: CHAT, isViewOpen: false, taken: items });
+    await expect(send([])).resolves.toBeUndefined();
+    await expect(send(taken ? [taken] : [])).resolves.toMatchObject({
+      screen: "browser",
+    });
   });
 
   it("sends nothing before the chat's state is read", async () => {
@@ -180,9 +181,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toBeUndefined();
   });
@@ -203,9 +203,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -259,9 +258,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -295,9 +293,8 @@ describe("sendContext", () => {
     );
     const sent = sendContext({
       chatId: CHAT,
-      isPoppedOut: false,
       isViewOpen: true,
-      leftOut: [],
+      taken: [],
     });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
@@ -340,9 +337,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {

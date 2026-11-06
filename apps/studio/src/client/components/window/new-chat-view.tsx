@@ -320,7 +320,6 @@ export function NewChatView({
       <div className="min-h-0 flex-1" />
       <div className="isolate mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">
         <PromptInput
-          alwaysOpen
           attachmentsLead={
             draft ? <MarkedPills draftId={draft.id} /> : undefined
           }
@@ -329,7 +328,6 @@ export function NewChatView({
           isLoading={false}
           keyboardHome
           lead={chips}
-          leadAlwaysShown
           modelURI={shell.defaultModelURI}
           onFolders={(paths) => {
             for (const path of paths) {

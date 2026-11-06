@@ -48,8 +48,6 @@ export function ComposerFrame({
   leading,
   maxHeight,
   notice,
-  onBlur,
-  onFocus,
   overlay,
   ref,
   trailing,
@@ -72,8 +70,9 @@ export function ComposerFrame({
   /** The editor. Fills the row it is given and scrolls past it. */
   children: React.ReactNode;
   /**
-   * A pill's second row, above the editor, present only while the pill is
-   * open: the model and what the message will carry. It slides in and out.
+   * A pill's row above the editor, present while there is something in it:
+   * what the message will carry and what is offered to it. It slides in and
+   * out.
    */
   extras?: React.ReactNode;
   /**
@@ -93,9 +92,6 @@ export function ComposerFrame({
    * so a pill and a draft say it in one place and one way.
    */
   notice?: React.ReactNode;
-  /** Focus entering and leaving the pill, for what it shows only while open. */
-  onBlur?: React.FocusEventHandler<HTMLDivElement>;
-  onFocus?: React.FocusEventHandler<HTMLDivElement>;
   /** Laid over the whole box, out of flow: the drop target, the re-entry ring. */
   overlay?: React.ReactNode;
   /** The box itself, for anything that has to be sized or placed against it. */
@@ -112,8 +108,6 @@ export function ComposerFrame({
           "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
         )}
         data-slot="composer-frame"
-        onBlur={onBlur}
-        onFocus={onFocus}
         ref={ref}
         style={maxHeight === null ? undefined : { maxHeight }}
       >

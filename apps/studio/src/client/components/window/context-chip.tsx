@@ -198,6 +198,7 @@ export function ContextChips({
   band,
   items,
   onLeaveOut,
+  onShow,
 }: {
   band?: {
     group: string;
@@ -206,6 +207,8 @@ export function ContextChips({
   };
   items: ContextItem[];
   onLeaveOut: (item: ContextItem) => void;
+  /** Shows what a chip that is no band's tab names, where the host shows such things: behind a popped-out chat, the screen. */
+  onShow?: (item: ContextItem) => void;
 }) {
   const appsBySlug = useAppsBySlug();
   const chipOf = (item: ContextItem) => {
@@ -233,7 +236,11 @@ export function ContextChips({
                 ? () => {
                     band.onSelect(tab.id);
                   }
-                : undefined
+                : onShow
+                  ? () => {
+                      onShow(item);
+                    }
+                  : undefined
             }
             tab={tab}
           />

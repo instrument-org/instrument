@@ -261,32 +261,75 @@ function contextItemOf(
 }
 
 /**
- * What a chat's composer carries: the chat's own tab up while its view of
- * it is open, and otherwise what the window has in view behind a popped-out
- * chat, unless left out. Another chat is never one of them.
+ * What a chat's next message carries: the chat's own tab up while its view
+ * of it is open, then what the person took for this message from what was
+ * offered (`chatSuggestionOf`), as it was when taken. Another chat is never
+ * one of them.
  */
 export function chatContextItems({
   chatId,
   finderOf,
-  inView,
-  leftOut,
+  taken,
   up,
 }: {
   chatId: ChatId;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  /** What the window has in view behind the chat, while it is popped out with its own view closed. */
-  inView: undefined | WindowTab;
-  leftOut: readonly string[];
+  /** What the person took for the next message. */
+  taken: readonly ContextItem[];
   /** The chat's tab up, while the chat's view of it is open. */
   up: undefined | WindowTab;
 }): ContextItem[] {
-  const tab = up ?? (inView?.group === chatId ? undefined : inView);
-  const key = keyOfTab(tab);
-  if (!tab || leftOut.includes(key)) {
-    return [];
+  const own = up
+    ? itemOfTab(up, { finderOf, group: chatId, held: [], key: keyOfTab(up) })
+    : undefined;
+  return own
+    ? [own, ...taken.filter((item) => item.key !== own.key)]
+    : [...taken];
+}
+
+/**
+ * What the window has in view behind a popped-out chat, offered to its next
+ * message as the chip it would be: what is selected in a folder, else the
+ * folder, a file, a page or an app's front. Nothing where the screen names
+ * nothing, where it is the chat itself or another chat, or where the message
+ * already carries it.
+ */
+export function chatSuggestionOf({
+  chatId,
+  finderOf,
+  inView,
+  taken,
+}: {
+  chatId: ChatId;
+  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
+  inView: undefined | WindowTab;
+  taken: readonly ContextItem[];
+}): ContextItem | undefined {
+  if (!inView || inView.group === chatId) {
+    return undefined;
   }
-  const item = itemOfTab(tab, { finderOf, group: chatId, held: [], key });
-  return item ? [item] : [];
+  const item = itemOfTab(inView, {
+    finderOf,
+    group: chatId,
+    held: [],
+    key: keyOfTab(inView),
+  });
+  if (item?.kind !== "tab") {
+    return undefined;
+  }
+  if (item.items === undefined) {
+    return taken.some(
+      (entry) => entry.kind === "tab" && sameTarget(entry.tab, item.tab),
+    )
+      ? undefined
+      : item;
+  }
+  const held = new Set(
+    heldPaths([...taken]).map((entry) => withoutSlash(entry.path)),
+  );
+  return item.items.every((entry) => held.has(withoutSlash(entry.path)))
+    ? undefined
+    : item;
 }
 
 /**

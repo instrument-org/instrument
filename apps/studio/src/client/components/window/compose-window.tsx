@@ -39,7 +39,6 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
-import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Project } from "./chats";
@@ -50,7 +49,7 @@ import {
   COMPOSE_WIDTH,
 } from "./compose-layout";
 import { useWindow, WindowContext } from "./context";
-import { ContextChips, ContextSuggestion, HeldMark } from "./context-chip";
+import { ContextChips, ContextSuggestion } from "./context-chip";
 import {
   type BandTarget,
   openInBand,
@@ -83,9 +82,6 @@ export interface DraftSend {
   prompt: string;
 }
 
-/** How many marks the minimized bar shows of what the draft holds. */
-const BAR_MARKS = 4;
-
 /** The most the words take before they scroll, whatever the window could give them. */
 const WORDS_MAX_HEIGHT = 192;
 
@@ -93,40 +89,10 @@ const WORDS_MAX_HEIGHT = 192;
 const COMPOSE_HEIGHT = 640;
 
 /**
- * The marks of what a group holds, for a window put down to a bar: a site's
- * icon, a file's type, a folder, the first few and a count of the rest.
- */
-export function BarMarks({ group }: { group: string }) {
-  const { allTabs } = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
-  if (held.length === 0) {
-    return null;
-  }
-  return (
-    <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
-      {held.slice(0, BAR_MARKS).map((tab) => (
-        <span
-          className="grid size-4 place-items-center rounded-sm bg-white/90 dark:bg-white/10 [&_img]:rounded-xs"
-          key={tab.id}
-        >
-          <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        </span>
-      ))}
-      {held.length > BAR_MARKS && (
-        <span className="text-[10px] text-white/70">
-          +{held.length - BAR_MARKS}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * The draft put down: a dark bar along the window's foot with its first words
- * and the marks of what it holds, brought back up by a press, closed by its
- * cross. What it holds is read off its tabs, so the bar says the same as the
- * band would.
+ * The draft put down: a dark bar along the window's foot with its first
+ * words, brought back up by a press, closed by its cross. Flush with the foot
+ * in the light theme, where it has no ring to double the edge the system
+ * draws there; a screen pixel up in the dark one, where it has.
  */
 export function ComposeBar({
   draft,
@@ -144,7 +110,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
+      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bottom-[calc(1px/var(--app-zoom))] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       inert={!isPresent}
@@ -161,7 +127,6 @@ export function ComposeBar({
         <span className="min-w-0 flex-1 truncate">
           {draftTitle(draft.words)}
         </span>
-        <BarMarks group={draftGroupOf(draft.id)} />
       </button>
       <button
         aria-label="Close draft"

@@ -571,8 +571,9 @@ function updateCarry() {
     if (spare) {
       picture?.moveTo(point);
     } else if (followsCursor) {
-      const { x, y } = windowBoundsAt(carry, point);
-      from.setPosition(x, y);
+      // Its size named on every step: at a fractional scale on Windows, a move that
+      // names only where grows the window by a pixel each time.
+      from.setBounds(windowBoundsAt(carry, point));
     }
   }
 }

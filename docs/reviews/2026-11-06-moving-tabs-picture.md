@@ -134,6 +134,24 @@ Asked for once the drag felt right: whether it is safe to merge, above all in th
 - Where: `land` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
 - What: needs the target closed within the 400 ms after the release, with the tab already handed to it, so the tab is gone either way. Left alone for that reason.
 
+### W. A site's record outlives a window forgotten for good
+
+- Status: open
+- Where: `sitesNoLongerHere` in [app-window.tsx](/apps/studio/src/client/components/window/app-window.tsx)
+- What: a window only lets go of a site it has held itself, so one in a window past Reopen Closed Window stays in the shared file. It is a small record that loads nothing. Sweeping it from a window that never held it would have to know every closed window it could come back to.
+
+### X. A dragged window grew as it went on Windows
+
+- Status: fixed
+- Where: `updateCarry` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts), `moveTo` in [tab-picture.ts](/apps/studio/src/electron-main/windows/tab-picture.ts)
+- What: found by hand on the Windows test host at 150%, where a move naming only a place adds a pixel to the window each time. A window's only tab moves its window on every step of the pointer.
+
+### Y. A window can still gain a pixel per whole drag on fractional Windows
+
+- Status: open
+- Where: `origin` in `beginCarry` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
+- What: the size is read back at each press, and a window left at some positions reads a pixel larger than it was asked to be: 843 to 873 tall over 30 drags in a plain Electron window. Remembering the asked-for size would stop it, at the cost of state for what a resize undoes.
+
 ## Checked and found correct
 
 Tab and guest history traveling with a moved tab, the closed list staying per window, a closing window's guests going with it and its tabs reopening, kept state across windows and launches, window commands, read marks, notifications and deep links all held up when traced. No undo or redo of opening and closing tabs exists on main or here, only reopen.

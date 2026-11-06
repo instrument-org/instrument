@@ -458,8 +458,8 @@ export default function DeveloperNotesLayer({
     timer.current = window.setTimeout(fn, ms);
   };
   /** More sideways than up or down, the way a card's side is from its note. */
-  const isHeadingForCard = () =>
-    performance.now() - moved.current.at < HEADING_FOR_CARD_MS &&
+  const isHeadingForCard = (now: number) =>
+    now - moved.current.at < HEADING_FOR_CARD_MS &&
     Math.abs(moved.current.dx) > Math.abs(moved.current.dy) &&
     (card?.side === "right" ? moved.current.dx < 0 : moved.current.dx > 0);
 
@@ -485,7 +485,7 @@ export default function DeveloperNotesLayer({
 
   const onMove = (event: React.PointerEvent) => {
     const { at, x, y } = moved.current;
-    const now = performance.now();
+    const now = event.timeStamp;
     moved.current = {
       at: now,
       dx: now - at < HEADING_FOR_CARD_MS ? event.clientX - x : 0,
@@ -506,7 +506,7 @@ export default function DeveloperNotesLayer({
       };
       if (!card) {
         later(open, CARD_OPENS_AFTER_MS);
-      } else if (isHeadingForCard()) {
+      } else if (isHeadingForCard(event.timeStamp)) {
         later(open, HEADING_FOR_CARD_MS);
       } else {
         window.clearTimeout(timer.current);

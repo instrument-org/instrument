@@ -865,7 +865,7 @@ export const scenarios: DebugScenario[] = [
         rolloverNote,
         skillsNote,
         jobNote,
-        memoryNote(1),
+        memoryNote(40),
       ),
       stop(),
     ],

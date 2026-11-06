@@ -593,6 +593,11 @@ export default function DeveloperNotesLayer({
           onPointerDown={() => {
             setIsPinned(true);
           }}
+          // The scroller takes a wheel in React's tree, which this is inside,
+          // as the reader scrolling the transcript.
+          onWheel={(event) => {
+            event.stopPropagation();
+          }}
           popover="manual"
           ref={cardRef}
         >

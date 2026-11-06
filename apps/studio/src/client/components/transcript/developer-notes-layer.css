@@ -147,10 +147,16 @@
   top: anchor(top);
   position-try-fallbacks: --dn-card-up;
   margin: 0;
-  width: 360px;
-  max-height: 70vh;
-  padding: 8px 12px;
+  /* Up to this wide in the room between its line and the window's far edge, so
+     it always fits across and --dn-card-up can always fit it down the window. */
+  width: stretch;
+  max-width: 360px;
+  /* Layout px, so it grows with the words under zoom until the window stops it,
+     with room above and below for the band and for --dn-card-up's offset. */
+  max-height: min(400px, calc(100vh / var(--app-zoom, 1) - 80px));
+  padding: 0 12px 8px;
   overflow: auto;
+  overscroll-behavior: contain;
   font-size: 12px;
   line-height: 20px;
   color: var(--foreground);
@@ -165,16 +171,28 @@
 }
 [data-dn="card"][data-side="right"] {
   right: calc(anchor(left) + 8px);
+  left: 8px;
+  justify-self: end;
 }
 [data-dn="card"][data-side="left"] {
+  right: 8px;
   left: calc(anchor(right) + 8px);
+  justify-self: start;
 }
+/* It stays as the words scroll, so Copy is always in reach. */
 [data-dn="card-top"] {
+  position: sticky;
+  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 20px;
+  min-height: 28px;
+  padding-top: 8px;
+  background: var(--popover);
+}
+[data-dn="card"] > [data-dn="card-head"] {
+  padding-top: 8px;
 }
 [data-dn="card-head"] {
   display: block;

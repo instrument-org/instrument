@@ -216,6 +216,70 @@ it("keeps a send's slide as it is with the layer mounted, and stays out of its w
   expect(withLayer.after).toBe("visible");
 });
 
+it("scrolls a long card inside itself, with Copy in reach, and leaves the scroller out of it", async () => {
+  const onWheel = vi.fn();
+  const turn = turnId(0);
+  const body = {
+    text: Array.from({ length: 200 }, (_, at) => at.toString()).join("\n"),
+    wasSent: true,
+  };
+  const source = {
+    useBody: () => body,
+    useNotes: () => [noteOn(0)],
+  };
+  const { unmount } = await renderInBrowser(
+    <MessageScrollerProvider defaultScrollPosition="start">
+      <MessageScroller>
+        <MessageScrollerViewport
+          className="@container/transcript"
+          onWheel={onWheel}
+          style={{ height: 400 }}
+        >
+          <MessageScrollerContent data-content>
+            <MessageScrollerItem
+              data-transcript-row={`message:${turn}`}
+              style={{ height: 40 }}
+            />
+            <DeveloperNotesSourceContext value={source}>
+              <DeveloperNotesLayer
+                chatId={"chat" as ChatId}
+                sessionId={"ses" as StoreId.Session}
+                turns={[{ id: turn } as Turn]}
+              />
+            </DeveloperNotesSourceContext>
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>,
+  );
+  await vi.waitFor(() => {
+    expect(document.querySelector("[data-note]")).not.toBeNull();
+  });
+  document
+    .querySelector("[data-note]")
+    ?.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+  await vi.waitFor(() => {
+    expect(document.querySelector("[data-dn=card-words]")).not.toBeNull();
+  });
+  const card = document.querySelector<HTMLElement>("[data-dn=card]");
+  if (!card) {
+    throw new Error("no card");
+  }
+  expect(card.scrollHeight).toBeGreaterThan(card.clientHeight);
+  card.scrollTop = 1000;
+  await nextFrame();
+  const copy = card.querySelector("button")?.getBoundingClientRect();
+  const { top } = card.getBoundingClientRect();
+  expect(copy?.top).toBeGreaterThanOrEqual(top);
+  expect(copy?.bottom).toBeLessThan(top + 40);
+
+  card.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+  expect(onWheel).not.toHaveBeenCalled();
+  viewport().dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+  expect(onWheel).toHaveBeenCalledOnce();
+  await unmount();
+});
+
 it("keeps a fold's total off the page on either side of its Worked row, without growing the scroller", async () => {
   const turn = turnId(0);
   const row = "prt_in_the_fold";

@@ -230,6 +230,17 @@ describe("a tab in the hand", () => {
     expect(onPlace).toHaveBeenLastCalledWith("a", LEFT);
   });
 
+  it("keeps the point of the tab it was pressed at, however far the pointer came before the drag started", async () => {
+    const { carry } = renderPlaced();
+    carry.current.onDragStart("a", moved(0, 20, 62), 12);
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", movedTo(1));
+    });
+
+    expect(carry.current.held).toEqual({ key: "a", left: 40 });
+  });
+
   it("does nothing while the reorder repeats itself with the pointer at rest", async () => {
     const { carry, onPlace } = renderPlaced();
     carry.current.onDragStart("a", moved(0));

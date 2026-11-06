@@ -182,7 +182,8 @@ export function TabStrip({
   /** Where a tab being dragged is, which the strip's own reorder keeps to its row. */
   onTabDrag?: (key: string, event: PointerEvent) => void;
   onTabDragEnd?: (key: string, event: PointerEvent) => void;
-  onTabDragStart?: (key: string, event: PointerEvent) => void;
+  /** A tab's drag has started, `moved` px along from where it was pressed. */
+  onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
   selectedKey: string | undefined;
   tabs: StripTab[];
 }) {
@@ -446,10 +447,10 @@ export function TabStrip({
                   onTabDragEnd?.(tab.key, event);
                 }
               }}
-              onDragStart={(event) => {
+              onDragStart={(event, moved) => {
                 setDraggingKey(tab.key);
                 if (event instanceof PointerEvent) {
-                  onTabDragStart?.(tab.key, event);
+                  onTabDragStart?.(tab.key, event, moved);
                 }
               }}
               onSelect={() => {
@@ -607,7 +608,7 @@ function Tab({
   onContextMenu?: (event: React.MouseEvent) => void;
   onDrag?: (event: Event) => void;
   onDragEnd?: (event: Event) => void;
-  onDragStart?: (event: Event) => void;
+  onDragStart?: (event: Event, moved: number) => void;
   onSelect: () => void;
   onSelectRelative: (direction: -1 | 1) => void;
   showSeparator: boolean;
@@ -825,7 +826,9 @@ function Tab({
         dragTransition={SETTLE_DRAG}
         onDrag={onDrag}
         onDragEnd={onDragEnd}
-        onDragStart={onDragStart}
+        onDragStart={(event, { offset }) => {
+          onDragStart?.(event, offset.x);
+        }}
         transition={isReordering ? MAKE_WAY : LAND_IN_PLACE}
         {...(heldLeft === undefined
           ? {}

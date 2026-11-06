@@ -276,7 +276,6 @@ function press(
     isOffRow: isOnlyTab,
     isOnlyTab,
     moving: standing,
-    paintOut: { ground: "white", over: [] },
     pointInTab: 30,
     webContentsId: 1,
   });
@@ -394,7 +393,7 @@ describe("a tab let go in the open", () => {
 
     expect(end).toEqual({ kind: "losesTab" });
     expect(from.bounds).toEqual(BOUNDS);
-    expect(spareWindow.bounds).toMatchObject({ x: 1400, y: 1480 });
+    expect(spareWindow.bounds).toMatchObject({ x: 900, y: 1200 });
     expect(spareWindow.opacity).toBe(1);
     expect(spareWindow.focused).toBe(1);
     expect(adoptSpareWindow).toHaveBeenCalledWith(state.spare);
@@ -414,7 +413,7 @@ describe("a tab let go in the open", () => {
     expect(adoptSpareWindow).toHaveBeenCalledWith(state.spare);
     expect(handOffGuest).toHaveBeenCalledWith("next-page", 2);
     expect(handOffGuest).not.toHaveBeenCalledWith("own-page", 2);
-    expect(from.bounds).toMatchObject({ x: 1400, y: 1480 });
+    expect(from.bounds).toMatchObject({ x: 900, y: 1200 });
     expect(from.focused).toBe(1);
   });
 
@@ -647,6 +646,20 @@ describe("a window closing for a landing", () => {
 });
 
 describe("the release", () => {
+  it("opens a window across the pointer, and whole on the screen", async () => {
+    press();
+    const point = { x: 2900, y: 30 };
+    moveTo(point);
+    await letGo();
+
+    expect(spareWindow.bounds).toEqual({
+      height: 800,
+      width: 1200,
+      x: 1800,
+      y: 0,
+    });
+  });
+
   it("tells a strip the pointer has left since it was last read to stop showing the tab", async () => {
     press();
     moveTo(OVER_STRIP);

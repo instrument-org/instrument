@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  boundsAtRelease,
   boundsUnderPointer,
   landsBy,
   mergeFloats,
@@ -101,6 +102,37 @@ describe("a window under the pointer", () => {
         work,
       ),
     ).toEqual({ height: 1000, width: 1600, x: 0, y: 0 });
+  });
+});
+
+describe("a window opened for a tab let go in the open", () => {
+  const work = { height: 1000, width: 1600, x: 100, y: 25 };
+  const size = { height: 700, width: 1000 };
+
+  it("stands across the pointer, with the pointer just under its bar", () => {
+    expect(boundsAtRelease({ x: 800, y: 200 }, size, work)).toEqual({
+      ...size,
+      x: 300,
+      y: 160,
+    });
+  });
+
+  it.each([
+    ["left", { x: 120, y: 200 }, { x: 100, y: 160 }],
+    ["right", { x: 1690, y: 200 }, { x: 700, y: 160 }],
+    ["top", { x: 800, y: 30 }, { x: 300, y: 25 }],
+    ["bottom", { x: 800, y: 1020 }, { x: 300, y: 325 }],
+  ])("stays whole on the screen at the %s", (_side, point, expected) => {
+    expect(boundsAtRelease(point, size, work)).toEqual({
+      ...size,
+      ...expected,
+    });
+  });
+
+  it("is no bigger than the screen it is on", () => {
+    expect(
+      boundsAtRelease({ x: 800, y: 200 }, { height: 3000, width: 3000 }, work),
+    ).toEqual({ height: 1000, width: 1600, x: 100, y: 25 });
   });
 });
 

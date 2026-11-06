@@ -1,4 +1,8 @@
+import { clamp } from "radashi";
 import { z } from "zod";
+
+/** How far below a new window's top the pointer stands when a tab is let go in the open. */
+const BELOW_WINDOW_TOP_PX = 40;
 
 export interface Point {
   x: number;
@@ -102,6 +106,33 @@ export function boundsUnderPointer(
     width: Math.min(size.width, workArea.width),
     x: Math.round(point.x - grab.x),
     y: Math.round(point.y - grab.y),
+  };
+}
+
+/**
+ * Where a window opens for a tab let go in the open: across the pointer with the
+ * pointer just under its bar, or as near that as keeps all of it on the screen.
+ */
+export function boundsAtRelease(
+  point: Point,
+  size: { height: number; width: number },
+  workArea: Bounds,
+): Bounds {
+  const width = Math.min(size.width, workArea.width);
+  const height = Math.min(size.height, workArea.height);
+  return {
+    height,
+    width,
+    x: clamp(
+      Math.round(point.x - width / 2),
+      workArea.x,
+      workArea.x + workArea.width - width,
+    ),
+    y: clamp(
+      Math.round(point.y - BELOW_WINDOW_TOP_PX),
+      workArea.y,
+      workArea.y + workArea.height - height,
+    ),
   };
 }
 

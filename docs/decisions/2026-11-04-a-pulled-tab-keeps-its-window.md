@@ -26,5 +26,5 @@ On the release, the side with less to lose reopens. A tab with no page someone h
 
 - A hidden renderer is always running while the app is, about the cost of one more window with one quiet tab, so that a window is ready when the tab is let go.
 - A tab with no used page rebuilds, with its scroll and focus put back, and an untouched page in it loads again in the new window. A tab pulled out of a full-screen window always rebuilds. Used pages on both sides mean one reloads, the one not in the hand.
-- The pointer carries a picture of the page, not the page.
+- The pointer carries a picture of the window as it stands, not the tab, so floats that will stay behind are in it.
 - Moving a live page between renderers needs a change in Electron. Chromium's Surface Embed allows a guest to detach and attach elsewhere, and if `<webview>` moves onto it the cases that reload go away with no change to this design.

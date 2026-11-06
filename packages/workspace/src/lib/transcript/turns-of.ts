@@ -75,6 +75,11 @@ export interface TurnOpener {
   text?: SessionMessagePart.TextPart;
 }
 
+type RatingCardPart = Extract<
+  SessionMessagePart.DataPart,
+  { type: "data-ratingCard" }
+>;
+
 /** What the working line says of a turn in flight. */
 export type TurnLive =
   | { activityId: StoreId.Part; kind: "activity" }
@@ -102,6 +107,8 @@ export interface Turn {
   live?: TurnLive;
   opener?: TurnOpener;
   phase: "done" | "interrupted" | "working";
+  /** The card asking how it went, drawn after the turn and its footer. */
+  ratingCard?: RatingCardPart;
   /** Its assistant messages, for what its footer says of them. */
   replies: (SessionMessage.Assistant & { parts: TranscriptPart[] })[];
   rows: TurnRow[];
@@ -342,6 +349,9 @@ function buildTurn(
     .findLast((part) => part.type === "data-workSummary")?.data.words;
   const folded = foldedRows(rows, { cutAcross, phase });
   const startedAt = first.metadata.createdAt;
+  const ratingCard = body
+    .flatMap((message) => message.parts)
+    .find(isShownRatingCard);
   return {
     apps: unique(activities.flatMap((row) => row.apps)),
     ...(endedAt && { endedAt }),
@@ -353,6 +363,7 @@ function buildTurn(
     ...(isLive && { live: liveOf(rows, body, first) }),
     ...(opener && { opener }),
     phase,
+    ...(ratingCard && { ratingCard }),
     replies,
     rows,
     sites: unique(activities.flatMap((row) => row.sites)),
@@ -607,9 +618,15 @@ function factsByStep(body: readonly TranscriptMessage[]) {
 function isDataRow(part: TranscriptPart): part is SessionMessagePart.DataPart {
   return (
     part.type.startsWith("data-") &&
+    part.type !== "data-ratingCard" &&
     part.type !== "data-stepFacts" &&
     part.type !== "data-workSummary"
   );
+}
+
+/** The card asking how a turn went, unless the person closed it. */
+function isShownRatingCard(part: TranscriptPart): part is RatingCardPart {
+  return part.type === "data-ratingCard" && part.data.outcome !== "dismissed";
 }
 
 /**

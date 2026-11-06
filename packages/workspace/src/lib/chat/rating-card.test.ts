@@ -24,6 +24,10 @@ import { addCardIfDue, RATING_CARD_GAP_MS, ratingCardDue } from "./rating-card";
 
 const NOW = new Date("2026-11-05T15:00:00Z");
 
+/** Each message a moment after the last, as a chat's are. */
+let clock = NOW.getTime();
+const nextMoment = () => new Date((clock += 1000));
+
 const now = vi.hoisted(() => ({ current: new Date() }));
 vi.mock(import("../get-current-date"), () => ({
   getCurrentDate: () => now.current,
@@ -40,13 +44,14 @@ function messageOf(
   }) => SessionMessagePart.Type[],
 ): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
+  const createdAt = nextMoment();
   const meta = {
-    createdAt: NOW,
+    createdAt,
     id: StoreId.newPartId(),
     messageId: id,
     sessionId,
   };
-  const metadata = { createdAt: NOW, sessionId };
+  const metadata = { createdAt, sessionId };
   return {
     id,
     metadata:
@@ -106,15 +111,25 @@ describe("ratingCardDue", () => {
 
   it.each([
     ["one message and few steps", [said(id), replied(id, 2)], false],
-    [
-      "two messages and six steps",
-      [said(id), replied(id, 3), said(id), replied(id, 3)],
-      false,
-    ],
     ["one big job with one message", [said(id), replied(id, 40)], false],
     [
-      "two messages and ten steps",
-      [said(id), replied(id, 5), said(id), replied(id, 5)],
+      "a second message with four steps behind it",
+      [said(id), replied(id), said(id), replied(id, 4)],
+      false,
+    ],
+    [
+      "a second message with five steps behind it",
+      [said(id), replied(id), said(id), replied(id, 5)],
+      true,
+    ],
+    [
+      "coming back to a long chat with a short reply",
+      [said(id), replied(id, 110), said(id), replied(id)],
+      false,
+    ],
+    [
+      "five steps across the replies of one turn",
+      [said(id), replied(id), said(id), replied(id, 3), replied(id, 2)],
       true,
     ],
     ["a wake that nobody wrote", [said(id), wake(id), replied(id, 12)], false],
@@ -122,14 +137,16 @@ describe("ratingCardDue", () => {
     expect(due(chat)).toBe(expected);
   });
 
-  it("counts the steps of the chat's tasks", () => {
+  it("counts a task's steps taken since the person's last message", () => {
     const task = StoreId.newSessionId();
-    expect(
-      due(
-        [said(id), replied(id, 2), said(id), replied(id)],
-        [[replied(task, 8)]],
-      ),
-    ).toBe(true);
+    const chat = [said(id), replied(id), said(id)];
+    expect(due([...chat, replied(id)], [[replied(task, 8)]])).toBe(true);
+  });
+
+  it("leaves out a task's steps from before the person's last message", () => {
+    const task = StoreId.newSessionId();
+    const earlier = replied(task, 8);
+    expect(due([said(id), said(id), replied(id)], [[earlier]])).toBe(false);
   });
 
   it("is due once per chat", () => {

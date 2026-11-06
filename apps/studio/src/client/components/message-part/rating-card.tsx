@@ -1,5 +1,6 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { Button } from "@/client/components/ui/button";
+import { ButtonGroup } from "@/client/components/ui/button-group";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -12,22 +13,29 @@ import {
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
+import { SmileyIcon } from "@phosphor-icons/react/Smiley";
+import { SmileyMehIcon } from "@phosphor-icons/react/SmileyMeh";
+import { SmileySadIcon } from "@phosphor-icons/react/SmileySad";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation } from "@tanstack/react-query";
 
 import { ToolCard } from "./tool-card";
 
-const ANSWERS: readonly { label: string; tag: FeedbackTag }[] = [
-  { label: "Good", tag: "good" },
-  { label: "Fine", tag: "okay" },
-  { label: "Bad", tag: "bad" },
+const ANSWERS: readonly {
+  Icon: typeof SmileyIcon;
+  label: string;
+  tag: FeedbackTag;
+}[] = [
+  { Icon: SmileyIcon, label: "Good", tag: "good" },
+  { Icon: SmileyMehIcon, label: "Fine", tag: "okay" },
+  { Icon: SmileySadIcon, label: "Bad", tag: "bad" },
 ];
 
 /**
- * The card asking how the chat went, in the transcript after the reply it
- * came with. It stays there until the person closes it or sends. An answer
- * opens the feedback dialog with its tag picked, and canceling the dialog
- * leaves the card waiting.
+ * The card asking how the chat went, in the transcript under the footer of the
+ * turn it came after. It stays there until the person closes it or sends. An
+ * answer opens the feedback dialog with its tag picked, and canceling the
+ * dialog leaves the card waiting.
  */
 export function RatingCard({
   chatId,
@@ -57,7 +65,7 @@ export function RatingCard({
   return (
     <ToolCard
       className={cn(
-        "relative max-w-130 p-3.5",
+        "relative mt-0 max-w-130 p-3.5",
         sent ? "border-transparent bg-foreground/4" : "shadow-xs",
       )}
     >
@@ -80,7 +88,7 @@ export function RatingCard({
           <MegaphoneSimpleIcon className="size-3.75" weight="bold" />
         </span>
         <div className="min-w-0 flex-1 pt-0.75">
-          <p className="text-sm font-medium">How did that go?</p>
+          <p className="text-sm font-medium">How did {APP_NAME} do here?</p>
           {sent ? (
             <p className="mt-1 flex items-center gap-1.5 text-[13px] text-muted-foreground">
               <CheckIcon className="size-3.5 text-brand-600" />
@@ -89,11 +97,14 @@ export function RatingCard({
           ) : (
             <>
               <p className="mt-1 text-[13px] text-pretty text-muted-foreground">
-                {APP_NAME} is new, and we read every note you send.
+                We're working hard to improve it, and we read every note you
+                send.
               </p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                {ANSWERS.map(({ label, tag }) => (
+              <ButtonGroup aria-label="Your answer" className="mt-2.5">
+                {ANSWERS.map(({ Icon, label, tag }) => (
                   <Button
+                    // The group joins them, so neighbors share one border.
+                    className="not-first:-ml-px"
                     key={tag}
                     onClick={() => {
                       openReportDialog(
@@ -110,10 +121,11 @@ export function RatingCard({
                     size="sm"
                     variant="outline"
                   >
+                    <Icon />
                     {label}
                   </Button>
                 ))}
-              </div>
+              </ButtonGroup>
             </>
           )}
         </div>

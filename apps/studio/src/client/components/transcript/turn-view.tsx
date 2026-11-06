@@ -23,6 +23,7 @@ import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { MessageError } from "../message-error";
+import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
 import { SentFoldersCard } from "../sent-folders-card";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
@@ -258,6 +259,9 @@ function TurnBody({
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
         <AssistantMessagesFooter messages={turn.replies} />
+      )}
+      {turn.ratingCard && (
+        <RatingCard chatId={chatInfo.id} part={turn.ratingCard} />
       )}
     </>
   );

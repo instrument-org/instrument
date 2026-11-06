@@ -20,7 +20,6 @@ import { FilePathsGrid } from "../agent-files-block";
 import { AppEventNote } from "../app-event-note";
 import { FolderChangesNote } from "../folder-changes-note";
 import { ChatDevOnly } from "../dev-mode-card";
-import { RatingCard } from "../message-part/rating-card";
 import { PermissionAnswerNote } from "../permission-asks";
 import { ModelChangeNote } from "../model-change-note";
 import { ModelContextDebugCard } from "../model-context-debug-card";
@@ -63,15 +62,6 @@ export function renderDataPart({
     case "data-asks": {
       return <SentAsksNote data={part.data} key={part.metadata.id} />;
     }
-    case "data-ratingCard": {
-      return (
-        <RatingCard
-          chatId={ctx.chatInfo.id}
-          key={part.metadata.id}
-          part={part}
-        />
-      );
-    }
     case "data-folderChanges": {
       return (
         <FolderChangesNote
@@ -82,6 +72,7 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
+    case "data-ratingCard":
     case "data-stepFacts":
     case "data-workSummary":
     case "data-questionAnswer":

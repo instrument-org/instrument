@@ -338,6 +338,25 @@ describe("turnsOf", () => {
     expect(working?.phase).toBe("working");
   });
 
+  it("keeps the card asking how it went out of the rows", () => {
+    const card = (data: { outcome?: "dismissed" | "sent" }) =>
+      turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            said(id, "Done."),
+            { data, metadata: meta(id), type: "data-ratingCard" },
+          ]),
+        ],
+        { isRunning: false },
+      )[0];
+    const waiting = card({});
+    expect(waiting?.ratingCard?.data).toEqual({});
+    expect(waiting?.rows.map((row) => row.kind)).toEqual(["text"]);
+    expect(card({ outcome: "sent" })?.ratingCard?.data.outcome).toBe("sent");
+    expect(card({ outcome: "dismissed" })?.ratingCard).toBeUndefined();
+  });
+
   it("waits for the summary or the wait, whichever comes first", () => {
     const messages = [
       typed("Do the thing"),
@@ -621,13 +640,24 @@ describe("the slot", () => {
     ["being declined", ["notion"], [["declined", "notion"]], true],
     ["the app going", ["notion"], [["removed", "notion"]], true],
     ["a failure, to try again", ["notion"], [["failed", "notion"]], false],
-    ["a retry that worked", ["notion"], [["failed", "notion"], ["connected", "notion"]], true],
+    [
+      "a retry that worked",
+      ["notion"],
+      [
+        ["failed", "notion"],
+        ["connected", "notion"],
+      ],
+      true,
+    ],
     ["another app's news", ["notion"], [["connected", "linear"]], false],
     ["one app of two", ["notion", "linear"], [["connected", "notion"]], false],
     [
       "both apps of two",
       ["notion", "linear"],
-      [["connected", "notion"], ["declined", "linear"]],
+      [
+        ["connected", "notion"],
+        ["declined", "linear"],
+      ],
       true,
     ],
   ])("folds a sign-in or not after %s", (_name, apps, events, folds) => {
@@ -991,16 +1021,29 @@ describe("a failed attempt", () => {
       ...(words === undefined ? [] : [said(id, words)]),
     ]);
   const errorRows = (messages: TranscriptMessage[]) =>
-    (turnsOf([typed("Do the thing"), ...messages], { isRunning: true })[0]?.rows ?? []).flatMap(
-      (row) => (row.kind === "error" ? [row.isLatestAttempt] : []),
-    );
+    (
+      turnsOf([typed("Do the thing"), ...messages], { isRunning: true })[0]
+        ?.rows ?? []
+    ).flatMap((row) => (row.kind === "error" ? [row.isLatestAttempt] : []));
 
   it.each([
     ["stands as the last message", () => [failed()], [true]],
-    ["stands above a retry that has said nothing", () => [failed(), retry()], [true]],
+    [
+      "stands above a retry that has said nothing",
+      () => [failed(), retry()],
+      [true],
+    ],
     ["goes once the retry says something", () => [failed(), retry("Hi")], []],
-    ["gives way to a retry that failed too", () => [failed(), failed()], [true]],
-    ["gives way when two retries are past it", () => [failed(), failed(), retry()], [true]],
+    [
+      "gives way to a retry that failed too",
+      () => [failed(), failed()],
+      [true],
+    ],
+    [
+      "gives way when two retries are past it",
+      () => [failed(), failed(), retry()],
+      [true],
+    ],
   ])("%s", (_name, messages, expected) => {
     expect(errorRows(messages())).toEqual(expected);
   });

@@ -505,7 +505,7 @@ function RowView({
         <MessageError
           chatId={chatInfo.id}
           compact
-          endedTurn={row.endedTurn}
+          draws={row.draws}
           isAgentRunning={isLast && actions.isRunning}
           isLastMessage={row.isLastMessage}
           isLatestAttempt={row.isLatestAttempt}

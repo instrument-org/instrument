@@ -32,11 +32,13 @@ export function isStopNote(message: SessionMessage.WithParts): boolean {
     message.parts.length > 0 &&
     message.parts.every(
       (part) =>
-        part.type === "data-taskEvent" &&
-        part.data.events.length > 0 &&
-        part.data.events.every(
-          (event) => event.stoppedBy === "app" || event.stoppedBy === "person",
-        ),
+        part.type === "data-requestFailure" ||
+        (part.type === "data-taskEvent" &&
+          part.data.events.length > 0 &&
+          part.data.events.every(
+            (event) =>
+              event.stoppedBy === "app" || event.stoppedBy === "person",
+          )),
     )
   );
 }

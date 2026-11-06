@@ -290,9 +290,29 @@ export const llmRequestLogic = fromPromise<
   });
 
   if (messagesResult.isErr()) {
-    throw new Error(
-      `Error preparing model messages: ${JSON.stringify(messagesResult.error)}`,
-    );
+    const error = `Error preparing model messages: ${JSON.stringify(messagesResult.error)}`;
+    // No reply was saved to hold this, so the session's last message keeps it.
+    const last = (
+      await ChatReads.messageIds({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+      })
+    )
+      .unwrapOr([])
+      .at(-1);
+    if (last !== undefined) {
+      await writes.savePart({
+        data: { error },
+        metadata: {
+          createdAt: getCurrentDate(),
+          id: StoreId.newPartId(),
+          messageId: last,
+          sessionId: input.sessionId,
+        },
+        type: "data-requestFailure",
+      });
+    }
+    throw new Error(error);
   }
 
   // Read before this step's message is stored, so the turn it describes is

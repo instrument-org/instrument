@@ -5,6 +5,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { askedOnCard } from "../../tools/connect-app-output";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
+import { type ErrorOutcome, errorOutcomeOf } from "./error-outcome";
 import {
   isStepPart,
   type StepPart,
@@ -44,7 +45,8 @@ export type TurnRow =
       part: SessionMessagePart.ToolPart;
     }
   | {
-      endedTurn: boolean;
+      /** What it draws: see `ErrorOutcome`. */
+      draws: Exclude<ErrorOutcome["draws"], "none">;
       id: string;
       isLastMessage: boolean;
       /** Last, or above a retry that has said nothing yet, so what it says stands. */
@@ -419,7 +421,7 @@ function openerOf(message: TranscriptMessage): TurnOpener {
 
 function rowsOf(
   body: readonly TranscriptMessage[],
-  { lastMessage }: BuildOptions,
+  { isLive, lastMessage }: BuildOptions,
 ): TurnRow[] {
   const rows: TurnRow[] = [];
   const facts = factsByStep(body);
@@ -454,7 +456,6 @@ function rowsOf(
       continue;
     }
     const next = body[index + 1];
-    const endedTurn = next?.role !== "assistant";
     const isLastMessage = message.id === lastMessage?.id;
     const isLatestAttempt =
       isLastMessage ||
@@ -462,12 +463,13 @@ function rowsOf(
         next?.role === "assistant" &&
         !next.metadata.error &&
         next.parts.length === 0);
-    const error = message.metadata.error;
-    const superseded = error?.kind === "aborted";
-    const retriedAway = isRetriedAway(message.metadata, {
-      endedTurn,
-      isLastMessage,
+    const outcome = errorOutcomeOf(message, {
+      isLive,
+      lastMessageId: lastMessage?.id,
+      next,
     });
+    // Its words went with it: the retry says them whole.
+    const retriedAway = outcome?.cause.startsWith("Retried:") === true;
     for (const part of message.parts) {
       if (part.type === "text") {
         if (
@@ -519,15 +521,10 @@ function rowsOf(
         rows.push({ id: part.metadata.id, kind: "note", part });
       }
     }
-    if (
-      error &&
-      !superseded &&
-      (!retriedAway || isLatestAttempt) &&
-      !isSameRefusal(message, next)
-    ) {
+    if (outcome && outcome.draws !== "none") {
       open = undefined;
       rows.push({
-        endedTurn,
+        draws: outcome.draws,
         id: `error-${message.id}`,
         isLastMessage,
         isLatestAttempt,
@@ -736,50 +733,6 @@ function withoutRepeat(
  */
 function saysNothing(text: string): boolean {
   return /^[\s`~]*$/.test(text);
-}
-
-/**
- * Whether a reply failed in a way its turn went on past, with another of the
- * agent's messages after it, which is the retry: a throttle, a provider's
- * passing problem, or a refusal of media the retry left out, which the agent
- * tells the person about itself. A failure the turn ended on was never retried.
- */
-function isRetriedAway(
-  {
-    error,
-    refusedMedia,
-  }: Pick<SessionMessage.Assistant["metadata"], "error" | "refusedMedia">,
-  { endedTurn, isLastMessage }: { endedTurn: boolean; isLastMessage: boolean },
-): boolean {
-  const classification =
-    error && "classification" in error ? error.classification : undefined;
-  return (
-    (classification === "rate-limit" ||
-      classification === "transient" ||
-      (refusedMedia?.length ?? 0) > 0) &&
-    !isLastMessage &&
-    !endedTurn
-  );
-}
-
-/** A run of the same refusal, one per retry, reads as one: only the latest. */
-function isSameRefusal(
-  message: TranscriptMessage,
-  next: TranscriptMessage | undefined,
-): boolean {
-  if (message.role !== "assistant" || next?.role !== "assistant") {
-    return false;
-  }
-  const error = message.metadata.error;
-  const nextError = next.metadata.error;
-  if (!error || !nextError || error.kind !== nextError.kind) {
-    return false;
-  }
-  const classification =
-    "classification" in error ? error.classification : undefined;
-  const nextClassification =
-    "classification" in nextError ? nextError.classification : undefined;
-  return classification !== undefined && classification === nextClassification;
 }
 
 /**

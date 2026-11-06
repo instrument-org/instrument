@@ -26,12 +26,20 @@ interface MessageErrorDescription {
  * class carried it, because the same condition arrives as either depending on
  * whether the provider had already sent its response headers.
  *
- * The original text is not thrown away -- `MessageError` still shows it under
- * developer mode, which is where a message written for an integrator belongs.
+ * The original text is not thrown away: a developer's margin note on the reply
+ * has it whole, which is where a message written for an integrator belongs.
  */
 export function describeMessageError(
   error: MessageError,
 ): MessageErrorDescription {
+  if (error.kind === "aborted" && error.reason === "timeout") {
+    return {
+      detail:
+        "The model stopped sending anything, so this reply didn't finish. You can try again.",
+      summary: "Model stopped responding",
+    };
+  }
+
   // Ahead of the classification, which is `transient`: a reply that stopped
   // partway is worth naming as that rather than as a provider problem. The
   // message is what both shapes of it keep.

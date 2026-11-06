@@ -44,6 +44,7 @@ export namespace SessionMessageDataPart {
     "chatContext",
     "project",
     "ratingCard",
+    "requestFailure",
     "requestNote",
     "unknown",
     "viewContext",
@@ -112,6 +113,7 @@ export namespace SessionMessageDataPart {
     toolResultsCleared: "event",
     project: "state",
     ratingCard: "event",
+    requestFailure: "event",
     requestNote: "event",
     unknown: "unwritten",
     viewContext: "state",
@@ -1387,6 +1389,16 @@ export namespace SessionMessageDataPart {
    * model never reads this part, so the request's bytes stay what they were; it
    * is here so a developer can see afterward what steered a step.
    */
+  /**
+   * A request that failed while it was being built, before any reply was saved
+   * to hold its error: kept on the session's last message, for a developer, and
+   * read by no request.
+   */
+  const RequestFailureDataPartSchema = z.object({
+    /** What the failure said, as the request's assembly reported it. */
+    error: z.string(),
+  });
+
   const RequestNoteDataPartSchema = z.object({
     kind: z.enum(["budget", "correction", "output-limit", "rollover", "turn"]),
     text: z.string(),
@@ -1406,6 +1418,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.project]: ProjectDataPartSchema,
     [NameSchema.enum.ratingCard]: RatingCardDataPartSchema,
+    [NameSchema.enum.requestFailure]: RequestFailureDataPartSchema,
     [NameSchema.enum.requestNote]: RequestNoteDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,

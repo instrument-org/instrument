@@ -99,6 +99,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // What one request went out with, kept for the margins; nobody reads it in
   // the column and the model never reads it at all.
   "data-requestNote": "hidden",
+  // A request that failed before any reply was saved, for the margins too.
+  "data-requestFailure": "hidden",
   "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",

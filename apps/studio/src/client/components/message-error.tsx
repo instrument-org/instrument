@@ -40,7 +40,6 @@ import {
 import { readModelStatus } from "../lib/model-status";
 import { feedbackReport } from "../lib/problem-reports";
 import { planAccountStop, planAccountStopLine } from "../lib/plan-account-stop";
-import { isRetriedAway } from "../lib/retried-away";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
@@ -66,8 +65,8 @@ interface MessageErrorProps {
    * the actions, with our sentence and the provider's account under Details.
    */
   compact?: boolean;
-  /** No reply of the agent's followed it before the user wrote again. */
-  endedTurn?: boolean;
+  /** What `errorOutcomeOf` decided it draws; a card when nothing says otherwise. */
+  draws?: "card" | "nothing" | "online-retry";
   isAgentRunning: boolean;
   isLastMessage: boolean;
   /** Last, or above a retry that hasn't said anything yet (`isLatestAttempt`). */
@@ -109,7 +108,7 @@ function ErrorMark() {
 export function MessageError({
   chatId,
   compact = false,
-  endedTurn = false,
+  draws = "card",
   isAgentRunning,
   isLastMessage,
   isLatestAttempt = isLastMessage,
@@ -150,7 +149,7 @@ export function MessageError({
       }),
   });
 
-  if (!error) {
+  if (!error || draws === "nothing") {
     return null;
   }
 
@@ -163,9 +162,6 @@ export function MessageError({
     if (platformError?.code === "concurrency-limit") {
       if (isLastMessage && isAgentRunning) {
         return <WaitingForCapacityLine />;
-      }
-      if (!isLastMessage) {
-        return null;
       }
     }
     return <BillingStopLine text={stopLine} />;
@@ -188,15 +184,7 @@ export function MessageError({
   }
   const classification =
     "classification" in error ? error.classification : undefined;
-  // Each of these describes a problem the user no longer has: a turn they
-  // stopped themselves, a throttle the machine waited out, or media the
-  // provider refused that the retry left out, before the turn that followed
-  // succeeded. One the turn ended on was never waited out, and
-  // stays where it happened after the user writes again.
-  if (
-    error.kind === "aborted" ||
-    isRetriedAway(message.metadata, { endedTurn, isLastMessage })
-  ) {
+  if (draws === "online-retry") {
     return null;
   }
 

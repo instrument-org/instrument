@@ -118,6 +118,7 @@ function openDetails() {
 
 function renderError({
   canRunAgain = true,
+  draws,
   isAgentRunning = false,
   error = {
     classification: "rate-limit",
@@ -130,6 +131,7 @@ function renderError({
   onModelChange = vi.fn(),
 }: {
   canRunAgain?: boolean;
+  draws?: "card" | "nothing" | "online-retry";
   error?: MessageErrorData;
   isAgentRunning?: boolean;
   isLastMessage?: boolean;
@@ -141,6 +143,7 @@ function renderError({
     <TooltipProvider>
       <MessageError
         chatId={ChatIdSchema.parse("2026-10-29-model-error")}
+        draws={draws}
         isAgentRunning={isAgentRunning}
         isLastMessage={isLastMessage}
         isLatestAttempt={isLatestAttempt}
@@ -389,7 +392,10 @@ describe("MessageError", () => {
   });
 
   it("says nothing about a throttle the session already got past", () => {
-    const { container } = renderError({ isLastMessage: false });
+    const { container } = renderError({
+      draws: "online-retry",
+      isLastMessage: false,
+    });
 
     expect(container.innerHTML).toBe("");
   });
@@ -440,6 +446,7 @@ describe("MessageError", () => {
     it("gives way once a later attempt has said something", () => {
       network.status = "offline";
       const { container } = renderError({
+        draws: "online-retry",
         error: NEVER_CONNECTED,
         isAgentRunning: true,
         isLastMessage: false,
@@ -557,6 +564,7 @@ describe("MessageError", () => {
 
     it("says nothing about a wait the turn got past", () => {
       const { container } = renderError({
+        draws: "nothing",
         error: refusal({ code: "concurrency-limit" }, 429),
         isLastMessage: false,
       });

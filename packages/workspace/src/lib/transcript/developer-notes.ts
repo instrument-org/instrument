@@ -5,6 +5,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { dataPartVisibility } from "../data-part-visibility";
+import { errorOutcomeOf } from "./error-outcome";
 import {
   isStepPart,
   thoughtText,
@@ -101,12 +102,6 @@ function noteName(type: string): string {
     .replace(/^data-/, "")
     .replaceAll(/([A-Z])/g, " $1")
     .toLowerCase();
-}
-
-function errorLabel(
-  error: NonNullable<SessionMessage.Assistant["metadata"]["error"]>,
-): string {
-  return error.kind === "aborted" ? "Stopped" : `Error: ${error.kind}`;
 }
 
 function awayFor(minutes: number): string {
@@ -257,6 +252,9 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     case "data-stepFacts":
     case "data-workSummary": {
       return noteName(part.type);
+    }
+    case "data-requestFailure": {
+      return "Failed before sending";
     }
     case "data-requestNote": {
       return REQUEST_NOTE_NAMES[part.data.kind];
@@ -421,6 +419,7 @@ export function developerNotesWithBodies(
   });
 
   const light = stored.flatMap((message) => transcriptMessage(message) ?? []);
+  const lightById = new Map(light.map((message) => [message.id, message]));
   const turns = turnsOf(light, { isRunning: false, sessionId });
   const startedTask = new Map<string, StoreId.Part>();
   for (const message of light) {
@@ -511,33 +510,50 @@ export function developerNotesWithBodies(
         if (said) {
           seen.push({
             at: opens ? opensWith : own,
-            note: { ...said, side: each.role === "user" ? "right" : "left" },
+            note: {
+              ...said,
+              side:
+                each.role === "user" && said.kind !== "error"
+                  ? "right"
+                  : "left",
+            },
           });
         }
       }
-      const error = each.role === "assistant" ? each.metadata.error : undefined;
-      if (error && each.role === "assistant") {
+      const lightMessage = lightById.get(each.id);
+      const lightAt = lightMessage ? light.indexOf(lightMessage) : -1;
+      const outcome =
+        lightMessage &&
+        errorOutcomeOf(lightMessage, {
+          isLive: false,
+          lastMessageId: light.at(-1)?.id,
+          next: light[lightAt + 1],
+        });
+      if (outcome && each.role === "assistant") {
+        // Whatever a customer sees of it, this is where a developer reads it:
+        // its cause, and everything the provider said.
         const row = turn.rows.find(
           (candidate) =>
             candidate.kind === "error" && candidate.message.id === each.id,
         );
-        if (row) {
-          seen.push({ row: rowOfError(row) });
-        } else {
-          seen.push({
-            note: {
-              body: {
-                detail: JSON.stringify(error, null, 2),
-                wasSent: false,
-              },
-              id: `error-${each.id}`,
-              kind: "error",
-              label: errorLabel(error),
-              looks: "forward",
-              side: "left",
-            },
-          });
+        const place = row && rowOfError(row);
+        if (place) {
+          seen.push({ row: place });
         }
+        seen.push({
+          at: place,
+          note: {
+            body: {
+              detail: JSON.stringify(each.metadata.error, null, 2),
+              wasSent: false,
+            },
+            id: `error-${each.id}`,
+            kind: "error",
+            label: outcome.cause,
+            looks: "forward",
+            side: "left",
+          },
+        });
       }
     }
 
@@ -609,6 +625,15 @@ export function developerNotesWithBodies(
       return undefined;
     }
     // What went out with a request is beside the first row that request made.
+    if (part.type === "data-requestFailure") {
+      return {
+        body: { detail: part.data.error, wasSent: false },
+        id: part.metadata.id,
+        kind: "error",
+        label: labelOf(part),
+        looks: "forward",
+      };
+    }
     if (part.type === "data-requestNote") {
       return {
         body: { text: part.data.text, wasSent: true },

@@ -815,7 +815,8 @@ function digestOf(
         (part) =>
           part.type === "data-taskEvent" ||
           part.type === "data-appEvent" ||
-          part.type === "data-jobEvent",
+          part.type === "data-jobEvent" ||
+          part.type === "data-requestFailure",
       ),
   );
   const spoken = messages.findLast(

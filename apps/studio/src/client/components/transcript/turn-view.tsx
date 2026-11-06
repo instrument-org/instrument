@@ -48,18 +48,19 @@ const FOLD_TRANSITION = { duration: 0.24, ease: [0.32, 0.72, 0, 1] } as const;
 const ROW_GAP = 8;
 
 /** How long the agent may sit between things before the transcript says it is thinking. */
-const THINKING_AFTER_MS = 500;
+const THINKING_AFTER_MS = 1000;
 
 /**
  * A row that closes as the fold takes it, told by `AnimatePresence`'s `custom`.
  * A row leaving for any other reason just goes, or what is under it would slide
  * up for no reason the reader can see.
  */
-function FoldingRow({ children }: { children: ReactNode }) {
+function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
   const isReduced = useReducedMotion();
   return (
     <motion.div
       className="flex min-w-0 flex-col gap-2 empty:hidden"
+      data-transcript-row={id}
       exit="leaving"
       variants={{
         leaving: (isFolding: boolean) =>
@@ -105,6 +106,7 @@ export const TurnView = memo(function TurnView({
       {turn.opener && (
         <MessageScrollerItem
           className="flex flex-col gap-1"
+          data-transcript-row={`message:${turn.id}`}
           messageId={turn.opener.message.id}
           scrollAnchor
         >
@@ -234,7 +236,7 @@ function TurnBody({
     }
     if (!isFolded || !turn.foldedRowIds.has(row.id)) {
       out.push(
-        <FoldingRow key={row.id}>
+        <FoldingRow id={row.id} key={row.id}>
           <RowView
             chatInfo={chatInfo}
             isLive={
@@ -269,13 +271,17 @@ function TurnBody({
         </p>
       )}
       {turn.live?.kind === "thinking" && !waitsForStep && (
-        <ThinkingRow since={turn.live.since} />
+        <div data-transcript-row={`thinking:${turn.id}`}>
+          <ThinkingRow since={turn.live.since} />
+        </div>
       )}
       {turn.phase !== "working" && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
-        <AssistantMessagesFooter messages={turn.replies} />
+        <div data-transcript-row={`footer:${turn.id}`}>
+          <AssistantMessagesFooter messages={turn.replies} />
+        </div>
       )}
       {turn.ratingCard && (
         <RatingCard chatId={chatInfo.id} part={turn.ratingCard} />
@@ -351,7 +357,7 @@ export function ThinkingRow({ since }: { since: Date }) {
     return null;
   }
   return (
-    <div className="animate-in duration-200 fade-in-0 motion-reduce:animate-none">
+    <div className="animate-in duration-300 fade-in-0 motion-reduce:animate-none">
       <RowLine
         isLive
         label="Thinking"
@@ -385,6 +391,7 @@ function WorkedRow({
         transitionEnd: { overflow: "visible" },
       }}
       className="min-w-0"
+      data-transcript-row={`worked:${turn.id}`}
       initial={{
         height: 0,
         marginTop: -ROW_GAP,
@@ -421,13 +428,14 @@ function WorkedRow({
                 {turn.rows
                   .filter((row) => turn.foldedRowIds.has(row.id))
                   .map((row) => (
-                    <RowView
-                      chatInfo={chatInfo}
-                      isLast={false}
-                      isLive={false}
-                      key={row.id}
-                      row={row}
-                    />
+                    <div data-transcript-row={row.id} key={row.id}>
+                      <RowView
+                        chatInfo={chatInfo}
+                        isLast={false}
+                        isLive={false}
+                        row={row}
+                      />
+                    </div>
                   ))}
               </div>
             </motion.div>
@@ -483,7 +491,9 @@ function RowView({
     }
     case "text": {
       return (
-        <div data-reply-row={row.part.metadata.id}>
+        // As tall as the row it replaces, so the transcript does not shrink under
+        // a message held at the top when Thinking gives way to a one-line reply.
+        <div className="min-h-7" data-reply-row={row.part.metadata.id}>
           <AssistantMessage chatId={chatInfo.id} part={row.part} />
         </div>
       );
@@ -523,5 +533,9 @@ function NoteRow({
   if (node === null) {
     return null;
   }
-  return <DeveloperNote part={part}>{node}</DeveloperNote>;
+  return (
+    <div className="min-w-0" data-transcript-row={part.metadata.id}>
+      <DeveloperNote part={part}>{node}</DeveloperNote>
+    </div>
+  );
 }

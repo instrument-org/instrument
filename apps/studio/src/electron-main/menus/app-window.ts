@@ -20,11 +20,11 @@ import {
 
 import { createOtherWindowViewMenu } from "./other-window";
 import {
-  createAppMenu,
   createDevToolsMenu,
   createEditMenu,
   createHelpMenu,
   createWindowMenu,
+  withAppMenu,
 } from "./utils";
 
 const IS_MAC = process.platform === "darwin";
@@ -321,8 +321,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
-  return [
-    createAppMenu(),
+  return withAppMenu([
     fileMenu,
     createEditMenu(),
     viewMenu,
@@ -343,7 +342,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
       },
     }),
     ...(isDeveloperMode() ? createDevToolsMenu({ windowCommands: true }) : []),
-  ];
+  ]);
 }
 
 /**

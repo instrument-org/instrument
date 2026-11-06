@@ -6,11 +6,11 @@ import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type MenuItemConstructorOptions } from "electron";
 
 import {
-  createAppMenu,
   createDevToolsMenu,
   createEditMenu,
   createHelpMenu,
   createWindowMenu,
+  withAppMenu,
 } from "./utils";
 
 export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
@@ -25,15 +25,14 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
-  return [
-    createAppMenu(),
+  return withAppMenu([
     fileMenu,
     createEditMenu(),
     createOtherWindowViewMenu(),
     ...createWindowMenu(),
     createHelpMenu(),
     ...(isDeveloperMode() ? createDevToolsMenu() : []),
-  ];
+  ]);
 }
 
 /**

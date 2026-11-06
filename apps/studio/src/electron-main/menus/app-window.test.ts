@@ -17,7 +17,7 @@ vi.mock("./other-window", () => ({
   createOtherWindowViewMenu: () => ({ label: "View", submenu: [] }),
 }));
 vi.mock("./utils", () => ({
-  createAppMenu: () => ({ label: "App" }),
+  withAppMenu: (menus: unknown[]) => [{ label: "App" }, ...menus],
   createDevToolsMenu: () => [],
   createEditMenu: () => ({ label: "Edit" }),
   createHelpMenu: () => ({ label: "Help" }),

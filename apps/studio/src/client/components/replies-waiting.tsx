@@ -7,7 +7,7 @@ import { draftsAtom } from "@/client/drafts/store";
 import { withoutPathQuotes } from "@/client/lib/path-text";
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { useAtomValue } from "jotai";
 
 import { RelativeTime } from "./relative-time";
@@ -61,7 +61,7 @@ export function RepliesWaiting({
           size="xs"
           variant="ghost"
         >
-          <CardsThreeIcon />
+          <CircleDashedIcon />
           {countOf(others.length, inTheBox)}
         </Button>
       </DropdownMenuTrigger>

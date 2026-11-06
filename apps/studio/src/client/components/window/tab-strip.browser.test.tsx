@@ -104,6 +104,40 @@ describe("a tab dragged in its own strip", () => {
   });
 });
 
+describe("a tab's long name", () => {
+  it("is gone before its close button starts", async () => {
+    await renderInBrowser(
+      <div style={{ width: 800 }}>
+        <TabStrip
+          onClose={() => undefined}
+          onSelect={() => undefined}
+          selectedKey="long"
+          tabs={[
+            {
+              icon: <span />,
+              key: "long",
+              title:
+                "A name far too long to fit in any tab there could ever be",
+            },
+          ]}
+        />
+      </div>,
+    );
+    const title = tab("long").querySelector(".tab-title-fade");
+    const close = tab("long").querySelector("button");
+    if (!title || !close) {
+      throw new Error("no title or close button");
+    }
+    const stops = [
+      ...getComputedStyle(title).maskImage.matchAll(
+        /calc\(100% - ([\d.]+)px\)/g,
+      ),
+    ].map((stop) => Number(stop[1]));
+    const gone = title.getBoundingClientRect().right - Math.min(...stops);
+    expect(gone).toBeLessThan(close.getBoundingClientRect().left);
+  });
+});
+
 describe("a drag's start", () => {
   it("says how far the pointer had come from the press by then", async () => {
     const started: number[] = [];

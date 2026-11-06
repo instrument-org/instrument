@@ -5729,7 +5729,12 @@ function FileSystemTableView({
             <div
               className="relative min-h-full"
               ref={rowsRef}
-              style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
+              // One empty stripe past the last row, so a folder too long for
+              // the window still has somewhere to press that lets go.
+              style={{
+                ...LIST_STRIPES,
+                height: (rows.length + 1) * LIST_ROW_HEIGHT,
+              }}
             >
               <div
                 className="absolute inset-x-0 flex flex-col"

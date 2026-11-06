@@ -1548,6 +1548,19 @@ describe("the keyboard", () => {
     });
   });
 
+  it("keeps one empty stripe past the last row, where a press lets go", () => {
+    const { reported, row } = renderList();
+    fireEvent.click(row("a.txt"));
+    const listing =
+      document.querySelector("[data-file-system-listing]") ??
+      expect.unreachable("no listing");
+    const stripes = listing.parentElement ?? expect.unreachable("no stripes");
+
+    expect(stripes.style.height).toBe(`${(FILES.length + 1) * 24}px`);
+    fireEvent.pointerDown(stripes, { button: 0 });
+    expect(reported()).toEqual([]);
+  });
+
   it("does not narrow several to one after an arrow has moved the selection", () => {
     vi.useFakeTimers();
     try {

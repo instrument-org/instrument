@@ -1161,23 +1161,81 @@ a.cursor-pointer {
 
 /* Planning indicator: A gentle pulsing dot with an expanding ring
 * to signal "agent is planning" */
-@keyframes planning-dot-breathe {
+/* The working mark's six-second loop; see `.working-mark`. The shape beats and turns
+ * for the first half, then the dots open out and pulse across twice. */
+@keyframes working-mark-core {
   0%,
-  100% {
+  5%,
+  13%,
+  35%,
+  43%,
+  52% {
     transform: scale(1);
   }
-  50% {
-    transform: scale(1.2);
+  2.3%,
+  32.3% {
+    transform: scale(1.05);
+  }
+  9%,
+  39% {
+    transform: scale(1.035);
+  }
+  60% {
+    transform: scale(0.45);
+  }
+  66%,
+  90% {
+    transform: scale(0.55);
+  }
+  78% {
+    transform: scale(0.28);
+  }
+  100% {
+    transform: scale(1);
   }
 }
-@keyframes planning-dot-shockwave-ring {
+
+@keyframes working-mark-square {
   0% {
-    transform: scale(1);
-    opacity: 0.6;
+    opacity: 0;
+    rotate: 0deg;
+  }
+  18%,
+  22% {
+    opacity: 1;
+  }
+  48% {
+    opacity: 0;
+  }
+  52%,
+  100% {
+    opacity: 0;
+    rotate: 90deg;
+  }
+}
+
+@keyframes working-mark-dot {
+  0%,
+  52% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+  60% {
+    opacity: 0.55;
+    transform: translate(var(--x), var(--y)) scale(0.75);
+  }
+  66%,
+  90% {
+    opacity: 1;
+    transform: translate(var(--x), var(--y)) scale(1);
+  }
+  78% {
+    opacity: 0.3;
+    transform: translate(var(--x), var(--y)) scale(0.5);
   }
   100% {
-    transform: scale(2.5);
     opacity: 0;
+    transform: translate(0, 0) scale(0.3);
   }
 }
 
@@ -1755,7 +1813,7 @@ a.cursor-pointer {
   }
 
   /* Brand-tinted sibling of .shiny-text, for text that sits alongside the
-   * planning dot while the agent is working. */
+   * working mark while the agent is working. */
   .brand-shiny-text {
     --shimmer-base: #17604a;
     --shimmer-glint: #55e8bb;
@@ -1863,17 +1921,110 @@ a.cursor-pointer {
     }
   }
 
-  .planning-dot-core {
-    transform-origin: center;
-    animation: planning-dot-breathe 1.5s ease-in-out infinite;
-    will-change: transform;
+  /* The working mark (`WorkingMark`). Only `transform`, `rotate` and `opacity` animate,
+   * on plain elements, so the compositor runs all of it and nothing is laid out or
+   * painted for it. The shape's morph is the one thing that needs a trick, since
+   * `border-radius` repaints: a rounded square fades in over the circle, which it
+   * covers entirely. Each piece is drawn at its largest and only scaled down, so
+   * it stays crisp. */
+  .working-mark {
+    --working-mark-color: #1f8a6a;
   }
 
-  .planning-dot-shockwave-ring {
-    transform-origin: center;
-    animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
-    pointer-events: none;
-    will-change: transform, opacity;
+  .dark .working-mark {
+    --working-mark-color: #2e9e79;
+  }
+
+  .working-mark-core,
+  .working-mark-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 9999px;
+    background: var(--working-mark-color);
+    animation-duration: 6s;
+    animation-iteration-count: infinite;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+
+  .working-mark-core {
+    width: 6.5px;
+    height: 6.5px;
+    margin: -3.25px;
+    animation-name: working-mark-core;
+    animation-delay: 0.28s;
+  }
+
+  .working-mark-core::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 14%;
+    background: inherit;
+    opacity: 0;
+    animation: working-mark-square 6s cubic-bezier(0.45, 0, 0.55, 1) 0.28s
+      infinite;
+  }
+
+  .working-mark-dot {
+    width: 3.6px;
+    height: 3.6px;
+    margin: -1.8px;
+    opacity: 0;
+    animation-name: working-mark-dot;
+  }
+
+  /* The eight dots around the shape, a 5.5px pitch, the wave crossing them from the
+   * top left corner. */
+  .working-mark-dot:nth-child(1) {
+    --x: -5.5px;
+    --y: -5.5px;
+  }
+  .working-mark-dot:nth-child(2) {
+    --x: 0px;
+    --y: -5.5px;
+    animation-delay: 0.14s;
+  }
+  .working-mark-dot:nth-child(3) {
+    --x: 5.5px;
+    --y: -5.5px;
+    animation-delay: 0.28s;
+  }
+  .working-mark-dot:nth-child(4) {
+    --x: -5.5px;
+    --y: 0px;
+    animation-delay: 0.14s;
+  }
+  .working-mark-dot:nth-child(5) {
+    --x: 5.5px;
+    --y: 0px;
+    animation-delay: 0.42s;
+  }
+  .working-mark-dot:nth-child(6) {
+    --x: -5.5px;
+    --y: 5.5px;
+    animation-delay: 0.28s;
+  }
+  .working-mark-dot:nth-child(7) {
+    --x: 0px;
+    --y: 5.5px;
+    animation-delay: 0.42s;
+  }
+  .working-mark-dot:nth-child(8) {
+    --x: 5.5px;
+    --y: 5.5px;
+    animation-delay: 0.56s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .working-mark-dot {
+      display: none;
+    }
+
+    .working-mark-core,
+    .working-mark-core::after {
+      animation: none;
+    }
   }
 }
 

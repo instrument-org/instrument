@@ -21,7 +21,7 @@ import { AssistantMessagesFooter } from "../assistant-messages-footer";
 import { AttachmentsCard } from "../attachments-card";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
-import { PlanningDotIcon } from "../icons/planning-dot";
+import { WorkingMark } from "../icons/working-mark";
 import { MessageError } from "../message-error";
 import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
@@ -359,7 +359,7 @@ export function ThinkingRow({ since }: { since: Date }) {
       <RowLine
         isLive
         label="Thinking"
-        mark={<PlanningDotIcon />}
+        mark={<WorkingMark />}
         right={`· ${formatClock(now - since.getTime())}`}
       />
     </div>

@@ -15,7 +15,7 @@ import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { use, useState, type ReactNode } from "react";
 
-import { PlanningDotIcon } from "../icons/planning-dot";
+import { WorkingMark } from "../icons/working-mark";
 import { ToolCallBody } from "../message-part/tool-call";
 import { Favicon } from "../favicon";
 import { AppChipIcon } from "../inline-link";
@@ -192,7 +192,7 @@ export function ActivityRowView({
       isLive={isLive}
       isOpen={isOpen}
       label={label}
-      mark={isLive ? <PlanningDotIcon /> : <StepMark step={lastStep} />}
+      mark={isLive ? <WorkingMark /> : <StepMark step={lastStep} />}
       onClick={() => {
         releaseAutoScroll();
         setIsOpen((open) => !open);

@@ -193,10 +193,12 @@ export function AppTabStrip({
         carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
         heldAt={
-          incoming && {
-            key: incoming.tab.id,
-            left: incoming.clientX - incoming.pointInTab,
-          }
+          incoming
+            ? {
+                key: incoming.tab.id,
+                left: incoming.clientX - incoming.pointInTab,
+              }
+            : carry.held
         }
         heldAwayKey={carry.heldAwayKey}
         isStill={carryView.kind === "reshaping"}
@@ -221,11 +223,6 @@ export function AppTabStrip({
           />
         }
         onNew={onNew}
-        onReorder={(keys) => {
-          if (carry.followsReorder()) {
-            reorderKeys(keys);
-          }
-        }}
         onSelect={(key) => {
           const id = idOf(key);
           if (id) {

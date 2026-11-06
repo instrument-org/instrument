@@ -33,6 +33,7 @@ import {
   type TabMoveDestination,
   type TabsModel,
   type TabStanding,
+  type TabPicturePaintOut,
 } from "@/shared/tabs";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { app, BrowserWindow, screen, webContents } from "electron";
@@ -183,6 +184,7 @@ function beginCarry({
   isOffRow,
   isOnlyTab,
   moving,
+  paintOut = { ground: "transparent", over: [] },
   pointInTab = 0,
   webContentsId,
 }: {
@@ -192,6 +194,7 @@ function beginCarry({
   isOffRow: boolean;
   isOnlyTab: boolean;
   moving: TabStanding;
+  paintOut?: TabPicturePaintOut;
   pointInTab?: number;
   webContentsId: number;
 }): Carry | null {
@@ -237,7 +240,8 @@ function beginCarry({
           ) ?? null)
         : null,
     phase: { kind: "row" },
-    picture: at && followsCursor && spare ? openTabPicture(from) : null,
+    picture:
+      at && followsCursor && spare ? openTabPicture(from, paintOut) : null,
     point: null,
     pointInTab,
     poll: null,

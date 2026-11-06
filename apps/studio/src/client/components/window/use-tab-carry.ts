@@ -2,7 +2,7 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { type TabId } from "@/shared/tabs";
+import { type TabId, type TabPicturePaintOut } from "@/shared/tabs";
 import { useAtomValue } from "jotai";
 import { useRef, useState } from "react";
 
@@ -15,8 +15,6 @@ interface TabDrag {
   canceled: boolean;
   /** Off its row, its strip closes up behind it, with its picture going with the pointer. */
   collapsesOffRow: boolean;
-  /** It has been off its row, so where it stands comes from the pointer (`onPlace`). */
-  hasLeftRow: boolean;
   /** Its neighbor came up in its place, as if it had gone. */
   isNeighborUp: boolean;
   isOffRow: boolean;
@@ -33,15 +31,15 @@ interface TabDrag {
  * A tab's drag past what the strip's own reorder can see. The reorder goes on
  * holding the pointer, whose events keep arriving past the window's edge while
  * the button is down, and the main process, which sees every window, is told
- * from the first movement. Pulled off the row, the tab leaves its strip as if it
- * had gone, with the tab beside it coming up, and main has a picture of it follow
- * the pointer. Nothing else happens until it is let go, so back on the row or
- * Escape it simply returns. The strip keeps its order while the tab is off, and
- * Escape gives back the order and the tab from the start of the drag. The
- * reorder's measures date from the press and a strip since drawn differently, and
- * one reorder it is refused stops it until the order changes, so a tab back on its
- * row is placed by where its left edge is (`onPlace`). A window's only tab has no
- * row to leave, and its window goes with the pointer.
+ * from the first movement. On its row the tab is drawn at the pointer (`held`) and
+ * placed by where its left edge is (`onPlace`): the reorder's measures date from the
+ * press, and the strip closing up and opening again moves the tab under them. Pulled
+ * off the row, the tab leaves its strip as if it had gone, with the tab beside it
+ * coming up, and main has a picture of it follow the pointer. Nothing else happens
+ * until it is let go, so back on the row or Escape it simply returns. The strip keeps
+ * its order while the tab is off, and Escape gives back the order and the tab from
+ * the start of the drag. A window's only tab has no row to leave, and its window goes
+ * with the pointer.
  */
 export function useTabCarry({
   isOnlyTab,
@@ -62,6 +60,7 @@ export function useTabCarry({
   // tab moves with its window, and Escape has the tab back with the button yet to
   // come up.
   const [heldAwayKey, setHeldAwayKey] = useState<string>();
+  const [held, setHeld] = useState<{ key: string; left: number }>();
   const dragging = useRef<TabDrag>(undefined);
 
   const showWhereItIs = (drag: TabDrag) => {
@@ -97,6 +96,7 @@ export function useTabCarry({
         drag.canceled = true;
         showWhereItIs(drag);
         onCancel(drag.orderAtStart);
+        setHeld(undefined);
         setHeldAwayKey(drag.key);
         void rpcClient.window.endTabCarry
           .call({ canceled: true })
@@ -127,7 +127,6 @@ export function useTabCarry({
     const drag: TabDrag = {
       canceled: false,
       collapsesOffRow: false,
-      hasLeftRow: isOnlyTab,
       isNeighborUp: false,
       // A window's only tab has no row to be on: the window goes with it.
       isOffRow: isOnlyTab,
@@ -163,6 +162,7 @@ export function useTabCarry({
         isOffRow: drag.isOffRow,
         isOnlyTab,
         moving,
+        paintOut: pictureLeavesOut(),
         pointInTab,
       });
       if (dragging.current === drag) {
@@ -192,9 +192,12 @@ export function useTabCarry({
         wasOff: drag.isOffRow,
         windowWidth: window.innerWidth,
       });
-    drag.hasLeftRow ||= drag.isOffRow;
-    if (drag.hasLeftRow && !drag.isOffRow) {
-      onPlace(key, event.clientX - drag.pointInTab);
+    const left = event.clientX - drag.pointInTab;
+    if (!isOnlyTab && !(drag.isOffRow && drag.collapsesOffRow)) {
+      setHeld({ key, left });
+    }
+    if (!drag.isOffRow) {
+      onPlace(key, left);
     }
     showWhereItIs(drag);
     void rpcClient.window.noteTabCarry.call({
@@ -216,6 +219,7 @@ export function useTabCarry({
     }
     dragging.current = undefined;
     drag.stop();
+    setHeld(undefined);
     setHeldAwayKey(undefined);
     if (drag.canceled) {
       return;
@@ -239,17 +243,28 @@ export function useTabCarry({
       .catch(backOnRow);
   };
 
-  const followsReorder = () => {
-    const drag = dragging.current;
-    return !drag || (!drag.hasLeftRow && !drag.canceled);
-  };
-
   return {
     carriedKey,
-    followsReorder,
+    held,
     heldAwayKey,
     onDrag,
     onDragEnd,
     onDragStart,
+  };
+}
+
+/** What stands over the page and stays with the window when the tab goes. */
+function pictureLeavesOut(): TabPicturePaintOut {
+  const floats = document.querySelectorAll(
+    "[data-compose-layer] > :not([data-slot=compose-scrim])",
+  );
+  return {
+    ground: getComputedStyle(document.documentElement).getPropertyValue(
+      "--background",
+    ),
+    over: [...floats].map((float) => {
+      const { height, left, top, width } = float.getBoundingClientRect();
+      return { height, width, x: left, y: top };
+    }),
   };
 }

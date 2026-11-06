@@ -104,6 +104,73 @@ describe("a tab dragged in its own strip", () => {
   });
 });
 
+describe("a tab taken out of the hand with the button still down", () => {
+  it("goes home and stays there, through more movement and the release", async () => {
+    let takeBack = () => undefined as void;
+    function Canceled() {
+      const [left, setLeft] = useState<number>();
+      const [isCanceled, setIsCanceled] = useState(false);
+      takeBack = () => {
+        setIsCanceled(true);
+        setLeft(undefined);
+      };
+      return (
+        <TabStrip
+          heldAt={left === undefined ? undefined : { key: "b", left }}
+          onClose={() => undefined}
+          onSelect={() => undefined}
+          onTabDrag={(_key, event) => {
+            if (!isCanceled) {
+              setLeft(event.clientX - 10);
+            }
+          }}
+          selectedKey="b"
+          tabs={tabs}
+        />
+      );
+    }
+    await renderInBrowser(<Canceled />);
+    const leftOf = () => tab("b").getBoundingClientRect().left;
+    const home = leftOf();
+    const { top } = tab("b").getBoundingClientRect();
+    const at = (clientX: number) => ({
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      clientX,
+      clientY: top + 4,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    const nextFrame = () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => setTimeout(resolve)),
+      );
+    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(home + 10)));
+    window.dispatchEvent(new PointerEvent("pointermove", at(home + 90)));
+    await expect.poll(leftOf).toBeCloseTo(home + 80, 0);
+
+    takeBack();
+    await expect.poll(leftOf).toBeCloseTo(home, 0);
+
+    window.dispatchEvent(new PointerEvent("pointermove", at(home + 200)));
+    const seen: number[] = [];
+    for (let frames = 0; frames < 6; frames += 1) {
+      await nextFrame();
+      seen.push(leftOf());
+    }
+    window.dispatchEvent(new PointerEvent("pointerup", at(home + 200)));
+    for (let frames = 0; frames < 12; frames += 1) {
+      await nextFrame();
+      seen.push(leftOf());
+    }
+
+    expect(Math.max(...seen.map((left) => Math.abs(left - home)))).toBeLessThan(
+      1,
+    );
+  });
+});
+
 describe("a tab held over a strip from elsewhere", () => {
   const orderedTabs = (keys: string[]) =>
     keys.map((key) => ({ icon: <span />, key, title: key }));

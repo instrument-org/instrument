@@ -201,7 +201,6 @@ export function AppTabStrip({
               }
             : carry.held
         }
-        heldAwayKey={carry.heldAwayKey}
         isStill={carryView.kind === "reshaping"}
         onClose={(key) => {
           const id = idOf(key);

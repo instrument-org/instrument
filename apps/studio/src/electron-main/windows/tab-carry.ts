@@ -822,7 +822,7 @@ async function placeWhenDrawn(
 ) {
   await drawnHolding(from, holding);
   if (place) {
-    await picture?.growTo(place);
+    await picture?.growTo(place, from);
   }
   if (spare) {
     setOpacity(spare.window, 1);
@@ -892,7 +892,7 @@ async function standAlone(
   }
   adoptSpare(spare, moving.pages);
   if (place) {
-    await picture?.growTo(place);
+    await picture?.growTo(place, spare.window);
   }
   if (!keepsOffScreen()) {
     setOpacity(spare.window, 1);

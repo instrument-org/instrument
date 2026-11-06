@@ -689,7 +689,10 @@ describe("the picture", () => {
     moveTo(IN_THE_OPEN);
     await letGo();
 
-    expect(picture.growTo).toHaveBeenCalledWith(spareWindow.bounds);
+    expect(picture.growTo).toHaveBeenCalledWith(
+      spareWindow.bounds,
+      spareWindow,
+    );
     expect(upWhenGrown).toBe(false);
     expect(spareWindow.opacity).toBe(1);
   });
@@ -698,7 +701,7 @@ describe("the picture", () => {
     press(withUsedPage());
     moveTo(IN_THE_OPEN);
     await letGo();
-    expect(picture.growTo).toHaveBeenCalledWith(from.bounds);
+    expect(picture.growTo).toHaveBeenCalledWith(from.bounds, from);
   });
 });
 

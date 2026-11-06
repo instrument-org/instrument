@@ -572,7 +572,7 @@ function describeParts(parts: DataPart[]): string | undefined {
 }
 
 /** Successively longer prefixes of `text`, broken at word boundaries. */
-function growingChunks(text: string, count = 3): string[] {
+export function growingChunks(text: string, count = 3): string[] {
   const words = text.split(" ");
   if (words.length <= count) {
     return [text];

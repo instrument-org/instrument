@@ -83,26 +83,7 @@ export function ChatHeader({
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
-  const popOutButton = popOut && (
-    <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
-      <Button
-        aria-label={popOut.isOut ? "Bring back" : "Pop out"}
-        aria-pressed={popOut.isOut}
-        className={cn(
-          toolbarClassName({ pressed: popOut.isOut }),
-          "shrink-0",
-          popOut.isOut
-            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
-            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
-        )}
-        onClick={popOut.onToggle}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <PictureInPictureIcon className="size-4" />
-      </Button>
-    </ToolbarTooltip>
-  );
+  const popOutButton = popOut && <PopOutButton {...popOut} />;
   return (
     <>
       {chat && (
@@ -150,6 +131,40 @@ export function ChatHeader({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The glyph after a head's title that pops the conversation out into its
+ * small window, shown under a hand over the head; lit, and always there,
+ * while it is out, when pressing it brings the conversation back.
+ */
+export function PopOutButton({
+  isOut,
+  onToggle,
+}: {
+  isOut: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <ToolbarTooltip label={isOut ? "Bring back" : "Pop out"}>
+      <Button
+        aria-label={isOut ? "Bring back" : "Pop out"}
+        aria-pressed={isOut}
+        className={cn(
+          toolbarClassName({ pressed: isOut }),
+          "shrink-0",
+          isOut
+            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
+        )}
+        onClick={onToggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <PictureInPictureIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
   );
 }
 

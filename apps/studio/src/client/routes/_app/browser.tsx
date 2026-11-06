@@ -1,5 +1,5 @@
 import { BrowserStartControls } from "@/client/components/window/browser-start-controls";
-import { WebStart } from "@/client/components/window/compose-zero-state";
+import { WebStart } from "@/client/components/window/web-start";
 import { useWindow } from "@/client/components/window/context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useTabSurface } from "@/client/components/window/tab-surface";

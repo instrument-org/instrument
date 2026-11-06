@@ -55,7 +55,7 @@ function Chips({
   const [draft, setDraft] = useState(opened);
   const { items, leaveOut } = useDraftChips({
     allTabs: [],
-    bandUp: undefined,
+    band: [],
     draft,
     finderOf: (id) => (id === inView.id ? finder : null),
     inView,

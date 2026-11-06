@@ -25,6 +25,8 @@ const noop = () => {
 const COMPOSER_WIDTH = 480;
 const COMPOSER_PADDING = 16;
 const GAP = 8;
+// The menu's own width (`w-72`), whatever the composer's.
+const MENU_WIDTH = 288;
 
 function Composer({ top }: { top: number }) {
   // State rather than a ref: the menu measures this box from its own layout
@@ -81,13 +83,13 @@ const offBy = (actual: number, expected: number) => Math.abs(actual - expected);
 describe("ComposerAddMenu in a browser", () => {
   // The menu is open from the first render, so every wait here is on floating-ui
   // settling rather than on anything the user does.
-  it("spans the composer and clears its bottom edge", async () => {
+  it("stands on the composer's left edge at its own width and clears its bottom edge", async () => {
     await renderInBrowser(<Composer top={0} />);
 
     await vi.waitFor(() => {
       const composer = composerBox();
       const menu = menuBox();
-      expect(offBy(menu.width, composer.width)).toBeLessThanOrEqual(ROUNDING);
+      expect(offBy(menu.width, MENU_WIDTH)).toBeLessThanOrEqual(ROUNDING);
       expect(offBy(menu.left, composer.left)).toBeLessThanOrEqual(ROUNDING);
       expect(offBy(menu.top - composer.bottom, GAP)).toBeLessThanOrEqual(
         ROUNDING,
@@ -120,7 +122,7 @@ describe("ComposerAddMenu in a browser", () => {
     await vi.waitFor(() => {
       const composer = composerBox();
       const menu = menuBox();
-      expect(offBy(menu.width, composer.width)).toBeLessThanOrEqual(ROUNDING);
+      expect(offBy(menu.width, MENU_WIDTH)).toBeLessThanOrEqual(ROUNDING);
       expect(offBy(menu.left, composer.left)).toBeLessThanOrEqual(ROUNDING);
       expect(offBy(composer.top - menu.bottom, GAP)).toBeLessThanOrEqual(
         ROUNDING,
@@ -131,7 +133,7 @@ describe("ComposerAddMenu in a browser", () => {
   // Zoom is where this goes wrong quietly: the menu is portalled out of the
   // zoomed tree and re-applies zoom to itself, so a width or a gap handed to
   // Radix in the wrong one of the two spaces still looks right at 1x. A width
-  // that was never converted comes out `zoom` times too wide, and a gap divided
+  // laid out in the wrong space comes out `zoom` times off, and a gap divided
   // where it should have been multiplied comes out at 5.3 on-screen px at 1.5x
   // rather than 12.
   it.each([1.5, 0.75])(
@@ -149,12 +151,14 @@ describe("ComposerAddMenu in a browser", () => {
       await vi.waitFor(() => {
         const composer = composerBox();
         const menu = menuBox();
-        // On screen the composer is `zoom` times the width it was laid out at,
-        // and the menu matches it there rather than in layout px.
+        // On screen the composer and the menu are each `zoom` times the width
+        // they were laid out at.
         expect(
           offBy(composer.width, COMPOSER_WIDTH * zoom),
         ).toBeLessThanOrEqual(ROUNDING);
-        expect(offBy(menu.width, composer.width)).toBeLessThanOrEqual(ROUNDING);
+        expect(offBy(menu.width, MENU_WIDTH * zoom)).toBeLessThanOrEqual(
+          ROUNDING,
+        );
         expect(offBy(menu.left, composer.left)).toBeLessThanOrEqual(ROUNDING);
         // The gap in layout px, which is what it reads as at every zoom level.
         expect(

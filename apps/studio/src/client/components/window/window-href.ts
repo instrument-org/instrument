@@ -22,7 +22,8 @@ export type Screen =
   | (ComputerTab & { kind: "computer" })
   | { kind: "debug"; pathname: string }
   | { kind: "extensions" }
-  | { kind: "inbox" }
+  /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
+  | { draft?: string; kind: "inbox" }
   | { kind: "memory"; name: string }
   | { kind: "namedScreen"; name: string }
   | { kind: "newTab" }
@@ -172,7 +173,8 @@ export function matchScreen(href: string): Screen {
     return { kind: "app", slug: app.slug };
   }
   if (at(SCREEN_ROUTES.inbox)) {
-    return { kind: "inbox" };
+    const draft = search.get("draft");
+    return draft ? { draft, kind: "inbox" } : { kind: "inbox" };
   }
   const chat = at(SCREEN_ROUTES.chat);
   if (chat) {
@@ -222,6 +224,17 @@ export function matchScreen(href: string): Screen {
  */
 export function chatHref(chat: ChatId | StoreId.Session): string {
   return pathOf(SCREEN_ROUTES.chat, { id: chat });
+}
+
+/**
+ * The address of the Chat screen with no chat open, writing a new chat: into
+ * the draft named, or a fresh one that is made with its first word.
+ */
+export function newChatHref(draftId?: string): string {
+  const inbox = pathOf(SCREEN_ROUTES.inbox, {});
+  return draftId === undefined
+    ? inbox
+    : `${inbox}?${new URLSearchParams({ draft: draftId }).toString()}`;
 }
 
 /**
@@ -317,7 +330,7 @@ export function chatOfSessionPrefix(
 }
 
 /** A screen's address, taken apart: the route and its search. */
-export function parseHref(href: string) {
+function parseHref(href: string) {
   const url = new URL(href, "http://tabs");
   return { pathname: url.pathname, search: url.searchParams };
 }

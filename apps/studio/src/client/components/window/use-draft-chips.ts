@@ -21,14 +21,15 @@ import {
  */
 export function useDraftChips({
   allTabs,
-  bandUp,
+  band,
   draft,
   finderOf,
   inView,
   onChange,
 }: {
   allTabs: WindowTab[];
-  bandUp: undefined | WindowTab;
+  /** The tabs of the draft's own band, each a chip. */
+  band: readonly WindowTab[];
   draft: Draft;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   inView: undefined | WindowTab;
@@ -38,7 +39,7 @@ export function useDraftChips({
   const linkDrafts = useAtomValue(linkDraftsAtom);
   const items = draftContextItems({
     allTabs,
-    bandUp,
+    band,
     dismissed: dismissed[draft.id] ?? [],
     draft,
     finderOf,

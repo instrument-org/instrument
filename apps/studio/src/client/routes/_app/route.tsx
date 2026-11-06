@@ -35,7 +35,9 @@ import { isPaneOpen } from "@/client/components/window/draft-context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
-import { NoChatOpen } from "@/client/components/window/no-chat-open";
+import { NewChatView } from "@/client/components/window/new-chat-view";
+import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
+import { draftGroupOf } from "@/shared/drafts";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { PaneToggle } from "@/client/components/window/pane-toggle";
 import { RightPane } from "@/client/components/window/right-pane";
@@ -120,11 +122,19 @@ function ChatColumn({
 
 /**
  * The chat: the inbox down the left, and beside it the chat this tab has
- * open, its transcript and composer, and in the pane the thing it has up
- * drawn large under a row of its tabs. Choosing another chat in the inbox
- * moves this tab there, one step on in its history.
+ * open, its transcript and composer, or with no chat open a new chat being
+ * written; and in the pane the thing it has up drawn large under a row of
+ * its tabs. Choosing another chat in the inbox moves this tab there, one
+ * step on in its history.
  */
-function ChatView({ chat }: { chat: ChatId | undefined }) {
+function ChatView({
+  chat,
+  draft,
+}: {
+  chat: ChatId | undefined;
+  /** The draft the new chat is written into, when no chat is open and the address names one. */
+  draft?: string;
+}) {
   const shell = useShell();
   const appWindow = useWindow();
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
@@ -134,16 +144,23 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   const sidebarWidth = useAtomValue(inboxWidthAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const isActive = useIsActiveTab();
-  const showsRightArea = chat !== undefined;
-  const bounds = inboxBounds(rowWidth, { canCollapse: showsRightArea });
+  const tabId = useTabId();
+  const makeNewChatDraft = useSetAtom(makeNewChatDraftAtom);
+  const bounds = inboxBounds(rowWidth);
 
-  // The chat's tabs, and the one it has up.
+  // The group whose tabs stand in the pane: the chat's, or the new chat's
+  // draft's.
+  const group = chat ?? (draft === undefined ? undefined : draftGroupOf(draft));
+  /** The group, making the new chat's draft first where it has none, for something to open beside it. */
+  const ensureGroup = () => group ?? draftGroupOf(makeNewChatDraft({ tabId }));
+  // The group's tabs, and the one it has up.
   const tabs =
-    chat === undefined
+    group === undefined
       ? []
-      : windowTabs.allTabs.filter((tab) => tab.group === chat);
-  const up = windowTabs.selectedTabIn(chat);
-  const isPaneWanted = chat === undefined || isPaneOpen(chat, paneOpenByGroup);
+      : windowTabs.allTabs.filter((tab) => tab.group === group);
+  const up = windowTabs.selectedTabIn(group);
+  const isPaneWanted =
+    group === undefined || isPaneOpen(group, paneOpenByGroup);
   const showsPane = up !== undefined && isPaneWanted;
 
   // What gives way as the window narrows, one thing at a time and in one
@@ -156,7 +173,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     isActive,
     margin: ROOM_MARGIN,
     needs,
-    room: showsRightArea && rowWidth > 0 ? rowWidth - sidebarWidth : undefined,
+    room: rowWidth > 0 ? rowWidth - sidebarWidth : undefined,
   });
   /** Puts the chat away: the inbox is shown again if it was hidden, with the empty side beside it. */
   const leaveChat = () => {
@@ -175,26 +192,41 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     showsPane && up.kind === "page",
   );
   const chatRecord = chats?.find((entry) => entry.id === chat);
-  /** A browser beside the chat. */
+  /** A browser beside the chat, or beside the new chat. */
   const addWeb = () => {
-    if (chat === undefined) {
-      return;
-    }
+    const opened = ensureGroup();
     windowTabs.openScreen(BROWSER_HREF, {
-      group: chat,
+      group: opened,
       select: true,
     });
-    setPaneOpen(chat, true);
+    setPaneOpen(opened, true);
   };
+  /** The pane's button, which shows the group's tab up or opens a browser beside it when it has none. */
+  const paneToggle = (
+    <PaneToggle
+      isOpen={showsPane}
+      onToggle={() => {
+        const newest = tabs.at(-1);
+        if (showsPane && group !== undefined) {
+          setPaneOpen(group, false);
+        } else if (up === undefined && newest && group !== undefined) {
+          windowTabs.select(newest.id);
+          setPaneOpen(group, true);
+        } else if (up === undefined || group === undefined) {
+          addWeb();
+        } else {
+          setPaneOpen(group, true);
+        }
+      }}
+    />
+  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
         bounds={bounds}
         isAtOnce={isAtOnce}
-        // With no chat open there is no toggle to bring it back by, so it
-        // stays.
-        isOpen={isShown || !showsRightArea}
+        isOpen={isShown}
         onCollapse={() => {
           setInboxOpen(false);
         }}
@@ -236,8 +268,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           />
         </div>
       </ChatColumn>
-      {chat === undefined && <NoChatOpen onNew={shell.newDraft} />}
-      {chat !== undefined && (
+      {
         <main
           className="relative flex min-w-0 flex-1 flex-col"
           // Escape in an empty composer goes back out to the chat's row in
@@ -273,83 +304,83 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
               <RightPane
                 conversation={
                   <div className="relative flex h-full min-h-0 flex-col">
-                    <div className="absolute inset-0 flex flex-col">
-                      <ChatHeader
-                        chat={chatRecord}
-                        leading={<InboxToggle />}
-                        // An archived chat is put away, so it leaves the
-                        // side beside the list with it.
-                        onArchived={leaveChat}
-                        onDeleted={() => {
-                          // The chat and the tabs it had are gone; the inbox
-                          // takes the tab back.
-                          windowTabs.dropGroup(chat);
-                          appTabs.navigate(INBOX_HREF, { replace: true });
-                          setInboxOpen(true);
-                        }}
-                        onNewProject={shell.onNewProject}
-                        onSetProject={(next) => {
-                          shell.setChatProject(chat, next);
-                        }}
-                        popOut={{
-                          isOut: isFloating,
-                          // Popped out, the chat stays listed and is simply
-                          // no longer the one this tab has open.
-                          onToggle: () => {
-                            if (isFloating) {
-                              shell.compose.remove(chat);
-                            } else {
-                              shell.compose.float(chat);
-                              leaveChat();
-                            }
-                          },
-                        }}
-                        projects={shell.projects}
-                        trailing={
-                          <PaneToggle
-                            isOpen={showsPane}
-                            onToggle={() => {
-                              const newest = tabs.at(-1);
-                              if (showsPane) {
-                                setPaneOpen(chat, false);
-                              } else if (up === undefined && newest) {
-                                windowTabs.select(newest.id);
-                                setPaneOpen(chat, true);
-                              } else if (up === undefined) {
-                                addWeb();
+                    {chat === undefined ? (
+                      <div className="absolute inset-0 flex flex-col">
+                        <NewChatView
+                          draftId={draft}
+                          ensureGroup={ensureGroup}
+                          leading={<InboxToggle />}
+                          onOpenBeside={(opened) => {
+                            setPaneOpen(opened, true);
+                          }}
+                          tabId={tabId}
+                          trailing={paneToggle}
+                        />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col">
+                        <ChatHeader
+                          chat={chatRecord}
+                          leading={<InboxToggle />}
+                          // An archived chat is put away, so it leaves the
+                          // side beside the list with it.
+                          onArchived={leaveChat}
+                          onDeleted={() => {
+                            // The chat and the tabs it had are gone; the inbox
+                            // takes the tab back.
+                            windowTabs.dropGroup(chat);
+                            appTabs.navigate(INBOX_HREF, { replace: true });
+                            setInboxOpen(true);
+                          }}
+                          onNewProject={shell.onNewProject}
+                          onSetProject={(next) => {
+                            shell.setChatProject(chat, next);
+                          }}
+                          popOut={{
+                            isOut: isFloating,
+                            // Popped out, the chat stays listed and is simply
+                            // no longer the one this tab has open.
+                            onToggle: () => {
+                              if (isFloating) {
+                                shell.compose.remove(chat);
                               } else {
-                                setPaneOpen(chat, true);
+                                shell.compose.float(chat);
+                                leaveChat();
                               }
-                            }}
-                          />
-                        }
-                      />
-                      <div className="relative min-h-0 flex-1">
-                        <div className="absolute inset-0">
-                          <ChatScreenInPlace
-                            chatId={chat}
-                            isUp={isActive}
-                            isViewOpen={showsPane}
-                            key={chat}
-                            onGone={() => {
-                              // As for a deleted chat: its tabs go, and the
-                              // inbox takes the tab back.
-                              windowTabs.dropGroup(chat);
-                              appTabs.navigate(INBOX_HREF, { replace: true });
-                              setInboxOpen(true);
-                            }}
-                          />
+                            },
+                          }}
+                          projects={shell.projects}
+                          trailing={paneToggle}
+                        />
+                        <div className="relative min-h-0 flex-1">
+                          <div className="absolute inset-0">
+                            <ChatScreenInPlace
+                              chatId={chat}
+                              isUp={isActive}
+                              isViewOpen={showsPane}
+                              key={chat}
+                              onGone={() => {
+                                // As for a deleted chat: its tabs go, and the
+                                // inbox takes the tab back.
+                                windowTabs.dropGroup(chat);
+                                appTabs.navigate(INBOX_HREF, { replace: true });
+                                setInboxOpen(true);
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 }
                 fills={false}
                 isOpen={showsPane}
                 onCollapse={() => {
-                  setPaneOpen(chat, false);
+                  if (group !== undefined) {
+                    setPaneOpen(group, false);
+                  }
                 }}
-                paneKey={chat}
+                paneKey={group ?? NEW_CHAT_PANE}
               >
                 <div
                   className={cn(
@@ -360,24 +391,24 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     "[--guest-bottom-radius:0_18px]",
                   )}
                 >
-                  {up && (
+                  {up && group !== undefined && (
                     <PaneTabs
                       chatTitles={chatTitles}
                       chosenId={up.id}
                       isChatWorking={chatRecord?.working === true}
                       onAddComputer={() => {
                         windowTabs.openScreen(outputFolderHref(outputFolder), {
-                          group: chat,
+                          group,
                           select: true,
                         });
                       }}
                       onAddWeb={addWeb}
                       onClose={shell.requestClose}
                       onHide={() => {
-                        setPaneOpen(chat, false);
+                        setPaneOpen(group, false);
                       }}
                       onReorder={(keys) => {
-                        windowTabs.reorder(keys, chat);
+                        windowTabs.reorder(keys, group);
                       }}
                       onSelect={(id) => {
                         windowTabs.select(id);
@@ -386,11 +417,10 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       taskTitles={shell.childTitles}
                     />
                   )}
-                  {up && (
+                  {up && group !== undefined && (
                     <GroupItem
                       closeTab={shell.requestClose}
-                      group={chat}
-                      isFramed={false}
+                      group={group}
                       isShown={showsPane}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
@@ -402,17 +432,14 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
             </div>
           </div>
         </main>
-      )}
+      }
     </div>
   );
 }
 
-/**
- * How wide the inbox column may be: the row less what the conversation
- * keeps, within the column's own floor and ceiling. It slides shut under its
- * floor only while a chat is open, since that chat's head holds the toggle
- * that brings it back.
- */
+/** The pane's key while a new chat has no draft yet, and so no tabs. */
+const NEW_CHAT_PANE = "new-chat";
+
 /**
  * A chat's screen in the window's place, with the chips over its composer
  * for what goes with a reply: the chat's own tab while its pane is open,
@@ -454,12 +481,15 @@ function ChatScreenInPlace({
   );
 }
 
-function inboxBounds(
-  rowWidth: number,
-  { canCollapse }: { canCollapse: boolean },
-): RailBounds {
+/**
+ * How wide the inbox column may be: the row less what the conversation
+ * keeps, within the column's own floor and ceiling. It slides shut under its
+ * floor, since the head beside it, a chat's or a new chat's, holds the
+ * toggle that brings it back.
+ */
+function inboxBounds(rowWidth: number): RailBounds {
   return {
-    ...(canCollapse ? { collapse: INBOX_COLLAPSE_THRESHOLD } : {}),
+    collapse: INBOX_COLLAPSE_THRESHOLD,
     initial: SIDEBAR_WIDTH_MIN,
     max: Math.min(
       SIDEBAR_WIDTH_MAX,
@@ -598,7 +628,6 @@ function SiteView({ group }: { group: string }) {
         }}
         closeTab={shell.requestClose}
         group={group}
-        isFramed={false}
         onPageChrome={setPageChrome}
         onPageHost={setPageHost}
         up={up}
@@ -627,9 +656,11 @@ function TabContent() {
     case "chat": {
       return <ChatView chat={screen.chat} />;
     }
-    case "chatLink":
-    case "inbox": {
+    case "chatLink": {
       return <ChatView chat={undefined} />;
+    }
+    case "inbox": {
+      return <ChatView chat={undefined} draft={screen.draft} />;
     }
     case "chatOfSession": {
       return <ChatOfSession sessionId={screen.session} />;

@@ -85,10 +85,11 @@ const ATTACH_ACTIONS = new Set(["add-files", "work-in-folder"]);
  * The plus button and everything it offers: what the composer can be given,
  * then the skills that can be run.
  *
- * Sized and placed to the composer rather than to its own trigger. The skills
- * read as a line of name, description and source -- the width a typed slash
- * gives them -- and the prompt this is adding to stays in view beside the menu
- * rather than under it.
+ * Placed against the composer rather than its own trigger: its left edge on
+ * the box's, on the side of the box with room, so the prompt this is adding
+ * to stays in view beside the menu rather than under it. Its width is its
+ * own, the room a row and a skill's name and description need, whatever the
+ * box's.
  */
 export function ComposerAddMenu({
   actions,
@@ -141,7 +142,7 @@ export function ComposerAddMenu({
     chose.current = "prompt";
     action.onSelect();
   };
-  const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
+  const { alignOffset, side, sideOffset } = useComposerMenuPlacement({
     anchorRef: triggerRef,
     bounds,
     open: view !== null,
@@ -185,7 +186,7 @@ export function ComposerAddMenu({
         // other dropdown wears, since this one is read against the edge of the
         // box it hangs off. A row's is that corner less the 4px it sits in by,
         // so a highlighted first or last row curves alongside the menu.
-        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0 [&_[role=menuitem]]:rounded-2xl"
+        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] w-72 flex-col rounded-[20px] p-0 [&_[role=menuitem]]:rounded-2xl"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
         // opened this -- including out of a list, which is a second menu deep
@@ -209,7 +210,6 @@ export function ComposerAddMenu({
         }}
         side={side}
         sideOffset={sideOffset}
-        style={{ width }}
       >
         <MenuScrollArea>
           {view === "apps" && places ? (

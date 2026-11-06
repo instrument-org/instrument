@@ -7,8 +7,11 @@ import {
 } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+
 import { type useAppTabs } from "./app-tabs";
 import { type Chat, type Project } from "./chats";
+import { type DraftSend } from "./compose-window";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -25,6 +28,8 @@ export interface WindowShell {
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<StoreId.Session, string>;
   compose: ReturnType<typeof useCompose>;
+  /** The model a new chat starts on, and setting it. */
+  defaultModelURI: AIGatewayModelURI.Type | undefined;
   /** Throws a draft away, with a moment to take it back. */
   discardDraft: (id: string) => void;
   /** The drafts worth coming back to, for the inbox. */
@@ -37,6 +42,13 @@ export interface WindowShell {
   onListed: (listed: ChatId[]) => void;
   /** A project asked for from a chat's head, with what was typed. */
   onNewProject: (name: string | undefined) => void;
+  /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
+  onNewDraftProject: (draftId: string, name: string) => void;
+  /** Sends the draft the Chat screen is writing to a window along the foot. */
+  popOutDraft: (id: string) => void;
+  setDefaultModelURI: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Starts the chat a draft is for, from what its composer sends. */
+  startChat: (id: string, send: DraftSend) => void;
   /** Takes the tab up to Chat with the inbox standing in a project, by its id. */
   openProject: (projectId: string) => void;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */

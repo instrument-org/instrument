@@ -5,84 +5,20 @@ import {
   useRecentPages,
 } from "@/client/hooks/use-browser-history";
 import { rpcClient } from "@/client/rpc/client";
-import { useOutputFolder } from "@/client/lib/output-folder";
-import { type Icon } from "@phosphor-icons/react";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
-import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
-import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { AppIcon } from "./app-icon";
-import { osConventions } from "@/client/lib/utils";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageSection } from "./page-section";
 import { VisitedPageRows } from "./visited-page-rows";
 
 /** How many pages lately seen the view lists. */
 const RECENT_SHOWN = 12;
-
-/**
- * The empty band under a draft's words: three tiles for what can be opened
- * beside it (the web, this Mac, apps), each a picture of the kind of thing
- * rather than of anything in it, and under them, apart, a slim strip for
- * attaching, which is also where files are dropped. The words keep the room
- * above; the strip sits at the band's foot. Held to a docked window's width
- * and centered, so a grown window's band shows the same tiles rather than
- * tiles stretched to fill it, standing in the middle of the room it has.
- *
- * The web opens as a tab of the draft's own, at the browser's starting view;
- * This Mac opens the Finder at the Instrument folder the same way; Apps goes
- * to where apps live.
- */
-export function ComposeZeroState({
-  onAttachFiles,
-  onAttachFolder,
-  onOpenApps,
-  onOpenBrowser,
-  onOpenFolder,
-}: {
-  /** The file chooser, for the strip's button. */
-  onAttachFiles: () => void;
-  /** The folder chooser: a folder the chat may work in, attached rather than opened. */
-  onAttachFolder: () => void;
-  /** Takes the window to the Apps place. */
-  onOpenApps: () => void;
-  /** Opens the browser's starting view as a tab of the draft's. */
-  onOpenBrowser: () => void;
-  onOpenFolder: (hostPath: string) => void;
-}) {
-  const outputFolder = useOutputFolder();
-  return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-150 flex-col gap-4 overflow-y-auto p-4">
-      <div className="my-auto grid shrink-0 grid-cols-3 gap-3">
-        <Tile icon={GlobeIcon} name="Browser" onOpen={onOpenBrowser} />
-        <Tile
-          icon={DesktopIcon}
-          name={osConventions().computer}
-          onOpen={() => {
-            onOpenFolder(outputFolder ?? "~");
-          }}
-        />
-        <Tile icon={SquaresFourIcon} name="Apps" onOpen={onOpenApps} />
-      </div>
-      <div className="flex h-10 shrink-0 items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
-        <span className="min-w-0 flex-1 truncate">Drop files here</span>
-        <Chooser icon={PaperclipIcon} onPick={onAttachFiles}>
-          Attach files
-        </Chooser>
-        <Chooser icon={FolderIcon} onPick={onAttachFolder}>
-          Add a folder
-        </Chooser>
-      </div>
-    </div>
-  );
-}
 
 /**
  * The web's starting view, laid out as a browser's new tab: the sites kept
@@ -339,28 +275,6 @@ function BookmarkNameField({
   );
 }
 
-/** One of the two choosers on the Attach strip: its own mark, so files and a folder read as the two things they are. */
-function Chooser({
-  children,
-  icon: ChooserIcon,
-  onPick,
-}: {
-  children: ReactNode;
-  icon: Icon;
-  onPick: () => void;
-}) {
-  return (
-    <button
-      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-foreground shadow-xs hover:bg-accent"
-      onClick={onPick}
-      type="button"
-    >
-      <ChooserIcon className="size-3.5 text-muted-foreground" />
-      {children}
-    </button>
-  );
-}
-
 /** The site a page is on, as its bar would name it. */
 function hostOf(url: string): string {
   if (!URL.canParse(url)) {
@@ -371,32 +285,4 @@ function hostOf(url: string): string {
 
 function originOf(url: string): string {
   return URL.canParse(url) ? new URL(url).origin : url;
-}
-
-/**
- * One kind of thing the band can open, drawn large as that kind: its mark in
- * a pane of its own, the name under it. Never a picture of anything real in
- * it, so the three read as three choices rather than three things to read.
- */
-function Tile({
-  icon: TileIcon,
-  name,
-  onOpen,
-}: {
-  icon: Icon;
-  name: string;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      className="group/tile flex flex-col items-center gap-2 rounded-xl p-1.5 text-[12px] font-medium text-foreground hover:bg-black/4 dark:hover:bg-white/6"
-      onClick={onOpen}
-      type="button"
-    >
-      <span className="grid aspect-[4/3] w-full place-items-center rounded-lg bg-card shadow-xs ring-1 ring-border/70 transition group-hover/tile:ring-border">
-        <TileIcon className="size-9 text-muted-foreground transition group-hover/tile:text-foreground" />
-      </span>
-      <span className="max-w-full truncate">{name}</span>
-    </button>
-  );
 }

@@ -25,6 +25,7 @@ import {
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
+import { draftGroupOf } from "@/shared/drafts";
 import { type TabId } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
@@ -86,14 +87,20 @@ export const appTabsAtom = tabsAtomOf("app-tabs.v2", INBOX_HREF);
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands
- * on: the chat's id for a chat, the site's group for a site, and none
- * for everything else, whose screen is the route itself.
+ * on: the chat's id for a chat, the draft's group for a new chat being
+ * written in the Chat screen, the site's group for a site, and none for
+ * everything else, whose screen is the route itself.
  */
 export function groupOfHref(href: string): string | undefined {
   const screen = matchScreen(href);
   switch (screen.kind) {
     case "chat": {
       return screen.chat;
+    }
+    case "inbox": {
+      return screen.draft === undefined
+        ? undefined
+        : draftGroupOf(screen.draft);
     }
     case "site": {
       return siteGroupOf(screen.id);

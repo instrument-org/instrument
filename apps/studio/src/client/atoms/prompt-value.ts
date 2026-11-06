@@ -6,6 +6,12 @@ import {
   keepChatBoxAtom,
   replyInBox,
 } from "@/client/drafts/chat-box";
+import {
+  draftInNewChatBox,
+  keepNewChatBoxAtom,
+  newChatBoxesAtom,
+  newChatWordsKey,
+} from "@/client/drafts/new-chat-box";
 import { flushWords, settleWords } from "@/client/drafts/settle-words";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -15,11 +21,13 @@ import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 import { isEqual } from "radashi";
 
-// A composer writes into one of three things:
+// A composer writes into one of four things:
 //  - chat: the reply in one chat's box, a draft of its own in Drafts (see
 //    `chat-box.ts`), so a reply left half-typed is there on coming back,
 //    survives a relaunch, and the inbox can say the chat has one.
 //  - draft: a new chat's draft, whose words are the draft's own.
+//  - newChat: the new chat a window tab's Chat screen writes with no chat
+//    open, into the draft its first words make (see `new-chat-box.ts`).
 //  - transient: a composer that starts from a prefill and is meant to be thrown
 //    away, like the one on a skill page. Nothing is shared or retained, so
 //    walking away from the surface loses the words instead of carrying them to
@@ -27,7 +35,8 @@ import { isEqual } from "radashi";
 export type PromptDraftKey =
   | { draftId: string; scope: "draft" }
   | { id: string; scope: "transient" }
-  | { chatId: ChatId; scope: "chat" };
+  | { chatId: ChatId; scope: "chat" }
+  | { scope: "newChat"; tabId: string };
 
 /** One string per composer, for keying anything that has to re-key with what it writes into. */
 export function draftKeyString(key: PromptDraftKey): string {
@@ -37,6 +46,9 @@ export function draftKeyString(key: PromptDraftKey): string {
     }
     case "draft": {
       return `draft:${key.draftId}`;
+    }
+    case "newChat": {
+      return newChatWordsKey(key.tabId);
     }
     case "transient": {
       return `transient:${key.id}`;
@@ -68,6 +80,12 @@ export const storedWordsAtom = atomFamily(
             ""
           );
         }
+        case "newChat": {
+          return (
+            draftInNewChatBox(get(draftsAtom), get(newChatBoxesAtom), key.tabId)
+              ?.words ?? ""
+          );
+        }
         case "transient": {
           return get(transientDraftFamily(key.id));
         }
@@ -90,6 +108,10 @@ const commitWordsAtom = atom(
           id: key.draftId,
           update: (draft) => ({ ...draft, words }),
         });
+        return;
+      }
+      case "newChat": {
+        set(keepNewChatBoxAtom, { tabId: key.tabId, words });
         return;
       }
       case "transient": {

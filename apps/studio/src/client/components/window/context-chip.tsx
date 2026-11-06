@@ -84,14 +84,20 @@ export function heldChipOf(
  */
 function IncludedChip({
   appsBySlug,
+  isSelected = false,
   items,
   onLeaveOut,
+  onSelect,
   tab,
 }: {
   appsBySlug: AppsBySlug;
+  /** Whether the chip's tab is the one its band has up. */
+  isSelected?: boolean;
   /** What the thing points at on this computer, which the chip names in place of the tab. */
   items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
+  /** Puts the chip's tab up in its band, for a chip that is one of a band's tabs. */
+  onSelect?: () => void;
   tab: WindowTab;
 }) {
   const volumes = useComputerVolumes();
@@ -115,8 +121,10 @@ function IncludedChip({
           <HeldMark appsBySlug={appsBySlug} tab={tab} />
         )
       }
+      isSelected={isSelected}
       name={nameOfChip(chip)}
       onLeaveOut={onLeaveOut}
+      {...(onSelect ? { onSelect } : {})}
       slot="included-chip"
     />
   );
@@ -127,11 +135,20 @@ function IncludedChip({
  * order, each with an x that leaves its item out. The one way a composer
  * shows what goes with its words, so a chip is never missing for something
  * that goes.
+ *
+ * Given a `band`, the chips of that band's tabs are its tabs too: a press on
+ * one puts its tab up in the band, and the one up is drawn raised.
  */
 export function ContextChips({
+  band,
   items,
   onLeaveOut,
 }: {
+  band?: {
+    group: string;
+    onSelect: (tabId: string) => void;
+    selectedId: string | undefined;
+  };
   items: ContextItem[];
   onLeaveOut: (item: ContextItem) => void;
 }) {
@@ -152,13 +169,23 @@ export function ContextChips({
         );
       }
       case "tab": {
+        const { tab } = item;
+        const inBand = band !== undefined && tab.group === band.group;
         return (
           <IncludedChip
             appsBySlug={appsBySlug}
+            isSelected={inBand && tab.id === band.selectedId}
             items={item.items}
             key={item.key}
             onLeaveOut={leaveOut}
-            tab={item.tab}
+            onSelect={
+              inBand
+                ? () => {
+                    band.onSelect(tab.id);
+                  }
+                : undefined
+            }
+            tab={tab}
           />
         );
       }
@@ -342,39 +369,64 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * an x that leaves the thing out while there is still a message to leave it
  * out of, so it takes no room from the words and does not ask to be read;
  * what it is is in its tooltip. A chip with somewhere to open its thing is a
- * button that opens it, a modified or middle click in a tab of its own.
+ * button that opens it, a modified or middle click in a tab of its own. A
+ * chip that is one of a band's tabs puts its tab up when its name is pressed,
+ * and the one up stands raised on the card's color.
  */
 function ContextChip({
   drags,
+  isSelected = false,
   label,
   mark,
   name,
   onLeaveOut,
   onOpen,
+  onSelect,
   slot,
 }: {
   /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
   drags?: { hostPath: string; others: string[] };
+  /** Whether the chip's tab is the one its band has up. */
+  isSelected?: boolean;
   label: ReactNode;
   mark: ReactNode;
   name: string;
   onLeaveOut?: () => void;
   /** Opens the thing the chip names; a chip that can be left out has none, since the x sits inside it. */
   onOpen?: (options: OpenOptions) => void;
+  /** Puts the chip's tab up in its band. */
+  onSelect?: () => void;
   slot: string;
 }) {
   const className = cn(
     "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
     onLeaveOut ? "pr-0.5" : "pr-2.5",
+    isSelected && "bg-card text-foreground shadow-xs ring-border",
   );
   const fileDragProps = useFileDrag(drags);
   const dragProps = drags ? fileDragProps : {};
-  const content = (
+  const markAndName = (
     <>
       <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
         {mark}
       </span>
       <span className="truncate">{name}</span>
+    </>
+  );
+  const content = (
+    <>
+      {onSelect ? (
+        <button
+          aria-pressed={isSelected}
+          className="-ml-2 flex h-full min-w-0 cursor-default items-center gap-1 rounded-l-full pl-2 hover:text-foreground"
+          onClick={onSelect}
+          type="button"
+        >
+          {markAndName}
+        </button>
+      ) : (
+        markAndName
+      )}
       {onLeaveOut && (
         <button
           aria-label={`Leave out ${name}`}

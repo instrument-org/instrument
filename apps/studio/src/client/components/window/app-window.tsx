@@ -4,6 +4,7 @@ import {
   updateDraftAtom,
 } from "@/client/drafts/store";
 import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
+import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
@@ -127,7 +128,13 @@ import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { chatHref, chatOfGroup, chatOfHref, matchScreen } from "./window-href";
+import {
+  chatHref,
+  chatOfGroup,
+  chatOfHref,
+  matchScreen,
+  newChatHref,
+} from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -378,6 +385,7 @@ function WindowShell({
   const setFilesFolder = useSetAtom(filesFolderAtom);
   const setChatFilters = useSetAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
@@ -696,7 +704,10 @@ function WindowShell({
     discardDraft,
     discardingIds,
     draftFromLink,
+    draftWith,
+    expandDraft,
     newDraft,
+    popOutDraft,
     sentWords,
     showDraft,
     startChat,
@@ -709,6 +720,18 @@ function WindowShell({
     isChat,
     openChat: (chatId) => {
       appTabs.navigate(chatHref(chatId));
+    },
+    openDraftInChat: (id) => {
+      setInboxOpen(true);
+      appTabs.navigate(newChatHref(id));
+    },
+    openNewChat: (projectId) => {
+      const tabId = appTabs.model.selectedId;
+      if (tabId) {
+        pickNewChatProject({ projectId, tabId });
+      }
+      setInboxOpen(true);
+      appTabs.navigate(newChatHref());
     },
     openDrafts: () => {
       setInboxOpen(true);
@@ -819,10 +842,10 @@ function WindowShell({
         // draft with the line in it rather than a chat, so the person reads
         // what is about to be asked, adds to it, and sends it themselves.
         ask: (prompt) => {
-          newDraft(prompt);
+          draftWith(prompt);
         },
         askAbout: (items, words) => {
-          newDraft(words, items);
+          draftWith(words, items);
         },
         browser,
         focusComposer: () => {
@@ -831,7 +854,7 @@ function WindowShell({
         // With no chat beside the file, a new draft takes what was marked,
         // opened over the file now that the marking is done.
         moveAsksToDraft: (askIds) => {
-          moveAsks(askIds, { draftId: newDraft(), kind: "draft" });
+          moveAsks(askIds, { draftId: draftWith(), kind: "draft" });
         },
         openPage,
         openPath: openNamedPath,
@@ -901,6 +924,7 @@ function WindowShell({
     arrivedId,
     childTitles,
     compose,
+    defaultModelURI,
     discardDraft,
     // Only a draft holding something is a draft to come back to; one being
     // written with nothing in it yet is its window's alone, one being sent is
@@ -927,6 +951,9 @@ function WindowShell({
     onListed: (listed) => {
       listedChats.current = listed;
     },
+    onNewDraftProject: (draftId, name) => {
+      setNewProject({ draftId, ...(name ? { name } : {}) });
+    },
     onNewProject: (name) => {
       setNewProject(name ? { name } : {});
     },
@@ -937,13 +964,16 @@ function WindowShell({
       setChatFilters({ ...NO_FILTERS, projects: [projectId] });
       choosePlace("chat");
     },
+    popOutDraft,
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
     sentWords,
     setChatProject,
+    setDefaultModelURI,
     setPaneOpen,
     showDraft,
+    startChat,
     projects,
   };
 
@@ -995,6 +1025,7 @@ function WindowShell({
                 onCloseDraft={closeDraft}
                 onDiscardDraft={discardDraft}
                 onExpandChat={expandChat}
+                onExpandDraft={expandDraft}
                 onModelChange={setDefaultModelURI}
                 onNewChatProject={(chatId, name) => {
                   setNewProject({ chatId, ...(name ? { name } : {}) });

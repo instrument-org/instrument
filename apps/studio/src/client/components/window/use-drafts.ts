@@ -21,7 +21,7 @@ import {
   type DraftContextItem,
   draftGroupOf,
 } from "@/shared/drafts";
-import { chatFiltersAtom, NEW_TAB_HREF } from "@/client/atoms/window";
+import { chatFiltersAtom } from "@/client/atoms/window";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
@@ -31,7 +31,7 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import ms from "ms";
 import { useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
@@ -48,11 +48,12 @@ import { type useWindowTabs } from "./window-tabs";
 const CHAT_ARRIVAL_MS = ms("3 seconds");
 
 /**
- * A draft's life around its window: made and brought up along the row's
- * foot, put away with its words kept or thrown away with nothing written,
- * and started as the chat it is for. The windows themselves are the
- * compose surface's; this is what happens to a draft on the way in and out
- * of one.
+ * A draft's life around where it is written: in the Chat screen, beside the
+ * chat list, or in a window along the row's foot everywhere else; put away
+ * with its words kept or thrown away with nothing written, moved between
+ * the two, and started as the chat it is for. The windows and the screen are
+ * the compose surfaces'; this is what happens to a draft on the way in and
+ * out of one.
  */
 export function useDrafts({
   folders,
@@ -61,7 +62,9 @@ export function useDrafts({
   isChat,
   isOpen,
   openChat,
+  openDraftInChat,
   openDrafts,
+  openNewChat,
   saveDefaultModelURI,
   projects,
   windowTabs,
@@ -80,14 +83,19 @@ export function useDrafts({
   isOpen: boolean;
   /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
   openChat: (chatId: ChatId) => void;
+  /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
+  openDraftInChat: (id: string) => void;
   /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
   openDrafts: () => void;
+  /** Puts the tab up on the Chat screen writing a new chat with nothing in it yet, filed under the project named. */
+  openNewChat: (projectId: string | undefined) => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The projects, for the one the inbox stands in. */
   projects: Project[];
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
+  const store = useStore();
   const drafts = useAtomValue(draftsAtom);
   const createDraft = useSetAtom(createDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
@@ -136,16 +144,34 @@ export function useDrafts({
       clearTimeout(timer);
     };
   }, [arrived]);
-  /** Brings a draft up in a window along the foot, to go on writing it. */
+  /**
+   * Brings a draft up to go on writing it: in the Chat screen, beside the
+   * chat list, while the tab is on Chat, and in a window along the foot
+   * everywhere else.
+   */
   const showDraft = (id: string) => {
+    if (isChat) {
+      compose.remove(draftGroupOf(id));
+      openDraftInChat(id);
+    } else {
+      compose.open(id);
+    }
+  };
+  /** Takes a draft's window into the Chat screen, written there in full. */
+  const expandDraft = (id: string) => {
+    compose.remove(draftGroupOf(id));
+    openDraftInChat(id);
+  };
+  /** Sends the draft the Chat screen is writing to a window along the foot, leaving a new chat in its place. */
+  const popOutDraft = (id: string) => {
     compose.open(id);
+    openNewChat(undefined);
   };
   /**
    * Makes a draft, filed under a project when the pane stands in one and with
-   * words already in it when a button handed some over, and brings it up in
-   * a window of its own with the new-tab page as its first tab: the place to
-   * find a site, a folder, a file, or an app to gather. Every ask is a new
-   * draft, beside the ones already open.
+   * words already in it when a button handed some over, and brings it up
+   * where drafts are written from where the tab stands (see `showDraft`).
+   * Every ask is a new draft, beside the ones already open.
    */
   const startDraft = (
     projectId: string | undefined,
@@ -165,26 +191,33 @@ export function useDrafts({
       words,
     };
     createDraft(draft);
-    windowTabs.openScreen(NEW_TAB_HREF, {
-      select: true,
-      group: draftGroupOf(draft.id),
-    });
     showDraft(draft.id);
     return draft.id;
   };
+  /** The project the inbox stands in, while the tab is on Chat and the inbox stands in one. */
+  const inboxProject = () =>
+    isChat && chatFilters.projects.length === 1
+      ? projects.find((project) => project.id === chatFilters.projects[0])?.id
+      : undefined;
   /**
-   * New, from the rail or its chord, or a button handing over a line: a
-   * draft filed under the project the inbox stands in while it stands in one,
-   * with the window put on the chat, which is where a draft is written.
+   * New, from the rail or its chord: on Chat, a new chat beside the chat
+   * list with nothing made until something is written in it, filed under the
+   * project the inbox stands in; anywhere else, a draft in a window along
+   * the foot.
    */
-  const newDraft = (words?: string, chosen?: ChosenItem[]) =>
-    startDraft(
-      isChat && chatFilters.projects.length === 1
-        ? projects.find((project) => project.id === chatFilters.projects[0])?.id
-        : undefined,
-      typeof words === "string" ? words : "",
-      chosen,
-    );
+  const newDraft = () => {
+    if (isChat) {
+      openNewChat(inboxProject());
+    } else {
+      startDraft(undefined);
+    }
+  };
+  /**
+   * A draft a button hands over a line or what to ask about to, made at once
+   * since it has something in it, filed as New files one.
+   */
+  const draftWith = (words = "", chosen?: ChosenItem[]) =>
+    startDraft(inboxProject(), words, chosen);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,
@@ -306,7 +339,9 @@ export function useDrafts({
    * held.
    */
   const startChat = (id: string, send: DraftSend) => {
-    const draft = drafts.find((entry) => entry.id === id);
+    // Read from the store rather than this render: a new chat's draft can be
+    // made in the same press that sends it.
+    const draft = store.get(draftsAtom).find((entry) => entry.id === id);
     if (!draft || !isOpen || startingIds.has(id)) {
       return;
     }
@@ -436,7 +471,10 @@ export function useDrafts({
     discardDraft,
     discardingIds,
     draftFromLink,
+    draftWith,
+    expandDraft,
     newDraft,
+    popOutDraft,
     sentWords,
     showDraft,
     startChat,

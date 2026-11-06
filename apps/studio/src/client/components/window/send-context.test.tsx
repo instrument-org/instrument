@@ -422,6 +422,11 @@ describe("draftContext", () => {
             "title": "Hotels",
             "url": "https://hotels.example/",
           },
+          {
+            "kind": "screen",
+            "title": "Chat",
+            "url": "/chats/2026-10-01-lisbon",
+          },
         ],
         "page": {
           "selection": "Words on the page",

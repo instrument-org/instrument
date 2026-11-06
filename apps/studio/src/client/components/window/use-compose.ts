@@ -20,7 +20,15 @@ import { layoutCompose } from "./compose-layout";
  * `usePageHost`.
  */
 export function useCompose(width: number) {
-  const [entries, setEntries] = useAtom(composeAtom);
+  const [kept, setEntries] = useAtom(composeAtom);
+  // A draft's window is always docked. One kept by a build that could put a
+  // draft down to a bar or grow it over the window comes back docked.
+  const entries = kept.map(
+    (entry): ComposeEntry =>
+      entry.kind === "draft" && entry.placement !== "docked"
+        ? { ...entry, placement: "docked" }
+        : entry,
+  );
   const zoom = useAtomValue(zoomAtom);
   const placed = layoutCompose(entries, width, zoom);
   /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
@@ -35,7 +43,7 @@ export function useCompose(width: number) {
         : [...current, make()],
     );
   };
-  /** Brings a draft up in a window: a new window at the right, or the bar it was put down to, raised. */
+  /** Brings a draft up in a window at the right, unless it has one. */
   const open = (draftId: string) => {
     raise(draftGroupOf(draftId), () => ({
       draftId,
@@ -53,20 +61,14 @@ export function useCompose(width: number) {
   };
   /**
    * The draft's window becomes the chat's small view in the same place
-   * along the foot: the entry is replaced where it stands, put down if the
-   * draft was, docked if it had grown, since a chat's view has no larger
-   * size. What the draft's band drew and reported goes with the draft.
+   * along the foot: the entry is replaced where it stands, docked. What the
+   * draft's band drew and reported goes with the draft.
    */
   const becomeChat = (draftId: string, chatId: ChatId) => {
     setEntries((current) =>
       current.map((entry) =>
         entry.kind === "draft" && entry.draftId === draftId
-          ? {
-              chatId,
-              fromDraft: draftId,
-              kind: "chat",
-              placement: entry.placement === "bar" ? "bar" : "docked",
-            }
+          ? { chatId, fromDraft: draftId, kind: "chat", placement: "docked" }
           : entry,
       ),
     );

@@ -32,26 +32,6 @@ export const COMPOSE_MOTION = {
   type: "tween",
 } as const;
 
-/** The room a grown window leaves at each side of it, in layout px, so what it stands over shows around it however wide the window grows. */
-const GROWN_SIDE = 80;
-
-/**
- * A grown window's box, stated rather than left to the classes: a docked
- * window's width and height are motion values, and a style that merely stops
- * naming them can leave the last ones standing. Centered over the whole
- * window, the bar and the rail included, by its auto side margins between a
- * left and a right of zero. Its right edge is not here: that is animated, to
- * zero, and a style naming it as well would fight the animation.
- */
-export const GROWN = {
-  bottom: 40,
-  height: "auto",
-  left: 0,
-  marginInline: "auto",
-  top: 40,
-  width: `calc(100% - ${2 * GROWN_SIDE}px)`,
-} as const;
-
 /**
  * A window with its place along the foot: how far its right edge stands from
  * the row's, and its width when the row is narrower than its own.
@@ -65,9 +45,8 @@ export type PlacedCompose = ComposeEntry & {
  * Lays the windows along the foot the way a mail client does: the newest
  * at the right edge, each older one beside the last, and the ones there is
  * no room for left out from the left, so the row never wraps or squeezes. A
- * grown window stands alone among the windows, over the whole window; the
- * bars along the foot stay in their places under it. A chat's small view is
- * laid the same way as a draft's window, at its own width.
+ * chat's small view is laid the same way as a draft's window, at its own
+ * width.
  */
 export function layoutCompose(
   entries: ComposeEntry[],
@@ -75,17 +54,9 @@ export function layoutCompose(
   /** The UI's zoom, which the row is laid out in and the window's edge is not. */
   zoom = 1,
 ): PlacedCompose[] {
-  const isOneExpanded = entries.some((entry) => entry.placement === "expanded");
   const placed: PlacedCompose[] = [];
   let right = COMPOSE_EDGE_GAP / zoom;
   for (const [index, entry] of entries.toReversed().entries()) {
-    if (entry.placement === "expanded") {
-      placed.push({ ...entry, right: 0 });
-      continue;
-    }
-    if (isOneExpanded && entry.placement === "docked") {
-      continue;
-    }
     const own = widthOf(entry);
     const room = width - right - COMPOSE_GAP;
     // The first that does not fit ends the row, and everything older with

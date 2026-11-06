@@ -69,7 +69,7 @@ describe("a draft's chips", () => {
   const forDraft = (over: Partial<Parameters<typeof draftContextItems>[0]>) =>
     draftContextItems({
       allTabs: [],
-      bandUp: undefined,
+      band: [],
       dismissed: [],
       draft,
       finderOf: () => null,
@@ -78,10 +78,10 @@ describe("a draft's chips", () => {
       ...over,
     });
 
-  it("are what is on screen, then what the person chose", () => {
+  it("are what is in view, then every tab of the band, then what the person chose", () => {
     expect(
       forDraft({
-        bandUp: page("band", "draft:d"),
+        band: [page("band", "draft:d"), page("second", "draft:d")],
         draft: {
           ...draft,
           context: [
@@ -92,8 +92,9 @@ describe("a draft's chips", () => {
         inView: page("site", "site:1"),
       }).map((item) => item.key),
     ).toEqual([
-      "tab:band",
       "tab:site",
+      "tab:band",
+      "tab:second",
       `chat:${OTHER}`,
       "chosen:/Users/sam/a.pdf",
     ]);

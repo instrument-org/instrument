@@ -321,12 +321,14 @@ export function contextReaders({
       if (shown && item.items !== undefined) {
         continue;
       }
+      // A tab of the sending group's own is named with the rest of them
+      // below, so only one from elsewhere is named here.
       if (shown) {
-        named.push(
-          ...describeTabs([item.tab]).map(({ id, ...tab }) =>
-            item.owned ? { ...tab, id } : tab,
-          ),
-        );
+        if (!item.owned) {
+          named.push(
+            ...describeTabs([item.tab]).map(({ id: _id, ...tab }) => tab),
+          );
+        }
         continue;
       }
       shown = await tabContext(item.tab, { own, owned: item.owned });
@@ -367,10 +369,9 @@ export function contextReaders({
   /** The items a draft carries now; see draftContextItems. */
   const draftItems = (draft: Draft) => {
     const group = draftGroupOf(draft.id);
-    const bandUp = windowTabs.selectedTabIn(group);
     return draftContextItems({
       allTabs: windowTabs.allTabs,
-      bandUp,
+      band: windowTabs.allTabs.filter((tab) => tab.group === group),
       dismissed: dismissed[draft.id] ?? [],
       draft,
       finderOf,

@@ -15,6 +15,7 @@ The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), 
 | Ops | [`shared/drafts.ts`](../../apps/studio/src/shared/drafts.ts) | the `Draft` type, the `DraftOp` union, and `applyDraftOps`, which main and every window run |
 | Window mirror | [`client/drafts/store.ts`](../../apps/studio/src/client/drafts/store.ts), over [`client/lib/op-mirror.ts`](../../apps/studio/src/client/lib/op-mirror.ts) | what a window shows: main's snapshot with its own unacknowledged ops applied over it; the bookmarks share the mirror |
 | Chat box | [`client/drafts/chat-box.ts`](../../apps/studio/src/client/drafts/chat-box.ts) | which reply each chat's box writes into, and a reply's send |
+| New chat box | [`client/drafts/new-chat-box.ts`](../../apps/studio/src/client/drafts/new-chat-box.ts) | which draft the Chat screen's new chat writes into, per window tab, and the draft its first words make |
 | Composer words | [`client/drafts/settle-words.ts`](../../apps/studio/src/client/drafts/settle-words.ts), [`client/atoms/prompt-value.ts`](../../apps/studio/src/client/atoms/prompt-value.ts) | the words being typed, written into the draft a beat after the typing settles |
 
 ## One writer, ops in, snapshots out
@@ -39,7 +40,7 @@ A folder holding two different drafts cannot say which of them a loose file is f
 
 It holds what was pasted or dropped into the composer, the files and folders the draft was opened on by name, and chats the person added. Asks marked in files go with the message as pills of their own. Taking one of those chips off takes its line out of the file, so a no is a line that is not there, and dismisses it as well, so a screen chip does not name it again: a Finder whose selection it was goes back to standing for its folder. A page's chip reads the words of the window's own tab at that address while there is one.
 
-The screen's chips are worked out live from what the window shows (the tab the draft's own band has up, and what the window has in view: an open file, a folder, a page, an app's front), so they follow the screen while the person writes. The chat on screen is never one of them: a reply already names its chat as `chat:`. Dismissing a screen chip is kept in the window's memory by draft and chip (`dismissedChipsAtom`), never on disk, so it holds while the person moves around and may come back after a relaunch.
+The screen's chips are worked out live from what the window shows (what the window has in view: an open file, a folder, a page, an app's front; then every tab of the draft's own band), so they follow the screen while the person writes. A docked draft's band has no tab row of its own: its chips are its tabs, so picking one puts that tab up in the band and taking one off closes it. Written in the Chat screen, the draft's tabs stand in the side panel as a chat's do, and only the one up there is a chip. The chat on screen is never one of them: a reply already names its chat as `chat:`. Dismissing a screen chip is kept in the window's memory by draft and chip (`dismissedChipsAtom`), never on disk, so it holds while the person moves around and may come back after a relaunch.
 
 Read back, the folder is the composer's again, each file with its type read from its name; every line is a chip. What the composer was given by its path from elsewhere comes back as a chip. A project the decision model suggested (`projectSource: "suggested"`) is kept only while the app runs, and is offered again after a relaunch rather than written as the person's choice.
 
@@ -64,6 +65,12 @@ A launch finishes any send step 3 never reached (`finishSentDrafts`), moving wha
 ### A reply another device asks this one to send
 
 A phone cannot run the agent, so its Send leaves the draft with `send:` naming a computer (its device id): for a reply, the computer that last worked in its chat; for a draft that opens a chat of its own, the computer that last wrote the chat list. That computer sends it as soon as it has it, through the same three steps (`electron-main/drafts/send-asked-drafts.ts`), making the new chat first where there is none, on the chat's own model or else the default, under the draft's project. The agent can read `Drafts/` and never write it (`layoutRules` in `workspace-fs-layout.ts`), so a draft it wrote can never ask for a turn nobody started. Naming one device keeps two computers from both sending it. The ask holds for ten minutes from the draft's `updated`: one found later, by a launch the next day say, or one whose send fails, loses its `send` and waits in the chat's box like any other reply, so nothing goes out long after it was written or more than once.
+
+## Where a new chat is written
+
+A new chat's draft is written in one of two places, and moves between them. On the Chat screen with no chat open, it is written beside the chat list, its pages and folders in the side panel; the tab's address names it (`/chats?draft=<id>`), so expanding a draft's window, opening one from Drafts, or going back lands on it there. Everywhere else it is written in a window docked at the window's foot, whose pages stand in a well under the composer. Expand takes a docked draft to the Chat screen and pop out sends it back; New, and opening a draft from the list, pick the place by where the tab stands.
+
+The Chat screen makes nothing until something is written. Each window tab's new chat writes into one draft at a time (`newChatBoxesAtom`, per window, in memory): none at first, and the one its first words make, or the first paste or page opened beside it. A project picked before then is kept with the box and files the draft as it is made. Emptied of everything (its words, what is attached, every page beside it, a project picked), the draft is thrown away and the screen is a new chat again, so a new chat opened and left leaves nothing in Drafts. Sending points the box at nothing, so the screen is a new chat again while the draft becomes the chat.
 
 ## A chat's box
 

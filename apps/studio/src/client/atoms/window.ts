@@ -56,15 +56,15 @@ export type ComposeEntry = { placement: ComposePlacement } & (
   | { chatId: ChatId; fromDraft?: string; kind: "chat" }
 );
 
-/** How a window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
-export type ComposePlacement = "bar" | "docked" | "expanded";
+/** How a window stands: docked along the window's foot, or put down to a bar along it. Only a chat's small view is ever put down; a draft's window is always docked. */
+export type ComposePlacement = "bar" | "docked";
 
 /** The group key of what a window shows: the draft's tabs, or the chat's. */
 export function composeKeyOf(entry: ComposeEntry): string {
   return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
-/** The chats up in a window of their own over the row: docked or grown, not put down to a bar. */
+/** The chats up in a window of their own over the row, not put down to a bar. */
 export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
   return new Set(
     entries.flatMap((entry) =>

@@ -96,8 +96,10 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 
 /**
  * What a draft carries, in the order its chips stand: what is on screen now
- * (the tab its own band has up, then what the window has in view), less
- * what the person dismissed, then what they chose, its `context`.
+ * (what the window has in view, then every tab of the draft's own band, in
+ * the band's order), less what the person dismissed, then what they chose,
+ * its `context`. Each of the band's tabs is a chip, since the chips are the
+ * band's tabs: picking one puts it up, and taking one off closes it.
  *
  * The screen's chips are worked out on every read, so they follow the
  * screen while the person writes, and are never written to the draft's
@@ -105,7 +107,7 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
  */
 export function draftContextItems({
   allTabs,
-  bandUp,
+  band,
   dismissed,
   draft,
   finderOf,
@@ -113,8 +115,8 @@ export function draftContextItems({
   inView,
 }: {
   allTabs: WindowTab[];
-  /** The tab the draft's own band has up, when the band shows one. */
-  bandUp: undefined | WindowTab;
+  /** The tabs of the draft's own band, in its order. */
+  band: readonly WindowTab[];
   /** The keys of the screen's chips the person dismissed in this draft. */
   dismissed: readonly string[];
   draft: Draft;
@@ -135,7 +137,7 @@ export function draftContextItems({
       : [],
   );
   const screen: ContextItem[] = [];
-  for (const tab of [bandUp, inView]) {
+  for (const tab of [inView, ...band]) {
     const key = keyOfTab(tab);
     if (!tab || dismissed.includes(key)) {
       continue;

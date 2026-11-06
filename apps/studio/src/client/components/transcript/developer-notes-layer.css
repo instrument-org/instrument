@@ -69,6 +69,12 @@
 [data-dn="stack"] [data-dn="line"]:hover [data-dn="word"] {
   color: var(--foreground);
 }
+[data-mode="words"] [data-dn="word"] {
+  color: color-mix(in oklab, var(--foreground) 24%, transparent);
+}
+[data-mode="words"] [data-dn="mark"] {
+  opacity: 0;
+}
 [data-dn="card"] {
   position-anchor: --dn-card-line;
   position: fixed;
@@ -95,6 +101,9 @@
 @container transcript (width < 1066px) {
   [data-dn="word"] {
     display: none;
+  }
+  [data-mode="words"] [data-dn="mark"] {
+    opacity: 1;
   }
   [data-dn="stack"] {
     width: min(36px, calc(var(--dn-margin) + 8px));

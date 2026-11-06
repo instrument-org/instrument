@@ -4,8 +4,11 @@ import {
   type StoreId,
   type Turn,
 } from "@instrument-org/workspace/client";
+import { useAtomValue } from "jotai";
 import { use, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { chatNotesAtom } from "@/client/atoms/chat-notes";
 
 import { DeveloperNotesSourceContext } from "./developer-notes-source";
 import STYLES from "./developer-notes-layer.css?inline";
@@ -152,6 +155,7 @@ export default function DeveloperNotesLayer({
   sessionId: StoreId.Session;
   turns: readonly Turn[];
 }) {
+  const mode = useAtomValue(chatNotesAtom);
   const source = use(DeveloperNotesSourceContext);
   const all = source.useNotes({ chatId, sessionId });
   const [viewport, setViewport] = useState<HTMLElement | null>(null);
@@ -200,6 +204,9 @@ export default function DeveloperNotesLayer({
   const loaded = new Set(turns.map((turn) => turn.id));
   const stacks = stacksOf(all.filter((note) => loaded.has(note.turn)));
 
+  if (mode === "off") {
+    return null;
+  }
   if (!viewport) {
     return <ViewportProbe onFound={setViewport} />;
   }
@@ -265,6 +272,7 @@ export default function DeveloperNotesLayer({
     <div
       aria-hidden
       data-developer-notes=""
+      data-mode={mode}
       onPointerLeave={onLeave}
       onPointerMove={onMove}
       onPointerOver={onOver}

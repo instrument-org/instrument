@@ -488,14 +488,21 @@ describe("outlineCommand", () => {
       "printf '%s\\n' '<<EOF\nexample\nEOF\n'\ncat > document.txt <<EOF\nPRIVATE_DOCUMENT_BODY\nEOF",
       "<85 chars>",
     ],
-    ...["<<\\EOF", '<<"E"OF', "<<E\\OF", "<<'E'OF"].map(
-      (opener) =>
+    ...(
+      [
+        ["<<\\EOF", 65],
+        ['<<"E"OF', 66],
+        ["<<E\\OF", 65],
+        ["<<'E'OF", 66],
+      ] as const
+    ).map(
+      ([opener, length]) =>
         [
           `printf '%s\\n' '<<EOF\nexample\nEOF\n'\ncat > d.txt ${opener}\nPRIVATE\nEOF`,
-          expect.stringMatching(/^<\d+ chars>$/),
+          `<${length} chars>`,
         ] as const,
     ),
   ])("%j", (command, outlined) => {
-    expect(outlineCommand(command)).toEqual(outlined);
+    expect(outlineCommand(command)).toBe(outlined);
   });
 });

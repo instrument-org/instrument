@@ -3,7 +3,11 @@ import invariant from "tiny-invariant";
 import { z } from "zod";
 
 import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
-import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
+import {
+  navigateTarget,
+  pageOnItsWay,
+  restoreLastPage,
+} from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
 import { BrowserTargetIdSchema } from "../../types";
@@ -40,42 +44,50 @@ const open = base
   )
   .handler(async ({ context, errors, input }) => {
     const { restoreUrl, targetId, url } = input;
-    const partitionDir = getBrowserSessionDir();
-    await context.workspaceConfig.browser
-      .createTarget(targetId, partitionDir)
-      .catch((error: unknown) => {
-        throw errors.BROWSER_OPEN_FAILED({
-          message: error instanceof Error ? error.message : "Unknown error",
+    // Noted before the attach, so a restore of the same target sent beside
+    // this open, as a window drawing the tab it just opened sends one, finds
+    // it there and stands aside.
+    const arrived = url === undefined ? undefined : pageOnItsWay(targetId);
+    try {
+      const partitionDir = getBrowserSessionDir();
+      await context.workspaceConfig.browser
+        .createTarget(targetId, partitionDir)
+        .catch((error: unknown) => {
+          throw errors.BROWSER_OPEN_FAILED({
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
         });
+
+      // Register only after the guest attaches, so a timed-out attach never
+      // records a phantom target the reaper would try to close.
+      context.workspaceRef.send({
+        type: "registerBrowserTarget",
+        value: { targetId },
       });
 
-    // Register only after the guest attaches, so a timed-out attach never
-    // records a phantom target the reaper would try to close.
-    context.workspaceRef.send({
-      type: "registerBrowserTarget",
-      value: { targetId },
-    });
-
-    // An explicit page replaces the restore rather than racing it: both would
-    // navigate the same guest, and the one the user just clicked is the one
-    // they meant.
-    const navigated = url
-      ? await navigateTarget({ targetId, url })
-      : await restoreLastPage({
-          ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
-          targetId,
-        });
-    // The tab is open, which is what was asked for; it just came up blank. A
-    // navigate that timed out is a slow server rather than a bug, and the load
-    // carries on in the guest, so only other failures are reported. A tab
-    // closed while its navigate was in flight fails it too, and is gone as
-    // asked.
-    if (
-      navigated.isErr() &&
-      !(navigated.error instanceof CdpCommandTimeoutError) &&
-      context.workspaceConfig.browser.getTargetMeta(targetId) !== null
-    ) {
-      context.workspaceConfig.captureException(navigated.error);
+      // An explicit page replaces the restore rather than racing it, in this
+      // open or in another one of the same target: both would navigate the
+      // same guest, and the one the user just clicked is the one they meant.
+      const navigated = url
+        ? await navigateTarget({ targetId, url })
+        : await restoreLastPage({
+            ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
+            targetId,
+          });
+      // The tab is open, which is what was asked for; it just came up blank. A
+      // navigate that timed out is a slow server rather than a bug, and the
+      // load carries on in the guest, so only other failures are reported. A
+      // tab closed while its navigate was in flight fails it too, and is gone
+      // as asked.
+      if (
+        navigated.isErr() &&
+        !(navigated.error instanceof CdpCommandTimeoutError) &&
+        context.workspaceConfig.browser.getTargetMeta(targetId) !== null
+      ) {
+        context.workspaceConfig.captureException(navigated.error);
+      }
+    } finally {
+      arrived?.();
     }
   });
 

@@ -21,6 +21,7 @@ import {
 } from "@/client/drafts/new-chat-box";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
+  createDraftAtom,
   draftsAtom,
   removeDraftAtom,
   updateDraftAtom,
@@ -30,6 +31,7 @@ import { osConventions } from "@/client/lib/utils";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { ulid } from "ulid";
 
 import { AskPills } from "./ask-pills";
 import { PopOutButton } from "./chat-header";
@@ -89,6 +91,8 @@ export function NewChatView({
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
   const snapshots = useAtomValue(draftSnapshotsAtom);
+  const setSnapshots = useSetAtom(draftSnapshotsAtom);
+  const createDraft = useSetAtom(createDraftAtom);
   const inputRef = useRef<PromptInputRef>(null);
   const draft = draftInNewChatBox(drafts, boxes, tabId);
   const boundId = boxes[tabId]?.draftId ?? null;
@@ -118,6 +122,21 @@ export function NewChatView({
     // Only as the address changes; see above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftId, tabId]);
+  // What the box held besides its words (a picture's own preview among it)
+  // is kept with the draft as the box lets go of it, popped out or left, so
+  // its window or this screen shows it again as it was.
+  useLayoutEffect(() => {
+    if (boundId === null) {
+      return;
+    }
+    const input = inputRef.current;
+    return () => {
+      const kept = input?.snapshot();
+      if (kept) {
+        setSnapshots((current) => ({ ...current, [boundId]: kept }));
+      }
+    };
+  }, [boundId, setSnapshots]);
   // A draft made here, by the first words or the first thing opened beside
   // them, is put in the address, so a back or a relaunch finds it. Only one
   // made here: a draft taken up from the address is the address's to name,
@@ -133,6 +152,7 @@ export function NewChatView({
     }
   }, [boundId, draftId, router, store, tabId]);
 
+  const chips = useNewChatChips(draft);
   const group = draft ? draftGroupOf(draft.id) : undefined;
   const tabs =
     group === undefined
@@ -239,7 +259,25 @@ export function NewChatView({
           <PopOutButton
             isOut={false}
             onToggle={() => {
-              const id = draft?.id ?? makeDraft({ tabId });
+              if (draft) {
+                shell.popOutDraft(draft.id);
+                return;
+              }
+              // A new chat with nothing in it yet pops out as a draft of
+              // its own, made outside this screen's box, which would throw
+              // an empty draft away.
+              const now = Date.now();
+              const picked = boxes[tabId]?.projectId;
+              const id = ulid();
+              createDraft({
+                createdAt: now,
+                id,
+                ...(picked === undefined
+                  ? {}
+                  : { projectId: picked, projectSource: "chosen" }),
+                updatedAt: now,
+                words: "",
+              });
               shell.popOutDraft(id);
             }}
           />
@@ -257,7 +295,7 @@ export function NewChatView({
           draftKey={key}
           isLoading={false}
           keyboardHome
-          lead={draft ? <DraftChips draft={draft} /> : undefined}
+          lead={chips}
           leadAlwaysShown
           modelURI={shell.defaultModelURI}
           onFolders={(paths) => {
@@ -295,28 +333,37 @@ function MarkedPills({ draftId }: { draftId: string }) {
   return marked.length > 0 ? <AskPills asks={marked} /> : null;
 }
 
+/** What a new chat with no draft yet carries: nothing. */
+const NO_DRAFT: Draft = { createdAt: 0, id: "", updatedAt: 0, words: "" };
+
 /**
  * What the draft carries besides its words, as its chips: what it was told
  * to take, and the page its side panel has up while the panel is open, the
- * way a chat's composer names the chat's tab up.
+ * way a chat's composer names the chat's tab up. None at all for a new chat
+ * with no draft yet, or with nothing to name, so the row closes when its last
+ * chip goes.
  */
-function DraftChips({ draft }: { draft: Draft }) {
+function useNewChatChips(draft: Draft | undefined): ReactNode {
   const windowTabs = useWindowTabs();
   const updateDraft = useSetAtom(updateDraftAtom);
-  const up = windowTabs.selectedTabIn(draftGroupOf(draft.id));
+  const up = draft
+    ? windowTabs.selectedTabIn(draftGroupOf(draft.id))
+    : undefined;
   const { items, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
     band: up ? [up] : [],
-    draft,
+    draft: draft ?? NO_DRAFT,
     finderOf: () => null,
     inView: undefined,
     onChange: (update) => {
-      updateDraft({ id: draft.id, update });
+      if (draft) {
+        updateDraft({ id: draft.id, update });
+      }
     },
   });
-  return items.length > 0 ? (
+  return draft && items.length > 0 ? (
     <ContextChips items={items} onLeaveOut={leaveOut} />
-  ) : null;
+  ) : undefined;
 }
 
 /** Files the draft under the project what was written fits, as its window does. */

@@ -56,7 +56,7 @@ export type ComposeEntry = { placement: ComposePlacement } & (
   | { chatId: ChatId; fromDraft?: string; kind: "chat" }
 );
 
-/** How a window stands: docked along the window's foot, or put down to a bar along it. Only a chat's small view is ever put down; a draft's window is always docked. */
+/** How a window stands: docked along the window's foot, or put down to a bar along it. */
 export type ComposePlacement = "bar" | "docked";
 
 /** The group key of what a window shows: the draft's tabs, or the chat's. */

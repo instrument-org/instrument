@@ -30,6 +30,8 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type FileUpload } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
+import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -39,8 +41,9 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
-import { type Project } from "./chats";
+import { draftTitle, type Project } from "./chats";
 import {
+  COMPOSE_BAR_WIDTH,
   COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
@@ -112,11 +115,65 @@ export function BarMarks({ group }: { group: string }) {
 }
 
 /**
+ * The draft put down: a dark bar along the window's foot with its first words
+ * and the marks of what it holds, brought back up by a press, closed by its
+ * cross. What it holds is read off its tabs, so the bar says the same as the
+ * band would.
+ */
+export function ComposeBar({
+  draft,
+  onClose,
+  onOpen,
+  right,
+}: {
+  draft: Draft;
+  onClose: () => void;
+  onOpen: () => void;
+  /** Where the bar stands along the foot, in layout px from the right edge. */
+  right: number;
+}) {
+  const isPresent = useIsPresent();
+  return (
+    <motion.div
+      animate={{ opacity: 1, right, y: 0 }}
+      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
+      data-slot="compose-bar"
+      exit={{ opacity: 0, y: 36 }}
+      inert={!isPresent}
+      initial={{ opacity: 0, right, y: 36 }}
+      style={{ width: COMPOSE_BAR_WIDTH }}
+      transition={COMPOSE_MOTION}
+    >
+      <button
+        className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/8"
+        onClick={onOpen}
+        type="button"
+      >
+        <CircleDashedIcon className="size-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">
+          {draftTitle(draft.words)}
+        </span>
+        <BarMarks group={draftGroupOf(draft.id)} />
+      </button>
+      <button
+        aria-label="Close draft"
+        className="grid h-full w-8 shrink-0 place-items-center text-white/80 hover:bg-white/8 hover:text-white"
+        onClick={onClose}
+        type="button"
+      >
+        <XIcon className="size-3.5" />
+      </button>
+    </motion.div>
+  );
+}
+
+/**
  * A draft of a new chat, in a window that floats over Files, the browser or
  * Apps the way a mail client's compose window does, docked at the window's
  * bottom-right corner. On a tinted shell: a head with the draft's name, the
- * project it will be filed under, and the window's own buttons (trash,
- * expand into the Chat screen, close); under it the chat's own composer; and
+ * project it will be filed under, and the window's own buttons (trash, then
+ * minimize to a bar, expand into the Chat screen, close); under it the chat's
+ * own composer; and
  * under that, once the draft has something open, a well that is the draft's
  * own pane. The composer's chips are that pane's tabs: the one picked is the
  * one drawn in the well, and taking one off closes it. The draft's tabs are
@@ -134,6 +191,7 @@ export function ComposeWindow({
   onClose,
   onDiscard,
   onExpand,
+  onMinimize,
   onModelChange,
   onNewProject,
   onStart,
@@ -151,6 +209,8 @@ export function ComposeWindow({
   onDiscard: () => void;
   /** Takes the draft into the Chat screen, written there in full beside the chat list. */
   onExpand: () => void;
+  /** Puts the window down to a bar along the foot. */
+  onMinimize: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** Makes a project named for what was typed in the head's project picker, and files the draft under it. */
   onNewProject: (name: string) => void;
@@ -466,6 +526,9 @@ export function ComposeWindow({
                     <TrashIcon className="size-4" />
                   </WindowButton>
                   <span className="mx-1 h-4 w-px bg-border" />
+                  <WindowButton label="Minimize" onClick={onMinimize}>
+                    <MinusIcon className="size-4" />
+                  </WindowButton>
                   <WindowButton label="Expand" onClick={onExpand}>
                     <ArrowsOutSimpleIcon className="size-4" />
                   </WindowButton>

@@ -89,7 +89,14 @@ describe("a draft's chips", () => {
             { kind: "file", path: "/Users/sam/a.pdf" },
           ],
         },
-        inView: { ...page("site", "site:1"), url: "https://other.example/" },
+        inView: {
+          group: "site:1",
+          id: "site",
+          kind: "page",
+          openedAt: 1,
+          title: "Other",
+          url: "https://other.example/",
+        },
       }).map((item) => item.key),
     ).toEqual([
       "tab:band",

@@ -1144,6 +1144,9 @@ export const PromptInput = ({
                     );
                   }}
                   onViewChange={setMenuView}
+                  // A bare box is a draft's, tall enough that a menu hung
+                  // off its edge would open far from the press.
+                  opensOnTrigger
                   places={composerPlaces}
                   skills={userInvocableSkills}
                   triggerClassName="size-7 rounded-full [&_svg]:size-4"

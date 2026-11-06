@@ -10,7 +10,7 @@ import { useEffect } from "react";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { ChatBar, ChatWindow } from "./chat-window";
 import { type Chat, type Project } from "./chats";
-import { ComposeWindow, type DraftSend } from "./compose-window";
+import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -158,6 +158,22 @@ export function ComposeLayer({
           if (!draft) {
             return null;
           }
+          const key = draftGroupOf(draft.id);
+          if (entry.placement === "bar") {
+            return (
+              <ComposeBar
+                draft={draft}
+                key={`bar:${draft.id}`}
+                onClose={() => {
+                  onCloseDraft(draft.id, draft.words);
+                }}
+                onOpen={() => {
+                  compose.setPlacement(key, "docked");
+                }}
+                right={entry.right}
+              />
+            );
+          }
           return (
             <ComposeWindow
               browser={browser}
@@ -175,6 +191,9 @@ export function ComposeLayer({
               }}
               onExpand={() => {
                 onExpandDraft(draft.id);
+              }}
+              onMinimize={() => {
+                compose.setPlacement(key, "bar");
               }}
               onModelChange={onModelChange}
               onNewProject={(name) => {

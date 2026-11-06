@@ -78,6 +78,9 @@ export interface ComposerPlaces {
   onOpenWeb: () => void;
 }
 
+/** Where a menu that opens on the plus itself stands: over it, its left edge on the plus's. */
+const ON_TRIGGER = { alignOffset: 0, side: "top", sideOffset: 6 } as const;
+
 /** The actions a chat's plus draws as its two attach buttons rather than as rows. */
 const ATTACH_ACTIONS = new Set(["add-files", "work-in-folder"]);
 
@@ -98,6 +101,7 @@ export function ComposerAddMenu({
   onReturnFocus,
   onSelectSkill,
   onViewChange,
+  opensOnTrigger = false,
   places,
   skills,
   triggerClassName,
@@ -111,6 +115,12 @@ export function ComposerAddMenu({
   onReturnFocus: () => void;
   onSelectSkill: (skill: ComposerSkill) => void;
   onViewChange: (view: ComposerMenuView | null) => void;
+  /**
+   * Whether the menu opens on the plus itself rather than clear of the
+   * composer's edge: for a box tall enough that hanging off its edge would
+   * put the menu far from the press, as a draft's is.
+   */
+  opensOnTrigger?: boolean;
   /** A chat's places, which turn the menu into tiles over its rows. */
   places?: ComposerPlaces;
   skills: ComposerSkill[];
@@ -142,11 +152,14 @@ export function ComposerAddMenu({
     chose.current = "prompt";
     action.onSelect();
   };
-  const { alignOffset, side, sideOffset } = useComposerMenuPlacement({
+  const placement = useComposerMenuPlacement({
     anchorRef: triggerRef,
-    bounds,
+    bounds: opensOnTrigger ? null : bounds,
     open: view !== null,
   });
+  const { alignOffset, side, sideOffset } = opensOnTrigger
+    ? ON_TRIGGER
+    : placement;
 
   return (
     <DropdownMenu
@@ -177,7 +190,7 @@ export function ComposerAddMenu({
       <DropdownMenuContent
         align="start"
         alignOffset={alignOffset}
-        avoidCollisions={false}
+        avoidCollisions={opensOnTrigger}
         // Room for the first group and a few skills, and no more: left to the
         // available height a full skills list becomes a column as tall as the
         // window. The same cap the slash menu keeps, over the same entries.

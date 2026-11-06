@@ -1,3 +1,4 @@
+import { type Draft } from "@/shared/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
 import { AnimatePresence } from "motion/react";
 import { type ReactNode, useState } from "react";
@@ -6,10 +7,18 @@ import { page, userEvent } from "vitest/browser";
 
 import { ComposerFrame } from "../composer-frame";
 import { ChatBar } from "./chat-window";
+import { ComposeBar } from "./compose-window";
 
 // A window along the foot stays on screen for its exit animation, holding the
 // handlers of the render before it left. A press landing on it there runs them
 // against a window that has since moved on.
+
+const DRAFT: Draft = {
+  createdAt: 1,
+  id: "draft",
+  updatedAt: 1,
+  words: "Words",
+};
 
 /** Takes the bar away when its button is pressed, the way pressing a window's own buttons does. */
 function Leaves({
@@ -37,6 +46,19 @@ describe("a bar on its way out", () => {
       (onOpen: () => void) => (
         <ChatBar
           chat={undefined}
+          key="bar"
+          onClose={() => undefined}
+          onOpen={onOpen}
+          right={0}
+        />
+      ),
+    ],
+    [
+      "a draft's",
+      "compose-bar",
+      (onOpen: () => void) => (
+        <ComposeBar
+          draft={DRAFT}
           key="bar"
           onClose={() => undefined}
           onOpen={onOpen}

@@ -74,28 +74,30 @@ export function FolderNameMenu({
             <span className="min-w-0 truncate">{ancestor.name}</span>
           </DropdownMenuItem>
         ))}
-        {places.map((list, index) => (
-          <Fragment key={list.label ?? index}>
-            <DropdownMenuSeparator />
-            {list.label ? (
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                {list.label}
-              </DropdownMenuLabel>
-            ) : null}
-            {list.places.map((place) => (
-              <DropdownMenuItem
-                className={cn(place.path === folder.path && "bg-accent/60")}
-                key={place.path}
-                onSelect={() => {
-                  onGo(place.path);
-                }}
-              >
-                <FolderMark size="large" path={place.path} />
-                <span className="min-w-0 truncate">{place.name}</span>
-              </DropdownMenuItem>
-            ))}
-          </Fragment>
-        ))}
+        {places
+          .filter((list) => list.places.length > 0)
+          .map((list, index) => (
+            <Fragment key={list.label ?? index}>
+              <DropdownMenuSeparator />
+              {list.label ? (
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  {list.label}
+                </DropdownMenuLabel>
+              ) : null}
+              {list.places.map((place) => (
+                <DropdownMenuItem
+                  className={cn(place.path === folder.path && "bg-accent/60")}
+                  key={place.path}
+                  onSelect={() => {
+                    onGo(place.path);
+                  }}
+                >
+                  <FolderMark size="large" path={place.path} />
+                  <span className="min-w-0 truncate">{place.name}</span>
+                </DropdownMenuItem>
+              ))}
+            </Fragment>
+          ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

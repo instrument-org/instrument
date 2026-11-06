@@ -16,10 +16,9 @@ const TAKEOVER_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];
  * arrived settles.
  *
  * Renders nothing: the scroll commands come from the provider's context, so
- * they are only reachable below it, and the submit handler that also wants
- * the end sits above. A changing `signal` rather than a direct call, so the
- * scroll runs from the render that turned autoScroll on and the scroller arms
- * follow-bottom with it.
+ * they are only reachable below it. Sending a message is not an arrival: its
+ * turn is a scroll anchor, and taking the end here would pull it away from the
+ * top of the window.
  *
  * Arriving is not one moment. The messages are read after the conversation
  * mounts, and a long transcript lays out for a while after they land: images
@@ -35,7 +34,7 @@ export function ScrollToEndBridge({
 }: {
   /** The scroller's content, whose growth is what arriving looks like. */
   contentRef: RefObject<HTMLElement | null>;
-  /** Changes whenever the end should be taken afresh: the session, its messages arriving, a submit. */
+  /** Changes whenever the end should be taken afresh: the session, its messages arriving. */
   signal: string;
 }) {
   const { scrollToEnd } = useMessageScroller();
@@ -56,8 +55,15 @@ export function ScrollToEndBridge({
     // Narrowed once here, since the narrowing does not reach into `stop`.
     const viewport: HTMLElement = scrolled;
     let quiet: ReturnType<typeof setTimeout> | undefined;
+    // Taken on the next frame: taking the end sets the height of the scroller's
+    // spacer, and resizing what is observed from inside the callback is a
+    // ResizeObserver loop.
+    let growth = 0;
     const observer = new ResizeObserver(() => {
-      scrollToEnd();
+      cancelAnimationFrame(growth);
+      growth = requestAnimationFrame(() => {
+        scrollToEnd();
+      });
       clearTimeout(quiet);
       quiet = setTimeout(stop, SETTLE_MS);
     });
@@ -71,6 +77,7 @@ export function ScrollToEndBridge({
     // Hoisted: the observer and the timers name it before it is reached.
     function stop() {
       observer.disconnect();
+      cancelAnimationFrame(growth);
       clearTimeout(quiet);
       clearTimeout(cap);
       for (const type of TAKEOVER_EVENTS) {

@@ -198,12 +198,9 @@ function TurnBody({
   const releaseAutoScroll = useReleaseAutoScroll();
   const card = isFolded ? undefined : slotOf(turn);
   const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
-  const firstFolded = turn.rows.findIndex((row) =>
-    turn.foldedRowIds.has(row.id),
-  );
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
-    if (isFolded && index === firstFolded) {
+    if (isFolded && row.id === turn.foldLineAt) {
       out.push(
         <WorkedRow
           chatInfo={chatInfo}

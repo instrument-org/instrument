@@ -246,7 +246,7 @@ describe("turnsOf", () => {
     `);
   });
 
-  it("folds everything before the words a turn ended on", () => {
+  it("folds the work between what the agent said first and the words it ended on", () => {
     const [turn] = turnsOf(
       [
         typed("Do the thing"),
@@ -276,7 +276,46 @@ describe("turnsOf", () => {
       ]
     `);
     const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
-    expect(folded).toEqual([true, true, false, false]);
+    expect(folded).toEqual([false, true, false, false]);
+    expect(turn?.foldLineAt).toBe(turn?.rows[1]?.id);
+  });
+
+  it("keeps the words after a first thought above the fold, with its line under them", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state: "done",
+            text: "Let me think.",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+          said(id, "On it."),
+          call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+          said(id, "In between."),
+          call(id, "bash", { activity: "Checking" }, { exitCode: 0 }),
+          said(id, "Here it is."),
+        ]),
+      ],
+      { isRunning: false },
+    );
+    const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
+    expect(folded).toEqual([true, false, true, true, true, false]);
+    expect(turn?.foldLineAt).toBe(turn?.rows[2]?.id);
+  });
+
+  it("leaves a message cut across with nothing done but words as it was said", () => {
+    const [cut] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "On it.")]),
+        typed("Also this"),
+      ],
+      { isRunning: true },
+    );
+    expect(cut?.foldedRowIds.size).toBe(0);
+    expect(cut?.foldLineAt).toBeUndefined();
   });
 
   it.each([

@@ -99,6 +99,8 @@ export interface Turn {
   endedAt?: Date;
   /** The rows the Worked row stands for. Empty when the turn does not fold. */
   foldedRowIds: ReadonlySet<string>;
+  /** The folded row the Worked row draws at: where the work starts, under what was said before it. */
+  foldLineAt?: string;
   /** It folds on finishing, rather than because a message cut across it. */
   foldsWhenDone: boolean;
   id: StoreId.Message;
@@ -356,6 +358,7 @@ function buildTurn(
     apps: unique(activities.flatMap((row) => row.apps)),
     ...(endedAt && { endedAt }),
     foldedRowIds: folded.ids,
+    ...(folded.lineAt !== undefined && { foldLineAt: folded.lineAt }),
     foldsWhenDone: folded.whenDone,
     id: first.id,
     inherited:
@@ -821,19 +824,38 @@ function foldedRows(
     cutAcross,
     phase,
   }: { cutAcross: boolean; phase: "done" | "interrupted" | "working" },
-): { ids: ReadonlySet<string>; whenDone: boolean } {
-  const none = { ids: new Set<string>(), whenDone: false };
-  const foldable = (row: TurnRow) =>
+): {
+  ids: ReadonlySet<string>;
+  lineAt: string | undefined;
+  whenDone: boolean;
+} {
+  const none = { ids: new Set<string>(), lineAt: undefined, whenDone: false };
+  const settled = (row: TurnRow) =>
     (row.kind === "ask" && !row.isOpen) ||
     row.kind === "text" ||
     (row.kind === "activity" && !isRunningRow(row));
+  // What the agent said before it did anything answers the message at once, so
+  // it stays above the fold. A thought is not doing anything.
+  const firstWork = rows.findIndex(
+    (row) =>
+      row.kind === "ask" ||
+      (row.kind === "activity" && !row.steps.every(isThought)),
+  );
+  const foldable = (row: TurnRow, index: number) =>
+    settled(row) &&
+    (row.kind !== "text" || (firstWork !== -1 && index > firstWork));
+  const folding = (ids: ReadonlySet<string>, whenDone: boolean) => ({
+    ids,
+    lineAt: (
+      rows.find((row, index) => ids.has(row.id) && index >= firstWork) ??
+      rows.find((row) => ids.has(row.id))
+    )?.id,
+    whenDone,
+  });
   if (cutAcross) {
-    return {
-      ids: new Set(rows.filter(foldable).map((row) => row.id)),
-      whenDone: false,
-    };
+    return folding(new Set(rows.filter(foldable).map((row) => row.id)), false);
   }
-  if (phase !== "done" || rows.findLast(foldable)?.kind !== "text") {
+  if (phase !== "done" || rows.findLast(settled)?.kind !== "text") {
     return none;
   }
   // The reply is the words after the last step, however many parts they are.
@@ -842,15 +864,15 @@ function foldedRows(
   );
   return lastWork === -1
     ? none
-    : {
-        ids: new Set(
+    : folding(
+        new Set(
           rows
             .slice(0, lastWork + 1)
             .filter(foldable)
             .map((row) => row.id),
         ),
-        whenDone: true,
-      };
+        true,
+      );
 }
 
 function liveOf(

@@ -619,6 +619,7 @@ function Tab({
   // What the strip's drag has moved the tab by. Where that does not place it, it
   // is drawn with none of it and has none to give back as it is let go.
   const dragX = useMotionValue(0);
+  const reorderX = useMotionValue(0);
   const wasHeldAway = useRef(false);
   useLayoutEffect(() => {
     if (wasHeldAway.current && !isHeldAway) {
@@ -680,7 +681,9 @@ function Tab({
           "text-foreground/55",
           !isDragging && "hover:bg-foreground/8 hover:text-foreground",
         ),
-    (isDragging || heldLeft !== undefined) && "z-10 shadow-xs-soft",
+    // Over the `z-index` a `Reorder.Item` sets itself, which lapses wherever the
+    // tab stands exactly in its place.
+    (isDragging || heldLeft !== undefined) && "z-10! shadow-xs-soft",
     // Takes its place back as it left it, the tabs beside it making room.
     isDragging && GIVES_PLACE_UP,
     // Gone from the row with its picture on the pointer, the tabs beside it taking
@@ -816,6 +819,10 @@ function Tab({
         layout="position"
         ref={tabRef}
         style={{ ...surface, x: dragX }}
+        // In the hand it is placed from here. The reorder's gesture goes on, since
+        // turning its drag off would end it, and writes its own idea of where the
+        // tab is, on every frame, to a value nothing draws.
+        {...(heldLeft === undefined ? {} : { _dragX: reorderX })}
         dragMomentum={false}
         dragTransition={SETTLE_DRAG}
         onDrag={onDrag}

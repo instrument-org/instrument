@@ -230,6 +230,40 @@ describe("a tab in the hand", () => {
     expect(onPlace).toHaveBeenLastCalledWith("a", LEFT);
   });
 
+  it("does nothing while the reorder repeats itself with the pointer at rest", async () => {
+    const { carry, onPlace } = renderPlaced();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    const event = movedTo(1);
+    act(() => {
+      carry.current.onDrag("a", event);
+    });
+    const heldThen = carry.current.held;
+    const notedThen = noteTabCarry.mock.calls.length;
+    act(() => {
+      carry.current.onDrag("a", event);
+    });
+
+    expect(carry.current.held).toBe(heldThen);
+    expect(onPlace).toHaveBeenCalledTimes(1);
+    expect(noteTabCarry.mock.calls.length).toBe(notedThen);
+  });
+
+  it("is placed again as the row settles under a pointer at rest", async () => {
+    const { carry, onPlace } = renderPlaced();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    const event = movedTo(performance.now());
+    act(() => {
+      carry.current.onDrag("a", event);
+    });
+    act(() => {
+      carry.current.onDrag("a", event);
+    });
+
+    expect(onPlace).toHaveBeenCalledTimes(2);
+  });
+
   it("is not placed off its row, and goes back to the pointer on its return", async () => {
     const { carry, onPlace } = renderPlaced();
     carry.current.onDragStart("a", moved(0));

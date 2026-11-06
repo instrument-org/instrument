@@ -68,23 +68,6 @@ export const TabStandingSchema = z.object({
 });
 export type TabStanding = z.output<typeof TabStandingSchema>;
 
-/**
- * What a picture of a tab paints out: what stands over the page and stays with the
- * window, in px from the window's corner, and what the page stands on, to do it with.
- */
-export const TabPicturePaintOutSchema = z.object({
-  ground: z.string(),
-  over: z.array(
-    z.object({
-      height: z.number(),
-      width: z.number(),
-      x: z.number(),
-      y: z.number(),
-    }),
-  ),
-});
-export type TabPicturePaintOut = z.output<typeof TabPicturePaintOutSchema>;
-
 /** Where a tab can go: a new window beside this one, or one open already. */
 export const TabMoveDestinationSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("new") }),

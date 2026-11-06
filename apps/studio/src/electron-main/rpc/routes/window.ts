@@ -18,7 +18,6 @@ import {
 } from "@/electron-main/windows/tab-carry";
 import {
   TabMoveDestinationSchema,
-  TabPicturePaintOutSchema,
   TabSchema,
   TabStandingSchema,
 } from "@/shared/tabs";
@@ -135,7 +134,6 @@ const startTabCarry = base
       isOffRow: z.boolean(),
       isOnlyTab: z.boolean(),
       moving: TabStandingSchema,
-      paintOut: TabPicturePaintOutSchema,
       pointInTab: z.number(),
     }),
   )

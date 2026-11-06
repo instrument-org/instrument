@@ -37,13 +37,13 @@ import {
   type TabMoveDestination,
   type TabsModel,
   type TabStanding,
-  type TabPicturePaintOut,
 } from "@/shared/tabs";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { app, BrowserWindow, screen, webContents } from "electron";
 
 import {
   type Bounds,
+  boundsAtRelease,
   boundsUnderPointer,
   type CarryPhase,
   isSamePhase,
@@ -275,14 +275,9 @@ function beginCarry({
  * row or Escape has nothing to undo. Answers whether the tab's strip closes up
  * behind it, which it can where there is something to go with the pointer.
  */
-export function startTabCarry({
-  paintOut,
-  ...start
-}: Parameters<typeof beginCarry>[0] & {
-  at: Point;
-  paintOut: TabPicturePaintOut;
-  pointInTab: number;
-}): { collapsesOffRow: boolean } {
+export function startTabCarry(
+  start: Parameters<typeof beginCarry>[0] & { at: Point; pointInTab: number },
+): { collapsesOffRow: boolean } {
   const started = beginCarry(start);
   if (!started) {
     return { collapsesOffRow: false };
@@ -290,7 +285,7 @@ export function startTabCarry({
   if (started.followsCursor) {
     started.poll = setInterval(followCursor, FOLLOW_MS);
     if (started.spare) {
-      started.picture = openTabPicture(started.from, paintOut);
+      started.picture = openTabPicture(started.from);
     }
   }
   return { collapsesOffRow: canPlaceWindows() && started.spare !== null };
@@ -535,6 +530,23 @@ function updateCarry() {
   }
 }
 
+/**
+ * Where what opens for the release stands. A window's only tab has its window under
+ * the pointer already, and leaves it there.
+ */
+function placeAtRelease(ending: Carry, at: Point | undefined) {
+  if (!at || !canPlaceWindows()) {
+    return undefined;
+  }
+  return ending.spare
+    ? boundsAtRelease(
+        at,
+        ending.size,
+        screen.getDisplayNearestPoint(at).workArea,
+      )
+    : windowBoundsAt(ending, at);
+}
+
 function windowBoundsAt({ grab, size }: Carry, point: Point) {
   const { workArea } = screen.getDisplayNearestPoint(point);
   const bounds = boundsUnderPointer(point, grab, size, workArea);
@@ -655,9 +667,10 @@ export async function endTabCarry({
     return NONE;
   }
   try {
+    const place = placeAtRelease(ending, at);
     return phase.kind === "free"
-      ? await standAlone(ending, at)
-      : await land(ending, phase.window, at);
+      ? await standAlone(ending, place)
+      : await land(ending, phase.window, place);
   } catch (error) {
     // A window gone partway. Nothing holds the picture from here, and it stands over everything.
     ending.picture?.close();
@@ -692,15 +705,18 @@ export async function moveTabNow({
   if (!current) {
     return NONE;
   }
+  const place = canPlaceWindows()
+    ? { ...current.size, x: cascadedBounds().x, y: cascadedBounds().y }
+    : undefined;
   if (to.kind === "new") {
-    return standAlone(current, cascadedBounds());
+    return standAlone(current, place);
   }
   const target = appWindowById(to.id);
   if (!target || target.isDestroyed()) {
     stopCarry();
     return NONE;
   }
-  return land(current, target, cascadedBounds());
+  return land(current, target, place);
 }
 
 /** The tab is let go: nothing follows the pointer from here, and a picture still stands in until what it stood in for is up. */
@@ -793,12 +809,10 @@ function closeOnceUp(picture: null | TabPicture, window: BrowserWindow) {
 /** Let go in the open. */
 async function standAlone(
   ending: Carry,
-  at: Point | undefined,
+  place: Bounds | undefined,
 ): Promise<TabCarryEnd> {
   const { followsCursor, from, moving, picture } = ending;
   release(ending);
-  const place =
-    at && canPlaceWindows() ? windowBoundsAt(ending, at) : undefined;
   if (ending.goes === "window") {
     if (!ending.spare) {
       setOpacity(from, 1);
@@ -848,7 +862,7 @@ async function standAlone(
 async function land(
   ending: Carry,
   target: BrowserWindow,
-  at: Point | undefined,
+  place: Bounds | undefined,
 ): Promise<TabCarryEnd> {
   const targetId = appWindowIdOfWindow(target);
   if (targetId === undefined) {
@@ -869,7 +883,7 @@ async function land(
   // on its strip, which needs nothing of that page.
   if (!isJoining && goes === "tab") {
     tell(target, { kind: "row" });
-    return standAlone(ending, at);
+    return standAlone(ending, place);
   }
   release(ending);
   if (!isJoining) {

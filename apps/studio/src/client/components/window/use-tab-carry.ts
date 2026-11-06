@@ -2,13 +2,16 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { type TabId, type TabPicturePaintOut } from "@/shared/tabs";
+import { type TabId } from "@/shared/tabs";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { settleTabMove, tabStanding } from "./move-tab";
 import { showTabCarryView } from "./tab-carry-view";
 import { isOffRow, type PointerSample, recentPath } from "./tab-pull";
+
+/** How long the row can go on moving after the pointer has stopped. */
+const ROW_MOVES_MS = 300;
 
 /** One drag of a tab, from its first movement to its release. */
 interface TabDrag {
@@ -19,6 +22,8 @@ interface TabDrag {
   isNeighborUp: boolean;
   isOffRow: boolean;
   key: string;
+  /** What the reorder last reported, which it goes on reporting every frame with the pointer at rest. */
+  lastEvent?: PointerEvent;
   orderAtStart: string[];
   path: PointerSample[];
   pointInTab: number;
@@ -164,7 +169,6 @@ export function useTabCarry({
         isOffRow: drag.isOffRow,
         isOnlyTab,
         moving,
-        paintOut: pictureLeavesOut(),
         pointInTab,
       });
       if (dragging.current === drag) {
@@ -179,6 +183,15 @@ export function useTabCarry({
     if (drag?.key !== key || drag.canceled) {
       return;
     }
+    if (drag.lastEvent === event) {
+      // With the pointer at rest the row can still be moving under the tab, opening
+      // for it or closing behind it, and once it has stopped there is nothing to do.
+      if (!drag.isOffRow && event.timeStamp > performance.now() - ROW_MOVES_MS) {
+        onPlace(key, event.clientX - drag.pointInTab);
+      }
+      return;
+    }
+    drag.lastEvent = event;
     drag.path = recentPath(drag.path, {
       at: event.timeStamp,
       x: event.clientX,
@@ -258,21 +271,5 @@ export function useTabCarry({
     onDrag,
     onDragEnd,
     onDragStart,
-  };
-}
-
-/** What stands over the page and stays with the window when the tab goes. */
-function pictureLeavesOut(): TabPicturePaintOut {
-  const floats = document.querySelectorAll(
-    "[data-compose-layer] > :not([data-slot=compose-scrim])",
-  );
-  return {
-    ground: getComputedStyle(document.documentElement).getPropertyValue(
-      "--background",
-    ),
-    over: [...floats].map((float) => {
-      const { height, left, top, width } = float.getBoundingClientRect();
-      return { height, width, x: left, y: top };
-    }),
   };
 }

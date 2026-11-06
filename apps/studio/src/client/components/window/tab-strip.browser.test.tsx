@@ -1,4 +1,5 @@
 import { renderInBrowser } from "@/tests/render-browser";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { TabStrip } from "./tab-strip";
@@ -45,6 +46,61 @@ describe("a tab carried off its strip", () => {
     // Nothing of the collapse stays in what the tab draws with.
     expect(getComputedStyle(tab("b")).opacity).toBe("1");
     expect(tab("b").getAttribute("style")).not.toContain("opacity");
+  });
+});
+
+describe("a tab dragged in its own strip", () => {
+  const nextFrame = () =>
+    new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+
+  it("goes on being dragged in the hand, and stands where the hand says", async () => {
+    const moves: number[] = [];
+    let ended = 0;
+    function Dragged() {
+      const [left, setLeft] = useState<number>();
+      return (
+        <TabStrip
+          heldAt={left === undefined ? undefined : { key: "b", left }}
+          onClose={() => undefined}
+          onSelect={() => undefined}
+          onTabDrag={(_key, event) => {
+            moves.push(event.clientX);
+            setLeft(event.clientX - 10);
+          }}
+          onTabDragEnd={() => {
+            ended += 1;
+          }}
+          selectedKey="b"
+          tabs={tabs}
+        />
+      );
+    }
+    await renderInBrowser(<Dragged />);
+    const { left, top } = tab("b").getBoundingClientRect();
+    const at = (clientX: number) => ({
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      clientX,
+      clientY: top + 4,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(left + 10)));
+    for (const x of [left + 30, left + 60, left + 90]) {
+      window.dispatchEvent(new PointerEvent("pointermove", at(x)));
+      await nextFrame();
+      await nextFrame();
+    }
+
+    expect(ended).toBe(0);
+    expect(moves.at(-1)).toBe(left + 90);
+    await expect
+      .poll(() => tab("b").getBoundingClientRect().left)
+      .toBeCloseTo(left + 80, 0);
+
+    window.dispatchEvent(new PointerEvent("pointerup", at(left + 90)));
+    await expect.poll(() => ended).toBe(1);
   });
 });
 

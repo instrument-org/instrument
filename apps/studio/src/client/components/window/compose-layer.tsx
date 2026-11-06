@@ -98,10 +98,7 @@ export function ComposeLayer({
   }, [orphanKey]);
 
   return (
-    <div
-      className="pointer-events-none absolute inset-0 z-40"
-      data-compose-layer=""
-    >
+    <div className="pointer-events-none absolute inset-0 z-40">
       <AnimatePresence initial={false}>
         {compose.placed.map((entry) => {
           if (entry.kind === "chat") {

@@ -109,7 +109,7 @@ export function ChatHeader({
       )}
       <div
         className={cn(
-          "group/head @container/head flex h-14 w-full min-w-0 shrink-0 items-start gap-x-2 bg-background pt-2 pr-3",
+          "group/head @container/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-3",
           leading ? "pl-3" : "pl-4",
         )}
       >

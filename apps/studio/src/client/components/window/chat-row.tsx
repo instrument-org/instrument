@@ -245,6 +245,7 @@ export function ChatRow({
   );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
+  const live = projects.filter((entry) => !entry.retired);
   // Beside the ways to open the chat, where the list offers it.
   const popOut = actions.find((action) => action.id === "popOut");
   const item = (action: RowAction) => (
@@ -365,10 +366,9 @@ export function ChatRow({
             Project
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="flex w-56 flex-col p-0">
-            <MenuScrollArea className="max-h-80">
-              {projects
-                .filter((entry) => !entry.retired)
-                .map((entry) => (
+            {live.length > 0 && (
+              <MenuScrollArea className="max-h-80">
+                {live.map((entry) => (
                   <ContextMenuCheckboxItem
                     checked={chat.project === entry.id}
                     key={entry.id}
@@ -380,8 +380,14 @@ export function ChatRow({
                     <span className="truncate">{entry.name}</span>
                   </ContextMenuCheckboxItem>
                 ))}
-            </MenuScrollArea>
-            <div className="shrink-0 border-t border-border p-1">
+              </MenuScrollArea>
+            )}
+            <div
+              className={cn(
+                "shrink-0 p-1",
+                live.length > 0 && "border-t border-border",
+              )}
+            >
               <ContextMenuItem
                 onSelect={() => {
                   onNewProject();

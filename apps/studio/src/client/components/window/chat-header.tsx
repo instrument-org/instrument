@@ -295,6 +295,7 @@ function ChatMenu({
   trigger: ReactNode;
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
+  const live = projectMenu?.projects.filter((entry) => !entry.retired) ?? [];
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const item = (action: RowAction) => (
     <DropdownMenuItem
@@ -353,10 +354,9 @@ function ChatMenu({
               Project
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="flex w-56 flex-col p-0">
-              <MenuScrollArea className="max-h-80">
-                {projectMenu.projects
-                  .filter((entry) => !entry.retired)
-                  .map((entry) => (
+              {live.length > 0 && (
+                <MenuScrollArea className="max-h-80">
+                  {live.map((entry) => (
                     <DropdownMenuCheckboxItem
                       checked={chat.project === entry.id}
                       key={entry.id}
@@ -368,8 +368,14 @@ function ChatMenu({
                       <span className="truncate">{entry.name}</span>
                     </DropdownMenuCheckboxItem>
                   ))}
-              </MenuScrollArea>
-              <div className="shrink-0 border-t border-border p-1">
+                </MenuScrollArea>
+              )}
+              <div
+                className={cn(
+                  "shrink-0 p-1",
+                  live.length > 0 && "border-t border-border",
+                )}
+              >
                 <DropdownMenuItem
                   onSelect={() => {
                     projectMenu.onNew();

@@ -35,6 +35,7 @@ import { type TabLocation } from "@/client/components/window/tab-location";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import {
   locateTypedPath,
   type MissedPath,
@@ -494,6 +495,7 @@ export function Omnibar({
                 void openPath(again);
               } else if (resting !== undefined) {
                 event.currentTarget.blur();
+                focusScreenHome({ leaving: false });
               }
               break;
             }
@@ -506,6 +508,7 @@ export function Omnibar({
                 send({ type: "clear" });
               } else {
                 event.currentTarget.blur();
+                focusScreenHome({ leaving: false });
               }
               break;
             }

@@ -12,6 +12,7 @@ import {
   finderPlacesOpenAtom,
   finderPlacesWidthAtom,
 } from "@/client/atoms/window";
+import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import {
   FileSystem,
   type FileSystemFileItem,
@@ -1691,7 +1692,9 @@ export function ComputerPage({
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
-        isTypingTarget(event.target)
+        isTypingTarget(event.target) ||
+        // A dialog over the folder keeps its own Space.
+        getDefaultStore().get(windowHoldsAtom).length > 0
       ) {
         return;
       }

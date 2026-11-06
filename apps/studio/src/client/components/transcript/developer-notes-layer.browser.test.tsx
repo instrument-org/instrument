@@ -215,3 +215,60 @@ it("keeps a send's slide as it is with the layer mounted, and stays out of its w
   expect(new Set(withLayer.hidden)).toEqual(new Set(["hidden"]));
   expect(withLayer.after).toBe("visible");
 });
+
+it("keeps a fold's total off the page on either side of its Worked row, without growing the scroller", async () => {
+  const turn = turnId(0);
+  const row = "prt_in_the_fold";
+  const note: DeveloperNote = {
+    foldedIn: turn,
+    id: "note-in-the-fold",
+    kind: "note",
+    label: "A note",
+    row,
+    rowKind: "activity",
+    rowLabel: "A step",
+    side: "right",
+    turn,
+  };
+  const source = { useBody: () => null, useNotes: () => [note] };
+  const { unmount } = await renderInBrowser(
+    <MessageScrollerProvider defaultScrollPosition="start">
+      <MessageScroller>
+        <MessageScrollerViewport
+          className="@container/transcript"
+          style={{ height: 400 }}
+        >
+          <MessageScrollerContent
+            data-content
+            style={{ display: "flex", flexDirection: "column", padding: 16 }}
+          >
+            <MessageScrollerItem
+              data-transcript-row={row}
+              style={{ height: 40 }}
+            />
+            <MessageScrollerItem
+              data-transcript-row={`worked:${turn}`}
+              style={{ height: 40 }}
+            />
+            <DeveloperNotesSourceContext value={source}>
+              <DeveloperNotesLayer
+                chatId={"chat" as ChatId}
+                sessionId={"ses" as StoreId.Session}
+                turns={[{ id: turn } as Turn]}
+              />
+            </DeveloperNotesSourceContext>
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>,
+  );
+  await vi.waitFor(() => {
+    expect(document.querySelector("[data-fold]")).not.toBeNull();
+  });
+  await nextFrame();
+  expect(layerMoves()).toBe(false);
+  expect(
+    document.querySelector("[data-fold]")?.getBoundingClientRect().top,
+  ).toBeLessThan(0);
+  await unmount();
+});

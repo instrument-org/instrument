@@ -149,7 +149,9 @@ function bottomOf(
  * Where a stack sits. One line needs no room worked out, which is most of them
  * and most of what laying the layer out costs. A closed fold's total stands by
  * its Worked row, and goes far above the page as soon as a row of its fold is on
- * it: the distance to that row is zero with no such row, by anchor()'s fallback.
+ * it, whichever side of the Worked row that row is on, since below the page it
+ * would grow the scroller: the distance to that row is zero with no such row, by
+ * anchor()'s fallback.
  */
 function stackStyle(stacks: readonly Stack[], index: number) {
   const stack = stacks[index];
@@ -163,7 +165,7 @@ function stackStyle(stacks: readonly Stack[], index: number) {
     const worked = rowName(stack.row);
     const row = first ? rowName(first.row) : worked;
     return {
-      top: `calc(${top} + ${offset} - (anchor(${row} top, anchor(${worked} top, 0px)) - anchor(${worked} top, 0px)) * 100000)`,
+      top: `calc(${top} + ${offset} - abs(anchor(${row} top, anchor(${worked} top, 0px)) - anchor(${worked} top, 0px)) * 100000)`,
     };
   }
   return stack.notes.length === 1

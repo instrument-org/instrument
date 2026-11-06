@@ -630,6 +630,7 @@ function toolPart(part: Obj, sources: OutlineSources): Obj {
 
 /** App notes that carry only the app's own state, kept whole. */
 const NOTES_KEPT = new Set([
+  "data-actions",
   "data-adoptedTask",
   "data-appEvent",
   "data-attachedFolderChanges",

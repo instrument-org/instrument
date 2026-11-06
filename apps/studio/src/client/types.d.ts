@@ -1,3 +1,4 @@
+import type { WindowAction } from "@/client/lib/actions";
 import type { DraftsBridge } from "@/shared/drafts";
 import type { BookmarksBridge } from "@/shared/bookmarks";
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
@@ -64,6 +65,10 @@ declare global {
         ) => () => void;
         set: (file: KeptFile, key: string, value: unknown) => void;
       };
+      // Tells the main process something the person did that only the
+      // window sees, for the action log (`client/lib/actions.ts`). Absent
+      // outside Electron.
+      recordAction?: (action: WindowAction) => void;
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
       // Hand files to the OS as a native drag, by where they are on the

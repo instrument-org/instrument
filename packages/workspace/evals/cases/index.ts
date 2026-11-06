@@ -1,4 +1,6 @@
 import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
+import { ACTIVITY_CONTEXT_EVALS } from "./activity-context";
+import { AI_REQUESTS_EVALS } from "./ai-requests";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
@@ -63,6 +65,8 @@ import { WHITEBOARD_EVALS } from "./whiteboard";
 
 export const EVALS = [
   ...WORKSPACE_INSTRUCTIONS_EVALS,
+  ...ACTIVITY_CONTEXT_EVALS,
+  ...AI_REQUESTS_EVALS,
   ...APP_ACCOUNTS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
   ...APP_OTHER_COMPUTER_EVALS,

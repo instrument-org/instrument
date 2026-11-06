@@ -1,3 +1,4 @@
+import { noteInstalledUpdate } from "@/electron-main/lib/actions";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteInstallFailed, noteUpdate } from "@/electron-main/lib/notices";
 import {
@@ -228,7 +229,7 @@ export function takeRelaunchMarker():
 // Compares the version we last launched with the version running now. A
 // strictly-newer running version means the app was updated since the last
 // launch, which the bell's notices say, with a toast when the person asked for
-// that install. An install they asked for that left an older version running
+// that install. Any change of version goes in the action log too. An install they asked for that left an older version running
 // failed after the app quit, where nothing else could say so. Persists the
 // current version so the next launch has a baseline.
 //
@@ -254,6 +255,9 @@ export function checkRecentVersionBump({
   const requested = store.get("installRequested")?.to;
   const current = app.getVersion();
 
+  if (previous !== undefined && previous !== current) {
+    noteInstalledUpdate({ from: previous, to: current });
+  }
   const outcome = launchOutcome({ current, previous, requested });
   if (outcome.type === "updated") {
     noteUpdate({

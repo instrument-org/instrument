@@ -10,7 +10,7 @@ Remove ambient telemetry from Studio. Replace it with a local diagnostics journa
 
 | Tier | Sentence                                                                                          | Requires                                                                 | Cost                                              |
 | ---- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
-| A    | "Instrument does not observe how you use the app. Nothing leaves your device unless you send it." | No analytics SDK, no install identifier, no automatic upload of any kind | No passive crash signal                           |
+| A    | "Instrument keeps a history of what you do in it on your device." | No analytics SDK, no install identifier, no automatic upload of any kind | No passive crash signal                           |
 | B    | Tier A plus "you can turn on automatic crash reports"                                             | Tier A plus one default-off switch with a published schema               | Small                                             |
 | C    | "Anonymous telemetry, opt out any time"                                                           | Today's code                                                             | Free, and indistinguishable from every competitor |
 

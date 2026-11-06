@@ -1,4 +1,5 @@
 import {
+  actionsModelNote,
   backgroundProcessesModelNote,
   type ChatInfo,
   dateChangeModelNote,
@@ -49,6 +50,14 @@ export function renderDataPart({
   }
 
   switch (part.type) {
+    case "data-actions": {
+      return (
+        <ModelContextDebugCard
+          key={part.metadata.id}
+          text={actionsModelNote(part.data)}
+        />
+      );
+    }
     case "data-appEvent": {
       // A note that only told the agent this computer's connections has no
       // event to draw.

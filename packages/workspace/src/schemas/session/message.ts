@@ -36,6 +36,7 @@ import { outputLimitModelNote } from "../../lib/output-limit-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { setupNewsModelNote } from "../../lib/setup-news-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
+import { actionsModelNote } from "../../lib/actions-model-text";
 import { modelChangeModelNote } from "../../lib/model-change-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { stateNotes } from "../../lib/state-notes";
@@ -687,6 +688,7 @@ const USER_TURN_NOTES = [
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
   noted("signedIn", ({ data }) => signedInModelNote(data)),
   noted("viewContext", stated),
+  noted("actions", ({ data }) => actionsModelNote(data)),
   noted("asks", ({ data }) => asksModelNote(data)),
   noted("workspaceInstructions", stated),
   noted("project", stated),

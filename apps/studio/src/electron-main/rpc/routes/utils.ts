@@ -222,11 +222,16 @@ const openFileWith = base
       throw errors.FILE_NOT_FOUND();
     }
 
+    let appName: string | undefined;
     try {
       const candidates = await getFileOpenCandidates(input.filePath);
-      if (!candidates.some(({ appPath }) => appPath === input.appPath)) {
+      const picked = candidates.find(
+        ({ appPath }) => appPath === input.appPath,
+      );
+      if (!picked) {
         throw errors.ERROR_OPENING_FILE();
       }
+      appName = picked.appName;
       // execFile (not a shell) so the app path and file path can't be
       // interpreted as shell syntax.
       await execFileAsync("open", ["-a", input.appPath, input.filePath]);
@@ -235,7 +240,7 @@ const openFileWith = base
         message: error instanceof Error ? error.message : undefined,
       });
     }
-    recordFileOpen(input.filePath, "external");
+    recordFileOpen(input.filePath, "external", appName);
   });
 
 // Default-app name and icon for "Open in {app}" affordances. Fields are null
@@ -314,10 +319,10 @@ const openPath = base
     }
     // Where the system would hand the file back to Instrument, launch the app
     // its "Open in {app}" label names instead. Only macOS can name one.
-    const { launchAppPath } =
+    const { appName, launchAppPath } =
       stats.isFile() && os.platform() === "darwin"
         ? await getFileOpenTarget(input.filepath)
-        : { launchAppPath: null };
+        : { appName: null, launchAppPath: null };
     const errorMessage = await openPathOnComputer(input.filepath, {
       appPath: launchAppPath,
     });
@@ -326,7 +331,7 @@ const openPath = base
     }
     // A folder opened in the file manager is browsing, not a recent file.
     if (stats.isFile()) {
-      recordFileOpen(input.filepath, "external");
+      recordFileOpen(input.filepath, "external", appName ?? undefined);
     }
   });
 

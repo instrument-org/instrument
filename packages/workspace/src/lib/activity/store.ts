@@ -6,7 +6,13 @@ import { ulid } from "ulid";
 import { getWorkspaceConfig } from "../workspace-config";
 import { versionMatches, workspaceTables } from "../workspace-db";
 import { type LinesRead, readLinesFrom } from "../workspace-files";
-import { activityFileOf, activityFiles, lineOf, rowOf } from "./log-file";
+import {
+  activityFileOf,
+  activityFiles,
+  lineOf,
+  monthEndOf,
+  rowOf,
+} from "./log-file";
 import {
   ACTIVITY_FACETS,
   type ActivityEntry,
@@ -79,12 +85,6 @@ const FACET_EXPRESSIONS: Record<ActivityFacet, string> = {
   purpose: "purpose",
   status: "status",
 };
-
-// The facets whose values are shown with their connection's mark.
-const FACETS_WITH_CONNECTION_TYPE = new Set<ActivityFacet>([
-  "connection",
-  "model",
-]);
 
 const SORT_EXPRESSIONS: Record<ActivitySort["column"], string> = {
   durationMs: "duration_ms",
@@ -317,8 +317,88 @@ export function insertActivity(entry: ActivityEntry): void {
   }
 }
 
-/** A WHERE clause and its parameters for the filters, leaving out one field's own (for its facet counts). */
-function where(filter: ActivityFilter, except?: ActivityFacet) {
+/** When a line says its request started, or nothing for one that will not parse. */
+function startOf(line: string): number | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    const at =
+      typeof parsed === "object" && parsed !== null && "at" in parsed
+        ? Date.parse(String(parsed.at))
+        : Number.NaN;
+    return Number.isNaN(at) ? undefined : at;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Removes the requests this device made at or after `since`, or all of
+ * them without it, from its own files and from the index, so the list reads
+ * without them. Another device's files are that device's alone to write and
+ * are left as they are. A month wholly in that time goes; the month it
+ * starts in is written again with its earlier lines. Answers how many went
+ * from the index.
+ */
+export async function clearOwnActivity(
+  since?: number,
+): Promise<{ removed: number }> {
+  const { deviceId, rootDir } = getWorkspaceConfig();
+  const from = since ?? Number.NEGATIVE_INFINITY;
+  const own = activityFiles(rootDir).filter(
+    ({ device, file }) => device === deviceId && monthEndOf(file) > from,
+  );
+  for (const { file } of own) {
+    // Read once off the main thread, so a file a sync service had made
+    // name-only is on disk before the synchronous pass below.
+    await fs.promises.readFile(file).catch(() => undefined);
+  }
+  for (const { file } of own) {
+    let text: string;
+    try {
+      // oxlint-disable-next-line studio/no-sync-content-read -- this device's own file, just read above; synchronous so no request appended meanwhile is lost
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    const kept = text
+      .split("\n")
+      .filter((line) => (startOf(line) ?? Number.POSITIVE_INFINITY) < from);
+    if (kept.length === 0) {
+      fs.rmSync(file, { force: true });
+    } else {
+      const copy = `${file}.clearing`;
+      fs.writeFileSync(copy, kept.map((line) => `${line}\n`).join(""));
+      fs.renameSync(copy, file);
+    }
+  }
+  const db = openStore();
+  if (!db) {
+    return { removed: 0 };
+  }
+  const forget = db.prepare("DELETE FROM activity_files WHERE path = ?");
+  for (const { file } of own) {
+    forget.run(file);
+  }
+  const removed = Number(
+    db
+      .prepare("DELETE FROM activity WHERE device = ? AND started_at >= ?")
+      .run(deviceId, since ?? Number.MIN_SAFE_INTEGER).changes,
+  );
+  return { removed };
+}
+
+/** How many requests this device made at or after `since`, or ever without it. */
+export async function countOwnActivity(since?: number): Promise<number> {
+  const row = (await readable())
+    ?.prepare(
+      "SELECT count(*) AS count FROM activity WHERE device = ? AND started_at >= ?",
+    )
+    .get(getWorkspaceConfig().deviceId, since ?? Number.MIN_SAFE_INTEGER);
+  return Number(row?.count ?? 0);
+}
+
+/** A WHERE clause and its parameters for the filters. */
+function where(filter: ActivityFilter) {
   const clauses: string[] = [];
   const params: SQLInputValue[] = [];
   const anyOf = (expression: string, values: readonly string[] | undefined) => {
@@ -329,9 +409,7 @@ function where(filter: ActivityFilter, except?: ActivityFacet) {
     params.push(...values);
   };
   for (const facet of ACTIVITY_FACETS) {
-    if (facet !== except) {
-      anyOf(FACET_EXPRESSIONS[facet], filter[facet]);
-    }
+    anyOf(FACET_EXPRESSIONS[facet], filter[facet]);
   }
   if (filter.since !== undefined) {
     clauses.push("started_at >= ?");
@@ -383,47 +461,6 @@ export async function getActivity(
     ?.prepare(`SELECT ${SELECT_ROW} FROM activity WHERE id = ?`)
     .get(id);
   return row ? ActivityRowSchema.parse(row) : undefined;
-}
-
-type FacetEntry = {
-  count: number;
-  /** The connection kind behind a model or connection value, for its mark. */
-  connectionType?: null | string;
-  value: string;
-};
-
-/**
- * The totals under the filters, and for each field the values it can take
- * with how many rows have each, counted under every filter but that field's
- * own, so picking one value leaves its alternatives countable.
- */
-export async function summarizeActivity(filter: ActivityFilter) {
-  const db = await readable();
-  const facets = Object.fromEntries(
-    ACTIVITY_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
-  ) as Record<ActivityFacet, FacetEntry[]>; // filled per facet below
-  if (!db) {
-    return { facets, requests: 0, tokens: 0 };
-  }
-  const { params, sql } = where(filter);
-  const totals = db
-    .prepare(
-      `SELECT COUNT(*) AS requests, COALESCE(SUM(total_tokens), 0) AS tokens FROM activity ${sql}`,
-    )
-    .get(...params) as { requests: number; tokens: number }; // an aggregate always returns its row
-  for (const facet of ACTIVITY_FACETS) {
-    const scoped = where(filter, facet);
-    const expression = FACET_EXPRESSIONS[facet];
-    const scopedWhere = scoped.sql
-      ? `${scoped.sql} AND ${expression} IS NOT NULL`
-      : `WHERE ${expression} IS NOT NULL`;
-    facets[facet] = db
-      .prepare(
-        `SELECT ${expression} AS value, COUNT(*) AS count${FACETS_WITH_CONNECTION_TYPE.has(facet) ? ", MAX(connection_type) AS connectionType" : ""} FROM activity ${scopedWhere} GROUP BY value ORDER BY count DESC, value LIMIT 50`,
-      )
-      .all(...scoped.params) as FacetEntry[]; // the columns selected above
-  }
-  return { facets, requests: totals.requests, tokens: totals.tokens };
 }
 
 const CSV_COLUMNS: [

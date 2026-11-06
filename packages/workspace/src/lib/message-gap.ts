@@ -97,7 +97,7 @@ export function detectMessageGap({
  * rather than as a list of the wake kinds to skip, so a new kind of wake is
  * silent here without anyone remembering to add it.
  */
-function isFromUser(message: SessionMessage.WithParts) {
+export function isFromUser(message: SessionMessage.WithParts) {
   return (
     message.role === "user" &&
     message.parts.some(

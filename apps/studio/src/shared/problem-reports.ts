@@ -110,20 +110,24 @@ const FeedbackFileSchema = ReportFileSchema.extend({
 export type FeedbackFile = z.output<typeof FeedbackFileSchema>;
 
 /**
- * One part of what a feedback report carries: the chat, the diagnostics, or
- * the agent's write-up. `files` and `events` are what it sends, exactly as
- * the main process read them, and `bytes` is what they add to the report.
+ * One part of what a feedback report carries: the chat, what the person did
+ * in the app before it, the diagnostics, or the agent's write-up. `files` and
+ * `events` are what it sends, exactly as the main process read them, and
+ * `bytes` is what they add to the report.
  */
 export const FeedbackItemSchema = z.object({
   bytes: z.number().int().min(0),
   events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
   files: z.array(FeedbackFileSchema),
   id: z.string(),
-  kind: z.enum(["chat", "diagnostics", "writeup"]),
+  kind: z.enum(["actions", "chat", "diagnostics", "writeup"]),
   label: z.string(),
 });
 
 export type FeedbackItem = z.output<typeof FeedbackItemSchema>;
+
+/** How far back feedback looks at what the person did in the app. */
+export const FEEDBACK_ACTIONS_MS = 30 * 60_000;
 
 /** Said when the chat is more than one report may carry. */
 export const FEEDBACK_TOO_LARGE =
@@ -137,6 +141,11 @@ export type ChatFeedbackDescription = {
 
 /** What a feedback report can carry, for the dialog to offer. */
 export type FeedbackDescription = {
+  /**
+   * What the person did in the app in the half hour before, when they did
+   * anything; the one part they may leave out.
+   */
+  actions?: FeedbackItem;
   /** The chat the feedback is about. */
   chat?: ChatFeedbackDescription;
   diagnostics: FeedbackItem;

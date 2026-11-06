@@ -537,6 +537,61 @@ describe("feedback", () => {
     expect(sent.events?.map((event) => event.lastAt)).toEqual([5, 4, 3]);
   });
 
+  it("offers what the person did as one file, redacted, and nothing when they did nothing", async () => {
+    const { createReportRedactor } = await import("./report-redaction");
+    const redactor = createReportRedactor({
+      chatIds: ["2026-10-01-roofer"],
+      home: "/Users/sam",
+    });
+    const actions = [
+      {
+        at: "2026-11-05T22:18:00.000Z",
+        kind: "folder" as const,
+        path: "/Users/sam/Downloads",
+      },
+      {
+        at: "2026-11-05T22:19:00.000Z",
+        id: "2026-10-01-roofer",
+        kind: "chat" as const,
+        title: "Roof quotes",
+      },
+      {
+        at: "2026-11-05T22:20:00.000Z",
+        kind: "page" as const,
+        title: "Reset your password",
+        url: "https://accounts.example.com/reset?token=k39fz#done",
+      },
+    ];
+    expect(reports.actionsFeedback(actions, redactor)?.files)
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "content": "{"at":"2026-11-05T22:18:00.000Z","kind":"folder","path":"~/Downloads"}
+        {"at":"2026-11-05T22:19:00.000Z","id":"[other chat]","kind":"chat","title":"Roof quotes"}
+        {"at":"2026-11-05T22:20:00.000Z","kind":"page","title":"Reset your password","url":"https://accounts.example.com/reset"}
+        ",
+            "label": "Your activity",
+            "path": "diagnostics/actions.jsonl",
+          },
+        ]
+      `);
+    expect(reports.actionsFeedback([], redactor)).toBeUndefined();
+  });
+
+  it("keeps the newest of what the person did when there is a lot of it", () => {
+    const actions = Array.from({ length: 2000 }, (_, index) => ({
+      at: new Date(index * 1000).toISOString(),
+      kind: "error" as const,
+      message: `${index} ${"x".repeat(200)}`,
+    }));
+    const content =
+      reports.actionsFeedback(actions, { deep: (value) => value })?.files[0]
+        ?.content ?? "";
+    expect(Buffer.byteLength(content)).toBeLessThanOrEqual(256 * 1024);
+    expect(content.split("\n").at(-2)).toContain('"1999 x');
+    expect(content).not.toContain('"0 x');
+  });
+
   it("refuses a chat too big to send rather than cutting it short", () => {
     expect(() =>
       input([

@@ -53,6 +53,8 @@ import {
 } from "./shell-commands/background-jobs";
 import { createInstrumentCommand } from "./shell-commands/instrument";
 import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
+import { createActivityCommand } from "./shell-commands/activity";
+import { ACTIVITY_COMMAND } from "./shell-commands/activity-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
@@ -926,6 +928,7 @@ export async function createLocalBashEnv({
   );
   const instrumentCommand = createInstrumentCommand({
     subcommands: [
+      { ...ACTIVITY_COMMAND, command: createActivityCommand(scope) },
       {
         ...APP_COMMAND,
         command: createAppCommand(scope),

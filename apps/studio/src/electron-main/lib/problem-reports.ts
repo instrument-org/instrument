@@ -9,6 +9,7 @@ import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import { getAppsDir } from "@/electron-main/lib/apps";
 import {
   type ChatFeedbackDescription,
+  FEEDBACK_ACTIONS_MS,
   FEEDBACK_TOO_LARGE,
   type FeedbackDescription,
   type FeedbackFile,
@@ -26,6 +27,7 @@ import {
   type FeedbackImageType,
 } from "@/shared/feedback-images";
 import { osConventionsFor } from "@/shared/os-conventions";
+import { pageAddress } from "@instrument-org/shared";
 import { app } from "electron";
 import {
   type ExceptionEvent,
@@ -33,6 +35,7 @@ import {
   formatExceptionEvent,
 } from "@instrument-org/shared/exceptions";
 import {
+  type Action,
   chatDir,
   type ChatId,
   chatIds,
@@ -41,6 +44,7 @@ import {
   listApps,
   listMemories,
   memoryDir,
+  readActions,
 } from "@instrument-org/workspace/electron";
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
 import { createHash } from "node:crypto";
@@ -492,6 +496,16 @@ const FEEDBACK_LOG_BYTES = 512 * 1024;
 /** Where the app's log goes in a feedback report. */
 export const FEEDBACK_LOG_PATH = "diagnostics/app.log";
 
+/** Where what the person did in the app goes in a feedback report. */
+export const FEEDBACK_ACTIONS_PATH = "diagnostics/actions.jsonl";
+
+/**
+ * The most of what the person did that feedback carries, its newest lines:
+ * small beside the chat and the log, so a report trimmed to fit never has
+ * to cut it.
+ */
+const FEEDBACK_ACTIONS_BYTES = 256 * 1024;
+
 /** A session's log, `<session>.<device>.jsonl` and its later generations. */
 const SESSION_LOG = /^(ses_[0-9A-Za-z]+)\..+\.jsonl$/;
 
@@ -592,9 +606,10 @@ function jsonBytes(value: unknown) {
 
 /**
  * What feedback can carry, for the dialog to offer: the chat it is about,
- * when there is one, read from its record folder, and the diagnostics. Each
- * is redacted here, before the dialog sees it, so what Show details shows is
- * what is sent.
+ * when there is one, read from its record folder, what the person did in
+ * the app in the half hour before, and the diagnostics. Each is redacted
+ * here, before the dialog sees it, so what Show details shows is what is
+ * sent.
  */
 export async function describeFeedback(
   chatId: ChatId | undefined,
@@ -608,12 +623,64 @@ export async function describeFeedback(
     ? await describeChatFeedback(chatId, redactor)
     : undefined;
   return {
+    actions: actionsFeedback(await recentActions(), redactor),
     chat: chat?.chat,
     diagnostics: diagnosticsItem(
       chatId && { id: chatId, startedWith: chat?.startedWith },
       redactor,
     ),
   };
+}
+
+/** What the person did in the app in the last `FEEDBACK_ACTIONS_MS`, oldest first; none before a workspace runs. */
+async function recentActions(): Promise<Action[]> {
+  try {
+    return await readActions({ since: Date.now() - FEEDBACK_ACTIONS_MS });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * What the person did in the app as one item of feedback, a JSON line per
+ * action, redacted as the rest is (the home folder as `~`, other chats'
+ * ids taken out, their titles kept, a page's address without its query):
+ * the newest that fit
+ * `FEEDBACK_ACTIONS_BYTES`, or nothing when they did nothing.
+ */
+export function actionsFeedback(
+  actions: readonly Action[],
+  redactor: Pick<ReportRedactor, "deep">,
+): FeedbackItem | undefined {
+  const lines: string[] = [];
+  let bytes = 0;
+  for (const action of actions.toReversed()) {
+    const sent =
+      action.kind === "page"
+        ? { ...action, url: pageAddress(action.url) }
+        : action;
+    const line = `${JSON.stringify(redactor.deep(sent))}\n`;
+    bytes += Buffer.byteLength(line);
+    if (bytes > FEEDBACK_ACTIONS_BYTES) {
+      break;
+    }
+    lines.push(line);
+  }
+  if (lines.length === 0) {
+    return undefined;
+  }
+  return feedbackItem({
+    files: [
+      {
+        content: lines.toReversed().join(""),
+        label: "Your activity",
+        path: FEEDBACK_ACTIONS_PATH,
+      },
+    ],
+    id: "actions",
+    kind: "actions",
+    label: "Your activity",
+  });
 }
 
 /**
@@ -747,7 +814,8 @@ export class FeedbackTooLargeError extends Error {
  * showed, their files in `files` and the recent errors in `events`. Over
  * the service's cap, the log loses lines from its top first, then the
  * oldest errors go; a chat still over it is refused whole rather than sent
- * cut short.
+ * cut short. What the person did in the app is never cut, since
+ * `actionsFeedback` already keeps it small.
  */
 export function feedbackReportInput({
   items,

@@ -11,6 +11,7 @@ import {
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
 
+import { type HistoryAction } from "./lib/actions/schema";
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
@@ -265,6 +266,25 @@ export interface WorkspaceConfig {
    * likely next message (`next-message.ts`). Absent means it may.
    */
   maySuggestNextMessage?: () => boolean;
+  /**
+   * Whether the person lets the chat's agent hear what they did in the app
+   * (`lib/actions/`): the note on each message they type and
+   * `instrument activity`. Absent means it may.
+   */
+  mayShareActions?: () => boolean;
+  /**
+   * What the person did that the app's history and download list keep
+   * rather than the action log (`lib/actions/`): the pages they visited in
+   * their own tabs, the files they opened, in the app or in another app from
+   * it, and the files they downloaded. Those from
+   * `since` to `until`, both included, newest first, at most `limit` of them
+   * (all of them without one). Absent, there are none.
+   */
+  readPersonHistory?: (range: {
+    limit?: number;
+    since: number;
+    until: number;
+  }) => HistoryAction[];
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's

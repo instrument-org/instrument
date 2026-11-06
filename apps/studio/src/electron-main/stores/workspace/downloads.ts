@@ -11,6 +11,9 @@ const BrowserDownloadSchema = z.object({
   path: z.string().nullable(),
   receivedBytes: z.number(),
   startedAt: z.number(),
+  // When it finished, failed or was canceled; absent while it runs, and on a
+  // download a build that kept no such time finished.
+  endedAt: z.number().optional(),
   // `interrupted` is still running: the network dropped it, and Chromium
   // resumes it when it can or a person stops it.
   state: z.enum([

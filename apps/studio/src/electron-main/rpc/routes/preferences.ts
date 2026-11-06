@@ -141,6 +141,13 @@ const setSuggestNextMessage = base
     getWorkspacePreferences().set("suggestNextMessage", input.enabled);
   });
 
+/** Whether chats may read what the person did in the app. */
+const setShareActionsWithChats = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("shareActionsWithChats", input.enabled);
+  });
+
 const setDeveloperMode = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -277,6 +284,7 @@ export const preferences = {
   setDeveloperMode,
   setPlatformApiServer,
   setReleaseChannel,
+  setShareActionsWithChats,
   setSuggestNextMessage,
   setTheme,
   unpinSidebarPlace,

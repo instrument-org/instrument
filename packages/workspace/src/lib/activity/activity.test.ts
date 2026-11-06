@@ -20,9 +20,10 @@ import { activityTelemetry, registerActivityTelemetry } from "./record";
 import { type ActivityEntry } from "./schema";
 import {
   activityCsv,
+  clearOwnActivity,
+  countOwnActivity,
   insertActivity,
   listActivity,
-  summarizeActivity,
 } from "./store";
 
 const SECRET = "the words nobody may keep";
@@ -246,34 +247,6 @@ describe("the store", () => {
     );
   });
 
-  it("stacks filters and totals what they leave", async () => {
-    expect(await summarizeActivity({ kind: ["decision"] })).toMatchObject({
-      requests: 2,
-      tokens: 5400,
-    });
-    expect(
-      await summarizeActivity({
-        kind: ["decision"],
-        origin: ["chat:c-lisbon"],
-      }),
-    ).toMatchObject({ requests: 1, tokens: 400 });
-    expect(
-      (await summarizeActivity({ since: Date.UTC(2026, 9, 10) })).requests,
-    ).toBe(2);
-  });
-
-  it("counts each filter's values under every filter but its own", async () => {
-    const { facets } = await summarizeActivity({ kind: ["decision"] });
-    expect(facets.kind).toEqual([
-      { count: 2, value: "decision" },
-      { count: 1, value: "language" },
-    ]);
-    expect(facets.origin).toEqual([
-      { count: 1, value: "chat:c-lisbon" },
-      { count: 1, value: "surface:settings" },
-    ]);
-  });
-
   it("sorts by any column, keeping rows with nothing to sort by last", async () => {
     const byTokens = await listActivity({
       filter: {},
@@ -469,6 +442,39 @@ describe("the log in the workspace", () => {
       expect(await ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
     },
   );
+
+  it("clears this device's requests from a time and leaves another device's", async () => {
+    insertActivity(entry({ startedAt: Date.UTC(2026, 8, 20) }));
+    insertActivity(entry({ startedAt: Date.UTC(2026, 9, 10) }));
+    insertActivity(entry({ startedAt: Date.UTC(2026, 9, 20) }));
+    insertActivity(entry({ startedAt: Date.UTC(2026, 10, 2) }));
+    await writeTheirs(
+      "2026-10",
+      theirs("01THEIRS0000000000000000A", Date.UTC(2026, 9, 25)),
+    );
+    expect(await countOwnActivity(Date.UTC(2026, 9, 15))).toBe(2);
+
+    expect(await clearOwnActivity(Date.UTC(2026, 9, 15))).toEqual({
+      removed: 2,
+    });
+
+    expect(await countOwnActivity()).toBe(2);
+    expect(await ids()).toHaveLength(3);
+    expect(await fs.readdir(path.dirname(fileOf(DEVICE, "2026-10")))).toEqual([
+      "2026-09.jsonl",
+      "2026-10.jsonl",
+    ]);
+    expect(
+      (await fs.readFile(fileOf(DEVICE, "2026-10"), "utf8")).trim().split("\n"),
+    ).toHaveLength(1);
+    // The index read again from the files says the same.
+    closeWorkspaceDb();
+    await fs.rm(path.join(dir, "workspace.db"));
+    expect(await ids()).toHaveLength(3);
+
+    await clearOwnActivity();
+    expect(await ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
+  });
 
   it("leaves a last line with no newline yet until it is whole", async () => {
     const line = theirs("01THEIRS0000000000000000B");

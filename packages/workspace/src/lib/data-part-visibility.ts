@@ -11,6 +11,9 @@ type DataPartType = SessionMessagePart.DataPart["type"];
 export type DataPartVisibility = "always" | "dev" | "hidden";
 
 const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
+  // What the user did in the app before the message, which they know better
+  // than the model does: a developer's peek, like the gap note.
+  "data-actions": "dev",
   "data-appEvent": "always",
   // The places the user marked in their files, as the pills they sent.
   "data-asks": "always",

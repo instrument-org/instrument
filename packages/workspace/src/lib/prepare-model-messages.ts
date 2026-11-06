@@ -110,6 +110,35 @@ async function withRolloverDecision({
  */
 export const TRANSIENT = { instrument: { transient: true } };
 
+const REQUEST_NOTES = new WeakMap<
+  ModelMessage,
+  SessionMessageDataPart.RequestNoteDataPart
+>();
+
+/**
+ * A message said for this request alone, with what the session records of it:
+ * captured here where the text is added, rather than worked out again later.
+ */
+export function transientNote(
+  kind: SessionMessageDataPart.RequestNoteDataPart["kind"],
+  text: string,
+): ModelMessage {
+  const message: ModelMessage = {
+    content: text,
+    providerOptions: TRANSIENT,
+    role: "user",
+  };
+  REQUEST_NOTES.set(message, { kind, text });
+  return message;
+}
+
+/** The notes a request carries, in the order they went on. */
+export function requestNotesIn(
+  messages: readonly ModelMessage[],
+): SessionMessageDataPart.RequestNoteDataPart[] {
+  return messages.flatMap((message) => REQUEST_NOTES.get(message) ?? []);
+}
+
 /**
  * Model turns that have to pass after a summary that came to nothing before
  * another is asked for. Each attempt is a request over the whole prefix, so
@@ -585,19 +614,20 @@ export async function prepareModelMessages({
   // missing stays missing, and the turn that needs to recover from it is rarely
   // the first one after.
   if (nonContextMessages.length < allNonContextMessages.length) {
-    preparedMessages.push({
-      content: contextRolloverNotice(
-        await readHandoffNotes(chatId),
-        agentHandoffNotesPath(chatId),
-        rolloverSummary(
-          allNonContextMessages,
-          rolledOverAfterMessageId,
-          chatId,
+    preparedMessages.push(
+      transientNote(
+        "rollover",
+        contextRolloverNotice(
+          await readHandoffNotes(chatId),
+          agentHandoffNotesPath(chatId),
+          rolloverSummary(
+            allNonContextMessages,
+            rolledOverAfterMessageId,
+            chatId,
+          ),
         ),
       ),
-      providerOptions: TRANSIENT,
-      role: "user",
-    });
+    );
   }
 
   // Near the price step with nothing left worth clearing: the model writes a
@@ -640,11 +670,7 @@ export async function prepareModelMessages({
   const notice = contextBudgetNotice(budget, agentHandoffNotesPath(chatId));
 
   if (notice !== undefined) {
-    preparedMessages.push({
-      content: notice,
-      providerOptions: TRANSIENT,
-      role: "user",
-    });
+    preparedMessages.push(transientNote("budget", notice));
   }
 
   return ok(preparedMessages);

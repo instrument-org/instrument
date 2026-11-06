@@ -39,7 +39,11 @@ import { isStorageFullError } from "../lib/is-storage-full-error";
 import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
+import {
+  prepareModelMessages,
+  requestNotesIn,
+  transientNote,
+} from "../lib/prepare-model-messages";
 import { refusalCandidates, suspectsRefusedMedia } from "../lib/refused-media";
 import { summarizeBeforePriceStep } from "../lib/price-step-summary";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
@@ -301,11 +305,7 @@ export const llmRequestLogic = fromPromise<
     // After the cache breakpoints, like the budget notice: for this request
     // alone, and never stored, so a model keeping its own copy of the
     // conversation must not count it as seen.
-    messagesResult.value.push({
-      content: turnNote,
-      providerOptions: TRANSIENT,
-      role: "user",
-    });
+    messagesResult.value.push(transientNote(turnNote.kind, turnNote.text));
   }
 
   if (signal.aborted) {
@@ -315,6 +315,21 @@ export const llmRequestLogic = fromPromise<
 
   await writes.saveMessage(assistantMessage);
   live?.setMessage(assistantMessage);
+
+  // What this request alone goes out with, for a developer to read afterward.
+  // A hidden part on the reply it produced, so no request reads it.
+  for (const data of requestNotesIn(messagesResult.value)) {
+    await writes.savePart({
+      data,
+      metadata: {
+        createdAt: getCurrentDate(),
+        id: StoreId.newPartId(),
+        messageId: assistantMessage.id,
+        sessionId: input.sessionId,
+      },
+      type: "data-requestNote",
+    });
+  }
 
   const abortListener = () => {
     saveAbortMessage();

@@ -220,6 +220,10 @@ const devNotesTurns = (name: string): Act[] => [
 const devNotes: Act[] = [
   ...devNotesTurns("the first page"),
   user(LONG_ASK, dateNote, gapNote, memoryNote(5), skillsNote, limitNote),
+  notes({
+    data: { kind: "turn", text: "Stands in for the turn note." },
+    type: "data-requestNote",
+  }),
   prose("I'll read each one's pricing page first."),
   activity("Reading competitors' pricing pages"),
   searched({

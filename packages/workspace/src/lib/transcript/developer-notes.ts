@@ -1,6 +1,7 @@
 import { sort } from "radashi";
 
 import { SessionMessage } from "../../schemas/session/message";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { dataPartVisibility } from "../data-part-visibility";
@@ -130,6 +131,17 @@ const ENVIRONMENT_NAMES: Record<string, string> = {
   workspaceSkillsFolder: "Skills folder",
 };
 
+const REQUEST_NOTE_NAMES: Record<
+  SessionMessageDataPart.RequestNoteDataPart["kind"],
+  string
+> = {
+  budget: "Budget notice",
+  correction: "Correction",
+  "output-limit": "Output limit note",
+  rollover: "Rollover notice",
+  turn: "Turn note",
+};
+
 const named = (name: string, value: string) => `${name}: ${firstWords(value)}`;
 
 /** The first few names of a list, and how many more. */
@@ -245,6 +257,9 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     case "data-stepFacts":
     case "data-workSummary": {
       return noteName(part.type);
+    }
+    case "data-requestNote": {
+      return REQUEST_NOTE_NAMES[part.data.kind];
     }
     case "data-setupChanges":
     case "data-setupNews": {
@@ -592,6 +607,16 @@ export function developerNotesWithBodies(
     }
     if (!isDataPart(part) || NEVER_NOTES.has(part.type)) {
       return undefined;
+    }
+    // What went out with a request is beside the first row that request made.
+    if (part.type === "data-requestNote") {
+      return {
+        body: { text: part.data.text, wasSent: true },
+        id: part.metadata.id,
+        kind: "note",
+        label: labelOf(part),
+        looks: "forward",
+      };
     }
     const looks = message.role === "user" ? "forward" : "back";
     const note = heard.get(part.metadata.id);

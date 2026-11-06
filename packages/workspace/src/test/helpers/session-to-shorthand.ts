@@ -218,6 +218,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-ratingCard": {
       return `<data-ratingCard${part.data.outcome ? ` outcome="${part.data.outcome}"` : ""} />`;
     }
+    case "data-requestNote": {
+      return `<data-requestNote kind="${part.data.kind}" />`;
+    }
     case "data-taskEvent": {
       const events = part.data.events
         .map((event) => `${event.sessionId}:${event.status}`)

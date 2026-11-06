@@ -82,23 +82,25 @@ export async function turnNoteFor({
 }: {
   sessionId: StoreId.Session;
   chatId: ChatId;
-}): Promise<string | undefined> {
+}): Promise<
+  undefined | { kind: "correction" | "output-limit" | "turn"; text: string }
+> {
   const messages = await ChatReads.modelHistory({ chatId, sessionId });
   if (messages.isErr()) {
     return undefined;
   }
   if (cutOffAtOutputLimit(messages.value)) {
-    return LENGTH_NOTE;
+    return { kind: "output-limit", text: LENGTH_NOTE };
   }
   const correction = givenEndOfTurnNote({
     messages: messages.value,
     sessionId,
   });
   if (correction !== undefined) {
-    return correction;
+    return { kind: "correction", text: correction };
   }
   return sessionRole(chatId, sessionId) === "chat" &&
     opensTypedTurn(messages.value)
-    ? TURN_NOTE
+    ? { kind: "turn", text: TURN_NOTE }
     : undefined;
 }

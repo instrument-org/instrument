@@ -96,6 +96,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-project": "dev",
   // The card asking how the chat went, for the person alone.
   "data-ratingCard": "always",
+  // What one request went out with, kept for the margins; nobody reads it in
+  // the column and the model never reads it at all.
+  "data-requestNote": "hidden",
   "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",

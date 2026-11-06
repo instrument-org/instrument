@@ -44,6 +44,7 @@ export namespace SessionMessageDataPart {
     "chatContext",
     "project",
     "ratingCard",
+    "requestNote",
     "unknown",
     "viewContext",
     "workSummary",
@@ -111,6 +112,7 @@ export namespace SessionMessageDataPart {
     toolResultsCleared: "event",
     project: "state",
     ratingCard: "event",
+    requestNote: "event",
     unknown: "unwritten",
     viewContext: "state",
     workSummary: "event",
@@ -1379,6 +1381,19 @@ export namespace SessionMessageDataPart {
 
   export type RatingCardDataPart = z.output<typeof RatingCardDataPartSchema>;
 
+  /**
+   * An instruction one request went out with and no other: its kind and exact
+   * text, captured where it was added to the request (`transientNote`). The
+   * model never reads this part, so the request's bytes stay what they were; it
+   * is here so a developer can see afterward what steered a step.
+   */
+  const RequestNoteDataPartSchema = z.object({
+    kind: z.enum(["budget", "correction", "output-limit", "rollover", "turn"]),
+    text: z.string(),
+  });
+
+  export type RequestNoteDataPart = z.output<typeof RequestNoteDataPartSchema>;
+
   const DataPartsSchema = z.object({
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
@@ -1391,6 +1406,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.project]: ProjectDataPartSchema,
     [NameSchema.enum.ratingCard]: RatingCardDataPartSchema,
+    [NameSchema.enum.requestNote]: RequestNoteDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,

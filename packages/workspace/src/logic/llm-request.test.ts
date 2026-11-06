@@ -1729,7 +1729,10 @@ describe("llmRequestLogic", () => {
       ],
       testMachine.chatId,
     );
-    vi.mocked(turnNoteFor).mockResolvedValueOnce("Say what you are doing.");
+    vi.mocked(turnNoteFor).mockResolvedValueOnce({
+      kind: "turn",
+      text: "Say what you are doing.",
+    });
 
     await runTestMachine({
       machine: testMachine.machine,
@@ -1752,6 +1755,17 @@ describe("llmRequestLogic", () => {
         "role": "user",
       }
     `);
+    const stored = await ChatReads.history({
+      chatId: testMachine.chatId,
+      sessionId,
+    });
+    expect(
+      stored
+        ._unsafeUnwrap()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === "data-requestNote")
+        .map((part) => part.data),
+    ).toEqual([{ kind: "turn", text: "Say what you are doing." }]);
   });
 
   // The step after a reply the output limit cut off is told to carry on

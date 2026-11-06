@@ -21,7 +21,6 @@ import {
   matchesFilters,
   outsideFilters,
   type Project,
-  widenToSearch,
 } from "./chats";
 import { FilterHead } from "./filter-head";
 import { DeleteChatDialog } from "./delete-chat-dialog";
@@ -111,6 +110,17 @@ export function ChatPane({
     matchesFilters(chat, filters, projectNames),
   );
   const outside = outsideFilters(chats, filters, projectNames);
+  // The matches outside the filter, once asked for, are shown under the
+  // list's own for as long as the same view is searched; the view itself
+  // stays where it is. Kept by the view they were asked for in, so another
+  // view or a cleared search folds them away.
+  const viewKey = JSON.stringify({ ...filters, search: "" });
+  const [widenedIn, setWidenedIn] = useState<string>();
+  const isSearching = filters.search.trim() !== "";
+  if (widenedIn !== undefined && (!isSearching || widenedIn !== viewKey)) {
+    setWidenedIn(undefined);
+  }
+  const shownOutside = widenedIn === viewKey ? outside : [];
   // Words that turn up in no chat anywhere are handed to the decision
   // model, which reads the chats the other filters keep for the one the
   // search means; its finds stand in the list's place, under a line saying
@@ -120,7 +130,7 @@ export function ChatPane({
       filters.place !== "drafts" &&
       filters.search.trim() !== "" &&
       matched.length === 0 &&
-      outside === 0,
+      outside.length === 0,
     candidates: chats.filter((chat) =>
       matchesFilters(chat, { ...filters, search: "" }, projectNames),
     ),
@@ -128,7 +138,10 @@ export function ChatPane({
   });
   const isAISearch = aiSearch.isLooking || aiSearch.chats.length > 0;
   const shown = matched.length > 0 ? matched : aiSearch.chats;
-  const listed = byLastUserMessage(shown).map((chat) => chat.id);
+  const listed = [
+    ...byLastUserMessage(shown),
+    ...byLastUserMessage(shownOutside),
+  ].map((chat) => chat.id);
   // Keyed by value: the list is rebuilt on every read of the chats, and
   // the callback is written fresh each render; the ids are what matter.
   const listedKey = listed.join("\n");
@@ -252,11 +265,12 @@ export function ChatPane({
           setChatProject(chat.id, next);
         }}
         onWiden={() => {
-          setFilters(widenToSearch(filters));
+          setWidenedIn(viewKey);
         }}
         openId={openChatId}
         outIds={outIds}
-        outside={outside}
+        outside={outside.length}
+        outsideChats={shownOutside}
         scrollSignal={scrollSignal}
         // The decision model's finds are not matches of the words, so
         // nothing on them is marked.

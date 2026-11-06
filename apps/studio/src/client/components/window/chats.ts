@@ -17,7 +17,7 @@ export type Chat = NonNullable<RPCOutput["workspace"]["chats"]["byId"]>;
 export interface ChatFilters {
   /** App slugs a chat has to have used one of. */
   apps: string[];
-  /** The place the column stands in, when it is not the inbox: the unread, the starred, the drafts, what was put away, or all of it. */
+  /** The place the column stands in, when it is not the inbox: the unread, the starred, the drafts, or what was put away. */
   place?: ChatPlace;
   /** Words that all have to turn up somewhere on a chat's row, whatever their case. */
   search: string;
@@ -25,8 +25,8 @@ export interface ChatFilters {
   projects: string[];
 }
 
-/** The places of the column apart from the inbox: chats holding replies not yet seen, chats the user starred, drafts not yet sent, chats put away, and every chat, the ones put away among them. All is where a search reaches past the view it was typed in; the picker never offers it. */
-export type ChatPlace = "all" | "archived" | "drafts" | "starred" | "unread";
+/** The places of the column apart from the inbox: chats holding replies not yet seen, chats the user starred, drafts not yet sent, and chats put away. */
+export type ChatPlace = "archived" | "drafts" | "starred" | "unread";
 
 /** A project as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Project = RPCOutput["workspace"]["projects"]["list"][number];
@@ -42,7 +42,7 @@ const NO_PROJECT_NAMES: ReadonlyMap<string, string> = new Map();
 
 /** The part of a chat the filters read, which is what its row shows, so the predicate is testable off any row shape. */
 export interface Filterable {
-  /** Whether the chat was put away: out of every place but All. */
+  /** Whether the chat was put away: out of every place but Archived. */
   archived: boolean;
   holds: { apps: string[]; files: string[]; sites: string[] };
   /** The words of the chat's first message. */
@@ -169,30 +169,25 @@ export function matchesFilters(
 }
 
 /**
- * How many chats the words searched for turn up on that the place, project,
- * or app filter keeps out of the list. A search reads inside the place the
- * column stands in, so a match filed elsewhere is silently missing; this is
- * the count the list says so with. Nothing searched for means nothing is
- * missing, whatever the filters hide.
+ * The chats the words searched for turn up on that the place, project, or
+ * app filter keeps out of the list. A search reads inside the place the
+ * column stands in, so a match filed elsewhere would be silently missing;
+ * the list counts these at its end and shows them under it when asked.
+ * Nothing searched for means nothing is missing, whatever the filters hide.
  */
-export function outsideFilters(
-  chats: Filterable[],
+export function outsideFilters<T extends Filterable>(
+  chats: T[],
   filters: ChatFilters,
   projectNames: ReadonlyMap<string, string> = NO_PROJECT_NAMES,
-) {
+): T[] {
   if (filters.search.trim() === "") {
-    return 0;
+    return [];
   }
   return chats.filter(
     (chat) =>
       matchesSearch(chat, filters.search, projectNames) &&
       !matchesFilters(chat, filters, projectNames),
-  ).length;
-}
-
-/** The same search over every chat: the words kept, the place, project, and app filters lifted. */
-export function widenToSearch(filters: ChatFilters): ChatFilters {
-  return { ...filters, apps: [], place: "all", projects: [] };
+  );
 }
 
 /** A group with nothing chosen narrows nothing; one with choices wants any of them. */
@@ -202,17 +197,14 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 
 /**
  * Whether a chat is in the place the column stands in. A chat put away
- * is in Archived and All, the way mail keeps what was archived out of the
- * inbox but in the whole of it, so the inbox is every other chat and Unread
- * those of them holding replies not yet seen. A project is a label rather
+ * is in Archived alone, the way mail keeps what was archived out of the
+ * inbox, so the inbox is every other chat and Unread those of them holding
+ * replies not yet seen. A project is a label rather
  * than a place, so one chosen shows what is filed under it, put away or
  * not. Drafts are not chats at all yet, so that place holds none.
  */
 function matchesPlace(chat: Filterable, filters: ChatFilters) {
   switch (filters.place) {
-    case "all": {
-      return true;
-    }
     case "archived": {
       return chat.archived;
     }

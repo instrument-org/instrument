@@ -155,6 +155,7 @@ export function ChatList({
   openId,
   outIds,
   outside = 0,
+  outsideChats = [],
   scrollSignal,
   search = "",
   projects,
@@ -181,7 +182,7 @@ export function ChatList({
   /** Floats a chat in a window of its own over the row; a row offers it only when given. */
   onPopOut?: (chat: Chat) => void;
   onSetProject: (chat: Chat, project: null | string) => void;
-  /** Lifts the place, project, and app filters so the search reads every chat. */
+  /** Asks for the chats the search finds outside the filters, shown under the list's own. */
   onWiden?: () => void;
   /** The chat open beside the list, which its row is marked as. */
   openId: string | undefined;
@@ -189,6 +190,8 @@ export function ChatList({
   outIds?: ReadonlySet<string>;
   /** How many chats the search finds that the filters keep out of the list. */
   outside?: number;
+  /** Those chats, once asked for: listed under a heading after the list's own. */
+  outsideChats?: Chat[];
   /** Changes whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number | string;
   /** The words a row marks where they turn up: the search the chats were found by, when they were found by their words. */
@@ -228,7 +231,29 @@ export function ChatList({
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
   }, [scrollSignal]);
+  const chatRow = (chat: Chat) => ({
+    key: chat.id,
+    open: () => {
+      handlers.current.onOpen(chat);
+    },
+    node: () => (
+      <ListedChat
+        actionsFor={actionsFor}
+        appsBySlug={appsBySlug}
+        chat={chat}
+        handlers={handlers}
+        isArriving={chat.id === arrivedId}
+        isOpen={chat.id === openId}
+        isOut={outIds?.has(chat.id) ?? false}
+        now={now}
+        search={search}
+        projects={projects}
+      />
+    ),
+  });
   const rows: {
+    /** A line over the rows after it, which the keyboard steps past. */
+    isHeading?: boolean;
     key: string;
     node: () => ReactNode;
     /** Opens the row's chat beside the list; a draft's row has none. */
@@ -250,26 +275,21 @@ export function ChatList({
           />
         ),
       }))
-    : byLastUserMessage(chats).map((chat) => ({
-        key: chat.id,
-        open: () => {
-          handlers.current.onOpen(chat);
-        },
+    : byLastUserMessage(chats).map(chatRow);
+  if (outsideChats.length > 0) {
+    rows.push(
+      {
+        isHeading: true,
+        key: "outside-heading",
         node: () => (
-          <ListedChat
-            actionsFor={actionsFor}
-            appsBySlug={appsBySlug}
-            chat={chat}
-            handlers={handlers}
-            isArriving={chat.id === arrivedId}
-            isOpen={chat.id === openId}
-            isOut={outIds?.has(chat.id) ?? false}
-            now={now}
-            search={search}
-            projects={projects}
-          />
+          <p className="px-4 pt-4 pb-1 text-xs font-medium text-muted-foreground">
+            Outside this filter
+          </p>
         ),
-      }));
+      },
+      ...byLastUserMessage(outsideChats).map(chatRow),
+    );
+  }
   // Only the rows in view and a screen's worth either side are mounted: a
   // workspace holds hundreds of chats, and every mounted row carries its
   // menus and chips. Rows differ in height, so each is measured as it mounts.
@@ -388,7 +408,11 @@ export function ChatList({
           return;
         }
         event.preventDefault();
-        const next = at + (event.key === "ArrowDown" ? 1 : -1);
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        let next = at + step;
+        if (rows[next]?.isHeading) {
+          next += step;
+        }
         const entry = rows[next];
         if (!entry) {
           return;
@@ -462,11 +486,14 @@ export function ChatList({
       )}
       {/* The search reads inside the place the column stands in, so what it
         finds elsewhere is said at the list's end, or under the empty line
-        when nothing was found here, and pressing it widens the same search
-        to every chat. */}
-      {outside > 0 && !isLoading && rows.length > 0 && (
-        <p className="px-4 py-2 text-center text-sm">{widen}</p>
-      )}
+        when nothing was found here, and pressing it lists those chats
+        under the list's own. */}
+      {outside > 0 &&
+        outsideChats.length === 0 &&
+        !isLoading &&
+        rows.length > 0 && (
+          <p className="px-4 py-2 text-center text-sm">{widen}</p>
+        )}
     </div>
   );
 }

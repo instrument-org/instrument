@@ -18,7 +18,6 @@ import {
   type RailChatMark,
   railMarkOf,
   projectSearch,
-  widenToSearch,
   wordRanges,
 } from "./chats";
 import { chatHref } from "./window-href";
@@ -66,46 +65,28 @@ describe("outsideFilters", () => {
     chat({ title: "Roof repair" }),
   ];
 
-  it("counts the chats the words find that the place and the project keep out", () => {
+  it("finds the chats the words turn up on that the place and the project keep out", () => {
     // The inbox hides the archived one; a project hides the one filed elsewhere.
     expect(
       outsideFilters(
         chats,
         { ...NO_FILTERS, search: "protein" },
         PROJECT_NAMES,
-      ),
-    ).toBe(1);
+      ).map((each) => each.title),
+    ).toEqual(["Protein powder returns"]);
     expect(
       outsideFilters(
         chats,
         { ...NO_FILTERS, search: "protein", projects: ["shopping"] },
         PROJECT_NAMES,
-      ),
-    ).toBe(2);
-    expect(
-      outsideFilters(
-        chats,
-        { ...NO_FILTERS, place: "all", search: "protein" },
-        PROJECT_NAMES,
-      ),
-    ).toBe(0);
+      ).map((each) => each.title),
+    ).toEqual(["Protein powder returns", "Protein bars"]);
   });
 
-  it("counts nothing when nothing is searched for, whatever the filters hide", () => {
-    expect(outsideFilters(chats, { ...NO_FILTERS, projects: ["house"] })).toBe(
-      0,
-    );
-  });
-
-  it("widens to the same words over every chat", () => {
+  it("finds nothing when nothing is searched for, whatever the filters hide", () => {
     expect(
-      widenToSearch({
-        apps: ["gmail"],
-        place: "unread",
-        search: "protein",
-        projects: ["shopping"],
-      }),
-    ).toEqual({ apps: [], place: "all", search: "protein", projects: [] });
+      outsideFilters(chats, { ...NO_FILTERS, projects: ["house"] }),
+    ).toEqual([]);
   });
 });
 
@@ -196,23 +177,6 @@ describe("matchesFilters", () => {
     ).toBe(true);
     expect(
       matchesFilters(chat({ archived: true, project: "garden" }), filters),
-    ).toBe(false);
-  });
-
-  it("holds every chat in All, put away or not, narrowed by the search", () => {
-    const filters: ChatFilters = { ...NO_FILTERS, place: "all" };
-    expect(
-      matchesFilters(chat({ archived: true, unread: true }), filters),
-    ).toBe(true);
-    expect(
-      matchesFilters(chat({ archived: true, state: "waiting" }), filters),
-    ).toBe(true);
-    expect(matchesFilters(chat({ unread: true }), filters)).toBe(true);
-    expect(
-      matchesFilters(chat({ archived: true, title: "MLS standings" }), {
-        ...filters,
-        search: "protein",
-      }),
     ).toBe(false);
   });
 
@@ -380,7 +344,6 @@ describe("the inbox", () => {
     ["the unread", { ...NO_FILTERS, place: "unread" }],
     ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
-    ["all of it", { ...NO_FILTERS, place: "all" }],
   ])("is left once %s is chosen", (_, filters) => {
     expect(isInbox(filters)).toBe(false);
   });

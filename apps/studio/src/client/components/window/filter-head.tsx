@@ -7,7 +7,6 @@ import {
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
@@ -288,22 +287,12 @@ function useFilterModel({
       label: "Archived",
     },
   ];
-  // All is reached only by widening a search past the view it was typed in,
-  // so it names itself on the picker but has no row of its own.
-  const everything: View = {
-    icon: (size, isOn) => (
-      <CardsThreeIcon className={size} weight={ICON_WEIGHT(isOn)} />
-    ),
-    id: "all",
-    label: "All chats",
-  };
   const chosenProject = live.find((project) =>
     filters.projects.includes(project.id),
   );
   const current = isChats
     ? chatsView
-    : (views.find((view) => view.id === filters.place) ??
-      (filters.place === "all" ? everything : undefined));
+    : views.find((view) => view.id === filters.place);
   return {
     chosenProject,
     // A project or an app narrows the list with no place chosen; the picker

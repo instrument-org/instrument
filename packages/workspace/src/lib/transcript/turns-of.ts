@@ -720,13 +720,23 @@ function drawsNote(
   }
 }
 
-/** The words with what the turn already said taken off the front. */
+/**
+ * The words with what the turn already said taken off the front, and nothing
+ * while words still arriving are only the start of what it said: drawn, a line
+ * said again would type itself out and vanish as it finished.
+ */
 function withoutRepeat(
   part: SessionMessagePart.TextPart,
   lastSaid: string | undefined,
 ): SessionMessagePart.TextPart | undefined {
   const said = part.text.trim();
-  if (lastSaid === undefined || said === "" || !said.startsWith(lastSaid)) {
+  if (lastSaid === undefined || said === "") {
+    return part;
+  }
+  if (part.state === "streaming" && lastSaid.startsWith(said)) {
+    return undefined;
+  }
+  if (!said.startsWith(lastSaid)) {
     return part;
   }
   const rest = said.slice(lastSaid.length).trim();

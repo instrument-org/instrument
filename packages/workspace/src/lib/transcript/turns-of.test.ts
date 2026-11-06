@@ -489,6 +489,24 @@ describe("turnsOf", () => {
     `);
   });
 
+  it("draws no row for a line while it is still the one before it", () => {
+    const last = (words: string) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [said(id, "Trying.")]),
+          message("assistant", (id) => [said(id, words, "streaming")]),
+        ],
+        { isRunning: true },
+      );
+      return turn && shape(turn);
+    };
+    expect(last("Try")).toEqual(["text: Trying."]);
+    expect(last("Trying.")).toEqual(["text: Trying."]);
+    expect(last("Trying. And")).toEqual(["text: Trying.", "text: And"]);
+    expect(last("Trial")).toEqual(["text: Trying.", "text: Trial"]);
+  });
+
   it("keeps the turn of a slice whose messages have not changed", () => {
     const first = [
       typed("One"),

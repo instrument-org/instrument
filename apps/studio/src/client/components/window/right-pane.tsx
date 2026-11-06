@@ -168,7 +168,9 @@ export function RightPane({
       }
       const width = fills ? row.offsetWidth : widthFor(row.offsetWidth);
       unmeasuredRef.current = false;
-      if (width !== paneWidth.get()) {
+      // Within a pixel is the same width worked out another way, and writing it
+      // would snap a slide in progress to its end for a frame.
+      if (Math.abs(width - paneWidth.get()) >= 1) {
         reservedWidth.set(width);
         paneWidth.set(width);
         // Written here as well: motion draws a value on the next frame, and
@@ -210,12 +212,13 @@ export function RightPane({
         style={{ width: reservedWidth }}
       >
         <div className="relative h-full w-full overflow-hidden">
-          {/* Held at the pane's own width against the row's right edge, so
-            closing clips it away from the left rather than narrowing it. */}
+          {/* Held at the pane's own width against the moving edge, so it slides
+            in from the window's right and back out, the way the sidebar does,
+            rather than being uncovered or narrowed. */}
           <motion.div
             aria-hidden={!isShown}
             className={cn(
-              "absolute inset-y-0 right-0",
+              "absolute inset-y-0 left-0",
               !isShown && "pointer-events-none",
             )}
             ref={paneRef}

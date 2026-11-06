@@ -9,7 +9,9 @@ import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { use } from "react";
 
+import { ShimmerSweep } from "../shimmer-sweep";
 import { Badges } from "./activity-row";
+import { RollingText } from "./rolling-text";
 import { SlotCardView } from "./slot-card";
 import { TranscriptSurfaceContext } from "./surface";
 import { formatRoughSpan, useTicking } from "./time";
@@ -75,14 +77,17 @@ export function TaskCardRow({
         >
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-1.5">
-              <span
-                className={cn(
-                  "min-w-0 truncate text-sm",
-                  isWorking ? "brand-shiny-text" : "text-foreground",
-                )}
-              >
-                {firstLine}
-              </span>
+              <RollingText className="min-w-0" rollKey={firstLine}>
+                <span
+                  className={cn(
+                    "block min-w-0 truncate text-sm",
+                    isWorking ? "brand-shiny-text" : "text-foreground",
+                  )}
+                >
+                  {firstLine}
+                  {isWorking && <ShimmerSweep text={firstLine} />}
+                </span>
+              </RollingText>
               {isWorking ? (
                 <span className="brand-shiny-text">
                   <WorkingDots />

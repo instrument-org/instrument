@@ -237,7 +237,7 @@ function SkillRow({
     <>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate font-mono text-sm font-medium">
+          <span className="truncate text-sm font-medium">
             {skill.userInvocable ? "/" : null}
             <FuzzyHighlight
               matchClassName={SKILL_NAME_MATCH_CLASS_NAME}

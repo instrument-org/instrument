@@ -8,6 +8,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { useWindow } from "@/client/components/window/context";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { GlyphButton } from "@/client/components/window/glyph-button";
@@ -386,16 +387,22 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
       }
       type="button"
     >
-      <AppIcon
-        className={cn(
-          "transition-shadow group-hover:shadow-md",
-          waiting && "opacity-60",
+      <span className="relative">
+        <AppIcon
+          className={cn(
+            "transition-shadow group-hover:shadow-md",
+            waiting && "opacity-60",
+          )}
+          name={app.name}
+          icon={app.icon}
+          site={app.site}
+          size="xl"
+        />
+        {/* The dot the rail's Apps wore, on the app it was for. */}
+        {app.standing === "needs-sign-in" && (
+          <ChatMarkDot className="ring-background" mark="waiting" />
         )}
-        name={app.name}
-        icon={app.icon}
-        site={app.site}
-        size="xl"
-      />
+      </span>
       <span className="w-full truncate text-[13px] leading-4 font-medium">
         {app.name}
       </span>

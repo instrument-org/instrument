@@ -35,6 +35,7 @@ import { type TabLocation } from "@/client/components/window/tab-location";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import {
   locateTypedPath,
   type MissedPath,
@@ -108,6 +109,7 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     }
     case "newTab":
     case "page":
+    case "screen":
     case "task": {
       return "web";
     }
@@ -400,7 +402,7 @@ export function Omnibar({
         aria-expanded={isListShown}
         aria-label={PROMPTS[mode]}
         className={cn(
-          "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
+          "h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
           // way a search box does; the caret and the words typed start at
           // the left.
@@ -493,6 +495,7 @@ export function Omnibar({
                 void openPath(again);
               } else if (resting !== undefined) {
                 event.currentTarget.blur();
+                focusScreenHome({ leaving: false });
               }
               break;
             }
@@ -505,6 +508,7 @@ export function Omnibar({
                 send({ type: "clear" });
               } else {
                 event.currentTarget.blur();
+                focusScreenHome({ leaving: false });
               }
               break;
             }

@@ -21,6 +21,7 @@ export type Screen =
   | { kind: "chatOfSession"; session: StoreId.Session }
   | (ComputerTab & { kind: "computer" })
   | { kind: "debug"; pathname: string }
+  | { kind: "extensions" }
   | { kind: "inbox" }
   | { kind: "memory"; name: string }
   | { kind: "namedScreen"; name: string }
@@ -56,6 +57,7 @@ export const SCREEN_ROUTES = {
   chat: "/chats/$id",
   computer: "/files",
   debug: "/debug",
+  extensions: "/extensions",
   inbox: "/chats/",
   newTab: "/new-tab",
   releaseNotes: "/release-notes",
@@ -198,6 +200,9 @@ export function matchScreen(href: string): Screen {
   }
   if (at(SCREEN_ROUTES.releaseNotes)) {
     return { kind: "releaseNotes" };
+  }
+  if (at(SCREEN_ROUTES.extensions)) {
+    return { kind: "extensions" };
   }
   if (matchPath(SCREEN_ROUTES.debug, pathname, { under: true })) {
     return { kind: "debug", pathname };

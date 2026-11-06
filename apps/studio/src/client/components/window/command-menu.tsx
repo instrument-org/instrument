@@ -95,6 +95,7 @@ import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { SunIcon } from "@phosphor-icons/react/Sun";
@@ -365,6 +366,14 @@ export function useCommandMenuRows({
       label: "Release notes",
       run: () => {
         openScreen("/release-notes");
+      },
+    },
+    {
+      icon: <PuzzlePieceIcon />,
+      id: "extensions",
+      label: "Extensions",
+      run: () => {
+        openScreen("/extensions");
       },
     },
   ];

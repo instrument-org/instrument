@@ -82,6 +82,18 @@ export const studioEditorTheme = EditorView.theme({
     lineHeight: "var(--cm-line-height)",
     overflow: "auto",
   },
+  // The find card hangs at the editor's top right over the text, dressed as
+  // the card itself; the panel row CodeMirror would put above the text has no
+  // band of its own. Under the window's menus and popovers.
+  ".cm-panels.cm-panels-top": {
+    backgroundColor: "transparent !important",
+    border: "none !important",
+    left: "auto",
+    position: "absolute",
+    right: "8px",
+    top: "8px",
+    zIndex: "20",
+  },
   ".cm-searchMatch": {
     backgroundColor: "var(--cm-search-match)",
     borderRadius: "2px",

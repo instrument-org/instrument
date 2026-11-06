@@ -83,7 +83,9 @@ export type TabLocation =
       picked?: number;
     }
   | { kind: "newTab" }
-  | { kind: "page"; url: string };
+  | { kind: "page"; url: string }
+  /** A screen of the browser's own that is no page: the extensions it runs. */
+  | { kind: "screen"; screen: "extensions" };
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -134,6 +136,10 @@ export function locationCrumbs(
             ...pathCrumbs(location.path, { home, linksLast: true, volumes }),
             count,
           ];
+    }
+    // A screen of the browser's own is one place, with nothing above it.
+    case "screen": {
+      return [{ label: "Extensions" }];
     }
     case "newTab":
     case "page": {

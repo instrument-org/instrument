@@ -10,13 +10,16 @@ import { useFindTarget } from "@/client/hooks/use-find-target";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
-import { openSearchPanel } from "@codemirror/search";
+import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMarkUpdated } from "@/client/components/updated-note";
 import { toast } from "@/client/lib/toast";
 
+import { type CodeFind } from "./code-find";
+import { CodeFindCard } from "./code-find-card";
 import {
   type CodeExternalChange,
   type CodeSession,
@@ -111,6 +114,9 @@ function LiveCodeDocument({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<CodeSession | null>(null);
+  // The find card's place in the editor, and the find while it is open.
+  const [findHost] = useState(() => document.createElement("div"));
+  const [find, setFind] = useState<CodeFind | null>(null);
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [offscreen, setOffscreen] = useState<Offscreen>(null);
   const [readOnly] = useState(() => readOnlyReason(initial.content));
@@ -123,10 +129,15 @@ function LiveCodeDocument({
   wrapRef.current = wrapLines;
 
   const modifiedAt = usePullOnDiskChange(hostPath, session);
-  // The editor's own keymap answers ⌘F with the caret in it; this is the same
-  // panel for a press anywhere else in the viewer.
+  // The editor's own keymap answers ⌘F and ⌘G with the caret in it; this is
+  // the same card and the same steps for a press anywhere else in the viewer.
   useFindTarget({
     anchor: rootRef,
+    findAgain: (forward) => {
+      if (session) {
+        (forward ? findNext : findPrevious)(session.view);
+      }
+    },
     openFind: () => {
       if (session) {
         openSearchPanel(session.view);
@@ -152,6 +163,7 @@ function LiveCodeDocument({
     }
     const created = createCodeSession({
       filename,
+      findHost,
       hostPath,
       initial,
       onAsk: ({ from, lines, quote, rect, to }) => {
@@ -164,6 +176,7 @@ function LiveCodeDocument({
           target: linesLabel(lines),
         });
       },
+      onFind: setFind,
       onExternalChange: (change: CodeExternalChange) => {
         changedAt.current = change.at;
         onUpdated();
@@ -236,6 +249,12 @@ function LiveCodeDocument({
         data-variant={variant}
       >
         <div className="h-full" ref={rootRef} />
+        {session &&
+          find &&
+          createPortal(
+            <CodeFindCard find={find} view={session.view} />,
+            findHost,
+          )}
         {(offscreen || status === "error") && (
           <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex flex-wrap justify-center gap-2">
             {status === "error" && (

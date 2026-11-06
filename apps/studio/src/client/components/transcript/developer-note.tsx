@@ -33,7 +33,11 @@ export function DeveloperNote({
     return children;
   }
   return (
-    <div className="flex min-w-0 flex-col" data-developer-note={part.type}>
+    <div
+      className="flex min-w-0 flex-col"
+      data-developer-note={part.type}
+      data-transcript-row={part.metadata.id}
+    >
       <button
         className="group/dev flex h-6 w-fit max-w-full items-center gap-1.5 rounded-md text-left text-xs text-muted-foreground outline-none hover:text-foreground"
         onClick={() => {

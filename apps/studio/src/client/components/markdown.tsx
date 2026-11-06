@@ -4,6 +4,7 @@ import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useComposerDraft } from "@/client/components/composer-draft-context";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import { TranscriptSurfaceContext } from "@/client/components/transcript/surface";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
@@ -30,6 +31,7 @@ import {
   createContext,
   memo,
   type ReactNode,
+  use,
   useCallback,
   useContext,
   useEffect,
@@ -67,6 +69,7 @@ import {
   isMermaidLanguage,
   prefetchMermaid,
 } from "../lib/mermaid";
+import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import {
   FRONT_MATTER_ID,
@@ -142,6 +145,20 @@ interface MarkdownProps {
   // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
   // opens the file without it.
   chatId?: ChatId;
+}
+
+/**
+ * Where the files a message names are on this computer. Inside a transcript
+ * the surface answers, so a page with a scripted chat answers without asking
+ * the workspace about a chat it does not have.
+ */
+function useChatFileHostPaths(
+  chatId: ChatId | undefined,
+  filePaths: readonly string[],
+): Record<string, null | string> {
+  const surface = use(TranscriptSurfaceContext);
+  const own = useHostPaths(surface ? undefined : chatId, filePaths);
+  return surface?.useHostPaths(filePaths) ?? own;
 }
 
 type PluginList = NonNullable<Options["rehypePlugins"]>;
@@ -470,9 +487,10 @@ const ChatFileLink = ({
   // Before the guard below, so the chip that turns out not to name a chat file
   // still asks in the same order every render.
   const isAddressable = isAddressableChatFilePath(filePath);
-  const hostPath = useHostPaths(chatId, isAddressable ? [filePath] : [])[
-    filePath
-  ];
+  const hostPath = useChatFileHostPaths(
+    chatId,
+    isAddressable ? [filePath] : [],
+  )[filePath];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   if (!isAddressable) {
@@ -912,7 +930,7 @@ const MarkdownImage = ({
 }) => {
   const { assetVersion, isStreaming, chatId } = useContext(MarkdownChatContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
-  const hostPath = useHostPaths(chatId, filePath ? [filePath] : [])[
+  const hostPath = useChatFileHostPaths(chatId, filePath ? [filePath] : [])[
     filePath ?? ""
   ];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
@@ -1189,6 +1207,21 @@ export const Markdown = memo(
       }
     }, [needsMermaid]);
 
+    // The word split goes last, after everything that reads the text of a node
+    // whole: the HTML `rehype-raw` re-parses, the formulas `rehype-katex`
+    // consumes. It leaves the pipeline the moment the text settles, so a
+    // finished message carries no spans at all.
+    //
+    // Every block carries it rather than only the one still arriving. A block
+    // that lost its spans as the next one opened would drop whatever words were
+    // mid-fade straight to full opacity, and since a block is memoized the
+    // plugin runs over it once either way.
+    const streamingRehypePlugins = useMemo(
+      () =>
+        isStreaming ? [...rehypePlugins, rehypeAnimateWords] : rehypePlugins,
+      [isStreaming, rehypePlugins],
+    );
+
     // Held apart from the render so a block that has not changed is a memo hit
     // rather than a re-parse; see `MarkdownBlock`.
     const components = useMemo<Components>(
@@ -1247,7 +1280,7 @@ export const Markdown = memo(
             components={components}
             isArriving={false}
             markdown={markdown}
-            rehypePlugins={rehypePlugins}
+            rehypePlugins={streamingRehypePlugins}
             remarkPlugins={remarkPluginList}
           />
         ) : (
@@ -1267,7 +1300,7 @@ export const Markdown = memo(
                 // construct it knows, several of those walks quadratically.
                 index === blocks.length - 1 ? remend(block) : block
               }
-              rehypePlugins={rehypePlugins}
+              rehypePlugins={streamingRehypePlugins}
               remarkPlugins={remarkPluginList}
             />
           ))

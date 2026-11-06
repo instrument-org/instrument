@@ -403,6 +403,19 @@ export function createLocalFileGate({
   };
 }
 
+/** Whether an address is one of a browser extension's own pages. */
+function isExtensionPage(url: string): boolean {
+  return url.startsWith("chrome-extension://");
+}
+
+/** The refusal of a browser extension's own page, which only the person opens. */
+function notYourPage(url: string) {
+  return {
+    code: -32_000,
+    message: `${url} is an extension's own page, which only the user opens. Use what the extension puts in a site's page instead.`,
+  };
+}
+
 /** The refusal of a local file the agent's own tools could not read. */
 export function notYourFile(url: string) {
   return {
@@ -746,6 +759,15 @@ export function openTargetSession({
       !(await fileGate.mayOpen(navigatedTo))
     ) {
       send({ error: notYourFile(navigatedTo), id });
+      return;
+    }
+
+    // An extension's own pages (a password manager's vault, its settings)
+    // are the person's, the way Chrome keeps them from its own agent
+    // extension. What an extension draws inside a site's page (a fill menu
+    // under a sign-in field) is part of that page and stays reachable.
+    if (navigatedTo !== undefined && isExtensionPage(navigatedTo)) {
+      send({ error: notYourPage(navigatedTo), id });
       return;
     }
 

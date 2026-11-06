@@ -1,4 +1,5 @@
 import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -58,7 +59,11 @@ export function BrowserDownloadsButton() {
     <Popover modal={false} onOpenChange={setOpen} open={open}>
       <ToolbarTooltip label="Downloads">
         <PopoverTrigger asChild>
-          <Button className="relative" size="icon-sm" variant="ghost">
+          <Button
+            className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
+            size="icon-sm"
+            variant="ghost"
+          >
             {running.length > 0 && <ProgressRing downloads={running} />}
             <DownloadSimpleIcon
               className={cn("size-4", running.length > 0 && "size-3")}

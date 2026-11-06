@@ -64,7 +64,7 @@ export function OpenInAppButton({
     <span className={cn("relative size-5.5 shrink-0", className)}>
       {app.isPending ? null : (
         <span
-          className="group/openin absolute top-0 right-0 z-10 flex h-5.5 items-center rounded-full bg-card"
+          className="group/openin absolute top-0 right-0 z-10 flex h-5.5 items-center rounded-full bg-[var(--field-fill,var(--card))]"
           data-open={isMenuOpen ? "" : undefined}
         >
           <span className="pointer-events-none absolute inset-0 rounded-full group-hover/openin:bg-foreground/8 group-has-focus-visible/openin:bg-foreground/8 group-data-open/openin:bg-foreground/8" />

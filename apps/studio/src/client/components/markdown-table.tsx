@@ -505,8 +505,8 @@ export const MarkdownTable = ({
                 aria-label="Copy row"
                 className="markdown-table-control"
               >
-                <CopyIcon className="markdown-table-idle" size={10} />
-                <CheckIcon className="markdown-table-copied" size={10} />
+                <CopyIcon className="markdown-table-idle" size={12} />
+                <CheckIcon className="markdown-table-copied" size={12} />
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent>Copy row</TooltipContent>

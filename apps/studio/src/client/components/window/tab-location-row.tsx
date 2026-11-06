@@ -29,6 +29,10 @@ import {
   lookAtAtom,
   type LookTarget,
 } from "@/client/components/window/look-at";
+import {
+  ExtensionPageBadge,
+  isExtensionPageUrl,
+} from "@/client/components/window/browser-extensions";
 import { Omnibar } from "@/client/components/window/omnibar";
 import {
   type OpenInAppTarget,
@@ -43,14 +47,17 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
 import { expandHomePath } from "@instrument-org/shared";
+import { TOOLBAR_GROUP_CLASSNAME } from "@/client/components/toolbar-control";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -130,38 +137,44 @@ export function TabLocationRow({
     <div
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
-      className="@container/tabrow flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      className="@container/tabrow flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5"
       data-tab-location=""
     >
       {leading}
-      {onBack && onForward && (
-        <>
-          <TabRowControl
-            chord="back"
-            disabled={!canGoBack}
-            icon={<CaretLeftIcon className="size-4" />}
-            label="Back"
-            onClick={onBack}
-          />
-          <TabRowControl
-            chord="forward"
-            disabled={!canGoForward}
-            icon={<CaretRightIcon className="size-4" />}
-            label="Forward"
-            onClick={onForward}
-          />
-        </>
-      )}
-      {reload}
+      {/* Back, forward and a page's reload framed as one control, the way a
+        browser keeps them together. */}
+      <div className={TOOLBAR_GROUP_CLASSNAME}>
+        {onBack && onForward && (
+          <>
+            <TabRowControl
+              chord="back"
+              disabled={!canGoBack}
+              icon={<ArrowLeftIcon className="size-4" />}
+              label="Back"
+              onClick={onBack}
+            />
+            <TabRowControl
+              chord="forward"
+              disabled={!canGoForward}
+              icon={<ArrowRightIcon className="size-4" />}
+              label="Forward"
+              onClick={onForward}
+            />
+          </>
+        )}
+        {reload}
+      </div>
       {/* The box is the field everywhere the place itself is not: a press on
         one of the places you are under goes there, and a press anywhere else,
         edge to edge, puts the caret in the input the way a browser's address
-        bar does. */}
+        bar does. Its fill is a solid shade of the row's own ground, named as
+        `--field-fill` so what covers the words at its end (the open-in
+        button, as it grows) paints the same color. */}
       <div
         className={cn(
-          "group/field relative flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
-          // The app's icon sits in the field's round end, with room to
-          // breathe inside the curve.
+          "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+          // The app's icon sits at the field's end, with room to breathe
+          // inside the curve.
           openIn && "pr-2",
         )}
         onPointerDown={(event) => {
@@ -201,14 +214,16 @@ export function TabLocationRow({
       {trailing}
       {/* The file up at the size Quick Look gives it, over the window. */}
       {lookTarget && (
-        <TabRowControl
-          disabled={false}
-          icon={<ArrowsOutSimpleIcon className="size-4" />}
-          label="Expand"
-          onClick={() => {
-            setLookAt(lookTarget);
-          }}
-        />
+        <div className={TOOLBAR_GROUP_CLASSNAME}>
+          <TabRowControl
+            disabled={false}
+            icon={<ArrowsOutSimpleIcon className="size-4" />}
+            label="Expand"
+            onClick={() => {
+              setLookAt(lookTarget);
+            }}
+          />
+        </div>
       )}
     </div>
   );
@@ -235,7 +250,7 @@ export function TabRowControl({
     <ToolbarTooltip chord={chord} label={label}>
       <button
         className={cn(
-          "grid size-7 shrink-0 place-items-center rounded-md",
+          "grid size-7 shrink-0 place-items-center rounded-lg",
           disabled
             ? "text-foreground/25"
             : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
@@ -278,11 +293,19 @@ function Field({ location }: { location: TabLocation }) {
   }
   if (location.kind === "page") {
     // An address is one thing you type rather than a trail you walk, so it is
-    // said whole: the host quiet, the part of it you are reading loud.
-    const { host, rest } = splitUrl(location.url);
+    // said whole: the host quiet, the part of it you are reading loud. An
+    // extension's own page keeps its scheme, which is what says whose it is.
+    const isExtensionPage = isExtensionPageUrl(location.url);
+    const { host, rest } = splitUrl(location.url, {
+      withScheme: isExtensionPage,
+    });
     return (
       <>
-        <ConnectionBadge url={location.url} />
+        {isExtensionPage ? (
+          <ExtensionPageBadge url={location.url} />
+        ) : (
+          <ConnectionBadge url={location.url} />
+        )}
         <span className="min-w-0 flex-1 truncate select-text">
           <span className="text-muted-foreground">{host}</span>
           {rest}
@@ -578,6 +601,11 @@ function locationMark(location: TabLocation): ReactNode {
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    case "screen": {
+      return (
+        <PuzzlePieceIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     // A page says nothing about its connection unless it is bad news; see
     // ConnectionBadge.
     case "page": {
@@ -618,7 +646,8 @@ function locationText(location: TabLocation) {
         ? ""
         : expandHomePath(location.path, window.api.homeDir);
     }
-    case "newTab": {
+    case "newTab":
+    case "screen": {
       return "";
     }
     case "page": {
@@ -659,11 +688,11 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
 }
 
 /** The host quiet, the path loud: the part of an address you are reading. */
-function splitUrl(url: string) {
+function splitUrl(url: string, { withScheme = false } = {}) {
   try {
     const parsed = new URL(url);
     return {
-      host: parsed.host,
+      host: withScheme ? `${parsed.protocol}//${parsed.host}` : parsed.host,
       // The bare root is left off, the way a browser leaves it off, unless a
       // query follows it and would otherwise hang off the host.
       rest:

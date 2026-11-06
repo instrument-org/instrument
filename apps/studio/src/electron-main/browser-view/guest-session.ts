@@ -1,4 +1,4 @@
-import { getWorkspaceFeatures } from "@/electron-main/stores/workspace/preferences";
+import { getBrowserSessionDir } from "@instrument-org/workspace/electron";
 import { BrowserWindow, session, type Session } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,8 +13,9 @@ import {
 import { routeGuestDownloads } from "./downloads";
 import { mayOpenInAnotherApp } from "./external-app-links";
 import { askToOpenInAnotherApp } from "./external-app-prompt";
-import { enableBrowserExtensions } from "./extensions";
+import { enableBrowserExtensions, registerExtensionWindow } from "./extensions";
 import { mayEnterFullScreen } from "./full-screen-policy";
+import { attachGuestInteractions } from "./guest-interactions";
 import { guests } from "./guest-registry";
 import { log } from "./log";
 import { refusePasskeys } from "./passkey-policy";
@@ -22,7 +23,7 @@ import {
   confineLocalPagesToTheirFolder,
   refuseLocalFilesIn,
 } from "./local-file-policy";
-import { guestWindowOpenHandler } from "./window-open-policy";
+import { guestWindowOpenHandler, isHttpUrl } from "./window-open-policy";
 
 let configured: null | { dir: string; session: Session } = null;
 
@@ -62,9 +63,25 @@ export function configureGuestSession(profileDir: string): Session {
     guestSession,
     (contents) => (contents.getType() === "webview" ? "webview" : "popup"),
     (record) => {
+      record.contents.on("did-create-window", (window) => {
+        registerExtensionWindow(window);
+      });
       if (record.role === "popup") {
         record.contents.setWindowOpenHandler(guestWindowOpenHandler);
         refuseLocalFilesIn(record.contents);
+        // The menu a tab's page has, for the popup itself: it has no tab to
+        // open a link in, and steps through its own history.
+        attachGuestInteractions(record.contents, {
+          mayOpen: isHttpUrl,
+          step: (direction) => {
+            const history = record.contents.navigationHistory;
+            if (direction === "back") {
+              history.goBack();
+            } else {
+              history.goForward();
+            }
+          },
+        });
       } else {
         followPageEdits(record.contents);
       }
@@ -142,13 +159,24 @@ export function configureGuestSession(profileDir: string): Session {
   enableContentBlocking(guestSession, (id) => guests.isAdBlockExempt(id));
   refusePasskeys(guestSession, cspResponse);
   routeGuestDownloads(guestSession, guests);
-  // Read once, here: the extensions register preloads on the session, which
-  // a flag flipped later could not take back, so a change takes a relaunch.
-  if (getWorkspaceFeatures().browser_extensions) {
-    enableBrowserExtensions(
-      guestSession,
-      path.join(path.dirname(profileDir), "extensions"),
-    );
-  }
+  enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
   return guestSession;
+}
+
+/**
+ * Turns the extensions on at launch, opening the browser's session if no
+ * page has yet, so the window's buttons find them up rather than asking
+ * before anything answers.
+ */
+export function startBrowserExtensions(): void {
+  const profileDir = getBrowserSessionDir();
+  enableBrowserExtensions(
+    configureGuestSession(profileDir),
+    extensionsDirOf(profileDir),
+  );
+}
+
+/** Where the store keeps what it installs: beside the profile, not in it. */
+function extensionsDirOf(profileDir: string): string {
+  return path.join(path.dirname(profileDir), "extensions");
 }

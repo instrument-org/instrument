@@ -43,9 +43,11 @@ export const APP_RAIL_WIDTH = 76;
  * over the user, who is the way to Settings. The one the window stands in sits in a soft well
  * around the whole entry, mark and word together. Narrow enough to be
  * chrome rather than a column: a mark, a word, and nothing wider than
- * either. Away from Chat, Chat wears a dot for where the chats stand.
+ * either. Away from Chat, Chat wears a dot for where the chats stand, and
+ * away from Apps, Apps wears one for an app signed out since it was shown.
  */
 export function AppRail({
+  appsMark = false,
   chatInView,
   chatMark,
   onChoose,
@@ -53,6 +55,8 @@ export function AppRail({
   onNew,
   place,
 }: {
+  /** Whether Apps wears a dot: an app lost its sign-in since Apps was last shown. */
+  appsMark?: boolean;
   /** The chat the tab up shows, which Feedback is about when there is one. */
   chatInView?: ChatId;
   /** The dot Chat wears while the window stands in another place. */
@@ -109,6 +113,9 @@ export function AppRail({
             />
             {entry.id === "chat" && place !== "chat" && chatMark && (
               <ChatMarkDot mark={chatMark} />
+            )}
+            {entry.id === "apps" && place !== "apps" && appsMark && (
+              <ChatMarkDot mark="waiting" />
             )}
           </RailEntry>
         ))}

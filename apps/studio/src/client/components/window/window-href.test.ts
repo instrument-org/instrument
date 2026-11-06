@@ -124,6 +124,7 @@ it("reads every kind of address", () => {
     "/tasks/ses_01JAAAAAAAAAAAAAAAAAAAAAAA?chat=2026-10-02-trip",
     "/tasks/not-a-session",
     "/release-notes",
+    "/extensions",
     "/debug",
     "/debug/components/colors",
     "/memory/trip-notes",
@@ -181,6 +182,9 @@ it("reads every kind of address", () => {
         "/debug/components/colors": {
           "kind": "debug",
           "pathname": "/debug/components/colors",
+        },
+        "/extensions": {
+          "kind": "extensions",
         },
         "/files?file=%2FUsers%2Fme%2Fa.md&path=&root=~&tree=%2FUsers%2Fme": {
           "file": "/Users/me/a.md",

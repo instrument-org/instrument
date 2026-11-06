@@ -164,11 +164,12 @@ export function liveView(
     const parts = [...turn.parts.values()]
       .filter((part) => part.metadata.messageId === id)
       .toSorted((a, b) => byId(a.metadata.id, b.metadata.id));
-    // The running request goes on writing into the metadata it handed over
-    // (how it ended, its usage), so a reader gets a copy: one that held on to
-    // the request's own object would find it already changed when compared
-    // with the next read, and see no change at all.
-    return [{ ...structuredClone(message), parts }];
+    // The running request goes on writing into what it handed over (how the
+    // message ended, its usage, the words of a part still arriving), so a
+    // reader gets a copy: one that held on to the request's own objects would
+    // find them already changed when compared with the next read, and see no
+    // change at all.
+    return [{ ...structuredClone(message), parts: structuredClone(parts) }];
   });
 }
 

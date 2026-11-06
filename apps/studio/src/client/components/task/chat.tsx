@@ -153,7 +153,6 @@ export function ChatConversation({
   const promptInputRef = useRef<PromptInputRef>(null);
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
 
   const createMessage = useMutation(
@@ -502,13 +501,12 @@ export function ChatConversation({
           }
         };
         promptInputRef.current?.clear();
-        // Submitting is a request to watch what happens next, so a reader who
-        // had scrolled back returns to the live edge and follows it again. Both
-        // halves are needed: the scroller arms follow-bottom from autoScroll at
-        // the moment it is asked to scroll, so a scroll that runs while the
-        // session is still starting up would only land at the end.
+        // Submitting is a request to watch what happens next. The message's turn
+        // is a scroll anchor, so the scroller brings it to the top of the window
+        // from wherever the reader had scrolled, and the reply grows into the
+        // room reserved below it. Following is armed for a reply that outgrows
+        // that room.
         setIsFollowingSubmit(true);
-        setScrollToEndSignal((signal) => signal + 1);
         const taken = asks?.take();
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
@@ -601,7 +599,7 @@ export function ChatConversation({
         of a spinner is not the end of the chat. */}
           <ScrollToEndBridge
             contentRef={contentRef}
-            signal={`${selectedSessionId}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
+            signal={`${selectedSessionId}:${isLoadingMessages ? "loading" : "loaded"}`}
           />
           <div className="flex h-full min-h-0 flex-col">
             <MessageScroller className="min-h-0 flex-1">
@@ -655,10 +653,13 @@ export function ChatConversation({
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
                       isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}
+                      // Through the send too, so the turn does not read as finished
+                      // between its message being stored and its session starting.
                       isRunning={
                         isAgentRunning ||
                         runTurn.isPending ||
                         isAgentAlive ||
+                        isFollowingSubmit ||
                         shownMessages.length > messages.length
                       }
                       messages={shownMessages}

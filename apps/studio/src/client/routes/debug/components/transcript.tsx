@@ -22,7 +22,9 @@ import {
 import { Switch } from "@/client/components/ui/switch";
 import { TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import {
+  type ChatId,
   ChatIdSchema,
   getToolNameByType,
   isToolPart,
@@ -48,6 +50,7 @@ import { SkipBackIcon } from "@phosphor-icons/react/SkipBack";
 import { SkipForwardIcon } from "@phosphor-icons/react/SkipForward";
 import { UserIcon } from "@phosphor-icons/react/User";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import {
@@ -62,6 +65,8 @@ import {
 import { z } from "zod";
 
 import { buildFrames, type Frame, type FrameMark } from "../-transcript/frames";
+import { chatFrames, lastTurns, readOnlyClient } from "../-transcript/replay";
+import { RowInspector } from "../-transcript/row-inspector";
 import { type DebugScenario, scenarios } from "../-transcript/scenarios";
 import {
   autoScrollAtom,
@@ -76,6 +81,7 @@ import { usePlaybackKeys } from "../-transcript/use-playback-keys";
 import { useTranscriptEdge } from "../-transcript/use-transcript-edge";
 
 const searchSchema = z.object({
+  chat: ChatIdSchema.optional(),
   scenario: z.string().optional(),
 });
 
@@ -231,9 +237,24 @@ const debugSurface: TranscriptSurface = {
       : undefined;
   },
   useTaskFacts: (id): TaskCardFacts | undefined => {
-    const found = taskFrame(use(DebugFrameContext), id);
+    const frame = use(DebugFrameContext);
+    const found = taskFrame(frame, id);
     if (!found) {
-      return undefined;
+      // A real chat's task works until the wake saying it finished lands.
+      const event = frame?.messages
+        .flatMap((part) =>
+          part.type === "data-taskEvent" ? part.data.events : [],
+        )
+        .find((each) => each.sessionId === id && each.status !== "overdue");
+      return (
+        event && {
+          ended: event.summary?.split("```")[0],
+          failed: event.status === "error",
+          stoppable: false,
+          title: event.title,
+          working: false,
+        }
+      );
     }
     const messages = lightMessages(found.task.frames[found.at]?.messages ?? []);
     const row = turnsOf(messages, { isRunning: found.working })
@@ -266,11 +287,40 @@ function lightMessages(
   });
 }
 
+/** A real chat's last few turns, read once and only ever read. */
+function ChatReplay({ id }: { id: ChatId }) {
+  const { data: scenario, error } = useQuery({
+    gcTime: 0,
+    queryFn: async () => {
+      const chat = await rpcClient.workspace.chats.byId.call({ id });
+      const { sessionId } = chat ?? {};
+      const stored = sessionId
+        ? await rpcClient.workspace.message.list.call({ id, sessionId })
+        : [];
+      const frames = chatFrames(lastTurns(stored, 5));
+      const name = chat?.title ?? id;
+      return { chat: { ...chatInfo, id }, frames, id, name, script: [] };
+    },
+    queryKey: ["debug-transcript-replay", id],
+    staleTime: Infinity,
+  });
+  return scenario ? (
+    <QueryClientProvider client={readOnlyClient}>
+      <Viewer scenario={scenario} />
+    </QueryClientProvider>
+  ) : (
+    (error?.message ?? "Reading this chat…")
+  );
+}
+
 function RouteComponent() {
-  const { scenario: scenarioParam } = Route.useSearch();
+  const { chat, scenario: scenarioParam } = Route.useSearch();
   const scenario =
     scenarios.find((entry) => entry.id === scenarioParam) ?? scenarios[0];
 
+  if (chat) {
+    return <ChatReplay id={chat} key={chat} />;
+  }
   if (!scenario) {
     return null;
   }
@@ -281,7 +331,7 @@ function RouteComponent() {
       // every group's open state together, so a scenario is always entered the
       // way it would be entered fresh.
       key={scenario.id}
-      scenarioId={scenario.id}
+      scenario={scenario}
     />
   );
 }
@@ -443,19 +493,21 @@ function Toggle({
   );
 }
 
-function Viewer({ scenarioId }: { scenarioId: string }) {
-  const scenario = scenarios.find((entry) => entry.id === scenarioId);
+/** With `frames` it is a real chat's, drawn in place of a script. */
+type Playable = DebugScenario & { chat?: ChatInfo; frames?: Frame[] };
+
+function Viewer({ scenario }: { scenario: Playable }) {
   // Built once per scenario, and not because it is slow: every part keeps the
   // id it was born with, so React sees a row change rather than a row replaced,
   // which is the thing being looked at on this page.
   const frames = useMemo(
-    () => (scenario ? framesOf(scenario.script) : []),
-    [scenario],
+    () => scenario.frames ?? framesOf(scenario.script),
+    [scenario.frames, scenario.script],
   );
   const tasks = useMemo(
     () =>
       new Map(
-        Object.entries(scenario?.tasks ?? {}).map(([id, task]) => [
+        Object.entries(scenario.tasks ?? {}).map(([id, task]) => [
           id,
           { ...task, frames: framesOf(task.script) },
         ]),
@@ -523,12 +575,12 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
     setShownMs(renderMs.current);
   }, [shown]);
 
-  if (!scenario || !frame) {
+  if (!frame) {
     return null;
   }
 
   return (
-    <div className="flex size-full min-h-0">
+    <div className="flex size-full min-h-0 [&_[data-inspected]]:rounded-sm [&_[data-inspected]]:outline [&_[data-inspected]]:outline-offset-2 [&_[data-inspected]]:outline-foreground/20">
       {/* The transcript's own scroll frame, matching the task view, so what is
           measured here is what ships: the same scroller, the same content
           column, the same padding. */}
@@ -545,7 +597,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
               className="@container/transcript"
               data-transcript
             >
-              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
+              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]">
                 <Profiler
                   id="transcript"
                   onRender={(_id, _phase, actualDuration) => {
@@ -553,6 +605,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                   }}
                 >
                   <FrameTranscript
+                    chat={scenario.chat}
                     commands={scenario.commands}
                     frame={frame}
                     frameIndex={shown}
@@ -569,7 +622,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
         </MessageScrollerProvider>
       </div>
 
-      <aside className="flex w-72 shrink-0 flex-col border-l bg-muted/20">
+      <aside className="flex w-96 shrink-0 flex-col border-l bg-muted/20">
         <div className="border-b px-3 py-2">
           <h2 className="text-sm font-medium">{scenario.name}</h2>
         </div>
@@ -712,6 +765,14 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
             }}
           />
         )}
+        <RowInspector
+          className={replays ? "h-2/5 shrink-0" : "flex-1"}
+          frame={frame}
+          isDeveloperMode={isDeveloperMode}
+          messages={lightMessages(frame.messages, isDeveloperMode)}
+          sessionId={frame.messages[0]?.metadata.sessionId}
+          transcript={transcript}
+        />
       </aside>
     </div>
   );
@@ -722,6 +783,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
  * and for a scenario that says so, a page of turns at a time as the feed gives them.
  */
 function FrameTranscript({
+  chat,
   commands,
   frame,
   frameIndex,
@@ -730,6 +792,7 @@ function FrameTranscript({
   pageTurns,
   tasks,
 }: {
+  chat: ChatInfo | undefined;
   commands: DebugScenario["commands"];
   frame: Frame;
   frameIndex: number;
@@ -816,7 +879,7 @@ function FrameTranscript({
     <DebugFrameContext value={debugFrame}>
       <TranscriptSurfaceContext value={debugSurface}>
         <Transcript
-          chatInfo={chatInfo}
+          chatInfo={chat ?? chatInfo}
           hasOlder={from > 0}
           isDeveloperMode={isDeveloperMode}
           isLoadingOlder={isLoadingOlder}

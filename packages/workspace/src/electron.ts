@@ -74,6 +74,7 @@ export {
   type OriginBound,
   type StoredAppCredential,
 } from "./lib/apps/origin-bound";
+export { checkAppSignIns } from "./lib/apps/sign-in-lost";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";
 export {
   DIRECTORY_ICON_FILE_PATTERN,

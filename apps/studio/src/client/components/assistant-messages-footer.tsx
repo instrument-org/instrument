@@ -4,7 +4,7 @@ import {
   type TranscriptPart,
 } from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { formatDuration } from "../lib/format-time";
 import { modelsAnswering } from "../lib/models-answered";
@@ -168,34 +168,58 @@ export function AssistantMessagesFooter({
               <TooltipContent>Copy message</TooltipContent>
             </Tooltip>
           </div>
-          {generationDuration > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {/* The time the reply took on the clock. Generation time adds
-                    up every model call, and calls that ran side by side make
-                    it longer than the wait it stands for. */}
-                <span className="cursor-default text-xs text-muted-foreground">
-                  {formatDuration(elapsedDuration ?? generationDuration)}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="p-3 text-xs">
-                <div className="space-y-2">
-                  {elapsedDuration != null && (
-                    <TooltipRow
-                      label="Total time:"
-                      tabular
-                      value={formatDuration(elapsedDuration)}
-                    />
-                  )}
-                  <TooltipRow
-                    label="Generation time:"
-                    tabular
-                    value={formatDuration(generationDuration)}
-                  />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
+          <div className="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground">
+            {[
+              generationDuration > 0 && (
+                <Tooltip key="duration">
+                  <TooltipTrigger asChild>
+                    {/* The time the reply took on the clock. Generation time adds
+                        up every model call, and calls that ran side by side make
+                        it longer than the wait it stands for. */}
+                    <span className="cursor-default">
+                      {formatDuration(elapsedDuration ?? generationDuration)}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="p-3 text-xs">
+                    <div className="space-y-2">
+                      {elapsedDuration != null && (
+                        <TooltipRow
+                          label="Total time:"
+                          tabular
+                          value={formatDuration(elapsedDuration)}
+                        />
+                      )}
+                      <TooltipRow
+                        label="Generation time:"
+                        tabular
+                        value={formatDuration(generationDuration)}
+                      />
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ),
+              ...modelsUsed.map((usage) => (
+                <ModelUsageChip
+                  key={usage.requested?.uri ?? usage.modelId}
+                  usage={usage}
+                />
+              )),
+              latestCreatedAt && (
+                <RelativeTime
+                  className="cursor-default whitespace-nowrap"
+                  date={latestCreatedAt}
+                  key="time"
+                />
+              ),
+            ]
+              .filter(Boolean)
+              .map((item, index) => (
+                <Fragment key={index}>
+                  {index > 0 && <span aria-hidden>·</span>}
+                  {item}
+                </Fragment>
+              ))}
+          </div>
           {sources.length > 0 && (
             <CollapsibleTrigger asChild>
               <Button size="sm" variant="ghost">
@@ -211,27 +235,6 @@ export function AssistantMessagesFooter({
                 </div>
               </Button>
             </CollapsibleTrigger>
-          )}
-          {modelsUsed.length > 0 && (
-            <div className="flex min-w-0 items-center gap-2">
-              {modelsUsed.map((usage, index) => (
-                <div
-                  className="flex min-w-0 items-center gap-1.5"
-                  key={usage.requested?.uri ?? usage.modelId}
-                >
-                  {index > 0 && (
-                    <span className="mr-1 text-muted-foreground/30">•</span>
-                  )}
-                  <ModelUsageChip usage={usage} />
-                </div>
-              ))}
-            </div>
-          )}
-          {latestCreatedAt && (
-            <RelativeTime
-              className="ml-auto cursor-default text-xs whitespace-nowrap text-muted-foreground"
-              date={latestCreatedAt}
-            />
           )}
         </div>
 

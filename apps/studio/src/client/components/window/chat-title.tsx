@@ -10,10 +10,9 @@ import { type ComponentProps } from "react";
 import { type ChatRename } from "./use-chat-rename";
 import { type TitleArrival } from "./use-title-arrival";
 
-// The field's own padding plus the sparkle inside it, less the title's caret,
-// so a width built from the measured title fits the same text without
-// truncating it on arrival.
-const FIELD_PADDING = 40;
+// The field's own padding plus the sparkle inside it, so a width built from the
+// measured title fits the same text without truncating it on arrival.
+const FIELD_PADDING = 60;
 // Enough for a few words: renaming "Fix" in a field the width of "Fix" is
 // worse than the small jump this costs.
 const FIELD_MIN_WIDTH = 160;
@@ -92,10 +91,26 @@ export function ChatTitleField({
 }
 
 /**
- * A chat's title as the press that opens the chat's menu: the title and a
- * caret on a hover surface, lit while the menu is open. Its props and ref
- * are the menu trigger's, which it stands in for.
+ * One half of a title and its caret, which read as one line at rest and split
+ * under a hand: the half the pointer is on takes the hover fill and the other a
+ * fraction of it, so the two read as one control with two presses. The fills
+ * are the foreground at low alpha because `muted` and `accent` trade places
+ * between the themes, and in light `muted` barely shows on the head's ground.
  */
+const SEGMENT =
+  "flex h-8 items-center outline-none group-hover/title:bg-foreground/5 group-has-data-[state=open]/title:bg-foreground/5 hover:bg-foreground/8 focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]";
+
+/**
+ * A title and the caret after it, as segments of one `group/title`. The hover
+ * surface is pulled back out by its own padding, so what sits beside the title
+ * stays measured from the text rather than from the fill. Held to the rename
+ * field's widest, so a long title truncates there rather than running the width
+ * of a wide head.
+ */
+export const CHAT_TITLE_GROUP =
+  "group/title -mx-1.5 flex h-8 max-w-96 min-w-0 items-center";
+
+/** A chat's title as the press that renames it, the first of its two segments. */
 export function ChatTitleButton({
   arrival,
   className,
@@ -106,15 +121,12 @@ export function ChatTitleButton({
   arrival?: TitleArrival;
   title: string;
 }) {
-  // The hover surface is pulled back out by its own padding, so what sits
-  // beside the title stays measured from the text rather than from the fill.
-  // Held to the rename field's widest, so a long title truncates there
-  // rather than running the width of a wide head.
   return (
     <button
       {...props}
       className={cn(
-        "-mx-1.5 flex h-8 max-w-96 min-w-0 items-center gap-1 rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-muted",
+        SEGMENT,
+        "min-w-0 rounded-l-lg pr-0.5 pl-1.5 text-left",
         className,
       )}
       type="button"
@@ -125,7 +137,27 @@ export function ChatTitleButton({
       >
         {title}
       </span>
-      <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
+/**
+ * The caret after a chat's title, the second of its two segments and the press
+ * that opens the chat's menu, lit while it is open. Its props and ref are the
+ * menu trigger's, which it stands in for.
+ */
+export function ChatMenuCaret(props: ComponentProps<"button">) {
+  return (
+    <button
+      {...props}
+      aria-label="Chat menu"
+      className={cn(
+        SEGMENT,
+        "shrink-0 rounded-r-lg pr-1.5 pl-0.5 data-[state=open]:bg-foreground/8",
+      )}
+      type="button"
+    >
+      <CaretDownIcon className="size-3 text-muted-foreground" />
     </button>
   );
 }

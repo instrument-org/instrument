@@ -31,11 +31,24 @@ export function useHoldAtReplyStart({
       const replies = content.querySelectorAll<HTMLElement>("[data-reply-row]");
       return replies[replies.length - 1];
     };
+    const lastSent = () => {
+      const sent = content.querySelectorAll('[data-scroll-anchor="true"]');
+      return sent[sent.length - 1];
+    };
     let held = lastReply()?.dataset.replyRow;
     const check = () => {
       const reply = lastReply();
       const id = reply?.dataset.replyRow;
       if (!reply || id === held || !latest.current.isFollowing) {
+        return;
+      }
+      // A reply above the message just sent is a finished turn's, and holding
+      // at it would scroll back past the message.
+      const sent = lastSent();
+      if (
+        sent &&
+        reply.compareDocumentPosition(sent) & Node.DOCUMENT_POSITION_FOLLOWING
+      ) {
         return;
       }
       if (holdAtReplyStart(reply)) {

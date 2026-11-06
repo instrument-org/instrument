@@ -34,7 +34,7 @@ Each entry is the plan's title and the opening of its status.
 - [App-state scenarios](app-state-scenarios.md): Started.
 - [Auto mode](auto-mode.md): Design only, nothing scheduled.
 - [Background shell processes](background-shell-processes.md): Active.
-- [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): Phase 1 is built behind a flag and proved the chain inside Studio, and what is left unverified waits on a signed-in extension.
+- [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): Phases 1, 3 and 4 are landed and extensions are on for everyone.
 - [Chat records as append-only logs, one per session per device](chat-records.md): Built and landed, but for the two parts named here.
 - [Chat stream turn-model refactor](chat-stream-turn-model-refactor.md): Proposed, not started.
 - [The user chooses where Instrument keeps files](choose-where-instrument-keeps-files.md): The step is built, as setup's first step (`9246172a7`, with the Welcome page before it from `b92123c54`).

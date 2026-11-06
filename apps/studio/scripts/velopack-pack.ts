@@ -124,22 +124,26 @@ async function main() {
   mkdirSync(out, { recursive: true });
   for (const channel of channelsFor(version)) {
     // The channel's previous release, which the delta is made from. A first
-    // release on a channel has none.
-    try {
-      run("vpk", [
-        "download",
-        ...(/^https?:\/\//i.test(feed)
-          ? ["http", "--url", feed]
-          : ["local", "--path", feed]),
-        "--channel",
-        channel,
-        "--outputDir",
-        out,
-      ]);
-    } catch {
-      console.warn(
-        `No earlier ${channel} release in ${feed}; packing without a delta`,
-      );
+    // release on a channel has none. A preview build makes no delta: its
+    // package is its own, and the channel's release at this same version
+    // would stop the pack beside it.
+    if (APP_FLAVOR.kind !== "preview") {
+      try {
+        run("vpk", [
+          "download",
+          ...(/^https?:\/\//i.test(feed)
+            ? ["http", "--url", feed]
+            : ["local", "--path", feed]),
+          "--channel",
+          channel,
+          "--outputDir",
+          out,
+        ]);
+      } catch {
+        console.warn(
+          `No earlier ${channel} release in ${feed}; packing without a delta`,
+        );
+      }
     }
     run("vpk", [
       "pack",

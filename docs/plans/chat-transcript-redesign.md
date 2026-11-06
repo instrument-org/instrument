@@ -173,7 +173,7 @@ A finished turn ends in a footer: Copy, how long the turn took, the model that a
 
 The working line's mark is a nine-dot grid that breathes and bursts into a single shape and back, slowly and smoothly, small enough to sit at the size of a checkmark. It stands for the chat at work everywhere the chat's own work shows. A task's card uses its four pulsing dots instead, so a task reads differently from the chat's own working line.
 
-- **Today.** Changes the app's mark: the planning dot (a brand sphere with a traveling ring, [planning-dot.tsx](../../apps/studio/src/client/components/icons/planning-dot.tsx)) is used on the status line, group headings, step rows and the task popover. The brand shimmer it sits beside matches (`brand-shiny-text`).
+- **Today.** Changes the app's mark: the planning dot (a brand sphere with a traveling ring) is used on the status line, group headings, step rows and the task popover. The brand shimmer it sits beside matches (`brand-shiny-text`).
 
 ### 16. A failure shows while the chat recovers
 

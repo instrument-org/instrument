@@ -83,8 +83,8 @@ import {
 import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
+import { appsSeenAtAtom, appsSignedOutSince } from "./apps-rail-mark";
 import { AppTabStrip } from "./app-tab-strip";
-import { InboxToggle } from "./inbox-toggle";
 import {
   appTabsAtom,
   groupOfHref,
@@ -412,6 +412,17 @@ function WindowShell({
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
   const place = placeOfHref(activeHref);
   const isChat = isChatHref(activeHref);
+
+  // Apps in the rail wears a dot for an app signed out since Apps was last
+  // shown; showing Apps is what counts as seeing it.
+  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const [appsSeenAt, setAppsSeenAt] = useAtom(appsSeenAtAtom);
+  useEffect(() => {
+    if (place === "apps") {
+      setAppsSeenAt(Date.now());
+    }
+  }, [place, setAppsSeenAt]);
+  const appsMark = appsSignedOutSince(appList.data?.apps ?? [], appsSeenAt);
 
   // The chat a tab last had open is where Chat in the rail takes a tab.
   useEffect(() => {
@@ -965,12 +976,7 @@ function WindowShell({
           <WindowFrame
             bar={
               <WindowBar
-                leading={
-                  <>
-                    <InboxToggle isChatUp={isChat} />
-                    <NavControls steps={windowSteps} />
-                  </>
-                }
+                leading={<NavControls steps={windowSteps} />}
                 tabs={
                   <AppTabStrip
                     chatMarks={chatMarks}
@@ -1023,6 +1029,7 @@ function WindowShell({
             }
             rail={
               <AppRail
+                appsMark={appsMark}
                 chatInView={chatUp}
                 chatMark={railMarkOf(
                   (chats.data ?? []).filter(

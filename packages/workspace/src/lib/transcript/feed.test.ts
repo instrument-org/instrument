@@ -57,6 +57,24 @@ const typed = (words: string) =>
   stored("user", (id) => [text(id, words, undefined, "done")]);
 
 describe("TranscriptProjection", () => {
+  it("keeps the objects of what did not move when a reader comes back", () => {
+    const same = typed("One");
+    const id = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const moved = (words: string) =>
+      stored("assistant", (message) => [text(message, words, partId)], id);
+    const held = applyFeedEvent(
+      undefined,
+      new TranscriptProjection(false).reset([same, moved("Two")]),
+    );
+    const back = applyFeedEvent(
+      held,
+      new TranscriptProjection(false).reset([same, moved("Two and more")]),
+    );
+    expect(back.messages[0]).toBe(held.messages[0]);
+    expect(back.messages[1]).not.toBe(held.messages[1]);
+  });
+
   it("sends only the words a token adds", () => {
     const messageId = StoreId.newMessageId();
     const partId = StoreId.newPartId();

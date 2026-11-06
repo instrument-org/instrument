@@ -141,7 +141,9 @@ function transcriptParts(
   }
   switch (part.type) {
     case "reasoning": {
-      return thoughtText(part.text).trim() === "" && part.state !== "streaming"
+      // A thought with no words yet draws nothing: a model that keeps them to
+      // itself would flash a row that goes again as the part ends.
+      return thoughtText(part.text).trim() === ""
         ? []
         : [
             {

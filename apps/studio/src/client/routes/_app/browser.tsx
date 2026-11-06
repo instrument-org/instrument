@@ -1,3 +1,4 @@
+import { BrowserStartControls } from "@/client/components/window/browser-start-controls";
 import { WebStart } from "@/client/components/window/compose-zero-state";
 import { useWindow } from "@/client/components/window/context";
 import { useGroupTab } from "@/client/components/window/group-tab";
@@ -20,14 +21,17 @@ function WebRoute() {
   // the place of, and says nothing of itself.
   useTabSurface("view", groupTab ? null : { screen: "home" });
   return (
-    <WebStart
-      onOpenPage={(url) => {
-        if (groupTab) {
-          groupTab.showPage(url);
-        } else {
-          openPage(url);
-        }
-      }}
-    />
+    <>
+      {!groupTab && <BrowserStartControls />}
+      <WebStart
+        onOpenPage={(url) => {
+          if (groupTab) {
+            groupTab.showPage(url);
+          } else {
+            openPage(url);
+          }
+        }}
+      />
+    </>
   );
 }

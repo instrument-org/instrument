@@ -27,7 +27,12 @@ import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 import { TaskBackgroundProcesses } from "../task/task-background-processes";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ProjectPill } from "./chat-row";
-import { ChatTitleButton, ChatTitleField } from "./chat-title";
+import {
+  CHAT_TITLE_GROUP,
+  ChatMenuCaret,
+  ChatTitleButton,
+  ChatTitleField,
+} from "./chat-title";
 import { type Chat, type Project } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { type RowAction } from "./row-shell";
@@ -39,7 +44,8 @@ import { useTitleArrival } from "./use-title-arrival";
 /**
  * The head over a chat's conversation, wherever the chat is shown: beside the
  * inbox and popped out into its small window alike. Its title at the left,
- * which opens the chat's menu, with the project it is filed under after it and,
+ * which renames the chat, and the caret that opens its menu, with the project it
+ * is filed under after them and,
  * under a hand, the glyph that pops the conversation out (lit, and always
  * there, while it is out, when pressing it brings the conversation back). At
  * the right, the commands the chat and its tasks left running, then whatever
@@ -49,6 +55,7 @@ import { useTitleArrival } from "./use-title-arrival";
 export function ChatHeader({
   chat,
   fallbackTitle = "Chat",
+  leading,
   onArchived,
   onDeleted,
   onNewProject,
@@ -60,6 +67,8 @@ export function ChatHeader({
   chat: Chat | undefined;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
+  /** What sits ahead of the title: the toggle that puts the inbox away. */
+  leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
@@ -104,8 +113,14 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      <div className="group/head @container/head flex h-14 w-full min-w-0 shrink-0 items-start gap-x-2 bg-background pt-2 pr-3 pl-4">
+      <div
+        className={cn(
+          "group/head @container/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-3",
+          leading ? "pl-3" : "pl-4",
+        )}
+      >
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
+          {leading}
           {chat ? (
             <ChatHeading
               chat={chat}
@@ -140,9 +155,9 @@ export function ChatHeader({
 
 /**
  * A chat's title and the project it is filed under, as the chat's head and
- * its popped-out window both draw them: the title, with its caret, opens the
- * chat's menu, whose Rename puts a field in the title's place, and the
- * project follows it the way mail puts a label after a subject. The title
+ * its popped-out window both draw them: a press on the title puts a field in
+ * its place, the caret after it opens the chat's menu, and the
+ * project follows them the way mail puts a label after a subject. The title
  * gives way first, truncating; on a narrow head the project stands as its
  * mark alone.
  */
@@ -191,31 +206,39 @@ function ChatHeading({
   };
   return (
     <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
-      {/* The title opens the chat's menu, Rename among it; renaming puts
-          the field in the title's place. */}
       <h2 className="flex min-w-0">
         {rename.isEditing ? (
-          <ChatTitleField
-            className={titleClassName}
-            rename={rename}
-            width={fieldWidth}
-          />
+          // Pulled out and padded in by what the title's own segment takes, so
+          // the words stay where they were as the press turns them into a field.
+          <div className="-ml-1.5 flex min-w-0">
+            <ChatTitleField
+              className={cn(titleClassName, "pl-1.25")}
+              rename={rename}
+              width={fieldWidth}
+            />
+          </div>
         ) : (
-          <ChatMenu
-            {...menu}
-            chat={chat}
-            onDelete={onDelete}
-            rename={rename}
-            projectMenu={{ onNew: onNewProject, onPick: pickProject, projects }}
-            trigger={
-              <ChatTitleButton
-                arrival={titleArrival}
-                className={titleClassName}
-                ref={setTitleButton}
-                title={chat.title}
-              />
-            }
-          />
+          <div className={CHAT_TITLE_GROUP}>
+            <ChatTitleButton
+              arrival={titleArrival}
+              className={titleClassName}
+              onClick={rename.start}
+              ref={setTitleButton}
+              title={chat.title}
+            />
+            <ChatMenu
+              {...menu}
+              chat={chat}
+              onDelete={onDelete}
+              rename={rename}
+              projectMenu={{
+                onNew: onNewProject,
+                onPick: pickProject,
+                projects,
+              }}
+              trigger={<ChatMenuCaret />}
+            />
+          </div>
         )}
       </h2>
       {/* Pressing it opens the project picker every filing shares. No
@@ -243,7 +266,7 @@ function ChatHeading({
 }
 
 /**
- * The chat's own menu, opened from its title: while the chat works, Stop,
+ * The chat's own menu, opened from the caret after its title: while the chat works, Stop,
  * which ends its turn and every task's; then the inbox row's menu in the
  * same groups and order (see `chatMenuGroups`), with renaming it, which
  * opens the title's field, among the ways to organize it, and deleting it at
@@ -268,7 +291,7 @@ function ChatMenu({
     onPick: (id: string) => void;
     projects: Project[];
   };
-  /** What opens it: the chat's title. */
+  /** What opens it: the caret after the chat's title. */
   trigger: ReactNode;
 }) {
   const groups = chatMenuGroups(useChatActions(chat));

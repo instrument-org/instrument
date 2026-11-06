@@ -19,9 +19,9 @@ const threadHead = (title, { right = "", line = "", left, side = 96, align = "ce
   const ends = `${popOut ? `<span class="grid size-8 shrink-0 place-items-center text-foreground/50"><i class="ph ph-picture-in-picture text-[16px]"></i></span>` : ""}${right}`;
   if (align === "left")
     return `
-  <div class="flex h-14 shrink-0 items-start gap-2 bg-background px-3 pt-2">
+  <div class="flex h-12 shrink-0 items-start gap-2 bg-background px-3 pt-2">
     <div class="flex h-8 items-center">${toggle}</div>
-    <div class="flex min-w-0 flex-1 flex-col items-start">${name}<div class="-mt-1 flex h-4 max-w-full min-w-0">${line}</div></div>
+    <div class="flex min-w-0 flex-1 flex-col items-start">${name}${line ? `<div class="-mt-1 flex h-4 max-w-full min-w-0">${line}</div>` : ""}</div>
     <div class="flex h-8 items-center justify-end gap-x-1">${ends}</div>
   </div>`;
   return `

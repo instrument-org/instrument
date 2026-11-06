@@ -36,6 +36,7 @@ import { noteServerGuidance, notedServerGuidance } from "../apps/mcp/guidance";
 import { withAppMcpClient } from "../apps/mcp/run";
 import { SignInAgainError } from "../apps/mcp/tool-auth";
 import { performSignedInRequest, SignInNeededError } from "../apps/api-oauth";
+import { noteIfSignInLost, noteSignInLost } from "../apps/sign-in-lost";
 import { performAppRequest, redactCredential } from "../apps/request";
 import { type AppInfo, listApps, loadApp, readAppGuide } from "../apps/store";
 import { webInsteadUrl } from "../apps/site";
@@ -490,6 +491,7 @@ export const appsCall = defineCapability({
       console.warn(
         `App call failed: ${app.slug} ${tool} (${result.error.reason})`,
       );
+      await noteIfSignInLost(app.slug, manifest, result.error);
       const forTask = taskNeedsChat(app.slug, ctx.role, result.error);
       if (forTask !== undefined) {
         throw forTask;
@@ -614,6 +616,7 @@ export const appsTools = defineCapability({
       slug: app.slug,
     });
     if (result.isErr()) {
+      await noteIfSignInLost(app.slug, manifest, result.error);
       throw (
         taskNeedsChat(app.slug, ctx.role, result.error) ??
         new CapabilityFailure(redact(result.error.message))
@@ -892,9 +895,15 @@ export const appsRequest = defineCapability({
       ({ result, token: credential } = await performSignedInRequest({
         ...request,
         slug: app.slug,
-      }).catch((error: unknown) => {
+      }).catch(async (error: unknown) => {
+        await noteIfSignInLost(app.slug, app.manifest, { cause: error });
         throw taskNeedsChat(app.slug, ctx.role, { cause: error }) ?? error;
       }));
+      // A 401 after the refresh is the service refusing the sign-in it was
+      // just handed.
+      if (result.isOk() && result.value.status === 401) {
+        await noteSignInLost(app.slug);
+      }
     } else {
       credential = await credentialFor(app.slug, app.manifest, ctx.role);
       result = await performAppRequest({ ...request, credential });

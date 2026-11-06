@@ -31,6 +31,7 @@ import {
   showInFolderLabel,
 } from "@/client/lib/show-in-files";
 import { cn, osConventions } from "@/client/lib/utils";
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -1187,7 +1188,14 @@ export function FileViewer({
           <DropdownMenuTrigger asChild>
             <Button
               aria-label="More actions"
-              className={fileViewerHeaderMenuTriggerClassName}
+              className={
+                isInRow
+                  ? cn(
+                      TOOLBAR_ICON_BUTTON_CLASSNAME,
+                      "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                    )
+                  : fileViewerHeaderMenuTriggerClassName
+              }
               size="icon-sm"
               variant="ghost"
             >

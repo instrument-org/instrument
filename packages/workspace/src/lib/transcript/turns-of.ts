@@ -75,10 +75,19 @@ export interface TurnOpener {
   text?: SessionMessagePart.TextPart;
 }
 
-/** What the working line says of a turn in flight. */
+type RatingCardPart = Extract<
+  SessionMessagePart.DataPart,
+  { type: "data-ratingCard" }
+>;
+
+/**
+ * What the working line says of a turn in flight. `thought` is the thought
+ * nothing has followed yet, which the line opens onto for someone outside
+ * developer mode, whose rows draw no thoughts.
+ */
 export type TurnLive =
-  | { activityId: StoreId.Part; kind: "activity" }
-  | { kind: "thinking"; since: Date }
+  | { activityId: StoreId.Part; kind: "activity"; thought?: StepPart }
+  | { kind: "thinking"; since: Date; thought?: StepPart }
   | { kind: "writing" };
 
 /**
@@ -94,6 +103,8 @@ export interface Turn {
   endedAt?: Date;
   /** The rows the Worked row stands for. Empty when the turn does not fold. */
   foldedRowIds: ReadonlySet<string>;
+  /** The folded row the Worked row draws at: where the work starts, under what was said before it. */
+  foldLineAt?: string;
   /** It folds on finishing, rather than because a message cut across it. */
   foldsWhenDone: boolean;
   id: StoreId.Message;
@@ -102,6 +113,8 @@ export interface Turn {
   live?: TurnLive;
   opener?: TurnOpener;
   phase: "done" | "interrupted" | "working";
+  /** The card asking how it went, drawn after the turn and its footer. */
+  ratingCard?: RatingCardPart;
   /** Its assistant messages, for what its footer says of them. */
   replies: (SessionMessage.Assistant & { parts: TranscriptPart[] })[];
   rows: TurnRow[];
@@ -342,17 +355,22 @@ function buildTurn(
     .findLast((part) => part.type === "data-workSummary")?.data.words;
   const folded = foldedRows(rows, { cutAcross, phase });
   const startedAt = first.metadata.createdAt;
+  const ratingCard = body
+    .flatMap((message) => message.parts)
+    .find(isShownRatingCard);
   return {
     apps: unique(activities.flatMap((row) => row.apps)),
     ...(endedAt && { endedAt }),
     foldedRowIds: folded.ids,
+    ...(folded.lineAt !== undefined && { foldLineAt: folded.lineAt }),
     foldsWhenDone: folded.whenDone,
     id: first.id,
     inherited:
       sessionId !== undefined && first.metadata.sessionId !== sessionId,
-    ...(isLive && { live: liveOf(rows, body, first) }),
+    ...(isLive && { live: liveOf(rows, body, first, options) }),
     ...(opener && { opener }),
     phase,
+    ...(ratingCard && { ratingCard }),
     replies,
     rows,
     sites: unique(activities.flatMap((row) => row.sites)),
@@ -478,6 +496,11 @@ function rowsOf(
         open = undefined;
         rows.push({ id: kept.metadata.id, kind: "text", part: kept });
       } else if (isStepPart(part)) {
+        // A thought is the row a developer reads. For everyone else, one going
+        // on is Thinking, and one that ended leaves nothing behind.
+        if (isThought(part) && !isDeveloperMode) {
+          continue;
+        }
         const started = part.startedTasks ?? [];
         if (started.length === 0) {
           stepInto(part);
@@ -607,9 +630,15 @@ function factsByStep(body: readonly TranscriptMessage[]) {
 function isDataRow(part: TranscriptPart): part is SessionMessagePart.DataPart {
   return (
     part.type.startsWith("data-") &&
+    part.type !== "data-ratingCard" &&
     part.type !== "data-stepFacts" &&
     part.type !== "data-workSummary"
   );
+}
+
+/** The card asking how a turn went, unless the person closed it. */
+function isShownRatingCard(part: TranscriptPart): part is RatingCardPart {
+  return part.type === "data-ratingCard" && part.data.outcome !== "dismissed";
 }
 
 /**
@@ -700,13 +729,23 @@ function drawsNote(
   }
 }
 
-/** The words with what the turn already said taken off the front. */
+/**
+ * The words with what the turn already said taken off the front, and nothing
+ * while words still arriving are only the start of what it said: drawn, a line
+ * said again would type itself out and vanish as it finished.
+ */
 function withoutRepeat(
   part: SessionMessagePart.TextPart,
   lastSaid: string | undefined,
 ): SessionMessagePart.TextPart | undefined {
   const said = part.text.trim();
-  if (lastSaid === undefined || said === "" || !said.startsWith(lastSaid)) {
+  if (lastSaid === undefined || said === "") {
+    return part;
+  }
+  if (part.state === "streaming" && lastSaid.startsWith(said)) {
+    return undefined;
+  }
+  if (!said.startsWith(lastSaid)) {
     return part;
   }
   const rest = said.slice(lastSaid.length).trim();
@@ -804,19 +843,38 @@ function foldedRows(
     cutAcross,
     phase,
   }: { cutAcross: boolean; phase: "done" | "interrupted" | "working" },
-): { ids: ReadonlySet<string>; whenDone: boolean } {
-  const none = { ids: new Set<string>(), whenDone: false };
-  const foldable = (row: TurnRow) =>
+): {
+  ids: ReadonlySet<string>;
+  lineAt: string | undefined;
+  whenDone: boolean;
+} {
+  const none = { ids: new Set<string>(), lineAt: undefined, whenDone: false };
+  const settled = (row: TurnRow) =>
     (row.kind === "ask" && !row.isOpen) ||
     row.kind === "text" ||
     (row.kind === "activity" && !isRunningRow(row));
+  // What the agent said before it did anything answers the message at once, so
+  // it stays above the fold. A thought is not doing anything.
+  const firstWork = rows.findIndex(
+    (row) =>
+      row.kind === "ask" ||
+      (row.kind === "activity" && !row.steps.every(isThought)),
+  );
+  const foldable = (row: TurnRow, index: number) =>
+    settled(row) &&
+    (row.kind !== "text" || (firstWork !== -1 && index > firstWork));
+  const folding = (ids: ReadonlySet<string>, whenDone: boolean) => ({
+    ids,
+    lineAt: (
+      rows.find((row, index) => ids.has(row.id) && index >= firstWork) ??
+      rows.find((row) => ids.has(row.id))
+    )?.id,
+    whenDone,
+  });
   if (cutAcross) {
-    return {
-      ids: new Set(rows.filter(foldable).map((row) => row.id)),
-      whenDone: false,
-    };
+    return folding(new Set(rows.filter(foldable).map((row) => row.id)), false);
   }
-  if (phase !== "done" || rows.findLast(foldable)?.kind !== "text") {
+  if (phase !== "done" || rows.findLast(settled)?.kind !== "text") {
     return none;
   }
   // The reply is the words after the last step, however many parts they are.
@@ -825,29 +883,32 @@ function foldedRows(
   );
   return lastWork === -1
     ? none
-    : {
-        ids: new Set(
+    : folding(
+        new Set(
           rows
             .slice(0, lastWork + 1)
             .filter(foldable)
             .map((row) => row.id),
         ),
-        whenDone: true,
-      };
+        true,
+      );
 }
 
 function liveOf(
   rows: readonly TurnRow[],
   body: readonly TranscriptMessage[],
   first: TranscriptMessage,
+  { isDeveloperMode }: Pick<BuildOptions, "isDeveloperMode">,
 ): TurnLive {
+  const thought = isDeveloperMode ? undefined : thoughtGoingOn(body);
+  const opens = thought && { thought };
   // An activity stays the working line between its calls, which is most of
   // its time: a browser's commands take a fraction of a second, with seconds of
   // the model thinking between them, and a line flipping to Thinking for each
   // would only flicker. It says Thinking before there is any work to name.
   const last = rows.findLast((row) => row.kind !== "note");
   if (last?.kind === "activity") {
-    return { activityId: last.id, kind: "activity" };
+    return { activityId: last.id, kind: "activity", ...opens };
   }
   if (last?.kind === "text" && last.part.state === "streaming") {
     return { kind: "writing" };
@@ -855,7 +916,22 @@ function liveOf(
   return {
     kind: "thinking",
     since: lastEventAt(body) ?? first.metadata.createdAt,
+    ...opens,
   };
+}
+
+/** The thought the last message ends on, when no words or call have followed it. */
+function thoughtGoingOn(
+  body: readonly TranscriptMessage[],
+): StepPart | undefined {
+  const last = body.at(-1);
+  if (last?.role !== "assistant") {
+    return undefined;
+  }
+  const part = last.parts.findLast(
+    (each) => each.type === "text" || isStepPart(each),
+  );
+  return part && isStepPart(part) && isThought(part) ? part : undefined;
 }
 
 /** When the last thing in these messages ended. */
@@ -872,6 +948,9 @@ function lastEventAt(messages: readonly TranscriptMessage[]): Date | undefined {
       see(message.metadata.finishedAt);
     }
     for (const part of message.parts) {
+      if (isStepPart(part) && isThought(part)) {
+        continue;
+      }
       const { endedAt } = part.metadata;
       see(endedAt instanceof Date ? endedAt : undefined);
     }

@@ -82,6 +82,9 @@ export const WorkspacePreferencesSchema = z.object({
   // next-message.ts in the workspace package.
   suggestNextMessage: z.boolean().catch(true),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
+  // Browser extensions whose button the person took out of the browser's
+  // row, by id; the rest show there.
+  unpinnedExtensions: z.array(z.string()).catch([]),
 });
 
 type WorkspacePreferences = z.output<typeof WorkspacePreferencesSchema>;

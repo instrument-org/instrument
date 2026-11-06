@@ -18,6 +18,9 @@ import {
   SidebarMenuSubItem,
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
+import { byLastUserMessage } from "@/client/components/window/chats";
+import { useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   Outlet,
@@ -36,6 +39,29 @@ export const Route = createFileRoute("/debug")({
   }),
   staticData: { tabIcon: "code" },
 });
+
+/** The real chats the transcript page can replay, most recent first. */
+function ChatsToReplay() {
+  const { chat: active } = useSearch({ strict: false });
+  const { data: chats = [] } = useQuery(chatListOptions());
+  return (
+    <div className="max-h-48 shrink-0 overflow-y-auto border-b pb-1">
+      {byLastUserMessage(chats).map(({ id, title }) => (
+        <SidebarMenuSubItem key={id}>
+          <SidebarMenuSubButton asChild isActive={id === active}>
+            <InternalLink
+              allowOpenNewTab={false}
+              search={{ chat: id }}
+              to="/debug/components/transcript"
+            >
+              <span>{title}</span>
+            </InternalLink>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+      ))}
+    </div>
+  );
+}
 
 /** Every debug page behind one sidebar, whichever one is up. */
 function RouteComponent() {
@@ -139,6 +165,7 @@ function RouteComponent() {
                           <Collapsible open={isTranscriptRoute}>
                             <CollapsibleContent>
                               <SidebarMenuSub>
+                                <ChatsToReplay />
                                 {scenarios.map((scenario) => (
                                   <SidebarMenuSubItem key={scenario.id}>
                                     <SidebarMenuSubButton
@@ -150,6 +177,7 @@ function RouteComponent() {
                                       className="h-auto py-1 [&>span:last-child]:whitespace-normal"
                                       isActive={
                                         isTranscriptRoute &&
+                                        !search.chat &&
                                         scenario.id === activeScenarioId
                                       }
                                     >

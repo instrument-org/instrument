@@ -17,10 +17,10 @@ import { type BellNotice } from "@/shared/notices";
 import { type PendingProblem } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
 import { BellIcon } from "@phosphor-icons/react/Bell";
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -238,7 +238,7 @@ const NOTICE_ICON = {
   account: UserCircleIcon,
   announcement: MegaphoneSimpleIcon,
   security: ShieldCheckIcon,
-  update: ArrowsClockwiseIcon,
+  update: SparkleIcon,
   "whats-new": NewspaperClippingIcon,
 } satisfies Record<BellNotice["kind"], unknown>;
 
@@ -264,7 +264,7 @@ function NoticeItem({
           "mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted",
           warns(notice)
             ? "text-warning-700 dark:text-warning-300"
-            : "text-brand-600",
+            : "text-muted-foreground",
         )}
       >
         <Icon className="size-4" />
@@ -274,14 +274,14 @@ function NoticeItem({
           <span className="min-w-0 flex-1 text-[13px] font-medium">
             {notice.title}
           </span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">
             {formatWhen(Date.parse(notice.publishedAt))}
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{notice.body}</p>
         <div className="mt-2 flex gap-1.5">
           {notice.action && (
-            <Button onClick={onAction} size="xs" variant="outline">
+            <Button onClick={onAction} size="xs">
               {notice.action.label}
             </Button>
           )}
@@ -291,7 +291,7 @@ function NoticeItem({
               dismiss.mutate();
             }}
             size="xs"
-            variant="ghost"
+            variant="outline"
           >
             Dismiss
           </Button>
@@ -333,13 +333,13 @@ function ProblemItem({
           <span className="min-w-0 flex-1 text-[13px] font-medium">
             {title}
           </span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">
             {formatWhen(problem.lastAt)}
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{line}</p>
         <div className="mt-2 flex gap-1.5">
-          <Button onClick={onReport} size="xs" variant="outline">
+          <Button onClick={onReport} size="xs">
             Send a report
           </Button>
           <Button
@@ -348,7 +348,7 @@ function ProblemItem({
               dismiss.mutate();
             }}
             size="xs"
-            variant="ghost"
+            variant="outline"
           >
             Dismiss
           </Button>

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { type Os } from "@/shared/os-conventions";
 
 import {
+  endsTypeAhead,
+  isTypingAhead,
   listingCommandOf,
   listingKeys,
   NO_TYPE_AHEAD,
@@ -39,9 +41,14 @@ describe("listingCommandOf", () => {
     ["Enter", { type: "return" }],
     ["Space", { type: "space" }],
     ["q", { char: "q", type: "type-ahead" }],
-    ["Q", { char: "q", type: "type-ahead" }],
+    ["Q", { char: "Q", type: "type-ahead" }],
     ["7", { char: "7", type: "type-ahead" }],
     ["é", { char: "é", type: "type-ahead" }],
+    ["-", { char: "-", type: "type-ahead" }],
+    ["⇧_", { char: "_", type: "type-ahead" }],
+    [".", { char: ".", type: "type-ahead" }],
+    ["⇧(", { char: "(", type: "type-ahead" }],
+    ["🙂", { char: "🙂", type: "type-ahead" }],
     // Left to whoever else wants them.
     ["⇧⌘ArrowUp", null],
     ["⌃ArrowDown", null],
@@ -51,9 +58,13 @@ describe("listingCommandOf", () => {
     ["⌥Enter", null],
     ["⌘v", null],
     ["⌥q", null],
-    ["-", null],
+    // The window's own, for its shortcut guide.
+    ["⇧?", null],
+    // Words for a key, which type nothing.
     ["Tab", null],
     ["Escape", null],
+    ["Dead", null],
+    ["Process", null],
     // The Finder renames on Return, and F2 means nothing to it.
     ["F2", null],
   ])("reads %s on the Mac", (chord, command) => {
@@ -189,73 +200,148 @@ describe("listingKeys", () => {
 });
 
 describe("typeAhead", () => {
-  const ENTRIES = ["apple", "apricot", "banana", "blueberry", "cherry"].map(
-    (name) => ({ name }),
-  );
+  // A decomposed name is how some disks keep it: "É" as an E and an accent.
+  const NAMES = [
+    "Applications",
+    "Movies",
+    "Music",
+    "Moment.txt",
+    "Herdr-1.dmg",
+    "Herdr.dmg",
+    "my file.txt",
+    "my-file.txt",
+    "my_file.txt",
+    "mystery.txt",
+    "resume-old.txt",
+    "Résumé.pdf",
+    "Zebra.txt",
+    "10 tickets.txt",
+    "9 tickets.txt",
+    "Eagle.txt",
+    "E\u0301clair.txt",
+    "_underscore.txt",
+    "-dash.txt",
+    "(paren).txt",
+    "straße.txt",
+    "Stream.txt",
+  ];
+  const ENTRIES = NAMES.map((name) => ({ name }));
 
-  /** Letters typed at the given times, from the row at `from`; the names landed on. */
-  function typeAll(keys: Array<[string, number]>, from = -1) {
+  /** Characters typed at the given times; the names landed on. */
+  function typeAll(keys: Array<[string, number]>) {
     let state: TypeAhead = NO_TYPE_AHEAD;
-    let currentIndex = from;
     return keys.map(([char, now]) => {
-      const result = typeAhead({
-        char,
-        currentIndex,
-        entries: ENTRIES,
-        now,
-        state,
-      });
+      const result = typeAhead({ char, entries: ENTRIES, now, state });
       state = result.state;
-      if (result.match) currentIndex = ENTRIES.indexOf(result.match);
       return result.match?.name ?? null;
     });
   }
 
+  /** Where a string lands, typed quickly from nothing. */
+  const landsOn = (typed: string) =>
+    typeAll(Array.from(typed, (char, at) => [char, at * 50])).at(-1);
+
   it.each([
-    {
-      keys: [["b", 0]],
-      landed: ["banana"],
-      name: "jumps to the first name starting with a letter",
-    },
-    {
-      keys: [
-        ["a", 0],
-        ["p", 100],
-        ["r", 200],
-      ],
-      landed: ["apple", "apple", "apricot"],
-      name: "refines in place as more is typed",
-    },
-    {
-      keys: [
-        ["b", 0],
-        ["b", 2000],
-        ["b", 4000],
-      ],
-      landed: ["banana", "blueberry", "banana"],
-      name: "cycles through one letter pressed again after a pause",
-    },
-    {
-      keys: [
-        ["a", 0],
-        ["c", TYPE_AHEAD_RESET_MS + 1],
-      ],
-      landed: ["apple", "cherry"],
-      name: "starts over once the pause has run out",
-    },
-    {
-      keys: [
-        ["a", 0],
-        ["x", 100],
-      ],
-      landed: ["apple", null],
-      name: "finds nothing for a string no name starts with",
-    },
-  ])("$name", ({ keys, landed }) => {
-    expect(typeAll(keys as Array<[string, number]>)).toEqual(landed);
+    ["m", "Moment.txt"],
+    ["mm", "Moment.txt"],
+    ["mo", "Moment.txt"],
+    ["mov", "Movies"],
+    ["mu", "Music"],
+    ["MU", "Music"],
+    // Between two names: the later one.
+    ["mox", "Music"],
+    // No such name: the one after where it would be.
+    ["herder", "Herdr-1.dmg"],
+    ["herdr-", "Herdr-1.dmg"],
+    ["herdr.", "Herdr.dmg"],
+    // Later than every name: the last.
+    ["zzzz", "Zebra.txt"],
+    ["u", "Zebra.txt"],
+    ["my f", "my file.txt"],
+    ["my-", "my-file.txt"],
+    ["my_", "my_file.txt"],
+    ["mys", "mystery.txt"],
+    ["e", "Eagle.txt"],
+    ["ec", "E\u0301clair.txt"],
+    ["resu", "resume-old.txt"],
+    ["strass", "straße.txt"],
+    ["stre", "Stream.txt"],
+    ["9", "9 tickets.txt"],
+    ["1", "10 tickets.txt"],
+    ["-", "-dash.txt"],
+    ["_", "_underscore.txt"],
+    ["(", "(paren).txt"],
+  ])("lands %j on %s", (typed, name) => {
+    expect(landsOn(typed)).toBe(name);
   });
 
-  it("steps past the row the keyboard is on for a single letter", () => {
-    expect(typeAll([["a", 0]], 0)).toEqual(["apricot"]);
+  it("stays on a letter pressed again after a pause", () => {
+    const pause = TYPE_AHEAD_RESET_MS + 1;
+    expect(
+      typeAll([
+        ["m", 0],
+        ["m", pause],
+        ["m", pause * 2],
+      ]),
+    ).toEqual(["Moment.txt", "Moment.txt", "Moment.txt"]);
+  });
+
+  it("starts over once the pause has run out", () => {
+    expect(
+      typeAll([
+        ["m", 0],
+        ["u", TYPE_AHEAD_RESET_MS + 1],
+      ]),
+    ).toEqual(["Moment.txt", "Zebra.txt"]);
+  });
+
+  it("gives each character the whole pause again", () => {
+    const pause = TYPE_AHEAD_RESET_MS - 1;
+    expect(
+      typeAll([
+        ["m", 0],
+        ["o", pause],
+        ["v", pause * 2],
+      ]),
+    ).toEqual(["Moment.txt", "Moment.txt", "Movies"]);
+  });
+
+  it("reads the names in any order the view shows them", () => {
+    const entries = [...ENTRIES].reverse();
+    const { match } = typeAhead({
+      char: "m",
+      entries,
+      now: 0,
+      state: NO_TYPE_AHEAD,
+    });
+    expect(match?.name).toBe("Moment.txt");
+  });
+
+  it("finds nothing among no names", () => {
+    expect(
+      typeAhead({ char: "m", entries: [], now: 0, state: NO_TYPE_AHEAD }).match,
+    ).toBeNull();
+  });
+
+  it("is typing only while the pause lasts", () => {
+    const { state } = typeAhead({
+      char: "m",
+      entries: ENTRIES,
+      now: 100,
+      state: NO_TYPE_AHEAD,
+    });
+    expect(isTypingAhead(NO_TYPE_AHEAD, 100)).toBe(false);
+    expect(isTypingAhead(state, 100 + TYPE_AHEAD_RESET_MS)).toBe(true);
+    expect(isTypingAhead(state, 100 + TYPE_AHEAD_RESET_MS + 1)).toBe(false);
+  });
+
+  it.each([
+    ["Escape", true],
+    ["Tab", true],
+    ["Backspace", true],
+    ["ArrowDown", false],
+    ["m", false],
+  ])("%s ends the search: %s", (key, ends) => {
+    expect(endsTypeAhead({ key })).toBe(ends);
   });
 });

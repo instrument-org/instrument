@@ -82,6 +82,10 @@ const tinted = () =>
     .join("");
 
 const undoKey = /Mac/u.test(navigator.platform) ? "Meta" : "Control";
+// The editor steps the caret past the quote and leaves the deleting to the
+// browser, whose word delete is Option+Backspace on a Mac and Control+Backspace
+// elsewhere, Chromium on Linux included.
+const wordKey = /Mac/u.test(navigator.platform) ? "Alt" : "Control";
 
 describe("a pasted path with spaces", () => {
   beforeEach(() => {
@@ -340,10 +344,10 @@ describe("the caret around a quoted path", () => {
     await expect.poll(() => ref.current?.getValue()).toBe(QUOTED);
   });
 
-  it("deletes the path's last word on Option+Backspace after it", async () => {
+  it("deletes the path's last word on a word delete after it", async () => {
     const ref = await pasted();
 
-    await userEvent.keyboard("{Alt>}{Backspace}{/Alt}");
+    await userEvent.keyboard(`{${wordKey}>}{Backspace}{/${wordKey}}`);
     await expect.poll(() => ref.current?.getValue()).toBe('"/Users/me/My "');
   });
 

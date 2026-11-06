@@ -18,8 +18,8 @@ import { openAsksUntil } from "./open-asks";
 /** The messages the person has to have written for a chat to get the card. */
 const RATING_CARD_MIN_MESSAGES = 2;
 
-/** The steps a chat has to have taken for the card, its tasks' steps included. */
-const RATING_CARD_MIN_STEPS = 10;
+/** The steps taken since the person's last message for the card, its tasks' steps included. */
+const RATING_CARD_MIN_STEPS = 5;
 
 /** The least time between two cards, across every chat of the workspace on this computer. */
 export const RATING_CARD_GAP_MS = ms("3 days");
@@ -51,8 +51,10 @@ function isPersonMessage(message: SessionMessage.WithParts) {
 
 /**
  * Whether a chat is due the card, by its whole rule: enough messages from the
- * person, enough steps, and never a card before. The gap between cards is
- * asked apart, since it reads no chat.
+ * person, enough steps since the last of them, and never a card before. Work
+ * from before that message doesn't count, so coming back to an old chat with
+ * a short message and getting a short reply isn't what the card asks about.
+ * The gap between cards is asked apart, since it reads no chat.
  */
 export function ratingCardDue({
   chat,
@@ -63,18 +65,24 @@ export function ratingCardDue({
   /** Every session of the chat, each with only its own messages. */
   sessions: readonly (readonly SessionMessage.WithParts[])[];
 }): boolean {
+  const fromPerson = chat.filter(isPersonMessage);
+  const latest = fromPerson.at(-1);
   if (
+    !latest ||
+    fromPerson.length < RATING_CARD_MIN_MESSAGES ||
     chat.some((message) =>
       message.parts.some((part) => part.type === "data-ratingCard"),
-    ) ||
-    chat.filter(isPersonMessage).length < RATING_CARD_MIN_MESSAGES
+    )
   ) {
     return false;
   }
+  const since = latest.metadata.createdAt.getTime();
   const steps = sessions
     .flat()
     .flatMap((message) => message.parts)
-    .filter(isToolPart).length;
+    .filter(
+      (part) => isToolPart(part) && part.metadata.createdAt.getTime() >= since,
+    ).length;
   return steps >= RATING_CARD_MIN_STEPS;
 }
 

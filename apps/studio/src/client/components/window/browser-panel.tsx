@@ -1,8 +1,12 @@
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
-import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
+import {
+  BrowserExtensionButtons,
+  ManageItems,
+} from "@/client/components/window/browser-extension-buttons";
 import { BrowserFindCard } from "@/client/components/window/browser-find-card";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import {
@@ -116,6 +120,7 @@ import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ExportIcon } from "@phosphor-icons/react/Export";
 import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
 import { PrinterIcon } from "@phosphor-icons/react/Printer";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
@@ -657,11 +662,6 @@ export function BrowserPanel({
             // combined with the window-blur close above, that dismisses the menu.
             modal={false}
             onOpenChange={(open) => {
-              // No live page -> nothing to act on; refuse to open even if the
-              // disabled trigger is bypassed.
-              if (open && !pageUrl) {
-                return;
-              }
               // Not ready yet: the last known zoom stands.
               const current = open ? guestNow() : null;
               if (current) {
@@ -674,7 +674,7 @@ export function BrowserPanel({
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label="More actions"
-                disabled={!pageUrl}
+                className={TOOLBAR_ICON_BUTTON_CLASSNAME}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -685,6 +685,7 @@ export function BrowserPanel({
               {openInBrowserTab && (
                 <>
                   <DropdownMenuItem
+                    disabled={!pageUrl}
                     onSelect={() => {
                       const url = currentUrl();
                       if (url) {
@@ -700,7 +701,7 @@ export function BrowserPanel({
               )}
               <BrowserHistoryMenu onOpen={navigateTo} />
               {inWindow && (
-                <DropdownMenuItem onSelect={toggleBookmark}>
+                <DropdownMenuItem disabled={!pageUrl} onSelect={toggleBookmark}>
                   <BookmarkSimpleIcon className="size-4" />
                   {isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
                 </DropdownMenuItem>
@@ -709,31 +710,36 @@ export function BrowserPanel({
                 <BroomIcon className="size-4" />
                 Clear browsing data…
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <div className="flex items-center justify-between px-2 py-1.5">
-                <span className="text-sm">Zoom</span>
-                <ZoomStepperControl
-                  canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
-                  canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
-                  onZoomIn={() => {
-                    stepZoom("in");
-                  }}
-                  onZoomOut={() => {
-                    stepZoom("out");
-                  }}
-                  readout={
-                    <ZoomLevelMenu
-                      max={BROWSER_ZOOM_MAX}
-                      min={BROWSER_ZOOM_MIN}
-                      nested
-                      onSelect={applyZoom}
-                      zoom={zoomFactor}
+              {pageUrl && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="flex items-center justify-between px-2 py-1.5">
+                    <span className="text-sm">Zoom</span>
+                    <ZoomStepperControl
+                      canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
+                      canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
+                      onZoomIn={() => {
+                        stepZoom("in");
+                      }}
+                      onZoomOut={() => {
+                        stepZoom("out");
+                      }}
+                      readout={
+                        <ZoomLevelMenu
+                          max={BROWSER_ZOOM_MAX}
+                          min={BROWSER_ZOOM_MIN}
+                          nested
+                          onSelect={applyZoom}
+                          zoom={zoomFactor}
+                        />
+                      }
                     />
-                  }
-                />
-              </div>
+                  </div>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
+                disabled={!pageUrl}
                 onSelect={() => {
                   guestNow()?.print();
                 }}
@@ -747,6 +753,7 @@ export function BrowserPanel({
                 </DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem
+                disabled={!pageUrl}
                 onSelect={() => {
                   find.openFind();
                 }}
@@ -760,6 +767,7 @@ export function BrowserPanel({
                 </DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem
+                disabled={!pageUrl}
                 onSelect={() => {
                   const current = guestNow();
                   if (current) {
@@ -771,6 +779,7 @@ export function BrowserPanel({
                 Save page as…
               </DropdownMenuItem>
               <DropdownMenuItem
+                disabled={!pageUrl}
                 onSelect={() => {
                   const url = currentUrl();
                   if (url) {
@@ -783,6 +792,7 @@ export function BrowserPanel({
               </DropdownMenuItem>
               {isMacOS() && (
                 <DropdownMenuItem
+                  disabled={!pageUrl}
                   onSelect={() => {
                     const url = currentUrl();
                     if (url) {
@@ -806,6 +816,16 @@ export function BrowserPanel({
               <DropdownMenuSeparator />
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
+                  <PuzzlePieceIcon className="size-4" />
+                  Extensions
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <ManageItems />
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={!pageUrl}>
                   <DeviceMobileIcon className="size-4" />
                   View as
                   {emulatedDevice && (
@@ -841,6 +861,7 @@ export function BrowserPanel({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuItem
+                disabled={!pageUrl}
                 onSelect={() => {
                   guestNow()?.reload({ ignoreCache: true });
                 }}
@@ -862,6 +883,7 @@ export function BrowserPanel({
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
+                disabled={!pageUrl}
                 onSelect={() => {
                   guestNow()?.openDevTools();
                 }}

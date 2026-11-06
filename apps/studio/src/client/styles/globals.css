@@ -696,6 +696,18 @@ body {
     background-color: transparent;
   }
 
+  /* The inset and its border are what mark a quote. Typography also sets it in
+     italics and wraps it in generated curly marks, which read as words the
+     quoted text never had. */
+  blockquote:not(:where(.not-prose *)) {
+    font-style: normal;
+  }
+
+  blockquote:not(:where(.not-prose *)) p::before,
+  blockquote:not(:where(.not-prose *)) p::after {
+    content: none;
+  }
+
   /* A code block renders inside a wrapper that positions its hover controls,
      so Typography's own first/last-child margin reset lands on the wrapper
      while the block's margin collapses straight through it and out of the
@@ -1135,6 +1147,12 @@ a.cursor-pointer {
   }
 }
 
+@keyframes border-sweep {
+  to {
+    rotate: 1turn;
+  }
+}
+
 @theme {
   --animate-spinner: spinner-rotate 1s linear infinite;
 }
@@ -1153,25 +1171,35 @@ a.cursor-pointer {
   }
 }
 
-/* Planning indicator: A gentle pulsing dot with an expanding ring
-* to signal "agent is planning" */
-@keyframes planning-dot-breathe {
-  0%,
-  100% {
-    transform: scale(1);
+/* Each word of a message still streaming in; see `rehype-animate-words`, which
+ * is what puts the attribute there and only while the text is still growing.
+ *
+ * Long and eased out rather than short and linear. Tokens arrive in bursts of
+ * wildly varying size, and at a couple of hundred milliseconds each burst reads
+ * as its own slab landing; held this long the fades overlap far enough to read
+ * as one wash settling, which is what removes the appearance of chunking
+ * without holding a single word back from the page. The curve front-loads the
+ * opacity so a word is legible in a fraction of the time it takes to finish.
+ *
+ * Opacity alone. Hundreds of words are in flight at once on a fast model, and
+ * anything else worth animating here either moves the text or, as a filter
+ * would, puts every one of them on its own compositing layer for the duration. */
+[data-stream-word] {
+  animation: stream-word-in 800ms ease-out both;
+}
+
+@keyframes stream-word-in {
+  from {
+    opacity: 0;
   }
-  50% {
-    transform: scale(1.2);
+  to {
+    opacity: 1;
   }
 }
-@keyframes planning-dot-shockwave-ring {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  100% {
-    transform: scale(2.5);
-    opacity: 0;
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-word] {
+    animation: none;
   }
 }
 
@@ -1717,7 +1745,7 @@ a.cursor-pointer {
   }
 
   /* Brand-tinted sibling of .shiny-text, for text that sits alongside the
-   * planning dot while the agent is working. */
+   * working mark while the agent is working. */
   .brand-shiny-text {
     --shimmer-base: #17604a;
     --shimmer-glint: #55e8bb;
@@ -1777,23 +1805,66 @@ a.cursor-pointer {
     display: none;
   }
 
+  /* The same glint for a card's edge (`BorderSweep`): a ring masked out of a box
+   * the card's size, with an arc of color turning under it. Only the arc's
+   * `rotate` animates, so the GPU turns it and nothing repaints, where a gradient
+   * whose angle is animated would be painted again on every frame. It steps at
+   * 15 fps like the text's glint. The arc is wider than the card's diagonal, so
+   * its edge stays outside the ring as it turns. */
+  .border-sweep {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    --border-sweep-color: var(--brand-500);
+  }
+
+  .dark .border-sweep {
+    --border-sweep-color: var(--brand-400);
+  }
+
+  .border-sweep::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150%;
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    background: conic-gradient(
+      transparent 0deg 230deg,
+      var(--border-sweep-color) 340deg,
+      transparent 360deg
+    );
+    will-change: transform;
+    animation: border-sweep 3s steps(45) infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .shimmer-sweep {
+    .shimmer-sweep,
+    .border-sweep {
       display: none;
     }
   }
 
-  .planning-dot-core {
-    transform-origin: center;
-    animation: planning-dot-breathe 1.5s ease-in-out infinite;
-    will-change: transform;
+  /* The working mark's colors (`WorkingMark`). Its sizes and motion are in
+   * `working-mark-motion.ts`. */
+  .working-mark {
+    --working-mark-dot: #1f8a6a;
+    --working-mark-ring: rgba(95, 174, 147, 0.6);
+    --working-mark-bloom: rgba(95, 174, 147, 0.38);
   }
 
-  .planning-dot-shockwave-ring {
-    transform-origin: center;
-    animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
-    pointer-events: none;
-    will-change: transform, opacity;
+  .dark .working-mark {
+    --working-mark-dot: #2e9e79;
+    --working-mark-ring: rgba(116, 190, 165, 0.6);
+    --working-mark-bloom: rgba(116, 190, 165, 0.38);
   }
 }
 

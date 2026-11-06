@@ -12,6 +12,7 @@ import {
   finderPlacesOpenAtom,
   finderPlacesWidthAtom,
 } from "@/client/atoms/window";
+import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import {
   FileSystem,
   type FileSystemFileItem,
@@ -23,9 +24,11 @@ import {
   type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
+} from "@/client/components/extend/file-system";
+import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
-} from "@/client/components/extend/file-system";
+} from "@/client/components/toolbar-control";
 import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
@@ -1600,6 +1603,10 @@ export function ComputerPage({
         return;
       }
       if (event.key === " ") {
+        // A space in a name being typed goes on to the folder.
+        if (fileSystemRef.current?.isTypingAhead()) {
+          return;
+        }
         event.preventDefault();
         drivePage(besidePage, { by: event.shiftKey ? -1 : 1, type: "scroll" });
         return;
@@ -1685,7 +1692,9 @@ export function ComputerPage({
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
-        isTypingTarget(event.target)
+        isTypingTarget(event.target) ||
+        // A dialog over the folder keeps its own Space.
+        getDefaultStore().get(windowHoldsAtom).length > 0
       ) {
         return;
       }
@@ -1916,7 +1925,7 @@ export function ComputerPage({
           ).at(-1) ?? "this folder");
     return (
       <GlyphButton
-        className={TOOLBAR_CONTROL_CLASSNAME}
+        className={cn(TOOLBAR_CONTROL_CLASSNAME, "text-foreground")}
         onClick={() => {
           draftAbout(selectedItems.length > 0 ? selectedItems : [selectedItem]);
         }}
@@ -2302,7 +2311,7 @@ export function ComputerPage({
               <>
                 <div
                   className={cn(
-                    "-ml-2 flex h-10 shrink-0 items-center gap-1 pl-2 transition-[width] [interpolate-size:allow-keywords]",
+                    "-ml-1.5 flex h-11 shrink-0 items-center gap-1.5 pl-1.5 transition-[width] [interpolate-size:allow-keywords]",
                     EDGE_DIVIDER_CLASSNAME,
                     BESIDE_MOTION_CLASSNAME,
                     beside?.isResizing && "transition-none",
@@ -2320,7 +2329,7 @@ export function ComputerPage({
                   {isBesideOpen ? null : (
                     <div
                       className={cn(
-                        "flex h-10 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
+                        "flex h-11 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
                         EDGE_DIVIDER_CLASSNAME,
                         BESIDE_MOTION_CLASSNAME,
                         placesVisible && !isNarrow
@@ -2330,7 +2339,7 @@ export function ComputerPage({
                       style={{
                         // Less the section's own inset, so its edge is the places'.
                         width:
-                          placesVisible && !isNarrow ? placesWidth - 8 : "auto",
+                          placesVisible && !isNarrow ? placesWidth - 6 : "auto",
                       }}
                     >
                       {placesToggle}
@@ -2354,7 +2363,7 @@ export function ComputerPage({
                   />
                 </div>
                 {isBesideOpen ? (
-                  <div className="flex h-10 shrink-0 items-center pl-1">
+                  <div className="flex h-11 shrink-0 items-center pl-1">
                     {beside.toggle}
                   </div>
                 ) : null}

@@ -15,12 +15,14 @@ import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { use, useState, type ReactNode } from "react";
 
-import { PlanningDotIcon } from "../icons/planning-dot";
+import { WorkingMark } from "../icons/working-mark";
 import { ToolCallBody } from "../message-part/tool-call";
 import { Favicon } from "../favicon";
 import { AppChipIcon } from "../inline-link";
 import { SessionMarkdown } from "../session-markdown";
+import { ShimmerSweep } from "../shimmer-sweep";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
+import { RollingText } from "./rolling-text";
 import { TranscriptSurfaceContext } from "./surface";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { formatClock, useTicking } from "./time";
@@ -42,6 +44,8 @@ export function RowLine({
   onClick,
   places,
   right,
+  rollKey,
+  rowId,
 }: {
   children?: ReactNode;
   isLive?: boolean;
@@ -51,9 +55,26 @@ export function RowLine({
   onClick?: () => void;
   places?: ReactNode;
   right?: ReactNode;
+  /** Rolls the label when this changes; without one the label just changes. */
+  rollKey?: string;
+  /** Names the row for the transcript debug page. */
+  rowId?: string;
 }) {
+  const words = (
+    <span
+      className={cn(
+        "block min-w-0 truncate",
+        isLive
+          ? "brand-shiny-text"
+          : "text-muted-foreground group-hover/row:text-foreground",
+      )}
+    >
+      {label}
+      {isLive && <ShimmerSweep text={label} />}
+    </span>
+  );
   return (
-    <div className="flex min-w-0 flex-col">
+    <div className="flex min-w-0 flex-col" data-transcript-row={rowId}>
       <button
         aria-expanded={onClick ? (isOpen ?? false) : undefined}
         className={cn(
@@ -66,27 +87,25 @@ export function RowLine({
         <span className="flex size-5 shrink-0 items-center justify-center">
           {mark}
         </span>
-        <span
-          className={cn(
-            "min-w-0 truncate",
-            isLive
-              ? "brand-shiny-text"
-              : "text-muted-foreground group-hover/row:text-foreground",
-          )}
-        >
-          {label}
-        </span>
+        {rollKey === undefined ? (
+          words
+        ) : (
+          <RollingText className="min-w-0" rollKey={rollKey}>
+            {words}
+          </RollingText>
+        )}
         {places}
         {right && (
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          <span className="flex shrink-0 items-center text-xs text-muted-foreground tabular-nums">
             {right}
           </span>
         )}
-        {onClick && !isLive && (
+        {onClick && (
           <CaretRightIcon
             className={cn(
               "size-3 shrink-0 text-muted-foreground transition duration-150",
               isOpen && "rotate-90",
+              isLive && !isOpen && "opacity-0 group-hover/row:opacity-100",
             )}
           />
         )}
@@ -154,10 +173,13 @@ export function ActivityRowView({
   chatInfo,
   isLive,
   row,
+  thought,
 }: {
   chatInfo: ChatInfo;
   isLive: boolean;
   row: ActivityRow;
+  /** The thought going on, which the row's own steps leave out. */
+  thought?: TurnStep;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
@@ -166,6 +188,7 @@ export function ActivityRowView({
   const current = row.steps.findLast((step) => step.explanation !== undefined);
   const lastStep = steps.at(-1);
   const counts = countsText(row);
+  const opened = thought ? [...row.steps, thought] : row.steps;
   const label =
     row.title ??
     (lastStep ? stepLabel(lastStep) : isLive ? "Thinking" : "Thought");
@@ -174,7 +197,7 @@ export function ActivityRowView({
       isLive={isLive}
       isOpen={isOpen}
       label={label}
-      mark={isLive ? <PlanningDotIcon /> : <StepMark step={lastStep} />}
+      mark={isLive ? <WorkingMark /> : <StepMark step={lastStep} />}
       onClick={() => {
         releaseAutoScroll();
         setIsOpen((open) => !open);
@@ -182,24 +205,36 @@ export function ActivityRowView({
       places={<Badges apps={row.apps} sites={row.sites} />}
       right={
         <>
-          {counts && (
-            <span className="mr-1.5 text-foreground/70">{counts}</span>
-          )}
+          <RollingText rollKey={counts}>
+            {counts && (
+              <span className="mr-1.5 block text-foreground/70">{counts}</span>
+            )}
+          </RollingText>
           {isLive && `· ${formatClock(now - row.startedAt.getTime())}`}
         </>
       }
+      // A name still being written grows in place, and a new call moves it on.
+      rollKey={
+        isLive
+          ? row.title
+            ? "named"
+            : (lastStep?.metadata.id ?? "thinking")
+          : undefined
+      }
     >
       {isLive && current?.explanation && (
-        <p className="ml-7 truncate text-xs text-muted-foreground">
-          {current.explanation}
-        </p>
+        <RollingText className="ml-7" rollKey={current.metadata.id}>
+          <span className="block truncate text-xs text-muted-foreground">
+            {current.explanation}
+          </span>
+        </RollingText>
       )}
       {isOpen && (
-        <div className="mt-1 ml-7 flex flex-col gap-0.5">
-          {row.steps.length === 1 && row.steps[0] ? (
-            <StepDetail chatInfo={chatInfo} step={row.steps[0]} />
+        <div className="mt-1 ml-7 flex flex-col gap-1.5">
+          {opened.length === 1 && opened[0] ? (
+            <StepDetail chatInfo={chatInfo} step={opened[0]} />
           ) : (
-            row.steps.map((step) => (
+            opened.map((step) => (
               <StepRow chatInfo={chatInfo} key={step.metadata.id} step={step} />
             ))
           )}
@@ -240,6 +275,7 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
           sites={step.facts?.hosts ?? []}
         />
       }
+      rowId={step.metadata.id}
     >
       {isOpen && (
         <div className="my-1">
@@ -251,7 +287,7 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
 }
 
 /** What an opened step shows, read whole: a call's card, a thought's words. */
-function StepDetail({
+export function StepDetail({
   chatInfo,
   step,
 }: {

@@ -243,9 +243,20 @@ export function tabTooltip(
       expandHomePath(joinHostPath(screen.root, screen.path), home),
     );
   }
-  return folder === null
-    ? undefined
-    : { detail: segmentsOf(displayPath(folder)).join(" › "), title };
+  if (folder === null) {
+    return undefined;
+  }
+  // A page named by its own title says its file's name after the folder.
+  const name =
+    screen.file === undefined ? undefined : segmentsOf(screen.file).at(-1);
+  const crumbs = segmentsOf(displayPath(folder));
+  return {
+    detail: (name !== undefined && name !== title
+      ? [...crumbs, name]
+      : crumbs
+    ).join(" › "),
+    title,
+  };
 }
 
 /** A chat's latest line, as its row in the inbox says it. */

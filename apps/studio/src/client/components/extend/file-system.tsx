@@ -1,4 +1,8 @@
 import { thumbnailUrlAtSize } from "@/client/lib/computer-file-url";
+import {
+  TOOLBAR_CONTROL_CLASSNAME,
+  TOOLBAR_ICON_BUTTON_CLASSNAME,
+} from "@/client/components/toolbar-control";
 import { displayLocale } from "@/client/lib/display-locale";
 import { useSeenSrc } from "@/client/lib/use-seen-src";
 import {
@@ -98,6 +102,8 @@ import {
 import {
   type ListingCommand,
   type ListingDirection,
+  endsTypeAhead,
+  isTypingAhead,
   listingCommandOf,
   NO_TYPE_AHEAD,
   typeAhead,
@@ -461,6 +467,8 @@ export type FileSystemHandle = {
   focusSelection: () => void;
   /** The selection one row up or down, as the arrow walks it; false where it did not move. */
   step: (direction: "down" | "up") => boolean;
+  /** Whether a name is being typed at the rows, so a space now is part of it. */
+  isTypingAhead: () => boolean;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list" | "table";
 type FileEntry = FileSystemFileItem & {
@@ -2821,6 +2829,8 @@ export function FileSystem({
         });
         return selectionRef.current.lead !== before;
       },
+      isTypingAhead: () =>
+        isTypingAhead(typeAheadRef.current, performance.now()),
     }),
     [commitSelection, startRename],
   );
@@ -3056,6 +3066,11 @@ export function FileSystem({
   // the view on screen, which says how its rows are walked.
   const listingNavRef = React.useRef<ListingNav | null>(null);
   const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
+  // What was typed at one folder says nothing about the next. The columns stay
+  // on one `currentPath` while the selection moves through their folders.
+  React.useLayoutEffect(() => {
+    typeAheadRef.current = NO_TYPE_AHEAD;
+  }, [currentPath]);
   const runListingCommand = (command: ListingCommand) => {
     const nav = listingNavRef.current;
     if (!nav) return false;
@@ -3148,13 +3163,9 @@ export function FileSystem({
         return true;
       }
       case "type-ahead": {
-        const current = nav.current;
         const { nameOf } = nav;
         const { match, state } = typeAhead({
           char: command.char,
-          currentIndex: current
-            ? nav.rows.findIndex((entry) => entry.path === current.path)
-            : -1,
           entries: nav.rows.map((entry) => ({
             entry,
             name: nameOf ? nameOf(entry) : entry.name,
@@ -3307,7 +3318,7 @@ export function FileSystem({
     >
       {/* A track a shade darker than the muted one, so it reads as a
           well the choices sit in against the toolbar's own tint. */}
-      <TabsList className="h-8 bg-foreground/8 p-0.5">
+      <TabsList className="h-8 rounded-xl bg-foreground/8 p-0.5">
         {VIEW_OPTIONS.map((option) => (
           <TabsTrigger
             aria-label={`${option.label} view`}
@@ -3392,6 +3403,7 @@ export function FileSystem({
       }}
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
+        if (endsTypeAhead(event)) typeAheadRef.current = NO_TYPE_AHEAD;
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
         // browser (its menus and dialogs), and one typed into a field are
@@ -3422,7 +3434,19 @@ export function FileSystem({
         ) {
           return;
         }
-        if (runListingCommand(command)) event.preventDefault();
+        // A space in a name being typed is part of the name, and what the
+        // window does with Space (Quick Look, a player) does not hear it.
+        const isSpaceInName =
+          command.type === "space" &&
+          isTypingAhead(typeAheadRef.current, performance.now());
+        if (isSpaceInName) event.stopPropagation();
+        if (
+          runListingCommand(
+            isSpaceInName ? { char: " ", type: "type-ahead" } : command,
+          )
+        ) {
+          event.preventDefault();
+        }
       }}
       onPointerDown={dragArea.onPointerDown}
       onPointerOver={dragArea.onPointerOver}
@@ -3436,7 +3460,7 @@ export function FileSystem({
             createPortal(
               <div
                 className={cn(
-                  "flex min-w-0 items-center gap-1",
+                  "flex min-w-0 items-center gap-1.5",
                   toolbarInto.tail === undefined && "flex-1",
                 )}
                 onContextMenu={(event) => {
@@ -3664,32 +3688,19 @@ export function FileSystem({
 // twice and read brighter than the strokes. An opaque white faded as one layer
 // paints every pixel once at the same strength.
 const VIEW_GLYPH_DIM_CLASSNAME = "dark:text-foreground dark:opacity-60";
-// The selected layout in the view switcher stands on the track as the same
-// surface as the toolbar's buttons: card fill, the shadow's hairline as its only
-// edge, so a choice made here and a button beside it read as one family. The
-// tab trigger's own dark border is cleared for that reason; its dark fill is
-// already the buttons' `input/30`. The unselected glyphs dim as one layer, as
-// above.
+// The selected layout in the view switcher stands raised on the track in the
+// toolbar buttons' card fill, so a choice made here and a button beside it read
+// as one family. The tab trigger's own dark border is cleared for that reason;
+// its dark fill is already the buttons' `input/30`. The unselected glyphs dim
+// as one layer, as above.
 const VIEW_TAB_CLASSNAME =
-  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7 dark:data-[state=active]:border-transparent dark:not-data-[state=active]:[&_svg]:text-foreground dark:not-data-[state=active]:[&_svg]:opacity-60";
-// The surface every framed control on the toolbar stands on: 32px tall, the
-// track's height, 8px corners, and the shadow's own hairline as the edge, so
-// the sort, the filter, the search, the overflow menu and whatever the host
-// adds after them are one family. The hover is restated with `not-disabled:` so
-// it replaces the one each primitive (button, select trigger) brings.
-export const TOOLBAR_CONTROL_CLASSNAME =
-  "h-8 rounded-lg border-0 bg-card shadow-xs not-disabled:hover:bg-accent dark:bg-input/30 dark:not-disabled:hover:bg-input/50";
-// An icon-only select in that family: sheds the base min-width to hug icon and
+  "h-7 grow-0 rounded-lg px-2.5 text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7 dark:data-[state=active]:border-transparent dark:not-data-[state=active]:[&_svg]:text-foreground dark:not-data-[state=active]:[&_svg]:opacity-60";
+// An icon-only select in the toolbar's family: sheds the base min-width to hug icon and
 // caret at the toolbar's 32px height, and draws the caret at a hint's size so
 // the icon reads as the control and the caret as the note that it opens.
 const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
   TOOLBAR_CONTROL_CLASSNAME,
   "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-1.5 has-[>svg]:px-1.5 dark:border-0 [&>svg:last-child]:size-2.5",
-);
-// The square, icon-only member of that family.
-export const TOOLBAR_ICON_BUTTON_CLASSNAME = cn(
-  TOOLBAR_CONTROL_CLASSNAME,
-  "flex size-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
 );
 // macOS Finder-style toolbar search. At the full layout it sits inline in
 // the header's right column; at compact widths it collapses into a ghost
@@ -4214,8 +4225,6 @@ type FileSystemViewProps = {
 };
 /** How a view's rows are walked by the keys the browser reads (`listingCommandOf`). */
 type ListingNav = {
-  /** The row the keyboard is on, which type-ahead searches on from. */
-  current: FileSystemEntry | null;
   /**
    * Where an arrow goes: a row, with the order a Shift-arrow reaches along
    * (null where it does not reach, as across columns); true for a step the
@@ -4547,7 +4556,6 @@ function FileSystemIconsView({
   renamingPath,
   renderNameField,
   rowGestures,
-  selectedEntry,
   selectedPath,
   selection,
   besideOpenPath,
@@ -4562,7 +4570,6 @@ function FileSystemIconsView({
     preventScroll: false,
   });
   useListingNav(listingNavRef, {
-    current: selectedEntry,
     move: (direction) => {
       const entry = gridNeighbor({
         current: selectedPath,
@@ -5589,7 +5596,6 @@ function FileSystemTableView({
   // Up and down walk the rows as drawn; right opens a folder in place and
   // left closes it, or goes to the folder holding the row.
   useListingNav(listingNavRef, {
-    current: entryRows[selectedEntryIndex]?.entry ?? null,
     move: (direction) => {
       const selectedRow = entryRows[selectedEntryIndex];
       const first = entryRows[0]?.entry;
@@ -5929,7 +5935,6 @@ function FileSystemListView({
   renamingPath,
   renderNameField,
   rowGestures,
-  selectedEntry,
   selectedPath,
   selection,
   sort,
@@ -6022,7 +6027,6 @@ function FileSystemListView({
   }, [selectedUnit]);
   // Up and down walk the rows; left and right are the page's beside a file.
   useListingNav(listingNavRef, {
-    current: selectedEntry,
     move: (direction) => {
       if (direction === "left" || direction === "right") return false;
       const first = entries[0];
@@ -6415,7 +6419,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     ? (index.children.get(selectedEntry.parentPath) ?? [])
     : (index.children.get(currentPath) ?? []);
   useListingNav(listingNavRef, {
-    current: isInColumns ? selectedEntry : null,
     move: (direction) => {
       if (!isInColumns) {
         const first = index.children.get(currentPath)?.[0];
@@ -7297,7 +7300,6 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
   // The strip runs one way: left and right walk it, from the tile on show.
   // Return opens, since the strip has no name to type over.
   useListingNav(listingNavRef, {
-    current: activeEntry,
     move: (direction) => {
       if (direction === "up" || direction === "down") return false;
       const at = activeEntry

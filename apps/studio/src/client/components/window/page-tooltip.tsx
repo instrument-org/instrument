@@ -9,7 +9,9 @@ import type { ComponentProps, ReactElement } from "react";
  * A web page's row or tile with the page on hover: its whole title, which
  * the row may have cut short, and under it where the page is, as a person
  * reads an address. Props the trigger is handed (a context menu's, say)
- * reach the row.
+ * reach the row. It closes as the pointer leaves the row, since a pointer
+ * gone into a page's guest sends the window no pointermove to end a
+ * hoverable tooltip's grace on.
  */
 export function PageTooltip({
   children,
@@ -23,7 +25,7 @@ export function PageTooltip({
 }) {
   const address = readableAddress(url);
   return (
-    <Tooltip>
+    <Tooltip disableHoverableContent>
       <TooltipTrigger asChild {...props}>
         {children}
       </TooltipTrigger>

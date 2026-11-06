@@ -223,6 +223,23 @@ export const scenarios: DebugScenario[] = [
     ],
   },
   {
+    id: "rating-card",
+    name: "The card asking how it went",
+    script: [
+      user("Which of these three support tools costs least at ten agents?"),
+      prose("Freshdesk, at $290 a month."),
+      stop(),
+      user("Check their current prices and update the comparison."),
+      activity("Checking current prices"),
+      read({
+        explanation: "Reading the comparison",
+        filePath: "pricing-comparison.md",
+      }),
+      prose("Freshdesk is still cheapest, and I updated the comparison."),
+      notes({ data: {}, type: "data-ratingCard" }),
+    ],
+  },
+  {
     id: "notion",
     name: "Sign-in, app calls and a count",
     script: [

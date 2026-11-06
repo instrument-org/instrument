@@ -51,6 +51,7 @@ import { cn, osConventions } from "@/client/lib/utils";
 import { SANDBOX_OFF_COPY, SANDBOX_OFF_REASONS } from "@/shared/sandbox-off";
 import { MacAppIcon } from "@/client/components/mac-app-icon";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type Icon } from "@phosphor-icons/react";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
@@ -241,7 +242,9 @@ export function PermissionsSection() {
           },
         ]}
         {...(isHome
-          ? { mark: <HouseIcon className="size-6 text-muted-foreground" /> }
+          ? {
+              mark: <PlaceTile icon={HouseIcon} />,
+            }
           : {})}
         path={folder.path}
       />
@@ -620,6 +623,15 @@ function BlockedByMacos({
   );
 }
 
+/** A line icon on a faint rounded tile, sized to sit beside a folder's mark. */
+function PlaceTile({ icon: Mark }: { icon: Icon }) {
+  return (
+    <span className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <Mark className="size-4" />
+    </span>
+  );
+}
+
 function PlaceRow({
   blocked,
   home,
@@ -632,7 +644,6 @@ function PlaceRow({
   onSelect: (level: Level) => void;
   place: Place;
 }) {
-  const className = "size-6 text-muted-foreground";
   const volumes = useComputerVolumes();
   const paths = place.paths.map((each) => displayPath(each)).join(", ");
   const details = ((): {
@@ -658,7 +669,7 @@ function PlaceRow({
       case "icloud": {
         return {
           line: null,
-          mark: <CloudIcon className={className} />,
+          mark: <PlaceTile icon={CloudIcon} />,
           name: "iCloud Drive",
         };
       }
@@ -675,12 +686,12 @@ function PlaceRow({
                       root.replace(/\\$/, ""),
                   )
                   .join(", ") || null,
-              mark: <HardDriveIcon className={className} />,
+              mark: <PlaceTile icon={HardDriveIcon} />,
               name: "Other drives",
             }
           : {
               line: paths || null,
-              mark: <HardDriveIcon className={className} />,
+              mark: <PlaceTile icon={HardDriveIcon} />,
               name: "Drives you plug in",
             };
       }
@@ -694,14 +705,14 @@ function PlaceRow({
       case "photos": {
         return {
           line: paths || null,
-          mark: <ImagesIcon className={className} />,
+          mark: <PlaceTile icon={ImagesIcon} />,
           name: "Photos library",
         };
       }
       case "mediaLibraries": {
         return {
           line: paths || null,
-          mark: <MusicNotesIcon className={className} />,
+          mark: <PlaceTile icon={MusicNotesIcon} />,
           name: "Music and TV libraries",
         };
       }
@@ -717,7 +728,7 @@ function PlaceRow({
                 ? `Folders like .ssh ask first. Your browsers and ${passwordStore} stay closed.`
                 : "Folders like .ssh ask first. Your browsers stay closed."
               : "Keys, sign-ins and browser cookies",
-          mark: <KeyIcon className={className} />,
+          mark: <PlaceTile icon={KeyIcon} />,
           name: "Passwords and keys",
         };
       }

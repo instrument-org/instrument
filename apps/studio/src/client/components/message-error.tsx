@@ -84,6 +84,15 @@ interface MessageErrorProps {
 /** Runs the turn again; with `ifIdle`, only if nothing is running in its session. */
 export type RunAgain = (options?: { ifIdle: boolean }) => void;
 
+/** A failure's mark, in the box every row of a turn draws its mark in. */
+function ErrorMark() {
+  return (
+    <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-warning-500/15">
+      <WarningIcon className="size-3 text-warning-700 dark:text-warning-300" />
+    </span>
+  );
+}
+
 /**
  * A turn that ended in an error, said in our words with the way forward
  * beside it.
@@ -294,6 +303,24 @@ export function MessageError({
     );
 
   const past = !isLastMessage;
+  if (past && !expandedPast && compact) {
+    return (
+      <button
+        className="group/row flex h-7 max-w-full min-w-0 items-center gap-2 rounded-lg text-left text-sm outline-none"
+        onClick={() => {
+          setExpandedPast(true);
+        }}
+        type="button"
+      >
+        {isHiddenFromReader && <DeveloperModeBadge />}
+        <ErrorMark />
+        <span className="min-w-0 truncate text-muted-foreground group-hover/row:text-foreground">
+          {title}
+        </span>
+        <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
+      </button>
+    );
+  }
   if (past && !expandedPast) {
     return (
       <button
@@ -312,11 +339,11 @@ export function MessageError({
 
   if (compact) {
     return (
-      <div className="flex flex-col gap-1 px-3 text-xs" role="alert">
-        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+      <div className="flex flex-col gap-1 text-xs" role="alert">
+        <div className="flex min-h-7 flex-wrap items-center gap-x-1 gap-y-1">
           {isHiddenFromReader && <DeveloperModeBadge />}
-          <WarningIcon className="mr-1 size-3.5 shrink-0 text-warning-700 dark:text-warning-300" />
-          <span className="mr-1 text-foreground/80">{title}</span>
+          <ErrorMark />
+          <span className="mr-1 ml-1 text-sm text-foreground/80">{title}</span>
           {showActions &&
             actions.map((action) => (
               <Button
@@ -346,7 +373,7 @@ export function MessageError({
           {reportable && reportButton("xs")}
         </div>
         {showDetails && (
-          <div className="flex flex-col gap-1 pl-5.5 text-muted-foreground">
+          <div className="flex flex-col gap-1 pl-7 text-muted-foreground">
             <p>{body}</p>
             {providerLine && (
               <p className="text-muted-foreground/80">{providerLine}</p>

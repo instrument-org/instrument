@@ -27,7 +27,7 @@ import {
   LanguageDescription,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { search } from "@codemirror/search";
+import { search, searchPanelOpen, setSearchQuery } from "@codemirror/search";
 import {
   Annotation,
   ChangeSet,
@@ -57,6 +57,7 @@ import {
 } from "@codemirror/view";
 
 import { instrumentMark } from "../markdown-editor/icons";
+import { type CodeFind, readCodeFind } from "./code-find";
 import { CODE_EDITOR_KEYS } from "./keymap";
 import {
   changesBetween,
@@ -79,6 +80,8 @@ export type CodeSession = ReturnType<typeof createCodeSession>;
 
 export interface CodeSessionOptions {
   filename: string;
+  /** Where the find card is drawn: CodeMirror places it as its search panel, and the host renders the card into it. */
+  findHost: HTMLElement;
   hostPath: string;
   initial: { content: string; version: string };
   /** Asks about the selection: its words, where they are, and a box to stand the ask card by. */
@@ -90,6 +93,8 @@ export interface CodeSessionOptions {
     to: number;
   }) => void;
   onExternalChange: (change: CodeExternalChange) => void;
+  /** The find as it stands after each change while it is open, and null once it closes. */
+  onFind: (find: CodeFind | null) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
   parent: HTMLElement;
   /** Whether the file is shown but not edited; it still follows the disk. */
@@ -204,18 +209,6 @@ const flashField = StateField.define<DecorationSet>({
     }
     return next;
   },
-});
-
-/** The search panel's labels in the app's sentence case. */
-const searchPhrases = EditorState.phrases.of({
-  all: "All",
-  "by word": "By word",
-  "match case": "Match case",
-  next: "Next",
-  previous: "Previous",
-  regexp: "Regexp",
-  replace: "Replace",
-  "replace all": "Replace all",
 });
 
 export function createCodeSession(options: CodeSessionOptions) {
@@ -447,6 +440,19 @@ export function createCodeSession(options: CodeSessionOptions) {
     ) {
       scheduleSave();
     }
+    // The find's readout follows the file, the selection and the query.
+    const findOpen = searchPanelOpen(update.state);
+    if (
+      findOpen !== searchPanelOpen(update.startState) ||
+      (findOpen &&
+        (update.docChanged ||
+          update.selectionSet ||
+          update.transactions.some((tr) =>
+            tr.effects.some((effect) => effect.is(setSearchQuery)),
+          )))
+    ) {
+      options.onFind(findOpen ? readCodeFind(update.state) : null);
+    }
   });
 
   // Pasted or dropped text takes the file's own line breaks, so a CRLF file
@@ -493,8 +499,7 @@ export function createCodeSession(options: CodeSessionOptions) {
         EditorState.tabSize.of(4),
         EditorState.allowMultipleSelections.of(true),
         EditorState.readOnly.of(options.readOnly),
-        search({ top: true }),
-        searchPhrases,
+        search({ createPanel: () => ({ dom: options.findHost, top: true }) }),
         keymap.of(CODE_EDITOR_KEYS),
         reportFocus,
         codeHighlighting,

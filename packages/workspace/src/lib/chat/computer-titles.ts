@@ -6,8 +6,9 @@ import path from "node:path";
  * them rather than by their names: a page's `<title>` (or its first `<h1>`),
  * a Markdown file's front matter `title:` (or its first heading).
  *
- * Only the head of each file is read, since that is where a title is, and a
- * file iCloud keeps only in the cloud is skipped rather than downloaded: a
+ * Each file is read from the top in chunks until its title or first heading
+ * closes, since a page can put a long inline script ahead of its `<title>`,
+ * and no further than `MAX_BYTES`; a file iCloud keeps only in the cloud is skipped rather than downloaded: a
  * folder of them is listed, not fetched. A title is kept by the file's path,
  * size and mtime, so a folder read again on the listing's clock costs a stat
  * per file, and a file written since is read again.
@@ -32,8 +33,13 @@ export async function computerFileTitles(
 
 /** How many files are read at once. */
 const READERS = 8;
-/** How much of a file's head is read for its title. */
-const HEAD_BYTES = 16 * 1024;
+/** How much of a file is read at a time for its title. */
+const CHUNK_BYTES = 16 * 1024;
+/** How far into a file its title is looked for. */
+const MAX_BYTES = 512 * 1024;
+/** Where a page's or a Markdown file's title has been read far enough. */
+const PAGE_TITLE_END = /<\/(?:title|h1)\s*>/i;
+const MARKDOWN_TITLE_END = /^#{1,6}[ \t]+\S.*\n/m;
 /** Titles kept, oldest let go first. */
 const KEPT = 5000;
 const kept = new Map<string, null | string>();
@@ -57,24 +63,44 @@ async function titleOf(filePath: string): Promise<null | string> {
   if (!stat.isFile() || evicted) return null;
   const key = `${filePath}\0${stat.size}\0${stat.mtimeMs}`;
   if (kept.has(key)) return kept.get(key) ?? null;
-  const handle = await fs.open(filePath, "r");
-  let head: string;
-  try {
-    const buffer = Buffer.alloc(Math.min(HEAD_BYTES, stat.size));
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-    head = buffer.subarray(0, bytesRead).toString("utf8");
-  } finally {
-    await handle.close();
-  }
-  const title = PAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase())
-    ? pageTitle(head)
-    : markdownTitle(head);
+  const isPage = PAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+  const head = await readHead(
+    filePath,
+    Math.min(MAX_BYTES, stat.size),
+    isPage ? PAGE_TITLE_END : MARKDOWN_TITLE_END,
+  );
+  const title = isPage ? pageTitle(head) : markdownTitle(head);
   if (kept.size >= KEPT) {
     const oldest = kept.keys().next().value;
     if (oldest !== undefined) kept.delete(oldest);
   }
   kept.set(key, title);
   return title;
+}
+
+/** The top of a file, read until `end` matches or `limit` bytes are in. */
+async function readHead(filePath: string, limit: number, end: RegExp) {
+  const handle = await fs.open(filePath, "r");
+  const decoder = new TextDecoder();
+  const buffer = Buffer.alloc(CHUNK_BYTES);
+  let head = "";
+  let at = 0;
+  try {
+    while (at < limit && !end.test(head)) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        0,
+        Math.min(CHUNK_BYTES, limit - at),
+        at,
+      );
+      if (bytesRead === 0) break;
+      at += bytesRead;
+      head += decoder.decode(buffer.subarray(0, bytesRead), { stream: true });
+    }
+  } finally {
+    await handle.close();
+  }
+  return head;
 }
 
 /** A page's `<title>`, or its first `<h1>` where it has none. */

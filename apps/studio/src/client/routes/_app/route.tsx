@@ -34,6 +34,7 @@ import { useWindow, WindowContext } from "@/client/components/window/context";
 import { isPaneOpen } from "@/client/components/window/draft-context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
+import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { PaneToggle } from "@/client/components/window/pane-toggle";
@@ -275,6 +276,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     <div className="absolute inset-0 flex flex-col">
                       <ChatHeader
                         chat={chatRecord}
+                        leading={<InboxToggle />}
                         // An archived chat is put away, so it leaves the
                         // side beside the list with it.
                         onArchived={leaveChat}
@@ -355,7 +357,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     // A page's bottom corners follow what they meet: square
                     // against the conversation at the left, round where the
                     // pane reaches the card's own corner.
-                    "[--guest-bottom-radius:0_10px]",
+                    "[--guest-bottom-radius:0_18px]",
                   )}
                 >
                   {up && (

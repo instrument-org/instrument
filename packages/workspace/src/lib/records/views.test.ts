@@ -391,6 +391,32 @@ describe("views", () => {
     expect(shown?.metadata).toMatchObject({ finishReason: "unknown" });
   });
 
+  // The request appends a reply's words to the part it handed over, so a reader
+  // that shared the part compared it with itself and sent no words until the
+  // reply was whole.
+  it("hand a reader a copy of a part still arriving, which the request goes on changing", async () => {
+    await throughRecords(records.service);
+    const arriving: SessionMessagePart.TextPart = {
+      metadata: {
+        createdAt: at(9),
+        id: partId(9),
+        messageId: messageId(9),
+        sessionId: chatSession,
+      },
+      state: "streaming",
+      text: "Look",
+      type: "text",
+    };
+    records.service.live(CHAT, chatSession).setPart(arriving);
+    const [shown] = liveView(await records.service.read(CHAT), chatSession);
+
+    arriving.text += "ing";
+
+    expect(
+      shown?.parts.find(({ metadata }) => metadata.id === partId(9)),
+    ).toMatchObject({ text: "Look" });
+  });
+
   it("send the model the bytes a call returned only past the rollover that holds", async () => {
     const read = await throughRecords(records.service);
     const readFile = (messages: SessionMessage.WithParts[]) => {

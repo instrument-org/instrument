@@ -246,7 +246,7 @@ describe("turnsOf", () => {
     `);
   });
 
-  it("folds everything before the words a turn ended on", () => {
+  it("folds the work between what the agent said first and the words it ended on", () => {
     const [turn] = turnsOf(
       [
         typed("Do the thing"),
@@ -276,7 +276,125 @@ describe("turnsOf", () => {
       ]
     `);
     const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
-    expect(folded).toEqual([true, true, false, false]);
+    expect(folded).toEqual([false, true, false, false]);
+    expect(turn?.foldLineAt).toBe(turn?.rows[1]?.id);
+  });
+
+  it("keeps the words after a first thought above the fold, with its line under them", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state: "done",
+            text: "Let me think.",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+          said(id, "On it."),
+          call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+          said(id, "In between."),
+          call(id, "bash", { activity: "Checking" }, { exitCode: 0 }),
+          said(id, "Here it is."),
+        ]),
+      ],
+      { isDeveloperMode: true, isRunning: false },
+    );
+    const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
+    expect(folded).toEqual([true, false, true, true, true, false]);
+    expect(turn?.foldLineAt).toBe(turn?.rows[2]?.id);
+  });
+
+  it.each([
+    ["while it goes on", "streaming", true],
+    ["once it has ended", "done", false],
+  ] as const)(
+    "draws no row for a thought %s, for all but a developer",
+    (_when, state, isRunning) => {
+      const messages = [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state,
+            text: "Let me think.",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+          ...(isRunning ? [] : [said(id, "Here it is.")]),
+        ]),
+      ];
+      const [person] = turnsOf(messages, { isRunning });
+      expect(person?.rows.filter((row) => row.kind === "activity")).toEqual([]);
+      expect(person?.live?.kind).toBe(isRunning ? "thinking" : undefined);
+      const [developer] = turnsOf(messages, {
+        isDeveloperMode: true,
+        isRunning,
+      });
+      expect(
+        developer?.rows.filter((row) => row.kind === "activity"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("opens the working line onto the thought going on, until something follows it", () => {
+    const thinking = (id: StoreId.Message) =>
+      ({
+        metadata: meta(id),
+        state: "streaming",
+        text: "Let me think.",
+        type: "reasoning",
+      }) as SessionMessagePart.Type;
+    const first = message("assistant", (id) => [thinking(id)]);
+    const live = (
+      messages: Parameters<typeof turnsOf>[0],
+      isDeveloperMode = false,
+    ) => turnsOf(messages, { isDeveloperMode, isRunning: true })[0]?.live;
+
+    expect(live([typed("Do the thing"), first])).toMatchObject({
+      kind: "thinking",
+      thought: { tool: "reasoning" },
+    });
+    expect(live([typed("Do the thing"), first], true)).not.toHaveProperty(
+      "thought",
+    );
+    expect(
+      live([
+        typed("Do the thing"),
+        message("assistant", (id) => [thinking(id), said(id, "Here it is.")]),
+      ]),
+    ).not.toHaveProperty("thought");
+  });
+
+  it("draws no row for a thought with no words, so Thinking holds until there are some", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state: "streaming",
+            text: "",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn?.rows).toEqual([]);
+    expect(turn?.live?.kind).toBe("thinking");
+  });
+
+  it("leaves a message cut across with nothing done but words as it was said", () => {
+    const [cut] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "On it.")]),
+        typed("Also this"),
+      ],
+      { isRunning: true },
+    );
+    expect(cut?.foldedRowIds.size).toBe(0);
+    expect(cut?.foldLineAt).toBeUndefined();
   });
 
   it.each([
@@ -336,6 +454,25 @@ describe("turnsOf", () => {
     const [working] = turnsOf(messages, { isRunning: true });
     expect(working?.foldedRowIds.size).toBe(0);
     expect(working?.phase).toBe("working");
+  });
+
+  it("keeps the card asking how it went out of the rows", () => {
+    const card = (data: { outcome?: "dismissed" | "sent" }) =>
+      turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            said(id, "Done."),
+            { data, metadata: meta(id), type: "data-ratingCard" },
+          ]),
+        ],
+        { isRunning: false },
+      )[0];
+    const waiting = card({});
+    expect(waiting?.ratingCard?.data).toEqual({});
+    expect(waiting?.rows.map((row) => row.kind)).toEqual(["text"]);
+    expect(card({ outcome: "sent" })?.ratingCard?.data.outcome).toBe("sent");
+    expect(card({ outcome: "dismissed" })?.ratingCard).toBeUndefined();
   });
 
   it("waits for the summary or the wait, whichever comes first", () => {
@@ -410,6 +547,24 @@ describe("turnsOf", () => {
         "text: And done.",
       ]
     `);
+  });
+
+  it("draws no row for a line while it is still the one before it", () => {
+    const last = (words: string) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [said(id, "Trying.")]),
+          message("assistant", (id) => [said(id, words, "streaming")]),
+        ],
+        { isRunning: true },
+      );
+      return turn && shape(turn);
+    };
+    expect(last("Try")).toEqual(["text: Trying."]);
+    expect(last("Trying.")).toEqual(["text: Trying."]);
+    expect(last("Trying. And")).toEqual(["text: Trying.", "text: And"]);
+    expect(last("Trial")).toEqual(["text: Trying.", "text: Trial"]);
   });
 
   it("keeps the turn of a slice whose messages have not changed", () => {
@@ -621,13 +776,24 @@ describe("the slot", () => {
     ["being declined", ["notion"], [["declined", "notion"]], true],
     ["the app going", ["notion"], [["removed", "notion"]], true],
     ["a failure, to try again", ["notion"], [["failed", "notion"]], false],
-    ["a retry that worked", ["notion"], [["failed", "notion"], ["connected", "notion"]], true],
+    [
+      "a retry that worked",
+      ["notion"],
+      [
+        ["failed", "notion"],
+        ["connected", "notion"],
+      ],
+      true,
+    ],
     ["another app's news", ["notion"], [["connected", "linear"]], false],
     ["one app of two", ["notion", "linear"], [["connected", "notion"]], false],
     [
       "both apps of two",
       ["notion", "linear"],
-      [["connected", "notion"], ["declined", "linear"]],
+      [
+        ["connected", "notion"],
+        ["declined", "linear"],
+      ],
       true,
     ],
   ])("folds a sign-in or not after %s", (_name, apps, events, folds) => {
@@ -991,16 +1157,29 @@ describe("a failed attempt", () => {
       ...(words === undefined ? [] : [said(id, words)]),
     ]);
   const errorRows = (messages: TranscriptMessage[]) =>
-    (turnsOf([typed("Do the thing"), ...messages], { isRunning: true })[0]?.rows ?? []).flatMap(
-      (row) => (row.kind === "error" ? [row.isLatestAttempt] : []),
-    );
+    (
+      turnsOf([typed("Do the thing"), ...messages], { isRunning: true })[0]
+        ?.rows ?? []
+    ).flatMap((row) => (row.kind === "error" ? [row.isLatestAttempt] : []));
 
   it.each([
     ["stands as the last message", () => [failed()], [true]],
-    ["stands above a retry that has said nothing", () => [failed(), retry()], [true]],
+    [
+      "stands above a retry that has said nothing",
+      () => [failed(), retry()],
+      [true],
+    ],
     ["goes once the retry says something", () => [failed(), retry("Hi")], []],
-    ["gives way to a retry that failed too", () => [failed(), failed()], [true]],
-    ["gives way when two retries are past it", () => [failed(), failed(), retry()], [true]],
+    [
+      "gives way to a retry that failed too",
+      () => [failed(), failed()],
+      [true],
+    ],
+    [
+      "gives way when two retries are past it",
+      () => [failed(), failed(), retry()],
+      [true],
+    ],
   ])("%s", (_name, messages, expected) => {
     expect(errorRows(messages())).toEqual(expected);
   });

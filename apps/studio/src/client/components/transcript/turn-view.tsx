@@ -7,6 +7,7 @@ import {
   isTurnFolded,
   slotOf,
   type SessionMessagePart,
+  type StepPart,
   type StoreId,
   type Turn,
   type TurnOpener,
@@ -21,15 +22,16 @@ import { AssistantMessagesFooter } from "../assistant-messages-footer";
 import { AttachmentsCard } from "../attachments-card";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
-import { PlanningDotIcon } from "../icons/planning-dot";
+import { WorkingMark } from "../icons/working-mark";
 import { MessageError } from "../message-error";
+import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
 import { SentFoldersCard } from "../sent-folders-card";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
-import { ActivityRowView, Badges, RowLine } from "./activity-row";
+import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
 import { DeveloperNote } from "./developer-note";
 import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
@@ -46,14 +48,33 @@ const FOLD_TRANSITION = { duration: 0.24, ease: [0.32, 0.72, 0, 1] } as const;
 /** The gap between a turn's rows, which a row closing takes with it. */
 const ROW_GAP = 8;
 
-/** A row that closes as the fold takes it. */
-function FoldingRow({ children }: { children: ReactNode }) {
+/** How long the agent may sit between things before the transcript says it is thinking. */
+const THINKING_AFTER_MS = 1000;
+
+/**
+ * A row that closes as the fold takes it, told by `AnimatePresence`'s `custom`.
+ * A row leaving for any other reason just goes, or what is under it would slide
+ * up for no reason the reader can see.
+ */
+function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
   const isReduced = useReducedMotion();
   return (
     <motion.div
       className="flex min-w-0 flex-col gap-2 empty:hidden"
-      exit={{ height: 0, marginTop: -ROW_GAP, opacity: 0, overflow: "hidden" }}
-      transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
+      data-transcript-row={id}
+      exit="leaving"
+      variants={{
+        leaving: (isFolding: boolean) =>
+          isFolding
+            ? {
+                height: 0,
+                marginTop: -ROW_GAP,
+                opacity: 0,
+                overflow: "hidden",
+                transition: isReduced ? { duration: 0 } : FOLD_TRANSITION,
+              }
+            : { opacity: 0, transition: { duration: 0 } },
+      }}
     >
       {children}
     </motion.div>
@@ -85,7 +106,8 @@ export const TurnView = memo(function TurnView({
     <>
       {turn.opener && (
         <MessageScrollerItem
-          className="flex flex-col gap-1"
+          className="flex flex-col gap-1 pb-2"
+          data-transcript-row={`message:${turn.id}`}
           messageId={turn.opener.message.id}
           scrollAnchor
         >
@@ -197,12 +219,9 @@ function TurnBody({
   const releaseAutoScroll = useReleaseAutoScroll();
   const card = isFolded ? undefined : slotOf(turn);
   const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
-  const firstFolded = turn.rows.findIndex((row) =>
-    turn.foldedRowIds.has(row.id),
-  );
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
-    if (isFolded && index === firstFolded) {
+    if (isFolded && row.id === turn.foldLineAt) {
       out.push(
         <WorkedRow
           chatInfo={chatInfo}
@@ -217,23 +236,28 @@ function TurnBody({
       );
     }
     if (!isFolded || !turn.foldedRowIds.has(row.id)) {
+      const live =
+        turn.live?.kind === "activity" && turn.live.activityId === row.id
+          ? turn.live
+          : undefined;
       out.push(
-        <FoldingRow key={row.id}>
+        <FoldingRow id={row.id} key={row.id}>
           <RowView
             chatInfo={chatInfo}
-            isLive={
-              turn.live?.kind === "activity" && turn.live.activityId === row.id
-            }
+            isLive={live !== undefined}
             isLast={isLast}
             row={row}
+            thought={live?.thought}
           />
           {/* In its row, so it goes in the same render as the words that end it. */}
           {index === lastWork && card && (
-            <SlotCardView
-              card={card}
-              isCurrent={turn.phase === "working"}
-              sessionId={sessionId}
-            />
+            <div className="ml-7">
+              <SlotCardView
+                card={card}
+                isCurrent={turn.phase === "working"}
+                sessionId={sessionId}
+              />
+            </div>
           )}
         </FoldingRow>,
       );
@@ -244,20 +268,32 @@ function TurnBody({
     turn.rows.findLast((row) => row.kind !== "note")?.kind === "text";
   return (
     <>
-      <AnimatePresence initial={false}>{rows}</AnimatePresence>
+      <AnimatePresence custom={isFolded} initial={false}>
+        {rows}
+      </AnimatePresence>
       {waitsForStep && (
         <p className="-mt-1 pr-1 text-right text-xs text-muted-foreground">
           Read after this step
         </p>
       )}
       {turn.live?.kind === "thinking" && !waitsForStep && (
-        <ThinkingRow since={turn.live.since} />
+        <ThinkingRow
+          since={turn.live.since}
+          thought={
+            turn.live.thought && (
+              <StepDetail chatInfo={chatInfo} step={turn.live.thought} />
+            )
+          }
+        />
       )}
       {turn.phase !== "working" && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
         <AssistantMessagesFooter messages={turn.replies} />
+      )}
+      {turn.ratingCard && (
+        <RatingCard chatId={chatInfo.id} part={turn.ratingCard} />
       )}
     </>
   );
@@ -314,16 +350,51 @@ function useIsFolded(turn: Turn): boolean {
   return isTurnFolded(turn, hasPassed && foldsAt ? foldsAt : 0);
 }
 
-/** "Thinking", and for how long, while no call is running. */
-export function ThinkingRow({ since }: { since: Date }) {
+/**
+ * "Thinking", and for how long, while no call is running. It waits a moment
+ * before it shows and fades in, since the gaps between most of what an agent does
+ * are too short to read, and then it stays until the row that follows it. A
+ * model with words for what it is thinking can be opened to read them, for when
+ * it has been at it a while.
+ */
+export function ThinkingRow({
+  since,
+  thought,
+}: {
+  since: Date;
+  thought?: ReactNode;
+}) {
   const now = useTicking(true);
+  const isDue = usePassed(since.getTime() + THINKING_AFTER_MS);
+  const [hasShown, setHasShown] = useState(isDue);
+  const [isOpen, setIsOpen] = useState(false);
+  const releaseAutoScroll = useReleaseAutoScroll();
+  if (isDue && !hasShown) {
+    setHasShown(true);
+  }
+  if (!hasShown) {
+    return null;
+  }
   return (
-    <RowLine
-      isLive
-      label="Thinking"
-      mark={<PlanningDotIcon />}
-      right={`· ${formatClock(now - since.getTime())}`}
-    />
+    <div className="animate-in duration-300 fade-in-0 motion-reduce:animate-none">
+      <RowLine
+        isLive
+        isOpen={isOpen}
+        label="Thinking"
+        mark={<WorkingMark />}
+        onClick={
+          thought
+            ? () => {
+                releaseAutoScroll();
+                setIsOpen((open) => !open);
+              }
+            : undefined
+        }
+        right={`· ${formatClock(now - since.getTime())}`}
+      >
+        {isOpen && thought && <div className="mt-1 ml-7">{thought}</div>}
+      </RowLine>
+    </div>
   );
 }
 
@@ -350,6 +421,7 @@ function WorkedRow({
         transitionEnd: { overflow: "visible" },
       }}
       className="min-w-0"
+      data-transcript-row={`worked:${turn.id}`}
       initial={{
         height: 0,
         marginTop: -ROW_GAP,
@@ -368,6 +440,7 @@ function WorkedRow({
         }
         onClick={onToggle}
         places={<Badges apps={turn.apps} sites={turn.sites} />}
+        rollKey={workedLine(turn)}
       >
         <AnimatePresence initial={false}>
           {isOpened && (
@@ -381,17 +454,18 @@ function WorkedRow({
               initial={{ height: 0, opacity: 0, overflow: "hidden" }}
               transition={transition}
             >
-              <div className="mt-1 ml-2.5 flex flex-col gap-0.5 border-l border-border pl-4">
+              <div className="mt-1 ml-2.5 flex flex-col gap-1.5 border-l border-border pl-4">
                 {turn.rows
                   .filter((row) => turn.foldedRowIds.has(row.id))
                   .map((row) => (
-                    <RowView
-                      chatInfo={chatInfo}
-                      isLast={false}
-                      isLive={false}
-                      key={row.id}
-                      row={row}
-                    />
+                    <div data-transcript-row={row.id} key={row.id}>
+                      <RowView
+                        chatInfo={chatInfo}
+                        isLast={false}
+                        isLive={false}
+                        row={row}
+                      />
+                    </div>
                   ))}
               </div>
             </motion.div>
@@ -407,16 +481,25 @@ function RowView({
   isLast,
   isLive,
   row,
+  thought,
 }: {
   chatInfo: ChatInfo;
   isLast: boolean;
   isLive: boolean;
   row: TurnRow;
+  thought?: StepPart;
 }) {
   const actions = use(TranscriptActionsContext);
   switch (row.kind) {
     case "activity": {
-      return <ActivityRowView chatInfo={chatInfo} isLive={isLive} row={row} />;
+      return (
+        <ActivityRowView
+          chatInfo={chatInfo}
+          isLive={isLive}
+          row={row}
+          thought={thought}
+        />
+      );
     }
     case "ask": {
       return <AskRow chatInfo={chatInfo} part={row.part} />;
@@ -447,7 +530,9 @@ function RowView({
     }
     case "text": {
       return (
-        <div data-reply-row={row.part.metadata.id}>
+        // As tall as the row it replaces, so the transcript does not shrink under
+        // a message held at the top when Thinking gives way to a one-line reply.
+        <div className="min-h-7" data-reply-row={row.part.metadata.id}>
           <AssistantMessage chatId={chatInfo.id} part={row.part} />
         </div>
       );

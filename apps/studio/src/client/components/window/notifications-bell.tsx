@@ -270,11 +270,15 @@ function NoticeItem({
         <Icon className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium">{notice.title}</p>
-        <p className="text-[11px] text-muted-foreground">
-          {formatWhen(Date.parse(notice.publishedAt))}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">{notice.body}</p>
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 text-[13px] font-medium">
+            {notice.title}
+          </span>
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">
+            {formatWhen(Date.parse(notice.publishedAt))}
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">{notice.body}</p>
         <div className="mt-2 flex gap-1.5">
           {notice.action && (
             <Button onClick={onAction} size="xs">
@@ -325,11 +329,15 @@ function ProblemItem({
         <WarningCircleIcon className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium">{title}</p>
-        <p className="text-[11px] text-muted-foreground">
-          {formatWhen(problem.lastAt)}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">{line}</p>
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 text-[13px] font-medium">
+            {title}
+          </span>
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">
+            {formatWhen(problem.lastAt)}
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">{line}</p>
         <div className="mt-2 flex gap-1.5">
           <Button onClick={onReport} size="xs">
             Send a report

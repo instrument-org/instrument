@@ -53,27 +53,20 @@ function gradient(id: string, [top, bottom]: Gradient) {
 }
 
 /**
- * The six key folders at the workspace's top level are the system's own
- * folder with the mark the app draws for what each keeps (Phosphor's bold
- * weight) pressed into the front, the way the Finder marks Desktop and
- * Documents: in a darker tone of the folder's own color, over a faint light
- * edge below it.
+ * The six key folders at the workspace's top level are Instrument's own
+ * folders, so on every system they wear the output folder's teal in the
+ * system's folder shape, with the mark the app draws for what each keeps
+ * (Phosphor's bold weight) pressed into the front, the way the Finder marks
+ * Desktop and Documents: in a darker teal, over a faint light edge below it.
  */
-const KEY_MARK_TONES: Record<Os, string> = {
-  linux: "#9a2e0a",
-  mac: "#1673c4",
-  windows: "#b97c00",
-};
+const KEY_MARK_TONE = "#0f7a71";
 
 /**
- * At a row's size a key folder is its mark alone, in a solid tone of the
- * system's folder color that reads on light and dark rows alike.
+ * At a row's size a key folder is its mark alone, in a solid teal that reads
+ * on light and dark rows alike. A selected row turns it white with its text
+ * (`isKeyFolderGlyphUrl`).
  */
-const KEY_ROW_TONES: Record<Os, string> = {
-  linux: COLORS.linux.front[1],
-  mac: COLORS.mac.back[1],
-  windows: COLORS.windows.back[1],
-};
+const KEY_ROW_TONE = OUTPUT_COLORS.back[1];
 
 /**
  * The widest a glyph draws at a row's size, in pixels: a list or Columns
@@ -104,9 +97,9 @@ const KEY_MARKS = {
  * row's size (`ROW_WIDTH`) alone and filling the glyph's height, the folder
  * left off, since a mark that small on a folder cannot be read.
  */
-function keyMarkUses(os: Os, name: KeyFolderName) {
+function keyMarkUses(name: KeyFolderName) {
   const d = KEY_MARKS[name];
-  return `<style>.row-mark { display: none } @media (max-width: ${ROW_WIDTH}px) { .folder, .mark { display: none } .row-mark { display: inline } }</style><g class="mark" transform="translate(22 21.5) scale(0.078)"><path d="${d}" transform="translate(0 7)" fill="#ffffff" opacity="0.4"/><path d="${d}" fill="${KEY_MARK_TONES[os]}" opacity="0.7"/></g><path class="row-mark" d="${d}" transform="translate(7 0) scale(0.1953)" fill="${KEY_ROW_TONES[os]}"/>`;
+  return `<style>.row-mark { display: none } @media (max-width: ${ROW_WIDTH}px) { .folder, .mark { display: none } .row-mark { display: inline } }</style><g class="mark" transform="translate(22 21.5) scale(0.078)"><path d="${d}" transform="translate(0 7)" fill="#ffffff" opacity="0.4"/><path d="${d}" fill="${KEY_MARK_TONE}" opacity="0.7"/></g><path class="row-mark" d="${d}" transform="translate(7 0) scale(0.1953)" fill="${KEY_ROW_TONE}"/>`;
 }
 
 /** What a folder glyph stands for: any folder, Instrument's output folder, or one of the key folders. */
@@ -114,18 +107,19 @@ type GlyphKind = "folder" | "output" | KeyFolderName;
 
 /** The folder drawn for `os`, as an SVG document, in the look of `kind`. */
 function folderGlyphSvg(os: Os, kind: GlyphKind) {
-  const { back, front } = kind === "output" ? OUTPUT_COLORS : COLORS[os];
+  const { back, front } = kind === "folder" ? COLORS[os] : OUTPUT_COLORS;
   const defs = kind === "output" ? OUTPUT_MARK : "";
   const mark =
     kind === "folder"
       ? ""
       : kind === "output"
         ? OUTPUT_MARK_USES
-        : keyMarkUses(os, kind);
+        : keyMarkUses(kind);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs>${gradient("back", back)}${gradient("front", front)}${defs}</defs><g class="folder"><path d="${BACK}" fill="url(#back)"/><path d="${SHAPES[os]}" fill="url(#front)"/></g>${mark}</svg>`;
 }
 
 const urls = new Map<string, string>();
+const keyUrls = new Set<string>();
 
 function glyphUrl(os: Os, kind: GlyphKind) {
   const key = `${os}:${kind}`;
@@ -133,6 +127,9 @@ function glyphUrl(os: Os, kind: GlyphKind) {
   if (url === undefined) {
     url = `data:image/svg+xml,${encodeURIComponent(folderGlyphSvg(os, kind))}`;
     urls.set(key, url);
+    if (kind !== "folder" && kind !== "output") {
+      keyUrls.add(url);
+    }
   }
   return url;
 }
@@ -150,6 +147,11 @@ export function outputFolderGlyphUrl(os: Os = currentOs()) {
 /** One of the workspace's key folders in the shape of the system's own, as an image address. */
 export function keyFolderGlyphUrl(name: KeyFolderName, os: Os = currentOs()) {
   return glyphUrl(os, name);
+}
+
+/** Whether `src` is a key folder's glyph, whose row-size mark turns white on a selected row. */
+export function isKeyFolderGlyphUrl(src: string | undefined) {
+  return src !== undefined && keyUrls.has(src);
 }
 
 /**

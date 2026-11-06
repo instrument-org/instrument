@@ -60,7 +60,10 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { folderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import {
+  folderGlyphUrl,
+  isKeyFolderGlyphUrl,
+} from "@/client/components/icons/folder-glyph";
 import {
   cn,
   commandKeyHeld,
@@ -1175,9 +1178,11 @@ function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
 // is.
 export function FileSystemFolderGlyph({
   className,
+  "data-key-mark": keyMark,
   src,
 }: {
   className?: string;
+  "data-key-mark"?: string;
   src?: string;
 }) {
   return (
@@ -1186,6 +1191,7 @@ export function FileSystemFolderGlyph({
       alt=""
       aria-hidden="true"
       className={className}
+      data-key-mark={keyMark}
       draggable={false}
       src={src ?? folderGlyphUrl()}
     />
@@ -4989,8 +4995,10 @@ const LIST_EDGE_PADDING = 24;
 const LIST_COLUMN_WIDTH_MIN = 64;
 const LIST_COLUMN_WIDTH_MAX = 480;
 // The selection: the app's accent, solid, with the row's text in white over
-// it, the way the Finder fills one with the system's.
-const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
+// it, the way the Finder fills one with the system's. A key folder's mark is
+// the accent too, so it turns white with the text.
+const SELECTED_ROW_CLASSNAME =
+  "bg-brand-500 text-white [&_[data-key-mark]]:brightness-0 [&_[data-key-mark]]:invert";
 // The file showing beside the folder, when the selection has moved off it.
 const OPEN_BESIDE_ROW_CLASSNAME = "bg-foreground/10";
 // What reads as secondary on a row (dates, sizes, the chevron), over the
@@ -6332,6 +6340,7 @@ export function FileSystemRowGlyph({
     return (
       <FileSystemFolderGlyph
         className="h-3.5 w-auto shrink-0"
+        data-key-mark={isKeyFolderGlyphUrl(entry.glyphSrc) ? "" : undefined}
         src={entry.glyphSrc}
       />
     );

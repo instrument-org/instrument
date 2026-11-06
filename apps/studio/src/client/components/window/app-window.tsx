@@ -82,7 +82,6 @@ import { createPortal } from "react-dom";
 
 import { AppRail } from "./app-rail";
 import { AppTabStrip } from "./app-tab-strip";
-import { InboxToggle } from "./inbox-toggle";
 import {
   appTabsAtom,
   groupOfHref,
@@ -947,12 +946,7 @@ function WindowShell({
           <WindowFrame
             bar={
               <WindowBar
-                leading={
-                  <>
-                    <InboxToggle isChatUp={isChat} />
-                    <NavControls steps={windowSteps} />
-                  </>
-                }
+                leading={<NavControls steps={windowSteps} />}
                 tabs={
                   <AppTabStrip
                     chatMarks={chatMarks}

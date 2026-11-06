@@ -49,6 +49,7 @@ import { useTitleArrival } from "./use-title-arrival";
 export function ChatHeader({
   chat,
   fallbackTitle = "Chat",
+  leading,
   onArchived,
   onDeleted,
   onNewProject,
@@ -60,6 +61,8 @@ export function ChatHeader({
   chat: Chat | undefined;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
+  /** What sits ahead of the title: the toggle that puts the inbox away. */
+  leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
@@ -104,8 +107,14 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      <div className="group/head @container/head flex h-14 w-full min-w-0 shrink-0 items-start gap-x-2 bg-background pt-2 pr-3 pl-4">
+      <div
+        className={cn(
+          "group/head @container/head flex h-14 w-full min-w-0 shrink-0 items-start gap-x-2 bg-background pt-2 pr-3",
+          leading ? "pl-3" : "pl-4",
+        )}
+      >
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
+          {leading}
           {chat ? (
             <ChatHeading
               chat={chat}

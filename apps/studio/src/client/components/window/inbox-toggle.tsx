@@ -5,12 +5,10 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useAtom } from "jotai";
 
 /**
- * The control at the head of the window's bar: puts the inbox column away so
- * the chat and its tabs have the window, and brings it back. It does so only
- * while a chat is up, since the column is the whole of the inbox and no other
- * screen has one.
+ * The control ahead of a chat's title: puts the inbox column away so the chat
+ * and its tabs have the window, and brings it back.
  */
-export function InboxToggle({ isChatUp }: { isChatUp: boolean }) {
+export function InboxToggle() {
   const [isOpen, setOpen] = useAtom(inboxOpenAtom);
   const label = isOpen ? "Hide the inbox" : "Show the inbox";
   return (
@@ -18,7 +16,6 @@ export function InboxToggle({ isChatUp }: { isChatUp: boolean }) {
       <Button
         aria-label={label}
         className="size-7 shrink-0 text-muted-foreground/70"
-        disabled={!isChatUp}
         onClick={() => {
           setOpen(!isOpen);
         }}

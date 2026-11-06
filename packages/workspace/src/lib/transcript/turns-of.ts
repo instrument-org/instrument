@@ -80,10 +80,14 @@ type RatingCardPart = Extract<
   { type: "data-ratingCard" }
 >;
 
-/** What the working line says of a turn in flight. */
+/**
+ * What the working line says of a turn in flight. `thought` is the thought
+ * nothing has followed yet, which the line opens onto for someone outside
+ * developer mode, whose rows draw no thoughts.
+ */
 export type TurnLive =
-  | { activityId: StoreId.Part; kind: "activity" }
-  | { kind: "thinking"; since: Date }
+  | { activityId: StoreId.Part; kind: "activity"; thought?: StepPart }
+  | { kind: "thinking"; since: Date; thought?: StepPart }
   | { kind: "writing" };
 
 /**
@@ -363,7 +367,7 @@ function buildTurn(
     id: first.id,
     inherited:
       sessionId !== undefined && first.metadata.sessionId !== sessionId,
-    ...(isLive && { live: liveOf(rows, body, first) }),
+    ...(isLive && { live: liveOf(rows, body, first, options) }),
     ...(opener && { opener }),
     phase,
     ...(ratingCard && { ratingCard }),
@@ -894,14 +898,17 @@ function liveOf(
   rows: readonly TurnRow[],
   body: readonly TranscriptMessage[],
   first: TranscriptMessage,
+  { isDeveloperMode }: Pick<BuildOptions, "isDeveloperMode">,
 ): TurnLive {
+  const thought = isDeveloperMode ? undefined : thoughtGoingOn(body);
+  const opens = thought && { thought };
   // An activity stays the working line between its calls, which is most of
   // its time: a browser's commands take a fraction of a second, with seconds of
   // the model thinking between them, and a line flipping to Thinking for each
   // would only flicker. It says Thinking before there is any work to name.
   const last = rows.findLast((row) => row.kind !== "note");
   if (last?.kind === "activity") {
-    return { activityId: last.id, kind: "activity" };
+    return { activityId: last.id, kind: "activity", ...opens };
   }
   if (last?.kind === "text" && last.part.state === "streaming") {
     return { kind: "writing" };
@@ -909,7 +916,22 @@ function liveOf(
   return {
     kind: "thinking",
     since: lastEventAt(body) ?? first.metadata.createdAt,
+    ...opens,
   };
+}
+
+/** The thought the last message ends on, when no words or call have followed it. */
+function thoughtGoingOn(
+  body: readonly TranscriptMessage[],
+): StepPart | undefined {
+  const last = body.at(-1);
+  if (last?.role !== "assistant") {
+    return undefined;
+  }
+  const part = last.parts.findLast(
+    (each) => each.type === "text" || isStepPart(each),
+  );
+  return part && isStepPart(part) && isThought(part) ? part : undefined;
 }
 
 /** When the last thing in these messages ended. */

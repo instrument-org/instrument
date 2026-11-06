@@ -100,11 +100,12 @@ export function RowLine({
             {right}
           </span>
         )}
-        {onClick && !isLive && (
+        {onClick && (
           <CaretRightIcon
             className={cn(
               "size-3 shrink-0 text-muted-foreground transition duration-150",
               isOpen && "rotate-90",
+              isLive && !isOpen && "opacity-0 group-hover/row:opacity-100",
             )}
           />
         )}
@@ -172,10 +173,13 @@ export function ActivityRowView({
   chatInfo,
   isLive,
   row,
+  thought,
 }: {
   chatInfo: ChatInfo;
   isLive: boolean;
   row: ActivityRow;
+  /** The thought going on, which the row's own steps leave out. */
+  thought?: TurnStep;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
@@ -184,6 +188,7 @@ export function ActivityRowView({
   const current = row.steps.findLast((step) => step.explanation !== undefined);
   const lastStep = steps.at(-1);
   const counts = countsText(row);
+  const opened = thought ? [...row.steps, thought] : row.steps;
   const label =
     row.title ??
     (lastStep ? stepLabel(lastStep) : isLive ? "Thinking" : "Thought");
@@ -226,10 +231,10 @@ export function ActivityRowView({
       )}
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-1.5">
-          {row.steps.length === 1 && row.steps[0] ? (
-            <StepDetail chatInfo={chatInfo} step={row.steps[0]} />
+          {opened.length === 1 && opened[0] ? (
+            <StepDetail chatInfo={chatInfo} step={opened[0]} />
           ) : (
-            row.steps.map((step) => (
+            opened.map((step) => (
               <StepRow chatInfo={chatInfo} key={step.metadata.id} step={step} />
             ))
           )}
@@ -282,7 +287,7 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
 }
 
 /** What an opened step shows, read whole: a call's card, a thought's words. */
-function StepDetail({
+export function StepDetail({
   chatInfo,
   step,
 }: {

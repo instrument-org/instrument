@@ -308,29 +308,61 @@ describe("turnsOf", () => {
   it.each([
     ["while it goes on", "streaming", true],
     ["once it has ended", "done", false],
-  ] as const)("draws no row for a thought %s, for all but a developer", (_when, state, isRunning) => {
-    const messages = [
-      typed("Do the thing"),
-      message("assistant", (id) => [
-        {
-          metadata: meta(id),
-          state,
-          text: "Let me think.",
-          type: "reasoning",
-        } as SessionMessagePart.Type,
-        ...(isRunning ? [] : [said(id, "Here it is.")]),
-      ]),
-    ];
-    const [person] = turnsOf(messages, { isRunning });
-    expect(person?.rows.filter((row) => row.kind === "activity")).toEqual([]);
-    expect(person?.live?.kind).toBe(isRunning ? "thinking" : undefined);
-    const [developer] = turnsOf(messages, {
-      isDeveloperMode: true,
-      isRunning,
+  ] as const)(
+    "draws no row for a thought %s, for all but a developer",
+    (_when, state, isRunning) => {
+      const messages = [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state,
+            text: "Let me think.",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+          ...(isRunning ? [] : [said(id, "Here it is.")]),
+        ]),
+      ];
+      const [person] = turnsOf(messages, { isRunning });
+      expect(person?.rows.filter((row) => row.kind === "activity")).toEqual([]);
+      expect(person?.live?.kind).toBe(isRunning ? "thinking" : undefined);
+      const [developer] = turnsOf(messages, {
+        isDeveloperMode: true,
+        isRunning,
+      });
+      expect(
+        developer?.rows.filter((row) => row.kind === "activity"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("opens the working line onto the thought going on, until something follows it", () => {
+    const thinking = (id: StoreId.Message) =>
+      ({
+        metadata: meta(id),
+        state: "streaming",
+        text: "Let me think.",
+        type: "reasoning",
+      }) as SessionMessagePart.Type;
+    const first = message("assistant", (id) => [thinking(id)]);
+    const live = (
+      messages: Parameters<typeof turnsOf>[0],
+      isDeveloperMode = false,
+    ) => turnsOf(messages, { isDeveloperMode, isRunning: true })[0]?.live;
+
+    expect(live([typed("Do the thing"), first])).toMatchObject({
+      kind: "thinking",
+      thought: { tool: "reasoning" },
     });
+    expect(live([typed("Do the thing"), first], true)).not.toHaveProperty(
+      "thought",
+    );
     expect(
-      developer?.rows.filter((row) => row.kind === "activity"),
-    ).toHaveLength(1);
+      live([
+        typed("Do the thing"),
+        message("assistant", (id) => [thinking(id), said(id, "Here it is.")]),
+      ]),
+    ).not.toHaveProperty("thought");
   });
 
   it("draws no row for a thought with no words, so Thinking holds until there are some", () => {

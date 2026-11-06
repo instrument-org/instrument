@@ -7,6 +7,7 @@ import {
   isTurnFolded,
   slotOf,
   type SessionMessagePart,
+  type StepPart,
   type StoreId,
   type Turn,
   type TurnOpener,
@@ -30,7 +31,7 @@ import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
-import { ActivityRowView, Badges, RowLine } from "./activity-row";
+import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
 import { DeveloperNote } from "./developer-note";
 import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
@@ -235,15 +236,18 @@ function TurnBody({
       );
     }
     if (!isFolded || !turn.foldedRowIds.has(row.id)) {
+      const live =
+        turn.live?.kind === "activity" && turn.live.activityId === row.id
+          ? turn.live
+          : undefined;
       out.push(
         <FoldingRow id={row.id} key={row.id}>
           <RowView
             chatInfo={chatInfo}
-            isLive={
-              turn.live?.kind === "activity" && turn.live.activityId === row.id
-            }
+            isLive={live !== undefined}
             isLast={isLast}
             row={row}
+            thought={live?.thought}
           />
           {/* In its row, so it goes in the same render as the words that end it. */}
           {index === lastWork && card && (
@@ -273,7 +277,14 @@ function TurnBody({
         </p>
       )}
       {turn.live?.kind === "thinking" && !waitsForStep && (
-        <ThinkingRow since={turn.live.since} />
+        <ThinkingRow
+          since={turn.live.since}
+          thought={
+            turn.live.thought && (
+              <StepDetail chatInfo={chatInfo} step={turn.live.thought} />
+            )
+          }
+        />
       )}
       {turn.phase !== "working" && (
         <CommandCards sessionId={sessionId} turn={turn} />
@@ -342,12 +353,22 @@ function useIsFolded(turn: Turn): boolean {
 /**
  * "Thinking", and for how long, while no call is running. It waits a moment
  * before it shows and fades in, since the gaps between most of what an agent does
- * are too short to read, and then it stays until the row that follows it.
+ * are too short to read, and then it stays until the row that follows it. A
+ * model with words for what it is thinking can be opened to read them, for when
+ * it has been at it a while.
  */
-export function ThinkingRow({ since }: { since: Date }) {
+export function ThinkingRow({
+  since,
+  thought,
+}: {
+  since: Date;
+  thought?: ReactNode;
+}) {
   const now = useTicking(true);
   const isDue = usePassed(since.getTime() + THINKING_AFTER_MS);
   const [hasShown, setHasShown] = useState(isDue);
+  const [isOpen, setIsOpen] = useState(false);
+  const releaseAutoScroll = useReleaseAutoScroll();
   if (isDue && !hasShown) {
     setHasShown(true);
   }
@@ -358,10 +379,21 @@ export function ThinkingRow({ since }: { since: Date }) {
     <div className="animate-in duration-300 fade-in-0 motion-reduce:animate-none">
       <RowLine
         isLive
+        isOpen={isOpen}
         label="Thinking"
         mark={<WorkingMark />}
+        onClick={
+          thought
+            ? () => {
+                releaseAutoScroll();
+                setIsOpen((open) => !open);
+              }
+            : undefined
+        }
         right={`· ${formatClock(now - since.getTime())}`}
-      />
+      >
+        {isOpen && thought && <div className="mt-1 ml-7">{thought}</div>}
+      </RowLine>
     </div>
   );
 }
@@ -449,16 +481,25 @@ function RowView({
   isLast,
   isLive,
   row,
+  thought,
 }: {
   chatInfo: ChatInfo;
   isLast: boolean;
   isLive: boolean;
   row: TurnRow;
+  thought?: StepPart;
 }) {
   const actions = use(TranscriptActionsContext);
   switch (row.kind) {
     case "activity": {
-      return <ActivityRowView chatInfo={chatInfo} isLive={isLive} row={row} />;
+      return (
+        <ActivityRowView
+          chatInfo={chatInfo}
+          isLive={isLive}
+          row={row}
+          thought={thought}
+        />
+      );
     }
     case "ask": {
       return <AskRow chatInfo={chatInfo} part={row.part} />;

@@ -707,7 +707,7 @@ describe("a window waited on to draw what it holds", () => {
         querySelectorAll: () => tabs,
       }),
     });
-    // The text the window itself would run.
+    // oxlint-disable-next-line no-eval -- the text the window itself would run, which this test wrote
     const answer = (0, eval)(script) as Promise<boolean>;
     return { answer, frames };
   };

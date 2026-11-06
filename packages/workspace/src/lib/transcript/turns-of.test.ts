@@ -298,11 +298,39 @@ describe("turnsOf", () => {
           said(id, "Here it is."),
         ]),
       ],
-      { isRunning: false },
+      { isDeveloperMode: true, isRunning: false },
     );
     const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
     expect(folded).toEqual([true, false, true, true, true, false]);
     expect(turn?.foldLineAt).toBe(turn?.rows[2]?.id);
+  });
+
+  it.each([
+    ["while it goes on", "streaming", true],
+    ["once it has ended", "done", false],
+  ] as const)("draws no row for a thought %s, for all but a developer", (_when, state, isRunning) => {
+    const messages = [
+      typed("Do the thing"),
+      message("assistant", (id) => [
+        {
+          metadata: meta(id),
+          state,
+          text: "Let me think.",
+          type: "reasoning",
+        } as SessionMessagePart.Type,
+        ...(isRunning ? [] : [said(id, "Here it is.")]),
+      ]),
+    ];
+    const [person] = turnsOf(messages, { isRunning });
+    expect(person?.rows.filter((row) => row.kind === "activity")).toEqual([]);
+    expect(person?.live?.kind).toBe(isRunning ? "thinking" : undefined);
+    const [developer] = turnsOf(messages, {
+      isDeveloperMode: true,
+      isRunning,
+    });
+    expect(
+      developer?.rows.filter((row) => row.kind === "activity"),
+    ).toHaveLength(1);
   });
 
   it("draws no row for a thought with no words, so Thinking holds until there are some", () => {

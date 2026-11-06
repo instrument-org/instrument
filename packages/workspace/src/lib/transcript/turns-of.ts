@@ -492,6 +492,11 @@ function rowsOf(
         open = undefined;
         rows.push({ id: kept.metadata.id, kind: "text", part: kept });
       } else if (isStepPart(part)) {
+        // A thought is the row a developer reads. For everyone else, one going
+        // on is Thinking, and one that ended leaves nothing behind.
+        if (isThought(part) && !isDeveloperMode) {
+          continue;
+        }
         const started = part.startedTasks ?? [];
         if (started.length === 0) {
           stepInto(part);
@@ -921,6 +926,9 @@ function lastEventAt(messages: readonly TranscriptMessage[]): Date | undefined {
       see(message.metadata.finishedAt);
     }
     for (const part of message.parts) {
+      if (isStepPart(part) && isThought(part)) {
+        continue;
+      }
       const { endedAt } = part.metadata;
       see(endedAt instanceof Date ? endedAt : undefined);
     }

@@ -401,7 +401,7 @@ export function Omnibar({
         aria-expanded={isListShown}
         aria-label={PROMPTS[mode]}
         className={cn(
-          "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
+          "h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
           // way a search box does; the caret and the words typed start at
           // the left.

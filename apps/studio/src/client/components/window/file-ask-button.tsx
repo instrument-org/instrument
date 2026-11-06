@@ -1,4 +1,6 @@
+import { TOOLBAR_CONTROL_CLASSNAME } from "@/client/components/toolbar-control";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { cn } from "@/client/lib/utils";
 import { useContext } from "react";
 
 import { WindowContext } from "./context";
@@ -6,7 +8,7 @@ import { WindowContext } from "./context";
 /**
  * Ask, among a file tab's actions: a new draft about the file, with the file
  * chosen for it. Ask rather than a new chat, since what is asked may be a
- * change, a question, or anything else. Quiet like the row's other buttons,
+ * change, a question, or anything else. Framed like the row's other buttons,
  * the mark saying who it asks. Absent where no draft can open, as inside one.
  */
 export function FileAskButton({ name, path }: { name: string; path: string }) {
@@ -36,7 +38,10 @@ export function PageAskButton({ onAsk }: { onAsk: () => void }) {
 function AskButton({ onAsk, title }: { onAsk: () => void; title: string }) {
   return (
     <button
-      className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-foreground/70 outline-none hover:bg-foreground/8 hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] @max-xl/tabrow:px-1.5"
+      className={cn(
+        TOOLBAR_CONTROL_CLASSNAME,
+        "flex shrink-0 items-center gap-1.5 px-2.5 text-[13px] font-medium text-foreground outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] @max-xl/tabrow:px-1.5",
+      )}
       onClick={onAsk}
       title={title}
       type="button"

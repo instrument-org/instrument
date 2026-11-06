@@ -43,7 +43,7 @@ export function useRowSlots() {
       ),
       trailing: (
         <div
-          className="flex shrink-0 items-center gap-0.5 empty:hidden"
+          className="flex shrink-0 items-center gap-1.5 empty:hidden"
           ref={setTail}
         />
       ),

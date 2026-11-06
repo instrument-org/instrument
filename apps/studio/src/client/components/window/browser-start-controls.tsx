@@ -1,4 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -48,7 +49,12 @@ export function BrowserStartControls() {
       <BrowserExtensionButtons />
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button aria-label="More actions" size="icon-sm" variant="ghost">
+          <Button
+            aria-label="More actions"
+            className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+            size="icon-sm"
+            variant="ghost"
+          >
             <DotsThreeVerticalIcon className="size-4" />
           </Button>
         </DropdownMenuTrigger>

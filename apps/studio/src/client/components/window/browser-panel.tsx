@@ -1,4 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
@@ -673,7 +674,12 @@ export function BrowserPanel({
             open={menuOpen}
           >
             <DropdownMenuTrigger asChild>
-              <Button aria-label="More actions" size="icon-sm" variant="ghost">
+              <Button
+                aria-label="More actions"
+                className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+                size="icon-sm"
+                variant="ghost"
+              >
                 <DotsThreeVerticalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>

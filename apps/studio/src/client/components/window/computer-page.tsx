@@ -23,9 +23,11 @@ import {
   type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
+} from "@/client/components/extend/file-system";
+import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
-} from "@/client/components/extend/file-system";
+} from "@/client/components/toolbar-control";
 import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
@@ -1916,7 +1918,7 @@ export function ComputerPage({
           ).at(-1) ?? "this folder");
     return (
       <GlyphButton
-        className={TOOLBAR_CONTROL_CLASSNAME}
+        className={cn(TOOLBAR_CONTROL_CLASSNAME, "text-foreground")}
         onClick={() => {
           draftAbout(selectedItems.length > 0 ? selectedItems : [selectedItem]);
         }}

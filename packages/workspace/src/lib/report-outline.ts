@@ -342,12 +342,27 @@ const escapeRegExp = (text: string) =>
  * The command with each heredoc's body as its length, found in the source
  * in the order the parser met them: an opener (`<<'EOF'`), the lines after
  * the line it is on, and the closing word on a line of its own. Undefined
- * when one can't be found as the parser read it.
+ * when one can't be found as the parser read it, or when the source spells
+ * an opener more often than the parser found heredocs (one quoted as an
+ * example), since the search could then take the example for the real one.
  */
 function sizeHeredocs(
   command: string,
   heredocs: Carried["heredocs"],
 ): string | undefined {
+  const openers = new Map<string, number>();
+  for (const { delimiter } of heredocs) {
+    openers.set(delimiter, (openers.get(delimiter) ?? 0) + 1);
+  }
+  // Every word after a `<<`, its quoting taken off, as the shell reads it.
+  const spelled = [...command.matchAll(/<<-?[ \t]*([^\s;&|<>()]+)/g)].map(
+    ([, word = ""]) => word.replaceAll(/^\$(?=')|['"\\]/g, ""),
+  );
+  for (const [delimiter, count] of openers) {
+    if (spelled.filter((word) => word === delimiter).length !== count) {
+      return undefined;
+    }
+  }
   let out = "";
   let opened = 0;
   let bodyFrom = 0;

@@ -483,7 +483,19 @@ describe("outlineCommand", () => {
     ],
     // Two heredocs on one line are more than the source search reads.
     ["cat <<'A' <<'B'\none\nA\ntwo\nB", "<27 chars>"],
+    // An opener quoted as an example before the real one could be taken for it.
+    [
+      "printf '%s\\n' '<<EOF\nexample\nEOF\n'\ncat > document.txt <<EOF\nPRIVATE_DOCUMENT_BODY\nEOF",
+      "<85 chars>",
+    ],
+    ...["<<\\EOF", '<<"E"OF', "<<E\\OF", "<<'E'OF"].map(
+      (opener) =>
+        [
+          `printf '%s\\n' '<<EOF\nexample\nEOF\n'\ncat > d.txt ${opener}\nPRIVATE\nEOF`,
+          expect.stringMatching(/^<\d+ chars>$/),
+        ] as const,
+    ),
   ])("%j", (command, outlined) => {
-    expect(outlineCommand(command)).toBe(outlined);
+    expect(outlineCommand(command)).toEqual(outlined);
   });
 });

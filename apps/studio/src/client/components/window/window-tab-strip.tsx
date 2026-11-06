@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
+import { useFileTabTitles } from "./file-tab-titles";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
@@ -47,6 +48,9 @@ export function WindowTabStrip({
 }) {
   const appsBySlug = useAppsBySlug();
   const volumes = useComputerVolumes();
+  const fileTitles = useFileTabTitles(
+    tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
+  );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
 
@@ -132,6 +136,7 @@ export function WindowTabStrip({
             : screenPresentation(tab.href, {
                 appsBySlug,
                 chatTitles,
+                ...(fileTitles ? { fileTitles } : {}),
                 taskTitles: childTitles,
                 ...(volumes ? { volumes } : {}),
               })),

@@ -64,6 +64,15 @@ describe("computerFileTitles", () => {
     ).toEqual({ [notes]: "Notes", [page]: "A page" });
   });
 
+  it("finds a title behind a long inline script", async () => {
+    const page = path.join(folder, "a.html");
+    await fs.writeFile(
+      page,
+      `<head><script>${"x".repeat(60_000)}</script><title>Late</title>`,
+    );
+    expect(await computerFileTitles([page])).toEqual({ [page]: "Late" });
+  });
+
   it("reads a file again once it is written", async () => {
     const page = path.join(folder, "a.html");
     await fs.writeFile(page, "<title>First</title>");

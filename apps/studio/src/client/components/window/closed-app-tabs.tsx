@@ -16,6 +16,7 @@ import {
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
+import { useFileTabTitles } from "./file-tab-titles";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { matchScreen } from "./window-href";
@@ -46,6 +47,10 @@ export function useAppTabPresentation({
   // and is what its entry in the closed list is named by.
   const putAway = useAtomValue(putAwaySitesAtom);
   const volumes = useComputerVolumes();
+  const { recentlyClosed, tabs } = useAtomValue(appTabsAtom);
+  const fileTitles = useFileTabTitles(
+    [...tabs, ...recentlyClosed].map((tab) => tab.pathname),
+  );
   return (href) => {
     if (isSiteHref(href)) {
       const group = groupOfHref(href);
@@ -67,6 +72,7 @@ export function useAppTabPresentation({
     return screenPresentation(href, {
       appsBySlug,
       chatTitles,
+      ...(fileTitles ? { fileTitles } : {}),
       taskTitles: childTitles,
       ...(volumes ? { volumes } : {}),
     });

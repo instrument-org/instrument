@@ -35,6 +35,8 @@ export interface ScreenNames {
   >;
   /** Each chat's title by its id, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<ChatId, string>;
+  /** The titles pages give themselves by host path, for a tab standing on one; a page not in it goes by its file name. */
+  fileTitles?: Map<string, string>;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
   taskTitles?: Map<StoreId.Session, string>;
   /** The disks the sidebar lists, which name a folder tab at the top of one. */
@@ -102,7 +104,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, chatTitles, taskTitles, volumes }: ScreenNames,
+  { appsBySlug, chatTitles, fileTitles, taskTitles, volumes }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const screen = matchScreen(href);
   switch (screen.kind) {
@@ -146,7 +148,7 @@ export function screenPresentation(
           icon: (
             <FileMark className="size-4" hostPath={screen.file} name={name} />
           ),
-          title: name,
+          title: fileTitles?.get(screen.file) ?? name,
         };
       }
       return {

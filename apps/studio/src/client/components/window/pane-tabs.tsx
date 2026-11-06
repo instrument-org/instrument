@@ -34,6 +34,7 @@ import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useComputerVolumes } from "./computer-volumes";
 import { WindowContext } from "./context";
+import { useFileTabTitles } from "./file-tab-titles";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
@@ -225,12 +226,16 @@ function PaneTab({
   const appsBySlug = useAppsBySlug();
   const volumes = useComputerVolumes();
   const windowContext = useContext(WindowContext);
+  const fileTitles = useFileTabTitles([
+    tab.kind === "page" ? undefined : tab.href,
+  ]);
   const title =
     tab.kind === "page"
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
       : screenPresentation(tab.href, {
           appsBySlug,
           chatTitles,
+          ...(fileTitles ? { fileTitles } : {}),
           taskTitles,
           ...(volumes ? { volumes } : {}),
         }).title;

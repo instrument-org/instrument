@@ -533,12 +533,6 @@ function writeRequests(requests: readonly SeededRequest[], sentAt: number) {
 
 export interface EvalCase {
   /**
-   * `instrument activity` lists the AI requests chats made beside what the
-   * user did (`activityListsRequests`). Like `apps`, it holds for every case
-   * in a process, so a case with it on runs apart from one with it off.
-   */
-  activityListsRequests?: boolean;
-  /**
    * What the user did in the app before the case's first message, written
    * to the run's action log or its history before it is sent: what the note
    * on it and `instrument activity` read.
@@ -1025,12 +1019,13 @@ export async function runEvals(
         ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
         modelCache: noopModelCache,
         readPersonHistory: readSeededHistory,
-        ...(evals.some((evalCase) => evalCase.activityListsRequests)
-          ? { activityListsRequests: true }
-          : {}),
         // Where the request log is indexed, as the app keeps it, for a case
-        // that seeds requests.
-        ...(evals.some((evalCase) => evalCase.requests)
+        // that seeds requests or what the user did: `instrument activity`
+        // lists the requests from it, the run's own among them.
+        ...(evals.some(
+          (evalCase) =>
+            evalCase.requests !== undefined || evalCase.actions !== undefined,
+        )
           ? {
               workspaceDbFile: AbsolutePathSchema.parse(
                 path.join(

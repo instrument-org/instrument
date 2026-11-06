@@ -1,11 +1,8 @@
 /**
- * Can the chat answer a question about the AI requests behind it when
- * `instrument activity` lists them (`activityListsRequests`)?
+ * Can the chat answer a question about the AI requests behind it from
+ * `instrument activity`, which lists them among what the user did?
  *
- * Each question runs twice: with the requests in the listing, and with the
- * workspace as it ships, where the command lists only what the user did.
- * Every case seeds the same request log either way (`requests`), so the
- * pair differs only in what the command shows. The assertions read the
+ * Every case seeds the request log (`requests`). The assertions read the
  * reply for the cause, the error or the model, and `howItWent` records
  * whether the run read `instrument activity`.
  */
@@ -71,14 +68,6 @@ function answerMatches(
 }
 
 const SLOW_ANSWER = "Why did your last answer take so long?";
-
-/** Each question with the requests listed, then the same without them, `-off`. */
-function both(evalCase: EvalCase): EvalCase[] {
-  return [
-    { ...evalCase, activityListsRequests: true },
-    { ...evalCase, name: `${evalCase.name}-off` },
-  ];
-}
 
 /**
  * The chat's own last answer took 70 seconds: nine requests, two of them
@@ -193,6 +182,6 @@ const modelAnswered: EvalCase = {
   viewing: onChat(),
 };
 
-export const AI_REQUESTS_EVALS = [slowAnswer, failedChat, modelAnswered]
-  .flatMap(both)
-  .map(defineEval);
+export const AI_REQUESTS_EVALS = [slowAnswer, failedChat, modelAnswered].map(
+  defineEval,
+);

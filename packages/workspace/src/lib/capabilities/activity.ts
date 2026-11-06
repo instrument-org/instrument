@@ -13,7 +13,6 @@ import { listActivity } from "../activity/store";
 import { gatherTurns } from "../activity/turns";
 import { chatTitle } from "../chat-info";
 import { ACTIVITY_COMMAND } from "../shell-commands/activity-command";
-import { getWorkspaceConfig } from "../workspace-config";
 import { defineCapability } from "./define";
 
 /** How far back a listing reaches: whole minutes, hours or days. */
@@ -67,8 +66,6 @@ const ActivityOutput = z.object({
   ),
   /** How far back the listing reached, as it was asked: `2h`. */
   since: z.string(),
-  /** The listing has the AI requests in it (`activityListsRequests`). */
-  withRequests: z.literal(true).optional(),
 });
 
 type Row = z.output<typeof ActivityOutput>["rows"][number];
@@ -145,9 +142,9 @@ const REQUESTS_MAX = 5000;
 
 /**
  * What the person did from `since` to `until`, with the AI requests made
- * among it gathered into turns when the workspace lists them, oldest first,
- * each with its sentence. Reading the chat that asks is coming back to it,
- * which says nothing the chat does not already know.
+ * among it gathered into turns, oldest first, each with its sentence.
+ * Reading the chat that asks is coming back to it, which says nothing the
+ * chat does not already know.
  */
 async function rowsOf({
   chatId,
@@ -161,9 +158,6 @@ async function rowsOf({
   const actions = (await readActions({ since, until })).filter(
     (action) => !(action.kind === "chat" && action.id === chatId),
   );
-  if (!getWorkspaceConfig().activityListsRequests) {
-    return actions.map((action) => ({ action, text: actionSentence(action) }));
-  }
   const requests = await listActivity({
     filter: { since, until },
     limit: REQUESTS_MAX,
@@ -270,9 +264,6 @@ export const activityList = defineCapability({
       ...(grep === undefined ? {} : { grep }),
       rows: shown,
       since,
-      ...(getWorkspaceConfig().activityListsRequests
-        ? { withRequests: true as const }
-        : {}),
     };
   },
   summary: ACTIVITY_COMMAND.summary,
@@ -282,11 +273,12 @@ export const activityList = defineCapability({
 they edited, moved, renamed or trashed, chats they read, pages they visited
 in their own tabs, downloads, apps they signed in to or disconnected, folders
 and apps they allowed or refused a chat, updates, and errors the app showed
-them. The word list is optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it.`,
+them, with the AI requests its chats made, a chat turn to a row. The word list
+is optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it.`,
       words: ["activity", "list"],
     },
   },
-  text: ({ earlier, grep, rows, since, withRequests }) => {
+  text: ({ earlier, grep, rows, since }) => {
     const span = `in the last ${since}`;
     if (rows.length === 0) {
       const further =
@@ -300,7 +292,7 @@ them. The word list is optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it
         : `Nothing the user did in ${APP_NAME} on this computer ${span} mentions "${grep}".${further}`;
     }
     return [
-      `What the user did in ${APP_NAME} on this computer ${span}${withRequests ? ", with the AI requests its chats made, a chat turn to an AI row" : ""}${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time. Only what happened in ${APP_NAME} is here: a file they downloaded or saved in another app is not.`,
+      `What the user did in ${APP_NAME} on this computer ${span}, with the AI requests its chats made, a chat turn to an AI row${grep === undefined ? "" : `, where it mentions "${grep}"`}, oldest first, at their local time. Only what happened in ${APP_NAME} is here: a file they downloaded or saved in another app is not.`,
       ...(earlier > 0
         ? [`(${earlier} earlier not shown; --limit raises it)`]
         : []),

@@ -130,7 +130,7 @@ describe("instrument activity", () => {
 
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`
-      "What the user did in Instrument on this computer in the last 1d, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+      "What the user did in Instrument on this computer in the last 1d, with the AI requests its chats made, a chat turn to an AI row, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
       Wednesday, November 4
         9:05 PM  opened the folder /Users/mac-user/Pictures/Lisbon 2025 in Files
       Thursday, November 5
@@ -189,7 +189,7 @@ describe("instrument activity", () => {
       }));
 
       expect((await activity()).stdout).toMatchInlineSnapshot(`
-        "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+        "What the user did in Instrument on this computer in the last 2h, with the AI requests its chats made, a chat turn to an AI row, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
         Thursday, November 5
           1:40 PM  updated Instrument from 2.0.13 to 2.0.14
           1:50 PM  signed in to the app "Gmail"
@@ -209,7 +209,7 @@ describe("instrument activity", () => {
     }
   });
 
-  it("lists the AI requests among what the user did, a chat turn to a row, when the workspace says to", async () => {
+  it("lists the AI requests among what the user did, a chat turn to a row", async () => {
     logged([
       [ago(25), { kind: "folder", path: `${HOME}/Taxes` }],
       [ago(5), { kind: "screen", name: "Settings › Models" }],
@@ -259,19 +259,7 @@ describe("instrument activity", () => {
         surface: "settings",
       });
 
-      const listing = async () => (await activity()).stdout;
-      expect(await listing()).toMatchInlineSnapshot(`
-        "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
-        Thursday, November 5
-          2:05 PM  opened the folder /Users/mac-user/Taxes in Files
-          2:25 PM  opened Settings › Models
-        "
-      `);
-      setWorkspaceConfig({
-        ...getWorkspaceConfig(),
-        activityListsRequests: true,
-      });
-      expect(await listing()).toMatchInlineSnapshot(`
+      expect((await activity()).stdout).toMatchInlineSnapshot(`
         "What the user did in Instrument on this computer in the last 2h, with the AI requests its chats made, a chat turn to an AI row, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
         Thursday, November 5
           2:05 PM  opened the folder /Users/mac-user/Taxes in Files
@@ -296,7 +284,7 @@ describe("instrument activity", () => {
     ]);
 
     expect((await activity("--limit", "2")).stdout).toMatchInlineSnapshot(`
-      "What the user did in Instrument on this computer in the last 2h, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+      "What the user did in Instrument on this computer in the last 2h, with the AI requests its chats made, a chat turn to an AI row, oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
       (1 earlier not shown; --limit raises it)
       Thursday, November 5
         2:10 PM  opened /Users/mac-user/two.txt
@@ -313,7 +301,7 @@ describe("instrument activity", () => {
 
     expect((await activity("list", "--grep", "chase")).stdout)
       .toMatchInlineSnapshot(`
-        "What the user did in Instrument on this computer in the last 2h, where it mentions "chase", oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
+        "What the user did in Instrument on this computer in the last 2h, with the AI requests its chats made, a chat turn to an AI row, where it mentions "chase", oldest first, at their local time. Only what happened in Instrument is here: a file they downloaded or saved in another app is not.
         Thursday, November 5
           2:00 PM  opened /Users/mac-user/Taxes/1099-INT Chase.txt
         "

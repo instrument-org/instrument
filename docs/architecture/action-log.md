@@ -48,7 +48,7 @@ Background, not something they sent: what the user did in this app before this m
 
 `instrument activity` ([activity.ts](../../packages/workspace/src/lib/capabilities/activity.ts)) lists the record with names and paths, for a chat and its tasks: `--since`, `--grep`, `--limit`, `--json`. A chat row names that chat's records folder, so the agent can open it. Why the note carries kinds and the command the names: [the decision](../decisions/2026-11-05-the-chat-hears-kinds-not-names.md).
 
-With `activityListsRequests` on the workspace config, which is off unless set and exists for the evals in `packages/workspace/evals/cases/ai-requests.ts`, the command lists the AI requests chats made among what the person did, a chat turn to a row: the chat by its title and records folder, the purpose, the models, how many requests, how long from the first to the end of the last, and each error a request failed with. Requests gather into turns by `gatherTurns` ([turns.ts](../../packages/workspace/src/lib/activity/turns.ts)), the rule Settings › Activity uses too: one chat and session while each request follows the next within five minutes with nothing the person did in between.
+The command also lists the AI requests chats made among what the person did, a chat turn to a row: the chat by its title and records folder, the purpose, the models, how many requests, how long from the first to the end of the last, and each error a request failed with. Requests gather into turns by `gatherTurns` ([turns.ts](../../packages/workspace/src/lib/activity/turns.ts)), the rule Settings › Activity uses too: one chat and session while each request follows the next within five minutes with nothing the person did in between.
 
 The person's `shareActionsWithChats` preference, through `mayShareActions` on the workspace config, turns both the note and the command off. The record is kept either way, for the person and for reports.
 
@@ -72,5 +72,5 @@ The feedback dialog offers the 30 minutes before it opened as a row, "Your activ
 ## Checks
 
 - `packages/workspace/evals/cases/activity-context.ts` scores what the agent does with the note and the command: the cases it should resolve, the ones it should leave alone, and the ones where the record points the wrong way. Its pages and files are seeded into a history the harness answers `readPersonHistory` from.
-- `packages/workspace/evals/cases/ai-requests.ts` asks about the requests behind a chat with `activityListsRequests` on and off.
+- `packages/workspace/evals/cases/ai-requests.ts` asks about the requests behind a chat: why an answer was slow, why another chat failed, which model answered.
 - The log, the merged reader, clearing each record, the note's selection and words, the command's output, each capture point's mapping, the rows' words and the report row have unit tests beside them.

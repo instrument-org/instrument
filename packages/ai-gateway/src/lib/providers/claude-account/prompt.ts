@@ -10,6 +10,7 @@ import {
   type ContentBlockParam,
   type ImageBlockParam,
   type TextBlockParam,
+  type ToolResultBlockParam,
 } from "@anthropic-ai/sdk/resources/messages";
 import { type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
@@ -206,9 +207,32 @@ export function replayFrames(
       }
       case "assistant": {
         answerUnanswered();
-        const content: ContentBlockParam[] = [];
+        let content: ContentBlockParam[] = [];
+        // Results of the calls the provider ran, read before anything the
+        // message says after them: the model wrote that once it had them.
+        let executed: ToolResultBlockParam[] = [];
         let model: string | undefined;
+        const readExecuted = () => {
+          // A call of ours has to be answered by the very next message, so
+          // a message is only split ahead of the first of them.
+          if (
+            executed.length === 0 ||
+            content.some(
+              (block) =>
+                block.type === "tool_use" && unanswered.includes(block.id),
+            )
+          ) {
+            return;
+          }
+          frames.push({ content, model, role: "assistant" });
+          userSide(executed);
+          content = [];
+          executed = [];
+        };
         for (const part of message.content) {
+          if (part.type === "text" || part.type === "reasoning") {
+            readExecuted();
+          }
           if (part.type === "text" && part.text.length > 0) {
             content.push({ text: part.text, type: "text" });
           } else if (part.type === "reasoning") {
@@ -235,11 +259,30 @@ export function replayFrames(
               type: "tool_use",
             });
             unanswered.push(part.toolCallId);
+          } else if (part.type === "tool-call") {
+            // A call the provider ran, such as a search Claude Code ran
+            // itself, is told as a call and its result when the message
+            // has the result; one without it says nothing worth replaying.
+            const result = message.content.find(
+              (other) =>
+                other.type === "tool-result" &&
+                other.toolCallId === part.toolCallId,
+            );
+            if (result?.type === "tool-result") {
+              content.push({
+                id: claudeToolId(part.toolCallId),
+                input: part.input,
+                name: `${toolPrefix}${part.toolName}`,
+                type: "tool_use",
+              });
+              executed.push(toolResultBlock(part.toolCallId, result.output));
+            }
           }
         }
         if (content.length > 0) {
           frames.push({ content, model, role: "assistant" });
         }
+        userSide(executed);
         break;
       }
       case "tool": {
@@ -251,15 +294,7 @@ export function replayFrames(
             return [];
           }
           unanswered = unanswered.filter((id) => id !== part.toolCallId);
-          const result = toolResultToMCP(part.output);
-          return [
-            {
-              content: result.content.flatMap(mcpContentToBlock),
-              ...(result.isError && { is_error: true }),
-              tool_use_id: claudeToolId(part.toolCallId),
-              type: "tool_result" as const,
-            },
-          ];
+          return [toolResultBlock(part.toolCallId, part.output)];
         });
         userSide(results);
         break;
@@ -271,6 +306,19 @@ export function replayFrames(
     throw new Error("The history neither starts nor ends on the user's side.");
   }
   return frames;
+}
+
+function toolResultBlock(
+  toolCallId: string,
+  output: LanguageModelV4ToolResultOutput,
+): ToolResultBlockParam {
+  const result = toolResultToMCP(output);
+  return {
+    content: result.content.flatMap(mcpContentToBlock),
+    ...(result.isError && { is_error: true }),
+    tool_use_id: claudeToolId(toolCallId),
+    type: "tool_result",
+  };
 }
 
 function mcpContentToBlock(

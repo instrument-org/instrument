@@ -48,6 +48,7 @@ import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { dropRefusedMedia, standingRefusals } from "./refused-media";
 import { chatDir } from "./record-folders";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
+import { searchesAsOurOwn } from "./searches-as-our-own";
 import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
@@ -498,7 +499,7 @@ export async function prepareModelMessages({
   // not used in this session
   const modelMessages = await SessionMessage.toModelMessages(
     markRepeatSearchSources(
-      portableMessagesResult.messages,
+      searchesAsOurOwn(portableMessagesResult.messages, model),
       toolResultsClearedThrough(nonContextMessages),
     ),
     TOOLS_FOR_MODEL_OUTPUT,

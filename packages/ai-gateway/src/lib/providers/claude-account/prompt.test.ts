@@ -353,6 +353,134 @@ describe("replayFrames", () => {
     `);
   });
 
+  it("tells a call the provider ran as a call and its result, read before what the reply says after it", () => {
+    expect(
+      replayFrames(
+        [
+          { content: [{ text: "news?", type: "text" }], role: "user" },
+          {
+            content: [
+              {
+                input: { query: "figma news" },
+                providerExecuted: true,
+                toolCallId: "toolu_search",
+                toolName: "web_search",
+                type: "tool-call",
+              },
+              {
+                output: { type: "text", value: "Figma reported earnings." },
+                toolCallId: "toolu_search",
+                toolName: "web_search",
+                type: "tool-result",
+              },
+              { text: "Reading their page.", type: "text" },
+              {
+                input: {},
+                providerExecuted: true,
+                toolCallId: "toolu_unanswered",
+                toolName: "web_search",
+                type: "tool-call",
+              },
+              {
+                input: { url: "https://figma.com" },
+                toolCallId: "toolu_fetch",
+                toolName: "web_fetch",
+                type: "tool-call",
+              },
+            ],
+            role: "assistant",
+          },
+          {
+            content: [
+              {
+                output: { type: "text", value: "page" },
+                toolCallId: "toolu_fetch",
+                toolName: "web_fetch",
+                type: "tool-result",
+              },
+            ],
+            role: "tool",
+          },
+        ],
+        "mcp__instrument__",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "news?",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": [
+            {
+              "id": "toolu_search",
+              "input": {
+                "query": "figma news",
+              },
+              "name": "mcp__instrument__web_search",
+              "type": "tool_use",
+            },
+          ],
+          "model": undefined,
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "Figma reported earnings.",
+                  "type": "text",
+                },
+              ],
+              "tool_use_id": "toolu_search",
+              "type": "tool_result",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": [
+            {
+              "text": "Reading their page.",
+              "type": "text",
+            },
+            {
+              "id": "toolu_fetch",
+              "input": {
+                "url": "https://figma.com",
+              },
+              "name": "mcp__instrument__web_fetch",
+              "type": "tool_use",
+            },
+          ],
+          "model": undefined,
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "page",
+                  "type": "text",
+                },
+              ],
+              "tool_use_id": "toolu_fetch",
+              "type": "tool_result",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("refuses history that ends on the assistant's side", () => {
     expect(() =>
       replayFrames(

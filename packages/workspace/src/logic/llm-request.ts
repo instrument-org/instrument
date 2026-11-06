@@ -10,6 +10,8 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 import {
   type AIGatewayModel,
   catalogEffort,
+  CLAUDE_WEB_SEARCH_TOOL_NAME,
+  ClaudeWebSearchResultSchema,
   CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   findCachedModelByProviderId,
@@ -496,6 +498,15 @@ export const llmRequestLogic = fromPromise<
       if (isNativeSearchPart(part, ownToolNames, nativeCallIds)) {
         continue;
       }
+      // A search Claude Code ran itself is recorded as one of ours, so it
+      // shows and replays as the search it was.
+      if (
+        (part.type === "tool-call" || part.type === "tool-result") &&
+        part.providerExecuted === true &&
+        part.toolName === CLAUDE_WEB_SEARCH_TOOL_NAME
+      ) {
+        part.toolName = TOOL_NAMES.webSearch;
+      }
       if (
         part.type === "text-start" ||
         part.type === "tool-call" ||
@@ -951,7 +962,51 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "tool-result": {
-          throw new Error(`Unexpected tool result: ${JSON.stringify(part)}`);
+          // Only a search Claude Code ran comes back with its result: every
+          // other call is run here, and its result written where it runs.
+          const toolCall = toolCalls[part.toolCallId];
+          const search =
+            part.providerExecuted === true &&
+            toolCall?.type === `tool-${TOOL_NAMES.webSearch}`
+              ? ClaudeWebSearchResultSchema.safeParse(part.output)
+              : undefined;
+          if (!toolCall || !search?.success) {
+            throw new Error(`Unexpected tool result: ${JSON.stringify(part)}`);
+          }
+          const endedAt = getCurrentDate();
+          const answeredPart: Extract<
+            SessionMessagePart.ToolPartOutputAvailable,
+            { type: `tool-${typeof TOOL_NAMES.webSearch}` }
+          > = {
+            ...(toolCall.callProviderMetadata !== undefined && {
+              callProviderMetadata: toolCall.callProviderMetadata,
+            }),
+            input: { query: search.data.query },
+            // Both halves arrive once the search is over, so the call is
+            // dated back by the time Claude Code says it took.
+            metadata: {
+              ...toolCall.metadata,
+              createdAt: new Date(
+                endedAt.getTime() - (search.data.durationMs ?? 0),
+              ),
+              endedAt,
+            },
+            providerExecuted: true,
+            toolCallId: toolCall.toolCallId,
+            type: `tool-${TOOL_NAMES.webSearch}`,
+            output: {
+              results: {
+                kind: "summary",
+                sources: search.data.sources,
+                text: search.data.summary,
+              },
+              state: "success",
+            },
+            state: "output-available",
+          };
+          toolCalls[part.toolCallId] = answeredPart;
+          await writes.savePart(answeredPart);
+          break;
         }
         case "tool-approval-request": {
           getWorkspaceConfig().captureException(

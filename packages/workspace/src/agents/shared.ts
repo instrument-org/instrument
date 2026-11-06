@@ -170,8 +170,12 @@ export function shouldContinueWithToolCalls({
     return Promise.resolve(true);
   }
 
-  // Continue if last assistant message has tool calls
+  // Continue if last assistant message has tool calls this app ran. One the
+  // provider ran inside the step, such as a search Claude Code ran itself,
+  // was answered there, and the model read its result before it stopped.
   return Promise.resolve(
-    lastAssistantMessage.parts.some((part) => isToolPart(part)),
+    lastAssistantMessage.parts.some(
+      (part) => isToolPart(part) && part.providerExecuted !== true,
+    ),
   );
 }

@@ -87,6 +87,17 @@ describe("every data part", () => {
     ).toMatchObject({ ok: true });
   });
 
+  it.each(NAMES)(
+    "%s reaches the model as a note its part stands for",
+    (name) => {
+      const told: SessionMessage.ModelNote[] = [];
+      SessionMessage.toUIMessages(sessionsWith(name).with, {
+        onNote: (note) => told.push(note),
+      });
+      expect(told.filter((note) => !note.part)).toEqual([]);
+    },
+  );
+
   it.each(NAMES)("%s has a card for whatever reaches the model", (name) => {
     const { with: withPart, without } = sessionsWith(name);
     const before = heardIn(without);

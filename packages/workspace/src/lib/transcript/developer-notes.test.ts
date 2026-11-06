@@ -264,6 +264,49 @@ describe("developerNotes", () => {
     expect(bodies.get(notes[0]?.id ?? "")?.wasSent).toBe(true);
   });
 
+  it("calls a skill the turn wrote what it is, with one note and no second for the words", () => {
+    const part = (id: StoreId.Message) =>
+      ({
+        data: DATA_PART_SAMPLES.setupChanges,
+        metadata: meta(id),
+        type: "data-setupChanges",
+      }) as SessionMessagePart.Type;
+    const wrote = message("assistant", (id) => [
+      said(id, "Made it."),
+      part(id),
+    ]);
+    const wroteAgain = message("assistant", (id) => [
+      said(id, "Changed it."),
+      part(id),
+    ]);
+    const session = [typed("Do it"), wrote, wroteAgain, typed("Thanks")];
+    const { bodies, notes } = developerNotesWithBodies(session, { sessionId });
+    expect(notes.map((note) => note.label)).toEqual([
+      "Setup changed: launch",
+      "Setup changed: launch",
+    ]);
+    const heard = SessionMessage.toUIMessages(session).flatMap((one) =>
+      one.parts.flatMap((each) => (each.type === "text" ? [each.text] : [])),
+    );
+    for (const note of notes) {
+      const body = bodies.get(note.id);
+      expect(body?.wasSent).toBe(true);
+      expect(heard).toContain(body?.text);
+    }
+  });
+
+  it("calls what dictated words add Dictation, on the message they came on", () => {
+    const sent = typed("[Compare these](dictated:)");
+    expect(notesOf([sent])).toMatchObject([
+      {
+        label: "Dictation",
+        mark: "dictation",
+        row: `message:${sent.id}`,
+        side: "right",
+      },
+    ]);
+  });
+
   it("says a part that never reached the model wasn't sent", () => {
     const reply = message("assistant", (id) => [
       called(id, "Looking"),

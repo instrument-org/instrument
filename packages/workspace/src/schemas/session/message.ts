@@ -405,7 +405,7 @@ export namespace SessionMessage {
   export interface ModelNote {
     /** The user message it went out on, which a carried note's part isn't on. */
     carriedOn: StoreId.Message;
-    /** Absent on a note no part stands for. */
+    /** Absent only on what dictated words add, which no part stands for. */
     part?: SessionMessagePart.DataPart;
     text: string;
   }
@@ -589,8 +589,9 @@ export namespace SessionMessage {
           updated: [...pendingSkillChanges.updated],
         });
         if (skillChangesNote) {
-          inject(skillChangesNote);
-          for (const part of pendingSkillChanges.parts) {
+          const [firstPart, ...otherParts] = pendingSkillChanges.parts;
+          inject(skillChangesNote, firstPart);
+          for (const part of otherParts) {
             onNote?.({ carriedOn: message.id, part, text: skillChangesNote });
           }
           pendingSkillChanges.created.clear();

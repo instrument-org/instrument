@@ -549,7 +549,7 @@ export function developerNotesWithBodies(
     };
 
     for (const each of body) {
-      // A note no part stands for, which reached the model on this message.
+      // What dictated words add to this message, which no part stands for.
       for (const [index, note] of (carriedOn.get(each.id) ?? []).entries()) {
         if (!note.part) {
           place({

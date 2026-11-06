@@ -21,6 +21,8 @@ import {
 } from "react";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
+import { EDGE_FADE, useEdgeFade } from "./use-edge-fade";
+
 /** A tab on the strip: what it is called and what stands for it. */
 export interface StripTab {
   /**
@@ -151,6 +153,9 @@ export function TabStrip({
   const stripRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const [draggingKey, setDraggingKey] = useState<string>();
+  useEdgeFade(areaRef, {
+    lifted: draggingKey === undefined ? undefined : '[role="tab"]',
+  });
   const [closing, setClosing] = useState<{ index: number; tab: StripTab }[]>(
     [],
   );
@@ -344,7 +349,7 @@ export function TabStrip({
         <Reorder.Group
           as="div"
           axis="x"
-          className={TAB_ROW}
+          className={cn(TAB_ROW, EDGE_FADE)}
           onReorder={(keys: string[]) => {
             onReorder([
               ...movableKeys.slice(0, start),

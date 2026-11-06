@@ -43,6 +43,7 @@ import { useComputerVolumes } from "./computer-volumes";
 import { WindowContext } from "./context";
 import { useFileTabTitles } from "./file-tab-titles";
 import { screenLocation, screenPresentation } from "./screen-presentation";
+import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
 
@@ -67,8 +68,10 @@ function keyOf(tab: WindowTab): string {
 }
 
 /**
- * Scrolls a tab clear of its row's ends. Offsets are layout px, which is what
- * scrollLeft is in under the window's zoom.
+ * Scrolls a tab clear of its row's ends and of their fades, which are there only
+ * where the row goes on: at its very end the scroll stops short, with the
+ * padding's room left. Offsets are layout px, which is what scrollLeft is in
+ * under the window's zoom.
  */
 function showTab(
   list: HTMLElement | null,
@@ -81,8 +84,9 @@ function showTab(
   if (!list || !tab) {
     return;
   }
-  const left = tab.offsetLeft - TAB_ROOM;
-  const right = tab.offsetLeft + tab.offsetWidth + TAB_ROOM;
+  const room = TAB_ROOM + EDGE_FADE_WIDTH;
+  const left = tab.offsetLeft - room;
+  const right = tab.offsetLeft + tab.offsetWidth + room;
   if (left < list.scrollLeft) {
     list.scrollTo({ behavior, left });
   } else if (right > list.scrollLeft + list.clientWidth) {
@@ -132,6 +136,10 @@ export function PaneTabs({
   const rowRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const hasPicked = useRef(false);
+  useEdgeFade(listRef, {
+    lifted: liftedId === undefined ? undefined : "[data-lifted]",
+    scrolls: true,
+  });
   useEffect(() => {
     showTab(listRef.current, chosenId, "smooth");
   }, [chosenId, tabs.length]);
@@ -162,7 +170,10 @@ export function PaneTabs({
       role="tablist"
     >
       <motion.div
-        className="relative -m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1"
+        className={cn(
+          "relative -m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1",
+          EDGE_FADE,
+        )}
         layoutScroll
         // Refusing a middle press takes its mousedown with it, which is what
         // would start the system's autoscroll in a row that scrolls.
@@ -196,6 +207,7 @@ export function PaneTabs({
             <Reorder.Item
               as="div"
               className="shrink-0"
+              data-lifted={tab.id === liftedId || undefined}
               data-pane-tab={tab.id}
               key={tab.id}
               // The chosen tab's new place may be past the row's end. Dropping

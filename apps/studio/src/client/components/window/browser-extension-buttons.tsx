@@ -51,7 +51,8 @@ const noticed = new Set<string>();
  * the puzzle piece's menu listing them all with pin and more, and a
  * right-click menu on each button. An extension whose desktop app refuses
  * this browser gets an amber dot and, once, a popover with the steps.
- * Nothing until an extension is installed.
+ * With nothing installed the puzzle piece stands alone, so the menu that
+ * leads to the store is in sight.
  */
 export function BrowserExtensionButtons() {
   const extensions = useBrowserExtensions();
@@ -106,10 +107,6 @@ export function BrowserExtensionButtons() {
       setNotice(firstRefused);
     }
   }, [shown, firstRefused]);
-
-  if (extensions.length === 0) {
-    return null;
-  }
 
   const activate = (extension: BrowserExtension) => {
     listRef.current?.shadowRoot
@@ -180,6 +177,11 @@ export function BrowserExtensionButtons() {
                   }}
                 />
               ))}
+              {extensions.length === 0 && (
+                <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                  Nothing is installed yet.
+                </p>
+              )}
               <DropdownMenuSeparator />
               <ManageItems />
             </DropdownMenuContent>

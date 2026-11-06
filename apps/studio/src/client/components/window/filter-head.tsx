@@ -453,41 +453,43 @@ function ViewPicker({
           <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
         )}
         {/* The projects scroll between the views and the foot, which stay. */}
-        <MenuScrollArea className="flex flex-col gap-0.5 p-0">
-          {projects.map((entry) => (
-            <ProjectContextMenu
-              key={entry.project.id}
-              onDetails={onDetails}
-              project={entry.project}
-            >
-              <PickerRow
-                isOn={entry.isOn}
-                onPick={() => {
-                  pick(entry.choose);
-                }}
-                trailing={
-                  // The count gives way to the dots under the pointer, in
-                  // the one place at the row's end.
-                  <span className="relative flex h-5 min-w-5 items-center justify-end">
-                    <span className="group-hover/row:invisible group-has-data-[state=open]/row:invisible">
-                      <RowCount count={entry.count} />
-                    </span>
-                    <ProjectActionsButton
-                      className="absolute right-0 group-hover/row:opacity-100"
-                      onDetails={onDetails}
-                      project={entry.project}
-                    />
-                  </span>
-                }
+        {projects.length > 0 && (
+          <MenuScrollArea className="flex flex-col gap-0.5 p-0">
+            {projects.map((entry) => (
+              <ProjectContextMenu
+                key={entry.project.id}
+                onDetails={onDetails}
+                project={entry.project}
               >
-                <span className="grid size-6 shrink-0 place-items-center">
-                  <ProjectFace size="row" project={entry.project} />
-                </span>
-                <span className="truncate">{entry.project.name}</span>
-              </PickerRow>
-            </ProjectContextMenu>
-          ))}
-        </MenuScrollArea>
+                <PickerRow
+                  isOn={entry.isOn}
+                  onPick={() => {
+                    pick(entry.choose);
+                  }}
+                  trailing={
+                    // The count gives way to the dots under the pointer, in
+                    // the one place at the row's end.
+                    <span className="relative flex h-5 min-w-5 items-center justify-end">
+                      <span className="group-hover/row:invisible group-has-data-[state=open]/row:invisible">
+                        <RowCount count={entry.count} />
+                      </span>
+                      <ProjectActionsButton
+                        className="absolute right-0 group-hover/row:opacity-100"
+                        onDetails={onDetails}
+                        project={entry.project}
+                      />
+                    </span>
+                  }
+                >
+                  <span className="grid size-6 shrink-0 place-items-center">
+                    <ProjectFace size="row" project={entry.project} />
+                  </span>
+                  <span className="truncate">{entry.project.name}</span>
+                </PickerRow>
+              </ProjectContextMenu>
+            ))}
+          </MenuScrollArea>
+        )}
         <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
         <PickerRow
           isOn={false}

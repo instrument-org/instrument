@@ -225,7 +225,7 @@ export function ActivityRowView({
         </RollingText>
       )}
       {isOpen && (
-        <div className="mt-1 ml-7 flex flex-col gap-0.5">
+        <div className="mt-1 ml-7 flex flex-col gap-1.5">
           {row.steps.length === 1 && row.steps[0] ? (
             <StepDetail chatInfo={chatInfo} step={row.steps[0]} />
           ) : (

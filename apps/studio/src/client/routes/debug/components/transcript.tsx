@@ -597,7 +597,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
               className="@container/transcript"
               data-transcript
             >
-              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
+              <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]">
                 <Profiler
                   id="transcript"
                   onRender={(_id, _phase, actualDuration) => {

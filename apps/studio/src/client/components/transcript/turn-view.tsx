@@ -105,7 +105,7 @@ export const TurnView = memo(function TurnView({
     <>
       {turn.opener && (
         <MessageScrollerItem
-          className="flex flex-col gap-1"
+          className="flex flex-col gap-1 pb-2"
           data-transcript-row={`message:${turn.id}`}
           messageId={turn.opener.message.id}
           scrollAnchor
@@ -422,7 +422,7 @@ function WorkedRow({
               initial={{ height: 0, opacity: 0, overflow: "hidden" }}
               transition={transition}
             >
-              <div className="mt-1 ml-2.5 flex flex-col gap-0.5 border-l border-border pl-4">
+              <div className="mt-1 ml-2.5 flex flex-col gap-1.5 border-l border-border pl-4">
                 {turn.rows
                   .filter((row) => turn.foldedRowIds.has(row.id))
                   .map((row) => (

@@ -38,7 +38,6 @@ import {
   checkRecentVersionBump,
   takeRelaunchMarker,
 } from "@/electron-main/stores/machine/state";
-import { startBrowserExtensions } from "@/electron-main/browser-view/guest-session";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   askAppWindow,
@@ -437,10 +436,6 @@ async function bootstrapPrimaryInstance() {
   await timeBootStep("initializeRPC", () => {
     initializeRPC({ appUpdater: updater });
   });
-
-  // Before the window, whose extension buttons ask for them as soon as a
-  // tab's row is drawn.
-  startBrowserExtensions();
 
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).

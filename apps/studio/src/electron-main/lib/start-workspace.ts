@@ -6,6 +6,7 @@ import {
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 
+import { startBrowserExtensions } from "../browser-view/guest-session";
 import { startSendingAskedDrafts } from "../drafts/send-asked-drafts";
 import {
   applyDraftOpsInMain,
@@ -45,6 +46,9 @@ export function startWorkspace(): Promise<void> {
     // loads.
     await timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
     openDrafts();
+    // Their session is in the workspace's machine folder, and a window's
+    // extension buttons ask for them as soon as a tab's row is drawn.
+    startBrowserExtensions();
     // A draft a phone asked this computer to send, which it sends on the
     // chat's own model, or a new chat's on the default, as a window would.
     const context = { workspaceConfig, workspaceRef };

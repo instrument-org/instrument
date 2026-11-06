@@ -695,8 +695,11 @@ function Tab({
   // The wrapper stays while the tab closes or is carried, so the tab stays
   // the same element: a remount drops its collapse transition and the drag
   // gesture in hand. A tab on its way out or being carried has nothing to say.
+  // It closes the moment the pointer leaves the tab: a hoverable tooltip
+  // waits for a pointermove outside it, and a pointer gone into a page's
+  // guest below sends none, so it would stay up over the page.
   return (
-    <Tooltip>
+    <Tooltip disableHoverableContent>
       <TooltipTrigger asChild>{element}</TooltipTrigger>
       {isClosing || isDragging ? null : (
         <TooltipContent maxWidth="28rem" side="bottom">

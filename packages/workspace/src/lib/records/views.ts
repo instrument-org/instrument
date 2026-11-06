@@ -75,7 +75,9 @@ export function messageIdsView(
   sessionId: StoreId.Session,
   options: HistoryOptions = {},
 ): StoreId.Message[] {
-  return messagesOf(read, sessionId, options).map((message) => message.id);
+  return recordedMessagesOf(read, sessionId, options).map(
+    (message) => message.id,
+  );
 }
 
 /**
@@ -307,7 +309,7 @@ export function contextTokensView(
   read: ChatRead,
   sessionId: StoreId.Session,
 ): number {
-  return inputTokensIn(messagesOf(read, sessionId, {}));
+  return inputTokensIn(recordedMessagesOf(read, sessionId, {}));
 }
 
 function inputTokensIn(messages: SessionMessage.Type[]): number {

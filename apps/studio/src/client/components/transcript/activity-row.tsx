@@ -45,6 +45,7 @@ export function RowLine({
   places,
   right,
   rollKey,
+  rowId,
 }: {
   children?: ReactNode;
   isLive?: boolean;
@@ -56,6 +57,8 @@ export function RowLine({
   right?: ReactNode;
   /** Rolls the label when this changes; without one the label just changes. */
   rollKey?: string;
+  /** Names the row for the transcript debug page. */
+  rowId?: string;
 }) {
   const words = (
     <span
@@ -71,7 +74,7 @@ export function RowLine({
     </span>
   );
   return (
-    <div className="flex min-w-0 flex-col">
+    <div className="flex min-w-0 flex-col" data-transcript-row={rowId}>
       <button
         aria-expanded={onClick ? (isOpen ?? false) : undefined}
         className={cn(
@@ -253,31 +256,28 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   return (
-    <div data-transcript-row={step.metadata.id}>
-      <RowLine
-        isOpen={isOpen}
-        label={stepLabel(step)}
-        mark={<StepMark step={step} />}
-        onClick={() => {
-          releaseAutoScroll();
-          setIsOpen((open) => !open);
-        }}
-        places={
-          <Badges
-            apps={[
-              ...new Set((step.facts?.apps ?? []).map((call) => call.app)),
-            ]}
-            sites={step.facts?.hosts ?? []}
-          />
-        }
-      >
-        {isOpen && (
-          <div className="my-1">
-            <StepDetail chatInfo={chatInfo} step={step} />
-          </div>
-        )}
-      </RowLine>
-    </div>
+    <RowLine
+      isOpen={isOpen}
+      label={stepLabel(step)}
+      mark={<StepMark step={step} />}
+      onClick={() => {
+        releaseAutoScroll();
+        setIsOpen((open) => !open);
+      }}
+      places={
+        <Badges
+          apps={[...new Set((step.facts?.apps ?? []).map((call) => call.app))]}
+          sites={step.facts?.hosts ?? []}
+        />
+      }
+      rowId={step.metadata.id}
+    >
+      {isOpen && (
+        <div className="my-1">
+          <StepDetail chatInfo={chatInfo} step={step} />
+        </div>
+      )}
+    </RowLine>
   );
 }
 

@@ -273,17 +273,13 @@ function TurnBody({
         </p>
       )}
       {turn.live?.kind === "thinking" && !waitsForStep && (
-        <div data-transcript-row={`thinking:${turn.id}`}>
-          <ThinkingRow since={turn.live.since} />
-        </div>
+        <ThinkingRow since={turn.live.since} />
       )}
       {turn.phase !== "working" && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
-        <div data-transcript-row={`footer:${turn.id}`}>
-          <AssistantMessagesFooter messages={turn.replies} />
-        </div>
+        <AssistantMessagesFooter messages={turn.replies} />
       )}
       {turn.ratingCard && (
         <RatingCard chatId={chatInfo.id} part={turn.ratingCard} />
@@ -535,9 +531,5 @@ function NoteRow({
   if (node === null) {
     return null;
   }
-  return (
-    <div className="min-w-0" data-transcript-row={part.metadata.id}>
-      <DeveloperNote part={part}>{node}</DeveloperNote>
-    </div>
-  );
+  return <DeveloperNote part={part}>{node}</DeveloperNote>;
 }

@@ -27,17 +27,8 @@ function describeRow(
   const turn = turnId ? turns.find((each) => each.id === turnId) : undefined;
   if (turn) {
     switch (kind) {
-      case "footer": {
-        return {
-          data: turn.replies.map((reply) => reply.metadata),
-          name: "Footer",
-        };
-      }
       case "message": {
         return { data: turn.opener, name: "Message" };
-      }
-      case "thinking": {
-        return { data: turn.live, name: "Thinking" };
       }
       case "worked": {
         return {

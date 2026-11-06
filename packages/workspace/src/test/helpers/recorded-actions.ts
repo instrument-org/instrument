@@ -20,9 +20,9 @@ const history: HistoryAction[] = [];
 
 /**
  * Records what the person did the way the app does, each at its own time:
- * pages and files opened in a history the workspace's config reads
- * (`readPersonHistory`), everything else in the running workspace's action
- * log.
+ * pages and files opened and files downloaded in a history the workspace's
+ * config reads (`readPersonHistory`), everything else in the running
+ * workspace's action log.
  */
 export function recordActions(actions: [at: number, RecordedAction][]) {
   let now = 0;
@@ -35,7 +35,8 @@ export function recordActions(actions: [at: number, RecordedAction][]) {
     if (
       action.kind === "page" ||
       action.kind === "file" ||
-      action.kind === "open-with"
+      action.kind === "open-with" ||
+      action.kind === "download"
     ) {
       history.push({ ...action, at: new Date(at).toISOString() });
     } else {

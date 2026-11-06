@@ -273,9 +273,10 @@ export interface WorkspaceConfig {
    */
   mayShareActions?: () => boolean;
   /**
-   * What the person did that the app's history keeps rather than the action
-   * log (`lib/actions/`): the pages they visited in their own tabs and the
-   * files they opened, in the app or in another app from it. Those from
+   * What the person did that the app's history and download list keep
+   * rather than the action log (`lib/actions/`): the pages they visited in
+   * their own tabs, the files they opened, in the app or in another app from
+   * it, and the files they downloaded. Those from
    * `since` to `until`, both included, newest first, at most `limit` of them
    * (all of them without one). Absent, there are none.
    */

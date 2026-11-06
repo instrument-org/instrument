@@ -8,7 +8,6 @@ import { z } from "zod";
 
 import type { BrowserEntry } from "./entry";
 
-import { recordPersonAction } from "../lib/actions";
 import { trackDownload } from "./download-list";
 import { type GuestRegistry } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
@@ -117,7 +116,6 @@ export function routeGuestDownloads(
       entry.downloadsRunning -= 1;
     });
     if (takeAskedSave(webContents.id, item)) {
-      recordWhenSaved(item);
       askWhereToSave(item);
     } else if (entry.authorizedDownloadPath) {
       saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
@@ -250,27 +248,6 @@ function saveForAgent(
   });
 }
 
-// A download the person made, for the action log once it is whole on disk:
-// where it landed, and the address it came from without its query, which a
-// signed download link keeps its key in.
-function recordWhenSaved(item: DownloadItem) {
-  item.once("done", (_event, state) => {
-    const savePath = item.getSavePath();
-    if (state !== "completed" || !savePath) {
-      return;
-    }
-    const source = URL.parse(item.getURL());
-    recordPersonAction({
-      kind: "download",
-      path: savePath,
-      ...(source &&
-      (source.protocol === "http:" || source.protocol === "https:")
-        ? { url: `${source.origin}${source.pathname}` }
-        : {}),
-    });
-  });
-}
-
 // No save path and no cancel is what puts the system's question up.
 function askWhereToSave(item: DownloadItem) {
   item.setSaveDialogOptions({ defaultPath: item.getFilename() });
@@ -289,7 +266,6 @@ function askWhereToSave(item: DownloadItem) {
 // `downloads` folder of its own at the top of the Instrument folder, where
 // they had no reason to look.
 function saveForPerson(item: DownloadItem) {
-  recordWhenSaved(item);
   const dir = personDownloadsDir();
   if (!dir) {
     askWhereToSave(item);

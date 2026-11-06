@@ -7,8 +7,9 @@ import { type Action, type HistoryAction } from "./schema";
 
 /**
  * What the person did, as every reader takes it: the action log's lines
- * beside the pages and files the app's history keeps
- * (`readPersonHistory` on the workspace's config) and the permissions they
+ * beside the pages and files the app's history keeps and the downloads its
+ * download list keeps (`readPersonHistory` on the workspace's config) and
+ * the permissions they
  * answered, which each chat's grants and refusals in `permissions.json`
  * keep. Each fact is recorded once, in one of the three.
  */
@@ -20,9 +21,17 @@ const REPEAT_WINDOW_MS = 60_000;
 
 /** What makes two history rows the same opening: the page, or the file and the app it opened in. */
 function sameness(action: HistoryAction): string {
-  return action.kind === "page"
-    ? `page ${action.url}`
-    : `${action.kind} ${action.path} ${action.kind === "open-with" ? (action.app ?? "") : ""}`;
+  switch (action.kind) {
+    case "page": {
+      return `page ${action.url}`;
+    }
+    case "open-with": {
+      return `open-with ${action.path} ${action.app ?? ""}`;
+    }
+    default: {
+      return `${action.kind} ${action.path}`;
+    }
+  }
 }
 
 /**
@@ -48,7 +57,8 @@ function withoutRepeats(
 }
 
 /**
- * The pages and files the person opened from `since` to `until`, newest
+ * The pages and files the person opened and the files they downloaded from
+ * `since` to `until`, newest
  * first and without repeats, at least `limit` of them when there are that
  * many: the history is read further each time its repeats leave it short.
  */

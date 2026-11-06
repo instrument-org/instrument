@@ -455,7 +455,7 @@ type CaseActions = ({ ago: number } & (Exclude<
     : never
   : never))[];
 
-/** The pages and files the run's cases say the user opened, which the app's history would hold, oldest first. */
+/** The pages and files the run's cases say the user opened or downloaded, which the app's history and download list would hold, oldest first. */
 const seededHistory: HistoryAction[] = [];
 
 /** The seeded history as the app's would answer it (`readPersonHistory`). */
@@ -502,7 +502,8 @@ function writeActions(
     if (
       action.kind === "page" ||
       action.kind === "file" ||
-      action.kind === "open-with"
+      action.kind === "open-with" ||
+      action.kind === "download"
     ) {
       seededHistory.push({ ...action, at: new Date(now).toISOString() });
     } else {

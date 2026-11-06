@@ -35,6 +35,14 @@ const OpenWithSchema = z.object({
   path: z.string(),
 });
 
+/** A file the person downloaded in the app's browser: where it landed, and the address it came from without its query. */
+const DownloadSchema = z.object({
+  at: At,
+  kind: z.literal("download"),
+  path: z.string(),
+  url: z.string().optional(),
+});
+
 /**
  * A folder or a Mac app the person allowed a chat to use from its card, or
  * refused it, as the chat's permissions keep it: the chat by its id and
@@ -83,13 +91,6 @@ const LOGGED = [
     kind: z.literal("chat"),
     title: z.string(),
   }),
-  /** A file the person downloaded in the app's browser, where it landed. */
-  z.object({
-    at: At,
-    kind: z.literal("download"),
-    path: z.string(),
-    url: z.string().optional(),
-  }),
   /** A sign-in to a connected app that went through or failed, or a disconnect, by the app's name. */
   z.object({
     at: At,
@@ -133,10 +134,11 @@ const LOGGED = [
 ] as const;
 
 /**
- * One line of the action log. Pages and files opened are not among them,
- * nor permissions answered: the app's history keeps the first
- * (`readPersonHistory` on the workspace's config) and the chats'
- * permissions the second, and the readers put them together.
+ * One line of the action log. Pages and files opened and files downloaded
+ * are not among them, nor permissions answered: the app's history and its
+ * download list keep the first (`readPersonHistory` on the workspace's
+ * config) and the chats' permissions the second, and the readers put them
+ * together.
  */
 export const LoggedActionSchema = z.discriminatedUnion("kind", [...LOGGED]);
 
@@ -151,15 +153,16 @@ export const ActionSchema = z.discriminatedUnion("kind", [
   PageSchema,
   FileSchema,
   OpenWithSchema,
+  DownloadSchema,
   PermissionSchema,
 ]);
 
 export type Action = z.output<typeof ActionSchema>;
 
-/** A page visited or a file opened, as the app's history answers them. */
+/** A page visited, a file opened or a file downloaded, as the app's history and download list answer them. */
 export type HistoryAction = Extract<
   Action,
-  { kind: "file" | "open-with" | "page" }
+  { kind: "download" | "file" | "open-with" | "page" }
 >;
 
 /** An action as a capture point reports it to the log, which stamps the time. */

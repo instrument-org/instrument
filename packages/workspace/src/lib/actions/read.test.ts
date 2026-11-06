@@ -73,9 +73,8 @@ describe("readActions", () => {
       [NOW - MIN, { app: "Preview", kind: "open-with", path: a }],
     ]);
 
-    expect(
-      named(await readActions({ since: NOW - 10 * MIN, until: NOW })),
-    ).toMatchInlineSnapshot(`
+    expect(named(await readActions({ since: NOW - 10 * MIN, until: NOW })))
+      .toMatchInlineSnapshot(`
       [
         "file /Users/mac-user/wireframes/b.html",
         "file /Users/mac-user/wireframes/a.html",

@@ -1,3 +1,4 @@
+import { clearDownloads } from "@/electron-main/browser-view/download-list";
 import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import { activityExportCsv } from "@/electron-main/lib/activity-csv";
 import { base } from "@/electron-main/rpc/base";
@@ -88,8 +89,8 @@ const summary = base
 /**
  * Clears from `since` (all time when absent) what the person picked. Their
  * activity is the action log, the history's visits, which takes the
- * address field's suggestions with it, and the history's file opens, which
- * takes the recent files. The AI requests are this computer's alone, since
+ * address field's suggestions with it, the history's file opens, which
+ * takes the recent files, and the finished downloads on the download list. The AI requests are this computer's alone, since
  * another device's are its own to write.
  */
 const clear = base
@@ -100,6 +101,7 @@ const clear = base
       const history = getHistoryStore();
       history.clear(input.since);
       history.clearFileOpens(input.since);
+      clearDownloads(input.since);
     }
     if (input.requests) {
       await clearOwnActivity(input.since);

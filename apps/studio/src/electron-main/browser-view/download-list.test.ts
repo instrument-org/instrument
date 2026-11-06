@@ -134,9 +134,9 @@ describe("download list", () => {
     expect(list.listDownloads()).toHaveLength(1);
   });
 
-  it("keeps the newest hundred finished downloads", async () => {
+  it("shows the newest hundred finished downloads and keeps a thousand for Activity", async () => {
     const list = await launch();
-    for (let n = 0; n < 101; n++) {
+    for (let n = 0; n < 1001; n++) {
       const download = makeItem(`file-${n}.pdf`);
       list.trackDownload(download.item, `/nowhere/file-${n}.pdf`);
       download.finish();
@@ -144,7 +144,82 @@ describe("download list", () => {
 
     const names = list.listDownloads().map((d) => d.filename);
     expect(names).toHaveLength(100);
-    expect(names.at(0)).toBe("file-100.pdf");
-    expect(names.at(-1)).toBe("file-1.pdf");
+    expect(names.at(0)).toBe("file-1000.pdf");
+    expect(names.at(-1)).toBe("file-901.pdf");
+    const kept = list.downloadsBetween({ since: 0, until: Date.now() });
+    expect(kept).toHaveLength(1000);
+    expect(kept.at(-1)).toMatchObject({ path: "/nowhere/file-1.pdf" });
+  });
+});
+
+describe("downloads as Activity reads them", () => {
+  const NOW = Date.UTC(2026, 10, 6, 20, 30);
+  const MIN = 60_000;
+
+  /** A download that ends `minutesAgo` before NOW, from `url`. */
+  function finishedAt(
+    list: Awaited<ReturnType<typeof launch>>,
+    name: string,
+    minutesAgo: number,
+    url = `https://example.com/${name}`,
+  ) {
+    vi.setSystemTime(NOW - minutesAgo * MIN);
+    const download = makeItem(name);
+    Object.assign(download.item, { getURL: () => url });
+    list.trackDownload(download.item, `/Users/mac-user/Downloads/${name}`);
+    download.finish();
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    return () => {
+      vi.useRealTimers();
+    };
+  });
+
+  it("reads the whole downloads in a range, newest first, each from its address without the query", async () => {
+    const list = await launch();
+    finishedAt(list, "old.pdf", 90);
+    finishedAt(
+      list,
+      "nda.pdf",
+      20,
+      "https://files.example.com/nda.pdf?token=s3cr3t#page=2",
+    );
+    finishedAt(list, "w9.pdf", 10);
+    const stopped = makeItem("stopped.pdf");
+    list.trackDownload(stopped.item, "/Users/mac-user/Downloads/stopped.pdf");
+    stopped.cancel();
+
+    expect(list.downloadsBetween({ since: NOW - 60 * MIN, until: NOW }))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "at": "2026-11-06T20:20:00.000Z",
+          "kind": "download",
+          "path": "/Users/mac-user/Downloads/w9.pdf",
+          "url": "https://example.com/w9.pdf",
+        },
+        {
+          "at": "2026-11-06T20:10:00.000Z",
+          "kind": "download",
+          "path": "/Users/mac-user/Downloads/nda.pdf",
+          "url": "https://files.example.com/nda.pdf",
+        },
+      ]
+    `);
+    expect(
+      list.downloadsBetween({ limit: 1, since: 0, until: NOW }),
+    ).toMatchObject([{ path: "/Users/mac-user/Downloads/w9.pdf" }]);
+  });
+
+  it("clears the downloads that ended from a time on, keeping those before it", async () => {
+    const list = await launch();
+    finishedAt(list, "old.pdf", 90);
+    finishedAt(list, "new.pdf", 10);
+
+    list.clearDownloads(NOW - 60 * MIN);
+
+    expect(list.listDownloads().map((d) => d.filename)).toEqual(["old.pdf"]);
   });
 });

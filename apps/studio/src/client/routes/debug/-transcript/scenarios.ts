@@ -278,6 +278,49 @@ const devNotes: Act[] = [
   ),
 ];
 
+const manyNotes = (count: number): Act[] =>
+  Array.from({ length: count }, (_, index) => [
+    browse(`get text --step ${index.toString()}`, "Reading the page"),
+    notes(index % 2 === 0 ? clearedNote : limitNote),
+  ]).flat();
+
+/** The crowded spots real chats reach: nine notes on a spot, 23 in a fold, and a fold of 100. */
+const devNotesCrowded: Act[] = [
+  user(
+    "Nine notes on a message.",
+    dateNote,
+    gapNote,
+    memoryNote(9),
+    skillsNote,
+    limitNote,
+    jobNote,
+    clearedNote,
+    rolloverNote,
+    { data: { continuations: 1 }, type: "data-maxSteps" } as DataPart,
+  ),
+  activity("Nine notes on one row, with the turn stopped so it stays open"),
+  ...manyNotes(9),
+  prose("Stopping here."),
+  activity("Two notes on the next row"),
+  ...manyNotes(2),
+  fail({
+    classification: "transient",
+    kind: "provider",
+    message: "The provider stopped answering.",
+  } as never),
+  user("A fold of 23."),
+  activity("Reading the first page"),
+  ...manyNotes(12),
+  activity("Reading the second page"),
+  ...manyNotes(11),
+  prose("That fold has 23 notes."),
+  stop(),
+  user("A fold of 100."),
+  activity("Reading a very long document"),
+  ...manyNotes(100),
+  prose("That fold has 100 notes."),
+];
+
 const devNotesLong: Act[] = Array.from({ length: 40 }, (_, index) =>
   devNotesTurns(`page ${index.toString()}`),
 ).flat();
@@ -738,6 +781,11 @@ export const scenarios: DebugScenario[] = [
     script: longChat(80),
   },
   { id: "dev-notes", name: "Developer notes", script: devNotes },
+  {
+    id: "dev-notes-crowded",
+    name: "Developer notes, crowded",
+    script: devNotesCrowded,
+  },
   {
     id: "dev-notes-tail",
     name: "Developer notes running past the end",

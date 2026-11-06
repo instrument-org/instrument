@@ -7,40 +7,84 @@
 [data-developer-notes] {
   display: contents;
 }
+
+/* A stack's box is all the margin it has, down to the next stack: its top and
+   bottom come from anchors, and how many lines show comes from that height. The
+   box takes no pointer, so only its lines count as hovering it. */
 [data-dn="stack"] {
-  /* The margin beside a centered column. fit-content cannot bound a nowrap line, since
-     its min-content is its whole length, so the width is capped by the room itself. */
   --dn-margin: calc((100cqi - anchor-size(--dn-column width)) / 2);
   position: absolute;
-  width: max-content;
-  max-width: min(266px, var(--dn-margin));
-  /* In the block axis fit-content is max-content, so only stretch holds a stack to the room
-     its top and bottom anchors leave, which is what keeps it out of the scroller's height. */
-  height: fit-content;
-  max-height: stretch;
+  width: min(266px, var(--dn-margin));
+  container: dn-stack / size;
   overflow: clip;
   font-size: 12px;
   line-height: 17px;
   white-space: nowrap;
   user-select: none;
+  pointer-events: none;
 }
 [data-dn="stack"][data-side="right"] {
   left: anchor(--dn-column right);
-  right: 0;
 }
 [data-dn="stack"][data-side="left"] {
   right: anchor(--dn-column left);
-  left: 0;
+}
+[data-dn="stack"][data-fold] {
+  display: none;
+}
+
+/* The lines share the widest one's width, so going straight up or down can't
+   fall off a short one. */
+[data-dn="lines"] {
+  width: fit-content;
+  max-width: 100%;
+  pointer-events: auto;
+}
+[data-side="left"] > [data-dn="lines"] {
   margin-left: auto;
   text-align: right;
 }
 [data-dn="line"] {
   position: relative;
-  display: block;
+  display: none;
   height: 17px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* How many lines fit, and so which show. Past what fits, the last place is a count. */
+[data-dn="line"][data-fits="1"],
+[data-dn="line"][data-count-at="1"] {
+  display: block;
+}
+@container dn-stack (height >= 34px) {
+  [data-dn="line"][data-fits="2"],
+  [data-dn="line"][data-count-at="2"] {
+    display: block;
+  }
+  [data-dn="line"][data-count-at="1"] {
+    display: none;
+  }
+}
+@container dn-stack (height >= 51px) {
+  [data-dn="line"][data-fits="3"],
+  [data-dn="line"][data-count-at="3"] {
+    display: block;
+  }
+  [data-dn="line"][data-count-at="2"] {
+    display: none;
+  }
+}
+@container dn-stack (height >= 68px) {
+  [data-dn="line"][data-fits="4"],
+  [data-dn="line"][data-count-at="4"] {
+    display: block;
+  }
+  [data-dn="line"][data-count-at="3"] {
+    display: none;
+  }
+}
+
 [data-dn="word"] {
   color: transparent;
 }
@@ -52,38 +96,55 @@
   border-radius: 9999px;
   background: color-mix(in oklab, var(--foreground) 28%, transparent);
 }
-[data-side="right"] [data-dn="mark"] {
+[data-dn="count"] {
+  position: absolute;
+  top: 0;
+  font-size: 10px;
+  color: color-mix(in oklab, var(--foreground) 45%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+[data-side="right"] [data-dn="mark"],
+[data-side="right"] [data-dn="count"] {
   left: 0;
 }
-[data-side="left"] [data-dn="mark"] {
+[data-side="left"] [data-dn="mark"],
+[data-side="left"] [data-dn="count"] {
   right: 0;
 }
-[data-dn="stack"]:hover [data-dn="word"] {
+[data-dn="line"]:has([data-dn-total]) [data-dn="mark"] {
+  display: none;
+}
+[data-dn="lines"]:hover [data-dn="word"] {
   color: var(--muted-foreground);
   transition: color 0s linear 120ms;
 }
-[data-dn="stack"]:hover [data-dn="mark"] {
+[data-dn="lines"]:hover [data-dn="mark"],
+[data-dn="lines"]:hover [data-dn="count"] {
   opacity: 0;
   transition: opacity 0s linear 120ms;
 }
-[data-dn="stack"] [data-dn="line"]:hover [data-dn="word"] {
+[data-dn="lines"] [data-dn="line"]:hover [data-dn="word"] {
   color: var(--foreground);
 }
 [data-mode="words"] [data-dn="word"] {
   color: color-mix(in oklab, var(--foreground) 24%, transparent);
 }
-[data-mode="words"] [data-dn="mark"] {
+[data-mode="words"] [data-dn="mark"],
+[data-mode="words"] [data-dn="count"] {
   opacity: 0;
 }
+
 [data-dn="card"] {
   position-anchor: --dn-card-line;
   position: fixed;
   inset: auto;
   top: anchor(top);
+  position-try-fallbacks: --dn-card-up;
   margin: 0;
-  width: 320px;
+  width: 360px;
+  max-height: 70vh;
   padding: 8px 12px;
-  overflow: hidden;
+  overflow: auto;
   font-size: 12px;
   line-height: 20px;
   color: var(--foreground);
@@ -92,22 +153,55 @@
   border-radius: 8px;
   box-shadow: var(--shadow-lg-soft);
 }
+@position-try --dn-card-up {
+  top: auto;
+  bottom: 40px;
+}
 [data-dn="card"][data-side="right"] {
   right: calc(anchor(left) + 8px);
 }
 [data-dn="card"][data-side="left"] {
   left: calc(anchor(right) + 8px);
 }
+[data-dn="card-head"] {
+  display: block;
+  font-weight: 500;
+}
+[data-dn="list-group"] {
+  margin-top: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+[data-dn="list-note"] {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 4px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-dn="list-note"]:hover {
+  background: var(--accent);
+}
+
 @container transcript (width < 1066px) {
   [data-dn="word"] {
     display: none;
   }
-  [data-mode="words"] [data-dn="mark"] {
+  [data-mode="words"] [data-dn="mark"],
+  [data-mode="words"] [data-dn="count"],
+  [data-dn="lines"]:hover [data-dn="mark"],
+  [data-dn="lines"]:hover [data-dn="count"] {
     opacity: 1;
   }
   [data-dn="stack"] {
     width: min(36px, calc(var(--dn-margin) + 8px));
-    max-width: none;
+  }
+  [data-dn="lines"] {
+    width: 100%;
   }
   [data-dn="stack"][data-side="right"] {
     left: calc(anchor(--dn-column right) - 8px);
@@ -115,17 +209,24 @@
   [data-dn="stack"][data-side="left"] {
     right: calc(anchor(--dn-column left) - 8px);
   }
-  [data-side="right"] [data-dn="mark"] {
+  [data-side="right"] [data-dn="mark"],
+  [data-side="right"] [data-dn="count"] {
     left: 8px;
   }
-  [data-side="left"] [data-dn="mark"] {
+  [data-side="left"] [data-dn="mark"],
+  [data-side="left"] [data-dn="count"] {
     right: 8px;
   }
 }
 @container transcript (width < 800px) {
   [data-dn="stack"] {
+    width: 16px;
+  }
+  [data-dn="lines"] {
     width: 12px;
-    max-width: none;
+  }
+  [data-side="right"] > [data-dn="lines"] {
+    margin-left: 0;
   }
   [data-dn="stack"][data-side="right"] {
     left: calc(anchor(--dn-column right) - 16px);
@@ -136,10 +237,19 @@
   [data-dn="mark"] {
     width: 6px;
   }
-  [data-side="right"] [data-dn="mark"] {
+  [data-dn="count"] {
+    font-size: 9px;
+    letter-spacing: -0.5px;
+  }
+  [data-side="right"] [data-dn="mark"],
+  [data-side="right"] [data-dn="count"] {
     left: 5px;
   }
-  [data-side="left"] [data-dn="mark"] {
+  [data-side="left"] [data-dn="mark"],
+  [data-side="left"] [data-dn="count"] {
     right: 5px;
+  }
+  [data-dn="line"] {
+    overflow: visible;
   }
 }

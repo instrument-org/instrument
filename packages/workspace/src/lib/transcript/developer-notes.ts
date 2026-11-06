@@ -1,3 +1,5 @@
+import { sort } from "radashi";
+
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
@@ -29,6 +31,8 @@ export interface DeveloperNote {
   /** The row it sits level with, by its `data-transcript-row`. */
   row: string;
   rowKind: DeveloperNoteRowKind;
+  /** What that row says, for a list of a fold's notes. */
+  rowLabel: string;
   side: "left" | "right";
   turn: StoreId.Message;
 }
@@ -40,7 +44,9 @@ type Waiting = Pick<DeveloperNote, "id" | "kind" | "label" | "side"> & {
   looks: Looks;
 };
 
-type Seen = { note: Waiting } | { row: Pick<DeveloperNote, "row" | "rowKind"> };
+type Place = Pick<DeveloperNote, "row" | "rowKind" | "rowLabel">;
+
+type Seen = { at?: Place; note: Waiting } | { row: Place };
 
 /** Parts the app reads to draw a row, which say nothing of their own. */
 const NEVER_NOTES = new Set<SessionMessagePart.DataPart["type"]>([
@@ -50,6 +56,12 @@ const NEVER_NOTES = new Set<SessionMessagePart.DataPart["type"]>([
 ]);
 
 const FIRST_WORDS = 60;
+
+const rowOfError = (row: TurnRow): Place => ({
+  row: row.id,
+  rowKind: "error",
+  rowLabel: "Error",
+});
 
 const isDataPart = (
   part: SessionMessagePart.Type,
@@ -72,14 +84,42 @@ function errorLabel(
   return error.kind === "aborted" ? "Stopped" : `Error: ${error.kind}`;
 }
 
+/** What a row says, as a list of notes heads it. */
+function rowLabelOf(row: TurnRow): string {
+  switch (row.kind) {
+    case "activity": {
+      return row.title ?? row.steps.at(-1)?.explanation ?? "Work";
+    }
+    case "ask": {
+      return "Question";
+    }
+    case "error": {
+      return "Error";
+    }
+    case "note": {
+      return noteName(row.part.type);
+    }
+    case "task": {
+      return "Task";
+    }
+    case "text": {
+      return firstWords(row.part.text);
+    }
+  }
+}
+
 /** The row each stored part draws in, for the rows that stand for a part. */
 function rowsByPart(
   rows: readonly TurnRow[],
   startedTask: ReadonlyMap<string, StoreId.Part>,
-): Map<string, Pick<DeveloperNote, "row" | "rowKind">> {
-  const found = new Map<string, Pick<DeveloperNote, "row" | "rowKind">>();
+): Map<string, Place> {
+  const found = new Map<string, Place>();
   for (const row of rows) {
-    const place = { row: row.id, rowKind: row.kind };
+    const place = {
+      row: row.id,
+      rowKind: row.kind,
+      rowLabel: rowLabelOf(row),
+    };
     switch (row.kind) {
       case "activity": {
         for (const step of row.steps) {
@@ -148,22 +188,26 @@ export function developerNotes(
       next ? startOf.get(next.id) : undefined,
     );
     const rowOfPart = rowsByPart(turn.rows, startedTask);
-    const message = (row: string) => ({ row, rowKind: "bubble" as const });
-    const opensWith = turn.opener ? message(`message:${turn.id}`) : undefined;
+    const opensWith: Place | undefined = turn.opener && {
+      row: `message:${turn.id}`,
+      rowKind: "bubble",
+      rowLabel: firstWords(
+        turn.opener.text?.text ?? turn.opener.fromChat?.text ?? "Message",
+      ),
+    };
     const seen: Seen[] = carried.map((note) => ({ note }));
     carried = [];
+    const inThisTurn: DeveloperNote[] = [];
 
-    const place = (
-      note: Waiting,
-      where: Pick<DeveloperNote, "row" | "rowKind">,
-    ) => {
-      notes.push({
-        foldedIn: turn.foldedRowIds.has(where.row) ? turn.id : undefined,
+    const place = (note: Waiting, where: Place) => {
+      inThisTurn.push({
+        ...(turn.foldedRowIds.has(where.row) && { foldedIn: turn.id }),
         id: note.id,
         kind: note.kind,
         label: note.label,
         row: where.row,
         rowKind: where.rowKind,
+        rowLabel: where.rowLabel,
         side: note.side,
         turn: turn.id,
       });
@@ -182,13 +226,10 @@ export function developerNotes(
         }
         const side = each.role === "user" ? "right" : "left";
         const waiting = { ...said, side } as const;
-        if (opens) {
-          place(waiting, opensWith);
-        } else if (own) {
-          place(waiting, own);
-        } else {
-          seen.push({ note: waiting });
-        }
+        seen.push({
+          at: opens ? opensWith : own,
+          note: waiting,
+        });
         if (isDataPart(part) && !said.isStateNote) {
           stateNote(part);
         }
@@ -200,7 +241,7 @@ export function developerNotes(
             candidate.kind === "error" && candidate.message.id === each.id,
         );
         if (row) {
-          seen.push({ row: { row: row.id, rowKind: "error" } });
+          seen.push({ row: rowOfError(row) });
         } else {
           seen.push({
             note: {
@@ -219,6 +260,10 @@ export function developerNotes(
       if (!("note" in item)) {
         continue;
       }
+      if (item.at) {
+        place(item.note, item.at);
+        continue;
+      }
       const rowAfter = seen.slice(index + 1).find((one) => "row" in one);
       const rowBefore = seen.slice(0, index).findLast((one) => "row" in one);
       const [first, second] =
@@ -234,6 +279,10 @@ export function developerNotes(
         carried.push(item.note);
       }
     }
+    // In the order they draw, and on one row in the order they happened.
+    const rowIndex = (note: DeveloperNote) =>
+      turn.rows.findIndex((row) => row.id === note.row);
+    notes.push(...sort(inThisTurn, rowIndex));
   }
   return notes;
 

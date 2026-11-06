@@ -189,7 +189,7 @@ export function FilePathsGrid({
   // the folders take a row of their own above them.
   if (layout === "list") {
     return (
-      <div className={cn("not-prose my-2 flex flex-col gap-1", className)}>
+      <div className={cn("not-prose my-2 flex flex-col gap-1 first:mt-0 last:mb-0", className)}>
         {messageCards}
         {paths
           .filter((path) => !isMessage(path))
@@ -222,7 +222,7 @@ export function FilePathsGrid({
     count: folderPaths.length,
   });
   return (
-    <div className={cn("not-prose my-4 flex flex-col gap-2", className)}>
+    <div className={cn("not-prose my-4 flex flex-col gap-2 first:mt-0 last:mb-0", className)}>
       {messageCards}
       {folderPaths.length > 0 && (
         <div className="@container">

@@ -171,7 +171,7 @@ export function MessageCard({
   const settled = !isStreaming && message.body !== "";
 
   return (
-    <div className="not-prose my-2 w-full min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs">
+    <div className="not-prose my-2 w-full min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs first:mt-0 last:mb-0">
       <div className="flex min-w-0 items-center gap-2 border-b border-border px-3.5 py-2 text-xs text-muted-foreground [&_svg]:size-3.5">
         {kind.icon}
         <span className="min-w-0 truncate">

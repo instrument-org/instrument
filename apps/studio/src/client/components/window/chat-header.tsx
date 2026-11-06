@@ -19,7 +19,7 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { TagIcon } from "@phosphor-icons/react/Tag";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
@@ -349,7 +349,7 @@ function ChatMenu({
         {projectMenu && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <TagIcon className="size-3.5" />
+              <CardsThreeIcon className="size-3.5" />
               Project
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="flex w-56 flex-col p-0">

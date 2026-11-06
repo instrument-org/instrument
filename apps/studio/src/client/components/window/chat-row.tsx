@@ -25,7 +25,7 @@ import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
-import { TagIcon } from "@phosphor-icons/react/Tag";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useAtomValue } from "jotai";
@@ -361,7 +361,7 @@ export function ChatRow({
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <TagIcon className="size-4" />
+            <CardsThreeIcon className="size-4" />
             Project
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="flex w-56 flex-col p-0">
@@ -640,7 +640,7 @@ function TagControl({
           title="Project"
           type="button"
         >
-          <TagIcon />
+          <CardsThreeIcon />
         </button>
       </ProjectPicker>
     </span>

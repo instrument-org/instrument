@@ -2,7 +2,10 @@ import { toggleDeveloperStrip } from "@/client/atoms/developer-strip";
 import { featuresAtom } from "@/client/atoms/features";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { CopyButton } from "@/client/components/copy-button";
-import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
+import {
+  useIsSetupUp,
+  useSetupState,
+} from "@/client/components/setup/use-setup-state";
 import { useTheme } from "@/client/components/theme-provider";
 import { Popover, PopoverTrigger } from "@/client/components/ui/popover";
 import {
@@ -50,6 +53,11 @@ export function DeveloperStrip({
   onOpenDebugPages?: () => void;
 }) {
   const isSetupUp = useIsSetupUp();
+  const setupState = useSetupState();
+  // Finishing answers every step, but with no workspace the folder step stays
+  // up whatever the record says (`currentSetupStep`), so until it places one
+  // there is nothing to skip.
+  const canSkipSetup = isSetupUp && setupState?.facts.hasWorkspace === true;
   const features = useAtomValue(featuresAtom);
   const { data: environment } = useQuery(
     rpcClient.debug.getAppEnvironment.queryOptions(),
@@ -88,7 +96,7 @@ export function DeveloperStrip({
 
   return (
     <div
-      className="@container flex h-6 shrink-0 items-stretch border-t pr-4 border-white/8 bg-ink font-mono text-[11px] leading-none text-white/90"
+      className="@container flex h-6 shrink-0 items-stretch border-t border-white/8 bg-ink pr-4 font-mono text-[11px] leading-none text-white/90"
       data-developer-strip
     >
       <Popover>
@@ -134,7 +142,7 @@ export function DeveloperStrip({
           )}
         </StripPopover>
       </Popover>
-      {isSetupUp && (
+      {canSkipSetup && (
         <StripButton
           onClick={() => {
             skipSetup();

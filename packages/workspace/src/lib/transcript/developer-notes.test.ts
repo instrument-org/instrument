@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { type SessionMessage } from "../../schemas/session/message";
+import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { developerNotes } from "./developer-notes";
+import { developerNotes, developerNotesWithBodies } from "./developer-notes";
 import { transcriptMessage } from "./transcript-message";
 import { turnsOf } from "./turns-of";
 
@@ -154,6 +154,67 @@ describe("developerNotes", () => {
       said(id, "Done."),
     ]);
     expect(notesOf([typed("Do it"), reply])).toEqual([]);
+  });
+
+  it("shows a note's card as the words the request's own walk put on the turn", () => {
+    const sent = message("user", (id) => [said(id, "Hi"), dateNote(id)]);
+    const heard = SessionMessage.toUIMessages([sent]).flatMap((one) =>
+      one.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+    );
+    const { bodies, notes } = developerNotesWithBodies([sent], { sessionId });
+    const body = bodies.get(notes[0]?.id ?? "");
+    expect(body?.wasSent).toBe(true);
+    expect(heard).toContain(body?.text);
+  });
+
+  it("puts a carried note on the turn that carried it", () => {
+    const stoppedAt = message("assistant", (id) => [
+      said(id, "So far."),
+      {
+        data: { maxStepCount: 25 },
+        metadata: meta(id),
+        type: "data-maxSteps",
+      } as SessionMessagePart.Type,
+    ]);
+    const next = typed("Keep going");
+    const session = [typed("Do it"), stoppedAt, next];
+    const { bodies, notes } = developerNotesWithBodies(session, { sessionId });
+    expect(notes).toMatchObject([{ row: `message:${next.id}`, side: "right" }]);
+    expect(bodies.get(notes[0]?.id ?? "")?.wasSent).toBe(true);
+
+    const { bodies: waiting, notes: unsent } = developerNotesWithBodies(
+      session.slice(0, 2),
+      { sessionId },
+    );
+    expect(unsent).toMatchObject([{ side: "left" }]);
+    expect(waiting.get(unsent[0]?.id ?? "")?.wasSent).toBe(false);
+  });
+
+  it("says a part that never reached the model wasn't sent", () => {
+    const reply = message("assistant", (id) => [
+      called(id, "Looking"),
+      cleared(id),
+      said(id, "Done."),
+    ]);
+    const { bodies, notes } = developerNotesWithBodies(
+      [typed("Do it"), reply],
+      { sessionId },
+    );
+    expect(bodies.get(notes[0]?.id ?? "")).toMatchObject({ wasSent: false });
+  });
+
+  it("leaves out a picture that repeats what the last one said", () => {
+    const project = (id: StoreId.Message) =>
+      ({
+        data: { project: { name: "Pricing" } },
+        metadata: meta(id),
+        type: "data-project",
+      }) as SessionMessagePart.Type;
+    const first = message("user", (id) => [said(id, "One"), project(id)]);
+    const second = message("user", (id) => [said(id, "Two"), project(id)]);
+    expect(notesOf([first, second])).toMatchObject([
+      { label: "Project: Pricing", row: `message:${first.id}` },
+    ]);
   });
 
   it("carries a note with no row to the next turn's", () => {

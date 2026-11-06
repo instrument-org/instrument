@@ -9,6 +9,7 @@ import { useAtomValue } from "jotai";
 import { use, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { CopyButton } from "../copy-button";
 import STYLES from "./developer-notes-layer.css?inline";
 import { DeveloperNotesSourceContext } from "./developer-notes-source";
 
@@ -312,6 +313,39 @@ function FoldLine({
   );
 }
 
+/** A note's card: its name, and what the model read of it. */
+function NoteCard({
+  chatId,
+  note,
+  sessionId,
+}: {
+  chatId: ChatId;
+  note: DeveloperNote;
+  sessionId: StoreId.Session;
+}) {
+  const source = use(DeveloperNotesSourceContext);
+  const body = source.useBody({ chatId, note: note.id, sessionId });
+  const words = body?.text ?? body?.detail;
+  return (
+    <>
+      <div data-dn="card-top">
+        <strong data-dn="card-head">{note.label}</strong>
+        {words !== undefined && (
+          <CopyButton
+            iconSize={12}
+            label="Copy"
+            onCopy={() => navigator.clipboard.writeText(words)}
+          />
+        )}
+      </div>
+      {body && !body.wasSent && (
+        <p data-dn="card-unsent">This wasn&apos;t sent to the model.</p>
+      )}
+      {words !== undefined && <pre data-dn="card-words">{words}</pre>}
+    </>
+  );
+}
+
 /** Everything a stack holds, grouped by the row each note went out with. */
 function NoteList({
   notes,
@@ -546,7 +580,12 @@ export default function DeveloperNotesLayer({
               }}
             />
           ) : (
-            <strong data-dn="card-head">{card.note.label}</strong>
+            <NoteCard
+              chatId={chatId}
+              key={card.note.id}
+              note={card.note}
+              sessionId={sessionId}
+            />
           )}
         </div>
       )}

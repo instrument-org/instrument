@@ -13,9 +13,10 @@ import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
+import { sessionDeveloperNotes } from "../../lib/chat/session-developer-notes";
 import {
   type DeveloperNote,
-  developerNotes,
+  type DeveloperNoteBody,
 } from "../../lib/transcript/developer-notes";
 import {
   lastTurnsOf,
@@ -389,14 +390,14 @@ const liveDeveloperNotes = base
   .handler(async function* ({ errors, input, signal }) {
     const batches = changedMessageBatches(input, signal);
     const read = async () => {
-      const messages = await ChatReads.history({
+      const notes = await sessionDeveloperNotes({
         chatId: input.id,
         sessionId: input.sessionId,
       });
-      if (messages.isErr()) {
-        throw toORPCError(messages.error, errors);
+      if (notes.isErr()) {
+        throw toORPCError(notes.error, errors);
       }
-      return developerNotes(messages.value, { sessionId: input.sessionId });
+      return notes.value.notes;
     };
     try {
       let last = await read();
@@ -418,8 +419,30 @@ const liveDeveloperNotes = base
     }
   });
 
+/** What one note's card shows, read when the card opens. */
+const developerNoteBody = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      note: z.string(),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(type<DeveloperNoteBody | null>())
+  .handler(async ({ errors, input }) => {
+    const notes = await sessionDeveloperNotes({
+      chatId: input.id,
+      sessionId: input.sessionId,
+    });
+    if (notes.isErr()) {
+      throw toORPCError(notes.error, errors);
+    }
+    return notes.value.bodies.get(input.note) ?? null;
+  });
+
 export const message = {
   create,
+  developerNoteBody,
   list: listWithParts,
   live: {
     developerNotes: liveDeveloperNotes,

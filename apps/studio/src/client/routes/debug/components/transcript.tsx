@@ -29,10 +29,11 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   ChatIdSchema,
-  developerNotes,
   getToolNameByType,
   isToolPart,
   type ChatInfo,
+  type DeveloperNote,
+  type DeveloperNoteBody,
   type SessionMessagePart,
   type StepPart,
   type StoreId,
@@ -896,12 +897,33 @@ function FrameTranscript({
       tasks,
     ],
   );
-  const noteSource = useMemo(() => {
-    const notes = sessionId
-      ? developerNotes(frame.messages, { sessionId })
-      : [];
-    return { useNotes: () => notes };
-  }, [frame.messages, sessionId]);
+  const [noteRead, setNoteRead] = useState<{
+    bodies: Record<string, DeveloperNoteBody>;
+    notes: DeveloperNote[];
+  }>({ bodies: {}, notes: [] });
+  useEffect(() => {
+    if (!isDeveloperMode || !sessionId) {
+      return;
+    }
+    let isCurrent = true;
+    void rpcClient.workspace.debug.developerNotes
+      .call({ messages: [...frame.messages], sessionId })
+      .then((read) => {
+        if (isCurrent) {
+          setNoteRead(read);
+        }
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [frame.messages, isDeveloperMode, sessionId]);
+  const noteSource = useMemo(
+    () => ({
+      useBody: ({ note }: { note: string }) => noteRead.bodies[note] ?? null,
+      useNotes: () => noteRead.notes,
+    }),
+    [noteRead],
+  );
   if (!sessionId) {
     return null;
   }

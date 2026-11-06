@@ -378,6 +378,11 @@ export namespace SessionMessage {
   export interface ModelNoteOptions {
     attachmentsDir?: string;
     /**
+     * Told each note as it goes onto a user turn, for a reader that shows what
+     * the model read of a part. Changes nothing about the messages.
+     */
+    onNote?: (note: ModelNote) => void;
+    /**
      * How a host path is spelled where the agent's shell will read it,
      * which is the same path on macOS and Linux and `/c/Users/...` for
      * `C:\Users\...` on Windows.
@@ -396,6 +401,15 @@ export namespace SessionMessage {
     workspaceRoot?: string;
   }
 
+  /** One note a user turn carries, and the stored part it came from. */
+  export interface ModelNote {
+    /** The user message it went out on, which a carried note's part isn't on. */
+    carriedOn: StoreId.Message;
+    /** Absent on a note no part stands for. */
+    part?: SessionMessagePart.DataPart;
+    text: string;
+  }
+
   export async function toModelMessages(
     messages: WithParts[],
     tools: ToolSet,
@@ -411,16 +425,16 @@ export namespace SessionMessage {
    */
   export function toUIMessages(
     messages: WithParts[],
-    { attachmentsDir, shellPath, workspaceRoot }: ModelNoteOptions = {},
+    { attachmentsDir, onNote, shellPath, workspaceRoot }: ModelNoteOptions = {},
   ): UIMessage[] {
     const stateNote = stateNotes({ shellPath });
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
-    let pendingMaxStepsNote: string | undefined;
+    let pendingMaxStepsNote: Carried | undefined;
     // A run that kept running out of room to write is recorded the same way,
     // and carried forward for the same reason.
-    let pendingOutputLimitNote: string | undefined;
+    let pendingOutputLimitNote: Carried | undefined;
     // Skills the agent wrote are recorded the same way, on the assistant
     // message of the turn that wrote them. Several turns can run before the
     // user speaks again, so these accumulate rather than replace: each skill is
@@ -428,6 +442,7 @@ export namespace SessionMessage {
     // one.
     const pendingSkillChanges = {
       created: new Set<string>(),
+      parts: new Set<SessionMessagePart.DataPart>(),
       updated: new Set<string>(),
     };
     return messages.map((message) => {
@@ -438,7 +453,10 @@ export namespace SessionMessage {
           part.type === "data-maxSteps",
       );
       if (maxStepsPart) {
-        pendingMaxStepsNote = maxStepsModelNote(maxStepsPart.data);
+        pendingMaxStepsNote = {
+          part: maxStepsPart,
+          text: maxStepsModelNote(maxStepsPart.data),
+        };
       }
 
       const outputLimitPart = message.parts.find(
@@ -449,7 +467,10 @@ export namespace SessionMessage {
         } => part.type === "data-outputLimit",
       );
       if (outputLimitPart) {
-        pendingOutputLimitNote = outputLimitModelNote(outputLimitPart.data);
+        pendingOutputLimitNote = {
+          part: outputLimitPart,
+          text: outputLimitModelNote(outputLimitPart.data),
+        };
       }
 
       const setupChangesPart = message.parts.find(
@@ -464,8 +485,14 @@ export namespace SessionMessage {
       for (const item of setupChangesPart?.data.changes ?? []) {
         if (item.kind === "skill" && item.change === "added") {
           pendingSkillChanges.created.add(item.name);
+          pendingSkillChanges.parts.add(
+            setupChangesPart as SessionMessagePart.DataPart,
+          );
         } else if (item.kind === "skill" && item.change === "changed") {
           pendingSkillChanges.updated.add(item.name);
+          pendingSkillChanges.parts.add(
+            setupChangesPart as SessionMessagePart.DataPart,
+          );
         }
       }
 
@@ -518,16 +545,23 @@ export namespace SessionMessage {
           } => part.type === "data-fromChat",
         );
         if (fromChatPart) {
-          parts.unshift({
-            text: fromChatModelText(fromChatPart.data),
-            type: "text",
-          });
+          const text = fromChatModelText(fromChatPart.data);
+          parts.unshift({ text, type: "text" });
+          onNote?.({ carriedOn: message.id, part: fromChatPart, text });
         }
 
         const injectedParts: { text: string; type: "text" }[] = [];
-        const inject = (text: null | string | undefined) => {
+        const inject = (
+          text: null | string | undefined,
+          part?: SessionMessagePart.DataPart,
+        ) => {
           if (text) {
             injectedParts.push({ text, type: "text" });
+            onNote?.({
+              carriedOn: message.id,
+              ...(part && { part }),
+              text,
+            });
           }
         };
 
@@ -536,19 +570,18 @@ export namespace SessionMessage {
         }
 
         for (const note of USER_TURN_NOTES) {
-          inject(
-            note(message.parts, {
-              attachmentsDir,
-              shellPath,
-              stateNote,
-              workspaceRoot,
-            }),
-          );
+          const said = note(message.parts, {
+            attachmentsDir,
+            shellPath,
+            stateNote,
+            workspaceRoot,
+          });
+          inject(said?.text, said?.part);
         }
 
-        inject(pendingMaxStepsNote);
+        inject(pendingMaxStepsNote?.text, pendingMaxStepsNote?.part);
         pendingMaxStepsNote = undefined;
-        inject(pendingOutputLimitNote);
+        inject(pendingOutputLimitNote?.text, pendingOutputLimitNote?.part);
         pendingOutputLimitNote = undefined;
 
         const skillChangesNote = skillChangesModelNote({
@@ -557,7 +590,11 @@ export namespace SessionMessage {
         });
         if (skillChangesNote) {
           inject(skillChangesNote);
+          for (const part of pendingSkillChanges.parts) {
+            onNote?.({ carriedOn: message.id, part, text: skillChangesNote });
+          }
           pendingSkillChanges.created.clear();
+          pendingSkillChanges.parts.clear();
           pendingSkillChanges.updated.clear();
         }
 
@@ -595,6 +632,9 @@ export namespace SessionMessage {
   }
 }
 
+/** A note held for the next user turn, with the part it came from. */
+type Carried = { part: SessionMessagePart.DataPart; text: string };
+
 type NamedDataPart<K extends SessionMessageDataPart.Name> =
   SessionMessagePart.DataPart & {
     data: SessionMessageDataPart.DataParts[K];
@@ -607,8 +647,8 @@ type NoteContext = SessionMessage.ModelNoteOptions & {
 };
 
 /**
- * The note a message's part named `name` adds to its user turn; null or
- * nothing when it has none to add.
+ * The note a message's part named `name` adds to its user turn, with that part;
+ * its text null or nothing when it has none to add.
  */
 function noted<K extends SessionMessageDataPart.Name>(
   name: K,
@@ -622,7 +662,9 @@ function noted<K extends SessionMessageDataPart.Name>(
       (candidate): candidate is NamedDataPart<K> =>
         candidate.type === `data-${name}`,
     );
-    return part === undefined ? undefined : toText(part, context);
+    return part === undefined
+      ? undefined
+      : { part, text: toText(part, context) };
   };
 }
 

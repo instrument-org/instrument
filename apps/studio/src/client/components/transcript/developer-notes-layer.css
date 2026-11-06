@@ -85,7 +85,8 @@
   }
 }
 
-[data-dn="word"] {
+/* On the line rather than the word, since a cut line's ellipsis takes the line's. */
+[data-dn="line"] {
   color: transparent;
 }
 [data-dn="mark"] {
@@ -114,7 +115,7 @@
 [data-dn="line"]:has([data-dn-total]) [data-dn="mark"] {
   display: none;
 }
-[data-dn="lines"]:hover [data-dn="word"] {
+[data-dn="lines"]:hover [data-dn="line"] {
   color: var(--muted-foreground);
   transition: color 0s linear 120ms;
 }
@@ -123,10 +124,10 @@
   opacity: 0;
   transition: opacity 0s linear 120ms;
 }
-[data-dn="lines"] [data-dn="line"]:hover [data-dn="word"] {
+[data-dn="lines"] [data-dn="line"]:hover {
   color: var(--foreground);
 }
-[data-mode="words"] [data-dn="word"] {
+[data-mode="words"] [data-dn="line"] {
   color: color-mix(in oklab, var(--foreground) 24%, transparent);
 }
 [data-mode="words"] [data-dn="mark"],
@@ -163,9 +164,31 @@
 [data-dn="card"][data-side="left"] {
   left: calc(anchor(right) + 8px);
 }
+[data-dn="card-top"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
 [data-dn="card-head"] {
   display: block;
+  overflow: hidden;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-dn="card-unsent"] {
+  color: var(--muted-foreground);
+}
+[data-dn="card-words"] {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
 }
 [data-dn="list-group"] {
   margin-top: 8px;

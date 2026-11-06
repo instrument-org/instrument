@@ -91,7 +91,7 @@ export { shellPath } from "./lib/shell-path";
 export { stateNotes } from "./lib/state-notes";
 export {
   type DeveloperNote,
-  developerNotes,
+  type DeveloperNoteBody,
 } from "./lib/transcript/developer-notes";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";

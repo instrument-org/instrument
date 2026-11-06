@@ -44,7 +44,9 @@ A chat opens on its last turns, and `OlderTurns` asks for the page before as the
 
 ## Developer mode
 
-Developer mode draws the same rows as everyone: `turnsOf` and the feed never ask. What only a developer reads (notes, thoughts, retried attempts, replaced replies, repeated refusals) is worked out apart from the rows by `developerNotes` ([developer-notes.ts](../../packages/workspace/src/lib/transcript/developer-notes.ts)), each note naming the row it sits level with.
+Developer mode draws the same rows as everyone: `turnsOf` and the feed never ask. What only a developer reads (notes, thoughts, retried attempts, replaced replies, repeated refusals) is worked out apart from the rows by `developerNotesWithBodies` ([developer-notes.ts](../../packages/workspace/src/lib/transcript/developer-notes.ts)), each note naming the row it sits level with.
+
+The layer that draws them ([developer-notes-layer.tsx](../../apps/studio/src/client/components/transcript/developer-notes-layer.tsx)) loads only in developer mode and places each note with CSS anchor positioning, naming the rows from its own stylesheet by their `data-transcript-row`, so no row knows it is there. Its offsets per kind of row (`LINE_OFFSET`) are measured, and a row whose first line moves needs its number moved. A card's words come from the walk a request makes: `SessionMessage.toUIMessages` tells a reader each note as it goes onto a user turn (`onNote`), so what a card says the model read is what the request wrote, tags included, and a part it never told says it wasn't sent. A carried note sits on the message that carried it.
 
 ## Beside the transcript
 

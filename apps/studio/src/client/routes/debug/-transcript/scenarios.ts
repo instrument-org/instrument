@@ -490,6 +490,31 @@ export const scenarios: DebugScenario[] = [
     ],
   },
   {
+    id: "card-between-activities",
+    name: "The card between activities",
+    script: [
+      user("Check the pricing page and add up what it says."),
+      activity("Reading the pricing page"),
+      browse("open https://example.com/pricing", "Opening the page"),
+      browse("get text", "Reading its plans"),
+      activity("Adding up the plans"),
+      ran({ command: "python3 total.py", explanation: "Adding them up" }),
+      activity("Reading the pricing page again"),
+      browse("get text --section add-ons", "Reading its add-ons"),
+      activity("Adding up the add-ons"),
+      ran({ command: "python3 total.py", explanation: "Adding them up" }),
+      activity("Checking the total"),
+      ran({ command: "python3 check.py", explanation: "Checking the total" }),
+      prose(
+        `${" ".repeat(12)}The plans and add-ons come to $412 a month, and the total checks out against the page.`,
+        4,
+      ),
+      activity("Saving the total"),
+      ran({ command: "python3 save.py", explanation: "Saving the total" }),
+      prose("It's saved."),
+    ],
+  },
+  {
     id: "burst",
     name: "A burst of files",
     script: [

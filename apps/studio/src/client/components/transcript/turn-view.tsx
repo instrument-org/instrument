@@ -14,7 +14,12 @@ import {
   type TurnRow,
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+} from "motion/react";
 import { memo, type ReactNode, use, useState } from "react";
 
 import { AssistantMessage } from "../assistant-message";
@@ -75,6 +80,17 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
       {children}
     </motion.div>
   );
+}
+
+/**
+ * The card, under the newest activity. It has one key among the rows, so going
+ * from under one activity to under the next keeps it mounted, with its picture
+ * and its sweep going. `AnimatePresence` holds a row that left until the next
+ * commit, and this one draws nothing from the render that took it away, so it
+ * goes in the same frame as the words that end it and they never start below it.
+ */
+function SlotRow({ children }: { children: ReactNode }) {
+  return useIsPresent() ? <div className="ml-7">{children}</div> : null;
 }
 
 /**
@@ -252,18 +268,19 @@ function TurnBody({
             row={row}
             thought={live?.thought}
           />
-          {/* In its row, so it goes in the same render as the words that end it. */}
-          {index === lastWork && card && (
-            <div className="ml-7">
-              <SlotCardView
-                card={card}
-                isCurrent={turn.phase === "working"}
-                sessionId={sessionId}
-              />
-            </div>
-          )}
         </FoldingRow>,
       );
+      if (index === lastWork && card) {
+        out.push(
+          <SlotRow key="slot-card">
+            <SlotCardView
+              card={card}
+              isCurrent={turn.phase === "working"}
+              sessionId={sessionId}
+            />
+          </SlotRow>,
+        );
+      }
     }
     return out;
   });

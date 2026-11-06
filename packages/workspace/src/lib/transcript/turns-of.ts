@@ -472,20 +472,14 @@ function rowsOf(
     const retriedAway = outcome?.cause.startsWith("Retried:") === true;
     for (const part of message.parts) {
       if (part.type === "text") {
-        if (
-          retriedAway ||
-          (part.state !== "streaming" && saysNothing(part.text))
-        ) {
+        if (retriedAway || saysNothing(part.text)) {
           continue;
         }
         const kept = withoutRepeat(part, lastSaid);
         if (!kept) {
           continue;
         }
-        const said = part.text.trim();
-        if (said !== "") {
-          lastSaid = said;
-        }
+        lastSaid = part.text.trim();
         open = undefined;
         rows.push({ id: kept.metadata.id, kind: "text", part: kept });
       } else if (isStepPart(part)) {
@@ -714,7 +708,7 @@ function withoutRepeat(
   lastSaid: string | undefined,
 ): SessionMessagePart.TextPart | undefined {
   const said = part.text.trim();
-  if (lastSaid === undefined || said === "") {
+  if (lastSaid === undefined) {
     return part;
   }
   if (part.state === "streaming" && lastSaid.startsWith(said)) {
@@ -728,8 +722,9 @@ function withoutRepeat(
 }
 
 /**
- * Whether finished words say nothing: blank, or only fence marks, which a
- * model that opened a code block and stopped leaves behind.
+ * Whether words say nothing, so far or at all: blank, or only fence marks, which
+ * a model that opened a code block and stopped leaves behind. They draw no row
+ * until they say something, so a reply starting changes nothing on the page.
  */
 function saysNothing(text: string): boolean {
   return /^[\s`~]*$/.test(text);

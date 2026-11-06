@@ -928,7 +928,7 @@ describe("the slot", () => {
     },
   );
 
-  it("takes a card away with its activity, so a page left behind stays behind", () => {
+  describe("between activities", () => {
     const browsed = (id: Parameters<typeof call>[0]) =>
       call(
         id,
@@ -936,28 +936,156 @@ describe("the slot", () => {
         { activity: "Browsing", command: "agent-browser open a.example" },
         { exitCode: 0 },
       );
-    const [browsing] = turnsOf(
-      [typed("Do the thing"), message("assistant", (id) => [browsed(id)])],
-      { isRunning: true },
+    const addingUp = (id: Parameters<typeof call>[0], activity = "Adding up") =>
+      call(
+        id,
+        "bash",
+        { activity, command: "sleep 5" },
+        undefined,
+        "input-available",
+      );
+    const slotAfter = (
+      ...parts: ((id: StoreId.Message) => SessionMessagePart.Type)[]
+    ) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => parts.map((part) => part(id))),
+        ],
+        { isRunning: true },
+      );
+      return turn && slotOf(turn);
+    };
+
+    it("keeps the card of the activity before while a new one has nothing to show", () => {
+      expect(slotAfter(browsed)?.kind).toBe("page");
+      expect(slotAfter(browsed, addingUp)?.kind).toBe("page");
+    });
+
+    it("keeps it through several activities with nothing to show", () => {
+      expect(
+        slotAfter(browsed, addingUp, (id) => addingUp(id, "Checking"))?.kind,
+      ).toBe("page");
+    });
+
+    it("gives way to the first card the new activity has", () => {
+      expect(
+        slotAfter(browsed, addingUp, (id) =>
+          call(id, "write_file", {
+            activity: "Writing",
+            content: "a",
+            filePath: "/a.md",
+          }),
+        )?.kind,
+      ).toBe("files");
+    });
+
+    it("goes when the agent speaks, and doesn't come back for an activity after it", () => {
+      const spoke = (id: StoreId.Message) => said(id, "Found it.");
+      expect(slotAfter(browsed, spoke)).toBeUndefined();
+      expect(slotAfter(browsed, spoke, addingUp)).toBeUndefined();
+    });
+
+    it("goes for a task's card, and doesn't come back for an activity after it", () => {
+      const started = (id: StoreId.Message) =>
+        call(
+          id,
+          "bash",
+          { command: "task new" },
+          {
+            exitCode: 0,
+            handOffs: [{ kind: "created", sessionId: StoreId.newSessionId() }],
+          },
+        );
+      expect(slotAfter(browsed, started, addingUp)).toBeUndefined();
+    });
+
+    it("holds across a wake", () => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [browsed(id)]),
+          message("user", (id) => [
+            {
+              data: { date: "2026-11-06" },
+              metadata: meta(id),
+              type: "data-dateChange",
+            } as SessionMessagePart.Type,
+          ]),
+          message("assistant", (id) => [addingUp(id)]),
+        ],
+        { isRunning: true },
+      );
+      expect(turn && slotOf(turn)?.kind).toBe("page");
+    });
+  });
+
+  describe("words still arriving with nothing in them", () => {
+    const searched = (id: Parameters<typeof call>[0]) =>
+      call(id, "web_search", { activity: "Looking", query: "x" }, {});
+
+    it.each(["", "  \n", "```", "~~~"])(
+      "leave the card and the working line as they were for %j",
+      (text) => {
+        const [turn] = turnsOf(
+          [
+            typed("Do the thing"),
+            message("assistant", (id) => [
+              searched(id),
+              said(id, text, "streaming"),
+            ]),
+          ],
+          { isRunning: true },
+        );
+        expect(turn && shape(turn)).toEqual(["activity: Looking x1"]);
+        expect(turn && slotOf(turn)?.kind).toBe("web");
+        expect(turn?.live?.kind).toBe("activity");
+      },
     );
-    expect(browsing && slotOf(browsing)?.kind).toBe("page");
-    const [movedOn] = turnsOf(
-      [
-        typed("Do the thing"),
-        message("assistant", (id) => [
-          browsed(id),
-          call(
-            id,
-            "bash",
-            { activity: "Adding it up", command: "sleep 5" },
-            undefined,
-            "input-available",
-          ),
-        ]),
-      ],
-      { isRunning: true },
-    );
-    expect(movedOn && slotOf(movedOn)).toBeUndefined();
+
+    it("draw no row and leave Thinking up before there is any work", () => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [said(id, "", "streaming")]),
+        ],
+        { isRunning: true },
+      );
+      expect(turn?.rows).toEqual([]);
+      expect(turn?.live?.kind).toBe("thinking");
+    });
+
+    it("let the next call join the activity it follows", () => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            searched(id),
+            said(id, "\n", "streaming"),
+            searched(id),
+          ]),
+        ],
+        { isRunning: true },
+      );
+      expect(turn && shape(turn)).toEqual(["activity: Looking x2"]);
+    });
+
+    it("give way to the row of the first words, under the same id", () => {
+      const going = message("assistant", (id) => [
+        searched(id),
+        said(id, "Found", "streaming"),
+      ]);
+      const [turn] = turnsOf([typed("Do the thing"), going], {
+        isRunning: true,
+      });
+      expect(turn && shape(turn)).toEqual([
+        "activity: Looking x1",
+        "text: Found",
+      ]);
+      expect(turn?.rows[1]?.id).toBe(going.parts[1]?.metadata.id);
+      expect(turn && slotOf(turn)).toBeUndefined();
+      expect(turn?.live?.kind).toBe("writing");
+    });
   });
 
   it("shows a file a command changed, from what the disk told", () => {

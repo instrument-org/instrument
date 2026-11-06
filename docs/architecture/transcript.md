@@ -24,7 +24,7 @@ A turn's rows are its activities, asks, task cards, notes, errors and words. An 
 
 One card is up at a time, and all of its rules are in `cardsOf` and `slotOf` ([slot.ts](../../packages/workspace/src/lib/transcript/slot.ts)), so they can be changed in one place:
 
-- A card belongs to the activity that put it up and goes when that activity ends, so a page the work has left never follows it down the chat. It goes as the agent speaks too, since words go under the work they follow and never move. A call with nothing to show changes nothing, and a call that failed has nothing to show.
+- A card stays up from one activity to the next while the new one has nothing to show, drawn under the newest row and kept mounted, so it never blinks between them. It goes as the agent speaks, since words go under the work they follow and never move, and it does not come back for an activity after them. Words that are still blank or only fence marks draw no row and change nothing. A call with nothing to show changes nothing, and a call that failed has nothing to show.
 - Things of one kind share a card, so a browser's commands update one page. A file card is one file: each file a call names replaces the last, and a shell call that changed several shows none.
 - A task's card takes over from the work before it, and carries its own card while it works.
 

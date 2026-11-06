@@ -66,16 +66,23 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
 }
 
 /**
- * The card up now: the newest of the activity going on. A card belongs to its
- * activity and goes when the activity does, so a page the work has left never
- * follows it down the chat. It goes as the agent speaks too, since words go
- * under the work they follow and never move, and a task's card takes over the
- * same way, since the task is what is moving now and carries a card of its own.
+ * The card up now: the newest of the work since the agent last spoke. An activity
+ * with nothing to show yet keeps the card of the one before it, so the card holds
+ * through the gaps between activities rather than blinking, at the cost of
+ * showing the earlier one's a little longer. It goes as the agent speaks, since
+ * words go under the work they follow and never move, and a task's card takes
+ * over the same way, since the task is what is moving now and carries a card of
+ * its own.
  */
 export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
-  const newest = turn.rows.findLast(
-    (row) =>
-      row.kind === "activity" || row.kind === "task" || row.kind === "text",
-  );
-  return newest?.kind === "activity" ? cardsOf(newest).at(-1) : undefined;
+  for (const row of turn.rows.toReversed()) {
+    if (row.kind === "task" || row.kind === "text") {
+      return undefined;
+    }
+    const card = row.kind === "activity" ? cardsOf(row).at(-1) : undefined;
+    if (card) {
+      return card;
+    }
+  }
+  return undefined;
 }

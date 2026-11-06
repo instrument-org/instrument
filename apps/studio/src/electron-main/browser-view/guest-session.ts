@@ -14,8 +14,9 @@ import {
 import { routeGuestDownloads } from "./downloads";
 import { mayOpenInAnotherApp } from "./external-app-links";
 import { askToOpenInAnotherApp } from "./external-app-prompt";
-import { enableBrowserExtensions } from "./extensions";
+import { enableBrowserExtensions, registerExtensionWindow } from "./extensions";
 import { mayEnterFullScreen } from "./full-screen-policy";
+import { attachGuestInteractions } from "./guest-interactions";
 import { guests } from "./guest-registry";
 import { log } from "./log";
 import { refusePasskeys } from "./passkey-policy";
@@ -23,7 +24,7 @@ import {
   confineLocalPagesToTheirFolder,
   refuseLocalFilesIn,
 } from "./local-file-policy";
-import { guestWindowOpenHandler } from "./window-open-policy";
+import { guestWindowOpenHandler, isHttpUrl } from "./window-open-policy";
 
 let configured: null | { dir: string; session: Session } = null;
 
@@ -63,9 +64,25 @@ export function configureGuestSession(profileDir: string): Session {
     guestSession,
     (contents) => (contents.getType() === "webview" ? "webview" : "popup"),
     (record) => {
+      record.contents.on("did-create-window", (window) => {
+        registerExtensionWindow(window);
+      });
       if (record.role === "popup") {
         record.contents.setWindowOpenHandler(guestWindowOpenHandler);
         refuseLocalFilesIn(record.contents);
+        // The menu a tab's page has, for the popup itself: it has no tab to
+        // open a link in, and steps through its own history.
+        attachGuestInteractions(record.contents, {
+          mayOpen: isHttpUrl,
+          step: (direction) => {
+            const history = record.contents.navigationHistory;
+            if (direction === "back") {
+              history.goBack();
+            } else {
+              history.goForward();
+            }
+          },
+        });
       } else {
         followPageEdits(record.contents);
       }

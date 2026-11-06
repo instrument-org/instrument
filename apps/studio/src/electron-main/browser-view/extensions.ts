@@ -197,6 +197,22 @@ export function registerExtensionTab(guest: WebContents): () => void {
   };
 }
 
+/**
+ * Makes a window a page opened (a sign-in popup) a tab the extensions see,
+ * in that window, until its contents is destroyed, which the library
+ * watches itself. An extension's menu drawn in the popup acts through the
+ * tab it is in, and a tab the extensions never met answers nothing.
+ */
+export function registerExtensionWindow(window: BrowserWindow): void {
+  if (!extensions) {
+    return;
+  }
+  extensions.addTab(window.webContents, window);
+  log.info(
+    `a window a page opened is a tab for the extensions guest=${window.webContents.id}`,
+  );
+}
+
 /** Tells the extensions which tab a person is looking at. */
 export function selectExtensionTab(guest: WebContents): void {
   currentTab = guest;

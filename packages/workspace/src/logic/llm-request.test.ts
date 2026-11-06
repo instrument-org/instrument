@@ -163,21 +163,25 @@ describe("llmRequestLogic", () => {
     chunks,
     finishReason = "stop",
     getMessages = () => Promise.resolve(mockMessages),
+    modelContextLength,
     modelFeatures,
     modelProvider,
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
+    reportedInputTokens = 3,
   }: {
     beforeStream?: (prompt: LanguageModelV4Prompt) => Promise<void>;
     catalog?: AIGatewayModel.Type[];
     chunks: LanguageModelV4StreamPart[];
     finishReason?: "length" | "stop";
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
+    modelContextLength?: number;
     modelFeatures?: AIGatewayModel.ModelFeatures[];
     /** The connection the chat's model is on, where it differs from `provider`'s. */
     modelProvider?: AIProviderType;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
+    reportedInputTokens?: number;
   }) {
     const mockLanguageModel = new MockLanguageModelV4({
       doStream: async ({ prompt }) => {
@@ -198,7 +202,7 @@ describe("llmRequestLogic", () => {
                     cacheRead: undefined,
                     cacheWrite: undefined,
                     noCache: undefined,
-                    total: 3,
+                    total: reportedInputTokens,
                   },
                   outputTokens: {
                     reasoning: undefined,
@@ -215,6 +219,9 @@ describe("llmRequestLogic", () => {
     });
 
     const model = createMockAIGatewayModel({
+      ...(modelContextLength !== undefined && {
+        contextLength: modelContextLength,
+      }),
       features: modelFeatures,
       provider:
         modelProvider ??
@@ -1769,6 +1776,34 @@ describe("llmRequestLogic", () => {
       .filter((part) => part.type === "data-requestNote")
       .map((part) => part.data);
   }
+
+  it("records a budget notice said on every request once, for its status", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "1", type: "text-start" },
+        { delta: "Reading the plan.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+      ],
+      // Over the warning at every reply, and under the window.
+      modelContextLength: 1000,
+      reportedInputTokens: 700,
+    });
+
+    for (let run = 0; run < 3; run += 1) {
+      await runTestMachine(testMachine);
+    }
+
+    const said = (prompt: LanguageModelV4Prompt | undefined) =>
+      JSON.stringify(prompt?.at(-1));
+    expect(said(prompts[1])).toBe(said(prompts[2]));
+    const notes = await recordedNotes(testMachine.chatId);
+    const budget = notes.filter((note) => note.kind === "budget");
+    expect(budget).toHaveLength(1);
+    expect(budget[0]?.status).toBe("warn");
+    expect(said(prompts[2])).toContain(
+      JSON.stringify(budget[0]?.text).slice(1, -1),
+    );
+  });
 
   it("sends a request whose note could not be saved", async () => {
     const savePart = ChatWrites.savePart.bind(ChatWrites);

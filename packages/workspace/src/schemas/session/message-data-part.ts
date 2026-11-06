@@ -1384,12 +1384,6 @@ export namespace SessionMessageDataPart {
   export type RatingCardDataPart = z.output<typeof RatingCardDataPartSchema>;
 
   /**
-   * An instruction one request went out with and no other: its kind and exact
-   * text, captured where it was added to the request (`transientNote`). The
-   * model never reads this part, so the request's bytes stay what they were; it
-   * is here so a developer can see afterward what steered a step.
-   */
-  /**
    * A request that failed while it was being built, before any reply was saved
    * to hold its error: kept on the session's last message, for a developer, and
    * read by no request.
@@ -1399,8 +1393,18 @@ export namespace SessionMessageDataPart {
     error: z.string(),
   });
 
+  /**
+   * An instruction one request went out with and no other: its kind and exact
+   * text, captured where it was added to the request (`transientNote`). The
+   * model never reads this part, so the request's bytes stay what they were; it
+   * is here so a developer can see afterward what steered a step. A notice said
+   * on every request is recorded when it changes (`notesToRecord`), so a card
+   * shows the first of a run of them.
+   */
   const RequestNoteDataPartSchema = z.object({
     kind: z.enum(["budget", "correction", "output-limit", "rollover", "turn"]),
+    /** A budget notice's context budget status, which says when to record the next. */
+    status: z.string().optional(),
     text: z.string(),
   });
 

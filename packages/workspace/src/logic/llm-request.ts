@@ -41,6 +41,7 @@ import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import {
   prepareModelMessages,
+  notesToRecord,
   requestNotesIn,
   transientNote,
 } from "../lib/prepare-model-messages";
@@ -350,7 +351,15 @@ export const llmRequestLogic = fromPromise<
 
   // What this request alone goes out with, for a developer to read afterward.
   // A hidden part on the reply it produced, so no request reads it.
-  for (const data of requestNotesIn(messagesResult.value)) {
+  const notes = requestNotesIn(messagesResult.value);
+  const recorded =
+    notes.length === 0
+      ? []
+      : await ChatReads.developerHistory({
+          chatId: input.chatId,
+          sessionId: input.sessionId,
+        }).unwrapOr([]);
+  for (const data of notesToRecord(notes, recorded, input.sessionId)) {
     await writes.saveDeveloperNote({
       data,
       metadata: {

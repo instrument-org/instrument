@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import { SessionMessage } from "../schemas/session/message";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { dataPartVisibility } from "./data-part-visibility";
-import { requestNotesIn, transientNote } from "./prepare-model-messages";
+import {
+  notesToRecord,
+  requestNotesIn,
+  transientNote,
+} from "./prepare-model-messages";
 import { developerNotesWithBodies } from "./transcript/developer-notes";
 import { transcriptMessage } from "./transcript/transcript-message";
 
@@ -121,6 +126,97 @@ describe("a request's note, as a hidden part", () => {
       { row: reply.parts[1]?.metadata.id, side: "left" },
     ]);
     expect(bodies.get(notes[0]?.id ?? "")?.wasSent).toBe(true);
+  });
+});
+
+describe("notesToRecord", () => {
+  const recordedNote = (
+    data: SessionMessageDataPart.RequestNoteDataPart,
+    session = sessionId,
+  ) =>
+    message("assistant", (id) => [
+      {
+        data,
+        metadata: { ...meta(id), sessionId: session },
+        type: "data-requestNote",
+      } as SessionMessagePart.Type,
+    ]);
+
+  it.each<
+    [
+      string,
+      SessionMessageDataPart.RequestNoteDataPart,
+      SessionMessage.WithParts[],
+      boolean,
+    ]
+  >([
+    ["a first rollover notice", { kind: "rollover", text: "A" }, [], true],
+    [
+      "a rollover notice that says what the last one said",
+      { kind: "rollover", text: "A" },
+      [recordedNote({ kind: "rollover", text: "A" })],
+      false,
+    ],
+    [
+      "a rollover notice that says something new",
+      { kind: "rollover", text: "B" },
+      [recordedNote({ kind: "rollover", text: "A" })],
+      true,
+    ],
+    [
+      "a rollover notice measured against the last, not an earlier one",
+      { kind: "rollover", text: "A" },
+      [
+        recordedNote({ kind: "rollover", text: "A" }),
+        recordedNote({ kind: "rollover", text: "B" }),
+      ],
+      true,
+    ],
+    [
+      "a budget notice with a new count and the same status",
+      { kind: "budget", status: "warn", text: "90 left" },
+      [recordedNote({ kind: "budget", status: "warn", text: "100 left" })],
+      false,
+    ],
+    [
+      "a budget notice with a new status",
+      { kind: "budget", status: "exhausted", text: "0 left" },
+      [recordedNote({ kind: "budget", status: "warn", text: "100 left" })],
+      true,
+    ],
+    [
+      "a notice another session recorded",
+      { kind: "rollover", text: "A" },
+      [recordedNote({ kind: "rollover", text: "A" }, StoreId.newSessionId())],
+      true,
+    ],
+    [
+      "a note for one step, whatever came before",
+      { kind: "turn", text: "A" },
+      [recordedNote({ kind: "turn", text: "A" })],
+      true,
+    ],
+  ])("%s", (_name, note, recorded, kept) => {
+    expect(notesToRecord([note], recorded, sessionId)).toEqual(
+      kept ? [note] : [],
+    );
+  });
+
+  it("leaves what the request sends as it was", () => {
+    const messages = [
+      transientNote("rollover", "A"),
+      transientNote("budget", "B", "warn"),
+    ];
+    const before = JSON.stringify(messages);
+    notesToRecord(
+      requestNotesIn(messages),
+      [
+        recordedNote({ kind: "rollover", text: "A" }),
+        recordedNote({ kind: "budget", status: "warn", text: "B" }),
+      ],
+      sessionId,
+    );
+    expect(JSON.stringify(messages)).toBe(before);
   });
 });
 

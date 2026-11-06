@@ -122,13 +122,14 @@ const REQUEST_NOTES = new WeakMap<
 export function transientNote(
   kind: SessionMessageDataPart.RequestNoteDataPart["kind"],
   text: string,
+  status?: SessionMessageDataPart.RequestNoteDataPart["status"],
 ): ModelMessage {
   const message: ModelMessage = {
     content: text,
     providerOptions: TRANSIENT,
     role: "user",
   };
-  REQUEST_NOTES.set(message, { kind, text });
+  REQUEST_NOTES.set(message, { kind, text, ...(status && { status }) });
   return message;
 }
 
@@ -137,6 +138,40 @@ export function requestNotesIn(
   messages: readonly ModelMessage[],
 ): SessionMessageDataPart.RequestNoteDataPart[] {
   return messages.flatMap((message) => REQUEST_NOTES.get(message) ?? []);
+}
+
+/**
+ * Which of a request's notes the session records, given what it has recorded.
+ * A rollover notice goes on every request and a budget notice restates its
+ * count on each, so the first is kept when its text changes and the second when
+ * its status does. The others say something of their one step and are all kept.
+ */
+export function notesToRecord(
+  notes: readonly SessionMessageDataPart.RequestNoteDataPart[],
+  recorded: readonly SessionMessage.WithParts[],
+  sessionId: StoreId.Session,
+): SessionMessageDataPart.RequestNoteDataPart[] {
+  const lastOf = (kind: SessionMessageDataPart.RequestNoteDataPart["kind"]) =>
+    recorded
+      .flatMap(({ parts }) => parts)
+      .findLast(
+        (part) =>
+          part.type === "data-requestNote" &&
+          part.metadata.sessionId === sessionId &&
+          part.data.kind === kind,
+      );
+  return notes.filter((note) => {
+    if (note.kind !== "budget" && note.kind !== "rollover") {
+      return true;
+    }
+    const last = lastOf(note.kind);
+    if (last?.type !== "data-requestNote") {
+      return true;
+    }
+    return note.kind === "budget"
+      ? last.data.status !== note.status
+      : last.data.text !== note.text;
+  });
 }
 
 /**
@@ -670,7 +705,7 @@ export async function prepareModelMessages({
   const notice = contextBudgetNotice(budget, agentHandoffNotesPath(chatId));
 
   if (notice !== undefined) {
-    preparedMessages.push(transientNote("budget", notice));
+    preparedMessages.push(transientNote("budget", notice, budget.status));
   }
 
   return ok(preparedMessages);

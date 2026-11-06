@@ -133,7 +133,7 @@ export function TabLocationRow({
     <div
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
-      className="@container/tabrow flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-background px-2"
+      className="@container/tabrow flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5"
       data-tab-location=""
     >
       {leading}
@@ -163,12 +163,14 @@ export function TabLocationRow({
       {/* The box is the field everywhere the place itself is not: a press on
         one of the places you are under goes there, and a press anywhere else,
         edge to edge, puts the caret in the input the way a browser's address
-        bar does. */}
+        bar does. Its fill is a solid shade of the row's own ground, named as
+        `--field-fill` so what covers the words at its end (the open-in
+        button, as it grows) paints the same color. */}
       <div
         className={cn(
-          "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-[13px] shadow-xs focus-within:border-foreground/30",
-          // The app's icon sits in the field's round end, with room to
-          // breathe inside the curve.
+          "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+          // The app's icon sits at the field's end, with room to breathe
+          // inside the curve.
           openIn && "pr-2",
         )}
         onPointerDown={(event) => {
@@ -244,7 +246,7 @@ export function TabRowControl({
     <ToolbarTooltip chord={chord} label={label}>
       <button
         className={cn(
-          "grid size-7 shrink-0 place-items-center rounded-md",
+          "grid size-7 shrink-0 place-items-center rounded-lg",
           disabled
             ? "text-foreground/25"
             : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",

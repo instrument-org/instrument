@@ -1,11 +1,13 @@
 import { cn } from "@/client/lib/utils";
 
 // The surface every framed control around a tab's location row stands on: 32px
-// tall, 8px corners, a card fill with a hairline ring as its edge, so the
-// Files toolbar's sort, search and overflow menu, the browser's reload and
-// menu, and whatever a host adds after them are one family.
+// tall, a card fill with a hairline ring as its edge and a faint drop under it,
+// so the Files toolbar's sort, search and overflow menu, the browser's reload
+// and menu, and whatever a host adds after them are one family. Its 12px
+// corners sit 6px inside the row's edge, concentric with the card's 18px
+// corner around them.
 const TOOLBAR_SURFACE_CLASSNAME =
-  "h-8 rounded-lg border-0 bg-card text-foreground/70 shadow-none ring-1 ring-border dark:bg-input/30";
+  "h-8 rounded-xl border-0 bg-card text-foreground/70 shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-border dark:bg-input/30";
 
 // A control on that surface. The hover is restated with `not-disabled:` so it
 // replaces the one each primitive (button, select trigger) brings.

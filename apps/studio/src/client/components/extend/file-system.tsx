@@ -3311,7 +3311,7 @@ export function FileSystem({
     >
       {/* A track a shade darker than the muted one, so it reads as a
           well the choices sit in against the toolbar's own tint. */}
-      <TabsList className="h-8 bg-foreground/8 p-0.5">
+      <TabsList className="h-8 rounded-xl bg-foreground/8 p-0.5">
         {VIEW_OPTIONS.map((option) => (
           <TabsTrigger
             aria-label={`${option.label} view`}
@@ -3440,7 +3440,7 @@ export function FileSystem({
             createPortal(
               <div
                 className={cn(
-                  "flex min-w-0 items-center gap-1",
+                  "flex min-w-0 items-center gap-1.5",
                   toolbarInto.tail === undefined && "flex-1",
                 )}
                 onContextMenu={(event) => {
@@ -3674,7 +3674,7 @@ const VIEW_GLYPH_DIM_CLASSNAME = "dark:text-foreground dark:opacity-60";
 // its dark fill is already the buttons' `input/30`. The unselected glyphs dim
 // as one layer, as above.
 const VIEW_TAB_CLASSNAME =
-  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7 dark:data-[state=active]:border-transparent dark:not-data-[state=active]:[&_svg]:text-foreground dark:not-data-[state=active]:[&_svg]:opacity-60";
+  "h-7 grow-0 rounded-lg px-2.5 text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs sm:h-7 dark:data-[state=active]:border-transparent dark:not-data-[state=active]:[&_svg]:text-foreground dark:not-data-[state=active]:[&_svg]:opacity-60";
 // An icon-only select in the toolbar's family: sheds the base min-width to hug icon and
 // caret at the toolbar's 32px height, and draws the caret at a hint's size so
 // the icon reads as the control and the caret as the note that it opens.

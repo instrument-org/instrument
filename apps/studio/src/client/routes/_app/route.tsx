@@ -357,7 +357,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                     // A page's bottom corners follow what they meet: square
                     // against the conversation at the left, round where the
                     // pane reaches the card's own corner.
-                    "[--guest-bottom-radius:0_10px]",
+                    "[--guest-bottom-radius:0_18px]",
                   )}
                 >
                   {up && (

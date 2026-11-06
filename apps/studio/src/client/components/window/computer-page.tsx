@@ -2304,7 +2304,7 @@ export function ComputerPage({
               <>
                 <div
                   className={cn(
-                    "-ml-2 flex h-10 shrink-0 items-center gap-1 pl-2 transition-[width] [interpolate-size:allow-keywords]",
+                    "-ml-1.5 flex h-11 shrink-0 items-center gap-1.5 pl-1.5 transition-[width] [interpolate-size:allow-keywords]",
                     EDGE_DIVIDER_CLASSNAME,
                     BESIDE_MOTION_CLASSNAME,
                     beside?.isResizing && "transition-none",
@@ -2322,7 +2322,7 @@ export function ComputerPage({
                   {isBesideOpen ? null : (
                     <div
                       className={cn(
-                        "flex h-10 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
+                        "flex h-11 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
                         EDGE_DIVIDER_CLASSNAME,
                         BESIDE_MOTION_CLASSNAME,
                         placesVisible && !isNarrow
@@ -2332,7 +2332,7 @@ export function ComputerPage({
                       style={{
                         // Less the section's own inset, so its edge is the places'.
                         width:
-                          placesVisible && !isNarrow ? placesWidth - 8 : "auto",
+                          placesVisible && !isNarrow ? placesWidth - 6 : "auto",
                       }}
                     >
                       {placesToggle}
@@ -2356,7 +2356,7 @@ export function ComputerPage({
                   />
                 </div>
                 {isBesideOpen ? (
-                  <div className="flex h-10 shrink-0 items-center pl-1">
+                  <div className="flex h-11 shrink-0 items-center pl-1">
                     {beside.toggle}
                   </div>
                 ) : null}

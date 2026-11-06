@@ -25,7 +25,11 @@ import {
 } from "@/electron-main/windows/app-window";
 import { keepsOffScreen } from "@/electron-main/windows/on-screen";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { APP_TABS_KEY, COMPOSE_KEY } from "@/shared/kept-state";
+import {
+  APP_TABS_KEY,
+  COMPOSE_KEY,
+  isHostedPageKey,
+} from "@/shared/kept-state";
 import {
   neighborAt,
   type Tab,
@@ -126,8 +130,8 @@ type Carry = Carrying & {
    */
   overAtStart: BrowserWindow | null;
   phase: CarryPhase<BrowserWindow>;
-  /** What goes with the pointer, off the row. An only tab has its window instead. */
-  readonly picture: null | TabPicture;
+  /** What goes with the pointer, off the row. An only tab has its window instead, and a move from a menu no pointer. */
+  picture: null | TabPicture;
   point: null | Point;
   /** How far along the tab the press was. */
   readonly pointInTab: number;
@@ -151,6 +155,11 @@ function canPlaceWindows() {
       app.commandLine.getSwitchValue("ozone-platform"),
     ) !== "wayland"
   );
+}
+
+/** Whether a person has used a page the tab shows, one drawn inside its screens included. */
+function isUsed({ hostedPages, pages }: TabStanding) {
+  return getBrowserViewManager().isPageUsed([...pages, ...hostedPages]);
 }
 
 function tell(window: BrowserWindow, view: TabCarryView) {
@@ -184,7 +193,6 @@ function beginCarry({
   isOffRow,
   isOnlyTab,
   moving,
-  paintOut = { ground: "transparent", over: [] },
   pointInTab = 0,
   webContentsId,
 }: {
@@ -194,7 +202,6 @@ function beginCarry({
   isOffRow: boolean;
   isOnlyTab: boolean;
   moving: TabStanding;
-  paintOut?: TabPicturePaintOut;
   pointInTab?: number;
   webContentsId: number;
 }): Carry | null {
@@ -204,7 +211,12 @@ function beginCarry({
   const fromId = from ? appWindowIdOfWindow(from) : undefined;
   const spare =
     from && fromId !== undefined && !isOnlyTab ? takeSpareWindow() : null;
-  if (!from || fromId === undefined || (!isOnlyTab && !spare)) {
+  // A full-screen window stays, and with its only tab there is nothing to move.
+  if (
+    !from ||
+    fromId === undefined ||
+    (isOnlyTab ? from.isFullScreen() : !spare)
+  ) {
     return null;
   }
   const canPlace = canPlaceWindows();
@@ -215,7 +227,7 @@ function beginCarry({
     canPlace,
     isFullScreen,
     isOnlyTab,
-    isTabPageUsed: getBrowserViewManager().isPageUsed(moving.pages),
+    isTabPageUsed: isUsed(moving),
   });
   const origin = from.getBounds();
   const started: Carry = {
@@ -240,8 +252,7 @@ function beginCarry({
           ) ?? null)
         : null,
     phase: { kind: "row" },
-    picture:
-      at && followsCursor && spare ? openTabPicture(from, paintOut) : null,
+    picture: null,
     point: null,
     pointInTab,
     poll: null,
@@ -264,15 +275,23 @@ function beginCarry({
  * row or Escape has nothing to undo. Answers whether the tab's strip closes up
  * behind it, which it can where there is something to go with the pointer.
  */
-export function startTabCarry(
-  start: Parameters<typeof beginCarry>[0] & { at: Point; pointInTab: number },
-): { collapsesOffRow: boolean } {
+export function startTabCarry({
+  paintOut,
+  ...start
+}: Parameters<typeof beginCarry>[0] & {
+  at: Point;
+  paintOut: TabPicturePaintOut;
+  pointInTab: number;
+}): { collapsesOffRow: boolean } {
   const started = beginCarry(start);
   if (!started) {
     return { collapsesOffRow: false };
   }
   if (started.followsCursor) {
     started.poll = setInterval(followCursor, FOLLOW_MS);
+    if (started.spare) {
+      started.picture = openTabPicture(started.from, paintOut);
+    }
   }
   return { collapsesOffRow: canPlaceWindows() && started.spare !== null };
 }
@@ -294,7 +313,8 @@ function dressSpare(current: Carry) {
     return;
   }
   for (const key of windowKeptKeys(fromId)) {
-    if (key !== APP_TABS_KEY) {
+    // A page drawn inside a surface is that window's, and the spare draws its own.
+    if (key !== APP_TABS_KEY && !isHostedPageKey(key)) {
       tellWindowKeptState(
         spare.id,
         contents,
@@ -307,7 +327,10 @@ function dressSpare(current: Carry) {
   const at = model.tabs.findIndex((each) => each.id === moving.tab.id);
   tellWindowKeptState(spare.id, contents, APP_TABS_KEY, {
     ...model,
-    selectedId: neighborAt(model.tabs, at)?.id ?? null,
+    selectedId:
+      model.selectedId === moving.tab.id
+        ? (neighborAt(model.tabs, at)?.id ?? null)
+        : model.selectedId,
     tabs: model.tabs.filter((each) => each.id !== moving.tab.id),
   });
 }
@@ -619,14 +642,29 @@ export async function endTabCarry({
     at && ending.isOffRow && !canceled && !isBroken(ending)
       ? hitTest(ending, at)
       : undefined;
-  if (phase?.kind === "free") {
-    return standAlone(ending, at);
+  // The pointer can have moved on from a strip since it was last read.
+  const left = ending.phase;
+  if (
+    left.kind === "docked" &&
+    !(phase?.kind === "docked" && phase.window === left.window)
+  ) {
+    tell(left.window, { kind: "row" });
   }
-  if (phase?.kind === "docked") {
-    return land(ending, phase.window, at);
+  if (phase?.kind !== "free" && phase?.kind !== "docked") {
+    stopCarry();
+    return NONE;
   }
-  stopCarry();
-  return NONE;
+  try {
+    return phase.kind === "free"
+      ? await standAlone(ending, at)
+      : await land(ending, phase.window, at);
+  } catch (error) {
+    // A window gone partway. Nothing holds the picture from here, and it stands over everything.
+    ending.picture?.close();
+    setOpacity(ending.from, 1);
+    tell(ending.from, { kind: "row" });
+    throw error;
+  }
 }
 
 /**
@@ -655,7 +693,6 @@ export async function moveTabNow({
     return NONE;
   }
   if (to.kind === "new") {
-    current.phase = { kind: "free" };
     return standAlone(current, cascadedBounds());
   }
   const target = appWindowById(to.id);
@@ -663,7 +700,6 @@ export async function moveTabNow({
     stopCarry();
     return NONE;
   }
-  current.phase = { kind: "docked", window: target };
   return land(current, target, cascadedBounds());
 }
 
@@ -714,15 +750,8 @@ async function leaveOthersBehind(ending: Carry) {
  * comes and goes, and this is no one's to watch, so it is told to stay still until
  * it has come out from under the window left in its place.
  */
-function tellWhatItHolds(
-  { from, fromId }: Carry,
-  model: TabsModel,
-  floats?: unknown,
-) {
+function tellWhatItHolds({ from, fromId }: Carry, model: TabsModel) {
   tell(from, { kind: "reshaping" });
-  if (floats !== undefined) {
-    tellWindowKeptState(fromId, from.webContents, COMPOSE_KEY, floats);
-  }
   tellWindowKeptState(fromId, from.webContents, APP_TABS_KEY, model);
 }
 
@@ -730,6 +759,7 @@ function tellWhatItHolds(
 async function placeWhenDrawn(
   { from, picture, spare }: Carry,
   place: Bounds | undefined,
+  isPlaceMaximized = false,
 ) {
   await drawn(from);
   if (spare) {
@@ -742,6 +772,9 @@ async function placeWhenDrawn(
   leaveMaximized(from);
   if (place) {
     from.setBounds(place);
+  }
+  if (isPlaceMaximized && process.platform !== "darwin") {
+    from.maximize();
   }
   setOpacity(from, 1);
   from.moveTop();
@@ -777,11 +810,12 @@ async function standAlone(
       return NONE;
     }
     await leaveOthersBehind(ending);
-    tellWhatItHolds(
-      ending,
-      { recentlyClosed: [], selectedId: moving.tab.id, tabs: [moving.tab] },
-      [],
-    );
+    tellWindowKeptState(ending.fromId, from.webContents, COMPOSE_KEY, []);
+    tellWhatItHolds(ending, {
+      recentlyClosed: [],
+      selectedId: moving.tab.id,
+      tabs: [moving.tab],
+    });
     void placeWhenDrawn(ending, place);
     return { kind: "keepsTab" };
   }
@@ -829,7 +863,7 @@ async function land(
   const isJoining =
     landsBy({
       goes,
-      isTabPageUsed: getBrowserViewManager().isPageUsed(moving.pages),
+      isTabPageUsed: isUsed(moving),
     }) === "joining" && sendTabToWindow(moving.tab, targetId, landsAt);
   // A page that cannot take the tab right now: the carried window can still take
   // on its strip, which needs nothing of that page.
@@ -864,10 +898,19 @@ async function land(
     if (spare) {
       stopCarrySpare(spare);
     } else if (!from.isDestroyed()) {
-      closeEmptiedWindow(from);
+      closeInto(from, target);
     }
   });
   return { kind: spare ? "losesTab" : "closes" };
+}
+
+/** Closes a window whose tabs went to another, and whose pages go after them, with their histories. */
+function closeInto(closing: BrowserWindow, kept: BrowserWindow) {
+  getBrowserViewManager().handOffGuestsOf(
+    closing.webContents.id,
+    kept.webContents.id,
+  );
+  closeEmptiedWindow(closing);
 }
 
 /**
@@ -889,7 +932,7 @@ async function takeStrip(
     ...windowKeptKeys(targetId),
     ...windowKeptKeys(fromId),
   ])) {
-    if (key !== APP_TABS_KEY) {
+    if (key !== APP_TABS_KEY && !isHostedPageKey(key)) {
       const value = getWindowKeptState(targetId, key);
       tellWindowKeptState(
         fromId,
@@ -910,11 +953,13 @@ async function takeStrip(
     selectedId: moving.tab.id,
     tabs,
   });
-  void placeWhenDrawn(ending, target.getBounds()).then(() => {
-    if (!target.isDestroyed()) {
-      closeEmptiedWindow(target);
-    }
-  });
+  void placeWhenDrawn(ending, target.getBounds(), target.isMaximized()).then(
+    () => {
+      if (!target.isDestroyed() && !from.isDestroyed()) {
+        closeInto(target, from);
+      }
+    },
+  );
   return { kind: "takesStrip" };
 }
 

@@ -317,6 +317,26 @@ describe("getBrowserViewManager", () => {
       expect(manager.isPageUsed([targetId])).toBe(true);
     });
 
+    it("goes on being watched when it is handed to another window, since the page goes on", async () => {
+      hostWith(601);
+      hostWith(602);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 601 })
+        .catch(() => undefined);
+      const gone = vi.fn();
+      manager.browser.onTargetDestroyed(targetId, gone);
+
+      void manager.handOffGuest(targetId, 602);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(gone).not.toHaveBeenCalled();
+
+      void manager.browser.closeTarget(targetId).catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(gone).toHaveBeenCalledTimes(1);
+    });
+
     it("hands a guest to another window even while its own shows it", async () => {
       hostWith(501);
       hostWith(502);

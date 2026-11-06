@@ -47,7 +47,7 @@ Main answers which strip the point is over (`phaseAt`), since only it can see ev
 
 ## A page is in one window
 
-A page tab belongs to a group every window can see, but its guest is a `<webview>` in one renderer, and Electron cannot move one between renderers. So a page is in the window that showed it last. [`in-app-browser.md`](in-app-browser.md#a-page-is-in-one-window-at-a-time) has what that does to a guest.
+A page tab belongs to a group every window can see, but its guest is a `<webview>` in one renderer, and Electron cannot move one between renderers. So a page is in the window that showed it last. [`in-app-browser.md`](in-app-browser.md#a-page-is-in-one-window-at-a-time) has what that does to a guest. A page drawn inside a surface (a file's page in its viewer, the page under Quick Look) is not one of those: its tab is kept in the `window` file of the window drawing it (`fileOfTabGroup`), since the surface makes it as it comes and closes it as it goes, and each window showing that tab draws a page of its own. Such a page never changes windows, but a person having used it keeps the window with the tab like any other (`hostedPages`).
 
 ## Coming back
 

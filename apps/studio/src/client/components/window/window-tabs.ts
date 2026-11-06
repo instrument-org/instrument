@@ -3,6 +3,11 @@ import { atom, useAtomValue, useSetAtom } from "jotai";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { keptMembersAtom, takeKept, writeKept } from "@/client/lib/kept-state";
+import {
+  fileOfTabGroup,
+  HOSTED_PAGE_GROUP_PREFIX,
+  WINDOW_TABS_KEY,
+} from "@/shared/kept-state";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
@@ -47,7 +52,7 @@ if (isStoredWindowTabs(earlierTabs)) {
   for (const [member, group] of splitTabGroups(
     normalizeWindowTabs(earlierTabs),
   )) {
-    writeKept("layout", `window-tabs.v10/${member}`, group);
+    writeKept(fileOfTabGroup(member), `${WINDOW_TABS_KEY}/${member}`, group);
   }
 }
 
@@ -56,8 +61,8 @@ if (isStoredWindowTabs(earlierTabs)) {
  * this computer. Written only here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = keptMembersAtom<WindowTabs>(
-  "layout",
-  "window-tabs.v10",
+  fileOfTabGroup,
+  WINDOW_TABS_KEY,
   {
     join: joinTabGroups,
     split: splitTabGroups,
@@ -71,7 +76,7 @@ interface TabGroupMember {
 
 /**
  * The tabs by group, each kept by itself: a chat, draft or site's tabs and
- * which is up belong to it whichever window shows it.
+ * which is up belong to it whichever window shows it (`fileOfTabGroup`).
  */
 function splitTabGroups({ activeByGroup, tabs }: WindowTabs) {
   const members = new Map<string, TabGroupMember>();
@@ -116,6 +121,14 @@ function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {
     typeof value === "object" &&
     (!("tabs" in value) || Array.isArray(value.tabs))
   );
+}
+
+/**
+ * The group of the page a file tab draws in its viewer, by the tab's id: a
+ * group no strip lists, holding that one page.
+ */
+export function hostGroupOf(tabId: string) {
+  return `${HOSTED_PAGE_GROUP_PREFIX}${tabId}`;
 }
 
 /** The window's tabs, to read; every change goes through `useWindowTabs`. */

@@ -16,7 +16,7 @@ import { getDefaultStore } from "jotai";
 
 import { appTabsAtom, groupOfHref, INBOX_HREF, siteGroupsOf } from "./app-tabs";
 import { showTabCarryView } from "./tab-carry-view";
-import { windowTabsAtom } from "./window-tabs";
+import { hostGroupOf, windowTabsAtom } from "./window-tabs";
 
 /** The groups whose tabs went to another window, whose pages are that window's to keep or let go, until a tab comes back. */
 const groupsMovedAway = new Set<string>();
@@ -68,7 +68,14 @@ export function tabStanding(id: TabId): TabStanding | undefined {
     tabs.findIndex((each) => each.id === id),
   );
   const neighborGroup = neighbor && groupOfHref(neighbor.pathname);
+  const screens = [
+    id,
+    ...allTabs.flatMap((each) =>
+      group !== undefined && each.group === group ? [each.id] : [],
+    ),
+  ];
   return {
+    hostedPages: screens.flatMap((screen) => pagesOf(hostGroupOf(screen))),
     neighborPages:
       neighborGroup === undefined || neighborGroup === group
         ? []

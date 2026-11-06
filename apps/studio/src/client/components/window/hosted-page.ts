@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useWindow } from "./context";
 import { type PageHost, usePageHost } from "./page-hosts";
-import { useWindowTabs } from "./window-tabs";
+import { hostGroupOf, useWindowTabs } from "./window-tabs";
 
 /**
  * What a page drawn in a file tab's viewer moving means for the
@@ -83,14 +83,6 @@ export function liveHostedFileAddress(
     (tab) => tab.group === hostGroupOf(tabId) && tab.kind === "page",
   );
   return hosted && liveFileAddress(browserTargetOf(hosted.id), path);
-}
-
-/**
- * The group of the page a file tab draws in its viewer, by the tab's id: a
- * group no strip lists, holding that one page.
- */
-export function hostGroupOf(tabId: string) {
-  return `page:${tabId}`;
 }
 
 /**

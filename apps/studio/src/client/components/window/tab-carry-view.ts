@@ -68,7 +68,7 @@ export function measureCarryIndex(
     return;
   }
   const store = getDefaultStore();
-  const index = stripIndexAt(view.clientX, tabs, view.tab.id);
+  const index = stripIndexAt(view.clientX - view.pointInTab, tabs, view.tab.id);
   if (store.get(tabCarryIndexAtom) !== index) {
     store.set(tabCarryIndexAtom, index);
     void rpcClient.window.placeTabCarry.call({ index });
@@ -76,7 +76,7 @@ export function measureCarryIndex(
 }
 
 /**
- * Where a tab held at a point stands among the tabs other than itself, which are
+ * Where a tab with its left edge at a point stands among the tabs other than itself, which are
  * taken where they would stand without it, as the strip lays them out. Layout and
  * not what is drawn, since a tab making way is on its way there, and the answer
  * would move it again.

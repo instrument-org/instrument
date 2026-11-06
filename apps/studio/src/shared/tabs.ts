@@ -60,13 +60,14 @@ export function neighborAt<T>(tabs: readonly T[], at: number): T | undefined {
 
 /** A tab as another window would take it: the tab, the pages that go with it, and those of the tab that comes up in its place. */
 export const TabStandingSchema = z.object({
+  /** Pages drawn inside the tab's screens, which are this window's and go nowhere, but can make it stay with the tab. */
+  hostedPages: z.array(BrowserTargetIdSchema),
   neighborPages: z.array(BrowserTargetIdSchema),
   pages: z.array(BrowserTargetIdSchema),
   tab: TabSchema,
 });
 export type TabStanding = z.output<typeof TabStandingSchema>;
 
-/** Where a tab can go: a new window beside this one, or one open already. */
 /**
  * What a picture of a tab paints out: what stands over the page and stays with the
  * window, in px from the window's corner, and what the page stands on, to do it with.
@@ -84,6 +85,7 @@ export const TabPicturePaintOutSchema = z.object({
 });
 export type TabPicturePaintOut = z.output<typeof TabPicturePaintOutSchema>;
 
+/** Where a tab can go: a new window beside this one, or one open already. */
 export const TabMoveDestinationSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("new") }),
   z.object({ id: z.string(), kind: z.literal("window") }),

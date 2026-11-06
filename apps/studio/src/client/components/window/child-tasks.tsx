@@ -38,13 +38,11 @@ const noop = () => {
  */
 export function ChildTranscript({
   chat,
-  isDeveloperMode = false,
   isWorking,
   sessionId,
   stoppedBy,
 }: {
   chat: ChatId;
-  isDeveloperMode?: boolean;
   isWorking: boolean;
   sessionId: StoreId.Session;
   /** Who stopped its last turn, which the transcript ends by saying. */
@@ -56,7 +54,7 @@ export function ChildTranscript({
       input: { id: chat },
     }),
   );
-  const feed = useTranscriptFeed({ id: chat, isDeveloperMode, sessionId });
+  const feed = useTranscriptFeed({ id: chat, sessionId });
 
   const openFile = useOpenFileNamedByTask(chat);
 
@@ -90,7 +88,6 @@ export function ChildTranscript({
                     <Transcript
                       chatInfo={chatInfo}
                       hasOlder={feed.data.hasOlder}
-                      isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={feed.isLoadingOlder}
                       isRunning={isWorking}
                       messages={feed.data.messages}

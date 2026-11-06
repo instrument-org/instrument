@@ -105,14 +105,12 @@ function describeRow(
 export function RowInspector({
   className,
   frame,
-  isDeveloperMode,
   messages,
   sessionId,
   transcript,
 }: {
   className?: string;
   frame: Frame;
-  isDeveloperMode: boolean;
   messages: readonly TranscriptMessage[];
   sessionId: StoreId.Session | undefined;
   transcript: RefObject<HTMLElement | null>;
@@ -152,7 +150,6 @@ export function RowInspector({
       return undefined;
     }
     const turns = turnsOf(messages, {
-      isDeveloperMode,
       isRunning: frame.isAgentRunning,
       sessionId,
     });
@@ -165,7 +162,6 @@ export function RowInspector({
     frame.isAgentRunning,
     frame.messages,
     id,
-    isDeveloperMode,
     messages,
     sessionId,
   ]);

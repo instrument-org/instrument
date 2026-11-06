@@ -107,17 +107,16 @@ const RESULTS_SHOWN = 8;
 
 /**
  * A stored message as the transcript draws it, or nothing for one it does not
- * draw. Developer mode keeps the notes only developers see.
+ * draw.
  */
 export function transcriptMessage(
   message: SessionMessage.WithParts,
-  { isDeveloperMode = false }: { isDeveloperMode?: boolean } = {},
 ): TranscriptMessage | undefined {
   if (message.role !== "assistant" && message.role !== "user") {
     return undefined;
   }
   const parts = message.parts.flatMap((part) =>
-    transcriptParts(part, message.parts, isDeveloperMode),
+    transcriptParts(part, message.parts),
   );
   return { ...message, parts };
 }
@@ -130,7 +129,6 @@ export function thoughtText(text: string): string {
 function transcriptParts(
   part: SessionMessagePart.Type,
   siblings: readonly SessionMessagePart.Type[],
-  isDeveloperMode: boolean,
 ): TranscriptPart[] {
   if (isToolPart(part)) {
     if (answeredByAPerson(part)) {
@@ -165,8 +163,7 @@ function transcriptParts(
       return [];
     }
     default: {
-      return isDeveloperMode ||
-        READ_THOUGH_HIDDEN.has(part.type) ||
+      return READ_THOUGH_HIDDEN.has(part.type) ||
         dataPartVisibility(part) === "always"
         ? [part]
         : [];

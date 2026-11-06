@@ -277,12 +277,9 @@ const debugSurface: TranscriptSurface = {
   },
 };
 
-function lightMessages(
-  messages: Frame["messages"],
-  isDeveloperMode = false,
-): TranscriptMessage[] {
+function lightMessages(messages: Frame["messages"]): TranscriptMessage[] {
   return messages.flatMap((message) => {
-    const light = transcriptMessage(message, { isDeveloperMode });
+    const light = transcriptMessage(message);
     return light ? [light] : [];
   });
 }
@@ -610,8 +607,6 @@ function Viewer({ scenario }: { scenario: Playable }) {
                     frame={frame}
                     frameIndex={shown}
                     frames={frames}
-                    isDeveloperMode={isDeveloperMode}
-                    key={isDeveloperMode ? "developer" : "person"}
                     pageTurns={scenario.pageTurns}
                     tasks={tasks}
                   />
@@ -768,8 +763,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
         <RowInspector
           className={replays ? "h-2/5 shrink-0" : "flex-1"}
           frame={frame}
-          isDeveloperMode={isDeveloperMode}
-          messages={lightMessages(frame.messages, isDeveloperMode)}
+          messages={lightMessages(frame.messages)}
           sessionId={frame.messages[0]?.metadata.sessionId}
           transcript={transcript}
         />
@@ -788,7 +782,6 @@ function FrameTranscript({
   frame,
   frameIndex,
   frames,
-  isDeveloperMode,
   pageTurns,
   tasks,
 }: {
@@ -797,13 +790,12 @@ function FrameTranscript({
   frame: Frame;
   frameIndex: number;
   frames: Frame[];
-  isDeveloperMode: boolean;
   pageTurns: number | undefined;
   tasks: DebugFrame["tasks"];
 }) {
   const allMessages = useMemo(
-    () => lightMessages(frame.messages, isDeveloperMode),
-    [frame.messages, isDeveloperMode],
+    () => lightMessages(frame.messages),
+    [frame.messages],
   );
   const [shownTurns, setShownTurns] = useState(pageTurns);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -881,7 +873,6 @@ function FrameTranscript({
         <Transcript
           chatInfo={chat ?? chatInfo}
           hasOlder={from > 0}
-          isDeveloperMode={isDeveloperMode}
           isLoadingOlder={isLoadingOlder}
           isRunning={frame.isAgentRunning}
           messages={messages}

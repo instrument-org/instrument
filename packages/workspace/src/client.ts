@@ -89,6 +89,10 @@ export {
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { shellPath } from "./lib/shell-path";
 export { stateNotes } from "./lib/state-notes";
+export {
+  type DeveloperNote,
+  developerNotes,
+} from "./lib/transcript/developer-notes";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";

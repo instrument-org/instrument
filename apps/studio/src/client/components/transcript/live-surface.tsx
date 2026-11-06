@@ -118,7 +118,7 @@ function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
 function useTaskMessages(id: StoreId.Session, isWorking: boolean) {
   const chat = useLiveChat();
   const feed = useTranscriptFeed(
-    { id: chat, isDeveloperMode: false, sessionId: id },
+    { id: chat, sessionId: id },
     { enabled: isWorking },
   );
   return isWorking ? (feed.data?.messages ?? []) : [];

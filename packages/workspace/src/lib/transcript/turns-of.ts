@@ -82,8 +82,7 @@ type RatingCardPart = Extract<
 
 /**
  * What the working line says of a turn in flight. `thought` is the thought
- * nothing has followed yet, which the line opens onto for someone outside
- * developer mode, whose rows draw no thoughts.
+ * nothing has followed yet, which the line opens onto, since no row draws one.
  */
 export type TurnLive =
   | { activityId: StoreId.Part; kind: "activity"; thought?: StepPart }
@@ -134,7 +133,6 @@ export interface Turn {
 export const FOLD_WAIT_MS = 4000;
 
 export interface TurnsOfOptions {
-  isDeveloperMode?: boolean;
   isRunning: boolean;
   /** The session being read; a task's history begins with its chat's messages. */
   sessionId?: StoreId.Session;
@@ -164,7 +162,7 @@ export type TurnsCache = Map<
  */
 export function turnsOf(
   messages: readonly TranscriptMessage[],
-  { isDeveloperMode = false, isRunning, sessionId }: TurnsOfOptions,
+  { isRunning, sessionId }: TurnsOfOptions,
   cache?: TurnsCache,
 ): Turn[] {
   const slices = turnSlices(messages);
@@ -199,7 +197,6 @@ export function turnsOf(
     }
     const turn = buildTurn(first, slice, {
       cutAcross,
-      isDeveloperMode,
       isLive,
       lastMessage,
       sessionId,
@@ -316,7 +313,6 @@ function joinedMidTurn(message: TranscriptMessage): boolean {
 
 interface BuildOptions {
   cutAcross: boolean;
-  isDeveloperMode: boolean;
   isLive: boolean;
   lastMessage: TranscriptMessage | undefined;
   sessionId: StoreId.Session | undefined;
@@ -328,7 +324,7 @@ function buildTurn(
   options: BuildOptions,
 ): Turn {
   const { cutAcross, isLive, sessionId } = options;
-  const opener = opensTurn(first) ? openerOf(first, options) : undefined;
+  const opener = opensTurn(first) ? openerOf(first) : undefined;
   const body = opener ? slice.slice(1) : slice;
   const rows = rowsOf(body, options);
   const replies = body.filter(
@@ -367,7 +363,7 @@ function buildTurn(
     id: first.id,
     inherited:
       sessionId !== undefined && first.metadata.sessionId !== sessionId,
-    ...(isLive && { live: liveOf(rows, body, first, options) }),
+    ...(isLive && { live: liveOf(rows, body, first) }),
     ...(opener && { opener }),
     phase,
     ...(ratingCard && { ratingCard }),
@@ -381,10 +377,7 @@ function buildTurn(
   };
 }
 
-function openerOf(
-  message: TranscriptMessage,
-  { isDeveloperMode }: { isDeveloperMode: boolean },
-): TurnOpener {
+function openerOf(message: TranscriptMessage): TurnOpener {
   const opener: TurnOpener = {
     chips: [],
     files: [],
@@ -412,13 +405,10 @@ function openerOf(
       }
       case "data-viewContext": {
         opener.chips = part.data.attached ?? [];
-        if (isDeveloperMode) {
-          opener.notes.push(part);
-        }
         break;
       }
       default: {
-        if (isDataRow(part) && drawsNote(part, { isDeveloperMode })) {
+        if (isDataRow(part) && drawsNote(part)) {
           opener.notes.push(part);
         }
       }
@@ -429,7 +419,7 @@ function openerOf(
 
 function rowsOf(
   body: readonly TranscriptMessage[],
-  { isDeveloperMode, lastMessage }: BuildOptions,
+  { lastMessage }: BuildOptions,
 ): TurnRow[] {
   const rows: TurnRow[] = [];
   const facts = factsByStep(body);
@@ -457,7 +447,7 @@ function rowsOf(
       open = undefined;
       lastSaid = undefined;
       for (const part of message.parts) {
-        if (isDataRow(part) && drawsNote(part, { isDeveloperMode })) {
+        if (isDataRow(part) && drawsNote(part)) {
           rows.push({ id: part.metadata.id, kind: "note", part });
         }
       }
@@ -474,9 +464,10 @@ function rowsOf(
         next.parts.length === 0);
     const error = message.metadata.error;
     const superseded = error?.kind === "aborted";
-    const retriedAway =
-      !isDeveloperMode &&
-      isRetriedAway(message.metadata, { endedTurn, isLastMessage });
+    const retriedAway = isRetriedAway(message.metadata, {
+      endedTurn,
+      isLastMessage,
+    });
     for (const part of message.parts) {
       if (part.type === "text") {
         if (
@@ -496,9 +487,8 @@ function rowsOf(
         open = undefined;
         rows.push({ id: kept.metadata.id, kind: "text", part: kept });
       } else if (isStepPart(part)) {
-        // A thought is the row a developer reads. For everyone else, one going
-        // on is Thinking, and one that ended leaves nothing behind.
-        if (isThought(part) && !isDeveloperMode) {
+        // One going on is Thinking, and one that ended leaves nothing behind.
+        if (isThought(part)) {
           continue;
         }
         const started = part.startedTasks ?? [];
@@ -525,15 +515,15 @@ function rowsOf(
           kind: "ask",
           part,
         });
-      } else if (isDataRow(part) && drawsNote(part, { isDeveloperMode })) {
+      } else if (isDataRow(part) && drawsNote(part)) {
         rows.push({ id: part.metadata.id, kind: "note", part });
       }
     }
     if (
       error &&
-      (isDeveloperMode || !superseded) &&
+      !superseded &&
       (!retriedAway || isLatestAttempt) &&
-      (isDeveloperMode || !isSameRefusal(message, next))
+      !isSameRefusal(message, next)
     ) {
       open = undefined;
       rows.push({
@@ -551,8 +541,7 @@ function rowsOf(
 
 /**
  * Whether a step belongs to the open activity: it says nothing of its own, it
- * says the same, it is the first name for a run of thoughts, or it is the
- * activity's name still being written.
+ * says the same, or it is the activity's name still being written.
  */
 function joinsActivity(
   open: ActivityRow | undefined,
@@ -565,7 +554,6 @@ function joinsActivity(
   return (
     activity === undefined ||
     activity === open.title ||
-    (open.title === undefined && open.steps.every(isThought)) ||
     (step.status === "writing" && open.title?.startsWith(activity) === true)
   );
 }
@@ -697,18 +685,8 @@ function isAsk(part: TranscriptPart): part is SessionMessagePart.ToolPart {
  * the person: an app's or a task's news reaches them as the reply, unless
  * nothing is going to reply to it.
  */
-function drawsNote(
-  part: SessionMessagePart.DataPart,
-  { isDeveloperMode }: { isDeveloperMode: boolean },
-): boolean {
-  const visibility = dataPartVisibility(part);
-  if (visibility === "hidden") {
-    return false;
-  }
-  if (isDeveloperMode) {
-    return true;
-  }
-  if (visibility === "dev") {
+function drawsNote(part: SessionMessagePart.DataPart): boolean {
+  if (dataPartVisibility(part) !== "always") {
     return false;
   }
   switch (part.type) {
@@ -854,11 +832,9 @@ function foldedRows(
     row.kind === "text" ||
     (row.kind === "activity" && !isRunningRow(row));
   // What the agent said before it did anything answers the message at once, so
-  // it stays above the fold. A thought is not doing anything.
+  // it stays above the fold.
   const firstWork = rows.findIndex(
-    (row) =>
-      row.kind === "ask" ||
-      (row.kind === "activity" && !row.steps.every(isThought)),
+    (row) => row.kind === "ask" || row.kind === "activity",
   );
   const foldable = (row: TurnRow, index: number) =>
     settled(row) &&
@@ -898,9 +874,8 @@ function liveOf(
   rows: readonly TurnRow[],
   body: readonly TranscriptMessage[],
   first: TranscriptMessage,
-  { isDeveloperMode }: Pick<BuildOptions, "isDeveloperMode">,
 ): TurnLive {
-  const thought = isDeveloperMode ? undefined : thoughtGoingOn(body);
+  const thought = thoughtGoingOn(body);
   const opens = thought && { thought };
   // An activity stays the working line between its calls, which is most of
   // its time: a browser's commands take a fraction of a second, with seconds of

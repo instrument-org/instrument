@@ -124,7 +124,6 @@ function renderError({
     kind: "unknown",
     message: UPSTREAM_THROTTLE_TEXT,
   },
-  isDeveloperMode = false,
   isLastMessage = true,
   isLatestAttempt,
   provider = OUR_MODELS.providerType,
@@ -133,7 +132,6 @@ function renderError({
   canRunAgain?: boolean;
   error?: MessageErrorData;
   isAgentRunning?: boolean;
-  isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   isLatestAttempt?: boolean;
   provider?: null | string;
@@ -144,7 +142,6 @@ function renderError({
       <MessageError
         chatId={ChatIdSchema.parse("2026-10-29-model-error")}
         isAgentRunning={isAgentRunning}
-        isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         isLatestAttempt={isLatestAttempt}
         message={messageWithError(error, provider)}
@@ -162,13 +159,6 @@ describe("MessageError", () => {
     expect(container.textContent).not.toContain("openrouter");
     expect(container.textContent).not.toContain("gpt-5.6-luna");
     expect(screen.getByText(/the model is busy right now/i)).not.toBeNull();
-  });
-
-  it("shows the provider's text under developer mode", () => {
-    const { container } = renderError({ isDeveloperMode: true });
-    openDetails();
-
-    expect(container.textContent).toContain("openrouter.ai");
   });
 
   it("shows the provider's text on the user's own key", () => {

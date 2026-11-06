@@ -6,8 +6,6 @@ import { describe, expect, it } from "vitest";
 
 import { dataPartVisibility, renderDataPart } from "./note-part";
 
-type NoteContext = Parameters<typeof renderDataPart>[0]["ctx"];
-
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
@@ -38,13 +36,7 @@ describe("a data part this build has never heard of", () => {
   });
 
   it("renders as nothing rather than as itself", () => {
-    expect(
-      renderDataPart({
-        stateNote: undefined,
-        ctx: { isDeveloperMode: true } as unknown as NoteContext,
-        part: retiredPart,
-      }),
-    ).toBeNull();
+    expect(renderDataPart(retiredPart)).toBeNull();
   });
 });
 
@@ -71,12 +63,7 @@ describe("a file-changes part from before the fence", () => {
       type: "data-fileChanges",
     }) as unknown as SessionMessagePart.DataPart;
 
-  const render = (part: SessionMessagePart.DataPart) =>
-    renderDataPart({
-      stateNote: undefined,
-      ctx: { isDeveloperMode: false } as unknown as NoteContext,
-      part,
-    });
+  const render = (part: SessionMessagePart.DataPart) => renderDataPart(part);
 
   it("shows a deliverable to everyone, not just developers", () => {
     expect(dataPartVisibility(partWith([]))).toBe("always");
@@ -133,15 +120,9 @@ describe("a task event in the chat", () => {
       type: "data-taskEvent",
     }) as unknown as SessionMessagePart.DataPart;
   const rendered = (stoppedBy?: "app" | "person") =>
-    renderDataPart({
-      stateNote: undefined,
-      ctx: {
-        isDeveloperMode: false,
-      } as unknown as NoteContext,
-      part: partWith(stoppedBy),
-    });
+    renderDataPart(partWith(stoppedBy));
 
-  it("hides one that woke the chat outside developer mode", () => {
+  it("hides one that woke the chat", () => {
     expect(rendered()).toBeNull();
   });
 

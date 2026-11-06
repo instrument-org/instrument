@@ -32,14 +32,10 @@ import { MessageScrollerItem } from "../ui/message-scroller";
 import { UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
 import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
-import { DeveloperNote } from "./developer-note";
 import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
 import { TranscriptSurfaceContext } from "./surface";
-import {
-  StateNotesContext,
-  TranscriptActionsContext,
-} from "./transcript-actions";
+import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
 
@@ -149,7 +145,7 @@ function OpenerView({
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
       {text && <UserMessage part={text} />}
       {notes.map((part) => (
-        <NoteRow chatInfo={chatInfo} key={part.metadata.id} part={part} />
+        <NoteRow key={part.metadata.id} part={part} />
       ))}
     </div>
   );
@@ -511,7 +507,6 @@ function RowView({
           compact
           endedTurn={row.endedTurn}
           isAgentRunning={isLast && actions.isRunning}
-          isDeveloperMode={actions.isDeveloperMode}
           isLastMessage={row.isLastMessage}
           isLatestAttempt={row.isLatestAttempt}
           message={row.message}
@@ -521,7 +516,7 @@ function RowView({
       );
     }
     case "note": {
-      return <NoteRow chatInfo={chatInfo} part={row.part} />;
+      return <NoteRow part={row.part} />;
     }
     case "task": {
       return (
@@ -554,23 +549,7 @@ function AskRow({
   );
 }
 
-/** A note everyone sees, or a developer's quiet line. */
-function NoteRow({
-  chatInfo,
-  part,
-}: {
-  chatInfo: ChatInfo;
-  part: SessionMessagePart.DataPart;
-}) {
-  const { isDeveloperMode } = use(TranscriptActionsContext);
-  const stateNotes = use(StateNotesContext);
-  const node = renderDataPart({
-    ctx: { chatInfo, isDeveloperMode },
-    part,
-    stateNote: stateNotes.get(part.metadata.id),
-  });
-  if (node === null) {
-    return null;
-  }
-  return <DeveloperNote part={part}>{node}</DeveloperNote>;
+/** A note the person reads. */
+function NoteRow({ part }: { part: SessionMessagePart.DataPart }) {
+  return renderDataPart(part);
 }

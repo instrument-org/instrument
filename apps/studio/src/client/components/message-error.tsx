@@ -45,7 +45,6 @@ import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
 import { chatListOptions } from "./window/chat-list-query";
-import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
 import { Spinner } from "./ui/spinner";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
@@ -70,7 +69,6 @@ interface MessageErrorProps {
   /** No reply of the agent's followed it before the user wrote again. */
   endedTurn?: boolean;
   isAgentRunning: boolean;
-  isDeveloperMode: boolean;
   isLastMessage: boolean;
   /** Last, or above a retry that hasn't said anything yet (`isLatestAttempt`). */
   isLatestAttempt?: boolean;
@@ -113,7 +111,6 @@ export function MessageError({
   compact = false,
   endedTurn = false,
   isAgentRunning,
-  isDeveloperMode,
   isLastMessage,
   isLatestAttempt = isLastMessage,
   message,
@@ -196,21 +193,20 @@ export function MessageError({
   // provider refused that the retry left out, before the turn that followed
   // succeeded. One the turn ended on was never waited out, and
   // stays where it happened after the user writes again.
-  const isHiddenFromReader =
+  if (
     error.kind === "aborted" ||
-    isRetriedAway(message.metadata, { endedTurn, isLastMessage });
-  if (isHiddenFromReader && !isDeveloperMode) {
+    isRetriedAway(message.metadata, { endedTurn, isLastMessage })
+  ) {
     return null;
   }
 
   const provider = message.metadata.aiGatewayModel?.params.provider;
   // A model on the user's own key answers about an account they hold, so its
   // own account of the failure is theirs to read. Ours writes about upstream
-  // models and vendor accounts they have no part in, so it stays behind
-  // developer mode. A message that recorded no provider counts as ours.
-  const isOwnKeyProvider =
+  // models and vendor accounts they have no part in. A message that recorded
+  // no provider counts as ours.
+  const canReadProviderText =
     provider !== undefined && provider !== OUR_MODELS.providerType;
-  const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
   const showActions = isLastMessage && !isAgentRunning;
 
   const { detail, summary } =
@@ -257,11 +253,9 @@ export function MessageError({
       : undefined,
   });
 
-  // A turn the person stopped, a throttle waited out, a sign-in or a limit
-  // of their own account has its fix on the card already; anything else may
-  // be ours to fix.
+  // A sign-in or a limit of their own account has its fix on the card already;
+  // anything else may be ours to fix.
   const reportable =
-    !isHiddenFromReader &&
     classification !== "auth" &&
     classification !== "usage-limit" &&
     error.kind !== "api-key";
@@ -312,7 +306,6 @@ export function MessageError({
         }}
         type="button"
       >
-        {isHiddenFromReader && <DeveloperModeBadge />}
         <ErrorMark />
         <span className="min-w-0 truncate text-muted-foreground group-hover/row:text-foreground">
           {title}
@@ -330,7 +323,6 @@ export function MessageError({
         }}
         type="button"
       >
-        {isHiddenFromReader && <DeveloperModeBadge />}
         <WarningIcon className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300" />
         <span className="truncate">{title}</span>
       </button>
@@ -341,7 +333,6 @@ export function MessageError({
     return (
       <div className="flex flex-col gap-1 text-xs" role="alert">
         <div className="flex min-h-7 flex-wrap items-center gap-x-1 gap-y-1">
-          {isHiddenFromReader && <DeveloperModeBadge />}
           <ErrorMark />
           <span className="mr-1 ml-1 text-sm text-foreground/80">{title}</span>
           {showActions &&
@@ -395,10 +386,7 @@ export function MessageError({
       <div className="flex items-start gap-3">
         <WarningIcon className="mt-0.5 size-4 shrink-0 text-warning-700 dark:text-warning-300" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2">
-            {isHiddenFromReader && <DeveloperModeBadge />}
-            <span className="font-medium text-foreground">{title}</span>
-          </div>
+          <span className="font-medium text-foreground">{title}</span>
           <p className="text-muted-foreground">{body}</p>
           {providerLine && (
             <p className="text-muted-foreground/80">{providerLine}</p>

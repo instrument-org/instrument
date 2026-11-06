@@ -49,16 +49,4 @@ describe("FolderChangesNote", () => {
     expect(noteText()).toBeNull();
   });
 
-  it("names the folders that arrived in developer mode", () => {
-    renderWithProviders(
-      <FolderChangesNote
-        data={changes({
-          added: [NOTES, PHOTOS],
-        })}
-        isDeveloperMode
-      />,
-    );
-
-    expect(noteText()).toBe("Added Notes, Photos");
-  });
 });

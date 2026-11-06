@@ -298,18 +298,18 @@ describe("turnsOf", () => {
           said(id, "Here it is."),
         ]),
       ],
-      { isDeveloperMode: true, isRunning: false },
+      { isRunning: false },
     );
     const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
-    expect(folded).toEqual([true, false, true, true, true, false]);
-    expect(turn?.foldLineAt).toBe(turn?.rows[2]?.id);
+    expect(folded).toEqual([false, true, true, true, false]);
+    expect(turn?.foldLineAt).toBe(turn?.rows[1]?.id);
   });
 
   it.each([
     ["while it goes on", "streaming", true],
     ["once it has ended", "done", false],
   ] as const)(
-    "draws no row for a thought %s, for all but a developer",
+    "draws no row for a thought %s",
     (_when, state, isRunning) => {
       const messages = [
         typed("Do the thing"),
@@ -323,16 +323,9 @@ describe("turnsOf", () => {
           ...(isRunning ? [] : [said(id, "Here it is.")]),
         ]),
       ];
-      const [person] = turnsOf(messages, { isRunning });
-      expect(person?.rows.filter((row) => row.kind === "activity")).toEqual([]);
-      expect(person?.live?.kind).toBe(isRunning ? "thinking" : undefined);
-      const [developer] = turnsOf(messages, {
-        isDeveloperMode: true,
-        isRunning,
-      });
-      expect(
-        developer?.rows.filter((row) => row.kind === "activity"),
-      ).toHaveLength(1);
+      const [turn] = turnsOf(messages, { isRunning });
+      expect(turn?.rows.filter((row) => row.kind === "activity")).toEqual([]);
+      expect(turn?.live?.kind).toBe(isRunning ? "thinking" : undefined);
     },
   );
 
@@ -345,18 +338,13 @@ describe("turnsOf", () => {
         type: "reasoning",
       }) as SessionMessagePart.Type;
     const first = message("assistant", (id) => [thinking(id)]);
-    const live = (
-      messages: Parameters<typeof turnsOf>[0],
-      isDeveloperMode = false,
-    ) => turnsOf(messages, { isDeveloperMode, isRunning: true })[0]?.live;
+    const live = (messages: Parameters<typeof turnsOf>[0]) =>
+      turnsOf(messages, { isRunning: true })[0]?.live;
 
     expect(live([typed("Do the thing"), first])).toMatchObject({
       kind: "thinking",
       thought: { tool: "reasoning" },
     });
-    expect(live([typed("Do the thing"), first], true)).not.toHaveProperty(
-      "thought",
-    );
     expect(
       live([
         typed("Do the thing"),

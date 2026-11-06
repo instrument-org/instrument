@@ -11,7 +11,6 @@ import { useState } from "react";
 
 interface FeedInput {
   id: ChatId;
-  isDeveloperMode: boolean;
   sessionId: StoreId.Session;
 }
 
@@ -25,7 +24,6 @@ function transcriptFeedOptions(input: FeedInput) {
     "transcript-feed",
     input.id,
     input.sessionId,
-    input.isDeveloperMode,
   ] as const;
   return queryOptions({
     queryFn: async ({ client, signal }): Promise<TranscriptFeed> => {

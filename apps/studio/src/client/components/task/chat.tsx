@@ -16,7 +16,6 @@ import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
-import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import {
   itemsOf,
@@ -184,10 +183,8 @@ export function ChatConversation({
     setSelectedModelURI(initialSelectedModelURI);
   }
 
-  const isDeveloperMode = useTabDeveloperMode();
   const messagesQuery = useTranscriptFeed({
     id,
-    isDeveloperMode,
     sessionId: selectedSessionId,
   });
   const stopChat = useMutation(
@@ -655,7 +652,6 @@ export function ChatConversation({
                         isAgentAlive || isFollowingSubmit || isSettlingTurn
                       }
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
-                      isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}
                       // Through the send too, so the turn does not read as finished
                       // between its message being stored and its session starting.

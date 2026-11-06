@@ -51,9 +51,8 @@ export function lastTurnsOf(
   messages: readonly SessionMessage.WithParts[],
   {
     before,
-    isDeveloperMode,
     turns = TURNS_PER_PAGE,
-  }: { before?: StoreId.Message; isDeveloperMode: boolean; turns?: number },
+  }: { before?: StoreId.Message; turns?: number } = {},
 ): TranscriptFeed {
   const end =
     before === undefined
@@ -72,7 +71,7 @@ export function lastTurnsOf(
   return {
     hasOlder: start > 0,
     messages: messages.slice(start, upTo).flatMap((message) => {
-      const light = transcriptMessage(message, { isDeveloperMode });
+      const light = transcriptMessage(message);
       return light ? [light] : [];
     }),
   };
@@ -86,13 +85,9 @@ export function lastTurnsOf(
 export class TranscriptProjection {
   private readonly sent = new Map<StoreId.Message, TranscriptMessage>();
 
-  constructor(private readonly isDeveloperMode: boolean) {}
-
   /** The first thing a reader is sent. */
   reset(messages: readonly SessionMessage.WithParts[]): TranscriptFeedEvent {
-    const feed = lastTurnsOf(messages, {
-      isDeveloperMode: this.isDeveloperMode,
-    });
+    const feed = lastTurnsOf(messages);
     this.sent.clear();
     for (const message of feed.messages) {
       this.sent.set(message.id, message);
@@ -114,9 +109,7 @@ export class TranscriptProjection {
     const patches: PartPatch[] = [];
     const upserted: TranscriptMessage[] = [];
     for (const message of changed) {
-      const next = transcriptMessage(message, {
-        isDeveloperMode: this.isDeveloperMode,
-      });
+      const next = transcriptMessage(message);
       if (!next) {
         continue;
       }

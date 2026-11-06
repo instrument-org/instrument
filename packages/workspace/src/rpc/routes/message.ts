@@ -253,7 +253,6 @@ const liveFeed = base
   .input(
     z.object({
       id: ChatIdSchema,
-      isDeveloperMode: z.boolean().default(false),
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -269,7 +268,7 @@ const liveFeed = base
           sessionId: input.sessionId,
           ...(only ? { only } : {}),
         });
-      const projection = new TranscriptProjection(input.isDeveloperMode);
+      const projection = new TranscriptProjection();
       const initial = await read();
       if (initial.isErr()) {
         throw toORPCError(initial.error, errors);
@@ -313,7 +312,6 @@ const older = base
     z.object({
       before: StoreId.MessageSchema,
       id: ChatIdSchema,
-      isDeveloperMode: z.boolean().default(false),
       sessionId: StoreId.SessionSchema,
     }),
   )

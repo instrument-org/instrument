@@ -2,9 +2,6 @@ import { chatSeparators } from "@/client/lib/chat-separators";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type ChatInfo,
-  type SessionMessagePart,
-  shellPath,
-  stateNotes,
   type StoreId,
   type TranscriptMessage,
   type Turn,
@@ -23,7 +20,6 @@ import { Button } from "../ui/button";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import {
-  StateNotesContext,
   type TranscriptActions,
   TranscriptActionsContext,
 } from "./transcript-actions";
@@ -40,7 +36,6 @@ import { TurnView } from "./turn-view";
 export function Transcript({
   chatInfo,
   hasOlder = false,
-  isDeveloperMode,
   isLoadingOlder = false,
   isRunning,
   messages,
@@ -54,7 +49,6 @@ export function Transcript({
   chatInfo: ChatInfo;
   /** There are earlier turns than these, asked for as the reader nears them. */
   hasOlder?: boolean;
-  isDeveloperMode: boolean;
   isLoadingOlder?: boolean;
   /** The session is at work on its last turn, or about to be. */
   isRunning: boolean;
@@ -67,18 +61,9 @@ export function Transcript({
   sessionId: StoreId.Session;
 }) {
   const [cache] = useState<TurnsCache>(() => new Map());
-  const turns = turnsOf(
-    messages,
-    { isDeveloperMode, isRunning, sessionId },
-    cache,
-  );
+  const turns = turnsOf(messages, { isRunning, sessionId }, cache);
   const separators = useMemo(() => chatSeparators(messages), [messages]);
-  const notes = useMemo(
-    () => (isDeveloperMode ? stateNotesOf(messages) : NO_NOTES),
-    [isDeveloperMode, messages],
-  );
   const actions = useStableActions({
-    isDeveloperMode,
     isRunning,
     onModelChange,
     onRetry,
@@ -102,56 +87,32 @@ export function Transcript({
   );
   return (
     <TranscriptActionsContext value={actions}>
-      <StateNotesContext value={notes}>
-        {hasOlder && onLoadOlder && (
-          <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
-        )}
-        {earlier.length > 0 && (
-          <EarlierInTheChat count={messagesIn(earlier)}>
-            {earlier.map(drawTurn)}
-          </EarlierInTheChat>
-        )}
-        {own.map(drawTurn)}
-        {pausedAtMaxSteps && onContinue && (
-          <MessageScrollerItem key="continue">
-            <Alert className="mt-4" variant="warning">
-              <WarningIcon />
-              <AlertDescription className="flex flex-col gap-3">
-                <div className="text-xs">
-                  Instrument paused after working on its own for a while.
-                </div>
-                <Button onClick={onContinue} size="sm" variant="secondary">
-                  Keep going
-                </Button>
-              </AlertDescription>
-            </Alert>
-          </MessageScrollerItem>
-        )}
-      </StateNotesContext>
+      {hasOlder && onLoadOlder && (
+        <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
+      )}
+      {earlier.length > 0 && (
+        <EarlierInTheChat count={messagesIn(earlier)}>
+          {earlier.map(drawTurn)}
+        </EarlierInTheChat>
+      )}
+      {own.map(drawTurn)}
+      {pausedAtMaxSteps && onContinue && (
+        <MessageScrollerItem key="continue">
+          <Alert className="mt-4" variant="warning">
+            <WarningIcon />
+            <AlertDescription className="flex flex-col gap-3">
+              <div className="text-xs">
+                Instrument paused after working on its own for a while.
+              </div>
+              <Button onClick={onContinue} size="sm" variant="secondary">
+                Keep going
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </MessageScrollerItem>
+      )}
     </TranscriptActionsContext>
   );
-}
-
-const NO_NOTES: ReadonlyMap<StoreId.Part, string> = new Map();
-
-/** What the model heard of each `state` part, read in the order a request reads them. */
-function stateNotesOf(
-  messages: readonly TranscriptMessage[],
-): ReadonlyMap<StoreId.Part, string> {
-  const noteOf = stateNotes({
-    shellPath: (hostPath) =>
-      shellPath(hostPath, window.electron.process.platform),
-  });
-  const notes = new Map<StoreId.Part, string>();
-  for (const part of messages.flatMap((message) => message.parts)) {
-    if (part.type !== "step" && part.type.startsWith("data-")) {
-      const note = noteOf(part as SessionMessagePart.DataPart);
-      if (note !== undefined) {
-        notes.set(part.metadata.id, note);
-      }
-    }
-  }
-  return notes;
 }
 
 function messagesIn(turns: readonly Turn[]): number {
@@ -258,9 +219,8 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
   return useMemo(
     () => ({
       ...handlers,
-      isDeveloperMode: actions.isDeveloperMode,
       isRunning: actions.isRunning,
     }),
-    [actions.isDeveloperMode, actions.isRunning, handlers],
+    [actions.isRunning, handlers],
   );
 }

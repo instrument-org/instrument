@@ -223,13 +223,10 @@ describe("chatFrames", () => {
       it("draws every frame without throwing", () => {
         for (const frame of frames) {
           const light = frame.messages.flatMap(
-            (message) =>
-              transcriptMessage(message, { isDeveloperMode: true }) ?? [],
+            (message) => transcriptMessage(message) ?? [],
           );
           const isRunning = frame.isAgentRunning;
-          expect(() =>
-            turnsOf(light, { isDeveloperMode: true, isRunning }),
-          ).not.toThrow();
+          expect(() => turnsOf(light, { isRunning })).not.toThrow();
         }
       });
     },

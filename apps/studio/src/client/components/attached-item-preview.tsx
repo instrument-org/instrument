@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
@@ -37,7 +37,8 @@ export function AttachedItemPreview({
   hostPath?: string;
   icon: ReactNode;
   label: string;
-  onClick?: () => void;
+  /** A press on the chip, with what held keys say about where it opens. */
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Offered beside the remove button, for an attachment that is really words. */
   onPutInMessage?: () => void;
   onRemove?: () => void;

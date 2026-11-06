@@ -291,10 +291,9 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
         };
   };
   return (
-    <div
-      className="flex w-full flex-wrap justify-end gap-1"
-      data-slot="sent-chips"
-    >
+    // No box of its own: the chips stand in the row of what went with the
+    // message, beside its folders and files.
+    <div className="contents" data-slot="sent-chips">
       {chips.map((chip) => (
         <ContextChip
           key={keyOfChip(chip)}

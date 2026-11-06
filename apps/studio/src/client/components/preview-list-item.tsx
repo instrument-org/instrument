@@ -32,10 +32,9 @@ export function PreviewListItem({
   tooltipContent?: string;
 }) {
   const button = (
-    // Its own surface rather than a button variant's, taken from the folder
-    // block a message carries beside these (`SentFoldersCard`): the same
-    // fill and elevation, one chip at a time instead of one divided block. The
-    // hairline comes with `shadow-xs`, which is the soft ramp over a 1px ring --
+    // Its own surface rather than a button variant's: the page's fill on a
+    // soft elevation, one chip at a time. The hairline comes with
+    // `shadow-xs`, which is the soft ramp over a 1px ring --
     // a `border` on top of it is that edge drawn twice. Borrowing a variant
     // instead meant its next round of tuning arrived here as a filename nobody
     // could read.

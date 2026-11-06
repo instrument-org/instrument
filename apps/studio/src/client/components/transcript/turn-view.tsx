@@ -19,14 +19,14 @@ import { memo, type ReactNode, use, useState } from "react";
 
 import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
-import { AttachmentsCard } from "../attachments-card";
+import { SentFileChips } from "../sent-file-chips";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
 import { WorkingMark } from "../icons/working-mark";
 import { MessageError } from "../message-error";
 import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
-import { SentFoldersCard } from "../sent-folders-card";
+import { SentFolderChips } from "../sent-folder-chips";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { UserMessage } from "../user-message";
@@ -137,10 +137,17 @@ function OpenerView({
   const { chips, files, folders, fromChat, notes, text } = opener;
   return (
     <div className="flex flex-col gap-1">
-      {chips.length > 0 && <SentChips chips={chips} />}
-      {folders.length > 0 && <SentFoldersCard folders={folders} />}
-      {files.length > 0 && (
-        <AttachmentsCard chatId={chatInfo.id} files={files} />
+      {/* What went with the message, one row of the composer's own chips:
+          what was on screen, then the folders and files attached. */}
+      {chips.length + folders.length + files.length > 0 && (
+        <div
+          className="flex w-full flex-wrap justify-end gap-1.5"
+          data-slot="sent-with-message"
+        >
+          <SentChips chips={chips} />
+          <SentFolderChips folders={folders} />
+          <SentFileChips chatId={chatInfo.id} files={files} />
+        </div>
       )}
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
       {text && <UserMessage part={text} />}

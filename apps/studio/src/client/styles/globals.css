@@ -103,8 +103,10 @@ body {
   }
 
   /* A page runs in a process of its own, which takes a pointer that crosses it,
-     and the release with it. */
-  [data-tab-held] :is(webview, iframe) {
+     and the release with it. Nothing else in the window answers to a pointer that
+     is carrying a tab either, as hovering. */
+  [data-tab-held] :is(webview, iframe),
+  [data-tab-held] body {
     pointer-events: none;
   }
 }

@@ -14,6 +14,8 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { clamp } from "radashi";
 import {
   animate,
+  cancelFrame,
+  frame,
   Reorder,
   useMotionValue,
   useReducedMotion,
@@ -69,8 +71,17 @@ const FIXED_MARGIN = 12;
 // stays on so a drag can still reorder around it.
 const LAND_IN_PLACE = { layout: { duration: 0 } };
 
-// How a tab let go at the pointer settles into its place.
-const SETTLE = { duration: 0.15, ease: "easeOut" } as const;
+// How a tab let go settles into its place, however fast it was moving: critically
+// damped, so it arrives at once and does not hang short of its place or pass it.
+const SETTLE_SPRING = { stiffness: 1000, damping: 63 };
+const SETTLE = { type: "spring", ...SETTLE_SPRING } as const;
+const SETTLE_DRAG = {
+  bounceDamping: SETTLE_SPRING.damping,
+  bounceStiffness: SETTLE_SPRING.stiffness,
+};
+
+// How the tabs beside one being dragged make way for it.
+const MAKE_WAY = { layout: { duration: 0.2, ease: [0.4, 0, 0.1, 1] } } as const;
 
 // A tab gives its place in the row up and takes it back with a motion, the tabs
 // beside it following: a transition on real layout, and the one thing about a tab
@@ -152,7 +163,7 @@ export function TabStrip({
 }: {
   /** A tab being carried out of the strip, which gives its place up to the tabs beside it. */
   carriedKey?: string | undefined;
-  /** A tab held over the strip from elsewhere, drawn with its left edge at this on-screen point. */
+  /** A tab in the pointer's hand, from this strip or another, drawn with its left edge at this on-screen point. */
   heldAt?: { key: string; left: number } | undefined;
   /** A tab the pointer's drag does not place, which stands where the strip puts it. */
   heldAwayKey?: string | undefined;
@@ -168,7 +179,8 @@ export function TabStrip({
   /** What a right click on the plus offers: a menu's content, the tabs closed lately. */
   newMenu?: ReactNode;
   onNew?: () => void;
-  onReorder: (keys: string[]) => void;
+  /** Where the strip's own reorder puts a dragged tab, for an owner that has it place them. */
+  onReorder?: (keys: string[]) => void;
   onSelect: (key: string) => void;
   /** Where a tab being dragged is, which the strip's own reorder keeps to its row. */
   onTabDrag?: (key: string, event: PointerEvent) => void;
@@ -391,7 +403,7 @@ export function TabStrip({
           axis="x"
           className={cn(TAB_ROW, EDGE_FADE)}
           onReorder={(keys: string[]) => {
-            onReorder([
+            onReorder?.([
               ...movableKeys.slice(0, start),
               ...keys.filter((key) => !collapsingKeys.has(key)),
               ...movableKeys.slice(start + liveCount),
@@ -578,7 +590,7 @@ function Tab({
   value,
 }: {
   density: TabDensity;
-  /** Held over the strip from elsewhere: where its left edge stands, on screen. */
+  /** In the pointer's hand: where its left edge stands, on screen. */
   heldLeft?: number;
   isArriving?: boolean;
   isCarried?: boolean;
@@ -614,15 +626,28 @@ function Tab({
     }
     wasHeldAway.current = Boolean(isHeldAway);
   }, [dragX, isDragging, isHeldAway]);
-  // Held over the strip from elsewhere it stands at the pointer, wherever its place
-  // in the row has got to, and settles into that place when it is let go.
+  // In the hand it stands at the pointer, wherever its place in the row has got to,
+  // and settles into that place when it is let go. Stood again every frame, after the
+  // strip's own reorder has written and before anything is drawn, since its place also
+  // moves with the pointer still: the row closes up and opens with a transition.
   const tabRef = useRef<HTMLDivElement>(null);
-  const wasHeld = useRef(false);
   useLayoutEffect(() => {
     const element = tabRef.current;
-    if (heldLeft !== undefined && element) {
+    if (heldLeft === undefined || !element) {
+      return;
+    }
+    const stand = () => {
       dragX.set(offsetToStandAt(element, heldLeft));
-    } else if (wasHeld.current) {
+    };
+    stand();
+    frame.preRender(stand, true);
+    return () => {
+      cancelFrame(stand);
+    };
+  }, [dragX, heldLeft]);
+  const wasHeld = useRef(false);
+  useLayoutEffect(() => {
+    if (wasHeld.current && heldLeft === undefined) {
       if (prefersReducedMotion) {
         dragX.jump(0);
       } else {
@@ -630,7 +655,7 @@ function Tab({
       }
     }
     wasHeld.current = heldLeft !== undefined;
-  });
+  }, [dragX, heldLeft, prefersReducedMotion]);
 
   const sizing = cn(
     isFixed
@@ -791,10 +816,12 @@ function Tab({
         layout="position"
         ref={tabRef}
         style={{ ...surface, x: dragX }}
+        dragMomentum={false}
+        dragTransition={SETTLE_DRAG}
         onDrag={onDrag}
         onDragEnd={onDragEnd}
         onDragStart={onDragStart}
-        transition={isReordering ? undefined : LAND_IN_PLACE}
+        transition={isReordering ? MAKE_WAY : LAND_IN_PLACE}
         {...transformOf(dragX, heldLeft, isHeldAway)}
         value={value}
       >
@@ -840,9 +867,9 @@ function Tab({
 }
 
 /**
- * How a tab is moved where the strip's own motion would misplace it. A tab held
- * from elsewhere is where the pointer says and nowhere its place in the row is on
- * its way to, and a tab the pointer does not place stands in its place.
+ * How a tab is moved where the strip's own motion would misplace it. A tab in the
+ * hand is where the pointer says and nowhere its place in the row is on its way to,
+ * and a tab the pointer does not place stands in its place.
  */
 function transformOf(
   dragX: { get: () => number },

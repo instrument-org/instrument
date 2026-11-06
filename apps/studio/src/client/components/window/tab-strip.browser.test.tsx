@@ -57,7 +57,6 @@ describe("a tab held over a strip from elsewhere", () => {
       <TabStrip
         heldAt={{ key: "held", left }}
         onClose={() => undefined}
-        onReorder={() => undefined}
         onSelect={() => undefined}
         selectedKey="held"
         tabs={orderedTabs(order)}
@@ -78,6 +77,40 @@ describe("a tab held over a strip from elsewhere", () => {
 
     await screen.rerender(<Held left={210} order={["a", "held", "b"]} />);
     await expect.poll(leftOf).toBeCloseTo(210, 0);
+  });
+
+  it("stays at the pointer while the row moves it with a transition, and has nothing left to give back", async () => {
+    const WIDE = { width: "800px" };
+    const Row = ({ carried, left }: { carried?: string; left?: number }) => (
+      <div style={WIDE}>
+        <TabStrip
+          carriedKey={carried}
+          heldAt={left === undefined ? undefined : { key: "held", left }}
+          onClose={() => undefined}
+          onSelect={() => undefined}
+          selectedKey="held"
+          tabs={orderedTabs(["a", "b", "c", "d", "held"])}
+        />
+      </div>
+    );
+    const screen = await renderInBrowser(<Row left={300} />);
+    const leftOf = () => tab("held").getBoundingClientRect().left;
+    await expect.poll(leftOf).toBeCloseTo(300, 0);
+
+    // The row closing up behind it moves its place a long way, with no new pointer.
+    await screen.rerender(<Row carried="held" left={300} />);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(leftOf()).toBeCloseTo(300, 0);
+
+    await screen.rerender(<Row left={300} />);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(leftOf()).toBeCloseTo(300, 0);
+
+    // Let go, it settles into the place the row has for it, with no offset left over.
+    await screen.rerender(<Row />);
+    await expect
+      .poll(() => getComputedStyle(tab("held")).transform)
+      .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
   });
 
   it("keeps inside the row, which cuts off anything past its ends", async () => {

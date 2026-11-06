@@ -32,9 +32,9 @@ vi.mock("./move-tab", () => ({
 const { useTabCarry } = await import("./use-tab-carry");
 
 /** The event a drag gets from the reorder, which can say when it happened. */
-const moved = (timeStamp: number, y = 20) =>
+const moved = (timeStamp: number, y = 20, x = 50) =>
   ({
-    clientX: 50,
+    clientX: x,
     clientY: y,
     screenX: 150,
     screenY: y + 100,
@@ -194,5 +194,91 @@ describe("a tab pulled off its row", () => {
 
     expect(carry.current.carriedKey).toBeUndefined();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("a tab in the hand", () => {
+  const OFF_ROW = 400;
+  // Pressed at 50, with the tab's left edge at 0.
+  const LEFT = 40;
+  const movedTo = (timeStamp: number, y = 20) => moved(timeStamp, y, 90);
+
+  function renderPlaced() {
+    const onPlace = vi.fn();
+    const carry = renderHook(() =>
+      useTabCarry({
+        isOnlyTab: false,
+        onCancel: vi.fn(),
+        onPlace,
+        onSelect,
+        order: ["a", "b"],
+      }),
+    ).result;
+    return { carry, onPlace };
+  }
+
+  it("stands at the pointer along its row, and is placed by its left edge", async () => {
+    const { carry, onPlace } = renderPlaced();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", movedTo(1));
+    });
+
+    expect(carry.current.held).toEqual({ key: "a", left: LEFT });
+    expect(onPlace).toHaveBeenLastCalledWith("a", LEFT);
+  });
+
+  it("is not placed off its row, and goes back to the pointer on its return", async () => {
+    const { carry, onPlace } = renderPlaced();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", movedTo(1, OFF_ROW));
+    });
+    expect(onPlace).not.toHaveBeenCalled();
+    expect(carry.current.held).toBeUndefined();
+
+    act(() => {
+      carry.current.onDrag("a", movedTo(2));
+    });
+    expect(onPlace).toHaveBeenCalledTimes(1);
+    expect(carry.current.held).toEqual({ key: "a", left: LEFT });
+  });
+
+  it("follows the pointer off its row where it stays in its strip, without being placed", async () => {
+    startTabCarry.mockResolvedValueOnce({ collapsesOffRow: false });
+    const { carry, onPlace } = renderPlaced();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", movedTo(1, OFF_ROW));
+    });
+
+    expect(carry.current.held).toEqual({ key: "a", left: LEFT });
+    expect(onPlace).not.toHaveBeenCalled();
+  });
+
+  it("leaves the hand as it is let go, or as Escape takes it back", async () => {
+    const { carry } = renderPlaced();
+    carry.current.onDragStart("a", moved(0));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", movedTo(1));
+    });
+    act(() => {
+      letGo();
+    });
+    expect(carry.current.held).toBeUndefined();
+
+    carry.current.onDragStart("a", moved(10));
+    await flush();
+    act(() => {
+      carry.current.onDrag("a", movedTo(11));
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(carry.current.held).toBeUndefined();
   });
 });

@@ -279,7 +279,7 @@ export const activityList = defineCapability({
   surfaces: {
     cli: {
       help: `Oldest first, at the user's local time: folders and files they opened, files
-they edited, moved, renamed or trashed, chats they opened, pages they visited
+they edited, moved, renamed or trashed, chats they read, pages they visited
 in their own tabs, downloads, apps they signed in to or disconnected, folders
 and apps they allowed or refused a chat, updates, and errors the app showed
 them. The word list is optional: \`${ACTIVITY_COMMAND.name} --since 1d\` runs it.`,

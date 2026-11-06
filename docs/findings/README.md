@@ -44,6 +44,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Every tool-output budget counts characters, and moving them to tokens buys less than it looks like](character-budgets-are-a-token-proxy.md): open question, nothing planned.
 - [A ChatGPT account cannot generate images, so a plan-only user has no image tool](chatgpt-account-cannot-generate-images.md): known, by design upstream.
 - [OpenAI models cite our search results in ChatGPT's private-use encoding, and the fix costs more than the bug](chatgpt-citation-markers-in-model-output.md): known, deliberately not fixed.
+- [Command-drag never drops in Electron on the Mac](command-drag-never-drops-in-electron-on-mac.md)
 - [Connector authentication: technical notes](connector-authentication-technical-notes.md): reference, partly overtaken.
 - [CSS zoom: mixing rect (on-screen px) with layout px](css-zoom-rect-vs-layout-px.md): guidance, with an audit heuristic.
 - [A deb update can leave the package unpacked but not configured](deb-update-left-the-package-unconfigured.md): fixed (df48c5507) and verified in a shipped build;

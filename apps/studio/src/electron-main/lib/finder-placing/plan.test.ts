@@ -115,6 +115,21 @@ function read(placing: PlaceRequest) {
 }
 
 describe("planning a drop, a paste or a move", () => {
+  it("takes a number for a copy into its own folder, where the drag asks", () => {
+    const asked = requestAsAsked({
+      entries: [{ id: 5, name: "one.txt" }],
+      op: "copy",
+      sources: [{ above: [1], id: 5, name: "one.txt", path: "/dest/one.txt" }],
+    });
+    const named = (placing: PlaceRequest) => {
+      const plan = planPlacing(placing);
+      const [step] = "refusal" in plan ? [] : plan.steps;
+      return step?.kind === "place" ? step.to : null;
+    };
+    expect(named(asked)).toBe("/dest/one copy.txt");
+    expect(named({ ...asked, numbersInPlace: true })).toBe("/dest/one 2.txt");
+  });
+
   it("copies into a folder with nothing in the way", () => {
     expect(read(request({ sources: [{ id: 10, name: "notes.txt" }] })))
       .toMatchInlineSnapshot(`

@@ -108,6 +108,8 @@ export type PlaceRequest = {
   /** Joins a folder and a name the way this system writes paths. */
   join: (folder: string, name: string) => string;
   names: NameRules;
+  /** A copy into its own folder takes a number rather than the word for a copy. */
+  numbersInPlace?: boolean;
   op: "copy" | "move";
   sources: readonly PlaceSource[];
   /** Unique to this request, so staging names never meet another's. */
@@ -312,7 +314,9 @@ export function planPlacing(request: PlaceRequest): Plan {
         ? entriesByKey.get(nameKey(source.name, names))
         : undefined;
     const name = inDestination
-      ? firstFree((n) => `${request.copyName(stem, n)}${extension}`, 1)
+      ? request.numbersInPlace
+        ? firstFree((n) => `${stem} ${n.toString()}${extension}`, 2)
+        : firstFree((n) => `${request.copyName(stem, n)}${extension}`, 1)
       : clash && !replaced
         ? firstFree((n) => `${stem} ${n.toString()}${extension}`, 2)
         : source.name;

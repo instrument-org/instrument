@@ -85,6 +85,7 @@ import {
   endOwnFileDrag,
   isOwnFileDragOf,
   isSelfFileDrag,
+  ownFileDragInAir,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
 import {
@@ -996,6 +997,7 @@ export function ComputerPage({
     mode: "copy" | "move",
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
+    how: { numbersInPlace?: boolean } = {},
   ) => {
     if (sources.length === 0) {
       return;
@@ -1030,6 +1032,7 @@ export function ComputerPage({
       const route = mode === "move" ? "moveInto" : "copyInto";
       const { failure, journalId, placed, protection, skipped, trashed } =
         await rpcClient.files[route].call({
+          ...how,
           folder: into.hostPath,
           paths,
           // What each Replace was shown in its way, so it replaces only that.
@@ -1131,7 +1134,8 @@ export function ComputerPage({
   const copyInto = (
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
-  ) => placeInto("copy", sources, into);
+    how?: { numbersInPlace?: boolean },
+  ) => placeInto("copy", sources, into, how);
   const moveInto = (
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
@@ -1363,8 +1367,13 @@ export function ComputerPage({
       }
       event.preventDefault();
       event.stopPropagation();
-      event.dataTransfer.dropEffect = "copy";
-      setDropInto(dropHandlers.current.dropIntoOf(event.target));
+      const prefix = dropHandlers.current.dropIntoOf(event.target);
+      event.dataTransfer.dropEffect = dropEffectOf({
+        altKey: event.altKey,
+        carried: ownFileDragInAir(),
+        into: dropHostPathRef.current(prefix),
+      });
+      setDropInto(prefix);
       // `dragover` repeats while the drag is over the folder, so its silence
       // means the drag went somewhere this did not hear about.
       window.clearTimeout(staleTimer);
@@ -1388,7 +1397,7 @@ export function ComputerPage({
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
-      const into = { hostPath: dropHostPathRef.current(prefix), prefix };
+      const dropped = { hostPath: dropHostPathRef.current(prefix), prefix };
       // Read while the drop is being dispatched: the items empty after.
       const sources = [...event.dataTransfer.items].flatMap((item) => {
         const file = item.kind === "file" ? item.getAsFile() : null;
@@ -1406,17 +1415,29 @@ export function ComputerPage({
         sources.map((source) => source.hostPath),
       );
       endOwnFileDrag();
+      const copies = isRowDrag && event.altKey;
+      // A folder Option-dragged onto itself is copied beside itself.
+      const into =
+        copies && sources.some((each) => each.hostPath === dropped.hostPath)
+          ? {
+              hostPath: folderOf(dropped.hostPath),
+              prefix: parentPrefixOf(prefix),
+            }
+          : dropped;
       // A row of this Finder let go of where it already is, or inside
-      // itself, is a drag that went nowhere, as in the Finder.
+      // itself, is a drag that went nowhere, as in the Finder, unless Option
+      // asks for a copy of it there.
       const kept =
-        isRowDrag || wasSelfDrag
+        !copies && (isRowDrag || wasSelfDrag)
           ? movableInto(sources, into.hostPath)
           : sources;
       // The Finder's own rows move, as its own drag does, unless Option is
       // held; everything from outside the app is copied in.
       void (isRowDrag && !event.altKey
         ? dropHandlers.current.moveInto(kept, into)
-        : dropHandlers.current.copyInto(kept, into));
+        : dropHandlers.current.copyInto(kept, into, {
+            numbersInPlace: copies && isMacOS(),
+          }));
     };
     browser.addEventListener("dragenter", over);
     browser.addEventListener("dragover", over);
@@ -3745,6 +3766,37 @@ function cutRowsStyle(rows: readonly { path: string }[]) {
     (row) => `[data-file-system-item="${CSS.escape(row.path)}"]`,
   );
   return selectors.length > 0 ? `${selectors.join(",")}{opacity:.5}` : "";
+}
+
+/** The folder above a prefix like `docs/notes/`, as a prefix. */
+function parentPrefixOf(prefix: string) {
+  const at = prefix.replace(/\/$/u, "").lastIndexOf("/");
+  return at === -1 ? "" : prefix.slice(0, at + 1);
+}
+
+/** The disk a path on a Mac is on, by where disks are mounted. */
+function macDiskOf(path: string) {
+  return /^\/Volumes\/[^/]+/u.exec(path)?.[0] ?? "/";
+}
+
+/**
+ * What the pointer says a drop will do, by the rule the drop itself follows.
+ * Only the Mac: elsewhere a drag the app starts offers no move to say.
+ */
+export function dropEffectOf({
+  altKey,
+  carried,
+  into,
+  isMac = isMacOS(),
+}: {
+  altKey: boolean;
+  carried: readonly string[];
+  into: string;
+  isMac?: boolean;
+}) {
+  const [first] = carried;
+  if (!isMac || !first || altKey) return "copy";
+  return macDiskOf(first) === macDiskOf(into) ? "move" : "copy";
 }
 
 function isSamePathSet(left: readonly string[], right: readonly string[]) {

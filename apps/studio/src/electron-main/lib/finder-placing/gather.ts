@@ -151,12 +151,14 @@ export async function gatherPlaceRequest(
   {
     answers = {},
     folder,
+    numbersInPlace,
     op,
     paths,
     replacing,
   }: {
     answers?: Readonly<Record<string, Answer>>;
     folder: string;
+    numbersInPlace?: boolean;
     op: "copy" | "move";
     paths: readonly string[];
     replacing?: PlaceRequest["replacing"];
@@ -211,6 +213,7 @@ export async function gatherPlaceRequest(
     folder: { chain: await chainOf(destination), path: destination },
     join: (one, name) => path.join(one, name),
     names: await names(destination),
+    ...(numbersInPlace ? { numbersInPlace } : {}),
     op,
     ...(replacing ? { replacing } : {}),
     sources,

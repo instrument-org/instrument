@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import type { ExternalToast } from "sonner";
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const shown: { title: unknown; data: ExternalToast | undefined }[] = [];
 vi.mock("sonner", async (importOriginal) => ({
@@ -16,6 +16,7 @@ vi.mock("sonner", async (importOriginal) => ({
 const { setToastDeveloperMode } = await import("@/client/lib/toast");
 const {
   fileActionFailed,
+  dropEffectOf,
   filesToPaste,
   placedMessage,
   rootParentSearch,
@@ -132,4 +133,25 @@ it.each([
   expect(
     placedMessage({ folderName: "Reports", placed, skipped }),
   ).toMatchSnapshot();
+});
+
+describe("what the pointer says a drop will do", () => {
+  const drop = (over: Partial<Parameters<typeof dropEffectOf>[0]>) =>
+    dropEffectOf({
+      altKey: false,
+      carried: ["/Users/mac-user/a.txt"],
+      into: "/Users/mac-user/docs",
+      isMac: true,
+      ...over,
+    });
+
+  it.each([
+    ["a row on its own disk", {}, "move"],
+    ["with Option", { altKey: true }, "copy"],
+    ["onto another disk", { into: "/Volumes/Drive/docs" }, "copy"],
+    ["from outside the app", { carried: [] }, "copy"],
+    ["off the Mac", { isMac: false }, "copy"],
+  ] as const)("%s", (_, over, effect) => {
+    expect(drop(over)).toBe(effect);
+  });
 });

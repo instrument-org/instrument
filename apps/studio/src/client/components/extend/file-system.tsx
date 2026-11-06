@@ -3000,8 +3000,7 @@ export function FileSystem({
           gestureInterruptRef.current = null;
         } else if (listens && !interrupt) {
           const next = (each: Event) => {
-            if (each instanceof KeyboardEvent && isModifierAlone(each))
-              return;
+            if (each instanceof KeyboardEvent && isModifierAlone(each)) return;
             sendGesture({ type: "interrupt" });
           };
           window.addEventListener("keydown", next, true);

@@ -62,6 +62,7 @@ import {
 import { z } from "zod";
 
 import { buildFrames, type Frame, type FrameMark } from "../-transcript/frames";
+import { RowInspector } from "../-transcript/row-inspector";
 import { type DebugScenario, scenarios } from "../-transcript/scenarios";
 import {
   autoScrollAtom,
@@ -528,7 +529,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
   }
 
   return (
-    <div className="flex size-full min-h-0">
+    <div className="flex size-full min-h-0 [&_[data-inspected]]:rounded-sm [&_[data-inspected]]:outline [&_[data-inspected]]:outline-offset-2 [&_[data-inspected]]:outline-foreground/20">
       {/* The transcript's own scroll frame, matching the task view, so what is
           measured here is what ships: the same scroller, the same content
           column, the same padding. */}
@@ -569,7 +570,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
         </MessageScrollerProvider>
       </div>
 
-      <aside className="flex w-72 shrink-0 flex-col border-l bg-muted/20">
+      <aside className="flex w-96 shrink-0 flex-col border-l bg-muted/20">
         <div className="border-b px-3 py-2">
           <h2 className="text-sm font-medium">{scenario.name}</h2>
         </div>
@@ -712,6 +713,14 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
             }}
           />
         )}
+        <RowInspector
+          className={replays ? "h-2/5 shrink-0" : "flex-1"}
+          frame={frame}
+          isDeveloperMode={isDeveloperMode}
+          messages={lightMessages(frame.messages, isDeveloperMode)}
+          sessionId={frame.messages[0]?.metadata.sessionId}
+          transcript={transcript}
+        />
       </aside>
     </div>
   );

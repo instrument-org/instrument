@@ -253,27 +253,31 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   return (
-    <RowLine
-      isOpen={isOpen}
-      label={stepLabel(step)}
-      mark={<StepMark step={step} />}
-      onClick={() => {
-        releaseAutoScroll();
-        setIsOpen((open) => !open);
-      }}
-      places={
-        <Badges
-          apps={[...new Set((step.facts?.apps ?? []).map((call) => call.app))]}
-          sites={step.facts?.hosts ?? []}
-        />
-      }
-    >
-      {isOpen && (
-        <div className="my-1">
-          <StepDetail chatInfo={chatInfo} step={step} />
-        </div>
-      )}
-    </RowLine>
+    <div data-transcript-row={step.metadata.id}>
+      <RowLine
+        isOpen={isOpen}
+        label={stepLabel(step)}
+        mark={<StepMark step={step} />}
+        onClick={() => {
+          releaseAutoScroll();
+          setIsOpen((open) => !open);
+        }}
+        places={
+          <Badges
+            apps={[
+              ...new Set((step.facts?.apps ?? []).map((call) => call.app)),
+            ]}
+            sites={step.facts?.hosts ?? []}
+          />
+        }
+      >
+        {isOpen && (
+          <div className="my-1">
+            <StepDetail chatInfo={chatInfo} step={step} />
+          </div>
+        )}
+      </RowLine>
+    </div>
   );
 }
 

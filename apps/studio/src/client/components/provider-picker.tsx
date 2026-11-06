@@ -91,7 +91,7 @@ export function ProviderPicker({
         <Command>
           <CommandInput placeholder="Search providers..." />
           <CommandList className="min-h-0 flex-1">
-            <CommandEmpty>Error loading providers.</CommandEmpty>
+            <CommandEmpty>No providers match.</CommandEmpty>
             <CommandGroup>
               {sortedProviderMetadata
                 .filter((provider) => provider.canAddManually)

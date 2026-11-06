@@ -151,7 +151,7 @@ export function extendSelected(
 }
 
 /** One more added and led to, whatever is selected already staying. */
-export function addSelected(current: Selection, path: string): Selection {
+function addSelected(current: Selection, path: string): Selection {
   const held = selectedPathsOf(current);
   const paths = held.includes(path) ? held : [...held, path];
   return paths.length > 1

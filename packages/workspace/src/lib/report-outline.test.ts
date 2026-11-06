@@ -456,7 +456,7 @@ describe("outlineSessionLog", () => {
 });
 
 describe("outlineCommand", () => {
-  it.each([
+  it.each<readonly [string, string]>([
     ["app tools gmail", "app tools gmail"],
     [
       "memory save name <<'EOF'\nJeremy Mack\nEOF",

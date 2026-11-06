@@ -78,7 +78,7 @@ describe("a draft's chips", () => {
       ...over,
     });
 
-  it("are what is in view, then every tab of the band, then what the person chose", () => {
+  it("are every tab of the band, then what the person chose, then what is in view", () => {
     expect(
       forDraft({
         band: [page("band", "draft:d"), page("second", "draft:d")],
@@ -89,15 +89,24 @@ describe("a draft's chips", () => {
             { kind: "file", path: "/Users/sam/a.pdf" },
           ],
         },
-        inView: page("site", "site:1"),
+        inView: { ...page("site", "site:1"), url: "https://other.example/" },
       }).map((item) => item.key),
     ).toEqual([
-      "tab:site",
       "tab:band",
       "tab:second",
       `chat:${OTHER}`,
       "chosen:/Users/sam/a.pdf",
+      "tab:site",
     ]);
+  });
+
+  it("leave out what is in view when one of the band's tabs shows it", () => {
+    expect(
+      forDraft({
+        band: [page("band", "draft:d")],
+        inView: page("site", "site:1"),
+      }).map((item) => item.key),
+    ).toEqual(["tab:band"]);
   });
 
   it("follow the screen, less what was dismissed", () => {

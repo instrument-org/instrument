@@ -405,6 +405,10 @@ export function useDrafts({
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
       if (opensWhole) {
         compose.remove(draftGroupOf(id));
+        // Written in the Chat screen, the draft's pages stand in the side
+        // panel, so they become the chat's as the tab moves to it: the panel
+        // stays put rather than closing and opening again.
+        handOverTabs(id, chatId);
         openChat(chatId);
       } else {
         compose.becomeChat(id, chatId);
@@ -429,6 +433,7 @@ export function useDrafts({
       } catch (error) {
         releaseDraft(id);
         if (opensWhole) {
+          windowTabs.adoptGroup(chatId, draftGroupOf(id));
           showDraft(id);
         } else {
           compose.becomeDraft(chatId, id);
@@ -447,23 +452,29 @@ export function useDrafts({
       draftSent(id);
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
-      // What the draft gathered becomes the chat's tabs, the pages and
-      // folders as they stand, behind the window; the new-tab pages among
-      // them were the band's own face and are not carried over, and a draft
-      // that gathered nothing hands over nothing, so the chat opens with
-      // no pane.
-      const group = draftGroupOf(id);
-      const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-      const homes = own.filter((tab) => isHomeTab(tab));
-      for (const home of homes) {
-        windowTabs.close(home.id);
-      }
-      if (homes.length === own.length) {
-        windowTabs.dropGroup(group);
-      } else {
-        windowTabs.adoptGroup(group, chatId);
+      if (!opensWhole) {
+        handOverTabs(id, chatId);
       }
     })();
+  };
+  /**
+   * What a draft gathered becomes its chat's tabs, the pages and folders as
+   * they stand; new-tab pages a build before this one opened a draft on are
+   * not carried over, and a draft that gathered nothing hands over nothing,
+   * so the chat opens with no pane.
+   */
+  const handOverTabs = (id: string, chatId: ChatId) => {
+    const group = draftGroupOf(id);
+    const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+    const homes = own.filter((tab) => isHomeTab(tab));
+    for (const home of homes) {
+      windowTabs.close(home.id);
+    }
+    if (homes.length === own.length) {
+      windowTabs.dropGroup(group);
+    } else {
+      windowTabs.adoptGroup(group, chatId);
+    }
   };
   return {
     arrivedId: arrived?.chatId,

@@ -3,6 +3,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { COMPOSER_CHIP_CLASSNAME } from "@/client/components/attached-item-preview";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
@@ -132,7 +133,7 @@ function AskChip({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex h-6 max-w-52 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-1 text-xs text-muted-foreground ring-1 ring-border/70"
+          className={cn(COMPOSER_CHIP_CLASSNAME, "self-center pr-1")}
           data-slot="ask-chip"
         >
           <AskNumber n={n} />

@@ -1,15 +1,14 @@
 import { formatBytes } from "@instrument-org/workspace/client";
 
-import { useFileDrag } from "@/client/hooks/use-file-drag";
-
 import { AttachedItemPreview } from "./attached-item-preview";
-import { AttachmentRemoveButton } from "./attachment-remove-button";
 import { FileTypeIcon } from "./extend/file-system";
 import { ImageWithFallback } from "./image-with-fallback";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
+/**
+ * A file attached to the message, as a chip: a picture's own thumbnail as its
+ * mark, or the file's type, and its name. Pressed, a picture opens large.
+ */
 export function AttachedFilePreview({
   filename,
   hostPath,
@@ -31,66 +30,36 @@ export function AttachedFilePreview({
   size?: number;
   url?: string;
 }) {
-  const isImage = mimeType?.startsWith("image/");
-  const hasPreview = Boolean(url);
-  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
-
-  const tooltipContent = (
-    <div className="flex items-center gap-2">
-      <p>{filename}</p>
-      {size && <Badge variant="secondary">{formatBytes(size)}</Badge>}
-    </div>
-  );
-
-  if (hasPreview && isImage && url) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="group relative size-12 shrink-0">
-            <Button
-              {...dragProps}
-              className="size-12 overflow-hidden p-0"
-              onClick={onClick}
-              type="button"
-              variant="outline"
-            >
-              <ImageWithFallback
-                alt={filename}
-                className="size-full object-cover"
-                fallbackClassName="size-full"
-                filename={filename}
-                showCheckerboard
-                src={url}
-              />
-            </Button>
-            {onRemove && <AttachmentRemoveButton onRemove={onRemove} />}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent
-          className="wrap-break-word"
-          collisionPadding={10}
-          maxWidth="500px"
-        >
-          {tooltipContent}
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
+  const isImage = mimeType?.startsWith("image/") === true && Boolean(url);
   return (
     <AttachedItemPreview
       icon={
-        <FileTypeIcon
-          className="size-5 shrink-0 text-muted-foreground"
-          fileName={filename}
-        />
+        isImage && url ? (
+          <ImageWithFallback
+            alt={filename}
+            className="size-4 object-cover"
+            fallbackClassName="size-4"
+            filename={filename}
+            src={url}
+          />
+        ) : (
+          <FileTypeIcon
+            className="size-4 shrink-0 text-muted-foreground"
+            fileName={filename}
+          />
+        )
       }
       {...(hostPath ? { hostPath } : {})}
       label={filename}
       onClick={onClick}
       onPutInMessage={onPutInMessage}
       onRemove={onRemove}
-      tooltip={tooltipContent}
+      tooltip={
+        <div className="flex items-center gap-2">
+          <p>{filename}</p>
+          {size && <Badge variant="secondary">{formatBytes(size)}</Badge>}
+        </div>
+      }
     />
   );
 }

@@ -95,10 +95,10 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 }
 
 /**
- * What a draft carries, in the order its chips stand: what is on screen now
- * (what the window has in view, then every tab of the draft's own band, in
- * the band's order), less what the person dismissed, then what they chose,
- * its `context`. Each of the band's tabs is a chip, since the chips are the
+ * What a draft carries, in the order its chips stand: every tab of the
+ * draft's own band, in the band's order; then what the person chose, its
+ * `context`; then what the window has in view; less what the person
+ * dismissed. Each of the band's tabs is a chip, since the chips are the
  * band's tabs: picking one puts it up, and taking one off closes it.
  *
  * The screen's chips are worked out on every read, so they follow the
@@ -136,26 +136,36 @@ export function draftContextItems({
       ? [{ kind: "file" as const, path: key.slice(CHOSEN_KEY.length) }]
       : [],
   );
-  const screen: ContextItem[] = [];
-  for (const tab of [inView, ...band]) {
+  const items: ContextItem[] = [];
+  const add = (tab: undefined | WindowTab, before: number) => {
     const key = keyOfTab(tab);
     if (!tab || dismissed.includes(key)) {
-      continue;
+      return;
     }
     const item = itemOfTab(tab, {
       finderOf,
       group,
-      held: [...heldPaths([...chosen, ...screen]), ...takenOff],
+      held: [...heldPaths([...chosen, ...items]), ...takenOff],
       key,
     });
     if (
       item &&
-      ![...chosen, ...screen].some((entry) => entry.key === item.key)
+      ![...chosen, ...items].some((entry) => entry.key === item.key)
     ) {
-      screen.push(item);
+      items.splice(before, 0, item);
     }
+  };
+  for (const tab of band) {
+    add(tab, items.length);
   }
-  return [...screen, ...chosen];
+  // What the window has in view comes and goes as the person moves about
+  // behind the draft, so it stands last, where it moves nothing else. A
+  // place one of the band's tabs already shows is that tab's chip.
+  const bandCount = items.length;
+  if (!band.some((tab) => inView !== undefined && sameTarget(tab, inView))) {
+    add(inView, bandCount);
+  }
+  return [...items.slice(0, bandCount), ...chosen, ...items.slice(bandCount)];
 }
 
 /** The key a draft's chip for one of its `context` items is known by, and taken off by. */
@@ -245,6 +255,16 @@ export function chatContextItems({
  * its tab's id wherever it walks, so it is keyed by where it stands too, and
  * a chip left out comes back once that screen is somewhere else.
  */
+/** Whether two tabs show the same thing: the same page, or the same screen. */
+function sameTarget(one: WindowTab, other: WindowTab): boolean {
+  if (one.kind === "page" && other.kind === "page") {
+    return one.url !== undefined && one.url === other.url;
+  }
+  return (
+    one.kind === "screen" && other.kind === "screen" && one.href === other.href
+  );
+}
+
 function keyOfTab(tab: undefined | WindowTab): string {
   if (!tab) {
     return "";

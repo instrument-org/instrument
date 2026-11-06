@@ -109,7 +109,7 @@ describe("a draft's screen chips", () => {
     );
     await expect
       .poll(chipNames)
-      .toEqual(["Leave out documents-output", "Leave out plan.md"]);
+      .toEqual(["Leave out plan.md", "Leave out documents-output"]);
 
     await userEvent.click(
       page.getByRole("button", { name: "Leave out plan.md" }),

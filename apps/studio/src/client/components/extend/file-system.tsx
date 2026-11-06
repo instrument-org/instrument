@@ -3553,9 +3553,19 @@ export function FileSystem({
                   searchField("row")
                 ) : (
                   <>
-                    {toolbarInto.tail === undefined
-                      ? viewSelect
-                      : viewTabs("flex gap-0")}
+                    {/* In a narrow row (a draft's well, a pane) the four
+                        views fold into their menu, so the field beside them
+                        keeps room to say where the folder is. */}
+                    {toolbarInto.tail === undefined ? (
+                      viewSelect
+                    ) : (
+                      <>
+                        <div className="flex @2xl/tabrow:hidden">
+                          {viewSelect}
+                        </div>
+                        {viewTabs("hidden gap-0 @2xl/tabrow:flex")}
+                      </>
+                    )}
                     {sortMenu}
                     {/* With the folder alone, its menu and search follow
                         sort, beside the rows they act on and where search

@@ -479,12 +479,14 @@ export function ComposeWindow({
                   </WindowButton>
                 </div>
               </div>
-              {/* The chat's own composer, its plus at its left and the
-                  model and send at its right. Over the well the words
-                  scroll past a few lines, so the page keeps its room. */}
-              <div className="shrink-0 px-2 pb-2 select-text">
+              {/* The composer on a card of its own: what goes with the
+                  message over the words, always shown, since in a draft
+                  they are what is attached; a few lines for the words; and
+                  along the foot the plus at the left and the model, the mic
+                  and send at the right. Over the well the words scroll past
+                  a few lines, so the page keeps its room. */}
+              <div className="mx-2 mb-2 shrink-0 rounded-[18px] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.05),0_4px_12px_-4px_rgb(0_0_0/0.08)] ring-1 ring-black/6 select-text dark:ring-white/8 [&_.prompt-editor]:min-h-12 [&_.prompt-editor]:text-[14px] [&_.prompt-editor]:leading-6 [&_[data-slot=composer-frame]]:px-3 [&_[data-slot=composer-frame]]:pt-3 [&_[data-slot=composer-frame]]:pb-2">
                 <PromptInput
-                  alwaysOpen
                   attachmentsLead={
                     marked.length > 0 ? <AskPills asks={marked} /> : undefined
                   }
@@ -493,6 +495,11 @@ export function ComposeWindow({
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
                   onDictatingChange={setDictating}
+                  onFolders={(paths) => {
+                    for (const path of paths) {
+                      openFolder(path);
+                    }
+                  }}
                   onItemRemoved={removeItem}
                   onItemsChange={keepItems}
                   // The window becomes the chat's at the press, so the
@@ -529,7 +536,7 @@ export function ComposeWindow({
                   placeholder="What do you need?"
                   places={places}
                   ref={inputRef}
-                  variant="pill"
+                  variant="bare"
                 />
               </div>
               {/* The well: the draft's own pane, a card of its own under the

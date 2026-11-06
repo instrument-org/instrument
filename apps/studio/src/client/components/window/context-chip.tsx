@@ -13,6 +13,10 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
+import {
+  COMPOSER_CHIP_CLASSNAME,
+  COMPOSER_CHIP_SELECTED_CLASSNAME,
+} from "@/client/components/attached-item-preview";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -399,15 +403,16 @@ function ContextChip({
   slot: string;
 }) {
   const className = cn(
-    "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
-    onLeaveOut ? "pr-0.5" : "pr-2.5",
-    isSelected && "bg-card text-foreground shadow-xs ring-border",
+    COMPOSER_CHIP_CLASSNAME,
+    "self-center",
+    onLeaveOut ? "pr-1" : "pr-2",
+    isSelected && COMPOSER_CHIP_SELECTED_CLASSNAME,
   );
   const fileDragProps = useFileDrag(drags);
   const dragProps = drags ? fileDragProps : {};
   const markAndName = (
     <>
-      <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
+      <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
         {mark}
       </span>
       <span className="truncate">{name}</span>
@@ -418,7 +423,7 @@ function ContextChip({
       {onSelect ? (
         <button
           aria-pressed={isSelected}
-          className="-ml-2 flex h-full min-w-0 cursor-default items-center gap-1 rounded-l-full pl-2 hover:text-foreground"
+          className="-ml-1.5 flex h-full min-w-0 cursor-default items-center gap-1.5 rounded-l-[9px] pl-1.5"
           onClick={onSelect}
           type="button"
         >
@@ -430,7 +435,7 @@ function ContextChip({
       {onLeaveOut && (
         <button
           aria-label={`Leave out ${name}`}
-          className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
+          className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
           onClick={onLeaveOut}
           type="button"
         >
@@ -447,7 +452,7 @@ function ContextChip({
             {...dragProps}
             className={cn(
               className,
-              "cursor-pointer hover:bg-muted hover:text-foreground",
+              "cursor-pointer hover:bg-foreground/[0.07]",
             )}
             data-slot={slot}
             onAuxClick={(event) => {

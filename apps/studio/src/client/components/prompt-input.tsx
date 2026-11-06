@@ -208,6 +208,13 @@ interface PromptInputProps {
   isLoading: boolean;
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
+  /**
+   * Whether a pill shows its lead whether or not it is being written in: for
+   * a draft, whose chips are what is attached to it. A chat's pill shows them
+   * only while it is written in, so they do not come and go with every tab
+   * the person moves between.
+   */
+  leadAlwaysShown?: boolean;
   modelURI?: AIGatewayModelURI.Type;
   /**
    * The chat's note about the account its model runs on. A pill draws one
@@ -223,6 +230,12 @@ interface PromptInputProps {
   onDictatingChange?: (dictating: boolean) => void;
   /** What the box holds besides the words, each time that changes after it first draws. */
   onItemsChange?: (items: AttachedItem[]) => void;
+  /**
+   * Where a folder picked, dropped or pasted goes in place of the box's own
+   * row: a draft opens it in its pane, the way its computer's place does, so
+   * the person sees what is in it.
+   */
+  onFolders?: (paths: string[]) => void;
   /** An item the person took out of the box, by its chip or by putting its words back in the message. */
   onItemRemoved?: (item: AttachedItem) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -280,10 +293,12 @@ export const PromptInput = ({
   id,
   isLoading,
   lead,
+  leadAlwaysShown = false,
   modelURI,
   note,
   onStop,
   onDictatingChange,
+  onFolders,
   onItemsChange,
   onItemRemoved,
   onModelChange,
@@ -620,6 +635,10 @@ export const PromptInput = ({
   };
 
   const attachFolders = (folders: DroppedFolder[]) => {
+    if (onFolders) {
+      onFolders(folders.map((folder) => folder.path));
+      return;
+    }
     // Split the drop against the rendered list so the toast happens here,
     // once, rather than inside the updater -- React may call an updater more
     // than once and would repeat the notification.
@@ -710,6 +729,10 @@ export const PromptInput = ({
       return;
     }
     const folderPath = result.path;
+    if (onFolders) {
+      onFolders([folderPath]);
+      return;
+    }
 
     // Notify outside the updater: React may run an updater more than once, and
     // a duplicate pick would then toast twice.
@@ -1123,6 +1146,7 @@ export const PromptInput = ({
                   onViewChange={setMenuView}
                   places={composerPlaces}
                   skills={userInvocableSkills}
+                  triggerClassName="size-7 rounded-full [&_svg]:size-4"
                   view={menuView}
                 />
               )}
@@ -1213,7 +1237,7 @@ export const PromptInput = ({
                   {item.type === "folder" ? (
                     <AttachedItemPreview
                       hostPath={item.path}
-                      icon={<SystemFolderIcon className="size-5 shrink-0" />}
+                      icon={<SystemFolderIcon className="size-4 shrink-0" />}
                       label={folderLabel(item.path)}
                       onRemove={() => {
                         removeAttachedItem(item.id);
@@ -1255,7 +1279,8 @@ export const PromptInput = ({
         // What goes with the message is said while the person is writing it:
         // shown always, it comes and goes with every tab they move between.
         extras={
-          pillOpen && (pillFocused || pickerOpen || menuView !== null)
+          pillOpen &&
+          (leadAlwaysShown || pillFocused || pickerOpen || menuView !== null)
             ? lead
             : undefined
         }

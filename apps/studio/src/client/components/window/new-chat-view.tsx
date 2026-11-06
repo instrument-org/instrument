@@ -6,6 +6,7 @@ import {
   useFolderItems,
 } from "@/client/components/draft-staging";
 import { FileDropRegion } from "@/client/components/file-drop-region";
+import { folderHref } from "@/shared/computer-href";
 import {
   PromptInput,
   type PromptInputRef,
@@ -257,7 +258,13 @@ export function NewChatView({
           isLoading={false}
           keyboardHome
           lead={draft ? <DraftChips draft={draft} /> : undefined}
+          leadAlwaysShown
           modelURI={shell.defaultModelURI}
+          onFolders={(paths) => {
+            for (const path of paths) {
+              openBeside(folderHref(path));
+            }
+          }}
           onItemRemoved={staging.removeItem}
           onItemsChange={staging.keepItems}
           onModelChange={shell.setDefaultModelURI}

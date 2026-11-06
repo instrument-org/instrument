@@ -1135,6 +1135,12 @@ a.cursor-pointer {
   }
 }
 
+@keyframes border-sweep {
+  to {
+    rotate: 1turn;
+  }
+}
+
 @theme {
   --animate-spinner: spinner-rotate 1s linear infinite;
 }
@@ -1809,8 +1815,50 @@ a.cursor-pointer {
     display: none;
   }
 
+  /* The same glint for a card's edge (`BorderSweep`): a ring masked out of a box
+   * the card's size, with an arc of color turning under it. Only the arc's
+   * `rotate` animates, so the GPU turns it and nothing repaints, where a gradient
+   * whose angle is animated would be painted again on every frame. It steps at
+   * 15 fps like the text's glint. The arc is wider than the card's diagonal, so
+   * its edge stays outside the ring as it turns. */
+  .border-sweep {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    --border-sweep-color: var(--brand-500);
+  }
+
+  .dark .border-sweep {
+    --border-sweep-color: var(--brand-400);
+  }
+
+  .border-sweep::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150%;
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    background: conic-gradient(
+      transparent 0deg 230deg,
+      var(--border-sweep-color) 340deg,
+      transparent 360deg
+    );
+    will-change: transform;
+    animation: border-sweep 3s steps(45) infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .shimmer-sweep {
+    .shimmer-sweep,
+    .border-sweep {
       display: none;
     }
   }

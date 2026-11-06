@@ -247,11 +247,13 @@ function TurnBody({
           />
           {/* In its row, so it goes in the same render as the words that end it. */}
           {index === lastWork && card && (
-            <SlotCardView
-              card={card}
-              isCurrent={turn.phase === "working"}
-              sessionId={sessionId}
-            />
+            <div className="ml-7">
+              <SlotCardView
+                card={card}
+                isCurrent={turn.phase === "working"}
+                sessionId={sessionId}
+              />
+            </div>
           )}
         </FoldingRow>,
       );

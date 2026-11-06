@@ -14,6 +14,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { Favicon } from "../favicon";
+import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
@@ -99,34 +100,32 @@ export function SlotCardView({
     (path) => places?.[path] ?? undefined,
   );
   return (
-    <button
-      className={cn(
-        "block w-full max-w-100 overflow-hidden rounded-2xl border bg-card text-left transition-shadow duration-300",
-        isCurrent
-          ? "border-primary/40 shadow-[0_0_0_3px] shadow-primary/15"
-          : "border-border",
-      )}
-      data-slot-card={card.kind}
-      onClick={body.open}
-      type="button"
-    >
-      <div className="relative h-52 overflow-hidden bg-muted/50">
-        {body.view}
-      </div>
-      <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
-        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-          {body.mark}
-        </span>
-        <span className="min-w-0 truncate text-foreground/80">
-          {body.title}
-        </span>
-        {body.meta && (
-          <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
-            {body.meta}
+    <div className="relative w-full max-w-100 rounded-2xl">
+      <button
+        className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
+        data-slot-card={card.kind}
+        onClick={body.open}
+        type="button"
+      >
+        <div className="relative h-52 overflow-hidden bg-muted/50">
+          {body.view}
+        </div>
+        <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
+          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+            {body.mark}
           </span>
-        )}
-      </div>
-    </button>
+          <span className="min-w-0 truncate text-foreground/80">
+            {body.title}
+          </span>
+          {body.meta && (
+            <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
+              {body.meta}
+            </span>
+          )}
+        </div>
+      </button>
+      {isCurrent && <BorderSweep />}
+    </div>
   );
 }
 

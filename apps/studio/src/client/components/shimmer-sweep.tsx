@@ -1,3 +1,5 @@
+import { cn } from "@/client/lib/utils";
+
 /**
  * The moving glint of a `brand-shiny-text` or `shiny-text` span, placed as the
  * span's last child while it shimmers. It draws a copy of `text` over the
@@ -9,4 +11,13 @@
  */
 export function ShimmerSweep({ text }: { text: string }) {
   return <span aria-hidden className="shimmer-sweep" data-text={text} />;
+}
+
+/**
+ * The same glint running around a card's edge while it works, over the card's own
+ * border. A sibling of the card inside a positioned box of the card's size and
+ * rounding, since a card that clips its contents would clip this too.
+ */
+export function BorderSweep({ className }: { className?: string }) {
+  return <span aria-hidden className={cn("border-sweep", className)} />;
 }

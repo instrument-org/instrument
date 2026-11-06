@@ -50,7 +50,9 @@ export function renderDataPart({
 
   switch (part.type) {
     case "data-appEvent": {
-      return ctx.isDeveloperMode ? (
+      // A note that only told the agent this computer's connections has no
+      // event to draw.
+      return ctx.isDeveloperMode && part.data.events.length > 0 ? (
         <ChatDevOnly key={part.metadata.id}>
           <AppEventNote data={part.data} />
         </ChatDevOnly>
@@ -132,12 +134,10 @@ export function renderDataPart({
       );
     }
     case "data-environmentChange": {
-      return (
-        <ModelContextDebugCard
-          key={part.metadata.id}
-          text={environmentChangeModelNote(part.data) ?? ""}
-        />
-      );
+      const note = environmentChangeModelNote(part.data);
+      return note ? (
+        <ModelContextDebugCard key={part.metadata.id} text={note} />
+      ) : null;
     }
     case "data-fileChanges": {
       // Only the `output/` folder tasks wrote deliverables to when this part

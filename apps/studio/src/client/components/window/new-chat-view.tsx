@@ -27,7 +27,7 @@ import {
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
+import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
 import { osConventions } from "@/client/lib/utils";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
@@ -200,10 +200,7 @@ export function NewChatView({
   const isEmptied =
     draft !== undefined &&
     draft.sendingTo === undefined &&
-    !holdsSomething(draft) &&
-    (draft.context ?? []).length === 0 &&
-    !(draft.projectId !== undefined && draft.projectSource === "chosen") &&
-    tabs.length === 0;
+    isLeftEmpty(draft, { hasTabs: tabs.length > 0 });
   useEffect(() => {
     if (!isEmptied || !draft) {
       return;

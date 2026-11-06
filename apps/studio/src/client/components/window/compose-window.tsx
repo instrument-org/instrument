@@ -2,7 +2,7 @@ import {
   draftSnapshotsAtom,
   storedWordsAtom,
 } from "@/client/atoms/prompt-value";
-import { type Draft, draftGroupOf } from "@/shared/drafts";
+import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -213,7 +213,7 @@ export function ComposeWindow({
   onChange: (update: (draft: Draft) => Draft) => void;
   /** The window's close, with the words as the box has them that moment and whether it is dictating more: the caller keeps or throws the draft away by them. */
   onClose: (words: string, dictating: boolean) => void;
-  /** Throws the draft away, from the head's trash, offered while it has words to lose. */
+  /** Throws the draft away, from the head's trash, offered while it has anything to lose (`isLeftEmpty`). */
   onDiscard: () => void;
   /** Takes the draft into the Chat screen, written there in full beside the chat list. */
   onExpand: () => void;
@@ -562,7 +562,10 @@ export function ComposeWindow({
                   {/* Always there, so words landing in the draft don't move the
                       buttons beside it. */}
                   <WindowButton
-                    disabled={words.trim() === ""}
+                    disabled={isLeftEmpty(draft, {
+                      hasTabs: tabs.length > 0,
+                      words,
+                    })}
                     label="Discard draft"
                     onClick={onDiscard}
                   >

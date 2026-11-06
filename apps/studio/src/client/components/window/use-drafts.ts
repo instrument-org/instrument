@@ -16,6 +16,7 @@ import {
   type Draft,
   type DraftContextItem,
   draftGroupOf,
+  isLeftEmpty,
 } from "@/shared/drafts";
 import { chatFiltersAtom } from "@/client/atoms/window";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
@@ -281,15 +282,20 @@ export function useDrafts({
     });
   };
   /**
-   * Closes a draft's window: one with words is kept in Drafts the way mail
-   * keeps a draft, with a toast offering to go to Drafts or to discard it,
-   * and one with nothing written is thrown away, whatever it gathered, so
-   * a draft opened and closed again leaves nothing behind. The words come
-   * from the window, since the record follows the box a beat behind. One
-   * still dictating is kept, since the words on their way land in it.
+   * Closes a draft's window: one with anything in it is kept in Drafts the
+   * way mail keeps a draft, with a toast offering to go to Drafts or to
+   * discard it, and one left empty (`isLeftEmpty`, the rule the Chat
+   * screen's new chat keeps too) is thrown away, so a draft opened and
+   * closed again leaves nothing behind. The words come from the window,
+   * since the record follows the box a beat behind. One still dictating is
+   * kept, since the words on their way land in it.
    */
   const closeDraft = (id: string, words: string, dictating = false) => {
-    if (words.trim() === "" && !dictating) {
+    const draft = store.get(draftsAtom).find((entry) => entry.id === id);
+    const hasTabs = windowTabs.allTabs.some(
+      (tab) => tab.group === draftGroupOf(id) && !isHomeTab(tab),
+    );
+    if (!dictating && (!draft || isLeftEmpty(draft, { hasTabs, words }))) {
       deleteDraft(id);
       return;
     }

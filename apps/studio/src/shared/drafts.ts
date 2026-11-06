@@ -333,6 +333,26 @@ export function holdsSomething(draft: Draft): boolean {
   );
 }
 
+/**
+ * Whether a draft has nothing worth keeping: no words, nothing attached,
+ * nothing named in `context`, no project the person picked, and no tab in
+ * its group. Such a draft is thrown away when its window closes or its box
+ * is emptied, wherever it is written, so one opened and left leaves nothing
+ * in Drafts. `words` is the box's own, which the record follows a beat behind.
+ */
+export function isLeftEmpty(
+  draft: Draft,
+  { hasTabs, words = draft.words }: { hasTabs: boolean; words?: string },
+): boolean {
+  return (
+    words.trim() === "" &&
+    !holdsSomething({ ...draft, words: "" }) &&
+    (draft.context ?? []).length === 0 &&
+    !(draft.projectId !== undefined && draft.projectSource === "chosen") &&
+    !hasTabs
+  );
+}
+
 /** A chat's replies waiting, the ones on their way left out. */
 export function repliesOf(drafts: Draft[], chatId: ChatId): Draft[] {
   return drafts.filter(

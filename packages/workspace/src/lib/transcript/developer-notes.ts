@@ -166,7 +166,7 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     case "data-attachments": {
       return named(
         "Files sent",
-        someOf(part.data.files.map((file) => file.filePath)),
+        someOf(part.data.files.map((file) => file.filename)),
       );
     }
     case "data-backgroundProcesses": {
@@ -536,12 +536,12 @@ export function developerNotesWithBodies(
           (candidate) =>
             candidate.kind === "error" && candidate.message.id === each.id,
         );
-        const place = row && rowOfError(row);
-        if (place) {
-          seen.push({ row: place });
+        const errorRow = row && rowOfError(row);
+        if (errorRow) {
+          seen.push({ row: errorRow });
         }
         seen.push({
-          at: place,
+          at: errorRow,
           note: {
             body: {
               detail: JSON.stringify(each.metadata.error, null, 2),

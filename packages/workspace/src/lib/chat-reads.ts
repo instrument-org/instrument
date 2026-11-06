@@ -12,6 +12,7 @@ import {
   sitesView,
   contextTokensView,
   conversationView,
+  developerHistoryView,
   everyMessageView,
   listView,
   liveView,
@@ -71,6 +72,20 @@ export namespace ChatReads {
     sessionId: StoreId.Session;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
     return read(chatId).map((chat) => historyView(chat, sessionId));
+  }
+
+  /**
+   * That history with the parts kept for a developer alone, for what reads
+   * beside the transcript and for what those parts remember of themselves.
+   */
+  export function developerHistory({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<SessionMessage.WithParts[], Failure> {
+    return read(chatId).map((chat) => developerHistoryView(chat, sessionId));
   }
 
   /**

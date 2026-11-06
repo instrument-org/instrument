@@ -1755,18 +1755,19 @@ describe("llmRequestLogic", () => {
         "role": "user",
       }
     `);
-    const stored = await ChatReads.history({
-      chatId: testMachine.chatId,
-      sessionId,
-    });
-    expect(
-      stored
-        ._unsafeUnwrap()
-        .flatMap((message) => message.parts)
-        .filter((part) => part.type === "data-requestNote")
-        .map((part) => part.data),
-    ).toEqual([{ kind: "turn", text: "Say what you are doing." }]);
+    expect(await recordedNotes(testMachine.chatId)).toEqual([
+      { kind: "turn", text: "Say what you are doing." },
+    ]);
   });
+
+  async function recordedNotes(chatId: ChatId) {
+    const stored = await ChatReads.developerHistory({ chatId, sessionId });
+    return stored
+      ._unsafeUnwrap()
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === "data-requestNote")
+      .map((part) => part.data);
+  }
 
   // The step after a reply the output limit cut off is told to carry on
   // from the cut without repeating it, and the call the cut caught

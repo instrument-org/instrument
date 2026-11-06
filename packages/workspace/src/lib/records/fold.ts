@@ -7,6 +7,7 @@ import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
+import { isDeveloperNotePart } from "../data-part-visibility";
 import { type DeviceId } from "./device-id";
 import { parseRecordFileName } from "./file-names";
 import {
@@ -323,7 +324,9 @@ export class ChatFold {
         record.t === "session" ? seqs.data : Math.max(seqs.data, record.seq),
       last: Math.max(seqs.last, record.seq),
     });
-    session.updatedAt = Math.max(session.updatedAt, record.at.getTime());
+    if (record.t !== "part" || !isDeveloperNotePart(record.part)) {
+      session.updatedAt = Math.max(session.updatedAt, record.at.getTime());
+    }
     switch (record.t) {
       case "session":
         keepNewest(session.headers, stem, record, place);

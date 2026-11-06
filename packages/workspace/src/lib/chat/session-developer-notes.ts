@@ -19,7 +19,7 @@ export function sessionDeveloperNotes({
   chatId: ChatId;
   sessionId: StoreId.Session;
 }) {
-  return ChatReads.history({ chatId, sessionId }).map((messages) =>
+  return ChatReads.developerHistory({ chatId, sessionId }).map((messages) =>
     developerNotesWithBodies(messages, {
       attachmentsDir: shellPath(chatAttachmentsDir(chatDir(chatId))),
       sessionId,

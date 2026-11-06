@@ -106,6 +106,14 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-viewContext": "dev",
 };
 
+/**
+ * A part kept for a developer alone. It is not content: a message holding only
+ * this one is as empty as it was, and writing it is no activity of the session's.
+ */
+export function isDeveloperNotePart({ type }: { type: string }): boolean {
+  return type === "data-requestFailure" || type === "data-requestNote";
+}
+
 export function dataPartVisibility(
   part: SessionMessagePart.DataPart,
 ): DataPartVisibility {

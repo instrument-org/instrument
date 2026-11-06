@@ -4,6 +4,7 @@ import { SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { TOOL_NAMES } from "../../tools/name";
 import { contextRolloverBoundaryInForce } from "../apply-context-rollover";
+import { isDeveloperNotePart } from "../data-part-visibility";
 import { isToolPart } from "../is-tool-part";
 import { type ChatRead } from "./chat-records";
 import { historyOf } from "./fold";
@@ -255,6 +256,19 @@ export function historyView(
 }
 
 /**
+ * The stored history with the parts kept for a developer alone, which no other
+ * view holds: what a request went out with and how one failed being built. A
+ * message is empty or not, and a turn stands where it stands, the same with
+ * them as without, so they are read here or not at all.
+ */
+export function developerHistoryView(
+  read: ChatRead,
+  sessionId: StoreId.Session,
+): SessionMessage.WithParts[] {
+  return recordedMessagesOf(read, sessionId, {});
+}
+
+/**
  * Every message of the session with every part it holds, oldest first, each
  * call's returned bytes read back from its blob: what a transcript saved or
  * copied out of the chat carries, where the conversation and the steps each
@@ -308,7 +322,23 @@ function inputTokensIn(messages: SessionMessage.Type[]): number {
     : 0;
 }
 
+/** The session's messages with the content they hold, and no developer's note. */
 function messagesOf(
+  read: ChatRead,
+  sessionId: StoreId.Session,
+  options: HistoryOptions,
+): SessionMessage.WithParts[] {
+  return recordedMessagesOf(read, sessionId, options).map((message) =>
+    message.parts.some(isDeveloperNotePart)
+      ? {
+          ...message,
+          parts: message.parts.filter((part) => !isDeveloperNotePart(part)),
+        }
+      : message,
+  );
+}
+
+function recordedMessagesOf(
   read: ChatRead,
   sessionId: StoreId.Session,
   { inherited = true, only }: HistoryOptions,

@@ -19,6 +19,7 @@ import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
+import { isDeveloperNotePart } from "../data-part-visibility";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
 import { recordChanged, recordMessageChanged } from "../record-changes";
@@ -971,7 +972,7 @@ export class ChatRecords {
     const { id, messageId, sessionId } = part.metadata;
     const at = this.#now();
     return this.#log(chat, sessionId, {
-      at,
+      ...(!isDeveloperNotePart(part) && { at }),
       changed: () =>
         recordMessageChanged(chat.id, {
           id: messageId,
@@ -1015,7 +1016,8 @@ export class ChatRecords {
       hold,
       record,
     }: {
-      at: Date;
+      /** When the session was last active, for a record that says it was. */
+      at?: Date;
       changed: () => void;
       commit?: boolean;
       hold: (
@@ -1027,7 +1029,9 @@ export class ChatRecords {
   ): Promise<void> {
     requireSession(chat, sessionId);
     const pending = pendingOf(chat, sessionId);
-    pending.at = Math.max(pending.at, at.getTime());
+    if (at !== undefined) {
+      pending.at = Math.max(pending.at, at.getTime());
+    }
     const release = hold(pending, this.#nextTicket());
     changed();
     const file = this.#logFile(chat, sessionId);

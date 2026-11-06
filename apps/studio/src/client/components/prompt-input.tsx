@@ -187,6 +187,8 @@ interface PromptInputProps {
   actionsInto?: HTMLElement | null;
   /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
   addMenu?: boolean;
+  /** What stands beside the plus along a bare box's foot: something offered to the message, such as what is in view behind a draft. */
+  besidePlus?: React.ReactNode;
   /**
    * Keep the row open whether or not the caret is in it. For a composer that
    * sits beside the work rather than under it: switching to another tab would
@@ -283,6 +285,7 @@ export const PromptInput = ({
   actionsInto,
   addMenu = true,
   alwaysOpen,
+  besidePlus,
   attachmentsLead,
   autoFocus = false,
   keyboardHome = false,
@@ -1129,7 +1132,7 @@ export const PromptInput = ({
       <ComposerFrame
         actions={
           <>
-            <div className="flex min-w-0 shrink-0 items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1.5">
               {addMenu && (
                 <ComposerAddMenu
                   actions={actions}
@@ -1153,6 +1156,7 @@ export const PromptInput = ({
                   view={menuView}
                 />
               )}
+              {besidePlus}
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-4">

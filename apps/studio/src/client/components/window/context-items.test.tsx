@@ -3,7 +3,11 @@ import { type WindowTab } from "@/client/atoms/window";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { chatContextItems, draftContextItems } from "./context-items";
+import {
+  chatContextItems,
+  draftContextItems,
+  draftSuggestionOf,
+} from "./context-items";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const OTHER = ChatIdSchema.parse("2026-10-02-porto");
@@ -70,7 +74,15 @@ describe("a draft's chips", () => {
     draftContextItems({
       allTabs: [],
       band: [],
-      dismissed: [],
+      draft,
+      finderOf: () => null,
+      group: "draft:d",
+      ...over,
+    });
+  const suggested = (over: Partial<Parameters<typeof draftSuggestionOf>[0]>) =>
+    draftSuggestionOf({
+      allTabs: [],
+      band: [],
       draft,
       finderOf: () => null,
       group: "draft:d",
@@ -78,7 +90,7 @@ describe("a draft's chips", () => {
       ...over,
     });
 
-  it("are every tab of the band, then what the person chose, then what is in view", () => {
+  it("are every tab of the band, then what the person chose", () => {
     expect(
       forDraft({
         band: [page("band", "draft:d"), page("second", "draft:d")],
@@ -89,49 +101,42 @@ describe("a draft's chips", () => {
             { kind: "file", path: "/Users/sam/a.pdf" },
           ],
         },
-        inView: {
-          group: "site:1",
-          id: "site",
-          kind: "page",
-          openedAt: 1,
-          title: "Other",
-          url: "https://other.example/",
-        },
       }).map((item) => item.key),
     ).toEqual([
       "tab:band",
       "tab:second",
       `chat:${OTHER}`,
       "chosen:/Users/sam/a.pdf",
-      "tab:site",
     ]);
   });
 
-  it("leave out what is in view when one of the band's tabs shows it", () => {
-    expect(
-      forDraft({
-        band: [page("band", "draft:d")],
-        inView: page("site", "site:1"),
-      }).map((item) => item.key),
-    ).toEqual(["tab:band"]);
+  it("are offered what is in view, as the address taking it writes", () => {
+    expect(suggested({ inView: page("site", "site:1") })).toMatchObject({
+      entries: [{ kind: "link", url: "https://example.com/" }],
+      item: { key: "tab:site", kind: "tab" },
+    });
   });
 
-  it("follow the screen, less what was dismissed", () => {
-    const site = page("site", "site:1");
-    expect(forDraft({ inView: site }).map((item) => item.key)).toEqual([
-      "tab:site",
-    ]);
-    expect(forDraft({ dismissed: ["tab:site"], inView: site })).toEqual([]);
-    expect(
-      forDraft({
-        dismissed: ["tab:site"],
-        inView: page("other", "site:2"),
-      }).map((item) => item.key),
-    ).toEqual(["tab:other"]);
-  });
-
-  it("never name the chat on screen", () => {
-    expect(forDraft({ inView: page("theirs", OTHER) })).toEqual([]);
+  it.each([
+    ["nothing is in view", undefined, [], draft],
+    [
+      "one of the band's tabs shows it",
+      page("site", "site:1"),
+      [page("band", "draft:d")],
+      draft,
+    ],
+    [
+      "the draft already carries it",
+      page("site", "site:1"),
+      [],
+      {
+        ...draft,
+        context: [{ kind: "link" as const, url: "https://example.com/" }],
+      },
+    ],
+    ["it is another chat's", page("theirs", OTHER), [], draft],
+  ])("are offered nothing when %s", (_name, inView, band, withDraft) => {
+    expect(suggested({ band, draft: withDraft, inView })).toBeUndefined();
   });
 
   it("stand for a page and an app the person chose by their address", () => {

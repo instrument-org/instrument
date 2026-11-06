@@ -26,7 +26,9 @@ import {
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext } from "react";
 
@@ -79,12 +81,58 @@ export function heldChipOf(
 }
 
 /**
- * The chip at the head of the words naming what the screen already gives
- * the draft: the thing it was opened over, in the row an attached file lands
- * in, since it goes with the words as a file does. One quiet line, its mark
- * and name in grey with an x that leaves it out, so it takes no room from
- * the words and does not ask to be read; what it is for is in its tooltip.
- * Nothing of the thing itself is drawn in the draft, which stands over it.
+ * What the window has in view behind a draft, offered to it beside the plus:
+ * dashed and quiet, the way the head offers a project, with a plus where a
+ * chip has its x. A press takes it, and it stands among the chips from then
+ * on. Nothing offered goes with the message, so it may follow the screen as
+ * the person moves about without changing what is sent.
+ */
+export function ContextSuggestion({
+  item,
+  onTake,
+}: {
+  item: ContextItem;
+  onTake: () => void;
+}) {
+  const appsBySlug = useAppsBySlug();
+  const volumes = useComputerVolumes();
+  if (item.kind !== "tab") {
+    return null;
+  }
+  const chip = heldChipOf(
+    { items: item.items, tab: item.tab },
+    { appsBySlug, ...(volumes ? { volumes } : {}) },
+  );
+  const [one] = item.items ?? [];
+  const name = nameOfChip(chip);
+  return (
+    <ToolbarTooltip label={`Add ${name} to this message`}>
+      <button
+        aria-label={`Add ${name}`}
+        className="inline-flex h-7 max-w-56 min-w-0 shrink items-center gap-1.5 rounded-[9px] border border-dashed border-border pr-1.5 pl-1.5 text-[12.5px] text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+        data-slot="context-suggestion"
+        onClick={onTake}
+        type="button"
+      >
+        <span className="grid size-4 shrink-0 place-items-center opacity-70 [&_img]:size-4 [&_svg]:size-4">
+          {item.items?.length === 1 && one !== undefined ? (
+            <ItemMark item={one} />
+          ) : (
+            <HeldMark appsBySlug={appsBySlug} tab={item.tab} />
+          )}
+        </span>
+        <span className="min-w-0 truncate">{name}</span>
+        <PlusIcon className="size-3 shrink-0" />
+      </button>
+    </ToolbarTooltip>
+  );
+}
+
+/**
+ * The chip at the head of the words naming one of the draft's own tabs, or
+ * what a chat's view has up, in the row an attached file lands in, since it
+ * goes with the words as a file does. One quiet line, its mark and name with
+ * an x that leaves it out; what it is for is in its tooltip.
  */
 function IncludedChip({
   appsBySlug,

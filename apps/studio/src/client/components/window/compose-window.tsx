@@ -49,7 +49,7 @@ import {
   COMPOSE_WIDTH,
 } from "./compose-layout";
 import { useWindow, WindowContext } from "./context";
-import { ContextChips, HeldMark } from "./context-chip";
+import { ContextChips, ContextSuggestion, HeldMark } from "./context-chip";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -243,7 +243,12 @@ export function ComposeWindow({
   // its chat is told at the press (see draftContextItems).
   const surfaces = useAtomValue(tabSurfaceAtom);
   const inView = useTabInView();
-  const { items: contextItems, leaveOut } = useDraftChips({
+  const {
+    items: contextItems,
+    leaveOut,
+    suggestion,
+    take,
+  } = useDraftChips({
     allTabs: windowTabs.allTabs,
     band: tabs,
     draft,
@@ -555,6 +560,11 @@ export function ComposeWindow({
                   }
                   autoFocus
                   {...(up ? { autoResizeMaxHeight: WORDS_MAX_HEIGHT } : {})}
+                  besidePlus={
+                    suggestion ? (
+                      <ContextSuggestion item={suggestion} onTake={take} />
+                    ) : undefined
+                  }
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
                   onDictatingChange={setDictating}

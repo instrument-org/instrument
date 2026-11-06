@@ -44,8 +44,6 @@ export interface SendContextWindow {
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
   chatTitles: Map<ChatId, string>;
-  /** By draft, the keys of the screen's chips the person dismissed. */
-  dismissed: Readonly<Record<string, readonly string[]>>;
   drafts: Draft[];
   /** The router's address, which is the screen's own. */
   href: string;
@@ -77,7 +75,6 @@ export function contextReaders({
   appTabId,
   browser,
   chatTitles,
-  dismissed,
   drafts,
   href,
   paneOpenByGroup,
@@ -372,11 +369,9 @@ export function contextReaders({
     return draftContextItems({
       allTabs: windowTabs.allTabs,
       band: windowTabs.allTabs.filter((tab) => tab.group === group),
-      dismissed: dismissed[draft.id] ?? [],
       draft,
       finderOf,
       group,
-      inView,
     });
   };
   /** What a draft carries as its chat starts. */

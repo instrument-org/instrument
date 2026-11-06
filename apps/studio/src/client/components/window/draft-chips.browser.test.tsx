@@ -7,7 +7,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { ContextChips } from "./context-chip";
+import { ContextChips, ContextSuggestion } from "./context-chip";
 import { useDraftChips } from "./use-draft-chips";
 import { chatHref } from "./window-href";
 
@@ -40,7 +40,7 @@ const PLAN = screen(fileHref("/Users/casey/Notes/plan.md"));
 const DOCUMENTS = screen(folderHref("/Users/casey/Documents"));
 const CHAT_SCREEN = screen(chatHref(CHAT));
 
-/** A draft's chip row over whatever the window has in view. */
+/** A draft's chip row, and what the window has in view offered beside it. */
 function Chips({
   finder = null,
   inView,
@@ -53,7 +53,7 @@ function Chips({
   opened?: Draft;
 }) {
   const [draft, setDraft] = useState(opened);
-  const { items, leaveOut } = useDraftChips({
+  const { items, leaveOut, suggestion, take } = useDraftChips({
     allTabs: [],
     band: [],
     draft,
@@ -64,68 +64,63 @@ function Chips({
   return (
     <div data-testid="chips">
       <ContextChips items={items} onLeaveOut={leaveOut} />
+      {suggestion ? (
+        <ContextSuggestion item={suggestion} onTake={take} />
+      ) : undefined}
     </div>
   );
 }
 
-const chipNames = () =>
-  [
-    ...page
-      .getByTestId("chips")
-      .element()
-      .querySelectorAll("button[aria-label^='Leave out ']"),
-  ].map((button) => button.getAttribute("aria-label"));
+const namesOf = (selector: string) =>
+  [...page.getByTestId("chips").element().querySelectorAll(selector)].map(
+    (button) => button.getAttribute("aria-label"),
+  );
+const chipNames = () => namesOf("button[aria-label^='Leave out ']");
+const offered = () => namesOf("[data-slot=context-suggestion]");
 
-describe("a draft's screen chips", () => {
-  it("stay dismissed while the window goes elsewhere and back, and never name the chat on screen", async () => {
+describe("a draft's chips", () => {
+  it("offer what is in view without carrying it, and never offer the chat on screen", async () => {
     const { rerender } = await renderInBrowser(<Chips inView={PLAN} />);
+    await expect.poll(offered).toEqual(["Add plan.md"]);
+    expect(chipNames()).toEqual([]);
+
+    await rerender(<Chips inView={DOCUMENTS} />);
+    await expect.poll(offered).toEqual(["Add Documents"]);
+
+    await rerender(<Chips inView={CHAT_SCREEN} />);
+    await expect.poll(offered).toEqual([]);
+  });
+
+  it("keep what was taken across a screen switch until it is taken off", async () => {
+    const { rerender } = await renderInBrowser(<Chips inView={PLAN} />);
+    await userEvent.click(page.getByRole("button", { name: "Add plan.md" }));
     await expect.poll(chipNames).toEqual(["Leave out plan.md"]);
+    expect(offered()).toEqual([]);
+
+    await rerender(<Chips inView={DOCUMENTS} />);
+    await expect.poll(offered).toEqual(["Add Documents"]);
+    expect(chipNames()).toEqual(["Leave out plan.md"]);
 
     await userEvent.click(
       page.getByRole("button", { name: "Leave out plan.md" }),
     );
-    await expect.poll(chipNames).toEqual([]);
-
-    await rerender(<Chips inView={DOCUMENTS} />);
-    await expect.poll(chipNames).toEqual(["Leave out Documents"]);
-
-    await rerender(<Chips inView={PLAN} />);
-    await expect.poll(chipNames).toEqual([]);
-
-    await rerender(<Chips inView={CHAT_SCREEN} />);
     await expect.poll(chipNames).toEqual([]);
   });
 
   // Ask over a file selected in a folder: the draft is made with the file,
-  // and the Finder in view stands for its folder beside it.
-  it("leaves out the one chip pressed of two, and keeps it out across a screen switch", async () => {
+  // and the Finder in view is offered its folder beside it.
+  it("offer the folder in view beside a file chosen in it", async () => {
     const output = "/Users/casey/documents-output";
     const plan = { kind: "file" as const, path: `${output}/plan.md` };
-    const folder = screen(folderHref(output));
     const finder = { folder: output, selected: [plan] };
-    const asked: Draft = { ...DRAFT, context: [plan] };
-    const { rerender } = await renderInBrowser(
-      <Chips finder={finder} inView={folder} opened={asked} />,
-    );
-    await expect
-      .poll(chipNames)
-      .toEqual(["Leave out plan.md", "Leave out documents-output"]);
-
-    await userEvent.click(
-      page.getByRole("button", { name: "Leave out plan.md" }),
-    );
-    await expect.poll(chipNames).toEqual(["Leave out documents-output"]);
-
-    await rerender(
+    await renderInBrowser(
       <Chips
-        finder={{ folder: `${output}/Notes`, selected: [] }}
-        inView={screen(folderHref(`${output}/Notes`))}
-        opened={asked}
+        finder={finder}
+        inView={screen(folderHref(output))}
+        opened={{ ...DRAFT, context: [plan] }}
       />,
     );
-    await expect.poll(chipNames).toEqual(["Leave out Notes"]);
-
-    await rerender(<Chips finder={finder} inView={folder} opened={asked} />);
-    await expect.poll(chipNames).toEqual(["Leave out documents-output"]);
+    await expect.poll(chipNames).toEqual(["Leave out plan.md"]);
+    await expect.poll(offered).toEqual(["Add documents-output"]);
   });
 });

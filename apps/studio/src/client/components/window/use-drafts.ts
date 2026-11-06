@@ -2,10 +2,6 @@ import {
   draftKeyString,
   draftSnapshotsAtom,
 } from "@/client/atoms/prompt-value";
-import {
-  dismissedChipsAtom,
-  linkDraftsAtom,
-} from "@/client/drafts/dismissed-chips";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
   claimDraftAtom,
@@ -104,8 +100,6 @@ export function useDrafts({
   const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
-  const setDismissedChips = useSetAtom(dismissedChipsAtom);
-  const setLinkDrafts = useSetAtom(linkDraftsAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -221,15 +215,10 @@ export function useDrafts({
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,
-   * filed under the project it names only when there is one by that id, and
-   * taking nothing of what was on screen when it opened.
+   * filed under the project it names only when there is one by that id.
    */
   const draftFromLink = (words: string, projectId?: string) => {
-    const id = startDraft(
-      projects.find((project) => project.id === projectId)?.id,
-      words,
-    );
-    setLinkDrafts((current) => new Set(current).add(id));
+    startDraft(projects.find((project) => project.id === projectId)?.id, words);
   };
   // What a draft's composer held is kept only as long as the draft: a
   // composer unmounting keeps its snapshot as it goes, so a draft sent or
@@ -242,12 +231,7 @@ export function useDrafts({
         Object.entries(current).filter(([id]) => keep.has(id)),
       ),
     );
-    setDismissedChips((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(([id]) => keep.has(id)),
-      ),
-    );
-  }, [draftIds, setDismissedChips, setDraftSnapshots]);
+  }, [draftIds, setDraftSnapshots]);
   /** Throws a draft away: its window, its folder with what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.

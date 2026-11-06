@@ -4,7 +4,7 @@ import {
   type DraftContextItem,
 } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
-import { instrumentLinkOf } from "@instrument-org/shared";
+import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 import { includedItemsOf, isIncludable } from "./draft-context";
@@ -96,76 +96,99 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 
 /**
  * What a draft carries, in the order its chips stand: every tab of the
- * draft's own band, in the band's order; then what the person chose, its
- * `context`; then what the window has in view; less what the person
- * dismissed. Each of the band's tabs is a chip, since the chips are the
+ * draft's own band, in the band's order, then what the person chose, its
+ * `context`. Each of the band's tabs is a chip, since the chips are the
  * band's tabs: picking one puts it up, and taking one off closes it.
  *
- * The screen's chips are worked out on every read, so they follow the
- * screen while the person writes, and are never written to the draft's
- * file. The chat on screen is never one of them: a reply names its chat.
+ * What the window has in view behind the draft is never one of them: it is
+ * offered beside the chips (`draftSuggestionOf`), and goes only once the
+ * person takes it, when it is written into `context` like anything chosen.
  */
 export function draftContextItems({
   allTabs,
   band,
-  dismissed,
+  draft,
+  finderOf,
+  group,
+}: {
+  allTabs: WindowTab[];
+  /** The tabs of the draft's own band, in its order. */
+  band: readonly WindowTab[];
+  draft: Draft;
+  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
+  group: string;
+}): ContextItem[] {
+  const chosen = dedupeChats(
+    (draft.context ?? []).map((entry) => contextItemOf(entry, allTabs)),
+  );
+  const own: ContextItem[] = [];
+  for (const tab of band) {
+    const key = keyOfTab(tab);
+    const item = itemOfTab(tab, {
+      finderOf,
+      group,
+      held: heldPaths([...chosen, ...own]),
+      key,
+    });
+    if (item && ![...chosen, ...own].some((entry) => entry.key === item.key)) {
+      own.push(item);
+    }
+  }
+  return [...own, ...chosen];
+}
+
+/**
+ * What the window has in view behind a draft, offered to it: the chip it
+ * would be, and what taking it writes into the draft's `context` (the files
+ * or folders it points at, or its address). Nothing where the screen names
+ * nothing, where the draft already has it, or where it is another chat's.
+ */
+export function draftSuggestionOf({
+  allTabs,
+  band,
   draft,
   finderOf,
   group,
   inView,
 }: {
   allTabs: WindowTab[];
-  /** The tabs of the draft's own band, in its order. */
   band: readonly WindowTab[];
-  /** The keys of the screen's chips the person dismissed in this draft. */
-  dismissed: readonly string[];
   draft: Draft;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   group: string;
-  /** What the window has in view now. */
   inView: undefined | WindowTab;
-}): ContextItem[] {
-  const chosen = dedupeChats(
-    (draft.context ?? []).map((entry) => contextItemOf(entry, allTabs)),
-  );
-  // A file or folder the person took off stays off: the screen names it no
-  // more than the draft does, so a Finder whose selection it was stands
-  // for its folder again rather than for it.
-  const takenOff = dismissed.flatMap((key) =>
-    key.startsWith(CHOSEN_KEY)
-      ? [{ kind: "file" as const, path: key.slice(CHOSEN_KEY.length) }]
-      : [],
-  );
-  const items: ContextItem[] = [];
-  const add = (tab: undefined | WindowTab, before: number) => {
-    const key = keyOfTab(tab);
-    if (!tab || dismissed.includes(key)) {
-      return;
-    }
-    const item = itemOfTab(tab, {
-      finderOf,
-      group,
-      held: [...heldPaths([...chosen, ...items]), ...takenOff],
-      key,
-    });
-    if (
-      item &&
-      ![...chosen, ...items].some((entry) => entry.key === item.key)
-    ) {
-      items.splice(before, 0, item);
-    }
-  };
-  for (const tab of band) {
-    add(tab, items.length);
+}): undefined | { entries: DraftContextItem[]; item: ContextItem } {
+  if (!inView || band.some((tab) => sameTarget(tab, inView))) {
+    return undefined;
   }
-  // What the window has in view comes and goes as the person moves about
-  // behind the draft, so it stands last, where it moves nothing else. A
-  // place one of the band's tabs already shows is that tab's chip.
-  const bandCount = items.length;
-  if (!band.some((tab) => inView !== undefined && sameTarget(tab, inView))) {
-    add(inView, bandCount);
+  const carried = draftContextItems({ allTabs, band, draft, finderOf, group });
+  const item = itemOfTab(inView, {
+    finderOf,
+    group,
+    held: heldPaths(carried),
+    key: keyOfTab(inView),
+  });
+  if (item?.kind !== "tab") {
+    return undefined;
   }
-  return [...items.slice(0, bandCount), ...chosen, ...items.slice(bandCount)];
+  const entries: DraftContextItem[] =
+    item.items !== undefined && item.items.length > 0
+      ? item.items
+      : (() => {
+          const url =
+            item.tab.kind === "page"
+              ? item.tab.url
+              : instrumentUrlOf(item.tab.href);
+          return url === undefined ? [] : [{ kind: "link" as const, url }];
+        })();
+  const keys = new Set(carried.map((entry) => entry.key));
+  if (
+    entries.length === 0 ||
+    entries.every((entry) => keys.has(contextKeyOf(entry)))
+  ) {
+    return undefined;
+  }
+  return { entries, item };
 }
 
 /** The key a draft's chip for one of its `context` items is known by, and taken off by. */

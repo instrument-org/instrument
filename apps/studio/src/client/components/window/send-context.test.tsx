@@ -73,7 +73,6 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
         }),
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
-    dismissed: {},
     drafts: [],
     href: "/browser",
     paneOpenByGroup: {},
@@ -599,7 +598,7 @@ describe("draftContext", () => {
     `);
   });
 
-  it("sends what is in view behind the draft, and nothing it dismissed", async () => {
+  it("sends what is in view behind the draft only once it is taken", async () => {
     const PLACE = "place:files";
     const file: WindowTab = {
       group: PLACE,
@@ -607,21 +606,24 @@ describe("draftContext", () => {
       id: "file",
       kind: "screen",
     };
-    const behindFile = (dismissed: string[]) =>
+    const behindFile = (draft: Draft) =>
       contextReaders(
-        windowOf({
-          dismissed: { [DRAFT.id]: dismissed },
-          drafts: [DRAFT],
-          windowTabs: tabsOf([file], PLACE),
-        }),
+        windowOf({ drafts: [draft], windowTabs: tabsOf([file], PLACE) }),
       ).draftContext(DRAFT.id);
-    await expect(behindFile([])).resolves.toMatchObject({
-      file: { path: "/Users/casey/Notes/plan.md" },
-      screen: "file",
-    });
+    await expect(behindFile(DRAFT)).resolves.toBeUndefined();
     await expect(
-      behindFile([`tab:file ${file.href}`]),
-    ).resolves.toBeUndefined();
+      behindFile({
+        ...DRAFT,
+        context: [{ kind: "file", path: "/Users/casey/Notes/plan.md" }],
+      }),
+    ).resolves.toMatchObject({
+      attached: [
+        {
+          items: [{ kind: "file", path: "/Users/casey/Notes/plan.md" }],
+          kind: "paths",
+        },
+      ],
+    });
   });
 
   it("never sends the chat on screen as what was in view", async () => {
@@ -661,26 +663,5 @@ describe("draftContext", () => {
       }),
     );
     await expect(trashed.draftContext(DRAFT.id)).resolves.toBeUndefined();
-  });
-
-  it("leaves out the band's page the person took off", async () => {
-    const band: WindowTab = {
-      group: GROUP,
-      id: "band",
-      kind: "page",
-      openedAt: 1,
-      title: "Hotels",
-      url: "https://hotels.example/",
-    };
-    const { draftContext } = contextReaders(
-      windowOf({
-        dismissed: { [DRAFT.id]: ["tab:band"] },
-        drafts: [DRAFT],
-        windowTabs: tabsOf([band]),
-      }),
-    );
-    const context = await draftContext(DRAFT.id);
-    expect(context?.attached).toBeUndefined();
-    expect(context?.page).toBeUndefined();
   });
 });

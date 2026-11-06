@@ -2,6 +2,7 @@ import { type Draft } from "@/shared/drafts";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
+import { flushWords } from "./settle-words";
 import { applyDraftOpsAtom, draftsAtom } from "./store";
 
 /**
@@ -47,14 +48,20 @@ export function draftInNewChatBox(
     : drafts.find((draft) => draft.id === id);
 }
 
-/** Points a tab's new chat at a draft its address names, or at none, keeping the project picked for it. */
+/**
+ * Points a tab's new chat at a draft its address names, or at none, keeping
+ * the project picked for it. Words still settling were typed into the draft
+ * being left, and their write finds its draft through the box, so they land
+ * before it moves.
+ */
 export const bindNewChatBoxAtom = atom(
   null,
   (get, set, { draftId, tabId }: { draftId: null | string; tabId: string }) => {
-    const boxes = get(newChatBoxesAtom);
-    if (boxes[tabId]?.draftId === draftId) {
+    if (get(newChatBoxesAtom)[tabId]?.draftId === draftId) {
       return;
     }
+    flushWords(newChatWordsKey(tabId));
+    const boxes = get(newChatBoxesAtom);
     const { isMadeHere: _was, ...box } = boxes[tabId] ?? { draftId: null };
     set(newChatBoxesAtom, { ...boxes, [tabId]: { ...box, draftId } });
   },

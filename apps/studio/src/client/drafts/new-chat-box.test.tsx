@@ -70,6 +70,29 @@ describe("a new chat in the Chat screen", () => {
     });
   });
 
+  it.each([
+    ["another draft", "draft-b"],
+    ["a blank new chat", null],
+  ])(
+    "keeps the last words typed when the box moves to %s before they settle",
+    (_to, draftId) => {
+      const { inBox, settle, store, type } = window();
+      type("A first");
+      settle();
+      const left = inBox();
+      type("A last words");
+
+      store.set(bindNewChatBoxAtom, { draftId, tabId: TAB });
+      settle();
+
+      const drafts = store.get(draftsAtom);
+      expect(drafts.find((draft) => draft.id === left?.id)?.words).toBe(
+        "A last words",
+      );
+      expect(drafts.map((draft) => draft.id)).toEqual([left?.id]);
+    },
+  );
+
   it("files the draft under the project picked before there was one", () => {
     const { inBox, settle, store, type } = window();
     store.set(pickNewChatProjectAtom, { projectId: "travel", tabId: TAB });

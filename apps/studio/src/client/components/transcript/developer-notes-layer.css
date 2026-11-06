@@ -8,6 +8,12 @@
   display: contents;
 }
 
+/* A send slides the column by a transform, which anchors ignore, so a note would
+   stand still beside rows on the move. It comes back level once they land. */
+[data-sliding] [data-developer-notes] {
+  visibility: hidden;
+}
+
 /* A stack's box is all the margin it has, down to the next stack: its top and
    bottom come from anchors, and how many lines show comes from that height. The
    box takes no pointer, so only its lines count as hovering it. */

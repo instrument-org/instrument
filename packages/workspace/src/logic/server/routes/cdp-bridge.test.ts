@@ -443,6 +443,18 @@ describe("openTargetSession on a local page", () => {
     expect(reply.error?.message).toContain("is not a file you can open");
   });
 
+  it.each(["Page.navigate", "Target.createTarget"])(
+    "refuses an extension's own page on %s",
+    async (method) => {
+      const { command, sendCommand } = connect();
+      const reply = await command(method, {
+        url: "chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+      });
+      expect(reply.error?.message).toContain("is an extension's own page");
+      expect(sendCommand).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     ["Fetch.disable", {}],
     ["Fetch.continueRequest", { requestId: "r1" }],

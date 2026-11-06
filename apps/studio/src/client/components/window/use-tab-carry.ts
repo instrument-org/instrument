@@ -61,10 +61,6 @@ export function useTabCarry({
 }) {
   const zoom = useAtomValue(zoomAtom);
   const [carriedKey, setCarriedKey] = useState<string>();
-  // The tab whose place in the strip the pointer does not say: a window's only
-  // tab moves with its window, and Escape has the tab back with the button yet to
-  // come up.
-  const [heldAwayKey, setHeldAwayKey] = useState<string>();
   const [held, setHeld] = useState<{ key: string; left: number }>();
   const dragging = useRef<TabDrag>(undefined);
 
@@ -104,7 +100,6 @@ export function useTabCarry({
         showWhereItIs(drag);
         onCancel(drag.orderAtStart);
         setHeld(undefined);
-        setHeldAwayKey(drag.key);
         void rpcClient.window.endTabCarry
           .call({ canceled: true })
           .catch(() => undefined)
@@ -128,9 +123,6 @@ export function useTabCarry({
     };
     window.addEventListener("pointerup", onRelease, { capture: true });
     window.addEventListener("pointercancel", onRelease, { capture: true });
-    if (isOnlyTab) {
-      setHeldAwayKey(key);
-    }
     const drag: TabDrag = {
       canceled: false,
       collapsesOffRow: false,
@@ -241,7 +233,6 @@ export function useTabCarry({
     dragging.current = undefined;
     drag.stop();
     setHeld(undefined);
-    setHeldAwayKey(undefined);
     if (drag.canceled) {
       return;
     }
@@ -267,7 +258,6 @@ export function useTabCarry({
   return {
     carriedKey,
     held,
-    heldAwayKey,
     onDrag,
     onDragEnd,
     onDragStart,

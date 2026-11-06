@@ -1,4 +1,7 @@
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { BrowserWindow, systemPreferences } from "electron";
+
+import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 
 import { type Bounds, type Point } from "./tab-carry-rules";
 
@@ -6,6 +9,8 @@ import { type Bounds, type Point } from "./tab-carry-rules";
 const PICTURE_WIDTH = 320;
 /** How wide it is kept, to stay sharp as it grows into the window. */
 const IMAGE_WIDTH = 1280;
+/** How long it waits for the bar of the window it stands for, before growing without it. */
+const BAR_WAIT_MS = 120;
 /** How long it takes to grow into the window it stands for, and how often it moves. */
 const GROW_MS = 160;
 const GROW_STEP_MS = 8;
@@ -20,15 +25,20 @@ const BELOW_POINTER_PX = 1;
 
 const PAGE = `<!doctype html><html><head><style>
 html,body{background:transparent;height:100%;margin:0;overflow:hidden}
-#picture{border-radius:10px;box-shadow:0 0 0 .5px rgb(0 0 0/.25),0 8px 20px rgb(0 0 0/.3);display:block;height:calc(100% - ${SHADOW_ROOM * 2}px);margin:${SHADOW_ROOM}px;object-fit:cover;object-position:top;opacity:0;transform:scale(.7);transition:opacity 120ms ease-out,transform 120ms ease-out;width:calc(100% - ${SHADOW_ROOM * 2}px)}
+#picture{border-radius:10px;box-shadow:0 0 0 .5px rgb(0 0 0/.25),0 8px 20px rgb(0 0 0/.3);height:calc(100% - ${SHADOW_ROOM * 2}px);margin:${SHADOW_ROOM}px;opacity:0;overflow:hidden;position:relative;transform:scale(.7);transition:opacity 120ms ease-out,transform 120ms ease-out;width:calc(100% - ${SHADOW_ROOM * 2}px)}
+#window{display:block;height:100%;object-fit:cover;object-position:top;width:100%}
+#bar{display:block;left:0;position:absolute;top:0;width:100%}
 #picture.up{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){#picture{transition:none}}
-</style></head><body><img alt="" id="picture"></body></html>`;
+</style></head><body><div id="picture"><img alt="" id="window"><img alt="" id="bar"></div></body></html>`;
 
 export interface TabPicture {
   close: () => void;
-  /** Grows from the pointer to fill where the window it stands for is coming up. */
-  growTo: (bounds: Bounds) => Promise<void>;
+  /**
+   * Grows from the pointer to fill where a window is coming up, wearing that window's
+   * tab bar, since the tabs it pictured are not the tabs that window will have.
+   */
+  growTo: (bounds: Bounds, into: BrowserWindow) => Promise<void>;
   hide: () => void;
   moveTo: (point: Point) => void;
   show: (point: Point) => void;
@@ -82,7 +92,7 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
     image
       ? loaded.then(() =>
           say(
-            `document.getElementById("picture").src = ${JSON.stringify(image)};`,
+            `document.getElementById("window").src = ${JSON.stringify(image)};`,
           ),
         )
       : undefined,
@@ -105,15 +115,30 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
         window.destroy();
       }
     },
-    growTo: (bounds) =>
-      new Promise((resolve) => {
-        if (
-          !isShown ||
-          systemPreferences.getAnimationSettings().prefersReducedMotion
-        ) {
-          resolve();
-          return;
-        }
+    growTo: async (bounds, into) => {
+      if (
+        !isShown ||
+        systemPreferences.getAnimationSettings().prefersReducedMotion
+      ) {
+        return;
+      }
+      await Promise.race([
+        barOf(into).then((bar) =>
+          bar
+            ? say(
+                `(() => {
+                  const bar = document.getElementById("bar");
+                  bar.src = ${JSON.stringify(bar)};
+                  return bar.decode();
+                })()`,
+              )
+            : undefined,
+        ),
+        new Promise((resolve) => {
+          setTimeout(resolve, BAR_WAIT_MS);
+        }),
+      ]);
+      await new Promise<void>((resolve) => {
         const start = window.getBounds();
         const end = {
           height: bounds.height + SHADOW_ROOM * 2,
@@ -129,8 +154,8 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
           }
           const done = Math.min(1, (Date.now() - startedAt) / GROW_MS);
           const eased = 1 - (1 - done) ** 3;
-          const at = (from: number, to: number) =>
-            Math.round(from + (to - from) * eased);
+          const at = (first: number, last: number) =>
+            Math.round(first + (last - first) * eased);
           window.setBounds({
             height: at(start.height, end.height),
             width: at(start.width, end.width),
@@ -144,7 +169,8 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
           }
         };
         step();
-      }),
+      });
+    },
     hide: () => {
       isShown = false;
       if (!window.isDestroyed()) {
@@ -168,6 +194,23 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
   };
 }
 
+/** A window's tab bar as it has drawn it, as an address an image can load. */
+async function barOf(window: BrowserWindow) {
+  if (window.isDestroyed()) {
+    return null;
+  }
+  const { width } = window.getContentBounds();
+  const image = await window.webContents
+    .capturePage({
+      height: Math.round(TOOLBAR_HEIGHT * getAppZoom()),
+      width,
+      x: 0,
+      y: 0,
+    })
+    .catch(() => null);
+  return image && !image.isEmpty() ? image.toDataURL() : null;
+}
+
 /** The window as it stands, as an address an image can load. */
 async function pictureOf(from: BrowserWindow) {
   if (from.isDestroyed()) {
@@ -177,8 +220,6 @@ async function pictureOf(from: BrowserWindow) {
   if (!image || image.isEmpty()) {
     return null;
   }
-  const jpeg = image
-    .resize({ quality: "good", width: IMAGE_WIDTH })
-    .toJPEG(82);
+  const jpeg = image.resize({ quality: "good", width: IMAGE_WIDTH }).toJPEG(82);
   return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
 }

@@ -26,6 +26,7 @@ import {
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
+import { ChipPresence } from "@/client/components/attached-item-preview";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type FileUpload } from "@instrument-org/workspace/client";
@@ -35,7 +36,7 @@ import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
-import { motion, useIsPresent } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -50,6 +51,13 @@ import {
 } from "./compose-layout";
 import { useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion, HeldMark } from "./context-chip";
+import {
+  type BandTarget,
+  openInBand,
+  targetsOf,
+  useContextIntoBand,
+} from "./draft-band";
+import { includedItemsOf } from "./draft-context";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -237,8 +245,15 @@ export function ComposeWindow({
   const marked = useComposerAsks({ draftId: draft.id, kind: "draft" });
   const { moveTo: moveAsks } = useStagedAskActions();
   const selected = windowTabs.selectedTabIn(group);
-  const up =
-    selected && !isHomeTab(selected) ? selected : (tabs.at(-1) ?? undefined);
+  // The well opens on what the person asks to see (a chip pressed, a place
+  // opened from the plus) and closes on a second press of the chip it shows,
+  // so taking something in adds its chip without covering the screen.
+  const [isWellOpen, setWellOpen] = useState(false);
+  const up = isWellOpen
+    ? selected && !isHomeTab(selected)
+      ? selected
+      : (tabs.at(-1) ?? undefined)
+    : undefined;
   // What the draft carries besides its words, as its chips: the same list
   // its chat is told at the press (see draftContextItems).
   const surfaces = useAtomValue(tabSurfaceAtom);
@@ -247,7 +262,6 @@ export function ComposeWindow({
     items: contextItems,
     leaveOut,
     suggestion,
-    take,
   } = useDraftChips({
     allTabs: windowTabs.allTabs,
     band: tabs,
@@ -314,6 +328,7 @@ export function ComposeWindow({
     const id = browser?.openOrFocus(url, { group });
     if (id !== undefined) {
       windowTabs.select(id);
+      setWellOpen(true);
     }
     inputRef.current?.focus();
   };
@@ -327,6 +342,7 @@ export function ComposeWindow({
       isOpened: true,
       select: true,
     });
+    setWellOpen(true);
     inputRef.current?.focus();
   };
   const openFolder = (hostPath: string) => {
@@ -344,6 +360,7 @@ export function ComposeWindow({
         isOpened: true,
         select: true,
       });
+      setWellOpen(true);
       inputRef.current?.focus();
     }
   };
@@ -364,9 +381,29 @@ export function ComposeWindow({
     }
     appWindow.openScreen(href, { newTab: true });
   };
+  // Closing what the well shows closes the well, rather than putting
+  // another of the chips up in its place.
   const closeTab = (id: string) => {
+    if (id === up?.id) {
+      setWellOpen(false);
+    }
     windowTabs.close(id);
   };
+  /** A chip pressed: its tab comes up in the well, or the well closes when it already shows it. */
+  const showTab = (id: string) => {
+    if (id === up?.id) {
+      setWellOpen(false);
+      return;
+    }
+    windowTabs.select(id);
+    setWellOpen(true);
+  };
+  const open = (target: BandTarget) => {
+    openInBand({ browser, group, target, windowTabs });
+  };
+  useContextIntoBand({ draft, onChange, open });
+  // The attached file or folder the well shows, whose chip stands raised.
+  const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
 
   // The element the page is drawn into, held as state so the ref React
   // calls is one stable setter: a callback made afresh each render is
@@ -395,6 +432,7 @@ export function ComposeWindow({
       isOpened: true,
       select: true,
     });
+    setWellOpen(true);
   };
   // The plus opens the web, the computer and Apps in the well, the way a
   // chat's plus opens them beside the chat.
@@ -561,9 +599,20 @@ export function ComposeWindow({
                   autoFocus
                   {...(up ? { autoResizeMaxHeight: WORDS_MAX_HEIGHT } : {})}
                   besidePlus={
-                    suggestion ? (
-                      <ContextSuggestion item={suggestion} onTake={take} />
-                    ) : undefined
+                    <AnimatePresence initial={false}>
+                      {suggestion && (
+                        <ChipPresence key={suggestion.key}>
+                          <ContextSuggestion
+                            item={suggestion}
+                            onTake={() => {
+                              for (const target of targetsOf(suggestion)) {
+                                open(target);
+                              }
+                            }}
+                          />
+                        </ChipPresence>
+                      )}
+                    </AnimatePresence>
                   }
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
@@ -575,6 +624,16 @@ export function ComposeWindow({
                   }}
                   onItemRemoved={removeItem}
                   onItemsChange={keepItems}
+                  onShowItem={(item) => {
+                    if (item.path === shownPath) {
+                      setWellOpen(false);
+                    } else if (item.kind === "folder") {
+                      openFolder(item.path);
+                    } else {
+                      openFile(item.path);
+                    }
+                  }}
+                  shownPath={shownPath}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.
                   isLoading={false}
@@ -583,9 +642,7 @@ export function ComposeWindow({
                       <ContextChips
                         band={{
                           group,
-                          onSelect: (id) => {
-                            windowTabs.select(id);
-                          },
+                          onSelect: showTab,
                           selectedId: up?.id,
                         }}
                         items={contextItems}

@@ -147,7 +147,10 @@ export function ComposerFrame({
               <div
                 // `empty:hidden`: a row with nothing in it, a screen with no
                 // chip to show, takes no height rather than a blank line.
-                className="flex min-h-7 items-center gap-1 px-1 pb-1 empty:hidden"
+                // More chips than fit wrap, and past a few lines scroll under
+                // a fade, so a narrow box never cuts one off. A scroller clips,
+                // so it takes the padding that keeps the rings clear itself.
+                className="-mt-1 flex max-h-24 min-h-7 flex-wrap items-center gap-1 overflow-y-auto scroll-fade-y px-1 pt-1 pb-1 empty:hidden"
                 data-slot="composer-extras"
               >
                 {extras}
@@ -159,7 +162,7 @@ export function ComposerFrame({
             buttons that sit outside the chips, which its clip would cut. */}
         {attachments ? (
           <div
-            className="-mx-1 -mt-1 flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-2 pt-2 pb-1.5"
+            className="-mx-1 -mt-1 flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto scroll-fade-y px-2 pt-2 pb-1.5"
             data-slot="composer-attachments"
           >
             {attachments}

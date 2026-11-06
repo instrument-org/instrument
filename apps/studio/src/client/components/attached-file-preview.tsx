@@ -12,6 +12,7 @@ import { Badge } from "./ui/badge";
 export function AttachedFilePreview({
   filename,
   hostPath,
+  isSelected,
   mimeType,
   onClick,
   onPutInMessage,
@@ -22,6 +23,8 @@ export function AttachedFilePreview({
   filename: string;
   /** Where it is on disk, which dragging it out of the window carries; none for words pasted in. */
   hostPath?: string;
+  /** Whether the file is the one shown under the composer or beside it. */
+  isSelected?: boolean;
   mimeType?: string;
   onClick?: () => void;
   /** For words pasted in as a file: takes the file away and puts the words in the message. */
@@ -50,6 +53,7 @@ export function AttachedFilePreview({
         )
       }
       {...(hostPath ? { hostPath } : {})}
+      isSelected={isSelected}
       label={filename}
       onClick={onClick}
       onPutInMessage={onPutInMessage}

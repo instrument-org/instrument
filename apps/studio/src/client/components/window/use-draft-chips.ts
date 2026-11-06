@@ -9,10 +9,9 @@ import {
 } from "./context-items";
 
 /**
- * A draft's chips (see `draftContextItems`), taking one off, and what the
- * window has in view offered beside them (see `draftSuggestionOf`), with
- * taking it, which writes it into the draft's `context` like anything the
- * person chose, so it stays until they take it off.
+ * A draft's chips (see `draftContextItems`), taking one of its `context`
+ * entries off, and what the window has in view offered beside them (see
+ * `draftSuggestionOf`), which the caller opens in the band when taken.
  */
 export function useDraftChips({
   allTabs,
@@ -23,7 +22,7 @@ export function useDraftChips({
   onChange,
 }: {
   allTabs: WindowTab[];
-  /** The tabs of the draft's own band, each a chip. */
+  /** The tabs of the draft's own band that stand as chips. */
   band: readonly WindowTab[];
   draft: Draft;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
@@ -50,23 +49,5 @@ export function useDraftChips({
       return left.length > 0 ? { ...rest, context: left } : rest;
     });
   };
-  const take = () => {
-    if (!suggestion) {
-      return;
-    }
-    onChange((current) => {
-      const had = current.context ?? [];
-      const keys = new Set(had.map(contextKeyOf));
-      return {
-        ...current,
-        context: [
-          ...had,
-          ...suggestion.entries.filter(
-            (entry) => !keys.has(contextKeyOf(entry)),
-          ),
-        ],
-      };
-    });
-  };
-  return { items, leaveOut, suggestion: suggestion?.item, take };
+  return { items, leaveOut, suggestion };
 }

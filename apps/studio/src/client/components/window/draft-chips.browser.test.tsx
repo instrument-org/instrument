@@ -1,6 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { type ChosenItem, type Draft } from "@/shared/drafts";
+import { type ChosenItem, type Draft, draftGroupOf } from "@/shared/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { useState } from "react";
@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { ContextChips, ContextSuggestion } from "./context-chip";
+import { type ContextItem } from "./context-items";
+import { targetsOf } from "./draft-band";
 import { useDraftChips } from "./use-draft-chips";
 import { chatHref } from "./window-href";
 
@@ -29,6 +31,7 @@ vi.mock("@/client/rpc/client", () => {
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const DRAFT: Draft = { createdAt: 0, id: "d1", updatedAt: 0, words: "" };
+const GROUP = draftGroupOf(DRAFT.id);
 
 /** The window's own tab, standing on one screen after another. */
 const screen = (href: string): WindowTab => ({
@@ -40,32 +43,69 @@ const PLAN = screen(fileHref("/Users/casey/Notes/plan.md"));
 const DOCUMENTS = screen(folderHref("/Users/casey/Documents"));
 const CHAT_SCREEN = screen(chatHref(CHAT));
 
-/** A draft's chip row, and what the window has in view offered beside it. */
+/**
+ * A draft's chip row, and what the window has in view offered beside it,
+ * with taking it opening it as a tab of the draft's band.
+ */
 function Chips({
   finder = null,
   inView,
-  opened = DRAFT,
 }: {
   /** What the Finder on the tab in view shows, when it is a folder's. */
   finder?: null | { folder: string; selected: ChosenItem[] };
   inView: WindowTab;
-  /** The draft as it was made. */
-  opened?: Draft;
 }) {
-  const [draft, setDraft] = useState(opened);
-  const { items, leaveOut, suggestion, take } = useDraftChips({
-    allTabs: [],
-    band: [],
+  const [draft, setDraft] = useState(DRAFT);
+  const [band, setBand] = useState<WindowTab[]>([]);
+  const { items, leaveOut, suggestion } = useDraftChips({
+    allTabs: band,
+    band,
     draft,
     finderOf: (id) => (id === inView.id ? finder : null),
     inView,
     onChange: setDraft,
   });
+  const take = (taken: ContextItem) => {
+    setBand((current) => [
+      ...current,
+      ...targetsOf(taken).flatMap((target, index): WindowTab[] =>
+        target.kind === "file" || target.kind === "folder"
+          ? [
+              {
+                group: GROUP,
+                href:
+                  target.kind === "file"
+                    ? fileHref(target.path)
+                    : folderHref(target.path),
+                id: `taken-${current.length + index}`,
+                kind: "screen",
+              },
+            ]
+          : [],
+      ),
+    ]);
+  };
   return (
     <div data-testid="chips">
-      <ContextChips items={items} onLeaveOut={leaveOut} />
+      <ContextChips
+        items={items}
+        onLeaveOut={(item) => {
+          if (item.kind === "tab" && item.tab.group === GROUP) {
+            setBand((current) =>
+              current.filter((tab) => tab.id !== item.tab.id),
+            );
+          } else {
+            leaveOut(item);
+          }
+        }}
+      />
       {suggestion ? (
-        <ContextSuggestion item={suggestion} onTake={take} />
+        <ContextSuggestion
+          item={suggestion}
+          onTake={() => {
+            take(suggestion);
+          }}
+        />
       ) : undefined}
     </div>
   );
@@ -107,20 +147,20 @@ describe("a draft's chips", () => {
     await expect.poll(chipNames).toEqual([]);
   });
 
-  // Ask over a file selected in a folder: the draft is made with the file,
-  // and the Finder in view is offered its folder beside it.
-  it("offer the folder in view beside a file chosen in it", async () => {
+  // A file selected in a folder is what is offered; once taken, the folder
+  // around it is not offered in its place.
+  it("offer the file selected in a folder, and nothing once it is taken", async () => {
     const output = "/Users/casey/documents-output";
     const plan = { kind: "file" as const, path: `${output}/plan.md` };
-    const finder = { folder: output, selected: [plan] };
     await renderInBrowser(
       <Chips
-        finder={finder}
+        finder={{ folder: output, selected: [plan] }}
         inView={screen(folderHref(output))}
-        opened={{ ...DRAFT, context: [plan] }}
       />,
     );
+    await expect.poll(offered).toEqual(["Add plan.md"]);
+    await userEvent.click(page.getByRole("button", { name: "Add plan.md" }));
     await expect.poll(chipNames).toEqual(["Leave out plan.md"]);
-    await expect.poll(offered).toEqual(["Add documents-output"]);
+    expect(offered()).toEqual([]);
   });
 });

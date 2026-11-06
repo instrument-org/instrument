@@ -4,7 +4,7 @@ import {
   type DraftContextItem,
 } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
-import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
+import { instrumentLinkOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 import { includedItemsOf, isIncludable } from "./draft-context";
@@ -96,13 +96,16 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 
 /**
  * What a draft carries, in the order its chips stand: every tab of the
- * draft's own band, in the band's order, then what the person chose, its
- * `context`. Each of the band's tabs is a chip, since the chips are the
- * band's tabs: picking one puts it up, and taking one off closes it.
+ * draft's own band, in the band's order, then what is left in its `context`
+ * (another chat; the rest becomes tabs as the draft is shown, see
+ * `useContextIntoBand`). Each of the band's tabs is a chip, since the chips
+ * are the band's tabs: picking one shows it, and taking one off closes it. A
+ * tab showing something attached to the draft is no chip of its own: the
+ * attachment's chip is it.
  *
  * What the window has in view behind the draft is never one of them: it is
  * offered beside the chips (`draftSuggestionOf`), and goes only once the
- * person takes it, when it is written into `context` like anything chosen.
+ * person takes it, which opens it in the band.
  */
 export function draftContextItems({
   allTabs,
@@ -121,13 +124,14 @@ export function draftContextItems({
   const chosen = dedupeChats(
     (draft.context ?? []).map((entry) => contextItemOf(entry, allTabs)),
   );
+  const attached = attachedPaths(draft);
   const own: ContextItem[] = [];
   for (const tab of band) {
     const key = keyOfTab(tab);
     const item = itemOfTab(tab, {
       finderOf,
       group,
-      held: heldPaths([...chosen, ...own]),
+      held: [...attached, ...heldPaths([...chosen, ...own])],
       key,
     });
     if (item && ![...chosen, ...own].some((entry) => entry.key === item.key)) {
@@ -138,10 +142,12 @@ export function draftContextItems({
 }
 
 /**
- * What the window has in view behind a draft, offered to it: the chip it
- * would be, and what taking it writes into the draft's `context` (the files
- * or folders it points at, or its address). Nothing where the screen names
- * nothing, where the draft already has it, or where it is another chat's.
+ * What the window has in view behind a draft, offered to it as the chip it
+ * would be: what is selected in a folder, else the folder, a file, a page or
+ * an app's front. Taking it opens it in the draft's band (`openInBand`).
+ * Nothing where the screen names nothing, where it is another chat's, or
+ * where the draft already has it: a selection the draft has is not offered
+ * again as the folder around it.
  */
 export function draftSuggestionOf({
   allTabs,
@@ -157,35 +163,48 @@ export function draftSuggestionOf({
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   group: string;
   inView: undefined | WindowTab;
-}): undefined | { entries: DraftContextItem[]; item: ContextItem } {
+}): ContextItem | undefined {
   if (!inView || band.some((tab) => sameTarget(tab, inView))) {
     return undefined;
   }
-  const carried = draftContextItems({ allTabs, band, draft, finderOf, group });
   const item = itemOfTab(inView, {
     finderOf,
     group,
-    held: heldPaths(carried),
+    held: [],
     key: keyOfTab(inView),
   });
   if (item?.kind !== "tab") {
     return undefined;
   }
-  const entries: DraftContextItem[] =
-    item.items !== undefined && item.items.length > 0
-      ? item.items
-      : (() => {
-          const url =
-            item.tab.kind === "page"
-              ? item.tab.url
-              : instrumentUrlOf(item.tab.href);
-          return url === undefined ? [] : [{ kind: "link" as const, url }];
-        })();
-  const keys = new Set(carried.map((entry) => entry.key));
-  if (entries.every((entry) => keys.has(contextKeyOf(entry)))) {
-    return undefined;
+  if (item.items !== undefined) {
+    const carried = draftContextItems({
+      allTabs,
+      band,
+      draft,
+      finderOf,
+      group,
+    });
+    const held = new Set(
+      [...attachedPaths(draft), ...heldPaths(carried)].map((entry) =>
+        withoutSlash(entry.path),
+      ),
+    );
+    if (item.items.every((entry) => held.has(withoutSlash(entry.path)))) {
+      return undefined;
+    }
   }
-  return { entries, item };
+  return item;
+}
+
+/** What is attached to a draft by its path, which a tab of its band showing the same thing does not say again. */
+function attachedPaths(draft: Draft): ChosenItem[] {
+  return [...(draft.attached ?? []), ...(draft.inFolder ?? [])].map(
+    (entry) => ({ kind: entry.kind, path: entry.path }),
+  );
+}
+
+function withoutSlash(path: string) {
+  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
 }
 
 /** The key a draft's chip for one of its `context` items is known by, and taken off by. */

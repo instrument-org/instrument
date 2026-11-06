@@ -6,7 +6,8 @@ import {
   useFolderItems,
 } from "@/client/components/draft-staging";
 import { FileDropRegion } from "@/client/components/file-drop-region";
-import { folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
+import { type WindowTab } from "@/client/atoms/window";
 import {
   PromptInput,
   type PromptInputRef,
@@ -36,7 +37,12 @@ import { ulid } from "ulid";
 import { AskPills } from "./ask-pills";
 import { PopOutButton } from "./chat-header";
 import { ProjectSlot } from "./compose-window";
+import { useWindow } from "./context";
 import { ContextChips } from "./context-chip";
+import { openInBand, useContextIntoBand } from "./draft-band";
+import { includedItemsOf } from "./draft-context";
+import { isHomeTab } from "./tab-model";
+import { tabSurfaceAtom } from "./tab-surface";
 import { useShell } from "./shell-context";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftChips } from "./use-draft-chips";
@@ -61,6 +67,7 @@ import { useWindowTabs } from "./window-tabs";
 export function NewChatView({
   draftId,
   ensureGroup,
+  isPaneShown,
   leading,
   onOpenBeside,
   tabId,
@@ -70,6 +77,8 @@ export function NewChatView({
   draftId: string | undefined;
   /** The group the new chat's tabs are kept under, making its draft first when it has none. */
   ensureGroup: () => string;
+  /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
+  isPaneShown: boolean;
   /** What sits ahead of the title: the toggle that puts the inbox away. */
   leading?: ReactNode;
   /** Brings the side panel up for something just opened into it. */
@@ -79,6 +88,7 @@ export function NewChatView({
   trailing?: ReactNode;
 }) {
   const shell = useShell();
+  const appWindow = useWindow();
   const router = useRouter();
   const windowTabs = useWindowTabs();
   const filesHref = useAtomValue(filesHrefAtom);
@@ -152,12 +162,38 @@ export function NewChatView({
     }
   }, [boundId, draftId, router, store, tabId]);
 
-  const chips = useNewChatChips(draft);
   const group = draft ? draftGroupOf(draft.id) : undefined;
   const tabs =
     group === undefined
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === group);
+  const up = isPaneShown ? windowTabs.selectedTabIn(group) : undefined;
+  // What the side panel shows: the attached file or folder there has its
+  // chip raised, and a second press puts the panel away.
+  const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
+  const chips = useNewChatChips(draft, {
+    band: isPaneShown ? [] : tabs.filter((tab) => !isHomeTab(tab)),
+    onSelect: (id) => {
+      if (group === undefined) {
+        return;
+      }
+      windowTabs.select(id);
+      onOpenBeside(group);
+    },
+  });
+  useContextIntoBand({
+    draft,
+    onChange: (update) => {
+      if (draft) {
+        updateDraft({ id: draft.id, update });
+      }
+    },
+    open: (target) => {
+      if (group !== undefined) {
+        openInBand({ browser: appWindow.browser, group, target, windowTabs });
+      }
+    },
+  });
 
   // Emptied of everything it had, the draft goes, and the screen is a new
   // chat again.
@@ -305,6 +341,18 @@ export function NewChatView({
           }}
           onItemRemoved={staging.removeItem}
           onItemsChange={staging.keepItems}
+          onShowItem={(item) => {
+            if (item.path === shownPath && group !== undefined) {
+              shell.setPaneOpen(group, false);
+            } else {
+              openBeside(
+                item.kind === "folder"
+                  ? folderHref(item.path)
+                  : fileHref(item.path),
+              );
+            }
+          }}
+          shownPath={shownPath}
           onModelChange={shell.setDefaultModelURI}
           onSubmit={(sending) => {
             const send = staging.asStaged(sending);
@@ -337,23 +385,24 @@ function MarkedPills({ draftId }: { draftId: string }) {
 const NO_DRAFT: Draft = { createdAt: 0, id: "", updatedAt: 0, words: "" };
 
 /**
- * What the draft carries besides its words, as its chips: what it was told
- * to take, and the page its side panel has up while the panel is open, the
- * way a chat's composer names the chat's tab up. None at all for a new chat
- * with no draft yet, or with nothing to name, so the row closes when its last
- * chip goes.
+ * What the draft carries besides its words, as its chips: its tabs while the
+ * side panel is put away, each bringing the panel back up on its tab when
+ * pressed, and none while the panel shows them as its own strip; and another
+ * chat it names. None at all for a new chat with no draft yet, or with
+ * nothing to name, so the row closes when its last chip goes.
  */
-function useNewChatChips(draft: Draft | undefined): ReactNode {
+function useNewChatChips(
+  draft: Draft | undefined,
+  { band, onSelect }: { band: WindowTab[]; onSelect: (tabId: string) => void },
+): ReactNode {
   const windowTabs = useWindowTabs();
   const updateDraft = useSetAtom(updateDraftAtom);
-  const up = draft
-    ? windowTabs.selectedTabIn(draftGroupOf(draft.id))
-    : undefined;
+  const surfaces = useAtomValue(tabSurfaceAtom);
   const { items, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
-    band: up ? [up] : [],
+    band,
     draft: draft ?? NO_DRAFT,
-    finderOf: () => null,
+    finderOf: (id) => surfaces[id]?.finder ?? null,
     inView: undefined,
     onChange: (update) => {
       if (draft) {
@@ -362,7 +411,22 @@ function useNewChatChips(draft: Draft | undefined): ReactNode {
     },
   });
   return draft && items.length > 0 ? (
-    <ContextChips items={items} onLeaveOut={leaveOut} />
+    <ContextChips
+      band={{
+        group: draftGroupOf(draft.id),
+        onSelect,
+        selectedId: undefined,
+      }}
+      items={items}
+      onLeaveOut={(item) => {
+        // A chip of the band's is its tab: taking it off closes the tab.
+        if (item.kind === "tab" && item.tab.group === draftGroupOf(draft.id)) {
+          windowTabs.close(item.tab.id);
+        } else {
+          leaveOut(item);
+        }
+      }}
+    />
   ) : undefined;
 }
 

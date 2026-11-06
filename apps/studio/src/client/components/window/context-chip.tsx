@@ -14,6 +14,7 @@ import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import {
+  ChipPresence,
   COMPOSER_CHIP_CLASSNAME,
   COMPOSER_CHIP_SELECTED_CLASSNAME,
 } from "@/client/components/attached-item-preview";
@@ -30,6 +31,7 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence } from "motion/react";
 import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
@@ -45,10 +47,10 @@ import { chatHref } from "./window-href";
 type SentChip = SessionMessageDataPart.SentChip;
 
 /** What a chip of the composer's is, as its tooltip says it. */
-const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
+const SENT_WITH_MESSAGE = "Goes with your message";
 
 /** What a chip over a sent message is, as its tooltip says it. */
-const SENT_WITH_THIS_MESSAGE = "Instrument saw this with your message.";
+const SENT_WITH_THIS_MESSAGE = "Sent with this message";
 
 /**
  * A tab a chip names as it goes with a message: what it points at on this
@@ -83,9 +85,10 @@ export function heldChipOf(
 /**
  * What the window has in view behind a draft, offered to it beside the plus:
  * dashed and quiet, the way the head offers a project, with a plus where a
- * chip has its x. A press takes it, and it stands among the chips from then
- * on. Nothing offered goes with the message, so it may follow the screen as
- * the person moves about without changing what is sent.
+ * chip has its x. A press takes it into the draft's band, where it is a chip
+ * like any other from then on. Nothing offered goes with the message, so it
+ * may follow the screen as the person moves about without changing what is
+ * sent.
  */
 export function ContextSuggestion({
   item,
@@ -106,7 +109,7 @@ export function ContextSuggestion({
   const [one] = item.items ?? [];
   const name = nameOfChip(chip);
   return (
-    <ToolbarTooltip label={`Add ${name} to this message`}>
+    <ToolbarTooltip label="Add to your message">
       <button
         aria-label={`Add ${name}`}
         className="inline-flex h-7 max-w-56 min-w-0 shrink items-center gap-1.5 rounded-[9px] border border-dashed border-border pr-1.5 pl-1.5 text-[12.5px] text-muted-foreground hover:border-foreground/30 hover:text-foreground"
@@ -205,20 +208,16 @@ export function ContextChips({
   onLeaveOut: (item: ContextItem) => void;
 }) {
   const appsBySlug = useAppsBySlug();
-  return items.map((item) => {
+  const chipOf = (item: ContextItem) => {
     const leaveOut = () => {
       onLeaveOut(item);
     };
     switch (item.kind) {
       case "chat": {
-        return (
-          <ChatChip chatId={item.chat} key={item.key} onLeaveOut={leaveOut} />
-        );
+        return <ChatChip chatId={item.chat} onLeaveOut={leaveOut} />;
       }
       case "chosen": {
-        return (
-          <ChosenChip item={item.item} key={item.key} onLeaveOut={leaveOut} />
-        );
+        return <ChosenChip item={item.item} onLeaveOut={leaveOut} />;
       }
       case "tab": {
         const { tab } = item;
@@ -228,7 +227,6 @@ export function ContextChips({
             appsBySlug={appsBySlug}
             isSelected={inBand && tab.id === band.selectedId}
             items={item.items}
-            key={item.key}
             onLeaveOut={leaveOut}
             onSelect={
               inBand
@@ -242,7 +240,21 @@ export function ContextChips({
         );
       }
     }
-  });
+  };
+  // Keyed by the tab where a chip is one, so a folder's chip that comes to
+  // name what is selected in it changes in place rather than going and
+  // coming back.
+  return (
+    <AnimatePresence initial={false}>
+      {items.map((item) => (
+        <ChipPresence
+          key={item.kind === "tab" ? `tab:${item.tab.id}` : item.key}
+        >
+          {chipOf(item)}
+        </ChipPresence>
+      ))}
+    </AnimatePresence>
+  );
 }
 
 /**

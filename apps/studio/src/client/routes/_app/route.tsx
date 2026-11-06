@@ -309,6 +309,7 @@ function ChatView({
                         <NewChatView
                           draftId={draft}
                           ensureGroup={ensureGroup}
+                          isPaneShown={showsPane}
                           leading={<InboxToggle />}
                           onOpenBeside={(opened) => {
                             setPaneOpen(opened, true);

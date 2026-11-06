@@ -6,7 +6,10 @@ import { openLogin } from "@/client/atoms/login-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
-import { AttachedItemPreview } from "@/client/components/attached-item-preview";
+import {
+  AttachedItemPreview,
+  ChipPresence,
+} from "@/client/components/attached-item-preview";
 import {
   type ComposerAction,
   ComposerAddMenu,
@@ -49,7 +52,6 @@ import {
   reachModel,
   readModelStatus,
 } from "@/client/lib/model-status";
-import { ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -75,7 +77,7 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import {
   Fragment,
   useEffect,
@@ -189,6 +191,10 @@ interface PromptInputProps {
   addMenu?: boolean;
   /** What stands beside the plus along a bare box's foot: something offered to the message, such as what is in view behind a draft. */
   besidePlus?: React.ReactNode;
+  /** Shows an attached file or folder on disk where the host shows what goes with the message; without it a picture opens large. */
+  onShowItem?: (item: { kind: "file" | "folder"; path: string }) => void;
+  /** The attached file or folder the host shows now, whose chip is drawn raised. */
+  shownPath?: string;
   /**
    * Keep the row open whether or not the caret is in it. For a composer that
    * sits beside the work rather than under it: switching to another tab would
@@ -266,26 +272,13 @@ interface PromptInputProps {
  * out it takes no press: a second one on its remove button would run the
  * removal again from the render before it left.
  */
-function AttachedChip({ children }: { children: React.ReactNode }) {
-  const isPresent = useIsPresent();
-  return (
-    <motion.div
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      inert={!isPresent}
-      initial={{ opacity: 0, scale: 0.9 }}
-      transition={ITEM_IN}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 export const PromptInput = ({
   actionsInto,
   addMenu = true,
   alwaysOpen,
   besidePlus,
+  onShowItem,
+  shownPath,
   attachmentsLead,
   autoFocus = false,
   keyboardHome = false,
@@ -1240,12 +1233,20 @@ export const PromptInput = ({
               <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
               <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
               {attachedItems.map((item) => (
-                <AttachedChip key={item.id}>
+                <ChipPresence key={item.id}>
                   {item.type === "folder" ? (
                     <AttachedItemPreview
                       hostPath={item.path}
                       icon={<SystemFolderIcon className="size-4 shrink-0" />}
+                      isSelected={shownPath === item.path}
                       label={folderLabel(item.path)}
+                      {...(onShowItem
+                        ? {
+                            onClick: () => {
+                              onShowItem({ kind: "folder", path: item.path });
+                            },
+                          }
+                        : {})}
                       onRemove={() => {
                         removeAttachedItem(item.id);
                       }}
@@ -1255,9 +1256,14 @@ export const PromptInput = ({
                     <AttachedFilePreview
                       filename={item.name}
                       {...("path" in item ? { hostPath: item.path } : {})}
+                      isSelected={"path" in item && shownPath === item.path}
                       mimeType={item.mimeType}
                       onClick={() => {
-                        if (item.url) {
+                        // On disk, it shows where the host shows what goes
+                        // with the message; only bytes pasted in open large.
+                        if (onShowItem && "path" in item) {
+                          onShowItem({ kind: "file", path: item.path });
+                        } else if (item.url) {
                           setLookAt(
                             lookTargetOf({
                               filename: item.name,
@@ -1278,7 +1284,7 @@ export const PromptInput = ({
                       url={item.url}
                     />
                   )}
-                </AttachedChip>
+                </ChipPresence>
               ))}
             </AnimatePresence>
           )

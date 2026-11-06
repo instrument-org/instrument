@@ -182,10 +182,7 @@ export function draftSuggestionOf({
           return url === undefined ? [] : [{ kind: "link" as const, url }];
         })();
   const keys = new Set(carried.map((entry) => entry.key));
-  if (
-    entries.length === 0 ||
-    entries.every((entry) => keys.has(contextKeyOf(entry)))
-  ) {
+  if (entries.every((entry) => keys.has(contextKeyOf(entry)))) {
     return undefined;
   }
   return { entries, item };

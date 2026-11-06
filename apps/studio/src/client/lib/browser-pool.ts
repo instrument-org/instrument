@@ -82,7 +82,8 @@ interface PooledWebview {
   generation: number;
   // Whether main was last told a slot shows this guest. Main's record of a
   // new guest starts parked, as this does.
-  lastReportedShown: boolean;
+  /** Nothing yet: a guest handed over from another window starts out counted as shown. */
+  lastReportedShown: boolean | undefined;
   // Last size reported to main, so a park/show cycle that lands on the same
   // number doesn't re-send it.
   lastReportedSurface: null | { height: number; width: number };
@@ -990,7 +991,7 @@ function ensureWebview(
     desiredSurface: desiredSurfaces.get(targetId) ?? null,
     generation,
     handle: null,
-    lastReportedShown: false,
+    lastReportedShown: undefined,
     lastReportedSurface: null,
     lastVisibleBounds: null,
     targetId,

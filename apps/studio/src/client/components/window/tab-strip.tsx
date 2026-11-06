@@ -621,11 +621,11 @@ function Tab({
   const dragX = useMotionValue(0);
   const wasHeldAway = useRef(false);
   useLayoutEffect(() => {
-    if (wasHeldAway.current && !isHeldAway && !isDragging) {
+    if (wasHeldAway.current && !isHeldAway) {
       dragX.jump(0);
     }
     wasHeldAway.current = Boolean(isHeldAway);
-  }, [dragX, isDragging, isHeldAway]);
+  }, [dragX, isHeldAway]);
   // In the hand it stands at the pointer, wherever its place in the row has got to,
   // and settles into that place when it is let go. Stood again every frame, after the
   // strip's own reorder has written and before anything is drawn, since its place also

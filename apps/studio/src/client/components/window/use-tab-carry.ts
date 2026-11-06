@@ -4,7 +4,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type TabId, type TabPicturePaintOut } from "@/shared/tabs";
 import { useAtomValue } from "jotai";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { settleTabMove, tabStanding } from "./move-tab";
 import { showTabCarryView } from "./tab-carry-view";
@@ -67,8 +67,8 @@ export function useTabCarry({
     const isGone = drag.isOffRow && drag.collapsesOffRow && !drag.canceled;
     setCarriedKey(isGone ? drag.key : undefined);
     if (isGone && !drag.isNeighborUp) {
-      const at = drag.orderAtStart.indexOf(drag.key);
-      const neighbor = drag.orderAtStart[at + 1] ?? drag.orderAtStart[at - 1];
+      const at = order.indexOf(drag.key);
+      const neighbor = order[at + 1] ?? order[at - 1];
       if (neighbor !== undefined) {
         drag.isNeighborUp = true;
         onSelect(neighbor);
@@ -86,6 +86,8 @@ export function useTabCarry({
     if (!pressed) {
       return;
     }
+    // A drag whose release went by unheard leaves with this one's start.
+    dragging.current?.stop();
     const pointInTab = event.clientX - pressed.getBoundingClientRect().left;
     // A page runs in a process of its own, which takes a pointer that crosses
     // it, and the release with it, so pages are out of its way for the drag.
@@ -115,7 +117,7 @@ export function useTabCarry({
         return;
       }
       if (releaseEvent.type === "pointerup") {
-        onDrag(key, releaseEvent);
+        latestOnDrag.current(key, releaseEvent);
       }
       onDragEnd(key, releaseEvent);
     };
@@ -206,6 +208,12 @@ export function useTabCarry({
       y: event.screenY,
     });
   };
+
+  // A drag outlasts the render it started in, whose tabs the release would place it among.
+  const latestOnDrag = useRef(onDrag);
+  useLayoutEffect(() => {
+    latestOnDrag.current = onDrag;
+  });
 
   /**
    * The release, from the pointer or from the reorder. The reorder's word is what

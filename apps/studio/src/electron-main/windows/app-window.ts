@@ -462,6 +462,8 @@ export function adoptSpareWindow(adopted: SpareWindow) {
   spares.delete(adopted);
   if (isUp) {
     listening.add(window.webContents.id);
+  } else {
+    adoptedBeforeUp.set(window.webContents.id, adopted);
   }
   openWindows.set(id, window);
   inFront = inFront.toSpliced(1, 0, window);
@@ -491,6 +493,9 @@ export function closeEmptiedWindow(window: BrowserWindow) {
   emptied.add(window);
   window.close();
 }
+
+/** A spare a tab was let go in before its page was up, by its page, until the page says it is. */
+const adoptedBeforeUp = new Map<number, SpareWindow>();
 
 /** Whether a closed window can come back. */
 export function canReopenClosedAppWindow() {
@@ -530,16 +535,23 @@ export function mergeAllWindows() {
   const manager = getBrowserViewManager();
   const kept = keptTabsOf(to);
   const tabs = [...kept.tabs];
+  const recentlyClosed = [...kept.recentlyClosed];
   let floats = getWindowKeptState(to, COMPOSE_KEY);
   for (const other of others) {
     const from = appWindowIdOfWindow(other);
     if (from !== undefined) {
-      tabs.push(...keptTabsOf(from).tabs);
+      const model = keptTabsOf(from);
+      tabs.push(...model.tabs);
+      recentlyClosed.push(...model.recentlyClosed);
       floats = mergeFloats(floats, getWindowKeptState(from, COMPOSE_KEY));
       manager.handOffGuestsOf(other.webContents.id, front.webContents.id);
     }
   }
-  tellWindowKeptState(to, front.webContents, APP_TABS_KEY, { ...kept, tabs });
+  tellWindowKeptState(to, front.webContents, APP_TABS_KEY, {
+    ...kept,
+    recentlyClosed,
+    tabs,
+  });
   tellWindowKeptState(to, front.webContents, COMPOSE_KEY, floats);
   for (const other of others) {
     closeEmptiedWindow(other);
@@ -899,26 +911,30 @@ export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
 export function takePendingAppWindowAsks(
   webContentsId: number,
 ): AppWindowAsk[] {
-  // A spare window's page is up and quiet, which is all this tells: nothing
-  // asked of the windows is for it.
   const spare = spareOf(webContentsId);
-  if (spare) {
-    spare.isUp = true;
+  const started = spare ?? adoptedBeforeUp.get(webContentsId);
+  if (started) {
+    started.isUp = true;
     // What a drag told it while its page was starting, or took back, may have
     // gone unheard: it read its state as it loaded and listens only now.
     for (const key of new Set([
       ...WINDOW_KEPT_KEYS,
-      ...windowKeptKeys(spare.id),
+      ...windowKeptKeys(started.id),
     ])) {
       tellWindowKeptState(
-        spare.id,
-        spare.window.webContents,
+        started.id,
+        started.window.webContents,
         key,
-        getWindowKeptState(spare.id, key),
+        getWindowKeptState(started.id, key),
       );
     }
+  }
+  // A spare window's page is up and quiet, which is all this tells: nothing
+  // asked of the windows is for it.
+  if (spare) {
     return [];
   }
+  adoptedBeforeUp.delete(webContentsId);
   listening.add(webContentsId);
   return asks.take();
 }

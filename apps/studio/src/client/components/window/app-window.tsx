@@ -1069,35 +1069,35 @@ function WindowShell({
               />
             }
             overlay={
-                <ComposeLayer
-                  browser={browser}
-                  chats={chats.data ?? []}
-                  compose={compose}
-                  drafts={drafts}
-                  modelURI={defaultModelURI}
-                  onChangeDraft={(id, update) => {
-                    updateDraft({ id, update });
-                  }}
-                  onCloseChat={(chatId) => {
-                    compose.remove(chatId);
-                  }}
-                  onCloseDraft={closeDraft}
-                  onDiscardDraft={discardDraft}
-                  onExpandChat={expandChat}
-                  onExpandDraft={expandDraft}
-                  onModelChange={setDefaultModelURI}
-                  onNewChatProject={(chatId, name) => {
-                    setNewProject({ chatId, ...(name ? { name } : {}) });
-                  }}
-                  onNewProject={(draftId, name) => {
-                    setNewProject({ draftId, ...(name ? { name } : {}) });
-                  }}
-                  onSetChatProject={setChatProject}
-                  onStart={startChat}
-                  sendContext={(options) => sendContextRef.current(options)}
-                  sentWords={sentWords}
-                  projects={projects}
-                />
+              <ComposeLayer
+                browser={browser}
+                chats={chats.data ?? []}
+                compose={compose}
+                drafts={drafts}
+                modelURI={defaultModelURI}
+                onChangeDraft={(id, update) => {
+                  updateDraft({ id, update });
+                }}
+                onCloseChat={(chatId) => {
+                  compose.remove(chatId);
+                }}
+                onCloseDraft={closeDraft}
+                onDiscardDraft={discardDraft}
+                onExpandChat={expandChat}
+                onExpandDraft={expandDraft}
+                onModelChange={setDefaultModelURI}
+                onNewChatProject={(chatId, name) => {
+                  setNewProject({ chatId, ...(name ? { name } : {}) });
+                }}
+                onNewProject={(draftId, name) => {
+                  setNewProject({ draftId, ...(name ? { name } : {}) });
+                }}
+                onSetChatProject={setChatProject}
+                onStart={startChat}
+                sendContext={(options) => sendContextRef.current(options)}
+                sentWords={sentWords}
+                projects={projects}
+              />
             }
             rail={
               <AppRail

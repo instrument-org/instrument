@@ -23,6 +23,7 @@ vi.mock("@/client/lib/tab-view-state", () => ({
 vi.mock("./move-tab", () => ({
   settleTabMove: vi.fn(),
   tabStanding: (id: string) => ({
+    hostedPages: [],
     neighborPages: [],
     pages: [],
     tab: { id, pathname: `/${id}` },

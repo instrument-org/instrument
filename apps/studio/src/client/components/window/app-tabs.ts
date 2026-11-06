@@ -66,6 +66,18 @@ export function isSiteHref(href: string): boolean {
  */
 export const putAwaySitesAtom = atom<Record<string, WindowTab[]>>({});
 
+/**
+ * Whether a closed tab is a site with no page left to give it, as one closed before
+ * this launch or in another renderer is.
+ */
+export function isGoneSite(
+  { pathname }: { pathname: string },
+  putAway: Record<string, WindowTab[]>,
+) {
+  const group = isSiteHref(pathname) ? groupOfHref(pathname) : undefined;
+  return group !== undefined && !putAway[group];
+}
+
 /** A fresh group for a site opened at the window's own level. */
 export function newSiteGroup(): string {
   return siteGroupOf(crypto.randomUUID());
@@ -186,6 +198,7 @@ export function siteGroupsInOtherWindows() {
  */
 export function useAppTabs() {
   const [model, setModel] = useAtom(appTabsAtom);
+  const putAwaySites = useAtomValue(putAwaySitesAtom);
   const lastChat = useAtomValue(chatGroupAtom);
   const lastFolder = useAtomValue(filesHrefAtom);
   const activeRouter = getTabRouter(model.selectedId);
@@ -314,11 +327,15 @@ export function useAppTabs() {
     // The tab closed last, or with none to reopen the window closed last, the
     // way a browser's one chord brings back either.
     reopen: () => {
-      if (model.recentlyClosed.length === 0) {
+      // A site no record is left of has nothing to come back to, here as in the menu.
+      const entry = model.recentlyClosed.findIndex(
+        (tab) => !isGoneSite(tab, putAwaySites),
+      );
+      if (entry === -1) {
         void rpcClient.window.reopenClosed.call();
         return;
       }
-      setModel((current) => reopenClosed(current, { id: freshTabId() }));
+      setModel((current) => reopenClosed(current, { entry, id: freshTabId() }));
     },
     reorder: (ids: TabId[]) => {
       setModel((current) => reorderTabs(current, { ids }));

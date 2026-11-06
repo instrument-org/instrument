@@ -52,7 +52,7 @@ it("hands what was kept to `read`", () => {
 
 describe("a value kept member by member", () => {
   const members = () =>
-    keptMembersAtom<Record<string, number>>("layout", "groups.v1", {
+    keptMembersAtom<Record<string, number>>(() => "layout", "groups.v1", {
       join: (kept) =>
         Object.fromEntries(
           [...kept].flatMap(([key, value]) =>
@@ -61,6 +61,40 @@ describe("a value kept member by member", () => {
         ),
       split: (value) => new Map(Object.entries(value)),
     });
+
+  it("keeps each member in the file named for it, and reads it only from there", () => {
+    const byPrefix = () =>
+      keptMembersAtom<Record<string, number>>(
+        (member) => (member.startsWith("own:") ? "window" : "layout"),
+        "split.v1",
+        {
+          join: (kept) =>
+            Object.fromEntries(
+              [...kept].flatMap(([key, value]) =>
+                typeof value === "number" ? [[key, value]] : [],
+              ),
+            ),
+          split: (value) => new Map(Object.entries(value)),
+        },
+      );
+    writeKept("layout", "split.v1/shared", 1);
+    writeKept("window", "split.v1/own:a", 2);
+    writeKept("layout", "split.v1/own:left-behind", 3);
+    const store = createStore();
+    const atom = byPrefix();
+    expect(store.get(atom)).toEqual({ "own:a": 2, shared: 1 });
+
+    const set = vi.fn();
+    vi.stubGlobal("window", {
+      api: { keptState: { initial: {}, onChange: () => () => {}, set } },
+    });
+    store.set(atom, { "own:b": 4, shared: 1 });
+    expect(set.mock.calls).toEqual([
+      ["window", "split.v1/own:a", undefined],
+      ["window", "split.v1/own:b", 4],
+    ]);
+    vi.unstubAllGlobals();
+  });
 
   it("reads each member, and is empty with none", () => {
     expect(createStore().get(members())).toEqual({});

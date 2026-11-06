@@ -94,7 +94,6 @@ export function useWindowCommands(
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
     reopenTab: () => void;
-    /** Every tab of this window to another. */
     /** The caret into the window's field, wherever it was. */
     search: () => void;
     /** The next or previous chat of the inbox, as listed. */

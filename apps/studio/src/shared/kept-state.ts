@@ -60,3 +60,24 @@ export const KEPT_STATE_CHANNEL = {
   load: "kept-state:load",
   set: "kept-state:set",
 } as const;
+
+/** The window tabs, kept a group at a time under this key. */
+export const WINDOW_TABS_KEY = "window-tabs.v10";
+
+/** The group of a page drawn inside a surface of one window, such as a file's page in its viewer. */
+export const HOSTED_PAGE_GROUP_PREFIX = "page:";
+
+/**
+ * Which file a group of window tabs is kept in. A chat's or a site's belong to it
+ * whichever window shows it. A page drawn inside a surface is that window's alone,
+ * made when the surface comes and closed when it goes, so another window showing
+ * the same tab draws a page of its own and is not left blank by this one's going.
+ */
+export function fileOfTabGroup(group: string): KeptFile {
+  return group.startsWith(HOSTED_PAGE_GROUP_PREFIX) ? "window" : "layout";
+}
+
+/** Whether a key a window keeps is the tab of a page drawn inside its surfaces, which goes with no other window. */
+export function isHostedPageKey(key: string) {
+  return key.startsWith(`${WINDOW_TABS_KEY}/${HOSTED_PAGE_GROUP_PREFIX}`);
+}

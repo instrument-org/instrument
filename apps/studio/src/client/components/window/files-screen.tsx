@@ -64,18 +64,14 @@ import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
 import { useFilesStep } from "./use-files-step";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
-import {
-  hostGroupOf,
-  useHostedPage,
-  useHostedPageNavigation,
-} from "./hosted-page";
+import { useHostedPage, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
-import { useWindowTabs } from "./window-tabs";
+import { hostGroupOf, useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
 const FULL_BLEED = "h-full rounded-none shadow-none";

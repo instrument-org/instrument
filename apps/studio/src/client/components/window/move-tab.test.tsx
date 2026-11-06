@@ -190,6 +190,7 @@ describe("moving a tab from a menu", () => {
     expect(moveTabCall).toHaveBeenCalledWith({
       isOnlyTab: false,
       moving: {
+        hostedPages: [],
         neighborPages: [],
         pages: [],
         tab: expect.objectContaining({ id: "a" }) as Tab,

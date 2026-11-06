@@ -146,13 +146,13 @@ export function takeKept(file: KeptFile, key: string): unknown {
 }
 
 /**
- * A value kept member by member, each under a key of its own, where every
- * window shares it. A window writes only the members it changed, so two
+ * A value kept member by member, each under a key of its own, in the file
+ * `fileOf` names for it. A window writes only the members it changed, so two
  * windows changing different ones at once never undo each other, as whole
  * writes crossing on their way through the main process would.
  */
 export function keptMembersAtom<T>(
-  file: KeptFile,
+  fileOf: (member: string) => KeptFile,
   key: string,
   {
     join,
@@ -163,17 +163,20 @@ export function keptMembersAtom<T>(
   },
 ) {
   const prefix = `${key}/`;
-  const slotPrefix = slotOf(file, prefix);
-  const memberKeys = () =>
-    [...kept().keys()].flatMap((slot) =>
-      slot.startsWith(slotPrefix) ? [slot.slice(slotPrefix.length)] : [],
-    );
+  const memberOf = (slot: string) => {
+    const at = slot.indexOf(`/${prefix}`);
+    const member = at === -1 ? "" : slot.slice(at + 1 + prefix.length);
+    return member !== "" && slot === slotOf(fileOf(member), prefix + member)
+      ? [member]
+      : [];
+  };
+  const memberKeys = () => [...kept().keys()].flatMap(memberOf);
   const read = (): T =>
     join(
       new Map(
         memberKeys().map((member) => [
           member,
-          kept().get(`${slotPrefix}${member}`),
+          kept().get(slotOf(fileOf(member), prefix + member)),
         ]),
       ),
     );
@@ -184,26 +187,27 @@ export function keptMembersAtom<T>(
       getItem: read,
       removeItem: () => {
         for (const member of memberKeys()) {
-          writeKept(file, `${prefix}${member}`, undefined);
+          writeKept(fileOf(member), prefix + member, undefined);
         }
       },
       setItem: (_, value) => {
         const members = split(value);
         for (const member of memberKeys()) {
           if (!members.has(member)) {
-            writeKept(file, `${prefix}${member}`, undefined);
+            writeKept(fileOf(member), prefix + member, undefined);
           }
         }
         for (const [member, entry] of members) {
-          const before = kept().get(`${slotPrefix}${member}`);
+          const file = fileOf(member);
+          const before = kept().get(slotOf(file, prefix + member));
           if (JSON.stringify(before) !== JSON.stringify(entry)) {
-            writeKept(file, `${prefix}${member}`, entry);
+            writeKept(file, prefix + member, entry);
           }
         }
       },
       subscribe: (_, callback) => {
-        const listener = (changedFile: KeptFile, changedKey: string) => {
-          if (changedFile === file && changedKey.startsWith(prefix)) {
+        const listener = (_file: KeptFile, changedKey: string) => {
+          if (changedKey.startsWith(prefix)) {
             callback(read());
           }
         };

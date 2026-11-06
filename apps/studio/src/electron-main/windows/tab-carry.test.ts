@@ -89,6 +89,7 @@ const picture = vi.hoisted(() => ({
 }));
 const openTabPicture = vi.hoisted(() => vi.fn(() => picture));
 const handOffGuest = vi.hoisted(() => vi.fn());
+const handOffGuestsOf = vi.hoisted(() => vi.fn());
 const adoptSpareWindow = vi.hoisted(() => vi.fn());
 const returnSpareWindow = vi.hoisted(() => vi.fn());
 const closeEmptiedWindow = vi.hoisted(() => vi.fn());
@@ -115,6 +116,7 @@ vi.mock("@/electron-main/lib/ozone-platform", () => ({
 vi.mock("@/electron-main/browser-view/manager", () => ({
   getBrowserViewManager: () => ({
     handOffGuest,
+    handOffGuestsOf,
     isPageUsed: (pages: string[]) =>
       pages.some((page) => state.usedPages.has(page)),
   }),
@@ -244,7 +246,12 @@ function setUp({
   ]);
 }
 
-const moving = (neighborPages: string[] = [], pages: string[] = []) => ({
+const moving = (
+  neighborPages: string[] = [],
+  pages: string[] = [],
+  hostedPages: string[] = [],
+) => ({
+  hostedPages: hostedPages.map(page),
   neighborPages: neighborPages.map(page),
   pages: pages.map(page),
   tab: asTab("a"),
@@ -269,6 +276,7 @@ function press(
     isOffRow: isOnlyTab,
     isOnlyTab,
     moving: standing,
+    paintOut: { ground: "white", over: [] },
     pointInTab: 30,
     webContentsId: 1,
   });
@@ -315,6 +323,7 @@ beforeEach(() => {
   state.views = [];
   for (const mock of [
     handOffGuest,
+    handOffGuestsOf,
     adoptSpareWindow,
     returnSpareWindow,
     closeEmptiedWindow,
@@ -620,7 +629,105 @@ describe("near another window's strip", () => {
   });
 });
 
+describe("a window closing for a landing", () => {
+  it("sends its pages where its tabs went, whichever window it is", async () => {
+    press(withUsedPage());
+    moveTo(OVER_STRIP);
+    await letGo();
+    expect(handOffGuestsOf).toHaveBeenCalledWith(3, 1);
+
+    handOffGuestsOf.mockClear();
+    setUp();
+    state.usedPages = new Set();
+    press(moving(), true);
+    moveTo(OVER_STRIP);
+    await letGo();
+    expect(handOffGuestsOf).toHaveBeenCalledWith(1, 3);
+  });
+});
+
+describe("the release", () => {
+  it("tells a strip the pointer has left since it was last read to stop showing the tab", async () => {
+    press();
+    moveTo(OVER_STRIP);
+    expect(lastViewOf(3)?.kind).toBe("incoming");
+
+    state.cursor = IN_THE_OPEN;
+    await letGo();
+    expect(lastViewOf(3)?.kind).toBe("row");
+  });
+
+  it("puts the picture away and the window back when a window goes partway", async () => {
+    press(withUsedPage());
+    moveTo(IN_THE_OPEN);
+    spareWindow.moveTop = vi.fn(() => {
+      throw new Error("Object has been destroyed");
+    });
+
+    const ended = endTabCarry({ canceled: false }).catch(
+      (error: unknown) => error,
+    );
+    await settle();
+
+    await expect(ended).resolves.toBeInstanceOf(Error);
+    expect(picture.close).toHaveBeenCalled();
+    expect(lastViewOf(1)?.kind).toBe("row");
+  });
+});
+
+describe("the window left behind", () => {
+  it("keeps up the tab it had up, when that is not the one that goes", async () => {
+    setUp({ tabs: ["a", "b", "c"] });
+    state.kept.get("from")?.set("app-tabs.v2", {
+      recentlyClosed: [],
+      selectedId: "c",
+      tabs: ["a", "b", "c"].map(asTab),
+    });
+    press(withUsedPage());
+    moveTo(IN_THE_OPEN);
+    await letGo();
+
+    expect(state.kept.get("spare")?.get("app-tabs.v2")).toMatchObject({
+      selectedId: "c",
+    });
+  });
+});
+
+describe("a page drawn inside a screen of the tab", () => {
+  const HOSTED = "window-tabs.v10/page:b";
+
+  it("keeps the window with the tab, once someone has used it", async () => {
+    state.usedPages = new Set(["hosted"]);
+    press(moving([], [], ["hosted"]));
+    moveTo(IN_THE_OPEN);
+
+    expect(await letGo()).toEqual({ kind: "keepsTab" });
+  });
+
+  it("is its window's alone, so a window taking over its tabs draws its own", async () => {
+    state.kept.get("from")?.set(HOSTED, { tabs: [] });
+    state.kept.get("other")?.set("window-tabs.v10/page:x", { tabs: [] });
+    press(withUsedPage());
+    moveTo(OVER_STRIP);
+    await letGo();
+
+    expect(state.kept.get("spare")?.has(HOSTED)).toBe(false);
+    expect(state.kept.get("from")?.get(HOSTED)).toEqual({ tabs: [] });
+    expect(state.kept.get("from")?.has("window-tabs.v10/page:x")).toBe(false);
+  });
+});
+
 describe("a window's only tab", () => {
+  it("stays with a full-screen window", async () => {
+    from.full = true;
+    expect(press(moving(), true)).toEqual({ collapsesOffRow: false });
+    moveTo(OVER_STRIP);
+
+    expect(from.opacity).toBe(1);
+    expect(from.bounds).toEqual(BOUNDS);
+    expect(await letGo()).toEqual({ kind: "none" });
+  });
+
   it("takes its window with it, with no picture and no spare", () => {
     expect(press(moving(), true)).toEqual({ collapsesOffRow: false });
     moveTo(IN_THE_OPEN);

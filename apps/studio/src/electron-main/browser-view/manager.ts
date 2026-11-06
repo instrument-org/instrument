@@ -112,7 +112,6 @@ export interface BrowserViewManager {
   // the manager is the app's, so a window opened during setup hosts the
   // guests of the workspace setup starts.
   bindHost: (host: WebContents, options?: { isSpare?: () => boolean }) => void;
-  // Whether a person has used a page this window's renderer mounts, those named
   // Whether a person has used any of these pages.
   isPageUsed: (targets: readonly BrowserTargetId[]) => boolean;
   browser: BrowserConfig;
@@ -831,7 +830,13 @@ function createBrowserViewManager(): BrowserViewManager {
         guest.navigationHistory.getActiveIndex(),
       );
     }
+    // The page goes on: what waits for it to go waits on, and its reload is no visit.
+    const { destructionListeners } = existing;
+    existing.destructionListeners = new Set();
     destroyEntry(entries, existing.targetId);
+    if (restoreHistory) {
+      noteRestored(existing.targetId, restoreHistory.url);
+    }
     const entry = createEntry({
       hostId,
       partitionDir,
@@ -839,6 +844,7 @@ function createBrowserViewManager(): BrowserViewManager {
       ...(restoreHistory ? { src: restoreHistory.url } : {}),
       targetId: existing.targetId,
     });
+    entry.destructionListeners = destructionListeners;
     // The window taking it is showing it, which it says itself only once the
     // guest has come up; until then another window showing this tab must not
     // take it straight back.

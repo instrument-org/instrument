@@ -420,7 +420,9 @@ export function TabStrip({
               isCarried={carriedKey === tab.key}
               isClosing={isClosing}
               isDragging={draggingKey === tab.key}
-              isHeldAway={isStill || heldAwayKey === tab.key}
+              isHeldAway={
+                heldAt?.key !== tab.key && (isStill || heldAwayKey === tab.key)
+              }
               isReordering={isReordering}
               {...(heldAt?.key === tab.key ? { heldLeft: heldAt.left } : {})}
               isSelected={tab.key === selectedKey}

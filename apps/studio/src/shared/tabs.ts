@@ -75,19 +75,23 @@ export const TabMoveDestinationSchema = z.discriminatedUnion("kind", [
 ]);
 export type TabMoveDestination = z.output<typeof TabMoveDestinationSchema>;
 
+/** A tab held over a window's strip, which stands among its tabs at the pointer until it is let go. */
+export interface IncomingTab {
+  clientX: number;
+  kind: "incoming";
+  pointInTab: number;
+  tab: { id: TabId; pathname: string };
+}
+
 /**
  * What main has a window's strip show of a tab's drag, which is otherwise its own
- * tabs. A tab held over it stands among them at the pointer until it is let go. A
- * spare window waiting for the release shows its tabs with nobody looking at them.
- * A window being given other tabs out of sight does not animate them.
+ * tabs. A spare window waiting for the release shows its tabs with nobody looking at
+ * them. A window being given other tabs out of sight does not animate them, and one
+ * coming up in place of a strip showing a tab held over it draws that tab where the
+ * strip it replaces has it.
  */
 export type TabCarryView =
-  | {
-      clientX: number;
-      kind: "incoming";
-      pointInTab: number;
-      tab: { id: TabId; pathname: string };
-    }
+  | IncomingTab
   | { kind: "beneath" }
-  | { kind: "reshaping" }
+  | { held?: IncomingTab; kind: "reshaping" }
   | { kind: "row" };

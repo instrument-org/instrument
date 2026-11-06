@@ -31,6 +31,7 @@ import {
   isHostedPageKey,
 } from "@/shared/kept-state";
 import {
+  type IncomingTab,
   neighborAt,
   type Tab,
   type TabCarryView,
@@ -60,6 +61,8 @@ import { openTabPicture, type TabPicture } from "./tab-picture";
 const FOLLOW_MS = 8;
 /** How long a window waits for a tab that came to it to draw, before going ahead anyway. */
 const DRAWN_LIMIT_MS = 400;
+/** How long a window waits to have brought up every tab it was told it holds, before going ahead anyway. */
+const BRINGS_UP_LIMIT_MS = 1000;
 /**
  * A window wholly covered by an opaque one counts as out of sight on macOS and
  * stops drawing, and the window under the spare has to draw itself as it will
@@ -176,7 +179,7 @@ function incomingView(
   { moving, pointInTab }: Carry,
   target: BrowserWindow,
   point: Point,
-): TabCarryView {
+): IncomingTab {
   const { id, pathname } = moving.tab;
   return {
     clientX: point.x - target.getBounds().x,
@@ -373,6 +376,41 @@ async function drawn(window: BrowserWindow) {
       .catch(() => undefined),
     new Promise((resolve) => {
       setTimeout(resolve, DRAWN_LIMIT_MS);
+    }),
+  ]);
+}
+
+/**
+ * Resolves when a window told what it holds has drawn exactly those tabs, or soon
+ * anyway. Being told reaches its strip some time later, the later the more tabs it
+ * has to bring up, and a window brought forward before then would show what it had.
+ */
+async function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
+  if (window.isDestroyed()) {
+    return;
+  }
+  const ids = JSON.stringify(tabs.map((tab) => tab.id).toSorted());
+  await Promise.race([
+    window.webContents
+      .executeJavaScript(
+        `new Promise((resolve) => {
+          const check = () => {
+            const shown = [...document.querySelectorAll("[data-app-tab-strip] [data-tab-key]")]
+              .filter((tab) => !tab.hasAttribute("aria-hidden"))
+              .map((tab) => tab.dataset.tabKey)
+              .toSorted();
+            if (JSON.stringify(shown) === ${JSON.stringify(ids)}) {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+            } else {
+              requestAnimationFrame(check);
+            }
+          };
+          check();
+        })`,
+      )
+      .catch(() => undefined),
+    new Promise((resolve) => {
+      setTimeout(resolve, BRINGS_UP_LIMIT_MS);
     }),
   ]);
 }
@@ -751,7 +789,7 @@ async function leaveOthersBehind(ending: Carry) {
   dressSpare(ending);
   if (followsCursor) {
     showSpare(ending);
-    await drawn(spare.window);
+    await drawnHolding(spare.window, keptTabsOf(spare.id).tabs);
     setOpacity(spare.window, SEE_THROUGH_OPACITY);
     spare.window.moveTop();
   }
@@ -766,8 +804,12 @@ async function leaveOthersBehind(ending: Carry) {
  * comes and goes, and this is no one's to watch, so it is told to stay still until
  * it has come out from under the window left in its place.
  */
-function tellWhatItHolds({ from, fromId }: Carry, model: TabsModel) {
-  tell(from, { kind: "reshaping" });
+function tellWhatItHolds(
+  { from, fromId }: Carry,
+  model: TabsModel,
+  held?: IncomingTab,
+) {
+  tell(from, { ...(held ? { held } : {}), kind: "reshaping" });
   tellWindowKeptState(fromId, from.webContents, APP_TABS_KEY, model);
 }
 
@@ -775,9 +817,13 @@ function tellWhatItHolds({ from, fromId }: Carry, model: TabsModel) {
 async function placeWhenDrawn(
   { from, picture, spare }: Carry,
   place: Bounds | undefined,
+  holding: readonly Tab[],
   isPlaceMaximized = false,
 ) {
-  await drawn(from);
+  await drawnHolding(from, holding);
+  if (place) {
+    await picture?.growTo(place);
+  }
   if (spare) {
     setOpacity(spare.window, 1);
   }
@@ -830,7 +876,7 @@ async function standAlone(
       selectedId: moving.tab.id,
       tabs: [moving.tab],
     });
-    void placeWhenDrawn(ending, place);
+    void placeWhenDrawn(ending, place, [moving.tab]);
     return { kind: "keepsTab" };
   }
   const { spare } = ending;
@@ -842,9 +888,12 @@ async function standAlone(
   // A window that cannot be kept unseen is drawn as it comes up.
   if (followsCursor && canKeepWindowsUnseen()) {
     showSpare(ending);
-    await drawn(spare.window);
+    await drawnHolding(spare.window, [moving.tab]);
   }
   adoptSpare(spare, moving.pages);
+  if (place) {
+    await picture?.growTo(place);
+  }
   if (!keepsOffScreen()) {
     setOpacity(spare.window, 1);
     spare.window.show();
@@ -937,7 +986,7 @@ async function takeStrip(
   targetId: string,
   landsAt: number | undefined,
 ): Promise<TabCarryEnd> {
-  const { from, fromId, moving, spare } = ending;
+  const { from, fromId, moving, point, spare } = ending;
   await leaveOthersBehind(ending);
   const targetModel = keptTabsOf(targetId);
   const tabs = targetModel.tabs.filter((each) => each.id !== moving.tab.id);
@@ -959,21 +1008,28 @@ async function takeStrip(
       );
     }
   }
-  tellWhatItHolds(ending, {
-    recentlyClosed: [
-      ...(spare ? [] : keptTabsOf(fromId).recentlyClosed),
-      ...targetModel.recentlyClosed,
-    ],
-    selectedId: moving.tab.id,
-    tabs,
-  });
-  void placeWhenDrawn(ending, target.getBounds(), target.isMaximized()).then(
-    () => {
-      if (!target.isDestroyed() && !from.isDestroyed()) {
-        closeInto(target, from);
-      }
+  tellWhatItHolds(
+    ending,
+    {
+      recentlyClosed: [
+        ...(spare ? [] : keptTabsOf(fromId).recentlyClosed),
+        ...targetModel.recentlyClosed,
+      ],
+      selectedId: moving.tab.id,
+      tabs,
     },
+    point ? incomingView(ending, target, point) : undefined,
   );
+  void placeWhenDrawn(
+    ending,
+    target.getBounds(),
+    tabs,
+    target.isMaximized(),
+  ).then(() => {
+    if (!target.isDestroyed() && !from.isDestroyed()) {
+      closeInto(target, from);
+    }
+  });
   return { kind: "takesStrip" };
 }
 

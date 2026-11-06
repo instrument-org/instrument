@@ -43,6 +43,12 @@ export function useTabCarryView() {
   }, []);
 }
 
+/**
+ * How far past the middle of the tab beside it a held tab goes to take its place,
+ * and back to give it up, so a hand at rest on the line does not swap them to and fro.
+ */
+const TAKES_PLACE_PAST_PX = 8;
+
 /** The tabs a strip draws, with a tab held over it among them. */
 export function tabsInView(
   tabs: readonly { id: TabId; pathname: string }[],
@@ -109,7 +115,11 @@ export function stripIndexAt(
     : 0;
   const before = drawn.filter(({ key, left, width }, index) => {
     const standsAt = held && index > heldAt ? left - slot : left;
-    return key !== except && clientX > listLeft + (standsAt + width / 2) * zoom;
+    const past = held && index < heldAt ? -TAKES_PLACE_PAST_PX : TAKES_PLACE_PAST_PX;
+    return (
+      key !== except &&
+      clientX > listLeft + (standsAt + width / 2 + past) * zoom
+    );
   });
   const others = tabs.filter((tab) => tab.id !== except);
   const at = others.findIndex((tab) => tab.id === before.at(-1)?.key);

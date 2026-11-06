@@ -50,7 +50,7 @@ function fakeWindow(id: number, name: string, bounds = BOUNDS) {
     unmaximize: vi.fn(),
     visible: true,
     webContents: {
-      executeJavaScript: () => Promise.resolve(true),
+      executeJavaScript: (_script: string) => Promise.resolve(true),
       id,
       isCrashed: () => false,
     },
@@ -83,6 +83,7 @@ const state = vi.hoisted(() => ({
 
 const picture = vi.hoisted(() => ({
   close: vi.fn(),
+  growTo: vi.fn(() => Promise.resolve()),
   hide: vi.fn(),
   moveTo: vi.fn(),
   show: vi.fn(),
@@ -328,6 +329,7 @@ beforeEach(() => {
     closeEmptiedWindow,
     openTabPicture,
     picture.close,
+    picture.growTo,
     picture.hide,
     picture.moveTo,
     picture.show,
@@ -642,6 +644,61 @@ describe("a window closing for a landing", () => {
     moveTo(OVER_STRIP);
     await letGo();
     expect(handOffGuestsOf).toHaveBeenCalledWith(1, 3);
+  });
+});
+
+describe("a window coming up in place of a strip", () => {
+  it("draws the tab where that strip has it, and lets it settle only once it is up", async () => {
+    press(withUsedPage());
+    moveTo(OVER_STRIP);
+    expect(lastViewOf(3)?.kind).toBe("incoming");
+    await letGo();
+
+    const views = state.views.filter((each) => each.webContentsId === 1);
+    const reshaping = views.find(({ view }) => view.kind === "reshaping")?.view;
+    expect(reshaping).toMatchObject({
+      held: { clientX: OVER_STRIP.x - 1400, pointInTab: 30 },
+    });
+    expect(views.at(-1)?.view.kind).toBe("row");
+  });
+
+  it("is not brought forward until it has drawn the tabs it now holds", async () => {
+    press(withUsedPage());
+    moveTo(OVER_STRIP);
+    const asked: string[] = [];
+    from.webContents.executeJavaScript = (script: string) => {
+      asked.push(script);
+      return Promise.resolve(true);
+    };
+    await letGo();
+
+    const waitedFor = asked.find((script) => script.includes("data-tab-key"));
+    expect(waitedFor).toContain(JSON.stringify(JSON.stringify(["a", "x"])));
+    expect(from.bounds).toEqual(other.bounds);
+  });
+});
+
+describe("the picture", () => {
+  it("grows into the window that opens, before that window comes up", async () => {
+    let upWhenGrown = true;
+    picture.growTo.mockImplementationOnce(() => {
+      upWhenGrown = spareWindow.opacity === 1;
+      return Promise.resolve();
+    });
+    press();
+    moveTo(IN_THE_OPEN);
+    await letGo();
+
+    expect(picture.growTo).toHaveBeenCalledWith(spareWindow.bounds);
+    expect(upWhenGrown).toBe(false);
+    expect(spareWindow.opacity).toBe(1);
+  });
+
+  it("grows into the pressed window when that is what leaves, and has nothing to do for a strip", async () => {
+    press(withUsedPage());
+    moveTo(IN_THE_OPEN);
+    await letGo();
+    expect(picture.growTo).toHaveBeenCalledWith(from.bounds);
   });
 });
 

@@ -120,6 +120,7 @@ export function AppTabStrip({
   const shownTabs = tabsInView(tabs, carryView, carryIndex);
   const incoming = carryView.kind === "incoming" ? carryView : undefined;
   const shownSelectedId = incoming ? incoming.tab.id : selectedId;
+  const heldHere = carryView.kind === "reshaping" ? carryView.held : incoming;
 
   const whole = shownTabs.map((tab) => ({
     key: tab.id,
@@ -193,10 +194,10 @@ export function AppTabStrip({
         carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
         heldAt={
-          incoming
+          heldHere
             ? {
-                key: incoming.tab.id,
-                left: incoming.clientX - incoming.pointInTab,
+                key: heldHere.tab.id,
+                left: heldHere.clientX - heldHere.pointInTab,
               }
             : carry.held
         }

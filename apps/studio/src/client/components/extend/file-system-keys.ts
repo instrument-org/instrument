@@ -22,10 +22,14 @@ export type ListingCommand =
   | { type: "copy" }
   /** ⌥⌘C on the Mac, Ctrl+Shift+C on Windows: the paths of what is selected, to the clipboard. */
   | { type: "copy-path" }
+  /** Ctrl+X off the Mac: what is selected, to move at the next paste. */
+  | { type: "cut" }
   /** ⌘D on the Mac: a copy of what is selected beside it. */
   | { type: "duplicate" }
   /** An arrow; with Shift it reaches from where the selection began. */
   | { direction: ListingDirection; extend: boolean; type: "move" }
+  /** ⌥⌘V on the Mac: what the clipboard has, moved into the folder. */
+  | { type: "move-here" }
   /** ⇧⌘N, or Ctrl+Shift+N off the Mac: a new folder in the one on screen. */
   | { type: "new-folder" }
   /** ⌘O or ⌘↓, or Enter where F2 renames: open what is selected. */
@@ -40,7 +44,9 @@ export type ListingCommand =
   | { type: "select-all" }
   /** Space, which is Quick Look's: the page holding the browser answers it, and no row does. */
   | { type: "space" }
-  /** ⌘⌫ on the Mac, Delete elsewhere: what is selected, to the Trash. */
+  /** ⇧⌘. on the Mac, Ctrl+H on Linux: hidden files shown or put away. */
+  | { type: "toggle-hidden" }
+  /** ⌘⌫ on the Mac, Delete elsewhere, Ctrl+D on Windows too: what is selected, to the Trash. */
   | { type: "trash" }
   /** A character, which jumps to the name closest to what has been typed. */
   | { char: string; type: "type-ahead" };
@@ -125,6 +131,41 @@ function isNewFolderPress(press: KeyPress, { commandKey }: OsConventions) {
   );
 }
 
+/** The file manager's key for hidden files, by its place: Shift changes what ⇧⌘. types. */
+function isHiddenFilesPress(
+  press: KeyPress,
+  { commandKey, files: { hiddenFilesKey } }: OsConventions,
+) {
+  return (
+    hiddenFilesKey !== null &&
+    press.code === hiddenFilesKey.code &&
+    press.shiftKey === hiddenFilesKey.shift &&
+    !press.altKey &&
+    press[commandKey]
+  );
+}
+
+/** Whether a press previews what is selected: Space, or the file manager's chord for it. */
+export function isQuickLookPress(press: KeyPress, os: Os) {
+  const conventions = OS_CONVENTIONS[os];
+  return (
+    (press.key === " " && !press.metaKey && !press.ctrlKey && !press.altKey) ||
+    isCommandChordPress(press, conventions.files.previewKey, conventions)
+  );
+}
+
+/** Whether a press at the rows goes back a folder, on a system where Backspace does. */
+export function isBackspaceBackPress(press: KeyPress, os: Os) {
+  return (
+    OS_CONVENTIONS[os].files.goesBackOnBackspace &&
+    press.key === "Backspace" &&
+    !press.metaKey &&
+    !press.ctrlKey &&
+    !press.altKey &&
+    !press.shiftKey
+  );
+}
+
 /** ↑ with the Finder's ⌘ or the others' Alt, and nothing else held. */
 function isParentPress(
   press: KeyPress,
@@ -151,7 +192,19 @@ export function listingCommandOf(
 ): ListingCommand | null {
   const conventions = OS_CONVENTIONS[os];
   if (isSelectAllPress(press, conventions)) return { type: "select-all" };
-  if (isTrashPress(press, conventions)) return { type: "trash" };
+  if (
+    isTrashPress(press, conventions) ||
+    isCommandChordPress(press, conventions.files.trashChord, conventions)
+  ) {
+    return { type: "trash" };
+  }
+  if (isHiddenFilesPress(press, conventions)) return { type: "toggle-hidden" };
+  if (isCommandChordPress(press, conventions.files.cutKey, conventions)) {
+    return { type: "cut" };
+  }
+  if (isCommandChordPress(press, conventions.files.moveHereKey, conventions)) {
+    return { type: "move-here" };
+  }
   if (isNewFolderPress(press, conventions)) return { type: "new-folder" };
   if (isCommandChordPress(press, conventions.files.copyPathKey, conventions)) {
     return { type: "copy-path" };
@@ -202,7 +255,14 @@ export function listingCommandOf(
 export function listingKeys(os: Os) {
   const {
     deleteKey,
-    files: { copyPathKey, duplicateKey, renameKey, trashKey },
+    files: {
+      copyPathKey,
+      cutKey,
+      duplicateKey,
+      moveHereKey,
+      renameKey,
+      trashKey,
+    },
     keyJoiner,
   } = OS_CONVENTIONS[os];
   const chord = (accelerator: string) =>
@@ -215,12 +275,14 @@ export function listingKeys(os: Os) {
   return {
     copy: chord("CmdOrCtrl+C"),
     copyPath: commandChord(copyPathKey),
+    cut: commandChord(cutKey),
     duplicate: commandChord(duplicateKey),
     info: chord(
       resolveAccelerator(WINDOW_SHORTCUTS.fileInfo.accelerator, {
         isMac: os === "mac",
       }),
     ),
+    moveHere: commandChord(moveHereKey),
     newFolder: chord("CmdOrCtrl+Shift+N"),
     open: chord(renameKey === "Enter" ? "CmdOrCtrl+O" : "Enter"),
     paste: chord("CmdOrCtrl+V"),

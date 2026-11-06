@@ -24,7 +24,8 @@ import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { runPageChord } from "@/client/lib/page-chords";
 import { runPictureChord } from "@/client/lib/picture-keys";
-import { commandKeyHeld, isLinux } from "@/client/lib/utils";
+import { isBackspaceBackPress } from "@/client/components/extend/file-system-keys";
+import { commandKeyHeld, currentOs, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { useRouter } from "@tanstack/react-router";
@@ -180,6 +181,21 @@ export function useWindowCommands(
         requestPageEditToggle();
       }
     };
+    // Backspace at the rows goes back a folder where the file manager's does,
+    // after the rows have had it: one that was taking back a typed name is theirs.
+    const onBackspace = (event: KeyboardEvent) => {
+      if (
+        isBackspaceBackPress(event, currentOs()) &&
+        !event.defaultPrevented &&
+        event.target instanceof Element &&
+        event.target.closest("[data-file-system-listing]") &&
+        getDefaultStore().get(windowHoldsAtom).length === 0
+      ) {
+        event.preventDefault();
+        latest.current.back();
+      }
+    };
+    window.addEventListener("keydown", onBackspace);
     window.addEventListener("keydown", onKeyDown, { capture: true });
     if (!isLinux()) {
       window.addEventListener("mousedown", swallow, { capture: true });

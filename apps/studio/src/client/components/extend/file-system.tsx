@@ -284,6 +284,10 @@ export type FileSystemProps = {
    * nobody's here.
    */
   onCopyPath?: (items: FileSystemItem[]) => void;
+  /** What is selected, to move at the next paste. */
+  onCut?: (items: FileSystemItem[]) => void;
+  /** What the clipboard has, moved into the folder the keyboard is in. */
+  onMoveHere?: () => void;
   /**
    * What is selected, to the clipboard as the files themselves, by ⌘C (Ctrl+C
    * off the Mac). Left out, the key is nobody's here.
@@ -1913,6 +1917,8 @@ export function FileSystem({
   onColumnWidthChange,
   onCopy,
   onCopyPath,
+  onCut,
+  onMoveHere,
   onDuplicate,
   onFileOpen,
   onItemContextMenu,
@@ -3072,6 +3078,32 @@ export function FileSystem({
     typeAheadRef.current = NO_TYPE_AHEAD;
   }, [currentPath]);
   const runListingCommand = (command: ListingCommand) => {
+    // What is about the folder rather than its rows, so an empty one answers.
+    if (command.type === "move-here") {
+      if (!onMoveHere) return false;
+      onMoveHere();
+      return true;
+    }
+    if (command.type === "new-folder") {
+      if (!onNewFolder) return false;
+      onNewFolder();
+      return true;
+    }
+    if (command.type === "parent") {
+      if (currentPath === "") {
+        if (!onLeaveRoot) return false;
+        onLeaveRoot();
+        return true;
+      }
+      // The folder left behind is what is selected above it, the way the
+      // Finder and File Explorer both go up.
+      navigateTo(pathParent(currentPath), currentPath);
+      return true;
+    }
+    if (command.type === "toggle-hidden") {
+      setShowHiddenFiles(!showHiddenFiles);
+      return true;
+    }
     const nav = listingNavRef.current;
     if (!nav) return false;
     const lead = entryOf(selectionRef.current.lead);
@@ -3083,13 +3115,14 @@ export function FileSystem({
     switch (command.type) {
       case "copy":
       case "copy-path":
+      case "cut":
       case "duplicate": {
-        const handler =
-          command.type === "duplicate"
-            ? onDuplicate
-            : command.type === "copy"
-              ? onCopy
-              : onCopyPath;
+        const handler = {
+          copy: onCopy,
+          "copy-path": onCopyPath,
+          cut: onCut,
+          duplicate: onDuplicate,
+        }[command.type];
         const chosen = picked();
         if (!handler || chosen.length === 0) return false;
         handler(chosen);
@@ -3121,25 +3154,10 @@ export function FileSystem({
         nav.reveal(moved.entry);
         return true;
       }
-      case "new-folder":
-        if (!onNewFolder) return false;
-        onNewFolder();
-        return true;
       case "open":
         if (!lead) return false;
         openEntry(lead);
         return true;
-      case "parent": {
-        if (currentPath === "") {
-          if (!onLeaveRoot) return false;
-          onLeaveRoot();
-          return true;
-        }
-        // The folder left behind is what is selected above it, the way the
-        // Finder and File Explorer both go up.
-        navigateTo(pathParent(currentPath), currentPath);
-        return true;
-      }
       case "rename":
       case "return":
         if (!lead) return false;
@@ -3403,7 +3421,16 @@ export function FileSystem({
       }}
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
-        if (endsTypeAhead(event)) typeAheadRef.current = NO_TYPE_AHEAD;
+        if (endsTypeAhead(event)) {
+          // A Backspace taking back what was typed goes no further back.
+          if (
+            event.key === "Backspace" &&
+            isTypingAhead(typeAheadRef.current, performance.now())
+          ) {
+            event.preventDefault();
+          }
+          typeAheadRef.current = NO_TYPE_AHEAD;
+        }
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
         // browser (its menus and dialogs), and one typed into a field are

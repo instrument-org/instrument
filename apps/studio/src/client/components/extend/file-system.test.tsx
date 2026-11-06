@@ -1502,6 +1502,33 @@ describe("the keyboard", () => {
       ).toEqual(["Docs/alpha.txt"]);
     });
 
+    it("answers what is about the folder in one with no rows", () => {
+      const onMoveHere = vi.fn();
+      const onNewFolder = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="table"
+          items={[]}
+          onMoveHere={onMoveHere}
+          onNewFolder={onNewFolder}
+        />,
+      );
+      const browser =
+        document.querySelector("[data-slot=file-system]") ??
+        expect.unreachable("no browser");
+
+      fireEvent.keyDown(browser, {
+        altKey: true,
+        code: "KeyV",
+        key: "√",
+        metaKey: true,
+      });
+      fireEvent.keyDown(browser, { key: "N", metaKey: true, shiftKey: true });
+
+      expect(onMoveHere).toHaveBeenCalledOnce();
+      expect(onNewFolder).toHaveBeenCalledOnce();
+    });
+
     it("leaves the window's own key to it", () => {
       const heard = vi.fn();
       const onKeyDown = (event: KeyboardEvent) => {

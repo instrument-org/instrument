@@ -56,8 +56,20 @@ export interface OsConventions {
   files: {
     /** The chord that copies the path of what is selected, or null where the file manager has none. */
     copyPathKey: CommandChord | null;
+    /** The chord that marks what is selected to move at the next paste, or null where the file manager has none. */
+    cutKey: CommandChord | null;
     /** The chord that duplicates what is selected, or null where the file manager has none. */
     duplicateKey: CommandChord | null;
+    /** Whether Backspace goes back a folder. */
+    goesBackOnBackspace: boolean;
+    /** The chord, by the key's place, that shows and hides hidden files, or null where the file manager has none. */
+    hiddenFilesKey: { code: string; shift: boolean } | null;
+    /** The chord that moves what the clipboard has into the folder, or null where the file manager has none. */
+    moveHereKey: CommandChord | null;
+    /** A chord that previews what is selected as Space does, or null where the file manager has none. */
+    previewKey: CommandChord | null;
+    /** A chord that moves what is selected to the trash beside `trashKey`, or null where the file manager has none. */
+    trashChord: CommandChord | null;
     /** The menu row that shows what is known about a file: the Finder's Get Info, shortened as Quick Look is to Preview, and the others' Properties. */
     infoLabel: string;
     /** The modifier held with ↑ to go to the folder above: ⌘ in the Finder, Alt elsewhere. */
@@ -106,13 +118,20 @@ export const OS_CONVENTIONS = {
     computerKind: "computer",
     deleteKey: "Del",
     // GNOME Files and Dolphin rename on F2, open on Enter and go up on Alt+↑,
-    // as File Explorer does. They share no key for a copy or for a path.
+    // as File Explorer does. They share no key for a copy or for a path. Ctrl+X
+    // cuts and Ctrl+H shows hidden files in both.
     files: {
       copyPathKey: null,
+      cutKey: { alt: false, key: "x", shift: false },
       duplicateKey: null,
+      goesBackOnBackspace: false,
+      hiddenFilesKey: { code: "KeyH", shift: false },
       infoLabel: "Properties",
+      moveHereKey: null,
       parentFolderKey: "altKey",
+      previewKey: null,
       renameKey: "F2",
+      trashChord: null,
       trashKey: { key: "Delete", withCommandKey: false },
     },
     // Which file manager a Linux desktop has varies, and "Files", GNOME's
@@ -141,13 +160,21 @@ export const OS_CONVENTIONS = {
     computerKind: "Mac",
     deleteKey: "⌫",
     // Return renames in the Finder, ⌘↑ goes to the enclosing folder, ⌘⌫ is
-    // its Move to Trash, ⌘D its Duplicate and ⌥⌘C its Copy as Pathname.
+    // its Move to Trash, ⌘D its Duplicate and ⌥⌘C its Copy as Pathname. Files
+    // are moved rather than cut: ⌘C, then ⌥⌘V where they go. ⌘Y is Quick Look's
+    // too, and ⇧⌘. shows hidden files.
     files: {
       copyPathKey: { alt: true, key: "c", shift: false },
+      cutKey: null,
       duplicateKey: { alt: false, key: "d", shift: false },
+      goesBackOnBackspace: false,
+      hiddenFilesKey: { code: "Period", shift: true },
       infoLabel: "Info",
+      moveHereKey: { alt: true, key: "v", shift: false },
       parentFolderKey: "metaKey",
+      previewKey: { alt: false, key: "y", shift: false },
       renameKey: "Enter",
+      trashChord: null,
       trashKey: { key: "Backspace", withCommandKey: true },
     },
     fileManager: "Finder",
@@ -167,14 +194,20 @@ export const OS_CONVENTIONS = {
     computer: "This PC",
     computerKind: "PC",
     deleteKey: "Del",
-    // Ctrl+Shift+C is File Explorer's Copy as path. Its Ctrl+D deletes, so
-    // nothing there duplicates.
+    // Ctrl+Shift+C is File Explorer's Copy as path. Its Ctrl+D moves to the
+    // Recycle Bin as Delete does, so nothing there duplicates.
     files: {
       copyPathKey: { alt: false, key: "c", shift: true },
+      cutKey: { alt: false, key: "x", shift: false },
       duplicateKey: null,
+      goesBackOnBackspace: true,
+      hiddenFilesKey: null,
       infoLabel: "Properties",
+      moveHereKey: null,
       parentFolderKey: "altKey",
+      previewKey: null,
       renameKey: "F2",
+      trashChord: { alt: false, key: "d", shift: false },
       trashKey: { key: "Delete", withCommandKey: false },
     },
     fileManager: "File Explorer",

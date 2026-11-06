@@ -9,6 +9,7 @@ import {
   computerOpenFoldersAtom,
   computerViewAtom,
   type FileTab,
+  filesCutAtom,
   finderPlacesOpenAtom,
   finderPlacesWidthAtom,
 } from "@/client/atoms/window";
@@ -29,7 +30,10 @@ import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/toolbar-control";
-import { listingKeys } from "@/client/components/extend/file-system-keys";
+import {
+  isQuickLookPress,
+  listingKeys,
+} from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
@@ -115,6 +119,7 @@ import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { ScissorsIcon } from "@phosphor-icons/react/Scissors";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -127,7 +132,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
-import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
+import {
+  getDefaultStore,
+  useAtom,
+  useAtomValue,
+  useSetAtom,
+  useStore,
+} from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
@@ -830,6 +841,7 @@ export function ComputerPage({
   // inside the browser and is no use anywhere else.
   // The things themselves, as the file manager's Copy puts them on the
   // clipboard, so a paste here or in any other app copies them.
+  const store = useStore();
   const copyFiles = async (picked: FileSystemItem[]) => {
     const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
     if (hostPaths.length === 0) {
@@ -837,9 +849,28 @@ export function ComputerPage({
     }
     try {
       await rpcClient.files.copyToClipboard.call({ paths: hostPaths });
+      store.set(filesCutAtom, []);
       focusBrowser();
     } catch (error) {
       fileActionFailed("Couldn't copy that", error);
+    }
+  };
+  const cutFiles = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
+      return;
+    }
+    const kept = hostPaths.map(keptInPlace).find(Boolean);
+    if (kept) {
+      keptInPlaceToast("Couldn't move that", kept);
+      return;
+    }
+    try {
+      await rpcClient.files.copyToClipboard.call({ paths: hostPaths });
+      store.set(filesCutAtom, hostPaths);
+      focusBrowser();
+    } catch (error) {
+      fileActionFailed("Couldn't cut that", error);
     }
   };
   const copyPaths = async (picked: FileSystemItem[]) => {
@@ -1379,11 +1410,7 @@ export function ComputerPage({
       // itself, is a drag that went nowhere, as in the Finder.
       const kept =
         isRowDrag || wasSelfDrag
-          ? sources.filter(
-              (source) =>
-                joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
-                  source.hostPath && !isInside(into.hostPath, source.hostPath),
-            )
+          ? movableInto(sources, into.hostPath)
           : sources;
       // The Finder's own rows move, as its own drag does, unless Option is
       // held; everything from outside the app is copied in.
@@ -1409,6 +1436,53 @@ export function ComputerPage({
   // Paste named. It is heard only while the keyboard is in this Finder and
   // out of any field, since that is the only place the window sends it.
   const [pasteTarget] = useState(() => createPasteTarget());
+  const pasteDestination = (
+    target: EventTarget | null,
+    named?: null | string,
+  ) => {
+    const prefix =
+      named ??
+      (target instanceof Element
+        ? target
+            .closest("[data-file-system-folder]")
+            ?.getAttribute("data-file-system-folder")
+        : undefined) ??
+      current;
+    return {
+      hostPath: dropHostPathRef.current(prefix || current),
+      prefix: prefix || current,
+    };
+  };
+  // What the clipboard has, moved rather than copied: ⌥⌘V, or the menu's row.
+  const moveClipboardInto = (into: { hostPath: string; prefix: string }) => {
+    void rpcClient.files.clipboardFiles
+      .call()
+      .catch(() => ({ files: [] }))
+      .then(({ files }) => {
+        store.set(filesCutAtom, []);
+        return dropHandlers.current.moveInto(
+          movableInto(filesToPaste(files, []), into.hostPath),
+          into,
+        );
+      });
+  };
+  // Esc puts a cut down, and the rows go back to how they were.
+  const cutPaths = useAtomValue(filesCutAtom);
+  const isAnythingCut = cutPaths.length > 0;
+  useEffect(() => {
+    if (!isAnythingCut) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        store.set(filesCutAtom, []);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isAnythingCut, store]);
   useEffect(() => {
     const browser = browserRef.current;
     if (!browser || !isDropOpen) {
@@ -1433,35 +1507,38 @@ export function ComputerPage({
           : [];
       });
       event.preventDefault();
-      const prefix =
-        named ??
-        (event.target instanceof Element
-          ? event.target
-              .closest("[data-file-system-folder]")
-              ?.getAttribute("data-file-system-folder")
-          : undefined) ??
-        current;
-      const into = {
-        hostPath: dropHostPathRef.current(prefix || current),
-        prefix: prefix || current,
-      };
+      const into = pasteDestination(event.target, named);
       // The page sees only the first of several files the Finder copied, so
       // the computer's own list comes first where there is one.
       void rpcClient.files.clipboardFiles
         .call()
         .catch(() => ({ files: [] }))
-        .then(({ files }) =>
-          dropHandlers.current.copyInto(filesToPaste(files, pasted), into),
-        );
+        .then(({ files }) => {
+          const sources = filesToPaste(files, pasted);
+          const cut = store.get(filesCutAtom);
+          store.set(filesCutAtom, []);
+          return isSamePathSet(
+            cut,
+            sources.map((source) => source.hostPath),
+          )
+            ? dropHandlers.current.moveInto(
+                movableInto(sources, into.hostPath),
+                into,
+              )
+            : dropHandlers.current.copyInto(sources, into);
+        });
     };
     browser.addEventListener("paste", paste);
     return () => {
       browser.removeEventListener("paste", paste);
     };
+    // `pasteDestination` reads only `current` and refs; `store` is one store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, isDropOpen, pasteTarget]);
 
   // The arrows work the moment a folder is on screen: the first row takes
-  // the keyboard on each opening, unless the user is typing somewhere.
+  // the keyboard on each opening, or the browser where there is no row, unless
+  // the user is typing somewhere.
   const hasRows = items.length > 0;
   // Only the Finder in the window's tab that is up: every tab stays mounted,
   // and one behind another is not where the keyboard is.
@@ -1472,10 +1549,15 @@ export function ComputerPage({
   const opening = `${root}#${arrivals}`;
   const focusedOpening = useRef(isBesideOpen ? opening : null);
   useEffect(() => {
-    if (!hasRows || !isActiveTab || isTypingTarget(document.activeElement)) {
+    if (!isActiveTab || isTypingTarget(document.activeElement)) {
       return;
     }
     if (isBesideOpen && focusedOpening.current === opening) {
+      return;
+    }
+    // A folder with no rows yet, or none at all, still takes a paste.
+    if (!hasRows) {
+      focusBrowser();
       return;
     }
     focusedOpening.current = opening;
@@ -1688,10 +1770,7 @@ export function ComputerPage({
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (
-        event.key !== " " ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey ||
+        !isQuickLookPress(event, currentOs()) ||
         isTypingTarget(event.target) ||
         // A dialog over the folder keeps its own Space.
         getDefaultStore().get(windowHoldsAtom).length > 0
@@ -1951,6 +2030,7 @@ export function ComputerPage({
       ...menuActionsForOne(item),
       kept: picked.map(keptInPlace).find(Boolean),
       onCopy: () => void copyFiles(picked),
+      onCut: () => void cutFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onInfo:
         onInfoShow && picked.length > 0
@@ -2039,6 +2119,15 @@ export function ComputerPage({
                 focusBrowser();
                 pasteTarget.name(onScreen);
                 void rpcClient.files.paste.call();
+              };
+            },
+            onMove: () => {
+              afterMenu.current = () => {
+                focusBrowser();
+                moveClipboardInto({
+                  hostPath: dropHostPathRef.current(onScreen || current),
+                  prefix: onScreen || current,
+                });
               };
             },
           },
@@ -2500,6 +2589,16 @@ export function ComputerPage({
                 {dropInto === current ? (
                   <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
                 ) : null}
+                {isAnythingCut ? (
+                  // Faded where each view draws its rows, whichever that is.
+                  <style>
+                    {cutRowsStyle(
+                      items.filter((item) =>
+                        cutPaths.includes(hostPathOfItem(item)),
+                      ),
+                    )}
+                  </style>
+                ) : null}
                 <FileSystem
                   className="h-full rounded-none border-0"
                   keyboardHome
@@ -2632,6 +2731,10 @@ export function ComputerPage({
                   }
                   onCopy={(picked) => void copyFiles(picked)}
                   onCopyPath={(picked) => void copyPaths(picked)}
+                  onCut={(picked) => void cutFiles(picked)}
+                  onMoveHere={() => {
+                    moveClipboardInto(pasteDestination(document.activeElement));
+                  }}
                   onDuplicate={(picked) => void duplicate(picked)}
                   onTrash={(picked) => void trash(picked)}
                   openFolders={isRecents ? undefined : openFolders}
@@ -2866,6 +2969,7 @@ type FolderMenuActions = {
   kept?: string | undefined;
   onCopy: () => void;
   onCopyPath: () => void;
+  onCut: () => void;
   onDuplicate: () => void;
   /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
   onInfo: (() => void) | undefined;
@@ -2893,7 +2997,7 @@ type FolderMenuActions = {
   /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
   pin?: { isPinned: boolean; onToggle: () => void } | undefined;
   /** Files on the clipboard, copied into the folder on screen, by its name; left out where there is no folder. */
-  paste?: { into: string; onPaste: () => void } | undefined;
+  paste?: { into: string; onMove: () => void; onPaste: () => void } | undefined;
   /**
    * What the menu acts on, when it is several selected: what names one thing
    * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
@@ -3033,6 +3137,7 @@ function FolderMenuItems({
   newFolderFirst = false,
   onCopy,
   onCopyPath,
+  onCut,
   onDuplicate,
   onInfo,
   onNewDraft,
@@ -3188,6 +3293,13 @@ function FolderMenuItems({
               <Shortcut>{keys.rename}</Shortcut>
             </Item>
           ) : null}
+          {keys.cut ? (
+            <Item disabled={kept !== undefined} onClick={onCut}>
+              <ScissorsIcon className="size-4" />
+              <span>Cut</span>
+              <Shortcut>{keys.cut}</Shortcut>
+            </Item>
+          ) : null}
           <Item onClick={onCopy}>
             <CopyIcon className="size-4" />
             <span>Copy</span>
@@ -3275,6 +3387,13 @@ function FolderMenuItems({
                 <span>Paste into “{paste.into}”</span>
                 <Shortcut>{keys.paste}</Shortcut>
               </Item>
+              {keys.moveHere ? (
+                <Item onClick={paste.onMove}>
+                  <ClipboardIcon className="size-4" />
+                  <span>Move into “{paste.into}”</span>
+                  <Shortcut>{keys.moveHere}</Shortcut>
+                </Item>
+              ) : null}
             </>
           ) : null}
           {emptyTail ? (
@@ -3609,6 +3728,34 @@ export function placedMessage({
  * on the clipboard where it has one, else the files the paste event carried.
  * Only files: text on the clipboard beside them, or alone, is never pasted.
  */
+/** What can move into `folder`: nothing already there, and no folder into itself. */
+function movableInto<T extends { hostPath: string }>(
+  sources: readonly T[],
+  folder: string,
+) {
+  return sources.filter(
+    (source) =>
+      joinHostPath(folder, nameOf(source.hostPath)) !== source.hostPath &&
+      !isInside(folder, source.hostPath),
+  );
+}
+
+function cutRowsStyle(rows: readonly { path: string }[]) {
+  const selectors = rows.map(
+    (row) => `[data-file-system-item="${CSS.escape(row.path)}"]`,
+  );
+  return selectors.length > 0 ? `${selectors.join(",")}{opacity:.5}` : "";
+}
+
+function isSamePathSet(left: readonly string[], right: readonly string[]) {
+  const those = new Set(right);
+  return (
+    left.length > 0 &&
+    left.length === those.size &&
+    left.every((path) => those.has(path))
+  );
+}
+
 export function filesToPaste(
   fromComputer: readonly { isFolder: boolean; path: string }[],
   fromEvent: readonly { hostPath: string; isFolder: boolean }[],

@@ -27,6 +27,9 @@ import { folderHref } from "@/shared/computer-href";
  */
 export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
+/** The files cut in this window, by host path: a paste of exactly these moves them. */
+export const filesCutAtom = atom<readonly string[]>([]);
+
 /**
  * What a screen shows, in the terms the conversation is told it; see
  * `TabSurface.view`.

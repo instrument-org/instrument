@@ -137,8 +137,12 @@ export interface BrowserViewManager {
   ) => Promise<void>;
   // Every page one window's renderer mounts, to another, for a window on its way
   // out with an agent or a person still having use for them. Done as this returns,
-  // since the window closing takes its pages with it.
-  handOffGuestsOf: (fromWebContentsId: number, toWebContentsId: number) => void;
+  // since the window closing takes its pages with it, as it does those `staying`.
+  handOffGuestsOf: (
+    fromWebContentsId: number,
+    toWebContentsId: number,
+    staying: readonly BrowserTargetId[],
+  ) => void;
   // Apply (or, with `device: null`, clear) device emulation on a guest via
   // CDP -- the panel's "View as" menu. See device-emulation.ts for why
   // this is safe here (the caller always computes scale from live bounds and
@@ -1187,10 +1191,14 @@ function createBrowserViewManager(): BrowserViewManager {
       return entry !== undefined && hostIdOf(entry) === webContentsId;
     },
     handOffGuest,
-    handOffGuestsOf: (fromWebContentsId, toWebContentsId) => {
+    handOffGuestsOf: (fromWebContentsId, toWebContentsId, staying) => {
       // A moved page comes round again at the end of the map, in its new window.
-      for (const entry of entries.values()) {
-        if (hostIdOf(entry) === fromWebContentsId && hasGuest(entry)) {
+      for (const [targetId, entry] of entries) {
+        if (
+          hostIdOf(entry) === fromWebContentsId &&
+          hasGuest(entry) &&
+          !staying.includes(targetId)
+        ) {
           moveTarget(entry, entry.partitionDir, toWebContentsId).catch(
             () => undefined,
           );

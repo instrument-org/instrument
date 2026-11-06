@@ -164,6 +164,7 @@ vi.mock("@/electron-main/windows/app-window", () => ({
   cascadedBounds: () => ({ ...BOUNDS, x: 126, y: 126 }),
   closeEmptiedWindow,
   getAppWindows: () => state.appWindows,
+  hostedPagesOf: (id: string) => [`hosted-in-${id}`],
   keptTabsOf: (id: string) =>
     state.kept.get(id)?.get("app-tabs.v2") ?? {
       recentlyClosed: [],
@@ -635,7 +636,7 @@ describe("a window closing for a landing", () => {
     press(withUsedPage());
     moveTo(OVER_STRIP);
     await letGo();
-    expect(handOffGuestsOf).toHaveBeenCalledWith(3, 1);
+    expect(handOffGuestsOf).toHaveBeenCalledWith(3, 1, ["hosted-in-other"]);
 
     handOffGuestsOf.mockClear();
     setUp();
@@ -643,7 +644,7 @@ describe("a window closing for a landing", () => {
     press(moving(), true);
     moveTo(OVER_STRIP);
     await letGo();
-    expect(handOffGuestsOf).toHaveBeenCalledWith(1, 3);
+    expect(handOffGuestsOf).toHaveBeenCalledWith(1, 3, ["hosted-in-from"]);
   });
 });
 
@@ -673,8 +674,100 @@ describe("a window coming up in place of a strip", () => {
     await letGo();
 
     const waitedFor = asked.find((script) => script.includes("data-tab-key"));
-    expect(waitedFor).toContain(JSON.stringify(JSON.stringify(["a", "x"])));
+    expect(waitedFor).toContain(JSON.stringify(["x", "a"]));
     expect(from.bounds).toEqual(other.bounds);
+  });
+});
+
+describe("a window waited on to draw what it holds", () => {
+  const scriptAsked = async () => {
+    press(withUsedPage());
+    moveTo(IN_THE_OPEN);
+    let asked = "";
+    from.webContents.executeJavaScript = (script: string) => {
+      asked = script.includes("data-tab-key") ? script : asked;
+      return Promise.resolve(true);
+    };
+    await letGo();
+    return asked;
+  };
+  /** Runs what a window was asked in a page whose strip draws these, as it holds so many. */
+  const inPage = (script: string, drawn: string[], count: number) => {
+    const frames: (() => void)[] = [];
+    const tabs = drawn.map((tabKey) => ({
+      dataset: { tabKey },
+      hasAttribute: () => false,
+    }));
+    vi.stubGlobal("requestAnimationFrame", (frame: () => void) => {
+      frames.push(frame);
+    });
+    vi.stubGlobal("document", {
+      querySelector: () => ({
+        dataset: { tabCount: String(count) },
+        querySelectorAll: () => tabs,
+      }),
+    });
+    // The text the window itself would run.
+    const answer = (0, eval)(script) as Promise<boolean>;
+    return { answer, frames };
+  };
+  const runFrames = (frames: (() => void)[]) => {
+    for (let at = 0; at < 3; at += 1) {
+      frames.shift()?.();
+    }
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("answers when an over-full strip draws only some of them", async () => {
+    const { answer, frames } = inPage(await scriptAsked(), ["a"], 1);
+    runFrames(frames);
+    await expect(answer).resolves.toBe(true);
+    expect(frames).toEqual([]);
+  });
+
+  it.each([
+    ["more than it holds", ["a", "gone"], 1],
+    ["fewer than it holds, not yet told", ["a"], 2],
+  ])("keeps looking while its strip has %s", async (_case, drawn, count) => {
+    const { frames } = inPage(await scriptAsked(), drawn, count);
+    runFrames(frames);
+    expect(frames).toHaveLength(1);
+  });
+
+  it("stops asking for frames when the strip never comes to it", async () => {
+    const { answer, frames } = inPage(await scriptAsked(), ["a", "gone"], 1);
+    vi.advanceTimersByTime(1001);
+    runFrames(frames);
+    await expect(answer).resolves.toBe(false);
+    expect(frames).toEqual([]);
+  });
+});
+
+describe("a press while a release is being carried out", () => {
+  it("is refused the window and the picture, and comes after it once it is done", async () => {
+    press(withUsedPage());
+    moveTo(IN_THE_OPEN);
+    let draw = () => undefined as void;
+    spareWindow.webContents.executeJavaScript = () =>
+      new Promise((resolve) => {
+        draw = () => {
+          resolve(true);
+        };
+      });
+    const released = letGo();
+    await vi.advanceTimersByTimeAsync(0);
+
+    openTabPicture.mockClear();
+    expect(press()).toEqual({ collapsesOffRow: false });
+    expect(openTabPicture).not.toHaveBeenCalled();
+
+    draw();
+    await vi.runAllTimersAsync();
+    await expect(released).resolves.toEqual({ kind: "keepsTab" });
+    expect(press().collapsesOffRow).toBe(true);
   });
 });
 

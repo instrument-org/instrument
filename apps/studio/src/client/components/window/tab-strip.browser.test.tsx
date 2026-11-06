@@ -1,6 +1,8 @@
 import { renderInBrowser } from "@/tests/render-browser";
+import { MotionGlobalConfig } from "motion/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { flushSync } from "react-dom";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { TabStrip } from "./tab-strip";
 
@@ -171,6 +173,73 @@ describe("a drag's start", () => {
 });
 
 describe("a tab taken out of the hand with the button still down", () => {
+  it("settles from where it stood, having passed other tabs", async () => {
+    let takeBack = () => undefined as void;
+    let pass = (_left: number) => undefined as void;
+    let isGoing = false;
+    function Passed() {
+      const [left, setLeft] = useState<number>();
+      const [order, setOrder] = useState(tabs);
+      takeBack = () => {
+        setOrder(tabs);
+        setLeft(undefined);
+      };
+      pass = (at) => {
+        setOrder([tabs[0], tabs[2], tabs[1]].flatMap((each) => each ?? []));
+        setLeft(at);
+      };
+      return (
+        <TabStrip
+          heldAt={left === undefined ? undefined : { key: "b", left }}
+          onClose={() => undefined}
+          onSelect={() => undefined}
+          onTabDragStart={() => {
+            isGoing = true;
+          }}
+          selectedKey="b"
+          tabs={order}
+        />
+      );
+    }
+    await renderInBrowser(<Passed />);
+    const box = () => tab("b").getBoundingClientRect();
+    const { left: home, top, width } = box();
+    const at = (clientX: number) => ({
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      clientX,
+      clientY: top + 4,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    onTestFinished(() => {
+      MotionGlobalConfig.useManualTiming = false;
+      window.dispatchEvent(new PointerEvent("pointerup", at(home + 50)));
+    });
+    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(home + 10)));
+    window.dispatchEvent(new PointerEvent("pointermove", at(home + 50)));
+    await expect.poll(() => isGoing).toBe(true);
+
+    const stood = home + width + 20;
+    pass(stood);
+    await expect.poll(() => box().left).toBeCloseTo(stood, 0);
+
+    // With Motion's clock stopped the settle stays at its first frame, however slow
+    // the machine: what is drawn then is where it starts from.
+    MotionGlobalConfig.useManualTiming = true;
+    flushSync(takeBack);
+    for (let frame = 0; frame < 2; frame += 1) {
+      await new Promise((resolve) => {
+        requestAnimationFrame(resolve);
+      });
+    }
+    expect(box().left).toBeCloseTo(stood, 0);
+
+    MotionGlobalConfig.useManualTiming = false;
+    await expect.poll(() => box().left).toBeCloseTo(home, 0);
+  });
+
   it("goes home and stays there, through more movement and the release", async () => {
     let takeBack = () => undefined as void;
     function Canceled() {

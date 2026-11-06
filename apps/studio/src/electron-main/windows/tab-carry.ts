@@ -17,6 +17,7 @@ import {
   cascadedBounds,
   closeEmptiedWindow,
   getAppWindows,
+  hostedPagesOf,
   keptTabsOf,
   returnSpareWindow,
   sendTabToWindow,
@@ -147,6 +148,8 @@ type Carry = Carrying & {
 const NONE: TabCarryEnd = { kind: "none" };
 
 let carry: Carry | null = null;
+/** A release is being carried out, and a press now would be told the wrong window has its tab. */
+let isReleasing = false;
 
 /** A Wayland client cannot place its own window, so nothing could follow the pointer. */
 function canPlaceWindows() {
@@ -209,6 +212,9 @@ function beginCarry({
   webContentsId: number;
 }): Carry | null {
   stopCarry();
+  if (isReleasing) {
+    return null;
+  }
   const source = webContents.fromId(webContentsId);
   const from = source ? BrowserWindow.fromWebContents(source) : null;
   const fromId = from ? appWindowIdOfWindow(from) : undefined;
@@ -381,28 +387,31 @@ async function drawn(window: BrowserWindow) {
 }
 
 /**
- * Resolves when a window told what it holds has drawn exactly those tabs, or soon
- * anyway. Being told reaches its strip some time later, the later the more tabs it
- * has to bring up, and a window brought forward before then would show what it had.
+ * Resolves when a window told what it holds has drawn those tabs, or soon anyway: its
+ * strip has that many, and draws none but those, since an over-full strip draws only
+ * some. Being told reaches its strip some time later, the later the more tabs it has
+ * to bring up, and a window brought forward before then would show what it had.
  */
 async function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
   if (window.isDestroyed()) {
     return;
   }
-  const ids = JSON.stringify(tabs.map((tab) => tab.id).toSorted());
   await Promise.race([
     window.webContents
       .executeJavaScript(
         `new Promise((resolve) => {
+          const holds = new Set(${JSON.stringify(tabs.map((tab) => tab.id))});
+          const until = performance.now() + ${BRINGS_UP_LIMIT_MS};
           const check = () => {
-            const shown = [...document.querySelectorAll("[data-app-tab-strip] [data-tab-key]")]
-              .filter((tab) => !tab.hasAttribute("aria-hidden"))
-              .map((tab) => tab.dataset.tabKey)
-              .toSorted();
-            if (JSON.stringify(shown) === ${JSON.stringify(ids)}) {
+            const strip = document.querySelector("[data-app-tab-strip] [data-tab-count]");
+            const shown = [...(strip?.querySelectorAll("[data-tab-key]") ?? [])]
+              .filter((tab) => !tab.hasAttribute("aria-hidden"));
+            if (Number(strip?.dataset.tabCount) === holds.size && shown.every((tab) => holds.has(tab.dataset.tabKey))) {
               requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
-            } else {
+            } else if (performance.now() < until) {
               requestAnimationFrame(check);
+            } else {
+              resolve(false);
             }
           };
           check();
@@ -704,6 +713,7 @@ export async function endTabCarry({
     stopCarry();
     return NONE;
   }
+  isReleasing = true;
   try {
     const place = placeAtRelease(ending, at);
     return phase.kind === "free"
@@ -715,6 +725,8 @@ export async function endTabCarry({
     setOpacity(ending.from, 1);
     tell(ending.from, { kind: "row" });
     throw error;
+  } finally {
+    isReleasing = false;
   }
 }
 
@@ -969,9 +981,11 @@ async function land(
 
 /** Closes a window whose tabs went to another, and whose pages go after them, with their histories. */
 function closeInto(closing: BrowserWindow, kept: BrowserWindow) {
+  const closingId = appWindowIdOfWindow(closing);
   getBrowserViewManager().handOffGuestsOf(
     closing.webContents.id,
     kept.webContents.id,
+    closingId === undefined ? [] : hostedPagesOf(closingId),
   );
   closeEmptiedWindow(closing);
 }

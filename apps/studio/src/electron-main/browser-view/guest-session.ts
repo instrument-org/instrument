@@ -1,4 +1,3 @@
-import { getWorkspaceFeatures } from "@/electron-main/stores/workspace/preferences";
 import { getBrowserSessionDir } from "@instrument-org/workspace/electron";
 import { BrowserWindow, session, type Session } from "electron";
 import fs from "node:fs";
@@ -160,18 +159,14 @@ export function configureGuestSession(profileDir: string): Session {
   enableContentBlocking(guestSession, (id) => guests.isAdBlockExempt(id));
   refusePasskeys(guestSession, cspResponse);
   routeGuestDownloads(guestSession, guests);
-  if (getWorkspaceFeatures().browser_extensions) {
-    enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
-  }
+  enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
   return guestSession;
 }
 
 /**
- * Turns the extensions on, opening the browser's session if no page has
- * yet: at launch, so the window's buttons find them up rather than asking
- * before anything answers, and the moment the flag is turned on. Turning it
- * off takes a relaunch, since the preloads the extensions register on the
- * session cannot be taken back.
+ * Turns the extensions on at launch, opening the browser's session if no
+ * page has yet, so the window's buttons find them up rather than asking
+ * before anything answers.
  */
 export function startBrowserExtensions(): void {
   const profileDir = getBrowserSessionDir();

@@ -1,4 +1,3 @@
-import { featuresAtom } from "@/client/atoms/features";
 import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { Button } from "@/client/components/ui/button";
@@ -24,7 +23,6 @@ import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PrinterIcon } from "@phosphor-icons/react/Printer";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { useAtomValue } from "jotai";
 import { createPortal } from "react-dom";
 
 import {
@@ -40,7 +38,6 @@ import {
  */
 export function BrowserStartControls() {
   const { rowTail } = useWindow();
-  const hasExtensions = useAtomValue(featuresAtom).browser_extensions;
   if (!rowTail) {
     return null;
   }
@@ -90,20 +87,16 @@ export function BrowserStartControls() {
             <CopyIcon className="size-4" />
             Copy URL
           </DropdownMenuItem>
-          {hasExtensions && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <PuzzlePieceIcon className="size-4" />
-                  Extensions
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <ManageItems />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </>
-          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PuzzlePieceIcon className="size-4" />
+              Extensions
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <ManageItems />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         </DropdownMenuContent>
       </DropdownMenu>
     </>,

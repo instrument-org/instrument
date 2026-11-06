@@ -1,5 +1,4 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
-import { featuresAtom } from "@/client/atoms/features";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
@@ -248,7 +247,6 @@ export function useCommandMenuRows({
     rpcClient.debug.toggleDevTools.mutationOptions(),
   );
   const isStripHidden = useAtomValue(developerStripHiddenAtom);
-  const hasExtensions = useAtomValue(featuresAtom).browser_extensions;
   const setReleaseChannel = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions(),
   );
@@ -370,18 +368,14 @@ export function useCommandMenuRows({
         openScreen("/release-notes");
       },
     },
-    ...(hasExtensions
-      ? [
-          {
-            icon: <PuzzlePieceIcon />,
-            id: "extensions",
-            label: "Extensions",
-            run: () => {
-              openScreen("/extensions");
-            },
-          },
-        ]
-      : []),
+    {
+      icon: <PuzzlePieceIcon />,
+      id: "extensions",
+      label: "Extensions",
+      run: () => {
+        openScreen("/extensions");
+      },
+    },
   ];
 
   // The switches answer to their word alone, from three letters on, and

@@ -29,6 +29,10 @@ import {
   lookAtAtom,
   type LookTarget,
 } from "@/client/components/window/look-at";
+import {
+  ExtensionPageBadge,
+  isExtensionPageUrl,
+} from "@/client/components/window/browser-extensions";
 import { Omnibar } from "@/client/components/window/omnibar";
 import {
   type OpenInAppTarget,
@@ -289,11 +293,19 @@ function Field({ location }: { location: TabLocation }) {
   }
   if (location.kind === "page") {
     // An address is one thing you type rather than a trail you walk, so it is
-    // said whole: the host quiet, the part of it you are reading loud.
-    const { host, rest } = splitUrl(location.url);
+    // said whole: the host quiet, the part of it you are reading loud. An
+    // extension's own page keeps its scheme, which is what says whose it is.
+    const isExtensionPage = isExtensionPageUrl(location.url);
+    const { host, rest } = splitUrl(location.url, {
+      withScheme: isExtensionPage,
+    });
     return (
       <>
-        <ConnectionBadge url={location.url} />
+        {isExtensionPage ? (
+          <ExtensionPageBadge url={location.url} />
+        ) : (
+          <ConnectionBadge url={location.url} />
+        )}
         <span className="min-w-0 flex-1 truncate select-text">
           <span className="text-muted-foreground">{host}</span>
           {rest}
@@ -676,11 +688,11 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
 }
 
 /** The host quiet, the path loud: the part of an address you are reading. */
-function splitUrl(url: string) {
+function splitUrl(url: string, { withScheme = false } = {}) {
   try {
     const parsed = new URL(url);
     return {
-      host: parsed.host,
+      host: withScheme ? `${parsed.protocol}//${parsed.host}` : parsed.host,
       // The bare root is left off, the way a browser leaves it off, unless a
       // query follows it and would otherwise hang off the host.
       rest:

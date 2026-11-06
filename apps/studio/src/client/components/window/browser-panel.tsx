@@ -1,4 +1,3 @@
-import { featuresAtom } from "@/client/atoms/features";
 import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
@@ -598,7 +597,6 @@ export function BrowserPanel({
   // task's own browser has no such view to keep them on.
   const windowContext = useContext(WindowContext);
   const inWindow = windowContext !== null;
-  const hasExtensions = useAtomValue(featuresAtom).browser_extensions;
   // A page of a chat's or a draft's opens again in a browser tab of the
   // window's own, as a copy at its address; the chat keeps its page. A
   // browser tab has Duplicate Tab in the bar for the same.
@@ -815,20 +813,16 @@ export function BrowserPanel({
                   target={openInTarget}
                 />
               )}
-              {hasExtensions && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <PuzzlePieceIcon className="size-4" />
-                      Extensions
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <ManageItems />
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </>
-              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <PuzzlePieceIcon className="size-4" />
+                  Extensions
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <ManageItems />
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger disabled={!pageUrl}>

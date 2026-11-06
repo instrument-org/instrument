@@ -1,5 +1,4 @@
 import { liveRead } from "@instrument-org/workspace/electron";
-import { startBrowserExtensions } from "@/electron-main/browser-view/guest-session";
 import {
   getWorkspaceFeatures,
   setWorkspaceFeature,
@@ -12,14 +11,10 @@ import { z } from "zod";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
-/** Sets a flag, and what a flag turned on starts right away starts. */
 const setEnabled = base
   .input(z.object({ enabled: z.boolean(), feature: FeatureNameSchema }))
   .handler(({ input }) => {
     setWorkspaceFeature(input.feature, input.enabled);
-    if (input.feature === "browser_extensions" && input.enabled) {
-      startBrowserExtensions();
-    }
   });
 
 /**

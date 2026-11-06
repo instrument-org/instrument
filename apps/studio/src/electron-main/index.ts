@@ -39,10 +39,7 @@ import {
   takeRelaunchMarker,
 } from "@/electron-main/stores/machine/state";
 import { startBrowserExtensions } from "@/electron-main/browser-view/guest-session";
-import {
-  getDefaultModelURI,
-  getWorkspaceFeatures,
-} from "@/electron-main/stores/workspace/preferences";
+import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   askAppWindow,
   openAppFile,
@@ -443,9 +440,7 @@ async function bootstrapPrimaryInstance() {
 
   // Before the window, whose extension buttons ask for them as soon as a
   // tab's row is drawn.
-  if (getWorkspaceFeatures().browser_extensions) {
-    startBrowserExtensions();
-  }
+  startBrowserExtensions();
 
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).

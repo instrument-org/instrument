@@ -1,4 +1,10 @@
 import { Button } from "@/client/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
+import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { toast } from "@/client/lib/toast";
@@ -14,7 +20,8 @@ import {
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useContext, useEffect } from "react";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { useContext, useEffect, useState } from "react";
 
 export type { BrowserExtension };
 
@@ -117,13 +124,15 @@ export function isRefused(extension: BrowserExtension): boolean {
  * What to do when an extension's desktop app does not take this browser:
  * the steps in that app, numbered, and a button that opens it, or on a
  * system where the app has no such screen, the way to use the extension on
- * its own.
+ * its own. Given `onDismiss`, a Not now button stands beside the other.
  */
 export function NotConnectedSteps({
   extension,
+  onDismiss,
   tone = "default",
 }: {
   extension: BrowserExtension;
+  onDismiss?: () => void;
   tone?: "default" | "muted";
 }) {
   const actions = useExtensionActions();
@@ -135,6 +144,11 @@ export function NotConnectedSteps({
   );
   const words = tone === "muted" ? "text-muted-foreground" : "";
   const help = extension.desktopApp?.help;
+  const dismiss = onDismiss && (
+    <Button onClick={onDismiss} size="xs" variant="ghost">
+      Not now
+    </Button>
+  );
   if (!steps) {
     return (
       <div className={`text-[13px] ${words}`}>
@@ -142,18 +156,20 @@ export function NotConnectedSteps({
           On this computer {appName} cannot be told to trust {APP_NAME}, so the
           extension works on its own: sign in to it from its button.
         </p>
-        {help && (
-          <Button
-            className="mt-2"
-            onClick={() => {
-              openExternalLink(help, { addReferral: false });
-            }}
-            size="xs"
-            variant="outline"
-          >
-            Read more
-          </Button>
-        )}
+        <div className="mt-2 flex items-center gap-2">
+          {help && (
+            <Button
+              onClick={() => {
+                openExternalLink(help, { addReferral: false });
+              }}
+              size="xs"
+              variant="outline"
+            >
+              Read more
+            </Button>
+          )}
+          {dismiss}
+        </div>
       </div>
     );
   }
@@ -176,16 +192,59 @@ export function NotConnectedSteps({
       <p className="mt-2.5 text-xs text-muted-foreground">
         {APP_NAME} notices on its own once it is added.
       </p>
-      <Button
-        className="mt-3"
-        onClick={() => {
-          actions.openDesktopApp(extension);
-        }}
-        size="xs"
-        variant="brand"
-      >
-        Open {appName}
-      </Button>
+      <div className="mt-3 flex items-center gap-2">
+        <Button
+          onClick={() => {
+            actions.openDesktopApp(extension);
+          }}
+          size="xs"
+          variant="brand"
+        >
+          Open {appName}
+        </Button>
+        {dismiss}
+      </div>
     </div>
+  );
+}
+
+/** Whether a page's address is one of an extension's own, which the row marks as such. */
+export function isExtensionPageUrl(url: string): boolean {
+  return url.startsWith("chrome-extension://");
+}
+
+/**
+ * Ahead of an extension's own page's address, where a browser puts it: a
+ * puzzle piece and the extension's name, and on a press, what the page is.
+ */
+export function ExtensionPageBadge({ url }: { url: string }) {
+  const [isOpen, setOpen] = useState(false);
+  useCloseOnWindowBlur(isOpen, () => {
+    setOpen(false);
+  });
+  const extensions = useBrowserExtensions();
+  const id = new URL(url).host;
+  const name = extensions.find((extension) => extension.id === id)?.name;
+  return (
+    <Popover onOpenChange={setOpen} open={isOpen}>
+      <PopoverTrigger
+        aria-label="Extension page"
+        className="-ml-1.5 flex h-5 max-w-48 min-w-0 shrink-0 cursor-default items-center gap-1 rounded-full pr-2 pl-1.5 text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
+      >
+        <PuzzlePieceIcon className="size-3.5 shrink-0" />
+        <span className="truncate">{name ?? "Extension"}</span>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-3 text-sm">
+        <p className="flex items-center gap-2 font-medium">
+          <PuzzlePieceIcon className="size-4 shrink-0" />
+          You’re looking at an extension’s page.
+        </p>
+        <p className="mt-1.5 text-muted-foreground">
+          {name
+            ? `This page is part of ${name}, not a site on the web.`
+            : "This page is part of an extension, not a site on the web."}
+        </p>
+      </PopoverContent>
+    </Popover>
   );
 }

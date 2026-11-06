@@ -1,5 +1,5 @@
-import { featuresAtom } from "@/client/atoms/features";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { TOOLBAR_GROUP_CLASSNAME } from "@/client/components/toolbar-control";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -30,7 +30,6 @@ import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -46,16 +45,15 @@ import {
 const noticed = new Set<string>();
 
 /**
- * The browser extensions' buttons, grouped in a pill before Ask the way
- * Chrome groups them, with the puzzle piece at its end: every pinned
- * extension's button, each opening its popup under itself, the puzzle
- * piece's menu listing them all with pin and more, and a right-click menu
- * on each button. An extension whose desktop app refuses this browser gets
- * an amber dot and, once, a popover with the steps. Nothing while the
- * extensions are off.
+ * The browser extensions' buttons, framed as one control of the row's
+ * family the way Chrome groups them, with the puzzle piece at its end:
+ * every pinned extension's button, each opening its popup under itself,
+ * the puzzle piece's menu listing them all with pin and more, and a
+ * right-click menu on each button. An extension whose desktop app refuses
+ * this browser gets an amber dot and, once, a popover with the steps.
+ * Nothing until an extension is installed.
  */
 export function BrowserExtensionButtons() {
-  const enabled = useAtomValue(featuresAtom).browser_extensions;
   const extensions = useBrowserExtensions();
   const shown = useIsTaskPageVisible();
   const listRef = useRef<HTMLElement>(null);
@@ -71,14 +69,19 @@ export function BrowserExtensionButtons() {
   });
 
   // The list draws every extension's button in its own shadow root; a
-  // sheet of ours there hides the unpinned ones and dots the refused.
+  // sheet of ours there makes each the frame's kind of member (a 28px
+  // glyph that fills only on hover, inside the frame's corner), hides the
+  // unpinned ones and dots the refused.
   const unpinned = extensions.filter((extension) => !extension.pinned);
   const refused = extensions.filter(isRefused);
   const sheet = [
+    ":host{gap:2px}",
+    ".action{width:28px;height:28px;border-radius:8px;background-size:16px 16px}",
+    ".action:hover{background-color:color-mix(in srgb,var(--foreground) 8%,transparent)}",
     ...unpinned.map((extension) => `#${extension.id}{display:none}`),
     ...refused.map(
       (extension) =>
-        `#${extension.id}::before{content:"";position:absolute;top:0;right:0;width:8px;height:8px;border-radius:9999px;background:var(--color-warning-500);box-shadow:0 0 0 2px var(--background)}`,
+        `#${extension.id}::before{content:"";position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:9999px;background:var(--color-warning-500);box-shadow:0 0 0 1.5px var(--card)}`,
     ),
   ].join("");
   useEffect(() => {
@@ -104,7 +107,7 @@ export function BrowserExtensionButtons() {
     }
   }, [shown, firstRefused]);
 
-  if (!enabled) {
+  if (extensions.length === 0) {
     return null;
   }
 
@@ -126,7 +129,7 @@ export function BrowserExtensionButtons() {
     >
       <PopoverAnchor asChild>
         <div
-          className="flex h-7 shrink-0 items-center gap-0.5 rounded-full border px-0.5"
+          className={TOOLBAR_GROUP_CLASSNAME}
           // The buttons live in the list's shadow root, which stops a
           // right-click on its own; this runs first and takes it for the
           // button's menu.
@@ -153,14 +156,13 @@ export function BrowserExtensionButtons() {
           <DropdownMenu modal={false}>
             <ToolbarTooltip label="Extensions">
               <DropdownMenuTrigger asChild>
-                <Button
+                <button
                   aria-label="Extensions"
-                  className="size-6 rounded-full"
-                  size="icon-sm"
-                  variant="ghost"
+                  className="grid size-7 shrink-0 place-items-center rounded-lg text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
+                  type="button"
                 >
                   <PuzzlePieceIcon className="size-4" />
-                </Button>
+                </button>
               </DropdownMenuTrigger>
             </ToolbarTooltip>
             <DropdownMenuContent align="end" className="w-72">
@@ -178,11 +180,6 @@ export function BrowserExtensionButtons() {
                   }}
                 />
               ))}
-              {extensions.length === 0 && (
-                <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                  Nothing is installed yet.
-                </p>
-              )}
               <DropdownMenuSeparator />
               <ManageItems />
             </DropdownMenuContent>
@@ -209,26 +206,20 @@ export function BrowserExtensionButtons() {
       </PopoverAnchor>
       {notice && (
         <PopoverContent align="end" className="w-96 p-4">
-          <div className="flex gap-3">
-            <ExtensionIcon className="size-9 shrink-0" extension={notice} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {notice.desktopApp?.name} isn't connected to {APP_NAME} yet.
-              </p>
-              <div className="mt-1">
-                <NotConnectedSteps extension={notice} tone="muted" />
-              </div>
-              <Button
-                className="mt-2"
-                onClick={() => {
-                  setNotice(null);
-                }}
-                size="xs"
-                variant="ghost"
-              >
-                Not now
-              </Button>
-            </div>
+          <p className="flex items-center gap-2.5 text-sm font-medium">
+            <ExtensionIcon className="size-6 shrink-0" extension={notice} />
+            <span className="min-w-0 truncate">
+              {notice.desktopApp?.name} isn’t connected to {APP_NAME} yet.
+            </span>
+          </p>
+          <div className="mt-2">
+            <NotConnectedSteps
+              extension={notice}
+              onDismiss={() => {
+                setNotice(null);
+              }}
+              tone="muted"
+            />
           </div>
         </PopoverContent>
       )}

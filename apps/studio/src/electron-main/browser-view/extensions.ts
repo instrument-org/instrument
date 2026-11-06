@@ -64,9 +64,8 @@ const ManifestWordsSchema = z.object({
 });
 
 /**
- * Chrome extension support on the in-app browser's session, behind the
- * `browser_extensions` flag and turned on once, before the window is up or
- * the moment the flag is (`guest-session.ts`), so the window's buttons find
+ * Chrome extension support on the in-app browser's session, turned on once
+ * before the window is up (`guest-session.ts`), so the window's buttons find
  * it when they ask: the library's APIs over Electron's own, with each tab
  * guest registered as a tab (`registerExtensionTab`) and the one a person
  * looks at as the active one (`selectExtensionTab`); the Chrome Web Store's

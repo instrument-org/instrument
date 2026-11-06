@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const FeatureNameSchema = z.enum([
-  "browser_extensions",
   "context_ring",
   "suggestions_from_your_chats",
 ]);
@@ -15,11 +14,6 @@ export const FEATURE_METADATA: Record<
   FeatureName,
   { description: string; title: string }
 > = {
-  browser_extensions: {
-    description:
-      "The in-app browser can run extensions from the Chrome Web Store, with their buttons in its row and an Extensions page for them. Turning this off takes a relaunch.",
-    title: "Browser Extensions",
-  },
   context_ring: {
     description:
       "Show a context window usage ring in the prompt input for the active session.",

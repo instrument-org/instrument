@@ -3,6 +3,7 @@ import {
   isPlatformSearchForEveryModel,
 } from "@/electron-main/lib/hosted-features";
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
+import { startAppSignInChecks } from "@/electron-main/lib/app-sign-in-check";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
@@ -241,6 +242,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
+  startAppSignInChecks();
   // What another device writes into the chats folder reaches the app while
   // it runs: the folder is watched, and looked at whenever the window comes
   // forward and every minute while it is in front.

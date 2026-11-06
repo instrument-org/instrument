@@ -10,14 +10,14 @@ describe("a quote in a reply", () => {
     );
 
     const quote = document.querySelector("blockquote");
-    const paragraphs = quote?.querySelectorAll("p");
-    if (!quote || paragraphs?.length !== 2) {
+    const [first, second, ...rest] = quote?.querySelectorAll("p") ?? [];
+    if (!quote || !first || !second || rest.length > 0) {
       throw new Error("expected a quote of two paragraphs");
     }
 
     expect(getComputedStyle(quote).fontStyle).toBe("normal");
-    expect(getComputedStyle(paragraphs[0], "::before").content).toBe("none");
-    expect(getComputedStyle(paragraphs[1], "::after").content).toBe("none");
+    expect(getComputedStyle(first, "::before").content).toBe("none");
+    expect(getComputedStyle(second, "::after").content).toBe("none");
     expect(
       Number.parseFloat(getComputedStyle(quote).borderInlineStartWidth),
     ).toBeGreaterThan(0);

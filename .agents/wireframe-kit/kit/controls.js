@@ -9,10 +9,10 @@
  */
 const button = (label, { tone = "default", size = "default", icon = "", cls = "", round = false } = {}) => {
   const tones = {
-    default: "bg-card text-card-foreground shadow-sm ring-1 ring-black/5",
+    default: "bg-card text-card-foreground shadow-sm",
     brand: "bg-brand-600 text-white shadow-xs",
     secondary: "bg-secondary text-secondary-foreground shadow-xs",
-    outline: "border border-black/5 text-muted-foreground",
+    outline: "border border-[light-dark(#0000000d,#ffffff1a)] text-muted-foreground",
     ghost: "text-foreground",
     destructive: "bg-destructive text-white",
     link: "text-primary underline underline-offset-4",
@@ -55,7 +55,7 @@ const segmented = (options, on = 0) =>
 
 /** A select's trigger (the `input-select` button): the value and a caret, `icon` leading it. */
 const selectBox = (value, { icon = "", w = "" } = {}) =>
-  `<span class="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-b from-white to-[#fafaf9] px-3 text-sm text-foreground shadow-sm ring-1 ring-black/5" ${w ? `style="width:${w}px"` : ""}>${icon ? `<i class="ph ph-${icon} text-[16px]"></i>` : ""}<span class="min-w-0 flex-1 truncate">${value}</span><i class="ph ph-caret-down text-[12px] text-muted-foreground"></i></span>`;
+  `<span class="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-gradient-to-b from-white to-[#fafaf9] px-3 text-sm text-foreground shadow-sm" ${w ? `style="width:${w}px"` : ""}>${icon ? `<i class="ph ph-${icon} text-[16px]"></i>` : ""}<span class="min-w-0 flex-1 truncate">${value}</span><i class="ph ph-caret-down text-[12px] text-muted-foreground"></i></span>`;
 
 /** A text field (ui/input.tsx). `value` in ink, else `ph` as its placeholder; `focus` rings it. */
 const textField = ({ value = "", ph = "", icon = "", focus = false, h = 9, cls = "" } = {}) =>

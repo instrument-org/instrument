@@ -47,14 +47,32 @@ const FOLD_TRANSITION = { duration: 0.24, ease: [0.32, 0.72, 0, 1] } as const;
 /** The gap between a turn's rows, which a row closing takes with it. */
 const ROW_GAP = 8;
 
-/** A row that closes as the fold takes it. */
+/** How long the agent may sit between things before the transcript says it is thinking. */
+const THINKING_AFTER_MS = 500;
+
+/**
+ * A row that closes as the fold takes it, told by `AnimatePresence`'s `custom`.
+ * A row leaving for any other reason just goes, or what is under it would slide
+ * up for no reason the reader can see.
+ */
 function FoldingRow({ children }: { children: ReactNode }) {
   const isReduced = useReducedMotion();
   return (
     <motion.div
       className="flex min-w-0 flex-col gap-2 empty:hidden"
-      exit={{ height: 0, marginTop: -ROW_GAP, opacity: 0, overflow: "hidden" }}
-      transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
+      exit="leaving"
+      variants={{
+        leaving: (isFolding: boolean) =>
+          isFolding
+            ? {
+                height: 0,
+                marginTop: -ROW_GAP,
+                opacity: 0,
+                overflow: "hidden",
+                transition: isReduced ? { duration: 0 } : FOLD_TRANSITION,
+              }
+            : { opacity: 0, transition: { duration: 0 } },
+      }}
     >
       {children}
     </motion.div>
@@ -242,7 +260,9 @@ function TurnBody({
     turn.rows.findLast((row) => row.kind !== "note")?.kind === "text";
   return (
     <>
-      <AnimatePresence initial={false}>{rows}</AnimatePresence>
+      <AnimatePresence custom={isFolded} initial={false}>
+        {rows}
+      </AnimatePresence>
       {waitsForStep && (
         <p className="-mt-1 pr-1 text-right text-xs text-muted-foreground">
           Read after this step
@@ -315,16 +335,30 @@ function useIsFolded(turn: Turn): boolean {
   return isTurnFolded(turn, hasPassed && foldsAt ? foldsAt : 0);
 }
 
-/** "Thinking", and for how long, while no call is running. */
+/**
+ * "Thinking", and for how long, while no call is running. It waits a moment
+ * before it shows and fades in, since the gaps between most of what an agent does
+ * are too short to read, and then it stays until the row that follows it.
+ */
 export function ThinkingRow({ since }: { since: Date }) {
   const now = useTicking(true);
+  const isDue = usePassed(since.getTime() + THINKING_AFTER_MS);
+  const [hasShown, setHasShown] = useState(isDue);
+  if (isDue && !hasShown) {
+    setHasShown(true);
+  }
+  if (!hasShown) {
+    return null;
+  }
   return (
-    <RowLine
-      isLive
-      label="Thinking"
-      mark={<PlanningDotIcon />}
-      right={`· ${formatClock(now - since.getTime())}`}
-    />
+    <div className="animate-in duration-200 fade-in-0 motion-reduce:animate-none">
+      <RowLine
+        isLive
+        label="Thinking"
+        mark={<PlanningDotIcon />}
+        right={`· ${formatClock(now - since.getTime())}`}
+      />
+    </div>
   );
 }
 
@@ -369,6 +403,7 @@ function WorkedRow({
         }
         onClick={onToggle}
         places={<Badges apps={turn.apps} sites={turn.sites} />}
+        rollKey={workedLine(turn)}
       >
         <AnimatePresence initial={false}>
           {isOpened && (

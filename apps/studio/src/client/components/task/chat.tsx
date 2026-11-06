@@ -653,10 +653,13 @@ export function ChatConversation({
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
                       isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}
+                      // Through the send too, so the turn does not read as finished
+                      // between its message being stored and its session starting.
                       isRunning={
                         isAgentRunning ||
                         runTurn.isPending ||
                         isAgentAlive ||
+                        isFollowingSubmit ||
                         shownMessages.length > messages.length
                       }
                       messages={shownMessages}

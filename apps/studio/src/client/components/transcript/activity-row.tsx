@@ -20,7 +20,9 @@ import { ToolCallBody } from "../message-part/tool-call";
 import { Favicon } from "../favicon";
 import { AppChipIcon } from "../inline-link";
 import { SessionMarkdown } from "../session-markdown";
+import { ShimmerSweep } from "../shimmer-sweep";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
+import { RollingText } from "./rolling-text";
 import { TranscriptSurfaceContext } from "./surface";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { formatClock, useTicking } from "./time";
@@ -42,6 +44,7 @@ export function RowLine({
   onClick,
   places,
   right,
+  rollKey,
 }: {
   children?: ReactNode;
   isLive?: boolean;
@@ -51,7 +54,22 @@ export function RowLine({
   onClick?: () => void;
   places?: ReactNode;
   right?: ReactNode;
+  /** Rolls the label when this changes; without one the label just changes. */
+  rollKey?: string;
 }) {
+  const words = (
+    <span
+      className={cn(
+        "block min-w-0 truncate",
+        isLive
+          ? "brand-shiny-text"
+          : "text-muted-foreground group-hover/row:text-foreground",
+      )}
+    >
+      {label}
+      {isLive && <ShimmerSweep text={label} />}
+    </span>
+  );
   return (
     <div className="flex min-w-0 flex-col">
       <button
@@ -66,19 +84,16 @@ export function RowLine({
         <span className="flex size-5 shrink-0 items-center justify-center">
           {mark}
         </span>
-        <span
-          className={cn(
-            "min-w-0 truncate",
-            isLive
-              ? "brand-shiny-text"
-              : "text-muted-foreground group-hover/row:text-foreground",
-          )}
-        >
-          {label}
-        </span>
+        {rollKey === undefined ? (
+          words
+        ) : (
+          <RollingText className="min-w-0" rollKey={rollKey}>
+            {words}
+          </RollingText>
+        )}
         {places}
         {right && (
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          <span className="flex shrink-0 items-center text-xs text-muted-foreground tabular-nums">
             {right}
           </span>
         )}
@@ -182,17 +197,29 @@ export function ActivityRowView({
       places={<Badges apps={row.apps} sites={row.sites} />}
       right={
         <>
-          {counts && (
-            <span className="mr-1.5 text-foreground/70">{counts}</span>
-          )}
+          <RollingText rollKey={counts}>
+            {counts && (
+              <span className="mr-1.5 block text-foreground/70">{counts}</span>
+            )}
+          </RollingText>
           {isLive && `· ${formatClock(now - row.startedAt.getTime())}`}
         </>
       }
+      // A name still being written grows in place, and a new call moves it on.
+      rollKey={
+        isLive
+          ? row.title
+            ? "named"
+            : (lastStep?.metadata.id ?? "thinking")
+          : undefined
+      }
     >
       {isLive && current?.explanation && (
-        <p className="ml-7 truncate text-xs text-muted-foreground">
-          {current.explanation}
-        </p>
+        <RollingText className="ml-7" rollKey={current.metadata.id}>
+          <span className="block truncate text-xs text-muted-foreground">
+            {current.explanation}
+          </span>
+        </RollingText>
       )}
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-0.5">

@@ -305,6 +305,25 @@ describe("turnsOf", () => {
     expect(turn?.foldLineAt).toBe(turn?.rows[2]?.id);
   });
 
+  it("draws no row for a thought with no words, so Thinking holds until there are some", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state: "streaming",
+            text: "",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn?.rows).toEqual([]);
+    expect(turn?.live?.kind).toBe("thinking");
+  });
+
   it("leaves a message cut across with nothing done but words as it was said", () => {
     const [cut] = turnsOf(
       [

@@ -200,7 +200,7 @@ async function restingPlace(hasLayer: boolean) {
     hasLayer &&
     getComputedStyle(document.querySelector("[data-dn=stack]") as Element)
       .visibility;
-  unmount();
+  await unmount();
   return { after, hidden, moved, place };
 }
 

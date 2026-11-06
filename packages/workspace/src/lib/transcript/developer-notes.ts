@@ -16,6 +16,35 @@ import { type TurnRow, turnsOf } from "./turns-of";
 /** What a margin note stands for. */
 type DeveloperNoteKind = "error" | "note" | "replaced" | "thought";
 
+/** The icon a note wears, by what it stands for. */
+type DeveloperNoteMark =
+  | "apps"
+  | "chats"
+  | "command"
+  | "computer"
+  | "cut"
+  | "dictation"
+  | "error"
+  | "file"
+  | "files"
+  | "folder"
+  | "instructions"
+  | "limit"
+  | "memory"
+  | "model"
+  | "note"
+  | "once"
+  | "permission"
+  | "project"
+  | "question"
+  | "replaced"
+  | "screen"
+  | "skill"
+  | "tabs"
+  | "task"
+  | "thought"
+  | "time";
+
 /** The kind of row a note sits level with, whose first line sets its offset. */
 type DeveloperNoteRowKind = "bubble" | TurnRow["kind"];
 
@@ -27,6 +56,7 @@ export interface DeveloperNote {
   id: string;
   kind: DeveloperNoteKind;
   label: string;
+  mark: DeveloperNoteMark;
   /** The turn whose Worked row stands for its row once that closes. */
   foldedIn?: StoreId.Message;
   /** The row it sits level with, by its `data-transcript-row`. */
@@ -48,7 +78,7 @@ export interface DeveloperNoteBody {
   wasSent: boolean;
 }
 
-type Said = Pick<DeveloperNote, "id" | "kind" | "label" | "side"> & {
+type Said = Pick<DeveloperNote, "id" | "kind" | "label" | "mark" | "side"> & {
   body: DeveloperNoteBody;
 };
 
@@ -74,6 +104,48 @@ const STATE_PARTS = new Set<SessionMessagePart.DataPart["type"]>([
   "data-viewContext",
   "data-workspaceInstructions",
 ]);
+
+const MARK_OF_PART: Record<
+  SessionMessagePart.DataPart["type"],
+  DeveloperNoteMark
+> = {
+  "data-appEvent": "apps",
+  "data-asks": "files",
+  "data-attachments": "files",
+  "data-backgroundProcesses": "command",
+  "data-browserStatus": "tabs",
+  "data-chatContext": "chats",
+  "data-contextRollover": "cut",
+  "data-dateChange": "time",
+  "data-environmentChange": "computer",
+  "data-fileChanges": "file",
+  "data-folderChanges": "folder",
+  "data-fromChat": "chats",
+  "data-intent": "once",
+  "data-jobEvent": "command",
+  "data-maxSteps": "limit",
+  "data-memory": "memory",
+  "data-messageGap": "time",
+  "data-modelChange": "model",
+  "data-outputLimit": "limit",
+  "data-permissionAnswer": "permission",
+  "data-project": "project",
+  "data-questionAnswer": "question",
+  "data-ratingCard": "note",
+  "data-requestFailure": "error",
+  "data-requestNote": "once",
+  "data-setupChanges": "skill",
+  "data-setupNews": "skill",
+  "data-signedIn": "apps",
+  "data-skillMentions": "skill",
+  "data-stepFacts": "note",
+  "data-taskEvent": "task",
+  "data-toolResultsCleared": "cut",
+  "data-unknown": "note",
+  "data-viewContext": "screen",
+  "data-workSummary": "note",
+  "data-workspaceInstructions": "instructions",
+};
 
 const FIRST_WORDS = 60;
 
@@ -464,6 +536,7 @@ export function developerNotesWithBodies(
         id: note.id,
         kind: note.kind,
         label: note.label,
+        mark: note.mark,
         row: nearest.row,
         rowKind: nearest.rowKind,
         rowLabel: nearest.rowLabel,
@@ -484,6 +557,7 @@ export function developerNotesWithBodies(
             id: `said-${each.id}-${index.toString()}`,
             kind: "note",
             label: "Dictation",
+            mark: "dictation",
             side: "right",
           });
         }
@@ -529,6 +603,7 @@ export function developerNotesWithBodies(
           id: `error-${each.id}`,
           kind: "error",
           label: outcome.cause,
+          mark: "error",
           side: "left",
         });
       }
@@ -555,7 +630,8 @@ export function developerNotesWithBodies(
             body: { text: words, wasSent: true },
             id: part.metadata.id,
             kind: "thought",
-            label: named("Thought", words),
+            label: "Thought",
+            mark: "thought",
           };
     }
     if (part.type === "text") {
@@ -570,6 +646,7 @@ export function developerNotesWithBodies(
             id: part.metadata.id,
             kind: "replaced",
             label: named("Replaced", part.text),
+            mark: "replaced",
           }
         : undefined;
     }
@@ -582,6 +659,7 @@ export function developerNotesWithBodies(
         id: part.metadata.id,
         kind: "error",
         label: labelOf(part),
+        mark: MARK_OF_PART[part.type],
       };
     }
     if (part.type === "data-requestNote") {
@@ -590,6 +668,7 @@ export function developerNotesWithBodies(
         id: part.metadata.id,
         kind: "note",
         label: labelOf(part),
+        mark: MARK_OF_PART[part.type],
       };
     }
     const note = heard.get(part.metadata.id);
@@ -599,6 +678,7 @@ export function developerNotesWithBodies(
         id: part.metadata.id,
         kind: "note",
         label: labelOf(part),
+        mark: MARK_OF_PART[part.type],
       };
     }
     // A picture that says what the last one said told the model nothing, and
@@ -611,6 +691,7 @@ export function developerNotesWithBodies(
       id: part.metadata.id,
       kind: "note",
       label: labelOf(part),
+      mark: MARK_OF_PART[part.type],
     };
   }
 }

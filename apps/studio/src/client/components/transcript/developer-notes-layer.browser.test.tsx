@@ -8,6 +8,7 @@ import {
   type StoreId,
   type Turn,
 } from "@instrument-org/workspace/client";
+import { NoteIcon } from "@phosphor-icons/react/Note";
 import { noop } from "radashi";
 import { Fragment, type RefObject, useRef, useState } from "react";
 import { expect, it, vi } from "vitest";
@@ -34,6 +35,7 @@ const noteOn = (at: number): DeveloperNote => ({
   id: `note-${at.toString()}`,
   kind: "note",
   label: "A note",
+  mark: "note",
   row: `message:${turnId(at)}`,
   rowKind: "bubble",
   rowLabel: "A message",
@@ -280,6 +282,142 @@ it("scrolls a long card inside itself, with Copy in reach, and leaves the scroll
   await unmount();
 });
 
+/** What the layer's lines draw. */
+async function linesOf(
+  notes: DeveloperNote[],
+  { within = "[data-dn=line]" } = {},
+) {
+  const source = { useBody: () => null, useNotes: () => notes };
+  const { unmount } = await renderInBrowser(
+    <MessageScrollerProvider defaultScrollPosition="start">
+      <MessageScroller>
+        <MessageScrollerViewport
+          className="@container/transcript"
+          style={{ height: 400 }}
+        >
+          <MessageScrollerContent data-content>
+            <MessageScrollerItem
+              data-transcript-row={`message:${turnId(0)}`}
+              style={{ height: 400 }}
+            />
+            <MessageScrollerItem
+              data-transcript-row={`message:${turnId(1)}`}
+              style={{ height: 400 }}
+            />
+            <MessageScrollerItem
+              data-transcript-row={`worked:${turnId(0)}`}
+              style={{ height: 400 }}
+            />
+            <DeveloperNotesSourceContext value={source}>
+              <DeveloperNotesLayer
+                chatId={"chat" as ChatId}
+                sessionId={"ses" as StoreId.Session}
+                turns={[{ id: turnId(0) } as Turn]}
+              />
+            </DeveloperNotesSourceContext>
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>,
+  );
+  await vi.waitFor(() => {
+    expect(document.querySelector("[data-dn=stack]")).not.toBeNull();
+  });
+  await nextFrame();
+  const lines = [...document.querySelectorAll<HTMLElement>(within)]
+    .filter((line) => getComputedStyle(line).display !== "none")
+    .map((line) =>
+      line.dataset.error !== undefined
+        ? "triangle"
+        : (line.querySelector("[data-dn=count]")?.textContent ?? "mark"),
+    );
+  const path = document.querySelector("[data-dn=mark] path")?.getAttribute("d");
+  await unmount();
+  return { lines, path };
+}
+
+/** What shows of a stack with room for one line, by what each line says it needs. */
+async function oneLineHolds(notes: DeveloperNote[]) {
+  const source = { useBody: () => null, useNotes: () => notes };
+  const { unmount } = await renderInBrowser(
+    <MessageScrollerProvider defaultScrollPosition="start">
+      <MessageScroller>
+        <MessageScrollerViewport className="@container/transcript">
+          <MessageScrollerContent data-content>
+            <MessageScrollerItem data-transcript-row={`message:${turnId(0)}`} />
+            <DeveloperNotesSourceContext value={source}>
+              <DeveloperNotesLayer
+                chatId={"chat" as ChatId}
+                sessionId={"ses" as StoreId.Session}
+                turns={[{ id: turnId(0) } as Turn]}
+              />
+            </DeveloperNotesSourceContext>
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>,
+  );
+  await vi.waitFor(() => {
+    expect(document.querySelector("[data-dn=stack]")).not.toBeNull();
+  });
+  const shown = [
+    ...document.querySelectorAll<HTMLElement>(
+      '[data-dn=line][data-fits="1"], [data-dn=line][data-count-at="1"]',
+    ),
+  ].map((line) => (line.dataset.error === undefined ? "count" : "error"));
+  await unmount();
+  return shown;
+}
+
+const errorOn = (at: number): DeveloperNote => ({
+  ...noteOn(at),
+  id: `error-${at.toString()}`,
+  kind: "error",
+  mark: "error",
+});
+const manyNotes = Array.from({ length: 8 }, (_, at) => ({
+  ...noteOn(0),
+  id: `note-${at.toString()}`,
+}));
+
+it("shows three marks and a count past four notes, with an error first whenever it came", async () => {
+  const { lines } = await linesOf([...manyNotes, errorOn(0)]);
+  expect(lines).toEqual(["triangle", "mark", "mark", "+6"]);
+});
+
+it("keeps an error showing where the room fits one line, in place of the count", async () => {
+  expect(await oneLineHolds(manyNotes)).toEqual(["count"]);
+  expect(await oneLineHolds([...manyNotes, errorOn(0)])).toEqual(["error"]);
+});
+
+it("draws a mark in the thin weight", async () => {
+  const { path } = await linesOf([noteOn(0)]);
+  const { unmount } = await renderInBrowser(<NoteIcon data-regular="" />);
+  const regular = document
+    .querySelector("[data-regular] path")
+    ?.getAttribute("d");
+  await unmount();
+  expect(path).toBeTruthy();
+  expect(path).not.toBe(regular);
+});
+
+it.each([
+  ["one note, as its mark", [noteOn(0)], ["mark"]],
+  ["one error, as its triangle", [errorOn(0)], ["triangle"]],
+  ["several, as their total", manyNotes.slice(0, 3), ["3"]],
+  [
+    "several with an error, as a triangle beside the total",
+    [...manyNotes.slice(0, 3), errorOn(0)],
+    ["triangle", "4"],
+  ],
+])("closes a fold of %s", async (_name, notes, expected) => {
+  const { lines } = await linesOf(
+    notes.map((note) => ({ ...note, foldedIn: turnId(0) })),
+    { within: "[data-fold] [data-dn=line]" },
+  );
+  expect(lines).toEqual(expected);
+});
+
 it("keeps a fold's total off the page on either side of its Worked row, without growing the scroller", async () => {
   const turn = turnId(0);
   const row = "prt_in_the_fold";
@@ -288,6 +426,7 @@ it("keeps a fold's total off the page on either side of its Worked row, without 
     id: "note-in-the-fold",
     kind: "note",
     label: "A note",
+    mark: "note",
     row,
     rowKind: "activity",
     rowLabel: "A step",

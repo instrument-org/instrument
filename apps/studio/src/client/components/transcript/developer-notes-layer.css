@@ -1,3 +1,17 @@
+/* How the marks look, to tune by feel. Their weight is in developer-note-marks.tsx. */
+[data-developer-notes] {
+  --dn-mark-size: 12px;
+  --dn-count-size: 10px;
+  --dn-mark-rest: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --dn-mark-hover: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --dn-mark-error: var(--warning-700);
+}
+.dark [data-developer-notes] {
+  --dn-mark-rest: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --dn-mark-hover: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --dn-mark-error: var(--warning-300);
+}
+
 [data-slot="message-scroller-viewport"]:has(> [data-developer-notes]) {
   position: relative;
 }
@@ -14,15 +28,15 @@
   visibility: hidden;
 }
 
-/* A stack's box is all the margin it has, down to the next stack: its top and
-   bottom come from anchors, and how many lines show comes from that height. The
-   box takes no pointer, so only its lines count as hovering it. */
+/* A stack's box runs down to the next stack and no wider than the margin, so it
+   can't grow the scroller: its top and bottom come from anchors, and how many
+   lines show comes from that height. The box takes no pointer, so only its lines
+   count as hovering it. */
 [data-dn="stack"] {
   --dn-margin: calc((100cqi - anchor-size(--dn-column width)) / 2);
   position: absolute;
-  width: min(266px, var(--dn-margin));
+  width: min(14px, var(--dn-margin));
   overflow: clip;
-  font-size: 12px;
   line-height: 17px;
   white-space: nowrap;
   user-select: none;
@@ -38,34 +52,33 @@
   container: dn-stack / size;
 }
 
-/* The lines share the widest one's width, so going straight up or down can't
-   fall off a short one. */
 [data-dn="lines"] {
-  width: fit-content;
-  max-width: 100%;
   pointer-events: auto;
 }
-[data-side="left"] > [data-dn="lines"] {
-  margin-left: auto;
-  text-align: right;
-}
 [data-dn="line"] {
-  position: relative;
   display: none;
+  align-items: center;
+  justify-content: center;
   height: 17px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--dn-mark-rest);
+}
+[data-dn="line"]:hover,
+[data-dn="line"][data-open] {
+  color: var(--dn-mark-hover);
+}
+[data-dn="line"][data-error] {
+  color: var(--dn-mark-error);
 }
 
 /* How many lines fit, and so which show. Past what fits, the last place is a count. */
 [data-dn="line"][data-fits="1"],
 [data-dn="line"][data-count-at="1"] {
-  display: block;
+  display: flex;
 }
 @container dn-stack (height >= 34px) {
   [data-dn="line"][data-fits="2"],
   [data-dn="line"][data-count-at="2"] {
-    display: block;
+    display: flex;
   }
   [data-dn="line"][data-count-at="1"] {
     display: none;
@@ -74,7 +87,7 @@
 @container dn-stack (height >= 51px) {
   [data-dn="line"][data-fits="3"],
   [data-dn="line"][data-count-at="3"] {
-    display: block;
+    display: flex;
   }
   [data-dn="line"][data-count-at="2"] {
     display: none;
@@ -83,61 +96,35 @@
 @container dn-stack (height >= 68px) {
   [data-dn="line"][data-fits="4"],
   [data-dn="line"][data-count-at="4"] {
-    display: block;
+    display: flex;
   }
   [data-dn="line"][data-count-at="3"] {
     display: none;
   }
 }
 
-/* On the line rather than the word, since a cut line's ellipsis takes the line's. */
-[data-dn="line"] {
-  color: transparent;
-}
 [data-dn="mark"] {
-  position: absolute;
-  top: 8px;
-  width: 8px;
-  height: 2px;
-  border-radius: 9999px;
-  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+  width: var(--dn-mark-size);
+  height: var(--dn-mark-size);
 }
 [data-dn="count"] {
-  position: absolute;
-  top: 0;
-  font-size: 10px;
-  color: color-mix(in oklab, var(--foreground) 45%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--dn-count-size);
   font-variant-numeric: tabular-nums;
 }
-[data-side="right"] [data-dn="mark"],
-[data-side="right"] [data-dn="count"] {
-  left: 0;
+
+/* A fold's total can be wider than a mark, and an error's triangle sits beside it. */
+[data-dn="stack"][data-fold] {
+  width: max-content;
+  max-width: var(--dn-margin);
 }
-[data-side="left"] [data-dn="mark"],
-[data-side="left"] [data-dn="count"] {
-  right: 0;
+[data-fold] > [data-dn="lines"] {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 2px;
 }
-[data-dn="line"]:has([data-dn-total]) [data-dn="mark"] {
-  display: none;
-}
-[data-dn="lines"]:hover [data-dn="line"] {
-  color: var(--muted-foreground);
-  transition: color 0s linear 120ms;
-}
-[data-dn="lines"]:hover [data-dn="mark"],
-[data-dn="lines"]:hover [data-dn="count"] {
-  opacity: 0;
-  transition: opacity 0s linear 120ms;
-}
-[data-dn="lines"] [data-dn="line"]:hover {
-  color: var(--foreground);
-}
-[data-mode="words"] [data-dn="line"] {
-  color: color-mix(in oklab, var(--foreground) 24%, transparent);
-}
-[data-mode="words"] [data-dn="mark"],
-[data-mode="words"] [data-dn="count"] {
-  opacity: 0;
+[data-fold] [data-dn="line"] {
+  min-width: 14px;
 }
 
 [data-dn="card"] {
@@ -233,46 +220,21 @@
   background: var(--accent);
 }
 
-@container transcript (width < 1066px) {
-  [data-dn="word"] {
-    display: none;
-  }
-  [data-mode="words"] [data-dn="mark"],
-  [data-mode="words"] [data-dn="count"],
-  [data-dn="lines"]:hover [data-dn="mark"],
-  [data-dn="lines"]:hover [data-dn="count"] {
-    opacity: 1;
-  }
-  [data-dn="stack"] {
-    width: min(36px, calc(var(--dn-margin) + 8px));
-  }
-  [data-dn="lines"] {
-    width: 100%;
-  }
-  [data-dn="stack"][data-side="right"] {
-    left: calc(anchor(--dn-column right) - 8px);
-  }
-  [data-dn="stack"][data-side="left"] {
-    right: calc(anchor(--dn-column left) - 8px);
-  }
-  [data-side="right"] [data-dn="mark"],
-  [data-side="right"] [data-dn="count"] {
-    left: 8px;
-  }
-  [data-side="left"] [data-dn="mark"],
-  [data-side="left"] [data-dn="count"] {
-    right: 8px;
-  }
-}
-@container transcript (width < 800px) {
-  [data-dn="stack"] {
+/* No margin to speak of: the column's 16px padding is all the room, so a mark
+   sits in it clear of the row's own icon on the left, and on the right as far in
+   as it goes, since an overlay scrollbar takes the pointer at the window's edge. */
+@container transcript (width < 820px) {
+  [data-dn="stack"],
+  [data-dn="stack"][data-fold] {
     width: 16px;
+    max-width: none;
   }
-  [data-dn="lines"] {
-    width: 12px;
+  [data-fold] > [data-dn="lines"] {
+    flex-direction: column;
+    gap: 0;
   }
-  [data-side="right"] > [data-dn="lines"] {
-    margin-left: 0;
+  [data-fold] [data-dn="line"] {
+    min-width: 0;
   }
   [data-dn="stack"][data-side="right"] {
     left: calc(anchor(--dn-column right) - 16px);
@@ -280,22 +242,12 @@
   [data-dn="stack"][data-side="left"] {
     right: calc(anchor(--dn-column left) - 16px);
   }
-  [data-dn="mark"] {
-    width: 6px;
+  [data-side="right"] [data-dn="line"] {
+    justify-content: flex-start;
+    padding-left: 1px;
   }
   [data-dn="count"] {
     font-size: 9px;
     letter-spacing: -0.5px;
-  }
-  [data-side="right"] [data-dn="mark"],
-  [data-side="right"] [data-dn="count"] {
-    left: 5px;
-  }
-  [data-side="left"] [data-dn="mark"],
-  [data-side="left"] [data-dn="count"] {
-    right: 5px;
-  }
-  [data-dn="line"] {
-    overflow: visible;
   }
 }

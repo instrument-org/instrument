@@ -828,6 +828,20 @@ export const scenarios: DebugScenario[] = [
       } as never),
       prose("Here is the whole answer."),
       stop(),
+      user("Retried partway through the work."),
+      activity("Reading the page"),
+      browse("get text", "Reading it"),
+      fail({
+        classification: "rate-limit",
+        kind: "unknown",
+        message: "Busy",
+      } as never),
+      browse("get title", "Reading its title"),
+      notes(clearedNote),
+      prose(
+        "Here is the answer, and the fold has a triangle beside its total.",
+      ),
+      stop(),
       user("Ended on a refusal."),
       fail({
         classification: "usage-limit",

@@ -208,6 +208,19 @@ describe("developerNotes", () => {
     expect(turn?.rows.map((row) => row.kind)).toEqual(["text"]);
   });
 
+  it("names a thought's kind and leaves its words to the card", () => {
+    const reply = message("assistant", (id) => [
+      thought(id, "Let me look."),
+      said(id, "Done."),
+    ]);
+    const { bodies, notes } = developerNotesWithBodies(
+      [typed("Do it"), reply],
+      { sessionId },
+    );
+    expect(notes).toMatchObject([{ label: "Thought", mark: "thought" }]);
+    expect(bodies.get(notes[0]?.id ?? "")?.text).toBe("Let me look.");
+  });
+
   it("leaves out a thought with no words", () => {
     const reply = message("assistant", (id) => [
       thought(id, "[REDACTED]"),
@@ -482,13 +495,13 @@ describe("a note stays where it went out", () => {
       [
         "right of bubble: Today's date: Friday",
         "right of bubble: Turn note",
-        "left of bubble: Thought: Let me look.",
+        "left of bubble: Thought",
         "left of activity, folded: Tool results cleared: 3",
-        "left of activity, folded: Thought: Now the words.",
+        "left of activity, folded: Thought",
         "left of text: Step limit: 25",
         "right of text: Today's date: Friday",
         "left of text: Budget notice",
-        "left of text: Thought: It finished.",
+        "left of text: Thought",
       ]
     `);
   });

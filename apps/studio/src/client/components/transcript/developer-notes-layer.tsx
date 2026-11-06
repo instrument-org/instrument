@@ -8,12 +8,14 @@ import {
 import { useAtomValue } from "jotai";
 import { use, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { sort } from "radashi";
 
 import { CopyButton } from "../copy-button";
+import { NoteMark } from "./developer-note-marks";
 import STYLES from "./developer-notes-layer.css?inline";
 import { DeveloperNotesSourceContext } from "./developer-notes-source";
 
-/** How long the pointer rests on a word before its card opens. */
+/** How long the pointer rests on a mark before its card opens. */
 const CARD_OPENS_AFTER_MS = 150;
 /** How long the pointer can be off both a note and its card before the card closes. */
 const CARD_CLOSES_AFTER_MS = 150;
@@ -23,9 +25,9 @@ const HEADING_FOR_CARD_MS = 120;
 const MOST_LINES = 4;
 
 /**
- * Where a note's 17px line starts below the top of what it sits by, so its 12px
- * words share a baseline with that row's first line. Measured per kind of row;
- * a row whose first line moves needs its number moved.
+ * Where a note's 17px line starts below the top of what it sits by, so its mark
+ * sits level with that row's first line. Measured per kind of row; a row whose
+ * first line moves needs its number moved.
  */
 const LINE_OFFSET: Record<DeveloperNote["rowKind"], number> = {
   activity: 6.5,
@@ -197,6 +199,8 @@ type OpenCard =
   | { key: string; kind: "list"; notes: DeveloperNote[]; side: Stack["side"] }
   | { key: string; kind: "note"; note: DeveloperNote; side: Stack["side"] };
 
+const isError = (note: DeveloperNote) => note.kind === "error";
+
 /**
  * One note's line. It shows only where the stack has room for it: `fits` is how
  * many lines the stack has to have room for, before this one shows.
@@ -213,12 +217,13 @@ function NoteLine({
   return (
     <span
       data-dn="line"
+      data-error={isError(note) ? "" : undefined}
       data-fits={fits}
       data-note={note.id}
+      data-open={isCardHere ? "" : undefined}
       style={isCardHere ? { anchorName: "--dn-card-line" } : undefined}
     >
-      <i data-dn="mark" />
-      <span data-dn="word">{note.label}</span>
+      <NoteMark note={note} />
     </span>
   );
 }
@@ -235,24 +240,24 @@ function CountLine({
   count: number;
   listKey: string;
 }) {
+  const isCardHere = cardKey === `${listKey}@${at.toString()}`;
   return (
     <span
       data-count-at={at}
       data-dn="line"
       data-list={listKey}
-      style={
-        cardKey === `${listKey}@${at.toString()}`
-          ? { anchorName: "--dn-card-line" }
-          : undefined
-      }
+      data-open={isCardHere ? "" : undefined}
+      style={isCardHere ? { anchorName: "--dn-card-line" } : undefined}
     >
       <span data-dn="count">+{count}</span>
-      <span data-dn="word">+{count} more</span>
     </span>
   );
 }
 
-/** A note's line and each count line a stack may need, by how much room it gets. */
+/**
+ * A note's line and each count line a stack may need, by how much room it gets.
+ * An error goes first and shows at any height, so no count can stand for it.
+ */
 function StackLines({
   cardKey,
   stack,
@@ -260,17 +265,23 @@ function StackLines({
   cardKey: string | undefined;
   stack: Stack;
 }) {
-  const { notes } = stack;
+  const notes = sort(stack.notes, (note) => (isError(note) ? 0 : 1));
   const shown = notes.slice(
     0,
     notes.length > MOST_LINES ? MOST_LINES - 1 : MOST_LINES,
   );
   const lastFits = notes.length <= MOST_LINES;
+  const opensOnError = notes[0] !== undefined && isError(notes[0]);
   return (
     <>
       {shown.map((note, index) => (
         <NoteLine
-          fits={lastFits && index === notes.length - 1 ? index + 1 : index + 2}
+          fits={
+            (index === 0 && opensOnError) ||
+            (lastFits && index === notes.length - 1)
+              ? index + 1
+              : index + 2
+          }
           isCardHere={cardKey === note.id}
           key={note.id}
           note={note}
@@ -279,20 +290,25 @@ function StackLines({
       {Array.from(
         { length: Math.min(notes.length - 1, MOST_LINES) },
         (_, index) => index + 1,
-      ).map((at) => (
-        <CountLine
-          at={at}
-          cardKey={cardKey}
-          count={notes.length - at + 1}
-          key={at}
-          listKey={stack.key}
-        />
-      ))}
+      )
+        .filter((at) => at > 1 || !opensOnError)
+        .map((at) => (
+          <CountLine
+            at={at}
+            cardKey={cardKey}
+            count={notes.length - at + 1}
+            key={at}
+            listKey={stack.key}
+          />
+        ))}
     </>
   );
 }
 
-/** A closed fold's one line: a dash, and how many are in it. */
+/**
+ * A closed fold's one place: its only note's mark, or how many are in it with an
+ * error's triangle beside the number. Hovering either lists them.
+ */
 function FoldLine({
   cardKey,
   stack,
@@ -300,40 +316,37 @@ function FoldLine({
   cardKey: string | undefined;
   stack: Stack;
 }) {
+  const isCardHere = cardKey === `${stack.key}@0`;
   const [only] = stack.notes;
+  const error = stack.notes.find(isError);
+  const anchor = {
+    "data-open": isCardHere ? "" : undefined,
+    style: isCardHere ? { anchorName: "--dn-card-line" } : undefined,
+  };
   if (only && stack.notes.length === 1) {
     return (
       <span
         data-dn="line"
+        data-error={isError(only) ? "" : undefined}
         data-fits="1"
         data-list={stack.key}
-        style={
-          cardKey === `${stack.key}@0`
-            ? { anchorName: "--dn-card-line" }
-            : undefined
-        }
+        {...anchor}
       >
-        <i data-dn="mark" />
-        <span data-dn="word">{only.label}</span>
+        <NoteMark note={only} />
       </span>
     );
   }
   return (
-    <span
-      data-dn="line"
-      data-fits="1"
-      data-list={stack.key}
-      style={
-        cardKey === `${stack.key}@0`
-          ? { anchorName: "--dn-card-line" }
-          : undefined
-      }
-    >
-      <span data-dn="count" data-dn-total="">
-        {stack.notes.length}
+    <>
+      {error && (
+        <span data-dn="line" data-error="" data-fits="1" data-list={stack.key}>
+          <NoteMark note={error} />
+        </span>
+      )}
+      <span data-dn="line" data-fits="1" data-list={stack.key} {...anchor}>
+        <span data-dn="count">{stack.notes.length}</span>
       </span>
-      <span data-dn="word">{stack.notes.length} notes</span>
-    </span>
+    </>
   );
 }
 
@@ -556,7 +569,6 @@ export default function DeveloperNotesLayer({
     <div
       aria-hidden
       data-developer-notes=""
-      data-mode={mode}
       onPointerLeave={onLeave}
       onPointerMove={onMove}
       onPointerOver={onOver}

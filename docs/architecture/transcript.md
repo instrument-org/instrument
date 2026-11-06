@@ -40,7 +40,7 @@ Each time a session finishes a turn whose work folds, one call on the turn's own
 
 ## Reading back
 
-A chat opens on its last turns, and `OlderTurns` asks for the page before as the reader nears the top. The scroller keeps what is on screen in place as turns arrive above it. Following a turn stops when its reply's first line reaches the top of the window (`useHoldAtReplyStart`), so a reply taller than the window is read from its start. Nothing is virtualized: a chat's DOM grows only as far as someone scrolls back.
+A chat opens on its last turns, and `OlderTurns` asks for the page before as the reader nears the top. The scroller keeps what is on screen in place as turns arrive above it. A message the person sends is pinned with room left above it, so the last lines of what came before stay in sight (`TRANSCRIPT_PREVIOUS_TURN_PEEK`), and the move there animates (`useSlideToSent`): the scroller pins at once and a transform on its content slides from where the rows were, off the main thread. Opening a chat and every other move is a jump, and scrolling by hand ends a slide where it is. Following a turn stops when its reply's first line reaches the top of the window (`useHoldAtReplyStart`), so a reply taller than the window is read from its start. Nothing is virtualized: a chat's DOM grows only as far as someone scrolls back.
 
 ## Developer mode
 

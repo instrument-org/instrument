@@ -23,11 +23,15 @@ export function useReleaseAutoScroll() {
   return useContext(TranscriptScrollContext);
 }
 
-// Where a turn brought to the top comes to rest, measured from the top of the
-// viewport. Less than the primitive's default, because the transcript fades its
-// own top 24px: the previous turn showing through the fade is the whole point
-// of the band, and past that it is just a gap above the turn being read.
-export const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
+// The room left above a turn brought to the top, on top of the content's own
+// 16px of padding, so the last few rows of what came before stay in sight and a
+// send does not read as arriving in a new chat. That is 96px in all, of which a
+// finished reply's footer and the gap under it take about 55px, leaving its last
+// two lines with the upper one in the transcript's 24px top fade.
+export const TRANSCRIPT_PREVIOUS_TURN_PEEK = 80;
+
+// Where a reply's first line stops, measured from the top of the viewport.
+const REPLY_START_ROOM = 40;
 
 /**
  * Puts a reply's first line back under the top of the window when following its
@@ -45,7 +49,7 @@ export function holdAtReplyStart(row: HTMLElement): boolean {
     return false;
   }
   const top = layoutTop(row) - layoutTop(viewport) - viewport.clientTop;
-  const target = top - TRANSCRIPT_PREVIOUS_TURN_PEEK;
+  const target = top - REPLY_START_ROOM;
   if (viewport.scrollTop <= target) {
     return false;
   }

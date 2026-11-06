@@ -40,6 +40,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
+import { noop } from "radashi";
 import {
   type ComponentProps,
   type ReactNode,
@@ -75,6 +76,7 @@ import {
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
 import { useHoldAtReplyStart } from "../transcript/use-hold-at-reply-start";
+import { useSlideToSent } from "../transcript/use-slide-to-sent";
 import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
@@ -154,6 +156,7 @@ export function ChatConversation({
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
+  const slideToSentRef = useRef<() => void>(noop);
 
   const createMessage = useMutation(
     createMessageOptions({
@@ -507,6 +510,7 @@ export function ChatConversation({
         // room reserved below it. Following is armed for a reply that outgrows
         // that room.
         setIsFollowingSubmit(true);
+        slideToSentRef.current();
         const taken = asks?.take();
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
@@ -664,6 +668,7 @@ export function ChatConversation({
                       }
                       messages={shownMessages}
                       onLoadOlder={messagesQuery.loadOlder}
+                      slideToSentRef={slideToSentRef}
                       sessionId={selectedSessionId}
                       onContinue={handleContinue}
                       onModelChange={(modelURI) => {
@@ -693,7 +698,8 @@ export function ChatConversation({
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
                 <MessageScrollerButton
                   busy={isAgentRunning}
-                  className="pointer-events-auto"
+                  // A slide counts as room left to scroll while it runs.
+                  className="pointer-events-auto group-data-sliding/message-scroller:opacity-0"
                   waiting={isWaiting}
                 />
               </div>
@@ -765,16 +771,24 @@ function SentPrompt({
 function TranscriptStream({
   contentRef,
   isFollowing,
+  slideToSentRef,
   ...props
 }: ComponentProps<typeof Transcript> & {
   contentRef: RefObject<HTMLElement | null>;
   /** The scroller is following the end, rather than left where the reader put it. */
   isFollowing: boolean;
+  /** What a send calls, so the move to its message animates. */
+  slideToSentRef: RefObject<() => void>;
 }) {
   const { releaseAutoScroll } = useMessageScroller();
   useHoldAtReplyStart({
     contentRef,
     isFollowing,
+    release: releaseAutoScroll,
+  });
+  useSlideToSent({
+    armRef: slideToSentRef,
+    contentRef,
     release: releaseAutoScroll,
   });
 

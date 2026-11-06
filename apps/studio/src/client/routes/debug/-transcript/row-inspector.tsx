@@ -158,13 +158,7 @@ export function RowInspector({
       turns,
       frame.messages.flatMap((message) => message.parts),
     );
-  }, [
-    frame.isAgentRunning,
-    frame.messages,
-    id,
-    messages,
-    sessionId,
-  ]);
+  }, [frame.isAgentRunning, frame.messages, id, messages, sessionId]);
   const json = found ? JSON.stringify(found.data, null, 2) : undefined;
 
   return (

@@ -48,5 +48,4 @@ describe("FolderChangesNote", () => {
 
     expect(noteText()).toBeNull();
   });
-
 });

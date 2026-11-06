@@ -20,11 +20,7 @@ interface FeedInput {
  * holds, so the messages that did not move keep their objects.
  */
 function transcriptFeedOptions(input: FeedInput) {
-  const queryKey = [
-    "transcript-feed",
-    input.id,
-    input.sessionId,
-  ] as const;
+  const queryKey = ["transcript-feed", input.id, input.sessionId] as const;
   return queryOptions({
     queryFn: async ({ client, signal }): Promise<TranscriptFeed> => {
       const events = await rpcClient.workspace.message.live.feed.call(input, {

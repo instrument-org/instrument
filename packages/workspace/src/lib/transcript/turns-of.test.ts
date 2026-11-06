@@ -308,26 +308,23 @@ describe("turnsOf", () => {
   it.each([
     ["while it goes on", "streaming", true],
     ["once it has ended", "done", false],
-  ] as const)(
-    "draws no row for a thought %s",
-    (_when, state, isRunning) => {
-      const messages = [
-        typed("Do the thing"),
-        message("assistant", (id) => [
-          {
-            metadata: meta(id),
-            state,
-            text: "Let me think.",
-            type: "reasoning",
-          } as SessionMessagePart.Type,
-          ...(isRunning ? [] : [said(id, "Here it is.")]),
-        ]),
-      ];
-      const [turn] = turnsOf(messages, { isRunning });
-      expect(turn?.rows.filter((row) => row.kind === "activity")).toEqual([]);
-      expect(turn?.live?.kind).toBe(isRunning ? "thinking" : undefined);
-    },
-  );
+  ] as const)("draws no row for a thought %s", (_when, state, isRunning) => {
+    const messages = [
+      typed("Do the thing"),
+      message("assistant", (id) => [
+        {
+          metadata: meta(id),
+          state,
+          text: "Let me think.",
+          type: "reasoning",
+        } as SessionMessagePart.Type,
+        ...(isRunning ? [] : [said(id, "Here it is.")]),
+      ]),
+    ];
+    const [turn] = turnsOf(messages, { isRunning });
+    expect(turn?.rows.filter((row) => row.kind === "activity")).toEqual([]);
+    expect(turn?.live?.kind).toBe(isRunning ? "thinking" : undefined);
+  });
 
   it("opens the working line onto the thought going on, until something follows it", () => {
     const thinking = (id: StoreId.Message) =>

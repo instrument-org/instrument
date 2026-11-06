@@ -308,16 +308,12 @@
       "answer": {
         "replies": [
           {
-            "picked": [
-              "Friday"
-            ]
+            "picked": ["Friday"]
           }
         ]
       },
       "partId": "prt_01M0000000000000000000000T",
-      "questions": [
-        "Which day?"
-      ]
+      "questions": ["Which day?"]
     },
     "note": "as written on 2026-11-06",
     "reads": "data-questionAnswer",
@@ -385,9 +381,7 @@
   },
   {
     "data": {
-      "names": [
-        "launch"
-      ]
+      "names": ["launch"]
     },
     "note": "as written on 2026-11-06",
     "reads": "data-skillMentions",

@@ -80,7 +80,7 @@ export function useTabCarry({
     }
   };
 
-  const onDragStart = (key: string, event: PointerEvent) => {
+  const onDragStart = (key: string, event: PointerEvent, moved = 0) => {
     const pressed = document.querySelector(
       `[data-app-tab-strip] [data-tab-key="${key}"]`,
     );
@@ -89,7 +89,8 @@ export function useTabCarry({
     }
     // A drag whose release went by unheard leaves with this one's start.
     dragging.current?.stop();
-    const pointInTab = event.clientX - pressed.getBoundingClientRect().left;
+    const pointInTab =
+      event.clientX - moved - pressed.getBoundingClientRect().left;
     // A page runs in a process of its own, which takes a pointer that crosses
     // it, and the release with it, so pages are out of its way for the drag.
     document.documentElement.toggleAttribute("data-tab-held", true);

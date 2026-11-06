@@ -104,6 +104,38 @@ describe("a tab dragged in its own strip", () => {
   });
 });
 
+describe("a drag's start", () => {
+  it("says how far the pointer had come from the press by then", async () => {
+    const started: number[] = [];
+    await renderInBrowser(
+      <TabStrip
+        onClose={() => undefined}
+        onSelect={() => undefined}
+        onTabDragStart={(_key, _event, moved) => {
+          started.push(moved);
+        }}
+        selectedKey="b"
+        tabs={tabs}
+      />,
+    );
+    const { left, top } = tab("b").getBoundingClientRect();
+    const at = (clientX: number) => ({
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      clientX,
+      clientY: top + 4,
+      isPrimary: true,
+      pointerId: 1,
+    });
+    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(left + 10)));
+    window.dispatchEvent(new PointerEvent("pointermove", at(left + 40)));
+    await expect.poll(() => started.length).toBe(1);
+    expect(started[0]).toBe(30);
+    window.dispatchEvent(new PointerEvent("pointerup", at(left + 40)));
+  });
+});
+
 describe("a tab taken out of the hand with the button still down", () => {
   it("goes home and stays there, through more movement and the release", async () => {
     let takeBack = () => undefined as void;

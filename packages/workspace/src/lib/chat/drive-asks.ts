@@ -619,6 +619,7 @@ export async function refreshSignIn(
   askId: string,
   event: AppEventLine | undefined,
   workspaceRef: WorkspaceActorRef,
+  { quiet = false }: { quiet?: boolean } = {},
 ): Promise<boolean> {
   const state = (await chatAskStates(chatId)).find(
     ({ ask, live }) => live && ask.id === askId && ask.device === thisDevice(),
@@ -689,15 +690,18 @@ export async function refreshSignIn(
       ? {
           ...now,
           apps: progress,
-          stage: closedStage(
-            {
-              events,
-              kind: "sign-in",
-              ...(card && ask.notOnCard && { notOnCard: ask.notOnCard }),
-              ...(card && { signIns: progress }),
-            },
-            taken,
-          ),
+          stage: {
+            ...closedStage(
+              {
+                events,
+                kind: "sign-in",
+                ...(card && ask.notOnCard && { notOnCard: ask.notOnCard }),
+                ...(card && { signIns: progress }),
+              },
+              taken,
+            ),
+            ...(quiet && { quiet: true as const }),
+          },
         }
       : undefined,
   );
@@ -930,22 +934,41 @@ export function startAskDriver(workspaceRef: WorkspaceActorRef): void {
  * something is owed on, read from its digest so a chat whose records have
  * not changed costs no read. An answer given while the computer was away
  * is no longer fresh and is not taken, and one found part-way finishes
- * with a note that starts no turn (`wake`).
+ * with a note that starts no turn (`wake`). A sign-in still waiting is read
+ * against its apps' connections first, since one the app quit while
+ * finishing is connected with no event left to settle its card.
  */
 export async function driveOwedAsks(
   workspaceRef: WorkspaceActorRef,
 ): Promise<void> {
   for (const chatId of listChatIds()) {
     try {
-      const owed = (await chatAskStatesOf(chatId)).some(
-        ({ ask, live, pending }) =>
-          ask.device === thisDevice() &&
-          (pending !== undefined ||
-            ask.stage.is === "taken" ||
-            (ask.stage.is === "closed" && !ask.stage.woken) ||
-            (!live && ask.stage.is !== "closed")),
+      const states = (await chatAskStatesOf(chatId)).filter(
+        ({ ask }) => ask.device === thisDevice(),
       );
-      if (owed) {
+      let refreshed = false;
+      for (const { ask, live, pending } of states) {
+        if (
+          live &&
+          pending === undefined &&
+          ask.kind === "sign-in" &&
+          ask.stage.is !== "closed" &&
+          ask.stage.is !== "taken"
+        ) {
+          refreshed =
+            (await refreshSignIn(chatId, ask.id, undefined, workspaceRef, {
+              quiet: true,
+            })) || refreshed;
+        }
+      }
+      const owed = states.some(
+        ({ ask, live, pending }) =>
+          pending !== undefined ||
+          ask.stage.is === "taken" ||
+          (ask.stage.is === "closed" && !ask.stage.woken) ||
+          (!live && ask.stage.is !== "closed"),
+      );
+      if (owed || refreshed) {
         await driveAsks(chatId, workspaceRef);
       }
     } catch (error) {

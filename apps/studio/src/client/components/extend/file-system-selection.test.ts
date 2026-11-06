@@ -148,3 +148,59 @@ describe("what is selected once rows go to the Trash", () => {
     expect(rowAfterRemoving(rows, ["docs/"])).toBe("d.txt");
   });
 });
+
+describe("Shift in the icons on a Mac", () => {
+  const ROWS = ["a", "b", "c", "d", "e"];
+  const walk = (steps: Array<["add" | "toggle", string]>, from = "b") =>
+    selectedPathsOf(
+      steps.reduce(
+        (selection, [mode, path]) =>
+          selectWithMode(selection, path, mode, ROWS),
+        selectOnly(from),
+      ),
+    );
+
+  it.each([
+    ["a click picks that tile alone", [["toggle", "e"]], ["b", "e"]],
+    [
+      "a second click adds another",
+      [
+        ["toggle", "e"],
+        ["toggle", "a"],
+      ],
+      ["b", "e", "a"],
+    ],
+    [
+      "a click on one picked lets it go",
+      [
+        ["toggle", "e"],
+        ["toggle", "e"],
+      ],
+      ["b"],
+    ],
+    ["a click on the only one leaves nothing", [["toggle", "b"]], []],
+    [
+      "an arrow adds and going back takes nothing off",
+      [
+        ["add", "c"],
+        ["add", "d"],
+        ["add", "c"],
+      ],
+      ["b", "c", "d"],
+    ],
+  ] as const)("%s", (_, steps, selected) => {
+    expect(walk(steps as unknown as Array<["add" | "toggle", string]>)).toEqual(
+      selected,
+    );
+  });
+});
+
+describe("selectExactly with a place for the lead", () => {
+  it("leads on it, and reaches on from the first", () => {
+    const all = selectExactly(selectOnly("b"), ["a", "b", "c"], "c");
+    expect(all.lead).toBe("c");
+    expect(
+      selectedPathsOf(selectWithMode(all, "b", "extend", ["a", "b", "c"])),
+    ).toEqual(["a", "b"]);
+  });
+});

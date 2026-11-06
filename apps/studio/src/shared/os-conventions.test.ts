@@ -36,6 +36,7 @@ describe("OS_CONVENTIONS", () => {
               "shift": false,
             },
             "infoLabel": "Properties",
+            "macSelection": false,
             "moveHereKey": null,
             "parentFolderKey": "altKey",
             "previewKey": null,
@@ -86,6 +87,7 @@ describe("OS_CONVENTIONS", () => {
               "shift": true,
             },
             "infoLabel": "Info",
+            "macSelection": true,
             "moveHereKey": {
               "alt": true,
               "key": "v",
@@ -141,6 +143,7 @@ describe("OS_CONVENTIONS", () => {
             "goesBackOnBackspace": true,
             "hiddenFilesKey": null,
             "infoLabel": "Properties",
+            "macSelection": false,
             "moveHereKey": null,
             "parentFolderKey": "altKey",
             "previewKey": null,

@@ -64,6 +64,14 @@ export interface OsConventions {
     goesBackOnBackspace: boolean;
     /** The chord, by the key's place, that shows and hides hidden files, or null where the file manager has none. */
     hiddenFilesKey: { code: string; shift: boolean } | null;
+    /**
+     * Whether selecting follows the Mac's rules: an arrow in the icons goes by
+     * where tiles stand, Shift in the icons adds one tile rather than a range,
+     * ⌘A leaves the keyboard on the last row (the first tile in the icons), a
+     * Shift-click with nothing selected reaches from the top, and Up with
+     * nothing selected takes the last row.
+     */
+    macSelection: boolean;
     /** The chord that moves what the clipboard has into the folder, or null where the file manager has none. */
     moveHereKey: CommandChord | null;
     /** A chord that previews what is selected as Space does, or null where the file manager has none. */
@@ -127,6 +135,7 @@ export const OS_CONVENTIONS = {
       goesBackOnBackspace: false,
       hiddenFilesKey: { code: "KeyH", shift: false },
       infoLabel: "Properties",
+      macSelection: false,
       moveHereKey: null,
       parentFolderKey: "altKey",
       previewKey: null,
@@ -170,6 +179,7 @@ export const OS_CONVENTIONS = {
       goesBackOnBackspace: false,
       hiddenFilesKey: { code: "Period", shift: true },
       infoLabel: "Info",
+      macSelection: true,
       moveHereKey: { alt: true, key: "v", shift: false },
       parentFolderKey: "metaKey",
       previewKey: { alt: false, key: "y", shift: false },
@@ -203,6 +213,7 @@ export const OS_CONVENTIONS = {
       goesBackOnBackspace: true,
       hiddenFilesKey: null,
       infoLabel: "Properties",
+      macSelection: false,
       moveHereKey: null,
       parentFolderKey: "altKey",
       previewKey: null,

@@ -309,9 +309,12 @@ export function isTypingAhead(state: TypeAhead, now: number) {
   return state.typed !== "" && now - state.at <= TYPE_AHEAD_RESET_MS;
 }
 
-const ENDS_TYPE_AHEAD = new Set(["Backspace", "Escape", "Tab"]);
+const ENDS_TYPE_AHEAD = new Set(["Escape", "Tab"]);
 
-/** Whether a press throws away what has been typed, so the next character starts over. */
+/**
+ * Whether a press throws away what has been typed, so the next character
+ * starts over. Backspace does not: what has been typed stays as it is.
+ */
 export function endsTypeAhead({ key }: Pick<KeyPress, "key">) {
   return ENDS_TYPE_AHEAD.has(key);
 }

@@ -68,6 +68,7 @@ import {
   cn,
   commandKeyHeld,
   currentOs,
+  osConventions,
   isMacOS,
   isWindows,
 } from "@/client/lib/utils";
@@ -98,14 +99,17 @@ import {
   GESTURE_IDLE,
   type GestureEvent,
   type GestureState,
+  isModifierAlone,
   step as gestureStep,
   swallowSecondClick,
   waitFor,
 } from "./file-system-gestures";
+import { gridNeighbor } from "./file-system-grid";
 import {
   type ListingCommand,
   type ListingDirection,
   endsTypeAhead,
+  isBackspaceBackPress,
   isTypingAhead,
   listingCommandOf,
   NO_TYPE_AHEAD,
@@ -2303,11 +2307,12 @@ export function FileSystem({
   // Exactly these, the way ⌘A takes a folder: the one the keyboard is on
   // stays on it when it is among them.
   const selectEntries = React.useCallback(
-    (entries: readonly FileSystemEntry[]) => {
+    (entries: readonly FileSystemEntry[], leadOn?: FileSystemEntry) => {
       commitSelection(
         selectExactly(
           selectionRef.current,
           entries.map((entry) => entry.path),
+          leadOn?.path,
         ),
       );
     },
@@ -2322,10 +2327,17 @@ export function FileSystem({
     (entry: FileSystemEntry, { mode, order }: SelectionGesture) => {
       const current = selectionRef.current;
       const paths = order.map((candidate) => candidate.path);
+      // A reach with nothing to reach from starts at the top on a Mac.
+      const from =
+        current.lead === null &&
+        mode === "extend" &&
+        osConventions().files.macSelection
+          ? selectOnly(paths[0] ?? null)
+          : current;
       commitSelection(
         current.lead !== null && !paths.includes(current.lead)
           ? selectOnly(entry.path)
-          : selectWithMode(current, entry.path, mode, paths),
+          : selectWithMode(from, entry.path, mode, paths),
       );
     },
     [commitSelection],
@@ -2870,8 +2882,10 @@ export function FileSystem({
       }
       sendRename({ text: input?.value ?? "", type: "accept" });
     };
-    const onKeyDown = () => {
-      if (renamePhase === "waiting") sendRename({ type: "interrupt" });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (renamePhase === "waiting" && !isModifierAlone(event)) {
+        sendRename({ type: "interrupt" });
+      }
     };
     window.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener("keydown", onKeyDown, true);
@@ -2955,7 +2969,9 @@ export function FileSystem({
   });
   const gestureRef = React.useRef<GestureState>(GESTURE_IDLE);
   const gestureTimerRef = React.useRef<number | undefined>(undefined);
-  const gestureInterruptRef = React.useRef<(() => void) | null>(null);
+  const gestureInterruptRef = React.useRef<((event: Event) => void) | null>(
+    null,
+  );
   const sendGesture = React.useCallback(
     (event: GestureEvent, order?: () => readonly FileSystemEntry[]) => {
       const previous = gestureRef.current;
@@ -2983,7 +2999,11 @@ export function FileSystem({
           window.removeEventListener("wheel", interrupt, true);
           gestureInterruptRef.current = null;
         } else if (listens && !interrupt) {
-          const next = () => sendGesture({ type: "interrupt" });
+          const next = (each: Event) => {
+            if (each instanceof KeyboardEvent && isModifierAlone(each))
+              return;
+            sendGesture({ type: "interrupt" });
+          };
           window.addEventListener("keydown", next, true);
           window.addEventListener("wheel", next, true);
           gestureInterruptRef.current = next;
@@ -3022,6 +3042,15 @@ export function FileSystem({
   React.useEffect(() => {
     sendGesture({ lead: selectionState.lead, type: "selection" });
   }, [selectionState, sendGesture]);
+  // In the icons on a Mac, Shift picks one tile, as ⌘ does, and never a range.
+  const shiftPicksOne = view === "icons" && osConventions().files.macSelection;
+  const rowPressModeOf = React.useCallback(
+    (event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+      const mode = selectionModeOf(event);
+      return shiftPicksOne && mode === "extend" ? "toggle" : mode;
+    },
+    [shiftPicksOne],
+  );
   const rowGestures = React.useMemo<RowGestures>(
     () => ({
       click: (entry, event, order) => {
@@ -3029,7 +3058,7 @@ export function FileSystem({
           {
             detail: event.detail,
             isContextClick: isMacContextClick(event),
-            mode: selectionModeOf(event),
+            mode: rowPressModeOf(event),
             path: entry.path,
             point: { x: event.clientX, y: event.clientY },
             type: "click",
@@ -3061,7 +3090,7 @@ export function FileSystem({
             isOnName:
               event.target instanceof Element &&
               event.target.closest("[data-file-system-name]") !== null,
-            mode: selectionModeOf(event),
+            mode: rowPressModeOf(event),
             path: entry.path,
             pointerType: event.pointerType,
             renames: canRenameRef.current,
@@ -3072,7 +3101,7 @@ export function FileSystem({
         );
       },
     }),
-    [sendGesture],
+    [rowPressModeOf, sendGesture],
   );
   // The keys, read once for every view (`listingCommandOf`) and answered by
   // the view on screen, which says how its rows are walked.
@@ -3136,6 +3165,20 @@ export function FileSystem({
       }
       case "move": {
         const moved = nav.move(command.direction);
+        // At the end of the rows with several selected, an arrow leaves the
+        // one it is on, on a Mac.
+        if (
+          moved === true &&
+          lead &&
+          !command.extend &&
+          (command.direction === "up" || command.direction === "down") &&
+          osConventions().files.macSelection &&
+          selectedPathsOf(selectionRef.current).length > 1
+        ) {
+          selectAndPrefetchEntry(lead);
+          nav.reveal(lead);
+          return true;
+        }
         if (typeof moved === "boolean") {
           const isOneFile =
             lead?.kind === "file" &&
@@ -3154,7 +3197,7 @@ export function FileSystem({
         selectAndPrefetchEntry(
           moved.entry,
           command.extend && moved.order
-            ? { mode: "extend", order: moved.order }
+            ? { mode: shiftPicksOne ? "add" : "extend", order: moved.order }
             : undefined,
         );
         nav.reveal(moved.entry);
@@ -3176,7 +3219,12 @@ export function FileSystem({
         }
         return true;
       case "select-all":
-        selectEntries(nav.rows);
+        selectEntries(
+          nav.rows,
+          osConventions().files.macSelection
+            ? nav.rows.at(view === "icons" ? 0 : -1)
+            : undefined,
+        );
         return true;
       case "space":
         return true;
@@ -3427,15 +3475,13 @@ export function FileSystem({
       }}
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
-        if (endsTypeAhead(event)) {
-          // A Backspace taking back what was typed goes no further back.
-          if (
-            event.key === "Backspace" &&
-            isTypingAhead(typeAheadRef.current, performance.now())
-          ) {
-            event.preventDefault();
-          }
-          typeAheadRef.current = NO_TYPE_AHEAD;
+        if (endsTypeAhead(event)) typeAheadRef.current = NO_TYPE_AHEAD;
+        // A name being typed is not left for the window's Backspace.
+        if (
+          isBackspaceBackPress(event, currentOs()) &&
+          isTypingAhead(typeAheadRef.current, performance.now())
+        ) {
+          event.preventDefault();
         }
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
@@ -4517,50 +4563,6 @@ function FileSystemNameField({
     />
   );
 }
-/**
- * The tile an arrow reaches in a grid drawn by the browser's own auto-fill:
- * the next or previous in order across, and up or down by where the tiles
- * actually stand, so the walk follows the rendered grid.
- */
-function gridNeighbor({
-  current,
-  direction,
-  entries,
-  itemRefs,
-}: {
-  current: null | string;
-  direction: ListingDirection;
-  entries: readonly FileSystemEntry[];
-  itemRefs: Map<string, HTMLElement>;
-}) {
-  const currentIndex = entries.findIndex((entry) => entry.path === current);
-  if (currentIndex === -1) return entries[0] ?? null;
-  if (direction === "left" || direction === "right") {
-    return entries[currentIndex + (direction === "left" ? -1 : 1)] ?? null;
-  }
-  const currentRect = itemRefs
-    .get(entries[currentIndex]?.path ?? "")
-    ?.getBoundingClientRect();
-  if (!currentRect) return null;
-  let best: FileSystemEntry | null = null;
-  let bestScore = Infinity;
-  for (const entry of entries) {
-    if (entry.path === current) continue;
-    const rect = itemRefs.get(entry.path)?.getBoundingClientRect();
-    if (!rect) continue;
-    const rowDelta =
-      direction === "down"
-        ? rect.top - currentRect.top
-        : currentRect.top - rect.top;
-    if (rowDelta <= 1) continue;
-    const score = rowDelta * 1000 + Math.abs(rect.left - currentRect.left);
-    if (score < bestScore) {
-      bestScore = score;
-      best = entry;
-    }
-  }
-  return best;
-}
 // Icon grid geometry (px at the default 16px root font size). Tiles have a
 // fixed height — a 4rem glyph box plus a reserved two-line label — so rows
 // share one stride and the grid can window cleanly.
@@ -4605,10 +4607,12 @@ function FileSystemIconsView({
   useListingNav(listingNavRef, {
     move: (direction) => {
       const entry = gridNeighbor({
+        byPlace: osConventions().files.macSelection,
         current: selectedPath,
         direction,
         entries,
-        itemRefs: itemRefs.current,
+        placeOf: (path) =>
+          itemRefs.current.get(path)?.getBoundingClientRect() ?? null,
       });
       return entry ? { entry, order: entries } : false;
     },
@@ -5635,7 +5639,11 @@ function FileSystemTableView({
       const selectedRow = entryRows[selectedEntryIndex];
       const first = entryRows[0]?.entry;
       if (!selectedRow) {
-        return first ? { entry: first, order: null } : true;
+        const arrival =
+          direction === "up" && osConventions().files.macSelection
+            ? entryRows.at(-1)?.entry
+            : first;
+        return arrival ? { entry: arrival, order: null } : true;
       }
       if (direction === "up" || direction === "down") {
         const next =
@@ -6064,9 +6072,11 @@ function FileSystemListView({
   useListingNav(listingNavRef, {
     move: (direction) => {
       if (direction === "left" || direction === "right") return false;
-      const first = entries[0];
       if (selectedIndex === -1) {
-        return first ? { entry: first, order: null } : true;
+        const arrival = entries.at(
+          direction === "up" && osConventions().files.macSelection ? -1 : 0,
+        );
+        return arrival ? { entry: arrival, order: null } : true;
       }
       const next = entries[selectedIndex + (direction === "up" ? -1 : 1)];
       return next ? { entry: next, order: entries } : true;

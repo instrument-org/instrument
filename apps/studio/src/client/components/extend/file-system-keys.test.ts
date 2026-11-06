@@ -385,7 +385,7 @@ describe("typeAhead", () => {
   it.each([
     ["Escape", true],
     ["Tab", true],
-    ["Backspace", true],
+    ["Backspace", false],
     ["ArrowDown", false],
     ["m", false],
   ])("%s ends the search: %s", (key, ends) => {

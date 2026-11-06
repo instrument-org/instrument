@@ -102,6 +102,8 @@ import {
 import {
   type ListingCommand,
   type ListingDirection,
+  endsTypeAhead,
+  isTypingAhead,
   listingCommandOf,
   NO_TYPE_AHEAD,
   typeAhead,
@@ -465,6 +467,8 @@ export type FileSystemHandle = {
   focusSelection: () => void;
   /** The selection one row up or down, as the arrow walks it; false where it did not move. */
   step: (direction: "down" | "up") => boolean;
+  /** Whether a name is being typed at the rows, so a space now is part of it. */
+  isTypingAhead: () => boolean;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list" | "table";
 type FileEntry = FileSystemFileItem & {
@@ -2825,6 +2829,8 @@ export function FileSystem({
         });
         return selectionRef.current.lead !== before;
       },
+      isTypingAhead: () =>
+        isTypingAhead(typeAheadRef.current, performance.now()),
     }),
     [commitSelection, startRename],
   );
@@ -3060,6 +3066,11 @@ export function FileSystem({
   // the view on screen, which says how its rows are walked.
   const listingNavRef = React.useRef<ListingNav | null>(null);
   const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
+  // What was typed at one folder says nothing about the next. The columns stay
+  // on one `currentPath` while the selection moves through their folders.
+  React.useLayoutEffect(() => {
+    typeAheadRef.current = NO_TYPE_AHEAD;
+  }, [currentPath]);
   const runListingCommand = (command: ListingCommand) => {
     const nav = listingNavRef.current;
     if (!nav) return false;
@@ -3152,13 +3163,9 @@ export function FileSystem({
         return true;
       }
       case "type-ahead": {
-        const current = nav.current;
         const { nameOf } = nav;
         const { match, state } = typeAhead({
           char: command.char,
-          currentIndex: current
-            ? nav.rows.findIndex((entry) => entry.path === current.path)
-            : -1,
           entries: nav.rows.map((entry) => ({
             entry,
             name: nameOf ? nameOf(entry) : entry.name,
@@ -3396,6 +3403,7 @@ export function FileSystem({
       }}
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
+        if (endsTypeAhead(event)) typeAheadRef.current = NO_TYPE_AHEAD;
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
         // browser (its menus and dialogs), and one typed into a field are
@@ -3426,7 +3434,19 @@ export function FileSystem({
         ) {
           return;
         }
-        if (runListingCommand(command)) event.preventDefault();
+        // A space in a name being typed is part of the name, and what the
+        // window does with Space (Quick Look, a player) does not hear it.
+        const isSpaceInName =
+          command.type === "space" &&
+          isTypingAhead(typeAheadRef.current, performance.now());
+        if (isSpaceInName) event.stopPropagation();
+        if (
+          runListingCommand(
+            isSpaceInName ? { char: " ", type: "type-ahead" } : command,
+          )
+        ) {
+          event.preventDefault();
+        }
       }}
       onPointerDown={dragArea.onPointerDown}
       onPointerOver={dragArea.onPointerOver}
@@ -4205,8 +4225,6 @@ type FileSystemViewProps = {
 };
 /** How a view's rows are walked by the keys the browser reads (`listingCommandOf`). */
 type ListingNav = {
-  /** The row the keyboard is on, which type-ahead searches on from. */
-  current: FileSystemEntry | null;
   /**
    * Where an arrow goes: a row, with the order a Shift-arrow reaches along
    * (null where it does not reach, as across columns); true for a step the
@@ -4538,7 +4556,6 @@ function FileSystemIconsView({
   renamingPath,
   renderNameField,
   rowGestures,
-  selectedEntry,
   selectedPath,
   selection,
   besideOpenPath,
@@ -4553,7 +4570,6 @@ function FileSystemIconsView({
     preventScroll: false,
   });
   useListingNav(listingNavRef, {
-    current: selectedEntry,
     move: (direction) => {
       const entry = gridNeighbor({
         current: selectedPath,
@@ -5580,7 +5596,6 @@ function FileSystemTableView({
   // Up and down walk the rows as drawn; right opens a folder in place and
   // left closes it, or goes to the folder holding the row.
   useListingNav(listingNavRef, {
-    current: entryRows[selectedEntryIndex]?.entry ?? null,
     move: (direction) => {
       const selectedRow = entryRows[selectedEntryIndex];
       const first = entryRows[0]?.entry;
@@ -5920,7 +5935,6 @@ function FileSystemListView({
   renamingPath,
   renderNameField,
   rowGestures,
-  selectedEntry,
   selectedPath,
   selection,
   sort,
@@ -6013,7 +6027,6 @@ function FileSystemListView({
   }, [selectedUnit]);
   // Up and down walk the rows; left and right are the page's beside a file.
   useListingNav(listingNavRef, {
-    current: selectedEntry,
     move: (direction) => {
       if (direction === "left" || direction === "right") return false;
       const first = entries[0];
@@ -6406,7 +6419,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     ? (index.children.get(selectedEntry.parentPath) ?? [])
     : (index.children.get(currentPath) ?? []);
   useListingNav(listingNavRef, {
-    current: isInColumns ? selectedEntry : null,
     move: (direction) => {
       if (!isInColumns) {
         const first = index.children.get(currentPath)?.[0];
@@ -7288,7 +7300,6 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
   // The strip runs one way: left and right walk it, from the tile on show.
   // Return opens, since the strip has no name to type over.
   useListingNav(listingNavRef, {
-    current: activeEntry,
     move: (direction) => {
       if (direction === "up" || direction === "down") return false;
       const at = activeEntry

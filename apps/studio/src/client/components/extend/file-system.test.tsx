@@ -19,6 +19,7 @@ import {
   FileSystemRowGlyph,
   type FileSystemView,
 } from "./file-system";
+import { TYPE_AHEAD_RESET_MS } from "./file-system-keys";
 
 const FILES = ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"].map(
   (path): FileSystemItem => ({ kind: "file", path }),
@@ -1350,6 +1351,174 @@ describe("the keyboard", () => {
     fireEvent.click(row("a.txt"));
     fireEvent.keyDown(row("a.txt"), { key: "d" });
     expect(reported()).toEqual(["d.txt"]);
+  });
+
+  describe("typing a name", () => {
+    /** Every Space the window gets, as Quick Look and a player listen for it. */
+    function listenForSpace() {
+      const heard = vi.fn();
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === " ") heard();
+      };
+      window.addEventListener("keydown", onKeyDown);
+      onTestFinished(() => {
+        window.removeEventListener("keydown", onKeyDown);
+      });
+      return heard;
+    }
+
+    it("keeps a space in a name from the window, and types it", () => {
+      const heard = listenForSpace();
+      const { reported, row } = renderList();
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.keyDown(row("a.txt"), { key: "c" });
+      fireEvent.keyDown(row("c.txt"), { key: " " });
+
+      expect(heard).not.toHaveBeenCalled();
+      expect(reported()).toEqual(["c.txt"]);
+    });
+
+    it("leaves a space on its own to the window", () => {
+      const heard = listenForSpace();
+      const { row } = renderList();
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.keyDown(row("a.txt"), { key: " " });
+
+      expect(heard).toHaveBeenCalledOnce();
+    });
+
+    it("leaves a space to the window once the pause has run out", () => {
+      vi.useFakeTimers();
+      try {
+        const heard = listenForSpace();
+        const { row } = renderList();
+
+        fireEvent.click(row("a.txt"));
+        fireEvent.keyDown(row("a.txt"), { key: "c" });
+        vi.advanceTimersByTime(TYPE_AHEAD_RESET_MS + 1);
+        fireEvent.keyDown(row("c.txt"), { key: " " });
+
+        expect(heard).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("leaves a space to the window after Escape", () => {
+      const heard = listenForSpace();
+      const { row } = renderList();
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.keyDown(row("a.txt"), { key: "c" });
+      fireEvent.keyDown(row("c.txt"), { key: "Escape" });
+      fireEvent.keyDown(row("c.txt"), { key: " " });
+
+      expect(heard).toHaveBeenCalledOnce();
+    });
+
+    it("keeps typing past a folder the columns open along the way", () => {
+      const onSelectionChange = vi.fn();
+      // A caller that stands in the folder selected, as the Files screen does.
+      function HeldColumns() {
+        const [held, setHeld] = React.useState<{
+          path: string;
+          selected: null | string;
+        }>({ path: "", selected: null });
+        return (
+          <FileSystem
+            defaultView="columns"
+            items={[
+              { kind: "file", path: "Moment.txt" },
+              { kind: "folder", path: "Movies" },
+              { kind: "file", path: "Movies.txt" },
+            ]}
+            onSelectionChange={(item, all) => {
+              onSelectionChange(item, all);
+              setHeld({
+                path: item?.kind === "folder" ? item.path : "",
+                selected: item?.path ?? null,
+              });
+            }}
+            path={held.path}
+            selectedPath={held.selected}
+          />
+        );
+      }
+      renderWithProviders(<HeldColumns />);
+      const browser = () =>
+        document.querySelector("[data-file-system-listing]") ??
+        expect.unreachable("no listing");
+
+      for (const key of "movies.") fireEvent.keyDown(browser(), { key });
+
+      expect(
+        (onSelectionChange.mock.lastCall?.[1] as FileSystemItem[]).map(
+          (item) => item.path,
+        ),
+      ).toEqual(["Movies.txt"]);
+    });
+
+    it("forgets what was typed on going into a folder", () => {
+      const onSelectionChange = vi.fn();
+      const { rerender } = renderWithProviders(
+        <FileSystem
+          defaultView="table"
+          items={[
+            { kind: "file", path: "Docs/alpha.txt" },
+            { kind: "file", path: "Docs/mid.txt" },
+            { kind: "file", path: "Docs/zed.txt" },
+            { kind: "file", path: "mid.txt" },
+          ]}
+          onSelectionChange={onSelectionChange}
+          path=""
+        />,
+      );
+      const browser = () =>
+        document.querySelector("[data-file-system-listing]") ??
+        expect.unreachable("no listing");
+      fireEvent.keyDown(browser(), { key: "m" });
+
+      rerender(
+        <FileSystem
+          defaultView="table"
+          items={[
+            { kind: "file", path: "Docs/alpha.txt" },
+            { kind: "file", path: "Docs/mid.txt" },
+            { kind: "file", path: "Docs/zed.txt" },
+            { kind: "file", path: "mid.txt" },
+          ]}
+          onSelectionChange={onSelectionChange}
+          path="Docs"
+        />,
+      );
+      fireEvent.keyDown(browser(), { key: "a" });
+
+      expect(
+        (onSelectionChange.mock.lastCall?.[1] as FileSystemItem[]).map(
+          (item) => item.path,
+        ),
+      ).toEqual(["Docs/alpha.txt"]);
+    });
+
+    it("leaves the window's own key to it", () => {
+      const heard = vi.fn();
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (!event.defaultPrevented) heard(event.key);
+      };
+      window.addEventListener("keydown", onKeyDown);
+      onTestFinished(() => {
+        window.removeEventListener("keydown", onKeyDown);
+      });
+      const { reported, row } = renderList();
+
+      fireEvent.click(row("a.txt"));
+      fireEvent.keyDown(row("a.txt"), { key: "?", shiftKey: true });
+
+      expect(heard).toHaveBeenCalledWith("?");
+      expect(reported()).toEqual(["a.txt"]);
+    });
   });
 
   it("does not narrow several to one after an arrow has moved the selection", () => {

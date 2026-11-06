@@ -1602,6 +1602,10 @@ export function ComputerPage({
         return;
       }
       if (event.key === " ") {
+        // A space in a name being typed goes on to the folder.
+        if (fileSystemRef.current?.isTypingAhead()) {
+          return;
+        }
         event.preventDefault();
         drivePage(besidePage, { by: event.shiftKey ? -1 : 1, type: "scroll" });
         return;

@@ -11,6 +11,7 @@ import {
   OS_CONVENTIONS,
   type OsConventions,
 } from "@/shared/os-conventions";
+import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 
@@ -41,7 +42,7 @@ export type ListingCommand =
   | { type: "space" }
   /** ⌘⌫ on the Mac, Delete elsewhere: what is selected, to the Trash. */
   | { type: "trash" }
-  /** A letter or digit, which jumps to the next name starting with what was typed. */
+  /** A character, which jumps to the name closest to what has been typed. */
   | { char: string; type: "type-ahead" };
 
 type KeyPress = {
@@ -184,9 +185,10 @@ export function listingCommandOf(
     return press.shiftKey ? null : { type: "rename" };
   }
   if (press.key === " ") return { type: "space" };
-  // Letters and digits only, so shortcuts and whitespace stay untouched.
-  if (press.key.length === 1 && /^[\p{L}\p{N}]$/u.test(press.key)) {
-    return { char: press.key.toLowerCase(), type: "type-ahead" };
+  // One character a name could have in it. `key` is a word for everything
+  // else (Tab, F5, Dead, Process), and the window keeps the guide's own key.
+  if (/^\P{C}$/u.test(press.key) && press.key !== SHORTCUT_GUIDE.accelerator) {
+    return { char: press.key, type: "type-ahead" };
   }
   return null;
 }
@@ -230,44 +232,66 @@ export function listingKeys(os: Os) {
   };
 }
 
-/** How long typed letters wait for the next before the search starts over, like the Finder's. */
-export const TYPE_AHEAD_RESET_MS = 700;
+/**
+ * How long a typed character waits for the next before the search starts over:
+ * twice the Mac's default key repeat delay, the wait its file manager takes.
+ */
+export const TYPE_AHEAD_RESET_MS = 1000;
 
 export type TypeAhead = { at: number; typed: string };
 
 export const NO_TYPE_AHEAD: TypeAhead = { at: -Infinity, typed: "" };
 
+/** Whether what was typed a moment ago is still being added to. */
+export function isTypingAhead(state: TypeAhead, now: number) {
+  return state.typed !== "" && now - state.at <= TYPE_AHEAD_RESET_MS;
+}
+
+const ENDS_TYPE_AHEAD = new Set(["Backspace", "Escape", "Tab"]);
+
+/** Whether a press throws away what has been typed, so the next character starts over. */
+export function endsTypeAhead({ key }: Pick<KeyPress, "key">) {
+  return ENDS_TYPE_AHEAD.has(key);
+}
+
 /**
- * A letter typed at the listing: added to what was typed a moment ago, or
- * the start of a new search once the pause has run out. A repeated single
- * letter steps past the row the keyboard is on, so pressing it again cycles
- * through every name starting with it; a longer string refines in place.
- * `match` is null when no name starts with what has been typed.
+ * The order names are searched in. Case, width and how an accent is encoded
+ * make no difference, and an accented letter sorts right after its bare one,
+ * so "ec" reaches "Éclair" and "strass" reaches "straße".
+ */
+const NAME_ORDER = new Intl.Collator(undefined, { sensitivity: "accent" });
+
+/**
+ * A character typed at the listing: added to what was typed a moment ago, or
+ * the start of a new search once the pause has run out. It lands on the first
+ * name at or after what has been typed in alphabetical order, wherever the
+ * view shows that name, or on the last name when none is that late in the
+ * alphabet. So a misspelled name still lands beside the right one, and a letter
+ * pressed again stays where it is. `match` is null only with no names at all.
  */
 export function typeAhead<T extends { name: string }>({
   char,
-  currentIndex,
   entries,
   now,
   state,
 }: {
   char: string;
-  currentIndex: number;
   entries: readonly T[];
   now: number;
   state: TypeAhead;
 }): { match: null | T; state: TypeAhead } {
-  const typed =
-    (now - state.at > TYPE_AHEAD_RESET_MS ? "" : state.typed) + char;
-  const next = { at: now, typed };
-  if (entries.length === 0) return { match: null, state: next };
-  const start =
-    currentIndex < 0 ? 0 : currentIndex + (typed.length === 1 ? 1 : 0);
-  for (let step = 0; step < entries.length; step += 1) {
-    const entry = entries[(start + step) % entries.length];
-    if (entry?.name.toLowerCase().startsWith(typed)) {
-      return { match: entry, state: next };
+  const typed = (isTypingAhead(state, now) ? state.typed : "") + char;
+  const isEarlier = (a: T, b: T) => NAME_ORDER.compare(a.name, b.name) < 0;
+  let closest: null | T = null;
+  let last: null | T = null;
+  for (const entry of entries) {
+    if (last === null || isEarlier(last, entry)) last = entry;
+    if (
+      NAME_ORDER.compare(entry.name, typed) >= 0 &&
+      (closest === null || isEarlier(entry, closest))
+    ) {
+      closest = entry;
     }
   }
-  return { match: null, state: next };
+  return { match: closest ?? last, state: { at: now, typed } };
 }

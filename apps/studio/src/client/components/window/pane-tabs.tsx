@@ -29,7 +29,14 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { motion, Reorder } from "motion/react";
-import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { useComputerVolumes } from "./computer-volumes";
@@ -57,6 +64,30 @@ function hostOf(url: string): string {
 /** A tab as the strip orders it. */
 function keyOf(tab: WindowTab): string {
   return tab.stripKey ?? tab.id;
+}
+
+/**
+ * Scrolls a tab clear of its row's ends. Offsets are layout px, which is what
+ * scrollLeft is in under the window's zoom.
+ */
+function showTab(
+  list: HTMLElement | null,
+  id: string | undefined,
+  behavior: ScrollBehavior,
+) {
+  const tab = [
+    ...(list?.querySelectorAll<HTMLElement>("[data-pane-tab]") ?? []),
+  ].find((element) => element.dataset.paneTab === id);
+  if (!list || !tab) {
+    return;
+  }
+  const left = tab.offsetLeft - TAB_ROOM;
+  const right = tab.offsetLeft + tab.offsetWidth + TAB_ROOM;
+  if (left < list.scrollLeft) {
+    list.scrollTo({ behavior, left });
+  } else if (right > list.scrollLeft + list.clientWidth) {
+    list.scrollTo({ behavior, left: right - list.clientWidth });
+  }
 }
 
 /**
@@ -93,32 +124,39 @@ export function PaneTabs({
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
 }) {
-  // Tabs slide only while one is being dragged among them: laid out otherwise,
-  // they would slide every time the pane around them resizes.
-  const [isDragging, setDragging] = useState(false);
+  // The tab out of its place, from the drag that picks it up until it has landed
+  // back. Tabs slide only while there is one: laid out otherwise, they would
+  // slide every time the pane around them resizes.
+  const [liftedId, setLiftedId] = useState<string>();
+  const rowRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  // The chosen tab is brought into the row's view. Offsets are layout px, which
-  // is what scrollLeft is in under the window's zoom.
   useEffect(() => {
-    const list = listRef.current;
-    const tab = [
-      ...(list?.querySelectorAll<HTMLElement>("[data-pane-tab]") ?? []),
-    ].find((element) => element.dataset.paneTab === chosenId);
-    if (!list || !tab) {
+    showTab(listRef.current, chosenId, "smooth");
+  }, [chosenId, tabs.length]);
+  const showChosenAtOnce = useEffectEvent(() => {
+    showTab(listRef.current, chosenId, "instant");
+  });
+  // A narrower row would otherwise slide its end over the chosen tab's far side.
+  // This watches the row rather than the scroller, whose width also follows the
+  // tabs, so that a tab opening still glides into view.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) {
       return;
     }
-    const left = tab.offsetLeft - TAB_ROOM;
-    const right = tab.offsetLeft + tab.offsetWidth + TAB_ROOM;
-    if (left < list.scrollLeft) {
-      list.scrollTo({ behavior: "smooth", left });
-    } else if (right > list.scrollLeft + list.clientWidth) {
-      list.scrollTo({ behavior: "smooth", left: right - list.clientWidth });
-    }
-  }, [chosenId, tabs.length]);
+    const observer = new ResizeObserver(() => {
+      showChosenAtOnce();
+    });
+    observer.observe(row);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   return (
     <div
       aria-label="What this chat has open"
       className="flex h-10 shrink-0 items-center gap-1 px-2"
+      ref={rowRef}
       role="tablist"
     >
       <motion.div
@@ -151,19 +189,29 @@ export function PaneTabs({
               className="shrink-0"
               data-pane-tab={tab.id}
               key={tab.id}
+              // The chosen tab's new place may be past the row's end. Dropping
+              // any other tab leaves the row where it is.
               onDragEnd={() => {
-                setDragging(false);
+                if (tab.id === chosenId) {
+                  showTab(listRef.current, tab.id, "smooth");
+                }
               }}
               onDragStart={() => {
-                setDragging(true);
+                setLiftedId(tab.id);
               }}
-              transition={isDragging ? undefined : STILL}
+              onDragTransitionEnd={() => {
+                setLiftedId((lifted) =>
+                  lifted === tab.id ? undefined : lifted,
+                );
+              }}
+              transition={liftedId === undefined ? STILL : undefined}
               value={keyOf(tab)}
             >
               <PaneTab
                 chatTitles={chatTitles}
                 isChatWorking={isChatWorking}
                 isChosen={tab.id === chosenId}
+                isLifted={tab.id === liftedId}
                 onClose={() => {
                   onClose(tab.id);
                 }}
@@ -215,6 +263,7 @@ function PaneTab({
   chatTitles,
   isChatWorking,
   isChosen,
+  isLifted,
   onClose,
   onSelect,
   tab,
@@ -223,6 +272,7 @@ function PaneTab({
   chatTitles: Presentation["chatTitles"];
   isChatWorking: boolean;
   isChosen: boolean;
+  isLifted: boolean;
   onClose: () => void;
   onSelect: () => void;
   tab: WindowTab;
@@ -262,9 +312,12 @@ function PaneTab({
     <div
       className={cn(
         "group/tab flex h-8 w-36 items-center gap-0.5 rounded-xl pr-0.5 pl-2 text-xs",
-        isChosen
-          ? "bg-card font-medium text-foreground shadow-xs-soft"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+        isChosen && "bg-card font-medium text-foreground shadow-xs-soft",
+        !isChosen &&
+          (isLifted
+            ? // Opaque, since it passes over the other tabs.
+              "bg-card text-muted-foreground shadow-xs-soft"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"),
       )}
     >
       <button

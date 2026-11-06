@@ -136,6 +136,18 @@ export const llmRequestLogic = fromPromise<
         reportStorageError(saved.error);
       }
     },
+    /**
+     * What is kept for a developer alone, which decides nothing about the
+     * request: a save that fails is reported like any other and stops there,
+     * so it neither fails a request nor stands in for the error it records.
+     */
+    saveDeveloperNote: async (part: SessionMessagePart.Type) => {
+      try {
+        await writes.savePart(part);
+      } catch (error) {
+        reportStorageError(error);
+      }
+    },
   };
 
   // Where a call's input stands between parses, keyed by part id, so the
@@ -301,7 +313,7 @@ export const llmRequestLogic = fromPromise<
       .unwrapOr([])
       .at(-1);
     if (last !== undefined) {
-      await writes.savePart({
+      await writes.saveDeveloperNote({
         data: { error },
         metadata: {
           createdAt: getCurrentDate(),
@@ -339,7 +351,7 @@ export const llmRequestLogic = fromPromise<
   // What this request alone goes out with, for a developer to read afterward.
   // A hidden part on the reply it produced, so no request reads it.
   for (const data of requestNotesIn(messagesResult.value)) {
-    await writes.savePart({
+    await writes.saveDeveloperNote({
       data,
       metadata: {
         createdAt: getCurrentDate(),

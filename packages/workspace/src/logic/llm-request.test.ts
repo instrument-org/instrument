@@ -23,6 +23,7 @@ import {
   describe,
   expect,
   it,
+  type MockInstance,
   vi,
 } from "vitest";
 import {
@@ -1768,6 +1769,142 @@ describe("llmRequestLogic", () => {
       .filter((part) => part.type === "data-requestNote")
       .map((part) => part.data);
   }
+
+  it("sends a request whose note could not be saved", async () => {
+    const savePart = ChatWrites.savePart.bind(ChatWrites);
+    const savePartSpy = vi
+      .spyOn(ChatWrites, "savePart")
+      .mockImplementation((part, chatId) => {
+        if (part.type === "data-requestNote") {
+          throw new Error("The note could not be written");
+        }
+        return savePart(part, chatId);
+      });
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "1", type: "text-start" },
+        { delta: "Reading the plan.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+      ],
+    });
+    vi.mocked(turnNoteFor).mockResolvedValueOnce({
+      kind: "turn",
+      text: "Say what you are doing.",
+    });
+    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
+
+    const { messages } = await runTestMachine(testMachine);
+    savePartSpy.mockRestore();
+
+    expect(prompts).toHaveLength(1);
+    expect(messages.at(-1)?.parts.map((part) => part.type)).toContain("text");
+    expect(captureException).toHaveBeenCalledTimes(1);
+  });
+
+  function diskFull() {
+    return Object.assign(new Error("ENOSPC: no space left on device"), {
+      code: "ENOSPC",
+    });
+  }
+
+  describe("when the request fails being built", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    /** Runs a request whose history cannot be read, and gives back what it threw. */
+    async function failingRequest(arrange?: () => void) {
+      const chatId = createMockChatConfigForDir(
+        path.join(chatsDir, `mock-${++chats}`),
+        {
+          aiSDKModel: new MockLanguageModelV4(),
+          model: createMockAIGatewayModel(),
+        },
+      );
+      await ChatWrites.saveSession(
+        { createdAt: mockDate, id: sessionId, title: UNTITLED_CHAT_TITLE },
+        chatId,
+      );
+      const messageId = StoreId.newMessageId();
+      await ChatWrites.saveMessage(
+        {
+          id: messageId,
+          metadata: { createdAt: mockDate, sessionId },
+          role: "user",
+        },
+        chatId,
+      );
+      arrange?.();
+      vi.spyOn(ChatReads, "modelHistory").mockReturnValueOnce(
+        errAsync(new TypedError.Storage("The history could not be read")),
+      );
+      const actor = createActor(llmRequestLogic, {
+        input: {
+          agent: {
+            agentTools: {},
+            getMessages: () => Promise.resolve(mockMessages),
+            getTools: () => Promise.resolve([]),
+            name: "instrument",
+            onFinish: () => Promise.resolve(),
+            onStart: () => Promise.resolve(),
+            shouldContinue: () => Promise.resolve(true),
+            systemPrompt: () => "You are a helpful assistant.",
+          },
+          chatId,
+          model: createMockAIGatewayModel(),
+          self: { send: vi.fn() } as unknown as AnyActorRef,
+          sessionId,
+          stepCount: 1,
+          stop: new AbortController().signal,
+        },
+      });
+      const thrown = await new Promise<unknown>((resolve) => {
+        actor.subscribe({ complete: () => resolve(undefined), error: resolve });
+        actor.start();
+      });
+      return { chatId, message: thrown instanceof Error ? thrown.message : "" };
+    }
+
+    const FAILURE = "Error preparing model messages:";
+
+    it("throws the failure and records it beside the transcript", async () => {
+      const { chatId, message } = await failingRequest();
+
+      expect(message).toContain(FAILURE);
+      const stored = await ChatReads.developerHistory({ chatId, sessionId });
+      expect(
+        stored
+          ._unsafeUnwrap()
+          .flatMap((one) => one.parts)
+          .filter((part) => part.type === "data-requestFailure")
+          .map((part) => part.data.error),
+      ).toEqual([message]);
+    });
+
+    it.each([
+      [
+        "rejects",
+        () => {
+          throw diskFull();
+        },
+      ],
+      [
+        "answers with an error",
+        () => errAsync(new TypedError.Storage("Full", { cause: diskFull() })),
+      ],
+    ])("throws the same failure when saving it %s", async (_how, save) => {
+      const { message: unbroken } = await failingRequest();
+      let captureException: MockInstance | undefined;
+
+      const { message } = await failingRequest(() => {
+        vi.spyOn(ChatWrites, "savePart").mockImplementation(save);
+        captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
+      });
+
+      expect(message).toBe(unbroken);
+      expect(captureException).toHaveBeenCalledTimes(1);
+    });
+  });
 
   // The step after a reply the output limit cut off is told to carry on
   // from the cut without repeating it, and the call the cut caught

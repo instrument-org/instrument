@@ -26,8 +26,10 @@ import {
   createLocalFileGate,
   createMainFrameLoadGate,
   hasLoaderId,
+  isExtensionPage,
   NAVIGATE_HOLD_CAP_MS,
   notYourFile,
+  notYourPage,
   openTargetSession,
   parseCdpMessage,
   type TargetSession,
@@ -356,6 +358,10 @@ export function handleTaskCdpClient(
         id,
         `This task has ${TASK_TAB_CAP} tabs open, which is as many as it may hold. Close one it is done with (agent-browser tab close <id>) before opening another.`,
       );
+      return;
+    }
+    if (address !== undefined && isExtensionPage(address)) {
+      send({ error: notYourPage(address), id });
       return;
     }
     if (address !== undefined && isLocalAddress(address)) {

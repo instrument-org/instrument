@@ -416,6 +416,22 @@ describe("a task's browser", () => {
     ).toBe(true);
   });
 
+  it.each([
+    "chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+    "Chrome-Extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+    "chrome-\textension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+    "\u0001chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+  ])("refuses a new tab at an extension's own page: %s", async (url) => {
+    record.browserTabs = [];
+    const { command } = connect();
+
+    const created = await command("Target.createTarget", { url });
+
+    expect(created.error?.message).toContain("is an extension's own page");
+    expect(asked).toEqual([]);
+    expect(record.browserTabs).toEqual([]);
+  });
+
   it("makes a page asked for with no address without a tab, and gives it one as it goes somewhere", async () => {
     record.browserTabs = [];
     const { command, navigates } = connect();

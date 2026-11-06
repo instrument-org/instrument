@@ -1,4 +1,5 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
+import { featuresAtom } from "@/client/atoms/features";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
@@ -95,6 +96,7 @@ import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { SunIcon } from "@phosphor-icons/react/Sun";
@@ -246,6 +248,7 @@ export function useCommandMenuRows({
     rpcClient.debug.toggleDevTools.mutationOptions(),
   );
   const isStripHidden = useAtomValue(developerStripHiddenAtom);
+  const hasExtensions = useAtomValue(featuresAtom).browser_extensions;
   const setReleaseChannel = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions(),
   );
@@ -367,6 +370,18 @@ export function useCommandMenuRows({
         openScreen("/release-notes");
       },
     },
+    ...(hasExtensions
+      ? [
+          {
+            icon: <PuzzlePieceIcon />,
+            id: "extensions",
+            label: "Extensions",
+            run: () => {
+              openScreen("/extensions");
+            },
+          },
+        ]
+      : []),
   ];
 
   // The switches answer to their word alone, from three letters on, and

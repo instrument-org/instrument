@@ -7,6 +7,7 @@ import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
@@ -83,6 +84,9 @@ export function screenLocation(
         kind: "task",
         title: taskTitles?.get(screen.task) ?? "Task",
       };
+    }
+    case "extensions": {
+      return { kind: "screen", screen: "extensions" };
     }
     case "browser":
     case "debug":
@@ -172,6 +176,12 @@ export function screenPresentation(
       return {
         icon: <FileTextIcon className="size-3.5" />,
         title: "Release notes",
+      };
+    }
+    case "extensions": {
+      return {
+        icon: <PuzzlePieceIcon className="size-3.5" />,
+        title: "Extensions",
       };
     }
     // One task, a single box of the mark the chat's menu opens the list with.

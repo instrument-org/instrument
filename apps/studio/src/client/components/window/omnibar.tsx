@@ -108,6 +108,7 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     }
     case "newTab":
     case "page":
+    case "screen":
     case "task": {
       return "web";
     }

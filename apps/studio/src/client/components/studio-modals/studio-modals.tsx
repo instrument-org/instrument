@@ -1,4 +1,5 @@
 import { ClearBrowsingDataModal } from "@/client/components/studio-modals/clear-browsing-data-modal";
+import { ExtensionInstallModal } from "@/client/components/studio-modals/extension-install-modal";
 import { LoginModal } from "@/client/components/studio-modals/login-modal";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { SettingsModal } from "@/client/components/studio-modals/settings-modal";
@@ -16,6 +17,7 @@ export function StudioModals() {
   return (
     <>
       <ClearBrowsingDataModal />
+      <ExtensionInstallModal />
       <LoginModal />
       <ReportDialog />
       <SettingsModal />

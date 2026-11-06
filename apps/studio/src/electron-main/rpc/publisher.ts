@@ -22,6 +22,16 @@ interface PublisherEvents {
   "browser.sign-ins-changed": null;
   // The browser's extensions changed: one was added or removed.
   "browser.extensions-changed": null;
+  // The Chrome Web Store's install button was pressed: the window asks
+  // whether to add the extension, and answers by the ask's id.
+  "browser.extension-install-asked": {
+    askId: string;
+    icon: string;
+    lines: string[];
+    name: string;
+  };
+  // A window answered the ask, so every other window's dialog closes.
+  "browser.extension-install-answered": { askId: string };
   // Ask the renderer to put keyboard focus on a guest before agent keyboard
   // input is dispatched to it. Only renderer-side DOM focus on the `<webview>`
   // element moves Chromium's keyboard focus across the process boundary;

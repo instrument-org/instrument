@@ -56,15 +56,6 @@ Which folders and places on this computer Instrument may use.
 - **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 - **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
 
-### Browser (`browser`)
-
-The extensions the in-app browser runs, and the Chrome Web Store they are added from.
-
-The sidebar lists this page only when the browser extensions flag is on, though a link opens it either way.
-
-- **Extensions** (`extensions`): The extensions the in-app browser runs, each with Remove. On it: Open the Chrome Web Store (`chrome-web-store`).
-- **Open the Chrome Web Store** (`chrome-web-store`): Where an extension is added to the in-app browser.
-
 ### Skills (`skills`)
 
 The skills Instrument's tasks can use, and making a new one.

@@ -51,6 +51,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -578,6 +579,11 @@ function locationMark(location: TabLocation): ReactNode {
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    case "screen": {
+      return (
+        <PuzzlePieceIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     // A page says nothing about its connection unless it is bad news; see
     // ConnectionBadge.
     case "page": {
@@ -618,7 +624,8 @@ function locationText(location: TabLocation) {
         ? ""
         : expandHomePath(location.path, window.api.homeDir);
     }
-    case "newTab": {
+    case "newTab":
+    case "screen": {
       return "";
     }
     case "page": {

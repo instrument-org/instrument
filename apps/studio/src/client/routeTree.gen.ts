@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
+import { Route as AppExtensionsRouteImport } from './routes/_app/extensions'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
@@ -60,6 +61,11 @@ const DebugRouteRoute = DebugRouteRouteImport.update({
 const AppBrowserRoute = AppBrowserRouteImport.update({
   id: '/browser',
   path: '/browser',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppExtensionsRoute = AppExtensionsRouteImport.update({
+  id: '/extensions',
+  path: '/extensions',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppFilesRoute = AppFilesRouteImport.update({
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/debug': typeof DebugRouteRouteWithChildren
   '/browser': typeof AppBrowserRoute
+  '/extensions': typeof AppExtensionsRoute
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/browser': typeof AppBrowserRoute
+  '/extensions': typeof AppExtensionsRoute
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
@@ -288,6 +296,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteRouteWithChildren
   '/debug': typeof DebugRouteRouteWithChildren
   '/_app/browser': typeof AppBrowserRoute
+  '/_app/extensions': typeof AppExtensionsRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
@@ -324,6 +333,7 @@ export interface FileRouteTypes {
     | '/'
     | '/debug'
     | '/browser'
+    | '/extensions'
     | '/files'
     | '/new-tab'
     | '/release-notes'
@@ -357,6 +367,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/browser'
+    | '/extensions'
     | '/files'
     | '/new-tab'
     | '/release-notes'
@@ -391,6 +402,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/debug'
     | '/_app/browser'
+    | '/_app/extensions'
     | '/_app/files'
     | '/_app/new-tab'
     | '/_app/release-notes'
@@ -456,6 +468,13 @@ declare module '@tanstack/react-router' {
       path: '/browser'
       fullPath: '/browser'
       preLoaderRoute: typeof AppBrowserRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/extensions': {
+      id: '/_app/extensions'
+      path: '/extensions'
+      fullPath: '/extensions'
+      preLoaderRoute: typeof AppExtensionsRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/files': {
@@ -666,6 +685,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteRouteChildren {
   AppBrowserRoute: typeof AppBrowserRoute
+  AppExtensionsRoute: typeof AppExtensionsRoute
   AppFilesRoute: typeof AppFilesRoute
   AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
@@ -679,6 +699,7 @@ interface AppRouteRouteChildren {
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppBrowserRoute: AppBrowserRoute,
+  AppExtensionsRoute: AppExtensionsRoute,
   AppFilesRoute: AppFilesRoute,
   AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,

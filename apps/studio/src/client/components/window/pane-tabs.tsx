@@ -93,9 +93,10 @@ function showTab(
 /**
  * A chat's tabs, across the head of the pane beside it, the one place they
  * show: what its agent browses and the person opened, oldest at the left,
- * scrolling sideways when there are many. Pressing one brings it up, its ×
- * takes it out of the chat, and dragging one moves it among the others. The ×
- * at the row's far end puts the whole pane away and keeps the tabs.
+ * scrolling sideways when there are many. Pressing one brings it up, its × or
+ * the middle button takes it out of the chat, and dragging one moves it among
+ * the others. The × at the row's far end puts the whole pane away and keeps the
+ * tabs.
  */
 export function PaneTabs({
   chatTitles,
@@ -130,6 +131,7 @@ export function PaneTabs({
   const [liftedId, setLiftedId] = useState<string>();
   const rowRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const hasPicked = useRef(false);
   useEffect(() => {
     showTab(listRef.current, chosenId, "smooth");
   }, [chosenId, tabs.length]);
@@ -162,6 +164,13 @@ export function PaneTabs({
       <motion.div
         className="relative -m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1"
         layoutScroll
+        // Refusing a middle press takes its mousedown with it, which is what
+        // would start the system's autoscroll in a row that scrolls.
+        onPointerDown={(event) => {
+          if (event.button === 1) {
+            event.preventDefault();
+          }
+        }}
         // A wheel that only turns up and down scrolls the row sideways.
         onWheel={(event) => {
           const list = event.currentTarget;
@@ -236,12 +245,33 @@ export function PaneTabs({
             <PlusIcon className="size-3.5" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem onSelect={onAddWeb}>
+        <DropdownMenuContent
+          align="start"
+          className="w-48"
+          // What was picked comes up, so the + has nothing to keep the focus for,
+          // and it would wear a focus ring after a pick made with the mouse.
+          onCloseAutoFocus={(event) => {
+            if (hasPicked.current) {
+              hasPicked.current = false;
+              event.preventDefault();
+            }
+          }}
+        >
+          <DropdownMenuItem
+            onSelect={() => {
+              hasPicked.current = true;
+              onAddWeb();
+            }}
+          >
             <GlobeIcon className="size-3.5" />
             Browser
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onAddComputer}>
+          <DropdownMenuItem
+            onSelect={() => {
+              hasPicked.current = true;
+              onAddComputer();
+            }}
+          >
             <DesktopIcon className="size-3.5" />
             {osConventions().computer}
           </DropdownMenuItem>
@@ -311,7 +341,8 @@ function PaneTab({
   const body = (isWorking: boolean) => (
     <div
       className={cn(
-        "group/tab flex h-8 w-36 items-center gap-0.5 rounded-xl pr-0.5 pl-2 text-xs",
+        // The close is 6px in on three sides, concentric with the 12px corner.
+        "group/tab flex h-8 w-36 items-center gap-0.5 rounded-xl pr-1.5 pl-2 text-xs",
         isChosen && "bg-card font-medium text-foreground shadow-xs-soft",
         !isChosen &&
           (isLifted
@@ -319,22 +350,18 @@ function PaneTab({
               "bg-card text-muted-foreground shadow-xs-soft"
             : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"),
       )}
+      // A middle press closes it anywhere on it, as it does a window tab, and
+      // leaves what is up alone.
+      onPointerDown={(event) => {
+        if (event.button === 1) {
+          onClose();
+        }
+      }}
     >
       <button
         aria-selected={isChosen}
-        className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left outline-none"
-        // A middle click closes it, as it does a browser's tab.
-        onAuxClick={(event) => {
-          if (event.button === 1) {
-            onClose();
-          }
-        }}
+        className="flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         onClick={onSelect}
-        onMouseDown={(event) => {
-          if (event.button === 1) {
-            event.preventDefault();
-          }
-        }}
         role="tab"
         // A page says what it is on hover; anything else, its name.
         title={tab.kind === "page" ? undefined : title}
@@ -350,11 +377,17 @@ function PaneTab({
       </button>
       <button
         aria-label={`Close ${title}`}
-        className="grid size-5 shrink-0 place-items-center rounded-sm opacity-0 group-hover/tab:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100"
-        onClick={onClose}
+        className="grid size-5 shrink-0 place-items-center rounded-md opacity-0 group-hover/tab:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+        // A press that became a drag ends in a click here too, since the × went
+        // along under the pointer.
+        onClick={() => {
+          if (!isLifted) {
+            onClose();
+          }
+        }}
         type="button"
       >
-        <XIcon className="size-3" weight="bold" />
+        <XIcon className="size-3" />
       </button>
     </div>
   );

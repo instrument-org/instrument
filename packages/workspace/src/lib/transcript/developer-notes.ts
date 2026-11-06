@@ -48,17 +48,11 @@ export interface DeveloperNoteBody {
   wasSent: boolean;
 }
 
-/** Which way a note looks for its row: where it was heard, or what it went out with. */
-type Looks = "back" | "forward";
-
-type Waiting = Pick<DeveloperNote, "id" | "kind" | "label" | "side"> & {
+type Said = Pick<DeveloperNote, "id" | "kind" | "label" | "side"> & {
   body: DeveloperNoteBody;
-  looks: Looks;
 };
 
 type Place = Pick<DeveloperNote, "row" | "rowKind" | "rowLabel">;
-
-type Seen = { at?: Place; note: Waiting } | { row: Place };
 
 type NoteOptions = {
   sessionId: StoreId.Session;
@@ -382,16 +376,23 @@ function rowsByPart(
 
 /**
  * The notes a session's records come to, oldest first, each with the row it
- * sits level with and what its card shows: what the person's message carried
- * beside the message, and what the agent's work carried beside the row it went
- * out with. Everything here is left out of the rows, so what a developer reads
- * costs nothing in what everyone reads.
+ * sits level with and what its card shows. A note stays beside what already
+ * existed when it went out: its own row if it draws one, else the nearest row
+ * before it, else the turn's message, so nothing that arrives later moves it.
+ * The one thing that does is its row going away, as a retried attempt's does.
+ * A session whose first turn opens on a wake has nothing yet for a note to sit
+ * beside, so one there isn't drawn. Everything here is left out of the rows, so
+ * what a developer reads costs nothing in what everyone reads.
  *
  * What a note's card says the model read comes from the walk a request makes
  * (`SessionMessage.toUIMessages`), which tells this each note as it goes onto a
- * user turn, so a card can't say anything the request wouldn't. A note goes on
- * the turn that carried it, which for what a run recorded on a step of its own
- * is the next message the user turn sent.
+ * user turn, so a card can't say anything the request wouldn't. What a run
+ * recorded on a step of its own reaches the model on the next message, and until
+ * then its card says it wasn't sent.
+ *
+ * Its side is who it came from: what the app told the model on the right, and on
+ * the left what the agent did. A note on the agent's message that has only the
+ * person's message to sit by went out with that message, so it reads on the right.
  *
  * The same records always give the same notes, and a whole session gives them
  * however few of its turns are on screen.
@@ -435,8 +436,6 @@ export function developerNotesWithBodies(
   const startOf = new Map(stored.map((message, at) => [message.id, at]));
   const notes: DeveloperNote[] = [];
   const bodies = new Map<string, DeveloperNoteBody>();
-  // Notes with no row to sit by in their own turn wait for the next one's.
-  let carried: Waiting[] = [];
 
   for (const [at, turn] of turns.entries()) {
     const next = turns[at + 1];
@@ -445,78 +444,61 @@ export function developerNotesWithBodies(
       next ? startOf.get(next.id) : undefined,
     );
     const rowOfPart = rowsByPart(turn.rows, startedTask);
-    const opensWith: Place | undefined = turn.opener && {
+    // What a note with no row of its own sits by, as the turn is read in order.
+    let nearest: Place | undefined = turn.opener && {
       row: `message:${turn.id}`,
       rowKind: "bubble",
       rowLabel: firstWords(
         turn.opener.text?.text ?? turn.opener.fromChat?.text ?? "Message",
       ),
     };
-    const seen: Seen[] = carried.map((note) => ({ note }));
-    carried = [];
     const inThisTurn: DeveloperNote[] = [];
 
-    const place = (note: Waiting, where: Place) => {
+    const place = (note: Said) => {
+      if (!nearest) {
+        return;
+      }
       bodies.set(note.id, note.body);
       inThisTurn.push({
-        ...(turn.foldedRowIds.has(where.row) && { foldedIn: turn.id }),
+        ...(turn.foldedRowIds.has(nearest.row) && { foldedIn: turn.id }),
         id: note.id,
         kind: note.kind,
         label: note.label,
-        row: where.row,
-        rowKind: where.rowKind,
-        rowLabel: where.rowLabel,
-        side: note.side,
+        row: nearest.row,
+        rowKind: nearest.rowKind,
+        rowLabel: nearest.rowLabel,
+        side:
+          note.kind === "note" && nearest.rowKind === "bubble"
+            ? "right"
+            : note.side,
         turn: turn.id,
       });
     };
 
     for (const each of body) {
-      const opens = opensWith !== undefined && each.id === turn.id;
-      // A note that reached the model on this message from a part on another.
+      // A note no part stands for, which reached the model on this message.
       for (const [index, note] of (carriedOn.get(each.id) ?? []).entries()) {
         if (!note.part) {
-          seen.push({
-            at: opens ? opensWith : undefined,
-            note: {
-              body: { text: note.text, wasSent: true },
-              id: `said-${each.id}-${index.toString()}`,
-              kind: "note",
-              label: "Dictation",
-              looks: "forward",
-              side: "right",
-            },
-          });
-        } else if (note.part.metadata.messageId !== each.id) {
-          seen.push({
-            at: opens ? opensWith : undefined,
-            note: {
-              body: { text: note.text, wasSent: true },
-              id: note.part.metadata.id,
-              kind: "note",
-              label: labelOf(note.part),
-              looks: "forward",
-              side: "right",
-            },
+          place({
+            body: { text: note.text, wasSent: true },
+            id: `said-${each.id}-${index.toString()}`,
+            kind: "note",
+            label: "Dictation",
+            side: "right",
           });
         }
       }
       for (const part of each.parts) {
         const own = rowOfPart.get(part.metadata.id);
         if (own) {
-          seen.push({ row: own });
+          nearest = own;
         }
         const said = noteOfPart(part, each, { hasRow: own !== undefined });
         if (said) {
-          seen.push({
-            at: opens ? opensWith : own,
-            note: {
-              ...said,
-              side:
-                each.role === "user" && said.kind !== "error"
-                  ? "right"
-                  : "left",
-            },
+          place({
+            ...said,
+            side:
+              each.role === "user" && said.kind !== "error" ? "right" : "left",
           });
         }
       }
@@ -536,50 +518,22 @@ export function developerNotesWithBodies(
           (candidate) =>
             candidate.kind === "error" && candidate.message.id === each.id,
         );
-        const errorRow = row && rowOfError(row);
-        if (errorRow) {
-          seen.push({ row: errorRow });
+        if (row) {
+          nearest = rowOfError(row);
         }
-        seen.push({
-          at: errorRow,
-          note: {
-            body: {
-              detail: JSON.stringify(each.metadata.error, null, 2),
-              wasSent: false,
-            },
-            id: `error-${each.id}`,
-            kind: "error",
-            label: outcome.cause,
-            looks: "forward",
-            side: "left",
+        place({
+          body: {
+            detail: JSON.stringify(each.metadata.error, null, 2),
+            wasSent: false,
           },
+          id: `error-${each.id}`,
+          kind: "error",
+          label: outcome.cause,
+          side: "left",
         });
       }
     }
 
-    for (const [index, item] of seen.entries()) {
-      if (!("note" in item)) {
-        continue;
-      }
-      if (item.at) {
-        place(item.note, item.at);
-        continue;
-      }
-      const rowAfter = seen.slice(index + 1).find((one) => "row" in one);
-      const rowBefore = seen.slice(0, index).findLast((one) => "row" in one);
-      const [first, second] =
-        item.note.looks === "forward"
-          ? [rowAfter, rowBefore]
-          : [rowBefore, rowAfter];
-      const found = first ?? second;
-      if (found && "row" in found) {
-        place(item.note, found.row);
-      } else if (opensWith) {
-        place(item.note, opensWith);
-      } else {
-        carried.push(item.note);
-      }
-    }
     // In the order they draw, and on one row in the order they happened.
     const rowIndex = (note: DeveloperNote) =>
       turn.rows.findIndex((row) => row.id === note.row);
@@ -592,7 +546,7 @@ export function developerNotesWithBodies(
     part: SessionMessagePart.Type,
     message: SessionMessage.WithParts,
     { hasRow }: { hasRow: boolean },
-  ): Omit<Waiting, "side"> | undefined {
+  ): Omit<Said, "side"> | undefined {
     if (part.type === "reasoning") {
       const words = thoughtText(part.text);
       return words.trim() === ""
@@ -602,7 +556,6 @@ export function developerNotesWithBodies(
             id: part.metadata.id,
             kind: "thought",
             label: named("Thought", words),
-            looks: "forward",
           };
     }
     if (part.type === "text") {
@@ -617,21 +570,18 @@ export function developerNotesWithBodies(
             id: part.metadata.id,
             kind: "replaced",
             label: named("Replaced", part.text),
-            looks: "forward",
           }
         : undefined;
     }
     if (!isDataPart(part) || NEVER_NOTES.has(part.type)) {
       return undefined;
     }
-    // What went out with a request is beside the first row that request made.
     if (part.type === "data-requestFailure") {
       return {
         body: { detail: part.data.error, wasSent: false },
         id: part.metadata.id,
         kind: "error",
         label: labelOf(part),
-        looks: "forward",
       };
     }
     if (part.type === "data-requestNote") {
@@ -640,22 +590,16 @@ export function developerNotesWithBodies(
         id: part.metadata.id,
         kind: "note",
         label: labelOf(part),
-        looks: "forward",
       };
     }
-    const looks = message.role === "user" ? "forward" : "back";
     const note = heard.get(part.metadata.id);
     if (note) {
-      // Carried, it goes on the message that carried it.
-      return note.carriedOn === message.id
-        ? {
-            body: { text: note.text, wasSent: true },
-            id: part.metadata.id,
-            kind: "note",
-            label: labelOf(part),
-            looks,
-          }
-        : undefined;
+      return {
+        body: { text: note.text, wasSent: true },
+        id: part.metadata.id,
+        kind: "note",
+        label: labelOf(part),
+      };
     }
     // A picture that says what the last one said told the model nothing, and
     // a part hidden from everyone that told it nothing has nothing to say.
@@ -667,7 +611,6 @@ export function developerNotesWithBodies(
       id: part.metadata.id,
       kind: "note",
       label: labelOf(part),
-      looks,
     };
   }
 }

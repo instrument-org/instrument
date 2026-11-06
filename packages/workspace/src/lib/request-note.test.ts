@@ -113,18 +113,16 @@ describe("a request's note, as a hidden part", () => {
     expect(dataPartVisibility(read as SessionMessagePart.DataPart)).toBe("dev");
   });
 
-  it("shows beside the first row the request produced, on the left", () => {
+  it("shows beside the message that had no row before it, on the right", () => {
+    const sent = message("user", (id) => [said(id, "Do it")]);
     const reply = message("assistant", (id) => [
       requestNote(id),
       said(id, "Done."),
     ]);
-    const { bodies, notes } = developerNotesWithBodies(
-      [message("user", (id) => [said(id, "Do it")]), reply],
-      { sessionId },
-    );
-    expect(notes).toMatchObject([
-      { row: reply.parts[1]?.metadata.id, side: "left" },
-    ]);
+    const { bodies, notes } = developerNotesWithBodies([sent, reply], {
+      sessionId,
+    });
+    expect(notes).toMatchObject([{ row: `message:${sent.id}`, side: "right" }]);
     expect(bodies.get(notes[0]?.id ?? "")?.wasSent).toBe(true);
   });
 });

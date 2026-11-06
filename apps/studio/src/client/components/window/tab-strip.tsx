@@ -371,6 +371,7 @@ export function TabStrip({
         aria-label="Open tabs"
         className={TAB_ROW}
         data-density={density}
+        data-tab-count={tabs.length}
         ref={stripRef}
         role="tablist"
       >
@@ -629,12 +630,14 @@ function Tab({
   // strip's own reorder has written and before anything is drawn, since its place also
   // moves with the pointer still: the row closes up and opens with a transition.
   const tabRef = useRef<HTMLDivElement>(null);
+  const stoodOn = useRef(0);
   useLayoutEffect(() => {
     const element = tabRef.current;
     if (heldLeft === undefined || !element) {
       return;
     }
     const stand = () => {
+      stoodOn.current = element.offsetLeft;
       dragX.set(offsetToStandAt(element, heldLeft));
     };
     stand();
@@ -645,15 +648,21 @@ function Tab({
   }, [dragX, heldLeft]);
   const wasHeld = useRef(false);
   useLayoutEffect(() => {
+    const element = tabRef.current;
     if (wasHeld.current && heldLeft === undefined) {
       if (prefersReducedMotion) {
         dragX.jump(0);
       } else {
+        // Taken back with the button down, its place has gone home with it, and a
+        // gesture still going holds off the layout animation that would carry it.
+        if (isDragging && element) {
+          dragX.jump(dragX.get() + stoodOn.current - element.offsetLeft);
+        }
         void animate(dragX, 0, SETTLE);
       }
     }
     wasHeld.current = heldLeft !== undefined;
-  }, [dragX, heldLeft, prefersReducedMotion]);
+  }, [dragX, heldLeft, isDragging, prefersReducedMotion]);
   useLayoutEffect(() => {
     if (isStill && heldLeft === undefined) {
       dragX.jump(0);

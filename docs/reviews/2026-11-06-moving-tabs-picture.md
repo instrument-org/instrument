@@ -104,6 +104,36 @@ Asked for once the drag felt right: whether it is safe to merge, above all in th
 - Where: `land` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
 - What: the window closes with nothing to come back to, so the tabs closed in it cannot be reopened. Telling the target races the tab it is receiving, and the list is a convenience.
 
+### R. A closing window's hosted pages moved to the window taking its tabs
+
+- Status: fixed
+- Where: `closeInto` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts), `mergeAllWindows` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
+- What: no tab named them there, so an HTML file's page reloaded unseen and nothing closed it. They go with their window now.
+
+### S. Waiting for a strip to draw what it holds stalled over-full strips and never stopped
+
+- Status: fixed
+- Where: `drawnHolding` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
+- What: a strip with more tabs than fit draws only some, so the comparison never matched: the release waited its full second, and the page kept comparing on every frame for the rest of the window's life.
+
+### T. A press during a release could leave one tab in two windows
+
+- Status: fixed
+- Where: `beginCarry` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
+- What: the release was still adopting its spare when the new drag took another. A drag now cannot leave its row until the release is done.
+
+### U. Escape after passing other tabs jumped the tab home
+
+- Status: fixed
+- Where: `Tab` in [tab-strip.tsx](/apps/studio/src/client/components/window/tab-strip.tsx)
+- What: the gesture holds off the layout animation that would carry the tab to its place, so the place changed under it at once and only the rest settled.
+
+### V. A landing whose target closes in its wait leaves the pressed window unseen
+
+- Status: open
+- Where: `land` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
+- What: needs the target closed within the 400 ms after the release, with the tab already handed to it, so the tab is gone either way. Left alone for that reason.
+
 ## Checked and found correct
 
 Tab and guest history traveling with a moved tab, the closed list staying per window, a closing window's guests going with it and its tabs reopening, kept state across windows and launches, window commands, read marks, notifications and deep links all held up when traced. No undo or redo of opening and closing tabs exists on main or here, only reopen.

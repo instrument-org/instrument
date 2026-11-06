@@ -27,6 +27,7 @@ import {
 import {
   APP_TABS_KEY,
   COMPOSE_KEY,
+  isHostedPageKey,
   WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
@@ -70,9 +71,14 @@ import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
 import { is } from "@electron-toolkit/utils";
+import {
+  type BrowserTargetId,
+  browserTargetOf,
+} from "@instrument-org/workspace/electron";
 import { app, BrowserWindow } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import { mergeFloats } from "./tab-carry-rules";
 
@@ -210,6 +216,22 @@ export function keptTabsOf(id: string): TabsModel {
   return parsed.success
     ? parsed.data
     : { recentlyClosed: [], selectedId: null, tabs: [] };
+}
+
+const HostedPageGroupSchema = z.object({
+  tabs: z.array(z.object({ id: z.string() })),
+});
+
+/** The pages drawn inside a window's surfaces, which no other window's tabs name and which go when it does. */
+export function hostedPagesOf(id: string): BrowserTargetId[] {
+  return windowKeptKeys(id)
+    .filter(isHostedPageKey)
+    .flatMap(
+      (key) =>
+        HostedPageGroupSchema.safeParse(
+          getWindowKeptState(id, key),
+        ).data?.tabs.map((tab) => browserTargetOf(tab.id)) ?? [],
+    );
 }
 
 /**
@@ -544,7 +566,11 @@ export function mergeAllWindows() {
       tabs.push(...model.tabs);
       recentlyClosed.push(...model.recentlyClosed);
       floats = mergeFloats(floats, getWindowKeptState(from, COMPOSE_KEY));
-      manager.handOffGuestsOf(other.webContents.id, front.webContents.id);
+      manager.handOffGuestsOf(
+        other.webContents.id,
+        front.webContents.id,
+        hostedPagesOf(from),
+      );
     }
   }
   tellWindowKeptState(to, front.webContents, APP_TABS_KEY, {

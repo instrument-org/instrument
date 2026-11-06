@@ -177,7 +177,11 @@ describe("getBrowserViewManager", () => {
       leaving.emit("did-attach-webview", {}, guest);
       const generation = manager.getTargets(901)[0]?.generation;
 
-      manager.handOffGuestsOf(901, 902);
+      manager.handOffGuestsOf(901, 902, [targetId]);
+      expect(idsIn(901)).toContain(targetId);
+      expect(idsIn(902)).not.toContain(targetId);
+
+      manager.handOffGuestsOf(901, 902, []);
       expect(idsIn(902)).toContain(targetId);
       expect(idsIn(901)).not.toContain(targetId);
       expect(manager.getTargets(902)[0]?.generation).not.toBe(generation);

@@ -1,8 +1,4 @@
-import {
-  CHAT_NOTES,
-  CHAT_NOTES_LABEL,
-  chatNotesAtom,
-} from "@/client/atoms/chat-notes";
+import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
@@ -108,7 +104,7 @@ import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
 import {
   type KeyboardEvent,
@@ -252,7 +248,7 @@ export function useCommandMenuRows({
     rpcClient.debug.toggleDevTools.mutationOptions(),
   );
   const isStripHidden = useAtomValue(developerStripHiddenAtom);
-  const setChatNotes = useSetAtom(chatNotesAtom);
+  const [isChatNotesOn, setIsChatNotesOn] = useAtom(chatNotesAtom);
   const setReleaseChannel = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions(),
   );
@@ -315,14 +311,14 @@ export function useCommandMenuRows({
               toast("Developer mode off");
             },
           },
-          ...CHAT_NOTES.map((each) => ({
+          {
             icon: <WrenchIcon />,
-            id: `chat-notes-${each}`,
-            label: `Chat notes: ${CHAT_NOTES_LABEL[each]}`,
+            id: "toggle-chat-notes",
+            label: isChatNotesOn ? "Turn off chat notes" : "Turn on chat notes",
             run: () => {
-              setChatNotes(each);
+              setIsChatNotesOn(!isChatNotesOn);
             },
-          })),
+          },
           {
             icon: <WrenchIcon />,
             id: "toggle-developer-strip",

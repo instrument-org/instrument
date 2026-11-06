@@ -434,7 +434,7 @@ export default function DeveloperNotesLayer({
   sessionId: StoreId.Session;
   turns: readonly Turn[];
 }) {
-  const mode = useAtomValue(chatNotesAtom);
+  const isOn = useAtomValue(chatNotesAtom);
   const source = use(DeveloperNotesSourceContext);
   const all = source.useNotes({ chatId, sessionId });
   const [viewport, setViewport] = useState<HTMLElement | null>(null);
@@ -483,7 +483,7 @@ export default function DeveloperNotesLayer({
   const loaded = new Set(turns.map((turn) => turn.id));
   const stacks = stacksOf(all.filter((note) => loaded.has(note.turn)));
 
-  if (mode === "off") {
+  if (!isOn) {
     return null;
   }
   if (!viewport) {

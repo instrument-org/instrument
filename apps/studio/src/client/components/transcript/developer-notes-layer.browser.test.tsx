@@ -1,6 +1,7 @@
 // What the margin notes do beside the real scroller over a send. Anchors ignore
 // a transform and the slide reads one as distance, so only a browser can say
 // that the notes keep out of it and it keeps working with them there.
+import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { renderInBrowser } from "@/tests/render-browser";
 import {
   type ChatId,
@@ -9,6 +10,7 @@ import {
   type Turn,
 } from "@instrument-org/workspace/client";
 import { NoteIcon } from "@phosphor-icons/react/Note";
+import { createStore, Provider } from "jotai";
 import { noop } from "radashi";
 import { Fragment, type RefObject, useRef, useState } from "react";
 import { expect, it, vi } from "vitest";
@@ -388,6 +390,39 @@ it("shows three marks and a count past four notes, with an error first whenever 
 it("keeps an error showing where the room fits one line, in place of the count", async () => {
   expect(await oneLineHolds(manyNotes)).toEqual(["count"]);
   expect(await oneLineHolds([...manyNotes, errorOn(0)])).toEqual(["error"]);
+});
+
+it("draws nothing with chat notes off", async () => {
+  const store = createStore();
+  store.set(chatNotesAtom, false);
+  const source = { useBody: () => null, useNotes: () => [noteOn(0)] };
+  const { unmount } = await renderInBrowser(
+    <Provider store={store}>
+      <MessageScrollerProvider defaultScrollPosition="start">
+        <MessageScroller>
+          <MessageScrollerViewport className="@container/transcript">
+            <MessageScrollerContent data-content>
+              <MessageScrollerItem
+                data-transcript-row={`message:${turnId(0)}`}
+              />
+              <DeveloperNotesSourceContext value={source}>
+                <DeveloperNotesLayer
+                  chatId={"chat" as ChatId}
+                  sessionId={"ses" as StoreId.Session}
+                  turns={[{ id: turnId(0) } as Turn]}
+                />
+              </DeveloperNotesSourceContext>
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+        </MessageScroller>
+      </MessageScrollerProvider>
+    </Provider>,
+  );
+  await nextFrame();
+  await nextFrame();
+  expect(document.querySelector("[data-developer-notes]")).toBeNull();
+  expect(document.querySelector("[data-dn]")).toBeNull();
+  await unmount();
 });
 
 it("draws a mark in the thin weight", async () => {

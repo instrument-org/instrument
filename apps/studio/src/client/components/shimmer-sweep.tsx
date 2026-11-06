@@ -7,10 +7,14 @@ import { cn } from "@/client/lib/utils";
  * copy with a transform, so the GPU moves the glint and nothing repaints per
  * frame. The copy comes from `attr(data-text)` (see `globals.css`), so the
  * span's text content, and what tests and screen readers read, stays `text`
- * once.
+ * once. Made anew for a new text: Chromium keeps painting the mask of the text
+ * the element first had, so a title renamed while it shimmers would show the old
+ * one's glyphs through the glint.
  */
 export function ShimmerSweep({ text }: { text: string }) {
-  return <span aria-hidden className="shimmer-sweep" data-text={text} />;
+  return (
+    <span aria-hidden className="shimmer-sweep" data-text={text} key={text} />
+  );
 }
 
 /**

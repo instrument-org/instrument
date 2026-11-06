@@ -195,7 +195,16 @@ export function applyFeedEvent(
   event: TranscriptFeedEvent,
 ): TranscriptFeed {
   if (event.kind === "reset") {
-    return { hasOlder: event.hasOlder, messages: event.messages };
+    // Coming back to a chat draws what the query held, and then this arrives.
+    // What has not moved keeps its object, so it is not all drawn a second time.
+    const held = new Map(current?.messages.map((one) => [one.id, one]));
+    return {
+      hasOlder: event.hasOlder,
+      messages: event.messages.map((message) => {
+        const before = held.get(message.id);
+        return before && isEqual(before, message) ? before : message;
+      }),
+    };
   }
   const removed = new Set(event.removed);
   const upserts = new Map(

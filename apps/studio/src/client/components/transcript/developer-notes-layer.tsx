@@ -100,23 +100,16 @@ function stacksOf(notes: readonly DeveloperNote[]): Stack[] {
  */
 const NOT_NESTED = `:not([data-transcript-row]:not([data-transcript-row^="worked:"]) [data-transcript-row])`;
 
-/**
- * Names what the notes sit by, and nothing else, from outside the rows, and
- * shows a fold's stack while its row is closed.
- */
-function layerRules(stacks: readonly Stack[]): string {
+/** Names what the notes sit by, and nothing else, from outside the rows. */
+function anchorRules(stacks: readonly Stack[]): string {
   const rows = new Map(stacks.map((stack) => [stack.row, stack.rowKind]));
-  const names = [...rows].map(([row, kind]) =>
-    kind === "bubble"
-      ? `[data-transcript-row="${row}"]{anchor-name:${rowName(row)}}[data-transcript-row="${row}"] [data-slot="user-message-content"]{anchor-name:${bubbleName(row)}}`
-      : `[data-transcript-row="${row}"]${NOT_NESTED}{anchor-name:${rowName(row)}}`,
-  );
-  const folds = stacks.flatMap((stack) =>
-    stack.fold === undefined
-      ? []
-      : `[data-slot="message-scroller-viewport"]:has([data-transcript-row="${stack.row}"] > div > button[aria-expanded="false"]) [data-fold="${stack.fold}"]{display:block}`,
-  );
-  return [...names, ...folds].join("\n");
+  return [...rows]
+    .map(([row, kind]) =>
+      kind === "bubble"
+        ? `[data-transcript-row="${row}"]{anchor-name:${rowName(row)}}[data-transcript-row="${row}"] [data-slot="user-message-content"]{anchor-name:${bubbleName(row)}}`
+        : `[data-transcript-row="${row}"]${NOT_NESTED}{anchor-name:${rowName(row)}}`,
+    )
+    .join("\n");
 }
 
 /** `anchor(a edge, anchor(b edge, last))`: the first of these on the page. */
@@ -150,6 +143,35 @@ function bottomOf(
     `calc(anchor(--dn-column bottom) + ${line.toString()}px)`,
   );
   return `calc(${room} - ${line.toString()}px)`;
+}
+
+/**
+ * Where a stack sits. One line needs no room worked out, which is most of them
+ * and most of what laying the layer out costs. A closed fold's total stands by
+ * its Worked row, and goes far above the page as soon as a row of its fold is on
+ * it: the distance to that row is zero with no such row, by anchor()'s fallback.
+ */
+function stackStyle(stacks: readonly Stack[], index: number) {
+  const stack = stacks[index];
+  if (!stack) {
+    return undefined;
+  }
+  const offset = `${LINE_OFFSET[stack.rowKind].toString()}px`;
+  const top = firstOf(namesOf(stack), "top", "-9999px");
+  if (stack.fold !== undefined) {
+    const [first] = stack.notes;
+    const worked = rowName(stack.row);
+    const row = first ? rowName(first.row) : worked;
+    return {
+      top: `calc(${top} + ${offset} - (anchor(${row} top, anchor(${worked} top, 0px)) - anchor(${worked} top, 0px)) * 100000)`,
+    };
+  }
+  return stack.notes.length === 1
+    ? { top: `calc(${top} + ${offset})` }
+    : {
+        bottom: bottomOf(stacks, index, stack.side),
+        top: `calc(${top} + ${offset})`,
+      };
 }
 
 /** Puts the viewport in reach of a layer that starts out inside its content. */
@@ -538,20 +560,20 @@ export default function DeveloperNotesLayer({
       onPointerOver={onOver}
     >
       <style>{STYLES}</style>
-      <style>{layerRules(stacks)}</style>
+      <style>{anchorRules(stacks)}</style>
       {stacks.map((stack, index) => (
         <div
           data-dn="stack"
           data-fold={stack.fold}
           data-key={stack.key}
+          data-many={
+            stack.notes.length > 1 && stack.fold === undefined ? "" : undefined
+          }
           data-owner={stack.row}
           data-row-kind={stack.rowKind}
           data-side={stack.side}
           key={stack.key}
-          style={{
-            bottom: bottomOf(stacks, index, stack.side),
-            top: `calc(${firstOf(namesOf(stack), "top", "-9999px")} + ${LINE_OFFSET[stack.rowKind].toString()}px)`,
-          }}
+          style={stackStyle(stacks, index)}
         >
           <div data-dn="lines">
             {stack.fold === undefined ? (

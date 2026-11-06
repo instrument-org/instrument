@@ -21,7 +21,6 @@
   --dn-margin: calc((100cqi - anchor-size(--dn-column width)) / 2);
   position: absolute;
   width: min(266px, var(--dn-margin));
-  container: dn-stack / size;
   overflow: clip;
   font-size: 12px;
   line-height: 17px;
@@ -35,8 +34,8 @@
 [data-dn="stack"][data-side="left"] {
   right: anchor(--dn-column left);
 }
-[data-dn="stack"][data-fold] {
-  display: none;
+[data-dn="stack"][data-many] {
+  container: dn-stack / size;
 }
 
 /* The lines share the widest one's width, so going straight up or down can't

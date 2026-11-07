@@ -1,509 +1,306 @@
-import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { Switch } from "@/client/components/ui/switch";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
-import { ArchiveIcon } from "@phosphor-icons/react/Archive";
-import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { ListIcon } from "@phosphor-icons/react/List";
+import { ListDashesIcon } from "@phosphor-icons/react/ListDashes";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
-import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
+import { RowsIcon } from "@phosphor-icons/react/Rows";
 import { StarIcon } from "@phosphor-icons/react/Star";
-import { ChevronDown } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { useAtom } from "jotai";
+import { type ComponentType, useRef, useState } from "react";
 
 import {
   type ChatFilters,
   type ChatPlace,
-  choose,
+  type ChatTag,
   type Filterable,
-  isInbox,
+  inPlace,
   matchesFilters,
   type Project,
 } from "./chats";
-import { PlaceIcon } from "./place-icons";
-import { SearchField } from "./search-field";
-import { ProjectMark } from "./project-mark";
-import { ProjectActionsButton, ProjectContextMenu } from "./project-menu";
+import {
+  groupByDayAtom,
+  type RowDensity,
+  rowDensityAtom,
+} from "./chat-list-view";
+import { type SearchToken, SearchField } from "./search-field";
 
-/** A view the picker offers above the projects: the chats, or one of the places. */
-interface View {
-  /** How many chats it holds, drawn at the end of its row; none for a view whose size says nothing. */
-  count?: number;
-  icon: (size: string, isOn: boolean) => ReactNode;
-  id: "chats" | ChatPlace;
-  label: string;
-}
+/** The marks the search offers as tokens, in the order it offers them. */
+const TAGS: SearchToken<ChatTag>[] = [
+  {
+    icon: <NotificationIcon weight="fill" />,
+    id: "unread",
+    label: "Unread",
+  },
+  {
+    icon: <StarIcon className="text-warning-500" weight="fill" />,
+    id: "starred",
+    label: "Starred",
+  },
+];
+
+/** The places a chat can be, as the tabs under the search name them. */
+const PLACES: { id: ChatPlace | undefined; label: string }[] = [
+  { id: undefined, label: "Inbox" },
+  { id: "drafts", label: "Drafts" },
+  { id: "archived", label: "Archived" },
+];
 
 /**
- * The picker's face whatever it shows: bare on the card at rest, a soft
- * grey under the pointer or while its list is up, the name in full ink then.
+ * The lines over the list. Outside a project: the search, with the view
+ * button at its end, and under them the places a chat can be as tabs, Inbox,
+ * Drafts and Archived. Inside one: the way back to the inbox, with the search
+ * folded to its glass until it is asked for or holds something. The marks the
+ * search narrows by (Unread, Starred) are offered as tokens on clicking into
+ * it, each only while the view has any, and narrow whatever view the column
+ * is, a project's included; Drafts offers none, since a draft carries
+ * neither.
  */
-const PICKER_TONE =
-  "text-foreground/80 hover:bg-foreground/5 hover:text-foreground data-[state=open]:bg-foreground/5 data-[state=open]:text-foreground";
-
-const ICON_WEIGHT = (isOn: boolean) => (isOn ? "fill" : "regular");
-
-/** What the head is built from. */
-interface FilterProps {
+export function FilterHead({
+  chats,
+  filters,
+  onFiltersChange,
+  onLeaveProject,
+  project,
+}: {
   chats: Filterable[];
-  /** How many drafts are not yet sent: Drafts is a view only while there are some, or while it is the one on screen. */
-  drafts: number;
   filters: ChatFilters;
   onFiltersChange: (filters: ChatFilters) => void;
-  /** Opens the dialog that makes a project; the one made is the one the list then stands in. */
-  onNewProject: () => void;
-  /** Opens a project's details: its name, its mark, and the way to delete it. */
-  onProjectDetails: (project: Project) => void;
-  projects: Project[];
-}
-
-/**
- * The line over the inbox: one picker that names the view the list is and
- * changes it, and the search beside it, which reads inside that view. The
- * picker holds the chats (every chat not put away), Unread, Starred, Drafts
- * while there are any, and Archived, then each project, one view at a time:
- * choosing the view already on steps back to the chats. The picker wears
- * the view's color, a project's own tint for a project, and while the search is
- * in use it draws in to its mark so the words have the line.
- */
-export function FilterHead(props: FilterProps) {
-  const { filters, onFiltersChange } = props;
-  const model = useFilterModel(props);
-  const [isSearchFocused, setSearchFocused] = useState(false);
-  const isSearching = isSearchFocused || filters.search !== "";
+  /** Steps out of the project the column stands in, back to the inbox. */
+  onLeaveProject: () => void;
+  /** The project the column stands in, if it stands in one. */
+  project: Project | undefined;
+}) {
   const searchRef = useRef<HTMLInputElement>(null);
+  const [isSearchAsked, setSearchAsked] = useState(false);
+  const isSearched = filters.search !== "" || filters.tags.length > 0;
   useFindTarget({
     anchor: searchRef,
     openFind: () => {
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      setSearchAsked(true);
+      // Drawn on the next frame inside a project, where the field was folded.
+      requestAnimationFrame(() => {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      });
     },
   });
+  // A mark is offered while the view, as it stands before any mark narrows
+  // it, holds a chat carrying it.
+  const unmarked = { ...filters, search: "", tags: [] };
+  const offered =
+    filters.place === "drafts"
+      ? []
+      : TAGS.filter((tag) =>
+          chats.some((chat) => chat[tag.id] && matchesFilters(chat, unmarked)),
+        );
+  const placeLabel = PLACES.find((place) => place.id === filters.place)?.label;
+  const search = (
+    <SearchField
+      inputRef={searchRef}
+      offered={offered}
+      onChange={(words) => {
+        onFiltersChange({ ...filters, search: words });
+      }}
+      onFocusChange={(isFocused) => {
+        if (!isFocused && !isSearched) {
+          setSearchAsked(false);
+        }
+      }}
+      onTokensChange={(tags) => {
+        onFiltersChange({ ...filters, tags });
+      }}
+      placeholder={
+        project
+          ? `Search ${project.name}`
+          : filters.place === undefined
+            ? "Search"
+            : `Search ${placeLabel ?? ""}`
+      }
+      tokens={TAGS.filter((tag) => filters.tags.includes(tag.id)).toSorted(
+        (a, b) => filters.tags.indexOf(a.id) - filters.tags.indexOf(b.id),
+      )}
+      value={filters.search}
+    />
+  );
+  if (project) {
+    const isFieldShown = isSearchAsked || isSearched;
+    return (
+      <div
+        aria-label="Filters"
+        className="flex h-13 shrink-0 items-center gap-1.5 px-2"
+        role="group"
+      >
+        {!isFieldShown && (
+          <button
+            className="flex h-8 items-center gap-1 rounded-lg pr-2.5 pl-1.5 text-[13px] text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+            onClick={onLeaveProject}
+            type="button"
+          >
+            <CaretLeftIcon className="size-3.5" weight="bold" />
+            Inbox
+          </button>
+        )}
+        <span className="flex-1" hidden={isFieldShown} />
+        {isFieldShown ? (
+          search
+        ) : (
+          <button
+            aria-label="Search"
+            className={HEAD_ICON_BUTTON}
+            onClick={() => {
+              setSearchAsked(true);
+              requestAnimationFrame(() => {
+                searchRef.current?.focus();
+              });
+            }}
+            title="Search"
+            type="button"
+          >
+            <MagnifyingGlassIcon className="size-4" />
+          </button>
+        )}
+        <ViewButton />
+      </div>
+    );
+  }
   return (
     <div
       aria-label="Filters"
-      // 8px in from the card's side, down from its top, and down to the
-      // first row or the project's line, so the controls sit evenly in their
-      // band.
-      className="flex shrink-0 items-center gap-1.5 px-2 pt-2 pb-2"
+      className="flex shrink-0 flex-col gap-1.5 px-2 pt-2 pb-2"
       role="group"
     >
-      <ViewPicker {...model} isCompact={isSearching} />
-      <SearchField
-        inputRef={searchRef}
-        onChange={(search) => {
-          onFiltersChange({ ...filters, search });
-        }}
-        onFocusChange={setSearchFocused}
-        placeholder={
-          model.chosenProject
-            ? `Search ${model.chosenProject.name}`
-            : model.current.id === "chats"
-              ? "Search"
-              : `Search ${model.current.label}`
-        }
-        value={filters.search}
-      />
-    </div>
-  );
-}
-
-/**
- * One row of the picker: large, with its face, its name, and what stands at
- * its end. It keeps its height in the menu's flex column, where the rows
- * outside the projects' scroll would otherwise shrink to make room for them.
- */
-function PickerRow({
-  children,
-  isOn,
-  muted = false,
-  onPick,
-  trailing,
-}: {
-  children: ReactNode;
-  isOn: boolean;
-  muted?: boolean;
-  onPick: () => void;
-  trailing?: ReactNode;
-}) {
-  return (
-    <div
-      className={cn(
-        "group/row flex h-9 shrink-0 items-center gap-1 rounded-lg pr-2",
-        // Focus is the hover's fill, inside the row's corners, rather than
-        // the browser's square ring around the button.
-        isOn
-          ? "bg-foreground/6"
-          : "hover:bg-foreground/5 has-focus-visible:bg-foreground/5",
-      )}
-    >
-      <button
-        aria-checked={isOn}
-        className={cn(
-          "flex h-full min-w-0 flex-1 items-center gap-3 pl-2.5 text-left text-sm outline-hidden",
-          isOn ? "font-medium" : muted && "text-muted-foreground/70",
-        )}
-        onClick={onPick}
-        role="menuitemradio"
-        type="button"
+      <div className="flex items-center gap-1.5">
+        {search}
+        <ViewButton />
+      </div>
+      <div
+        aria-label="Places"
+        className="flex items-center gap-0.5"
+        role="tablist"
       >
-        {children}
-      </button>
-      {trailing}
+        {PLACES.map((place) => {
+          const isOn = filters.place === place.id;
+          return (
+            <button
+              aria-selected={isOn}
+              className={cn(
+                "h-7 rounded-md px-2 text-[13px]",
+                isOn
+                  ? "bg-foreground/7 font-medium text-foreground"
+                  : "text-foreground/60 hover:bg-foreground/4 hover:text-foreground",
+              )}
+              key={place.label}
+              onClick={() => {
+                onFiltersChange(inPlace(filters, place.id));
+              }}
+              role="tab"
+              type="button"
+            >
+              {place.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
+/** A square control at the head's height, its glyph in the muted ink. */
+const HEAD_ICON_BUTTON =
+  "grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground data-[state=open]:bg-foreground/6 data-[state=open]:text-foreground";
+
+/** The row densities as the view menu offers them. */
+const DENSITIES: {
+  icon: ComponentType<{ className?: string }>;
+  id: RowDensity;
+  label: string;
+  note: string;
+}[] = [
+  {
+    icon: RowsIcon,
+    id: "three",
+    label: "Three lines",
+    note: "Title, preview, project and files",
+  },
+  {
+    icon: ListDashesIcon,
+    id: "two",
+    label: "Two lines",
+    note: "Title, then project or last reply",
+  },
+  { icon: ListIcon, id: "one", label: "One line", note: "Just the titles" },
+];
+
 /**
- * A part of the picker that slides open or shut along the line: its column
- * of the grid eases between its width and none, so the picker and the
- * search beside it move together rather than jumping.
+ * The view button at the search's end, wearing the density the rows are
+ * drawn at: under it the three densities and the switch that puts a heading
+ * over each day. Both are kept for every window on this computer.
  */
-function Reveal({
-  children,
-  isOpen,
-}: {
-  children: ReactNode;
-  isOpen: boolean;
-}) {
+function ViewButton() {
+  const [density, setDensity] = useAtom(rowDensityAtom);
+  const [groupByDay, setGroupByDay] = useAtom(groupByDayAtom);
+  const Current =
+    DENSITIES.find((entry) => entry.id === density)?.icon ?? RowsIcon;
   return (
-    <span
-      aria-hidden={!isOpen || undefined}
-      className={cn(
-        "grid min-w-0 transition-[grid-template-columns,opacity] duration-200 ease-out motion-reduce:transition-none",
-        isOpen ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
-      )}
-    >
-      <span className="min-w-0 overflow-hidden whitespace-nowrap">
-        {children}
-      </span>
-    </span>
-  );
-}
-
-/** How many chats a view holds, at the end of its row. */
-function RowCount({ count }: { count: number | undefined }) {
-  return count ? (
-    <span className="text-xs text-muted-foreground/60 tabular-nums">
-      {count}
-    </span>
-  ) : null;
-}
-
-/** A project's face at the size the picker draws it: its emoji, or its mark. */
-function ProjectFace({
-  size,
-  project,
-}: {
-  size: "chip" | "row";
-  project: Project;
-}) {
-  return project.emoji ? (
-    <span
-      className={cn(
-        "leading-none",
-        size === "chip" ? "text-[15px]" : "text-lg",
-      )}
-    >
-      {project.emoji}
-    </span>
-  ) : (
-    <ProjectMark
-      className={size === "chip" ? "size-4" : "size-6"}
-      project={project}
-    />
-  );
-}
-
-/**
- * What the head draws from: the views with their counts and choosers, each
- * project with its own, and which of them is on screen. A count is the chats
- * the view would list, so it reads the same predicate the list does.
- */
-function useFilterModel({
-  chats,
-  drafts,
-  filters,
-  onFiltersChange,
-  onNewProject,
-  onProjectDetails,
-  projects,
-}: FilterProps) {
-  const live = projects.filter((project) => !project.retired);
-  const countIn = (place: ChatPlace) =>
-    chats.filter((chat) =>
-      matchesFilters(chat, { apps: [], place, search: "", projects: [] }),
-    ).length;
-  const isChats =
-    isInbox(filters) &&
-    filters.projects.length === 0 &&
-    filters.apps.length === 0;
-  const chatsView: View = {
-    // The rail's Chat, so the chats look the same wherever they are named.
-    icon: (size, isOn) => (
-      <PlaceIcon className={size} place="chat" weight={ICON_WEIGHT(isOn)} />
-    ),
-    id: "chats",
-    label: "Chats",
-  };
-  const views: View[] = [
-    chatsView,
-    {
-      count: countIn("unread"),
-      icon: (size, isOn) => (
-        <NotificationIcon className={size} weight={ICON_WEIGHT(isOn)} />
-      ),
-      id: "unread",
-      label: "Unread",
-    },
-    {
-      count: countIn("starred"),
-      icon: (size, isOn) => (
-        <StarIcon className={size} weight={ICON_WEIGHT(isOn)} />
-      ),
-      id: "starred",
-      label: "Starred",
-    },
-    ...(drafts > 0 || filters.place === "drafts"
-      ? [
-          {
-            count: drafts,
-            icon: (size: string, isOn: boolean) => (
-              <CircleDashedIcon className={size} weight={ICON_WEIGHT(isOn)} />
-            ),
-            id: "drafts",
-            label: "Drafts",
-          } satisfies View,
-        ]
-      : []),
-    {
-      icon: (size, isOn) => (
-        <ArchiveIcon className={size} weight={ICON_WEIGHT(isOn)} />
-      ),
-      id: "archived",
-      label: "Archived",
-    },
-  ];
-  const chosenProject = live.find((project) =>
-    filters.projects.includes(project.id),
-  );
-  const current = isChats
-    ? chatsView
-    : views.find((view) => view.id === filters.place);
-  return {
-    chosenProject,
-    // A project or an app narrows the list with no place chosen; the picker
-    // then names the project, or the chats for an app.
-    current: current ?? chatsView,
-    onDetails: onProjectDetails,
-    onNew: onNewProject,
-    projects: live.map((project) => ({
-      choose: () => {
-        onFiltersChange(choose(filters, { group: "projects", id: project.id }));
-      },
-      count: chats.filter((chat) => chat.project === project.id).length,
-      isOn: chosenProject?.id === project.id,
-      project,
-    })),
-    views: views.map((view) => ({
-      ...view,
-      choose: () => {
-        if (view.id === "chats") {
-          const { place: _place, ...rest } = filters;
-          onFiltersChange({ ...rest, apps: [], projects: [] });
-          return;
-        }
-        onFiltersChange(choose(filters, { group: "place", id: view.id }));
-      },
-      isOn: view.id === "chats" ? isChats : filters.place === view.id,
-    })),
-  };
-}
-
-/**
- * The view at the head of the line, and the way to change it: its name in
- * its color, or its mark alone while the search is in use. Under it, the
- * views, every project with its count, and a new one at the foot; a project's
- * details by right click or the dots at its edge. A pick closes the list.
- */
-function ViewPicker({
-  chosenProject,
-  current,
-  isCompact,
-  onDetails,
-  onNew,
-  projects,
-  views,
-}: {
-  chosenProject: Project | undefined;
-  current: View;
-  isCompact: boolean;
-  onDetails: (project: Project) => void;
-  onNew: () => void;
-  projects: {
-    choose: () => void;
-    count: number;
-    isOn: boolean;
-    project: Project;
-  }[];
-  views: (View & { choose: () => void; isOn: boolean })[];
-}) {
-  const [isOpen, setOpen] = useState(false);
-  const pick = (chooseView: () => void) => {
-    setOpen(false);
-    chooseView();
-  };
-  const label = chosenProject ? chosenProject.name : current.label;
-  // The chats are named alone, the way the inbox is; every other view
-  // carries its mark beside its name, so a narrowed list never passes for
-  // the whole of it. Drawn in to its mark, every view shows that mark.
-  const hasFace =
-    isCompact || chosenProject !== undefined || current.id !== "chats";
-  return (
-    <Popover onOpenChange={setOpen} open={isOpen}>
+    <Popover>
       <PopoverTrigger asChild>
         <button
-          aria-label={`View: ${label}`}
-          className={cn(
-            "flex h-9 max-w-48 min-w-0 shrink-0 items-center rounded-lg text-[15px] font-semibold transition-[padding] duration-200 ease-out motion-reduce:transition-none",
-            // Its face starts on the rows' own keyline, 16px in, and the
-            // hover's grey stands 8px off the card's side, as the search's
-            // field does at the other end.
-            "px-2",
-            PICKER_TONE,
-          )}
-          data-chosen
-          data-compact={isCompact || undefined}
-          title={isCompact ? label : undefined}
+          aria-label="View options"
+          className={HEAD_ICON_BUTTON}
+          title="View options"
           type="button"
         >
-          <Reveal isOpen={hasFace}>
-            <span className="grid size-5 place-items-center">
-              {chosenProject ? (
-                <ProjectFace size="chip" project={chosenProject} />
-              ) : (
-                // Outlined: the button's tint already says the view is chosen.
-                current.icon("size-5", false)
-              )}
-            </span>
-          </Reveal>
-          <Reveal isOpen={!isCompact}>
-            {/* Its own width whatever the slide has opened, so the name is
-              uncovered as it opens rather than cut short. */}
-            <span
-              className={cn("flex w-max items-center gap-1", hasFace && "pl-1")}
-            >
-              <span className="max-w-36 truncate">{label}</span>
-              <ChevronDown
-                absoluteStrokeWidth
-                className="size-3.5 shrink-0 opacity-50"
-                strokeWidth={2.5}
-              />
-            </span>
-          </Reveal>
+          <Current className="size-4" />
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="flex w-64 flex-col gap-0.5 p-1.5"
-        maxHeight="30rem"
-        // Focus lands on the row the list stands in, as a menu of choices
-        // does, so the one lit row is the chosen one rather than the first.
-        onOpenAutoFocus={(event) => {
-          const chosen = event.currentTarget;
-          if (!(chosen instanceof HTMLElement)) {
-            return;
-          }
-          const row = chosen.querySelector<HTMLElement>(
-            '[aria-checked="true"]',
-          );
-          if (row) {
-            event.preventDefault();
-            row.focus();
-          }
-        }}
-        role="menu"
-        side="bottom"
-        sideOffset={6}
-      >
-        {views.map((view) => (
-          <PickerRow
-            isOn={view.isOn}
-            key={view.id}
-            onPick={() => {
-              pick(view.choose);
-            }}
-            trailing={<RowCount count={view.count} />}
-          >
-            <span
-              className={cn(
-                "grid size-6 shrink-0 place-items-center",
-                !view.isOn && "text-muted-foreground",
-              )}
-            >
-              {view.icon("size-5", view.isOn)}
-            </span>
-            <span className="truncate">{view.label}</span>
-          </PickerRow>
-        ))}
-        {projects.length > 0 && (
-          <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
-        )}
-        {/* The projects scroll between the views and the foot, which stay. */}
-        {projects.length > 0 && (
-          <MenuScrollArea className="flex flex-col gap-0.5 p-0">
-            {projects.map((entry) => (
-              <ProjectContextMenu
-                key={entry.project.id}
-                onDetails={onDetails}
-                project={entry.project}
-              >
-                <PickerRow
-                  isOn={entry.isOn}
-                  onPick={() => {
-                    pick(entry.choose);
-                  }}
-                  trailing={
-                    // The count gives way to the dots under the pointer, in
-                    // the one place at the row's end.
-                    <span className="relative flex h-5 min-w-5 items-center justify-end">
-                      <span className="group-hover/row:invisible group-has-data-[state=open]/row:invisible">
-                        <RowCount count={entry.count} />
-                      </span>
-                      <ProjectActionsButton
-                        className="absolute right-0 group-hover/row:opacity-100"
-                        onDetails={onDetails}
-                        project={entry.project}
-                      />
-                    </span>
-                  }
-                >
-                  <span className="grid size-6 shrink-0 place-items-center">
-                    <ProjectFace size="row" project={entry.project} />
-                  </span>
-                  <span className="truncate">{entry.project.name}</span>
-                </PickerRow>
-              </ProjectContextMenu>
-            ))}
-          </MenuScrollArea>
-        )}
-        <div className="-mx-1.5 my-0.5 h-px shrink-0 bg-black/5 dark:bg-white/5" />
-        <PickerRow
-          isOn={false}
-          muted
-          onPick={() => {
-            pick(onNew);
-          }}
+      <PopoverContent align="end" className="w-64 p-1.5" sideOffset={6}>
+        <div
+          aria-label="Rows"
+          className="flex flex-col gap-0.5"
+          role="radiogroup"
         >
-          {/* In the views' own slot, at their size and weight. */}
-          <span className="grid size-6 shrink-0 place-items-center">
-            <PlusSquareIcon className="size-5" weight="regular" />
-          </span>
-          <span>New project</span>
-        </PickerRow>
+          {DENSITIES.map((entry) => {
+            const isOn = entry.id === density;
+            return (
+              <button
+                aria-checked={isOn}
+                className={cn(
+                  "flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-left",
+                  isOn ? "bg-foreground/6" : "hover:bg-foreground/4",
+                )}
+                key={entry.id}
+                onClick={() => {
+                  setDensity(entry.id);
+                }}
+                role="radio"
+                type="button"
+              >
+                <entry.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm">{entry.label}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {entry.note}
+                  </span>
+                </span>
+                {isOn && <CheckIcon className="mt-0.5 size-3.5 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+        <div className="-mx-1.5 my-1.5 h-px bg-border" />
+        <label className="flex h-9 items-center justify-between px-2.5 text-sm">
+          Group by day
+          <Switch checked={groupByDay} onCheckedChange={setGroupByDay} />
+        </label>
       </PopoverContent>
     </Popover>
   );

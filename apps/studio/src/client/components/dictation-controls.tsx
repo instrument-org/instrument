@@ -312,7 +312,7 @@ export function landingWords(dictation: Dictation): {
  * around it moves. Before any words it says it is listening; when live text
  * is unavailable it says the words will come at Stop instead.
  */
-function DictationReadout({
+export function DictationReadout({
   className,
   dictation,
 }: {
@@ -407,7 +407,7 @@ export function useDictatedText({
  * Whether this account can dictate now: signed in, and billing not refusing
  * it. Before billing's status is read, it can, as `featurePause` leaves it.
  */
-function useCanDictate() {
+export function useCanDictate() {
   const { data: status, isSignedOut } = useBillingStatus();
   return !isSignedOut && !featurePause(status, "dictation", new Date());
 }

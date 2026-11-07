@@ -6,6 +6,8 @@ export {
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
   KEY_FOLDER_NAMES,
   type KeyFolderName,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";

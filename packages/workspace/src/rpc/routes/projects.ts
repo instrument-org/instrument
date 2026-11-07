@@ -21,6 +21,8 @@ import { publisher } from "../publisher";
 const ProjectMarkSchema = z.object({
   color: z.string().max(9).optional(),
   emoji: z.string().max(8).optional(),
+  /** A Phosphor icon's name, in place of an emoji. */
+  icon: z.string().max(64).optional(),
 });
 
 const ProjectNameSchema = z
@@ -67,6 +69,7 @@ const createProjectRoute = base
       createProject({
         ...(input.color ? { color: input.color } : {}),
         ...(input.emoji ? { emoji: input.emoji } : {}),
+        ...(input.icon ? { icon: input.icon } : {}),
         ...(input.folders ? { folders: input.folders } : {}),
         ...(input.instructions ? { instructions: input.instructions } : {}),
         name: input.name,
@@ -93,6 +96,7 @@ const updateProjectRoute = base
       updateProject(input.projectId, {
         ...(input.color === undefined ? {} : { color: input.color }),
         ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
+        ...(input.icon === undefined ? {} : { icon: input.icon }),
         ...(input.folders === undefined ? {} : { folders: input.folders }),
         ...(input.instructions === undefined
           ? {}

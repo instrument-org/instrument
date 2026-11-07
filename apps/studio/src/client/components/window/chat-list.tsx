@@ -18,10 +18,12 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
 import { PlaceIcon } from "./place-icons";
 import { ChatRow } from "./chat-row";
+import { type RowDensity } from "./chat-list-view";
 import {
   byLastUserMessage,
   byActivity,
   type Chat,
+  dayHeading,
   type Project,
 } from "./chats";
 import { DraftRow } from "./draft-row";
@@ -52,10 +54,12 @@ const ListedChat = memo(function ListedChat({
     onPopOut: ((chat: Chat) => void) | undefined;
     onSetProject: (chat: Chat, project: null | string) => void;
   }>;
+  density: RowDensity;
   isArriving: boolean;
   isOpen: boolean;
   /** Whether the chat already stands in a window of its own over the row. */
   isOut: boolean;
+  isProjectShown: boolean;
   now: Date;
   search: string;
   projects: Project[];
@@ -107,8 +111,12 @@ const ListedChat = memo(function ListedChat({
   );
 });
 
-/** A row's height before it is measured: a chat with a line under its title. */
-const ROW_ESTIMATE = 88;
+/** A row's height before it is measured, by how many lines it shows. */
+const ROW_ESTIMATE: Record<RowDensity, number> = {
+  one: 41,
+  three: 89,
+  two: 65,
+};
 
 /**
  * The title's and the latest line's widths of each placeholder row, varied so
@@ -140,8 +148,12 @@ export function ChatList({
   appsBySlug,
   arrivedId,
   chats,
+  density = "three",
   drafts,
   emptyLine,
+  groupByDay = false,
+  head,
+  isProjectShown = true,
   isLoading,
   onArchiveOpen,
   onDelete,
@@ -164,10 +176,22 @@ export function ChatList({
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
   chats: Chat[];
+  /** How much of each chat its row shows. */
+  density?: RowDensity;
   /** The drafts to list in place of the chats, while the column stands in Drafts. */
   drafts?: Draft[];
   /** What the list says when it has nothing to show. */
   emptyLine: string;
+  /** Whether a heading stands over each day's chats. */
+  groupByDay?: boolean;
+  /**
+   * What scrolls in above the rows (the projects, or the project the list
+   * stands in), with the heading that then names the chats under it, if
+   * any. The keyboard steps past it.
+   */
+  head?: { heading?: string; node: ReactNode };
+  /** Whether each row names the project its chat is filed under. */
+  isProjectShown?: boolean;
   /** Whether the chats are still on their way: nothing is said about an empty list until they have arrived. */
   isLoading: boolean;
   /** Told when the open chat's row archives it, so the window can put the chat away with it. */
@@ -242,23 +266,47 @@ export function ChatList({
         appsBySlug={appsBySlug}
         chat={chat}
         handlers={handlers}
+        density={density}
         isArriving={chat.id === arrivedId}
         isOpen={chat.id === openId}
         isOut={outIds?.has(chat.id) ?? false}
+        isProjectShown={isProjectShown}
         now={now}
         search={search}
         projects={projects}
       />
     ),
   });
-  const rows: {
+  type Row = {
     /** A line over the rows after it, which the keyboard steps past. */
     isHeading?: boolean;
     key: string;
     node: () => ReactNode;
     /** Opens the row's chat beside the list; a draft's row has none. */
     open?: () => void;
-  }[] = drafts
+  };
+  const heading = (key: string, text: string): Row => ({
+    isHeading: true,
+    key,
+    node: () => <ListHeading text={text} />,
+  });
+  // Under a heading of their day, when the list is grouped so; a heading
+  // comes before the first chat of each day.
+  const byDay = (listed: Chat[], prefix: string): Row[] => {
+    if (!groupByDay) {
+      return listed.map(chatRow);
+    }
+    let last: string | undefined;
+    return listed.flatMap((chat) => {
+      const day = dayHeading(new Date(chat.lastUserMessageAt), now);
+      const isNewDay = day !== last;
+      last = day;
+      return isNewDay
+        ? [heading(`${prefix}day:${day}`, day), chatRow(chat)]
+        : [chatRow(chat)];
+    });
+  };
+  const listedRows: Row[] = drafts
     ? byActivity(drafts).map((draft) => ({
         key: draft.id,
         node: () => (
@@ -275,19 +323,30 @@ export function ChatList({
           />
         ),
       }))
-    : byLastUserMessage(chats).map(chatRow);
+    : byDay(byLastUserMessage(chats), "");
+  // The head's heading names the chats under it, unless the first day's
+  // heading already stands there.
+  const hasHeading =
+    head?.heading !== undefined && !(groupByDay && drafts === undefined);
+  const rows: Row[] = [
+    ...(head
+      ? [
+          { isHeading: true, key: "head", node: () => head.node },
+          ...(hasHeading && listedRows.length > 0 && head.heading
+            ? [heading("head-heading", head.heading)]
+            : []),
+        ]
+      : []),
+    ...listedRows,
+  ];
   if (outsideChats.length > 0) {
     rows.push(
       {
         isHeading: true,
         key: "outside-heading",
-        node: () => (
-          <p className="px-4 pt-4 pb-1 text-xs font-medium text-muted-foreground">
-            Outside this filter
-          </p>
-        ),
+        node: () => <ListHeading text="Outside this filter" />,
       },
-      ...byLastUserMessage(outsideChats).map(chatRow),
+      ...byDay(byLastUserMessage(outsideChats), "outside:"),
     );
   }
   // Only the rows in view and a screen's worth either side are mounted: a
@@ -296,7 +355,8 @@ export function ChatList({
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
-    estimateSize: () => ROW_ESTIMATE,
+    estimateSize: (index) =>
+      rows[index]?.isHeading ? 32 : ROW_ESTIMATE[density],
     getItemKey: (index) => rows[index]?.key ?? index,
     getScrollElement: () => ref.current,
     overscan: 8,
@@ -410,7 +470,7 @@ export function ChatList({
         event.preventDefault();
         const step = event.key === "ArrowDown" ? 1 : -1;
         let next = at + step;
-        if (rows[next]?.isHeading) {
+        while (rows[next]?.isHeading) {
           next += step;
         }
         const entry = rows[next];
@@ -439,7 +499,7 @@ export function ChatList({
       }}
       ref={ref}
     >
-      {rows.length === 0 ? (
+      {listedRows.length === 0 && outsideChats.length === 0 ? (
         isLoading ? (
           <div aria-busy className="h-full overflow-hidden" role="status">
             {Array.from({ length: SKELETON_ROWS }, (_, index) => {
@@ -453,18 +513,21 @@ export function ChatList({
           // In the middle of the list's room, a touch above center where
           // the eye expects it, under the plate No chat open draws its mark
           // on, smaller here.
-          <div className="grid h-full place-items-center px-8 pb-16">
-            <div className="flex flex-col items-center text-center text-[13px]">
-              <span
-                aria-hidden
-                className="mb-3 grid size-11 place-items-center rounded-xl text-muted-foreground/30 inset-ring inset-ring-current/60"
-              >
-                <PlaceIcon className="size-6" place="chat" weight="thin" />
-              </span>
-              <p className="max-w-56 leading-5 text-balance text-muted-foreground/60">
-                {emptyLine}
-              </p>
-              {outside > 0 && <p className="mt-2">{widen}</p>}
+          <div className="flex h-full flex-col">
+            {head?.node}
+            <div className="grid flex-1 place-items-center px-8 pb-16">
+              <div className="flex flex-col items-center text-center text-[13px]">
+                <span
+                  aria-hidden
+                  className="mb-3 grid size-11 place-items-center rounded-xl text-muted-foreground/30 inset-ring inset-ring-current/60"
+                >
+                  <PlaceIcon className="size-6" place="chat" weight="thin" />
+                </span>
+                <p className="max-w-56 leading-5 text-balance text-muted-foreground/60">
+                  {emptyLine}
+                </p>
+                {outside > 0 && <p className="mt-2">{widen}</p>}
+              </div>
             </div>
           </div>
         )
@@ -491,10 +554,19 @@ export function ChatList({
       {outside > 0 &&
         outsideChats.length === 0 &&
         !isLoading &&
-        rows.length > 0 && (
+        listedRows.length > 0 && (
           <p className="px-4 py-2 text-center text-sm">{widen}</p>
         )}
     </div>
+  );
+}
+
+/** A line over the rows after it: the chats under the projects, a day, what lies outside the filter. */
+function ListHeading({ text }: { text: string }) {
+  return (
+    <p className="px-4 pt-3 pb-1.5 text-xs font-medium text-muted-foreground">
+      {text}
+    </p>
   );
 }
 

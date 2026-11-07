@@ -116,7 +116,7 @@ describe("DraftRow", () => {
     // The time ends the first line, and Draft sits on the second where a
     // chat's latest line goes.
     expect(row.textContent).toBe(
-      "🏠HouseGuard the Nest eco mode before 5 p.m.9:11 AMDraft",
+      "HouseGuard the Nest eco mode before 5 p.m.9:11 AMDraft",
     );
     expect(row.textContent).not.toContain("second floor");
     const time = timeOf(row).getBoundingClientRect();

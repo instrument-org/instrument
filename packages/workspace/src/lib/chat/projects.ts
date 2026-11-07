@@ -76,6 +76,8 @@ export interface ProjectChange {
   color?: string;
   emoji?: string;
   folders?: ProjectFolder[];
+  /** A Phosphor icon's name; picking one takes the emoji away, as an emoji takes the icon. */
+  icon?: string;
   /** Empty takes them away. */
   instructions?: string;
   name?: string;
@@ -102,6 +104,7 @@ export async function createProject({
   color?: string;
   emoji?: string;
   folders?: ProjectFolder[];
+  icon?: string;
   instructions?: string;
   name: string;
 }): Promise<Project> {
@@ -393,12 +396,14 @@ function createProjectNow({
   about,
   color,
   emoji,
+  icon,
   instructions: given,
   name,
 }: {
   about?: string;
   color?: string;
   emoji?: string;
+  icon?: string;
   instructions?: string;
   name: string;
 }): MadeProject {
@@ -413,12 +418,17 @@ function createProjectNow({
       return { project: existing, was: "in use" };
     }
     const project = rewriteProjectSync(rootDir, existing, (current) => {
-      const { retired: _retired, ...revived } = current;
+      const {
+        emoji: _emoji,
+        icon: _icon,
+        retired: _retired,
+        ...revived
+      } = current;
       return {
         ...revived,
         ...(about ? { about } : {}),
         ...(color ? { color } : {}),
-        ...(emoji ? { emoji } : {}),
+        ...markAfter(current, { emoji, icon }),
         ...(instructions ? { instructions } : {}),
       };
     });
@@ -428,12 +438,32 @@ function createProjectNow({
     ...(about ? { about } : {}),
     ...(color ? { color } : {}),
     created: toTheSecond(new Date()),
-    ...(emoji ? { emoji } : {}),
+    ...markAfter({}, { emoji, icon }),
     id: newProjectId(),
     ...(instructions ? { instructions } : {}),
     name: wanted,
   };
   return { project: writeProjectSync(rootDir, project), was: "new" };
+}
+
+/**
+ * A project's mark after a change: an icon or an emoji, never both, so the
+ * one just picked replaces the other. What the change leaves out stays, and
+ * an empty one is none.
+ */
+function markAfter(
+  current: { emoji?: string; icon?: string },
+  change: { emoji?: string; icon?: string },
+): { emoji?: string; icon?: string } {
+  if (change.icon) {
+    return { icon: change.icon };
+  }
+  if (change.emoji) {
+    return { emoji: change.emoji };
+  }
+  const emoji = change.emoji ?? current.emoji;
+  const icon = change.icon ?? current.icon;
+  return { ...(emoji ? { emoji } : {}), ...(icon ? { icon } : {}) };
 }
 
 /**
@@ -589,7 +619,7 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
     }
   }
   rewriteProjectSync(rootDir, { ...project, name }, (current) => {
-    const { instructions, ...rest } = current;
+    const { emoji: _emoji, icon: _icon, instructions, ...rest } = current;
     const nextInstructions =
       change.instructions === undefined
         ? instructions
@@ -598,7 +628,7 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
       ...rest,
       ...(change.about === undefined ? {} : { about: change.about }),
       ...(change.color === undefined ? {} : { color: change.color }),
-      ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+      ...markAfter(current, change),
       ...(nextInstructions ? { instructions: nextInstructions } : {}),
     };
   });

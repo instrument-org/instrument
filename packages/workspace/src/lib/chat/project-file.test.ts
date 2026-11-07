@@ -96,6 +96,16 @@ describe("parseProjectFile", () => {
     );
   });
 
+  it("round-trips an icon, written after the emoji's place", () => {
+    const { emoji: _emoji, ...rest } = KITCHEN;
+    const project: ProjectFile = { ...rest, icon: "cooking-pot" };
+
+    const file = renderProjectFile(project);
+
+    expect(file).toContain("id: top_01K8ZQ2N4C\nicon: cooking-pot\n");
+    expect(parseProjectFile(file, { at: AT })).toEqual(project);
+  });
+
   it("takes the instructions as the body, however it is spaced", () => {
     const parsed = parseProjectFile(
       "---\nid: top_1\n---\n\n\n  Aisle seats.\n\n",

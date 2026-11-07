@@ -1,9 +1,13 @@
+import { showProjectInFiles } from "@/client/lib/show-in-files";
 import {
   draftsAtom,
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
+import {
+  newChatBoxesAtom,
+  pickNewChatProjectAtom,
+} from "@/client/drafts/new-chat-box";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
@@ -73,7 +77,7 @@ import {
   useRouterState,
   useNavigate,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ComponentProps,
   useEffect,
@@ -105,7 +109,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { NO_FILTERS, railMarkOf } from "./chats";
+import { inPlace, NO_FILTERS, railMarkOf } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -429,7 +433,7 @@ function WindowShell({
   const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
-  const setChatFilters = useSetAtom(chatFiltersAtom);
+  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
@@ -793,6 +797,98 @@ function WindowShell({
     projects,
     windowTabs,
   });
+  // The chat or draft each tab had up beside the list when it stepped into
+  // a project, by the tab, which stepping back out brings back.
+  const beforeProject = useRef(new Map<string, string>());
+  // The chat up as the list stepped into a project, which the tab is on its
+  // way away from: never a chat that takes the list back out.
+  const [leavingChat, setLeavingChat] = useState<ChatId>();
+  if (leavingChat !== undefined && chatUp !== leavingChat) {
+    setLeavingChat(undefined);
+  }
+  /**
+   * The list standing in a project, from its row, the command menu, or a
+   * project just made, from wherever the tab is: the inbox comes up, and
+   * whatever chat or draft was up beside it is put away for a new chat
+   * filed under the project, and remembered for the way back out. A search
+   * or a place left over from before would hide the chats it was asked for,
+   * so both go.
+   */
+  const enterProject = (projectId: string) => {
+    const tabId = appTabs.model.selectedId;
+    if (tabId && isChat && chatFilters.projects.length === 0) {
+      if (sameHref(activeHref, newChatHref())) {
+        beforeProject.current.delete(tabId);
+      } else {
+        beforeProject.current.set(tabId, activeHref);
+      }
+    }
+    setLeavingChat(chatUp);
+    setChatFilters({ ...NO_FILTERS, projects: [projectId] });
+    if (inboxPeek.isOpen) {
+      setInboxLandsAtOnce(true);
+    }
+    setInboxOpen(true);
+    if (tabId) {
+      pickNewChatProject({ projectId, tabId });
+    }
+    appTabs.navigate(newChatHref());
+  };
+  /**
+   * The list back in the inbox from its project. The new chat the project
+   * put up, still unwritten, gives way to the chat or draft this tab had up
+   * before it; anything opened in the project since stays.
+   */
+  const leaveProject = () => {
+    const tabId = appTabs.model.selectedId;
+    const back = tabId ? beforeProject.current.get(tabId) : undefined;
+    if (tabId) {
+      beforeProject.current.delete(tabId);
+    }
+    setChatFilters((current) => inPlace(current, undefined));
+    if (back !== undefined && sameHref(activeHref, newChatHref())) {
+      appTabs.navigate(back);
+    }
+  };
+  // A chat filed elsewhere coming up beside a project's list, from the
+  // command menu, a link or a notice, takes the list out of the project, so
+  // the open chat always has its row. A chat being started is not filed
+  // yet, and the chat the list just stepped away from is on its way out.
+  const standingProject =
+    chatFilters.projects.length === 1 ? chatFilters.projects[0] : undefined;
+  const chatUpProject = chats.data?.find((chat) => chat.id === chatUp)?.project;
+  const isChatOutsideProject =
+    standingProject !== undefined &&
+    chatUp !== undefined &&
+    chatUp !== leavingChat &&
+    !sentWords.has(chatUp) &&
+    chatUp !== arrivedId &&
+    chats.data?.some((chat) => chat.id === chatUp) === true &&
+    chatUpProject !== standingProject;
+  useEffect(() => {
+    if (isChatOutsideProject) {
+      beforeProject.current.clear();
+      setChatFilters((current) => inPlace(current, undefined));
+    }
+  }, [isChatOutsideProject, setChatFilters]);
+  // However the list leaves a project (its Inbox, a chat from elsewhere,
+  // the project deleted), a new chat in any tab that the project filed and
+  // that has nothing written yet stops being filed under it.
+  const store = useStore();
+  const lastStanding = useRef(standingProject);
+  useEffect(() => {
+    const left = lastStanding.current;
+    lastStanding.current = standingProject;
+    if (left === undefined || left === standingProject) {
+      return;
+    }
+    const boxes = store.get(newChatBoxesAtom);
+    for (const [tabId, box] of Object.entries(boxes)) {
+      if (box?.projectId === left && box.draftId === null) {
+        pickNewChatProject({ projectId: undefined, tabId });
+      }
+    }
+  }, [pickNewChatProject, standingProject, store]);
   /**
    * The tab up to one of the rail's places, from the rail, its chords, or the
    * command menu. Chat asked for is the inbox asked for too, even where the
@@ -1028,12 +1124,10 @@ function WindowShell({
     onNewProject: (name) => {
       setNewProject(name ? { name } : {});
     },
-    // A project is a view of the inbox, so going to one is the inbox standing
-    // in it and nothing else: a search or a place left over from before
-    // would hide the chats it was asked for.
-    openProject: (projectId) => {
-      setChatFilters({ ...NO_FILTERS, projects: [projectId] });
-      choosePlace("chat");
+    leaveProject,
+    openProject: enterProject,
+    openProjectInFiles: (project) => {
+      void showProjectInFiles(project);
     },
     popOutDraft,
     requestClose,

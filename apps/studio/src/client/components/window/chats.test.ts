@@ -5,13 +5,15 @@ import {
   activityLabel,
   byActivity,
   byLastUserMessage,
+  byNewestChat,
   type ChatFilters,
   chatTabMark,
-  choose,
+  dayHeading,
   draftTitle,
   type Filterable,
   hasWords,
-  isInbox,
+  inPlace,
+  inProject,
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
@@ -98,7 +100,7 @@ describe("matchesFilters", () => {
   it.each<[string, Partial<ChatFilters>, Filterable, Filterable]>([
     [
       "replies not yet seen",
-      { place: "unread" },
+      { tags: ["unread"] },
       chat({ unread: true }),
       chat({ archived: true, unread: true }),
     ],
@@ -110,9 +112,9 @@ describe("matchesFilters", () => {
     ],
     [
       "a star",
-      { place: "starred" },
+      { tags: ["starred"] },
+      chat({ starred: true }),
       chat({ archived: true, starred: true }),
-      chat({ unread: true }),
     ],
     [
       "a project",
@@ -154,7 +156,7 @@ describe("matchesFilters", () => {
   });
 
   it.each<[string, ChatFilters, Filterable]>([
-    ["Unread", { ...NO_FILTERS, place: "unread" }, chat({ unread: true })],
+    ["Unread", { ...NO_FILTERS, tags: ["unread"] }, chat({ unread: true })],
     [
       "an app",
       { ...NO_FILTERS, apps: ["gmail"] },
@@ -253,11 +255,11 @@ describe("matchesFilters", () => {
     ).toBe(false);
   });
 
-  it("narrows a place by the search too", () => {
+  it("narrows a mark by the search too", () => {
     const filters: ChatFilters = {
       ...NO_FILTERS,
-      place: "starred",
       search: "protein",
+      tags: ["starred"],
     };
     expect(
       matchesFilters(chat({ starred: true, title: "Protein drink" }), filters),
@@ -271,81 +273,112 @@ describe("matchesFilters", () => {
   });
 });
 
-describe("choosing a row of the column", () => {
-  const searched = { ...NO_FILTERS, search: "fence" };
-
-  it("shows one view at a time: a project leaves the place, and a place the project", () => {
+describe("the marks the search narrows by", () => {
+  it("narrows the place the column stands in, so a starred chat put away is only in Archived", () => {
+    const starred = chat({ archived: true, starred: true });
+    expect(matchesFilters(starred, { ...NO_FILTERS, tags: ["starred"] })).toBe(
+      false,
+    );
     expect(
-      choose(
-        { ...searched, apps: ["gmail"], place: "starred" },
-        { group: "projects", id: "house" },
-      ),
-    ).toEqual({ ...searched, projects: ["house"] });
-    expect(
-      choose(
-        { ...searched, projects: ["house"] },
-        { group: "place", id: "drafts" },
-      ),
-    ).toEqual({ ...searched, place: "drafts" });
+      matchesFilters(starred, {
+        ...NO_FILTERS,
+        place: "archived",
+        tags: ["starred"],
+      }),
+    ).toBe(true);
   });
 
-  it("moves between rows of one section", () => {
-    expect(
-      choose(
-        { ...searched, projects: ["house"] },
-        { group: "projects", id: "money" },
-      ),
-    ).toEqual({ ...searched, projects: ["money"] });
-    expect(
-      choose(
-        { ...searched, place: "starred" },
-        { group: "place", id: "drafts" },
-      ),
-    ).toEqual({ ...searched, place: "drafts" });
+  it("wants every mark that is on", () => {
+    const filters: ChatFilters = { ...NO_FILTERS, tags: ["starred", "unread"] };
+    expect(matchesFilters(chat({ starred: true, unread: true }), filters)).toBe(
+      true,
+    );
+    expect(matchesFilters(chat({ starred: true }), filters)).toBe(false);
   });
 
-  it("moves between a project and an app", () => {
+  it("narrows a project too", () => {
+    const filters: ChatFilters = {
+      ...NO_FILTERS,
+      projects: ["house"],
+      tags: ["unread"],
+    };
     expect(
-      choose(
-        { ...searched, projects: ["house"] },
-        { group: "apps", id: "gmail" },
-      ),
-    ).toEqual({ ...searched, apps: ["gmail"] });
-  });
-
-  it("steps back to the inbox from the row already on, keeping the search", () => {
-    expect(
-      choose({ ...searched, apps: ["gmail"] }, { group: "apps", id: "gmail" }),
-    ).toEqual(searched);
-    expect(
-      choose(
-        { ...searched, place: "starred" },
-        { group: "place", id: "starred" },
-      ),
-    ).toEqual(searched);
-    expect(
-      choose(
-        { ...searched, projects: ["house"] },
-        { group: "projects", id: "house" },
-      ),
-    ).toEqual(searched);
+      matchesFilters(chat({ project: "house", unread: true }), filters),
+    ).toBe(true);
+    expect(matchesFilters(chat({ project: "house" }), filters)).toBe(false);
   });
 });
 
-describe("the inbox", () => {
-  it("is where no place is chosen, whatever the search or a project says", () => {
-    expect(isInbox(NO_FILTERS)).toBe(true);
-    expect(isInbox({ ...NO_FILTERS, search: "fence" })).toBe(true);
-    expect(isInbox({ ...NO_FILTERS, projects: ["house"] })).toBe(true);
-    expect(isInbox({ ...NO_FILTERS, apps: ["gmail"] })).toBe(true);
+describe("moving the column", () => {
+  const searched = {
+    ...NO_FILTERS,
+    search: "fence",
+    tags: ["starred" as const],
+  };
+
+  it("leaves a project or an app for a place, keeping the search and its marks", () => {
+    expect(
+      inPlace(
+        { ...searched, apps: ["gmail"], projects: ["house"] },
+        "archived",
+      ),
+    ).toEqual({ ...searched, place: "archived" });
+    expect(inPlace({ ...searched, place: "archived" }, undefined)).toEqual(
+      searched,
+    );
   });
 
-  it.each<[string, ChatFilters]>([
-    ["the unread", { ...NO_FILTERS, place: "unread" }],
-    ["the starred", { ...NO_FILTERS, place: "starred" }],
-    ["the drafts", { ...NO_FILTERS, place: "drafts" }],
-  ])("is left once %s is chosen", (_, filters) => {
-    expect(isInbox(filters)).toBe(false);
+  it("drops the marks in Drafts, since a draft carries neither", () => {
+    expect(inPlace(searched, "drafts")).toEqual({
+      ...searched,
+      place: "drafts",
+      tags: [],
+    });
+  });
+
+  it("steps into a project from any place, and back out of the one it stands in", () => {
+    expect(inProject({ ...searched, place: "archived" }, "house")).toEqual({
+      ...searched,
+      projects: ["house"],
+    });
+    expect(inProject({ ...searched, projects: ["house"] }, "house")).toEqual(
+      searched,
+    );
+  });
+});
+
+describe("the projects' order", () => {
+  it("puts the project with the newest chat first, and one with none by when it was made", () => {
+    const projects = [
+      { created: new Date(2026, 0, 1), id: "old" },
+      { created: new Date(2026, 5, 1), id: "fresh" },
+      { created: new Date(2026, 1, 1), id: "busy" },
+      { created: new Date(2026, 2, 1), id: "quiet" },
+    ];
+    const chats = [
+      { lastUserMessageAt: 50, project: "old" },
+      { lastUserMessageAt: 90, project: "busy" },
+      { lastUserMessageAt: 10, project: "busy" },
+    ];
+    expect(byNewestChat(projects, chats).map((project) => project.id)).toEqual([
+      "busy",
+      "old",
+      "fresh",
+      "quiet",
+    ]);
+  });
+});
+
+describe("day headings", () => {
+  const now = new Date(2026, 10, 7, 15);
+  it.each<[string, Date]>([
+    ["Today", new Date(2026, 10, 7, 1)],
+    ["Yesterday", new Date(2026, 10, 6, 23)],
+    ["Tuesday", new Date(2026, 10, 3, 9)],
+    ["October 30", new Date(2026, 9, 30, 9)],
+    ["December 30, 2025", new Date(2025, 11, 30, 9)],
+  ])("says %s", (heading, date) => {
+    expect(dayHeading(date, now)).toBe(heading);
   });
 });
 

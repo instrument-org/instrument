@@ -76,6 +76,35 @@ describe("updateProject", () => {
       { ...made, color: "#ff0000", name: "Ducks" },
     ]);
   });
+
+  it("swaps an emoji for an icon and back, keeping the color", async () => {
+    const made = await createProject({
+      color: "amber",
+      emoji: "🦆",
+      name: "Reddit",
+    });
+
+    await updateProject(made.id, { emoji: "", icon: "bird" });
+    const withIcon = (await listProjects())[0];
+    await updateProject(made.id, { emoji: "🐤", icon: "" });
+    const withEmoji = (await listProjects())[0];
+
+    expect(
+      [withIcon, withEmoji].map((each) => [each?.emoji, each?.icon]),
+    ).toEqual([
+      [undefined, "bird"],
+      ["🐤", undefined],
+    ]);
+    expect(withEmoji?.color).toBe("amber");
+  });
+
+  it("keeps a project's emoji through a change that names no mark", async () => {
+    const made = await createProject({ emoji: "🦆", name: "Reddit" });
+
+    await updateProject(made.id, { instructions: "Old posts first." });
+
+    expect((await listProjects())[0]?.emoji).toBe("🦆");
+  });
 });
 
 describe("retireProject", () => {

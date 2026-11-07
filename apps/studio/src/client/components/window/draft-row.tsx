@@ -14,7 +14,7 @@ import { type ReactNode } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 
-import { ProjectPill } from "./chat-row";
+import { ProjectWords } from "./chat-row";
 import { activityLabel, draftTitle, type Project } from "./chats";
 import { HeldMark } from "./context-chip";
 import { screenPresentation } from "./screen-presentation";
@@ -57,7 +57,7 @@ export function DraftRow({
       run: onDelete,
     },
   ];
-  const pill = project && <ProjectPill project={project} />;
+  const pill = project && <ProjectWords project={project} />;
   const title = (
     <span className="min-w-0 flex-1 truncate text-[13px] text-foreground/90">
       {draftTitle(draft.words)}

@@ -1,5 +1,10 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
-import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
+import {
+  APPS_HREF,
+  BROWSER_HREF,
+  chatFiltersAtom,
+  filesHrefAtom,
+} from "@/client/atoms/window";
 import {
   itemsOf,
   useDraftStaging,
@@ -36,6 +41,10 @@ import { ulid } from "ulid";
 
 import { AskPills } from "./ask-pills";
 import { PopOutButton } from "./chat-header";
+import { type Project } from "./chats";
+import { projectColor } from "./project-colors";
+import { ProjectMark } from "./project-mark";
+import { projectTint } from "./project-tint";
 import { ProjectSlot } from "./compose-window";
 import { useWindow } from "./context";
 import { ContextChips } from "./context-chip";
@@ -220,6 +229,13 @@ export function NewChatView({
   const liveProjects = projects.filter((entry) => !entry.retired);
   const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
   const project = projects.find((entry) => entry.id === projectId);
+  // Beside the list standing in the project it is filed under, the new chat
+  // is that project's room, and says so.
+  const listProjects = useAtomValue(chatFiltersAtom).projects;
+  const roomOf =
+    project && listProjects.length === 1 && listProjects[0] === project.id
+      ? project
+      : undefined;
 
   // The plus opens the web, the computer and Apps beside the new chat, in
   // the side panel, the way a chat's plus opens them beside the chat.
@@ -314,7 +330,9 @@ export function NewChatView({
         </div>
         <div className="flex h-8 shrink-0 items-center gap-x-1">{trailing}</div>
       </div>
-      <div className="min-h-0 flex-1" />
+      <div className="grid min-h-0 flex-1 place-items-center overflow-hidden px-6">
+        {roomOf && <ProjectRoom project={roomOf} />}
+      </div>
       <div className="isolate mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">
         <PromptInput
           attachmentsLead={
@@ -364,6 +382,31 @@ export function NewChatView({
       </div>
       {draft && <ProjectSuggestion draft={draft} />}
     </FileDropRegion>
+  );
+}
+
+/** The project a new chat beside its list opens in: its mark, its name, and where the chat goes. */
+function ProjectRoom({ project }: { project: Project }) {
+  return (
+    <div
+      className="flex flex-col items-center pb-16 text-center project-tint"
+      style={projectTint(projectColor(project))}
+    >
+      <span className="grid size-12 place-items-center rounded-xl bg-background shadow-xs ring-1 ring-border/60">
+        <ProjectMark
+          className="size-7 text-[22px]"
+          plain
+          project={project}
+          size="lg"
+        />
+      </span>
+      <h3 className="mt-3 text-xl font-semibold text-(--project-tint-ink)">
+        {project.name}
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        New chats here go into {project.name}.
+      </p>
+    </div>
   );
 }
 

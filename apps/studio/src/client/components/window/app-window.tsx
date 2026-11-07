@@ -1,3 +1,4 @@
+import { showProjectInFiles } from "@/client/lib/show-in-files";
 import {
   draftsAtom,
   removeDraftAtom,
@@ -1093,8 +1094,8 @@ function WindowShell({
     },
     leaveProject,
     openProject: enterProject,
-    openProjectInFiles: () => {
-      // PENDING: the project dialog branch's helper.
+    openProjectInFiles: (project) => {
+      void showProjectInFiles(project);
     },
     popOutDraft,
     requestClose,

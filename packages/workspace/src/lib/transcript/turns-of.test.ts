@@ -791,7 +791,7 @@ describe("the slot", () => {
 
   it("folds a turn whose question the person wrote past without answering", () => {
     const cache: TurnsCache = new Map();
-    const asked = [
+    const question = [
       typed("Plan the trip"),
       message("assistant", (id) => [
         call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
@@ -806,11 +806,11 @@ describe("the slot", () => {
       ]),
     ];
     expect(
-      turnsOf(asked, { isRunning: false }, cache)[0]?.foldedRowIds.size,
+      turnsOf(question, { isRunning: false }, cache)[0]?.foldedRowIds.size,
     ).toBe(0);
     expect(
       turnsOf(
-        [...asked, typed("Actually, never mind")],
+        [...question, typed("Actually, never mind")],
         { isRunning: false },
         cache,
       )[0]?.foldedRowIds.size,

@@ -115,7 +115,8 @@ export function stripIndexAt(
     : 0;
   const before = drawn.filter(({ key, left, width }, index) => {
     const standsAt = held && index > heldAt ? left - slot : left;
-    const past = held && index < heldAt ? -TAKES_PLACE_PAST_PX : TAKES_PLACE_PAST_PX;
+    const past =
+      held && index < heldAt ? -TAKES_PLACE_PAST_PX : TAKES_PLACE_PAST_PX;
     return (
       key !== except &&
       clientX > listLeft + (standsAt + width / 2 + past) * zoom

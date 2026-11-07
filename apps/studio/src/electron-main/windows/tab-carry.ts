@@ -280,7 +280,7 @@ function beginCarry({
   carry = started;
   if (spare) {
     tell(spare.window, { kind: "beneath" });
-    spare.window.setBounds(goes === "window" ? origin : started.size);
+    placeSpare(spare.window, goes === "window" ? origin : started.size);
   }
   return started;
 }
@@ -360,6 +360,18 @@ function handPages(pages: readonly BrowserTargetId[], to: BrowserWindow) {
 }
 
 /** On screen and drawing, and nothing to press or see until it is wanted. */
+/**
+ * Gives the spare window its place. On Windows the first bounds a window is
+ * given on a display of another scale than the one it was on come out the
+ * wrong size, and the same bounds given again come out right.
+ */
+function placeSpare(window: BrowserWindow, bounds: Bounds) {
+  window.setBounds(bounds);
+  if (process.platform === "win32") {
+    window.setBounds(bounds);
+  }
+}
+
 function showSpare({ from, spare }: Carry) {
   if (!spare || spare.window.isVisible()) {
     return;
@@ -927,7 +939,7 @@ async function standAlone(
   const { spare } = ending;
   dressSpare(ending);
   if (place) {
-    spare.window.setBounds(place);
+    placeSpare(spare.window, place);
   }
   // A window that cannot be kept unseen is drawn as it comes up.
   if (followsCursor && canKeepWindowsUnseen()) {

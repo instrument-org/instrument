@@ -76,7 +76,7 @@ import {
   type BrowserTargetId,
   browserTargetOf,
 } from "@instrument-org/workspace/electron";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, powerMonitor } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -424,6 +424,9 @@ export function openNewAppWindow(tab?: Tab): BrowserWindow | null {
 function openSpareWindow(): SpareWindow {
   const id = newWindowId();
   const window = createAppWindow(id, { isSpare: true });
+  // Out of the Window menu and the Dock's list of windows while it is shown
+  // for a drag, as nobody's window yet.
+  window.excludedFromShownWindowsMenu = true;
   const opened = {
     id,
     isUp: false,
@@ -438,12 +441,40 @@ function spareOf(webContentsId: number) {
   return [...spares].find((spare) => spare.webContentsId === webContentsId);
 }
 
+/**
+ * Starts the waiting spare again. A window kept out of sight for hours is the
+ * one likeliest to come back blank after the computer sleeps or the GPU
+ * process goes, and a drag finding it so would put a blank window up.
+ */
+function renewSpare() {
+  // Closing it starts another (the window's `closed`).
+  if (waitingSpare && !waitingSpare.window.isDestroyed()) {
+    waitingSpare.window.destroy();
+  }
+}
+
+let watchingForStaleSpares = false;
+
+function watchForStaleSpares() {
+  if (watchingForStaleSpares) {
+    return;
+  }
+  watchingForStaleSpares = true;
+  powerMonitor.on("resume", renewSpare);
+  app.on("child-process-gone", (_event, details) => {
+    if (details.type === "GPU") {
+      renewSpare();
+    }
+  });
+}
+
 /** Starts a spare window before long, if there is not one. */
 function keepSpareReady() {
   // An agent's instance keeps to the windows it is driving; a drag opens one.
   if (isDrivenInstance()) {
     return;
   }
+  watchForStaleSpares();
   clearTimeout(spareTimer);
   spareTimer = setTimeout(() => {
     if (!waitingSpare && !isSetupUp() && getAppWindows().length > 0) {
@@ -496,6 +527,7 @@ export function adoptSpareWindow(adopted: SpareWindow) {
   const { id, isUp, window } = adopted;
   window.setIgnoreMouseEvents(false);
   window.setSkipTaskbar(false);
+  window.excludedFromShownWindowsMenu = false;
   spares.delete(adopted);
   if (isUp) {
     listening.add(window.webContents.id);

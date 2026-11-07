@@ -378,6 +378,19 @@ describe("a tab being dragged", () => {
     expect(handOffGuest).not.toHaveBeenCalled();
   });
 
+  it("on Windows, places the spare twice, since the first place given on a display of another scale comes out the wrong size", () => {
+    setUp({ platform: "win32" });
+    const place = spareWindow.setBounds;
+    let isFirst = true;
+    spareWindow.setBounds = (next) => {
+      place(isFirst ? { ...next, width: next.width * 1.5 } : next);
+      isFirst = false;
+    };
+    press(withUsedPage());
+
+    expect(spareWindow.bounds).toEqual(from.bounds);
+  });
+
   it("off its row, has the spare ready and out of sight for the release", () => {
     press();
     moveTo(IN_THE_OPEN);

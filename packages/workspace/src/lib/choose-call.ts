@@ -24,7 +24,8 @@ const QuestionSchema = z.object({
       "One to three words naming what the question decides ('Team size'), shown as its tab when the card asks more than one",
   }),
   multiSelect: z.boolean().optional().meta({
-    description: "True when the user may pick more than one choice",
+    description:
+      "True unless the choices exclude each other. Which things to include, install, or do (items, activities, days) take several; one tone, one date, or yes and no take one",
   }),
   question: z
     .string()

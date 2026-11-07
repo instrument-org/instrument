@@ -343,4 +343,30 @@ export const QUESTIONS_EVALS = [
     prompt:
       "Draft this week's newsletter blurb for my bakery featuring some of our products: sourdough, croissants, babka, and cookies. Ask me which ones to feature first; I may want more than one.",
   }),
+  defineEval({
+    // Nothing says more than one may be wanted: which activities a trip has
+    // is a question of several on its face, and a card of one makes the
+    // person write the rest into a note.
+    answers: [
+      answerEach((question) =>
+        question.multiSelect === true
+          ? {
+              picked: question.choices
+                .map((choice) => choice.label)
+                .filter((label) => /hik|swim/i.test(label)),
+            }
+          : pickChoice(question),
+      ),
+    ],
+    assertions: [
+      LET_THEM_PICK_SEVERAL,
+      SAID_NOTHING_AFTER_ASKING,
+      REPLIED,
+      mentions("swim"),
+    ],
+    kind: "chat",
+    name: "questions-pick-several-unprompted",
+    prompt:
+      "Make me a short packing list for a weekend at the lake. Ask me first, as a choice, which of these I'm doing: hiking, swimming, kayaking, fishing.",
+  }),
 ];

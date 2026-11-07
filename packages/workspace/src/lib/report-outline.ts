@@ -551,7 +551,15 @@ type ToolRule = {
 const TOOLS: Record<string, ToolRule> = {
   "tool-ask_permission": {
     input: ["kind", "target", "reason"],
-    output: ["answer", "asked", "declined", "state"],
+    output: [
+      "agentTarget",
+      "answer",
+      "asked",
+      "declined",
+      "kind",
+      "state",
+      "target",
+    ],
   },
   "tool-choose": {
     input: ["question", "choices"],
@@ -670,7 +678,7 @@ function notePart(part: Obj, sources: OutlineSources): Obj {
   const type = String(part.type);
   const data = part.data;
   if (NOTES_KEPT.has(type)) {
-    return part;
+    return withPagesAsHosts(part, sources);
   }
   if (!isObj(data)) {
     return { ...part, data: size(data) };
@@ -752,6 +760,27 @@ function notePart(part: Obj, sources: OutlineSources): Obj {
 
 // ---- records ---------------------------------------------------------------
 
+/**
+ * `value` with every tab's `page` in it, at any depth (an ask, its outcome,
+ * the note answering it), as its title's length and its address's host.
+ */
+function withPagesAsHosts(value: Obj, sources: OutlineSources): Obj {
+  const inside = (each: unknown): unknown =>
+    Array.isArray(each)
+      ? each.map(inside)
+      : isObj(each)
+        ? withPagesAsHosts(each, sources)
+        : each;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, each]) => [
+      key,
+      key === "page" && isObj(each)
+        ? { title: size(each.title), url: hostOnly(each.url, sources) }
+        : inside(each),
+    ]),
+  );
+}
+
 /** Record kinds that carry only the app's own bookkeeping, kept whole. */
 const RECORDS_KEPT = new Set([
   "answer",
@@ -821,6 +850,11 @@ export function outlineRecord(
   }
   if (RECORDS_KEPT.has(kind)) {
     return record;
+  }
+  if (kind === "ask") {
+    // Where a card stands is the app's bookkeeping, and its target and
+    // reason are the ask_permission call's, kept there already.
+    return withPagesAsHosts(record, sources);
   }
   return { ...sizeFields(record), t: record.t };
 }

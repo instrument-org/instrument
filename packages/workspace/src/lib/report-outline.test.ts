@@ -317,6 +317,61 @@ describe("outlineSessionLog", () => {
     },
   );
 
+  it("keeps where an ask stands, and a tab's page as its host", () => {
+    const ask = (body: Record<string, unknown>) =>
+      outlineRecord(
+        {
+          ask: {
+            askedAt: "2026-11-07T14:02:38.400Z",
+            askers: [{ at: "2026-11-07T14:02:38.400Z", sessionId: "ses_1" }],
+            device: "dev_1",
+            id: "ask_1",
+            kind: "permission",
+            stage: { is: "open" },
+            ...body,
+          },
+          at: "2026-11-07T14:02:38.400Z",
+          seq: 42,
+          t: "ask",
+        },
+        emptySources(),
+      );
+    expect(
+      ask({ on: "folder", target: "~/Library/Application Support/obsidian" }),
+    ).toMatchObject({
+      ask: {
+        askedAt: "2026-11-07T14:02:38.400Z",
+        on: "folder",
+        stage: { is: "open" },
+        target: "~/Library/Application Support/obsidian",
+      },
+      at: "2026-11-07T14:02:38.400Z",
+    });
+    const page = { title: SECRET, url: `https://mail.example.com/${SECRET}` };
+    const tab = JSON.stringify([
+      ask({ on: "tab", page, target: "tab_1" }),
+      ask({
+        on: "tab",
+        page,
+        stage: {
+          is: "closed",
+          outcome: { data: { page, state: "allowed" }, kind: "permission" },
+          woken: true,
+        },
+        target: "tab_1",
+      }),
+      outlineRecord(
+        part({
+          data: { page, state: "allowed" },
+          type: "data-permissionAnswer",
+        }),
+        emptySources(),
+      ),
+    ]);
+    expect(tab).not.toContain(SECRET);
+    expect(tab).toContain("mail.example.com");
+  });
+
   it("outlines a session the way a report shows it", () => {
     const log = [
       { t: "session", seq: 0, id: "ses_1", app: "2.0.0" },

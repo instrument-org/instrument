@@ -18,15 +18,15 @@ What a window costs: a dev build's renderer is about 320 MB of footprint, and a 
 
 ### B. A page in use is reloaded by another window once its own stops showing it
 
-- Status: open, for a decision
+- Status: fixed
 - Where: `canTakeParked` in [manager.ts](/apps/studio/src/electron-main/browser-view/manager.ts), the take on its own in [browser-panel.tsx](/apps/studio/src/client/components/window/browser-panel.tsx)
-- What: a window showing a page's tab takes the page, which reloads it, once the window that has it stops showing it and no agent has sent it a command for 30 seconds. That ignores `isUsed`, so a form a person half filled, or a page an agent is still working through between model calls, loses what was in it. Leaving a used page where it is means the window shows "This page is open in another window" for longer, which is the same choice as a typed page left behind by a drag.
+- What: a window showing a page's tab takes the page, which reloads it, once the window that has it stops showing it and no agent has sent it a command for 30 seconds. That ignores `isUsed`, so a form a person half filled, or a page an agent is still working through between model calls, loses what was in it. A used page stays where it is: the window asking shows "This page is open in another window", and the page comes over only with Show Here. The test that pinned the old 30 seconds passed because a guest that never attaches is dropped at 15, so it now attaches one.
 
 ### C. An agent showing a page another window has lands on the notice
 
-- Status: open, for a decision
+- Status: left as it is
 - Where: `show` in [use-openers.ts](/apps/studio/src/client/components/window/use-openers.ts)
-- What: the ask goes to the window in front showing the chat, which selects the tab and shows "This page is open in another window" while the agent drove the page within 30 seconds. Bringing the page over reloads it, losing what the agent did there, so this goes with B.
+- What: the ask goes to the window in front showing the chat, which selects the tab and shows "This page is open in another window" while the agent drove the page within 30 seconds. Bringing the page over reloads it, losing what the agent did there, so with B the notice is the answer: the page stays where the agent's work is, and Show Here brings it over.
 
 ### D. A window not drawing a page kept it awake
 
@@ -69,3 +69,9 @@ What a window costs: a dev build's renderer is about 320 MB of footprint, and a 
 - Status: open
 - Where: `paintWhenInitiallyHidden` and `backgroundThrottling` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
 - What: a spare that was never shown says `visibilityState: "visible"`, so it is probably not throttled and redraws for every stream it subscribes to. Its CPU at rest has not been measured.
+
+### K. A failed window-file write during the upgrade can lose a file viewer's page tabs
+
+- Status: left as it is
+- Where: the `window-tabs.v9` split in [window-tabs.ts](/apps/studio/src/client/components/window/window-tabs.ts)
+- What: reported by another reader. The renderer takes the old key out of `layout` as it splits it, and the groups of pages drawn inside a file's viewer go to the window's own file, which flushes separately. If that file cannot be written while `layout` can, the next launch has those groups nowhere. It is real, and left: it needs `window/windows/` unwritable while the `window/` folder above it is writable, it runs once per computer on the upgrade from a build that had one window, and what it loses is the tab record of a page a viewer makes again as it opens, its back history inside the file, never a chat's or a site's tabs, which go to `layout` in the same write that removes the old key. Main's own move of window keys out of `layout` already waits on the flush; doing that here would mean main reading the earlier tab shape.

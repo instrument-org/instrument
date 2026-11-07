@@ -57,6 +57,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md): resolved 2026-09-10;
 - [The file-open cache is sized for a cost that no longer exists](file-open-cache-is-sized-for-a-vanished-cost.md): open.
 - [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): resolved, measured 2026-10-15: the GNU text commands answer from bundled uutils by a fixed table (native-and-builtin-commands.md has the table as it runs), n...
+- [Haiku narrates between tool calls, and prompt wording does not move it](haiku-narrates-between-calls.md)
 - [HTML file artifacts: in-iframe link navigation can't be tracked or driven](html-artifact-iframe-navigation.md): moot: the sandboxed iframe was removed in 15dae28cb (checked 2026-10-02).
 - [In-app browser: device/viewport emulation isn't safe for agent-browser](in-app-browser-device-emulation.md): superseded: the request is honored again, by a different mechanism.
 - [In-app browser: full-page screenshots aren't supported](in-app-browser-full-page-screenshots.md): still open, workaround in place (PDF export), checked 2026-10-02.

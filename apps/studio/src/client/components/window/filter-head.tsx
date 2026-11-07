@@ -123,7 +123,7 @@ export function FilterHead({
           ? `Search ${project.name}`
           : filters.place === undefined
             ? "Search"
-            : `Search ${placeLabel}`
+            : `Search ${placeLabel ?? ""}`
       }
       tokens={TAGS.filter((tag) => filters.tags.includes(tag.id)).toSorted(
         (a, b) => filters.tags.indexOf(a.id) - filters.tags.indexOf(b.id),

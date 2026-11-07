@@ -362,21 +362,20 @@ function useDownloadFlight({
     return null;
   }
   const { from, to } = flight;
-  // The arc's top: above the higher of the two ends, so the icon rises off
-  // the page before it drops into the button.
-  const peak = Math.min(from.y, to.y) - 80;
   const ICON = 32;
-  // On screen, outside the zoomed tree, since both ends were read on screen.
+  // The arc comes of the two moves easing apart: the icon rises off the page
+  // at once and drifts across late, so it curves into the button rather than
+  // sliding to it, and never leaves the window, as a peak above the
+  // toolbar's button would.
   return createPortal(
     <motion.div
       animate={{
         opacity: [0, 1, 1, 0.6],
         scale: [0.6, 1.1, 0.9, 0.4],
-        x: [from.x, (from.x + to.x) / 2, to.x].map((each) => each - ICON / 2),
-        y: [from.y, peak, to.y].map((each) => each - ICON / 2),
+        x: [from.x - ICON / 2, to.x - ICON / 2],
+        y: [from.y - ICON / 2, to.y - ICON / 2],
       }}
       className="pointer-events-none fixed top-0 left-0 z-50 drop-shadow-md"
-      initial={false}
       key={flight.id}
       onAnimationComplete={() => {
         setFlight(null);
@@ -384,10 +383,10 @@ function useDownloadFlight({
       }}
       transition={{
         duration: 0.7,
-        ease: "easeInOut",
-        times: [0, 0.45, 1],
         opacity: { duration: 0.7, times: [0, 0.1, 0.85, 1] },
         scale: { duration: 0.7, times: [0, 0.3, 0.8, 1] },
+        x: { duration: 0.7, ease: [0.55, 0, 0.9, 0.6] },
+        y: { duration: 0.7, ease: [0.1, 0.6, 0.35, 1] },
       }}
     >
       <FileTypeIcon className="size-8" fileName={flight.filename} />

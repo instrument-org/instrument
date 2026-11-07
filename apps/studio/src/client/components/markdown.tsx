@@ -58,6 +58,7 @@ import {
   getComputerFileUrl,
   hostPathOfComputerFileUrl,
 } from "../lib/computer-file-url";
+import { bracketPathLinkDestinations } from "../lib/bracket-path-link-destinations";
 import {
   classifyImageSource,
   type ImageSourceKind,
@@ -1096,9 +1097,13 @@ export const Markdown = memo(
     hideImages,
     imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
-    markdown,
+    markdown: written,
     chatId,
   }: MarkdownProps) => {
+    const markdown = useMemo(
+      () => bracketPathLinkDestinations(written),
+      [written],
+    );
     const setLookAt = useSetAtom(lookAtAtom);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(baseRehypePlugins);

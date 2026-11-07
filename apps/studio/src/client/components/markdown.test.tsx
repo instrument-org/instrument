@@ -199,6 +199,20 @@ describe("Markdown links", () => {
     );
   });
 
+  // A model links a file in a folder with spaces by its bare path, which
+  // Markdown alone would end at the first space and leave as text.
+  it.each([
+    String.raw`C:\Users\sam\Documents\My Chats\handoff-notes.md`,
+    "C:/Users/sam/Documents/My Chats/handoff-notes.md",
+    "/c/Users/sam/Documents/My Chats/handoff-notes.md",
+  ])("opens a link to a file path with spaces: %s", (href) => {
+    renderMarkdown(`The notes are updated: [handoff-notes.md](${href}).`);
+
+    expect(screen.getByRole("button", { name: "handoff-notes.md" }).title).toBe(
+      "/c/Users/sam/Documents/My Chats/handoff-notes.md",
+    );
+  });
+
   // Markdown reads `\\` in a link as one backslash, so a share reaches the
   // link only with its backslashes doubled.
   it("opens a link to a file on a network share by its shell path", () => {

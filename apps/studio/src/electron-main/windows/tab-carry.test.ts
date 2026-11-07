@@ -686,19 +686,29 @@ describe("a window coming up in place of a strip", () => {
     expect(views.at(-1)?.view.kind).toBe("row");
   });
 
-  it("goes full screen where the window it takes over from was", async () => {
-    other.full = true;
-    const moved = moveTabNow({
-      isOnlyTab: false,
-      moving: withUsedPage(),
-      to: { id: "other", kind: "window" },
-      webContentsId: 1,
-    });
-    await vi.runAllTimersAsync();
-    await moved;
+  it.each([
+    ["linux", 1],
+    ["darwin", 0],
+  ] as const)(
+    "on %s, stands in for a full-screen window at its own size, going full screen %i times",
+    async (platform, times) => {
+      setUp({ platform });
+      other.full = true;
+      const ownSize = { height: 500, width: 700, x: 40, y: 50 };
+      other.getNormalBounds = () => ownSize;
+      const moved = moveTabNow({
+        isOnlyTab: false,
+        moving: withUsedPage(),
+        to: { id: "other", kind: "window" },
+        webContentsId: 1,
+      });
+      await vi.runAllTimersAsync();
+      await moved;
 
-    expect(from.setFullScreen).toHaveBeenCalledWith(true);
-  });
+      expect(from.bounds).toEqual(ownSize);
+      expect(from.setFullScreen).toHaveBeenCalledTimes(times);
+    },
+  );
 
   it("is not brought forward until it has drawn the tabs it now holds", async () => {
     press(withUsedPage());

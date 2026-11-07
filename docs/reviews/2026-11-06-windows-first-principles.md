@@ -2,7 +2,7 @@
 
 Reviewed: the whole branch against `9baecdab0`, at `74ade49be`
 
-Asked for once the drag felt right to the person trying it, since the change is so large: whether it is built the way it should be, and what it breaks away from the drag. Two readers took it blind, reading the earlier ledgers only at the end: one the design and the drag's core, one everything else, above all what changes for someone who never opens a second window. Neither ran anything, so each finding below was checked against the code first.
+Asked for once the drag felt right to the person trying it, since the change is so large: whether it is built the way it should be, and what it breaks away from the drag. Two readers took it blind, reading the earlier ledgers only at the end: one the design and the drag's core, one everything else, above all what changes for someone who never opens a second window. Neither ran anything, so each finding below was checked against the code first. A third read the fixes for what they broke, and its findings are folded into the ones they came from.
 
 Both held the core up: the picture until the release, the spare window, main owning the phases, and the pure rules. Upgrading from an earlier build, first launch, setup, quitting, an update restart and the Dock also held up.
 
@@ -18,7 +18,7 @@ Both held the core up: the picture until the release, the spare window, main own
 
 - Status: fixed
 - Where: `createAppWindow` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
-- What: the link opened the window while boot was on its way to restoring it, and boot made it again. Two windows shared one file, and closing either left the other with no id, reading as a spare.
+- What: the link opened the window while boot was on its way to restoring it, and boot made it again. Two windows shared one file, and closing either left the other with no id, reading as a spare. The window already open counts as restored and as up.
 
 ### C. Every window coming up cleared what the launch left over
 
@@ -30,13 +30,13 @@ Both held the core up: the picture until the release, the spare window, main own
 
 - Status: fixed
 - Where: `takePendingAppWindowAsks` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
-- What: whichever page loaded first took what waited, and then the window in front went over it, so nothing seemed to happen.
+- What: whichever page loaded first took what waited, and then the window in front went over it, so nothing seemed to happen. Each window that shows takes the focus, so the last in front is no guide during a restore, and what waited goes by the window it will put in front (`comingToFront`).
 
 ### E. A link could leave the app out of sight after an idle restart
 
 - Status: fixed
 - Where: `showInWindowHolding` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
-- What: naming a chat in a window held off screen, it asked that window without showing it, and said it had dealt with the link.
+- What: naming a chat in a window held off screen, it asked that window without showing it, and said it had dealt with the link. The held windows come up now, as the Dock icon brings them.
 
 ### F. With no window listening, an agent's ask could reach the spare
 
@@ -58,8 +58,9 @@ Both held the core up: the picture until the release, the spare window, main own
 
 ### I. Taking over a full-screen window's tabs left the window not full screen
 
-- Status: fixed
+- Status: fixed, off the Mac
 - Where: `placeWhenDrawn` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
+- What: it took the display's bounds, and now goes full screen from the other window's own size, which is what leaving full screen comes back to. On a Mac it stays at that size, since full screen there is a Space of its own, reached by an animation while the other window closes. Only a menu reaches this on a Mac: a drag does not land on a full-screen window.
 
 ### J. A press during a move from a menu could leave one tab in two windows
 
@@ -101,6 +102,12 @@ Both held the core up: the picture until the release, the spare window, main own
 
 - Status: open
 - Where: `beginCarry` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts)
+
+### Q. What waits for a window lapses with it
+
+- Status: open
+- Where: `takePendingAppWindowAsks` in [app-window.ts](/apps/studio/src/electron-main/windows/app-window.ts)
+- What: a window that comes up during a launch leaves what waited for the one coming to the front. If that one goes before its page is up, the links and files wait until a window next opens or reloads. It needs a window lost in the first moments of a launch.
 
 ## Considered and left
 

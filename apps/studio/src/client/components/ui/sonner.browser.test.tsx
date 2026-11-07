@@ -116,9 +116,7 @@ it("keeps a loading toast's spinner beside its words", async () => {
 
   const spinner = document.querySelector(".sonner-loader");
   const title = document.querySelector("[data-title]");
-  const spinnerRight = spinner?.getBoundingClientRect().right;
-  const titleLeft = title?.getBoundingClientRect().left;
-  expect(spinnerRight).toBeTypeOf("number");
-  expect(titleLeft).toBeTypeOf("number");
-  expect(spinnerRight).toBeLessThanOrEqual(titleLeft ?? 0);
+  expect(spinner!.getBoundingClientRect().right).toBeLessThanOrEqual(
+    title!.getBoundingClientRect().left,
+  );
 });

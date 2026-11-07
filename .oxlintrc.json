@@ -40,11 +40,24 @@
   },
   "overrides": [
     {
+      // A test fails loudly the moment a null or `any` value is wrong, so these
+      // ask for ceremony there rather than catch a mistake. `JSON.parse`,
+      // mock calls and fixtures are `any`, a test builds thenables and reads
+      // mocked methods off objects on purpose, and a template literal there
+      // only names a case. The rules that catch a broken test stay on.
       "files": ["**/*.test.*"],
       "rules": {
         "no-unsafe-optional-chaining": "off",
+        "typescript/no-base-to-string": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
-        "typescript/no-unsafe-call": "off"
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/restrict-template-expressions": "off",
+        "typescript/unbound-method": "off",
+        "unicorn/no-thenable": "off"
       }
     },
     {

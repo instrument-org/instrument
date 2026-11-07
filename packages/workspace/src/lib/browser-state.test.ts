@@ -10,6 +10,7 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { type BrowserTarget, browserTargetOf } from "../types";
 import {
   BLANK_PAGE_URL,
+  pageOnItsWay,
   recordVisitedHosts,
   restoreLastPage,
 } from "./browser-state";
@@ -114,6 +115,34 @@ describe("restoring a reopened tab", () => {
     });
 
     expect(sendCommand).not.toHaveBeenCalled();
+  });
+
+  it("stands aside while a page the user asked for is on its way, and restores once it has gone", async () => {
+    // A window opening a tab at an address sends that open, then draws the
+    // tab, whose blank guest asks for a restore of the same target before
+    // the address has loaded.
+    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
+    const noteRestore = vi.fn();
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      browser: { ...getWorkspaceConfig().browser, noteRestore },
+    });
+    const restore = () =>
+      restoreLastPage({ fallbackUrl: "https://example.org/typed", targetId });
+
+    const arrived = pageOnItsWay(targetId);
+    await restore();
+
+    expect(noteRestore).not.toHaveBeenCalled();
+    expect(sendCommand).not.toHaveBeenCalled();
+
+    arrived();
+    await restore();
+
+    expect(noteRestore).toHaveBeenCalledWith(
+      targetId,
+      "https://example.org/typed",
+    );
   });
 
   it("reports a guest it cannot reach instead of failing the open", async () => {

@@ -1678,9 +1678,13 @@ function useVirtualWindow({
     const update = () => {
       const scrollStart =
         (horizontal ? viewport.scrollLeft : viewport.scrollTop) - leadingPx;
-      const viewportSize = horizontal
-        ? viewport.clientWidth
-        : viewport.clientHeight;
+      // A viewport not laid out yet (a hidden tab, a window opened while the
+      // computer slept) measures 0. The window's own size stands in for it,
+      // so the rows a person sees first are drawn even if nothing measures
+      // again.
+      const viewportSize =
+        (horizontal ? viewport.clientWidth : viewport.clientHeight) ||
+        (horizontal ? window.innerWidth : window.innerHeight);
       const firstVisible = Math.max(0, Math.floor(scrollStart / itemStride));
       const lastVisible = Math.min(
         count,
@@ -1705,9 +1709,15 @@ function useVirtualWindow({
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
     observer?.observe(viewport);
+    // Measured again when the window comes back into view or to the front,
+    // where a resize observer can have stayed quiet while it was away.
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
     return () => {
       viewport.removeEventListener("scroll", update);
       observer?.disconnect();
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
     };
   }, [count, horizontal, itemStride, leadingPx, overscan, viewportRef]);
   return window_;

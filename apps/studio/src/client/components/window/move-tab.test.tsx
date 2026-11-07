@@ -112,15 +112,18 @@ describe("where a held tab stands along a strip", () => {
   });
 
   // A tab back on its row is placed by its left edge, which keeps it in its own
-  // slot until it is half a slot off, either way.
+  // slot until it is half a slot and a little off, either way, so that it does not
+  // change places back and forth with a pointer resting at the middle of the next.
   it.each([
     ["in its own slot", "a", 0, 0],
     ["in its own slot", "b", 100, 1],
     ["in its own slot", "c", 200, 2],
-    ["just under half a slot right", "b", 149, 1],
-    ["just over half a slot right", "b", 151, 2],
-    ["just under half a slot left", "b", 51, 1],
-    ["just over half a slot left", "b", 49, 0],
+    ["at half a slot right", "b", 150, 1],
+    ["just under the mark right", "b", 157, 1],
+    ["just over the mark right", "b", 159, 2],
+    ["at half a slot left", "b", 50, 1],
+    ["just under the mark left", "b", 43, 1],
+    ["just over the mark left", "b", 41, 0],
   ])("given a tab's left edge: %s, %s at %i", (_case, held, left, at) => {
     expect(stripIndexAt(left, store.get(appTabsAtom).tabs, asId(held))).toBe(
       at,
@@ -129,8 +132,8 @@ describe("where a held tab stands along a strip", () => {
 
   it("reads the pointer in on-screen px, at any zoom", () => {
     layOutStrip(["a", "b", "c"], 2);
-    expect(stripIndexAt(90, store.get(appTabsAtom).tabs, asId("a"))).toBe(0);
-    expect(stripIndexAt(110, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
+    expect(stripIndexAt(110, store.get(appTabsAtom).tabs, asId("a"))).toBe(0);
+    expect(stripIndexAt(120, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
   });
 });
 

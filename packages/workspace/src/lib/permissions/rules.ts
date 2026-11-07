@@ -297,6 +297,11 @@ export interface Rule {
    * card asks for it, and only the app's own rules open anything in it.
    */
   appData?: true;
+  /**
+   * Set beside `appData` for a workspace's `.instrument/`, which sits in a
+   * folder of the person's: a folder holding it is asked for like any other.
+   */
+  workspaceData?: true;
   /** Every hidden entry directly in `path`, rather than `path` itself. */
   dotEntries?: true;
   /** Set for a file the user sent, which the rule opens alone. */
@@ -687,8 +692,9 @@ function compiled(rules: Rules) {
  * for a sign-in folder, which is answered for whole. A folder holding the
  * app's own data gives way to the one below it on the way to the path
  * (`~/Library/Application Support/Other App` rather than Application
- * Support), so a card never names it; one with nothing below it is left as
- * it is, for `ruleRefusal` to name nothing to ask for. In the app-files place a
+ * Support); one with nothing below it is left as it is, asked for whole
+ * when it holds only a workspace's `.instrument/`, which the deeper rule keeps
+ * closed, and named nothing to ask for otherwise (`askableFolder`). In the app-files place a
  * folder holding a folder per app gives way the same way, so the card names
  * one app's folder (`AppData\Roaming\Discord`).
  */
@@ -742,13 +748,19 @@ export function folderToAskFor({
 
 /**
  * Whether `folder` is or holds any of the app's own data, which a yes to it
- * would seem to open, spelled as it is or with a shell's escapes taken out.
+ * would seem to open, spelled as it is or with a shell's escapes taken out;
+ * `beyondWorkspaces` leaves a workspace's `.instrument/` out.
  */
-export function holdsAppData(rules: Rules, folder: string): boolean {
+export function holdsAppData(
+  rules: Rules,
+  folder: string,
+  { beyondWorkspaces = false } = {},
+): boolean {
   const spellings = new Set([folder, withoutShellEscapes(folder)]);
   return rules.rules.some(
     (rule) =>
       rule.appData &&
+      !(beyondWorkspaces && rule.workspaceData) &&
       [...spellings].some(
         (spelling) => hostPathWithin(spelling, rule.path) !== null,
       ),

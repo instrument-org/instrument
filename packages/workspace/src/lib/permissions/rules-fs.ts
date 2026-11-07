@@ -99,8 +99,8 @@ export function ruleRefusal({
 
 /**
  * The folder a card opens to reach `hostPath`, or why no card can: the home
- * folder, a disk's root, and a folder holding the app's own data are never
- * asked for whole. `onDisk` takes the nearest folder that exists.
+ * folder, a disk's root, and a folder holding the app's own data beyond a
+ * workspace's `.instrument/` are never asked for whole. `onDisk` takes the nearest folder that exists.
  */
 export function askableFolder({
   hostPath,
@@ -127,8 +127,11 @@ export function askableFolder({
       refusal: `${shown(hostPath)} is directly in ${shown(folder)}, which can't be asked for whole. Work in your work folder, or a folder the person names.`,
     };
   }
-  // Nor is a folder that holds the app's own data, which no yes opens.
-  if (holdsAppData(rules, folder)) {
+  // A folder holding a workspace's .instrument/ is the person's (their
+  // Documents, a folder they picked) and is asked for like any other: the
+  // deeper rule keeps the data closed under a yes. One holding the app's
+  // other data (Application Support, AppData) holds every other app's too.
+  if (holdsAppData(rules, folder, { beyondWorkspaces: true })) {
     return {
       refusal: `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so it can't be asked for whole. Work in your work folder, or a folder the person names.`,
     };

@@ -46,6 +46,13 @@ export interface TranscriptSurface {
   onOpenUrl: (url: string) => void;
   onStopCommand: (command: Pick<CommandFacts, "id" | "sessionId">) => void;
   onStopTask: (id: StoreId.Session) => void;
+  /**
+   * The page a session's work is on, as its tab says it is; nothing is read
+   * while `sessionId` is absent.
+   */
+  useDrivenPage: (
+    sessionId: StoreId.Session | undefined,
+  ) => { title?: string; url?: string } | undefined;
   /** Where the paths a call named are on this computer, once that is known. */
   useHostPaths: (paths: readonly string[]) => Record<string, null | string>;
   /** The commands the chat and its tasks left going, and those that have since ended. */

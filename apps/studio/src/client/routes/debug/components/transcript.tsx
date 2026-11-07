@@ -230,6 +230,7 @@ const debugSurface: TranscriptSurface = {
   onStopCommand: noop,
   onStopTask: noop,
   PagePicture: DebugPagePicture,
+  useDrivenPage: () => undefined,
   useHostPaths: (paths) =>
     Object.fromEntries(paths.map((path) => [path, path])),
   useCommands: () => use(DebugFrameContext)?.commands ?? [],

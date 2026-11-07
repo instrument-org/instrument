@@ -28,7 +28,11 @@ function hostOf(url: string | undefined): string | undefined {
     return undefined;
   }
   try {
-    return new URL(url).hostname.replace(/^www\./, "");
+    const { hostname, pathname } = new URL(url);
+    // A file's address has no host, so it goes by its file's name.
+    return hostname === ""
+      ? baseName(decodeURIComponent(pathname)) || undefined
+      : hostname.replace(/^www\./, "");
   } catch {
     return url;
   }
@@ -93,11 +97,15 @@ export function SlotCardView({
 }) {
   const surface = use(TranscriptSurfaceContext);
   const places = surface?.useHostPaths(pathsOf(card));
+  const drivenPage = surface?.useDrivenPage(
+    card.kind === "page" ? sessionId : undefined,
+  );
   const body = cardBody(
     card,
     surface,
     sessionId,
     (path) => places?.[path] ?? undefined,
+    drivenPage,
   );
   return (
     <div className="relative w-full max-w-100 rounded-2xl">
@@ -142,6 +150,7 @@ function cardBody(
   surface: TranscriptSurface | undefined,
   sessionId: StoreId.Session,
   placeOf: PlaceOf,
+  drivenPage: { title?: string; url?: string } | undefined,
 ): CardBody {
   const { kind, steps } = card;
   switch (kind) {
@@ -152,7 +161,7 @@ function cardBody(
         .flatMap((page) => (page.kind === "page" && page.url ? [page.url] : []))
         .at(-1);
       const target = newest?.kind === "opened" ? newest.target : undefined;
-      const place = address ?? target;
+      const place = drivenPage?.url ?? address ?? target;
       const PagePicture = surface?.PagePicture;
       return {
         mark: <GlobeIcon className="size-3.5" />,
@@ -165,7 +174,10 @@ function cardBody(
             }
           },
         }),
-        title: hostOf(address) ?? (target ? baseName(target) : "A page"),
+        title:
+          drivenPage?.title ??
+          hostOf(drivenPage?.url ?? address) ??
+          (target ? baseName(target) : "A page"),
         view: PagePicture ? <PagePicture sessionId={sessionId} /> : null,
       };
     }

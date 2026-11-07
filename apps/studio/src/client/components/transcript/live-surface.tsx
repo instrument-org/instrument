@@ -1,7 +1,7 @@
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useChatCommands } from "@/client/hooks/use-task-background-processes";
-import { useOpenFile } from "@/client/hooks/use-open-file";
+import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
@@ -128,22 +128,28 @@ type PageTab = Extract<WindowTab, { kind: "page" }>;
 
 /**
  * The page a session's work is on: the tab among its own its agent drove last.
- * The picture follows it, retaken after each thing that changes the page.
+ * Nothing is read while `sessionId` is absent.
  */
-function LivePagePicture({ sessionId }: { sessionId: StoreId.Session }) {
+function useDrivenTab(
+  sessionId: StoreId.Session | undefined,
+): PageTab | undefined {
   const chat = useLiveChat();
   const { allTabs } = useWindowTabs();
-  const state = useQuery(
-    rpcClient.workspace.chats.state.queryOptions({ input: { id: chat } }),
-  );
+  const state = useQuery({
+    ...rpcClient.workspace.chats.state.queryOptions({ input: { id: chat } }),
+    enabled: sessionId !== undefined,
+  });
   const held = new Set<string>(
     (state.data?.browserTabs ?? []).flatMap((tab) =>
       tab.driver === sessionId ? [tab.id] : [],
     ),
   );
-  const pages = allTabs.filter(
-    (tab): tab is PageTab => tab.kind === "page" && tab.group === chat,
-  );
+  const pages =
+    sessionId === undefined
+      ? []
+      : allTabs.filter(
+          (tab): tab is PageTab => tab.kind === "page" && tab.group === chat,
+        );
   const mine = pages.some((tab) => held.has(tab.id))
     ? pages.filter((tab) => held.has(tab.id))
     : pages;
@@ -155,13 +161,30 @@ function LivePagePicture({ sessionId }: { sessionId: StoreId.Session }) {
       ),
     ),
   });
-  const newest = mine.reduce<PageTab | undefined>(
+  return mine.reduce<PageTab | undefined>(
     (best, tab, index) =>
       !best || (driven[index] ?? 0) >= (driven[mine.indexOf(best)] ?? 0)
         ? tab
         : best,
     undefined,
   );
+}
+
+/** What the page a session's work is on says it is, as its tab last heard. */
+function useDrivenPage(sessionId: StoreId.Session | undefined) {
+  const tab = useDrivenTab(sessionId);
+  const url = tab?.url ?? tab?.openedUrl;
+  return (
+    tab && {
+      ...(tab.title && { title: tab.title }),
+      ...(url && { url }),
+    }
+  );
+}
+
+/** The driven page's picture, retaken after each thing that changes the page. */
+function LivePagePicture({ sessionId }: { sessionId: StoreId.Session }) {
+  const newest = useDrivenTab(sessionId);
   if (!newest) {
     return null;
   }
@@ -286,20 +309,20 @@ export function LiveTranscriptSurface({
   children: ReactNode;
 }) {
   const appWindow = useContext(WindowContext);
-  const openFile = useOpenFile();
+  const showChatFile = useShowChatFile();
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const stopCommand = useMutation(
     rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions(),
   );
   // Every chat's tasks are read once here, so each card shares one subscription.
   useChatTasks(chat);
-  const latest = useRef({ appWindow, chat, openFile, stop, stopCommand });
+  const latest = useRef({ appWindow, chat, showChatFile, stop, stopCommand });
   useLayoutEffect(() => {
-    latest.current = { appWindow, chat, openFile, stop, stopCommand };
+    latest.current = { appWindow, chat, showChatFile, stop, stopCommand };
   });
   const [surface] = useState<TranscriptSurface>(() => ({
     onOpenFile: (path) => {
-      latest.current.openFile({ hostPath: path });
+      latest.current.showChatFile(path);
     },
     onOpenTask: (id) => {
       latest.current.appWindow?.openScreen(taskHref(id, latest.current.chat));
@@ -318,6 +341,7 @@ export function LiveTranscriptSurface({
       latest.current.stop.mutate({ id: latest.current.chat, sessionId: id });
     },
     PagePicture: LivePagePicture,
+    useDrivenPage,
     useHostPaths: useChatHostPaths,
     useCommands,
     useStepPart,

@@ -23,10 +23,10 @@ import path from "node:path";
 
 const RESOURCES_MXC_DIR = path.resolve(import.meta.dirname, "../resources/mxc");
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 const TARBALL = `https://registry.npmjs.org/@microsoft/mxc-sdk/-/mxc-sdk-${VERSION}.tgz`;
 const TARBALL_SHA256 =
-  "39e59ffd9d0832334889b0cd583d0beb43b1bbbe9f783dd7c6980203d23e9602";
+  "416d9607c9d4652395d95c3d9c5f5605f1f2f845da1a63228bee41b7392cef49";
 
 type NodeArch = "arm64" | "x64";
 

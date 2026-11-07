@@ -278,9 +278,18 @@ export function handleTaskCdpClient(
       return existing;
     }
     const session = openTargetSession({
-      // The user closed the tab, or the window it was in.
+      // The user closed the tab, or the window it was in, or another window
+      // took its page, which is then a new page of the same tab: the agent
+      // hears that tab come back, to attach to again.
       onDetach: () => {
         forget(tab.tabId);
+        queue = queue
+          .then(async () => {
+            if (!closed && browser.getTargetMeta(tab.targetId)) {
+              await announce(tab);
+            }
+          })
+          .catch(workspaceConfig.captureException);
       },
       readLayout: () => sessionLayout({ chatId, sessionId }),
       send,

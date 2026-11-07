@@ -218,6 +218,20 @@ export function destroyEntry(
   clearGuestSurface(targetId);
 }
 
+/**
+ * Tells everything watching an entry's guest that it has gone, and stops
+ * sending them its events. A guest replaced by one in another window has gone
+ * too: what an agent switched on in the old one is not on in the new one, so a
+ * watcher has to attach again.
+ */
+export function tellDetached(entry: BrowserEntry) {
+  for (const listener of entry.detachListeners) {
+    listener();
+  }
+  entry.detachListeners.clear();
+  entry.eventListeners.clear();
+}
+
 export function handleDetach(
   entries: Map<BrowserTargetId, BrowserEntry>,
   targetId: BrowserTargetId,
@@ -227,12 +241,7 @@ export function handleDetach(
     return;
   }
 
-  for (const listener of entry.detachListeners) {
-    listener();
-  }
-  entry.detachListeners.clear();
-  entry.eventListeners.clear();
-
+  tellDetached(entry);
   drainDisposers(entry);
   fireDestruction(entry);
   entries.delete(targetId);

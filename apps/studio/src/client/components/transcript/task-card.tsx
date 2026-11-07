@@ -7,10 +7,12 @@ import {
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { AnimatePresence } from "motion/react";
 import { use } from "react";
 
 import { ShimmerSweep } from "../shimmer-sweep";
 import { Badges } from "./activity-row";
+import { CardPresence, useCardOpens } from "./card-motion";
 import { RollingText } from "./rolling-text";
 import { SlotCardView } from "./slot-card";
 import { TranscriptSurfaceContext } from "./surface";
@@ -53,6 +55,7 @@ export function TaskCardRow({
     ? turnsOf(messages, { isRunning: true, sessionId }).at(-1)
     : undefined;
   const card = turn && slotOf(turn);
+  const cardOpens = useCardOpens(card !== undefined);
   const title = facts?.title ?? "Task";
   const firstLine = isWorking
     ? (facts?.step ?? "Starting")
@@ -118,13 +121,19 @@ export function TaskCardRow({
           </button>
         )}
       </div>
-      {card && turn && (
-        <SlotCardView
-          card={card}
-          isCurrent={turn.phase === "working"}
-          sessionId={sessionId}
-        />
-      )}
+      {/* No words of the task's start below its card, so the card closes
+          rather than going at once. */}
+      <AnimatePresence custom initial={false}>
+        {card && turn && (
+          <CardPresence key="slot-card" opens={cardOpens}>
+            <SlotCardView
+              card={card}
+              isCurrent={turn.phase === "working"}
+              sessionId={sessionId}
+            />
+          </CardPresence>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

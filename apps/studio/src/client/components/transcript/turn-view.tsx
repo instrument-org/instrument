@@ -14,12 +14,7 @@ import {
   type TurnRow,
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import {
-  AnimatePresence,
-  motion,
-  useIsPresent,
-  useReducedMotion,
-} from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { memo, type ReactNode, use, useState } from "react";
 
 import { AssistantMessage } from "../assistant-message";
@@ -36,6 +31,12 @@ import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
+import {
+  CardPresence,
+  FOLD_TRANSITION,
+  ROW_GAP,
+  useCardOpens,
+} from "./card-motion";
 import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
 import { renderDataPart } from "./note-part";
 import { SlotCardView } from "./slot-card";
@@ -43,11 +44,6 @@ import { TranscriptSurfaceContext } from "./surface";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
-
-/** How long the work takes to close into its one line, so the reply slides up to it. */
-const FOLD_TRANSITION = { duration: 0.24, ease: [0.32, 0.72, 0, 1] } as const;
-/** The gap between a turn's rows, which a row closing takes with it. */
-const ROW_GAP = 8;
 
 /** How long the agent may sit between things before the transcript says it is thinking. */
 const THINKING_AFTER_MS = 1000;
@@ -80,17 +76,6 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
       {children}
     </motion.div>
   );
-}
-
-/**
- * The card, under the newest activity. It has one key among the rows, so going
- * from under one activity to under the next keeps it mounted, with its picture
- * and its sweep going. `AnimatePresence` holds a row that left until the next
- * commit, and this one draws nothing from the render that took it away, so it
- * goes in the same frame as the words that end it and they never start below it.
- */
-function SlotRow({ children }: { children: ReactNode }) {
-  return useIsPresent() ? <div className="ml-7">{children}</div> : null;
 }
 
 /**
@@ -237,6 +222,7 @@ function TurnBody({
   const [isOpened, setIsOpened] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   const card = isFolded ? undefined : slotOf(turn);
+  const cardOpens = useCardOpens(card !== undefined);
   const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
@@ -272,13 +258,16 @@ function TurnBody({
       );
       if (index === lastWork && card) {
         out.push(
-          <SlotRow key="slot-card">
+          // One key among the rows, so going from under one activity to under
+          // the next keeps it mounted, with its picture and its sweep going.
+          // It closes with the fold and goes at once as words end it.
+          <CardPresence className="ml-7" key="slot-card" opens={cardOpens}>
             <SlotCardView
               card={card}
               isCurrent={turn.phase === "working"}
               sessionId={sessionId}
             />
-          </SlotRow>,
+          </CardPresence>,
         );
       }
     }

@@ -4,6 +4,7 @@ import { useChatCommands } from "@/client/hooks/use-task-background-processes";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowTab } from "@/client/atoms/window";
 import {
@@ -205,20 +206,32 @@ function PageShot({
   targetId: BrowserTargetId;
 }) {
   const url = usePagePicture(tab.id, targetId);
-  if (url) {
-    return (
-      <img
-        alt=""
-        className="size-full object-cover object-top"
-        draggable={false}
-        src={url}
-      />
-    );
-  }
+  const [hasDrawn, setHasDrawn] = useState(false);
+  // The page's icon, which its first picture fades in over once it has drawn;
+  // a later picture replaces the one before in place.
   return (
-    <div className="flex h-full items-center justify-center [&_img]:size-6 [&_svg]:size-6">
-      <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
-    </div>
+    <>
+      <div className="flex h-full items-center justify-center [&_img]:size-6 [&_svg]:size-6">
+        <PageFavicon
+          favicon={tab.favicon}
+          url={tab.url ?? tab.openedUrl ?? ""}
+        />
+      </div>
+      {url && (
+        <img
+          alt=""
+          className={cn(
+            "absolute inset-0 size-full object-cover object-top transition-opacity duration-200",
+            !hasDrawn && "opacity-0",
+          )}
+          draggable={false}
+          onLoad={() => {
+            setHasDrawn(true);
+          }}
+          src={url}
+        />
+      )}
+    </>
   );
 }
 

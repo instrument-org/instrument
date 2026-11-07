@@ -101,6 +101,14 @@ body {
   :where(code, kbd, samp, pre, .font-mono) {
     font-variant-ligatures: none;
   }
+
+  /* A page runs in a process of its own, which takes a pointer that crosses it,
+     and the release with it. Nothing else in the window answers to a pointer that
+     is carrying a tab either, as hovering. */
+  [data-tab-held] :is(webview, iframe),
+  [data-tab-held] body {
+    pointer-events: none;
+  }
 }
 
 /* =========================
@@ -971,23 +979,17 @@ body {
   }
 }
 
-/* Clears a tab's title out from under a close control drawn on top of it.
- *
- * Fully transparent across the control rather than merely on the way there: a
- * gradient that only reaches transparent at the very edge leaves the name at
- * roughly four fifths opacity under the control's left half, which reads as
- * text showing through a button. The stops are measured from the title's own
- * box, whose right edge sits 0.75rem short of where the control begins.
- *
- * Applied only while the control is on screen, because a tab is the width of
- * its name: with nothing drawn over it, the same fade would eat the last few
- * letters of a name that fits perfectly well. */
+/* Ends a tab's title before the close control drawn over its end, whose hover
+ * background would otherwise sit on the last faint letters. The stops are
+ * measured from the title's own box, where the control begins 1rem in, and the
+ * name is gone 0.125rem before that. The same with or without the control on
+ * screen, so that a name stays put as the pointer comes and goes. */
 @utility tab-title-fade {
   --tab-title-fade: linear-gradient(
     to right,
     #000 0%,
-    #000 calc(100% - 1.5rem),
-    transparent calc(100% - 0.75rem),
+    #000 calc(100% - 2rem),
+    transparent calc(100% - 1.125rem),
     transparent 100%
   );
   mask-image: var(--tab-title-fade);

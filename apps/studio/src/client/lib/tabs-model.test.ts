@@ -8,6 +8,8 @@ import {
   closeTabsToRight,
   duplicateTab,
   emptyTabsModel,
+  insertTab,
+  removeTab,
   reopenClosed,
   reorderTabs,
   selectAdjacent,
@@ -174,6 +176,16 @@ describe("reorderTabs", () => {
     const next = reorderTabs(start, { ids: [id("c"), id("a"), id("b")] });
     expect(next.tabs.map((t) => t.id)).toEqual(["c", "a", "b"]);
   });
+
+  it("keeps a tab the order does not name, past the ones it does", () => {
+    const start = model([
+      tab({ id: id("a") }),
+      tab({ id: id("opened-since") }),
+      tab({ id: id("b") }),
+    ]);
+    const next = reorderTabs(start, { ids: [id("b"), id("a")] });
+    expect(next.tabs.map((t) => t.id)).toEqual(["b", "a", "opened-since"]);
+  });
 });
 
 describe("reopenClosed", () => {
@@ -309,5 +321,55 @@ describe("setTabPathname", () => {
     const next = setTabPathname(start, { id: id("b"), pathname: "/evals" });
     expect(next.tabs[0]?.pathname).toBe("/tasks/1");
     expect(next.tabs[1]?.pathname).toBe("/evals");
+  });
+});
+
+describe("a tab moving between windows", () => {
+  const tabAt = (name: string) => ({
+    id: TabIdSchema.parse(name),
+    pathname: `/${name}`,
+  });
+  const strip = (...names: string[]) => ({
+    recentlyClosed: [],
+    selectedId: TabIdSchema.parse(names[0]),
+    tabs: names.map(tabAt),
+  });
+  const idsOf = ({ tabs }: { tabs: { id: TabId }[] }) =>
+    tabs.map((each) => each.id);
+  const newTab = tabAt("fresh");
+
+  it("leaves with nothing to reopen, the one beside it up", () => {
+    const after = removeTab(strip("a", "b"), {
+      id: TabIdSchema.parse("a"),
+      newTab,
+    });
+    expect(idsOf(after)).toEqual(["b"]);
+    expect(after.selectedId).toBe("b");
+    expect(after.recentlyClosed).toEqual([]);
+  });
+
+  it("leaves a fresh tab where it was the last", () => {
+    const after = removeTab(strip("a"), { id: TabIdSchema.parse("a"), newTab });
+    expect(after.tabs).toEqual([newTab]);
+    expect(after.recentlyClosed).toEqual([]);
+  });
+
+  it.each([
+    { index: undefined, want: ["a", "b", "x"] },
+    { index: 0, want: ["x", "a", "b"] },
+    { index: 1, want: ["a", "x", "b"] },
+    { index: 9, want: ["a", "b", "x"] },
+  ])("lands up at $index", ({ index, want }) => {
+    const after = insertTab(strip("a", "b"), {
+      ...(index === undefined ? {} : { index }),
+      tab: tabAt("x"),
+    });
+    expect(idsOf(after)).toEqual(want);
+    expect(after.selectedId).toBe("x");
+  });
+
+  it("does not stand twice if it was there already", () => {
+    const after = insertTab(strip("a", "b"), { tab: tabAt("a") });
+    expect(idsOf(after)).toEqual(["b", "a"]);
   });
 });

@@ -243,6 +243,13 @@ async function pickTarget(origin, page = "app") {
     return refusal ?? fail("No window refusing the workspace is open.");
   }
   const pages = list.filter((t) => t.type === "page" && isRendererURL(t.url));
+  if (page.startsWith("window:")) {
+    const windows = pages.filter((target) => isAppWindow(target));
+    return (
+      windows[Number(page.slice("window:".length))] ??
+      fail(`No ${page} among ${windows.length} app window(s).`)
+    );
+  }
   const wanted = pages.find((target) =>
     page === "onboarding" ? !isAppWindow(target) : isAppWindow(target),
   );

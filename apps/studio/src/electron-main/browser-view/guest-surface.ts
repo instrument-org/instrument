@@ -8,11 +8,11 @@ export interface GuestSurfaceSize {
   width: number;
 }
 
-// What the renderer last reported this window can rasterize in full, in CSS px.
+// What each window's renderer last reported it can rasterize in full, in CSS px.
 // Main cannot derive it: the budget follows the window's content box, which only
-// the renderer measures. Null until the pool reports, which it does as soon as it
-// starts and on every resize after.
-let rasterBudget: GuestSurfaceSize | null = null;
+// the renderer measures. A window has none until its pool reports, which it does
+// as soon as it starts and on every resize after.
+const rasterBudgets = new Map<number, GuestSurfaceSize>();
 
 // What each target's guest has been asked to lay out at while parked. Held here
 // rather than in the renderer so a renderer reload does not silently drop a size
@@ -90,9 +90,12 @@ export function recordEffectiveGuestSurface({
  * Refusing with the maximum lets it ask again for something real.
  */
 export function requestGuestSurface({
+  hostId,
   size,
   targetId,
 }: {
+  /** The window whose renderer mounts the guest, and whose budget it has. */
+  hostId: null | number;
   size: GuestSurfaceSize;
   targetId: BrowserTargetId;
 }): { error: string; ok: false } | { ok: true } {
@@ -106,7 +109,7 @@ export function requestGuestSurface({
     };
   }
 
-  const budget = rasterBudget;
+  const budget = hostId === null ? undefined : rasterBudgets.get(hostId);
   if (!budget) {
     return {
       error:
@@ -130,7 +133,11 @@ export function requestGuestSurface({
   return { ok: true };
 }
 
-/** Renderer-reported budget: 1.3x its content box, per axis. */
-export function setRasterBudget(size: GuestSurfaceSize) {
-  rasterBudget = size;
+/** A window's renderer-reported budget: 1.3x its content box, per axis. */
+export function setRasterBudget(hostId: number, size: GuestSurfaceSize) {
+  rasterBudgets.set(hostId, size);
+}
+
+export function forgetRasterBudget(hostId: number) {
+  rasterBudgets.delete(hostId);
 }

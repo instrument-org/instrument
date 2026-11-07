@@ -11,7 +11,7 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
 import {
@@ -105,5 +105,32 @@ describe("opening into a group", () => {
     expect(router.history.location.pathname).toBe("/apps");
     expect(router.history.length).toBe(2);
     deleteGroupTabRouter(id);
+  });
+});
+
+describe("the tabs a build with one window kept", () => {
+  it("are read as every window keeps them, group by group, tabs with no group among them", async () => {
+    vi.resetModules();
+    const kept = await import("@/client/lib/kept-state");
+    kept.clearKeptState();
+    kept.writeKept("layout", "window-tabs.v9", {
+      activeByGroup: { chat_a: "tab_1" },
+      tabs: [
+        { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
+        { id: "tab_2", kind: "page", openedAt: 2 },
+      ],
+    });
+
+    const { windowTabsAtom: migrated } = await import("./window-tabs");
+
+    expect(createStore().get(migrated)).toEqual({
+      activeByGroup: { chat_a: "tab_1" },
+      tabs: [
+        { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
+        { id: "tab_2", kind: "page", openedAt: 2 },
+      ],
+    });
+    expect(kept.takeKept("layout", "window-tabs.v9")).toBeUndefined();
+    vi.resetModules();
   });
 });

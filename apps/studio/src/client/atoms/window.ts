@@ -1,4 +1,5 @@
 import { type ChosenItem, draftGroupOf, draftOfGroup } from "@/shared/drafts";
+import { COMPOSE_KEY } from "@/shared/kept-state";
 import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
@@ -81,7 +82,7 @@ export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
  * launches, so what was floating when the app quit floats again; the drafts
  * themselves are in `draftsAtom` (`client/drafts/store.ts`).
  */
-export const composeAtom = keptAtom<ComposeEntry[]>("layout", "compose.v2", []);
+export const composeAtom = keptAtom<ComposeEntry[]>("window", COMPOSE_KEY, []);
 
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
 export type AppPlace = "apps" | "browser" | "chat" | "files";
@@ -91,7 +92,7 @@ export type AppPlace = "apps" | "browser" | "chat" | "files";
  * Null for the inbox alone.
  */
 export const chatGroupAtom = keptAtom<null | string>(
-  "layout",
+  "window",
   "chat-group.v2",
   null,
 );
@@ -101,7 +102,7 @@ export const chatGroupAtom = keptAtom<null | string>(
  * rail takes a tab back to it. Null until a tab has been there.
  */
 export const filesFolderAtom = keptAtom<null | string>(
-  "layout",
+  "window",
   "files-folder.v1",
   null,
 );
@@ -116,7 +117,7 @@ export const filesHrefAtom = atom(
  * the window to themselves; it comes back on its own when nothing is left
  * on screen without it.
  */
-export const inboxOpenAtom = keptAtom<boolean>("layout", "inbox-open.v1", true);
+export const inboxOpenAtom = keptAtom<boolean>("window", "inbox-open.v1", true);
 
 /**
  * Whether each group's pane is open, by the chat's id or the draft's

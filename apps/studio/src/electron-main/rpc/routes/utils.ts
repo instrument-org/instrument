@@ -32,7 +32,7 @@ import {
 } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppWindow } from "@/electron-main/windows/app-window";
+import { isOnlyAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { osConventionsFor } from "@/shared/os-conventions";
@@ -41,7 +41,6 @@ import { ExceptionEventSchema } from "@instrument-org/shared/exceptions";
 import { eventIterator } from "@orpc/server";
 import {
   app,
-  BrowserWindow,
   clipboard,
   ClipboardItem,
   dialog,
@@ -122,11 +121,12 @@ async function mailTarget() {
 const shareText = base
   .input(z.object({ text: z.string().min(1) }))
   .output(z.object({ shown: z.boolean() }))
-  .handler(({ input }) => {
+  .handler(({ context, input }) => {
     if (process.platform !== "darwin") {
       return { shown: false };
     }
-    const window = BrowserWindow.getFocusedWindow();
+    // Over the window that asked, which a click in a window behind need not have focused.
+    const window = getCallingWindow(context.webContentsId);
     new ShareMenu({ texts: [input.text] }).popup(window ? { window } : {});
     return { shown: true };
   });
@@ -157,7 +157,7 @@ const showContextMenu = base
     }),
   )
   .output(z.object({ id: z.string().nullable() }))
-  .handler(async ({ input }) => {
+  .handler(async ({ context, input }) => {
     // Held in an object so the close callback below reads what a click wrote:
     // read back off a plain binding, the compiler has it as the initial value.
     const picked: { id: null | string } = { id: null };
@@ -173,7 +173,9 @@ const showContextMenu = base
             },
       ),
     );
-    const window = BrowserWindow.getFocusedWindow();
+    // Over the window that asked, which a right click in a window behind need
+    // not have focused.
+    const window = getCallingWindow(context.webContentsId);
     await new Promise<void>((resolve) => {
       menu.popup({
         // Deferred by a tick: a row's own handler and the close callback are
@@ -472,12 +474,12 @@ const clearException = base
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the band of
 // chrome above the UI, whose visual height scales with that zoom. One setting
-// shared by every window, so every window that draws such a band is moved,
-// whichever one reported it.
+// shared by every window, and each window reports it for itself as it hears
+// of the change.
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
-  .handler(({ input }) => {
-    setTrafficLightForZoom(getAppWindow(), input.zoom);
+  .handler(({ context, input }) => {
+    setTrafficLightForZoom(getCallingWindow(context.webContentsId), input.zoom);
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
@@ -509,21 +511,30 @@ const closeWindow = base.input(z.void()).handler(({ context }) => {
  * follows does not ask again. Where the app stays running without a window,
  * closing one stops nothing and needs no approval.
  */
-const approveWindowClose = base.input(z.void()).handler(async () => ({
-  approved: quitsWithLastWindow ? await requestQuitApproval() : true,
-}));
+const approveWindowClose = base
+  .input(z.void())
+  .handler(async ({ context }) => ({
+    approved:
+      quitsWithLastWindow && isOnlyAppWindow(context.webContentsId)
+        ? await requestQuitApproval()
+        : true,
+  }));
 
 const events = {
-  // Fires whenever the window gains or loses focus. The payload is a timestamp
-  // rather than the focus state: subscribers refetch on it, and a value that
-  // differs every time is what makes the second focus in a row observable.
-  windowFocusChanged: base.handler(async function* ({ signal }) {
-    for await (const _ of publisher.subscribe("window.focus-changed", {
-      signal,
-    })) {
-      yield {
-        focused: Date.now(),
-      };
+  // Fires whenever this window gains focus. The payload is a timestamp rather
+  // than the focus state: subscribers refetch on it, and a value that differs
+  // every time is what makes the second focus in a row observable. Only this
+  // window's own, so a focus does not refetch once per window open.
+  windowFocusChanged: base.handler(async function* ({ context, signal }) {
+    for await (const { webContentsId } of publisher.subscribe(
+      "window.focus-changed",
+      { signal },
+    )) {
+      if (webContentsId === context.webContentsId) {
+        yield {
+          focused: Date.now(),
+        };
+      }
     }
   }),
 };

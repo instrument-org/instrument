@@ -4,7 +4,7 @@ import {
   readAutomaticRestart,
   recordAutomaticInstall,
 } from "../stores/machine/state";
-import { getAppWindow } from "../windows/app-window";
+import { getAppWindows } from "../windows/app-window";
 import { readCaptureInUse } from "./capture-in-use";
 import { type AppUpdaterHandle } from "./create-app-updater";
 import { logger } from "./electron-logger";
@@ -14,6 +14,7 @@ import {
   type IdleRestartTimings,
   type IdleRestartVerdict,
   type RelaunchView,
+  relaunchViewOfWindows,
   stepIdleRestart,
 } from "./idle-restart-policy";
 import {
@@ -238,16 +239,14 @@ export function startIdleRestart({
   schedule();
 }
 
-/** How the app window is left, for the launch the restart ends in. */
+/** How the app windows are left, for the launch the restart ends in. */
 function windowView(): RelaunchView {
-  const window = getAppWindow();
-  if (!window || window.isDestroyed()) {
-    return "hidden";
-  }
-  if (window.isMinimized()) {
-    return "minimized";
-  }
-  return window.isVisible() ? "front" : "hidden";
+  return relaunchViewOfWindows(
+    getAppWindows().map((window) => ({
+      isMinimized: window.isMinimized(),
+      isVisible: window.isVisible(),
+    })),
+  );
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

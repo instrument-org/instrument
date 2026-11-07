@@ -8,6 +8,7 @@ import {
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
+import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
@@ -23,6 +24,8 @@ import {
   selectOrAddTab,
   selectTab,
 } from "@/client/lib/tabs-model";
+import { APP_TABS_KEY } from "@/shared/kept-state";
+import { TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
@@ -63,6 +66,18 @@ export function isSiteHref(href: string): boolean {
  */
 export const putAwaySitesAtom = atom<Record<string, WindowTab[]>>({});
 
+/**
+ * Whether a closed tab is a site with no page left to give it, as one closed before
+ * this launch or in another renderer is.
+ */
+export function isGoneSite(
+  { pathname }: { pathname: string },
+  putAway: Record<string, WindowTab[]>,
+) {
+  const group = isSiteHref(pathname) ? groupOfHref(pathname) : undefined;
+  return group !== undefined && !putAway[group];
+}
+
 /** A fresh group for a site opened at the window's own level. */
 export function newSiteGroup(): string {
   return siteGroupOf(crypto.randomUUID());
@@ -83,7 +98,7 @@ export function siteGroupOf(id: string): string {
  * apps or an app, or a site, kept across launches with each tab's
  * own history.
  */
-export const appTabsAtom = tabsAtomOf("app-tabs.v2", INBOX_HREF);
+export const appTabsAtom = tabsAtomOf(APP_TABS_KEY, INBOX_HREF);
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands
@@ -149,6 +164,33 @@ export function placeOfHref(href: string): AppPlace | undefined {
   }
 }
 
+/** The sites' groups among some addresses. */
+export function siteGroupsOf(hrefs: readonly string[]) {
+  return hrefs.flatMap((href) => {
+    const group = groupOfHref(href);
+    return group !== undefined && isSiteGroup(group) ? [group] : [];
+  });
+}
+
+/**
+ * The sites' groups a tab in another window stands on, closed windows that can
+ * come back included. A tab another window closed is not one of them: that
+ * window has let go of its page, and keeps what it needs to bring it back.
+ */
+export function siteGroupsInOtherWindows() {
+  const models = keptInOtherWindows(APP_TABS_KEY).flatMap((value) => {
+    const model = TabsModelSchema.safeParse(value);
+    return model.success ? [model.data] : [];
+  });
+  return new Set(
+    models.flatMap((model) =>
+      model.tabs.flatMap((tab) =>
+        siteGroupsOf([...(tab.history?.entries ?? []), tab.pathname]),
+      ),
+    ),
+  );
+}
+
 /**
  * The window's tabs and what can be done with them. Navigation inside a tab
  * is its router's; everything about the set of tabs (which is up, their
@@ -156,6 +198,7 @@ export function placeOfHref(href: string): AppPlace | undefined {
  */
 export function useAppTabs() {
   const [model, setModel] = useAtom(appTabsAtom);
+  const putAwaySites = useAtomValue(putAwaySitesAtom);
   const lastChat = useAtomValue(chatGroupAtom);
   const lastFolder = useAtomValue(filesHrefAtom);
   const activeRouter = getTabRouter(model.selectedId);
@@ -281,8 +324,18 @@ export function useAppTabs() {
     openNewTab: () => {
       open(NEW_TAB_HREF);
     },
+    // The tab closed last, or with none to reopen the window closed last, the
+    // way a browser's one chord brings back either.
     reopen: () => {
-      setModel((current) => reopenClosed(current, { id: freshTabId() }));
+      // A site no record is left of has nothing to come back to, here as in the menu.
+      const entry = model.recentlyClosed.findIndex(
+        (tab) => !isGoneSite(tab, putAwaySites),
+      );
+      if (entry === -1) {
+        void rpcClient.window.reopenClosed.call();
+        return;
+      }
+      setModel((current) => reopenClosed(current, { entry, id: freshTabId() }));
     },
     reorder: (ids: TabId[]) => {
       setModel((current) => reorderTabs(current, { ids }));

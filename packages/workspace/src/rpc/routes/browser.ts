@@ -34,15 +34,30 @@ const open = base
     z.object({
       /** Where a tab that comes up blank goes: the address the window remembers it at. */
       restoreUrl: z.string().min(1).optional(),
+      /**
+       * Whether this window takes the page from another that has its guest,
+       * which reloads it here: `parked` unless the other window is showing
+       * it, `always` when the person asked for it here.
+       */
+      take: z.enum(["always", "parked"]).optional(),
       targetId: BrowserTargetIdSchema,
       url: z.string().min(1).optional(),
     }),
   )
   .handler(async ({ context, errors, input }) => {
-    const { restoreUrl, targetId, url } = input;
+    const { restoreUrl, take, targetId, url } = input;
     const partitionDir = getBrowserSessionDir();
     await context.workspaceConfig.browser
-      .createTarget(targetId, partitionDir)
+      .createTarget(
+        targetId,
+        partitionDir,
+        context.webContentsId === undefined
+          ? undefined
+          : {
+              ...(take === undefined ? {} : { take }),
+              webContentsId: context.webContentsId,
+            },
+      )
       .catch((error: unknown) => {
         throw errors.BROWSER_OPEN_FAILED({
           message: error instanceof Error ? error.message : "Unknown error",

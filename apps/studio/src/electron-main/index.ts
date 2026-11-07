@@ -43,6 +43,8 @@ import {
   askAppWindow,
   openAppFile,
   openAppWindow,
+  restoreAppWindows,
+  showInWindowHolding,
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -100,6 +102,7 @@ import {
   requestQuitApproval,
   withdrawQuitApproval,
 } from "./lib/quit";
+import { keepTrapFatal } from "./lib/take-signal";
 import { registerUnattendedQuit } from "./lib/unattended-quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
 import { getWorkspaceRun } from "./lib/workspace-run";
@@ -222,6 +225,7 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  keepTrapFatal();
   registerUnattendedQuit();
 
   // A workspace this build will not open is said in a window of its own, and
@@ -440,7 +444,7 @@ async function bootstrapPrimaryInstance() {
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).
   await setupStateKnown();
-  openAppWindow();
+  restoreAppWindows();
 
   // Let the initial window render before running the best-effort cache warmup.
   setTimeout(() => {
@@ -519,6 +523,9 @@ function focusForegroundWindow() {
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
     ask: (ask) => {
+      if (ask.type === "openScreen" && showInWindowHolding(ask.href)) {
+        return;
+      }
       focusForegroundWindow();
       askAppWindow(ask);
     },

@@ -14,7 +14,7 @@ import {
 import { useAtomValue } from "jotai";
 
 import { appTabsAtom, groupOfHref, isSiteGroup } from "./app-tabs";
-import { hostGroupOf } from "./hosted-page";
+import { hostGroupOf } from "./window-tabs";
 import {
   NOWHERE,
   type StepDirection,

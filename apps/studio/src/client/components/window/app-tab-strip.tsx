@@ -14,21 +14,26 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { displayPath } from "@/client/lib/path-utils";
+import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { expandHomePath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { XIcon } from "@phosphor-icons/react/X";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 import { INBOX_HREF } from "./app-tabs";
 import { ChatMarkIcon } from "./chat-mark";
@@ -45,7 +50,17 @@ import {
   segmentsOf,
 } from "./host-path";
 import { siteTabTitles } from "./site-tab-titles";
+import { useTabCarry } from "./use-tab-carry";
 import { type StripTab, TabStrip } from "./tab-strip";
+import { moveTabOut } from "./move-tab";
+import {
+  measureCarryIndex,
+  stripIndexAt,
+  tabCarryIndexAtom,
+  tabCarryViewAtom,
+  tabsInView,
+  useTabCarryView,
+} from "./tab-carry-view";
 import { matchScreen } from "./window-href";
 
 /**
@@ -94,7 +109,20 @@ export function AppTabStrip({
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
-  const whole = tabs.map((tab) => ({
+  useTabCarryView();
+  const carryView = useAtomValue(tabCarryViewAtom);
+  const carryIndex = useAtomValue(tabCarryIndexAtom);
+  // Measured from the strip as drawn, so the tab comes to rest where the
+  // pointer is once it has joined the strip, moved or not.
+  useLayoutEffect(() => {
+    measureCarryIndex(carryView, tabs);
+  }, [carryView, carryIndex, tabs]);
+  const shownTabs = tabsInView(tabs, carryView, carryIndex);
+  const incoming = carryView.kind === "incoming" ? carryView : undefined;
+  const shownSelectedId = incoming ? incoming.tab.id : selectedId;
+  const heldHere = carryView.kind === "reshaping" ? carryView.held : incoming;
+
+  const whole = shownTabs.map((tab) => ({
     key: tab.id,
     ...presentationOf(tab.pathname || INBOX_HREF),
   }));
@@ -103,12 +131,12 @@ export function AppTabStrip({
   const short = siteTabTitles(whole);
   const presented = whole.map(({ url: _url, ...tab }, index) => {
     const { dot, isWorking } = chatTabMark(
-      tabs[index]?.pathname || INBOX_HREF,
+      shownTabs[index]?.pathname || INBOX_HREF,
       chatMarks,
-      { isUp: tab.key === selectedId },
+      { isUp: tab.key === shownSelectedId },
     );
     const tooltip = tabTooltip(
-      tabs[index]?.pathname || INBOX_HREF,
+      shownTabs[index]?.pathname || INBOX_HREF,
       whole[index],
     );
     return {
@@ -127,10 +155,53 @@ export function AppTabStrip({
     document.title = selectedTitle ?? APP_NAME;
   }, [selectedTitle]);
 
+  const reorderKeys = (keys: string[]) => {
+    onReorder(
+      keys.flatMap((key) => {
+        const id = idOf(key);
+        return id ? [id] : [];
+      }),
+    );
+  };
+
+  const carry = useTabCarry({
+    isOnlyTab: tabs.length === 1,
+    onCancel: (keys) => {
+      reorderKeys(keys);
+    },
+    onPlace: (key, left) => {
+      const id = idOf(key);
+      if (id) {
+        const others = tabs.filter((tab) => tab.id !== id);
+        const at = stripIndexAt(left, others, id);
+        if (tabs[at]?.id !== id) {
+          reorderKeys(others.map((tab) => tab.id).toSpliced(at, 0, id));
+        }
+      }
+    },
+    onSelect: (key) => {
+      const id = idOf(key);
+      if (id) {
+        onSelect(id);
+      }
+    },
+    order: presented.map((tab) => tab.key),
+  });
+
   return (
-    <>
+    <div className="contents" data-app-tab-strip="">
       <TabStrip
+        carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
+        heldAt={
+          heldHere
+            ? {
+                key: heldHere.tab.id,
+                left: heldHere.clientX - heldHere.pointInTab,
+              }
+            : carry.held
+        }
+        isStill={carryView.kind === "reshaping"}
         onClose={(key) => {
           const id = idOf(key);
           if (id) {
@@ -152,21 +223,16 @@ export function AppTabStrip({
           />
         }
         onNew={onNew}
-        onReorder={(keys) => {
-          onReorder(
-            keys.flatMap((key) => {
-              const id = idOf(key);
-              return id ? [id] : [];
-            }),
-          );
-        }}
         onSelect={(key) => {
           const id = idOf(key);
           if (id) {
             onSelect(id);
           }
         }}
-        selectedKey={selectedId ?? undefined}
+        onTabDrag={carry.onDrag}
+        onTabDragEnd={carry.onDragEnd}
+        onTabDragStart={carry.onDragStart}
+        selectedKey={shownSelectedId ?? undefined}
         tabs={presented}
       />
       {/* The menu a right click on a tab raises, anchored at the pointer:
@@ -202,7 +268,7 @@ export function AppTabStrip({
           />
         )}
       </DropdownMenu>
-    </>
+    </div>
   );
 }
 
@@ -293,6 +359,9 @@ function TabMenu({
   onDuplicate: (id: TabId) => void;
   reload: (() => void) | undefined;
 }) {
+  const others = useQuery(
+    rpcClient.window.live.others.experimental_liveOptions(),
+  ).data;
   const isDeveloperMode = useDeveloperMode();
   const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
 
@@ -317,6 +386,47 @@ function TabMenu({
         <NewTabIcon className="size-4" />
         <span>Duplicate Tab</span>
       </DropdownMenuItem>
+      {others && others.length > 0 ? (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <AppWindowIcon className="size-4" />
+            <span>Move Tab to Another Window</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {isOnly ? null : (
+              <>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void moveTabOut(id, { kind: "new" });
+                  }}
+                >
+                  <span>New Window</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {others.map((other) => (
+              <DropdownMenuItem
+                key={other.id}
+                onClick={() => {
+                  void moveTabOut(id, { id: other.id, kind: "window" });
+                }}
+              >
+                <span className="truncate">{other.title}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      ) : isOnly ? null : (
+        <DropdownMenuItem
+          onClick={() => {
+            void moveTabOut(id, { kind: "new" });
+          }}
+        >
+          <AppWindowIcon className="size-4" />
+          <span>Move Tab to New Window</span>
+        </DropdownMenuItem>
+      )}
       {/* A site's page shows nothing developer mode adds, so only a
           screen's tab offers it. */}
       {isDeveloperMode && !reload && (

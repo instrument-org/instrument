@@ -98,10 +98,8 @@ import {
   promptDraftRefAtom,
   releasePromptDraftRefAtom,
   removeTransientDraft,
-  storedWordsAtom,
-  typedWordsAtom,
 } from "../atoms/prompt-value";
-import { flushWords } from "../drafts/settle-words";
+import { useComposerWords } from "../drafts/use-composer-words";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -322,30 +320,8 @@ export const PromptInput = ({
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // The words the editor shows, which reach the draft a beat after they are
-  // typed. The editor reads its text once, at mount, from what the draft has,
-  // and every edit after that comes back through `onChange`; a composer moved
-  // onto another draft starts again from that one's.
   const draftKeyed = draftKeyString(draftKey);
-  const storedWords = useAtomValue(storedWordsAtom(draftKey));
-  const typeWords = useSetAtom(typedWordsAtom);
-  const [shown, setShown] = useState({ key: draftKeyed, words: storedWords });
-  if (shown.key !== draftKeyed) {
-    setShown({ key: draftKeyed, words: storedWords });
-  }
-  const value = shown.key === draftKeyed ? shown.words : storedWords;
-  const setValue = (words: string) => {
-    setShown({ key: draftKeyed, words });
-    typeWords({ key: draftKey, words });
-  };
-  // A composer going, or moving onto another draft, writes what it was
-  // typed into at once: the next one to show that draft starts from it.
-  useEffect(
-    () => () => {
-      flushWords(draftKeyed);
-    },
-    [draftKeyed],
-  );
+  const { setValue, value } = useComposerWords(draftKey, promptEditorRef);
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
   const releaseInputRef = useSetAtom(releasePromptDraftRefAtom);
   const appendDictation = useSetAtom(appendDictationToPromptAtom);

@@ -69,6 +69,7 @@ const WINDOW_GROUPS: Record<
   lastTab: "Tabs",
   newChat: "General",
   newTab: "Tabs",
+  newWindow: "General",
   nextChat: "Chats",
   nextTab: "Tabs",
   previousChat: "Chats",

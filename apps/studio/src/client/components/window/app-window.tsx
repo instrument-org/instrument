@@ -34,10 +34,12 @@ import {
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
+import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-switch";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
+import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -48,6 +50,7 @@ import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
+import { restoreTabView } from "@/client/lib/tab-view-state";
 import { setTabPathname } from "@/client/lib/tabs-model";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
@@ -93,8 +96,11 @@ import {
   pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
+  siteGroupsInOtherWindows,
+  siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
+import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
@@ -133,12 +139,32 @@ import {
   chatOfHref,
   matchScreen,
   newChatHref,
+  sameHref,
 } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
+import {
+  forgetMovedAway,
+  hasMovedAway,
+  moveTabOut,
+  receiveTab,
+} from "./move-tab";
+import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
+
+/** The drafts floating in what another window kept of its floating windows. */
+function floatingDraftIdsOf(kept: unknown): string[] {
+  return (Array.isArray(kept) ? (kept as unknown[]) : []).flatMap((entry) =>
+    typeof entry === "object" &&
+    entry !== null &&
+    "draftId" in entry &&
+    typeof entry.draftId === "string"
+      ? [entry.draftId]
+      : [],
+  );
+}
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -260,6 +286,7 @@ function AppTabView({
   // somewhere on screen by then (the tab strip's own arrows, a field a
   // command opened).
   const lastFocused = useRef<HTMLElement | null>(null);
+  const arrivesWithFocus = Boolean(tab.arrivingView?.focus);
   useEffect(() => {
     if (!isActive) {
       return;
@@ -273,7 +300,7 @@ function AppTabView({
         opacityProperty: true,
         visibilityProperty: true,
       });
-    if (isOnScreen) {
+    if (isOnScreen || arrivesWithFocus) {
       return;
     }
     if (kept?.isConnected) {
@@ -281,7 +308,7 @@ function AppTabView({
     } else {
       focusScreenHome({ leaving: false });
     }
-  }, [isActive]);
+  }, [arrivesWithFocus, isActive]);
   useEffect(() => {
     const unsubscribe = router.subscribe("onResolved", () => {
       setModel((model) =>
@@ -296,8 +323,32 @@ function AppTabView({
       unsubscribe();
     };
   }, [router, setModel, tab.id]);
+  // Arriving from another window: its keyboard and scrolling go back as what
+  // they stood on comes in, and only then is the tab drawn as it was.
+  const arrivingView = tab.arrivingView;
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!arrivingView || !root) {
+      return;
+    }
+    return restoreTabView(root, arrivingView, () => {
+      setModel((model) => ({
+        ...model,
+        tabs: model.tabs.map((each) => {
+          if (each.id !== tab.id) {
+            return each;
+          }
+          const { arrivingView: _done, ...rest } = each;
+          return rest;
+        }),
+      }));
+    });
+  }, [arrivingView, setModel, tab.id]);
   return (
     <div
+      ref={rootRef}
+      data-app-tab-view={tab.id}
       className={cn(
         "absolute inset-0 flex",
         // Transparent as well as invisible, so a layer the compositor
@@ -335,11 +386,6 @@ function focusField() {
   field?.select();
 }
 
-/**
- * Whether a draft holds anything: words, or something pasted or attached
- * into it. What keeps it past its window, and what a draft has to have to be
- * one to come back to.
- */
 function WindowShell({
   routers,
   tabs,
@@ -350,6 +396,7 @@ function WindowShell({
   const appTabs = useAppTabs();
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
+  useRefetchOnWindowSwitch();
   useEffect(() => installKeyboardHome(), []);
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it.
@@ -456,24 +503,31 @@ function WindowShell({
   // unless its window came back with it. A window whose draft is gone goes.
   // Once, over what was restored.
   useEffect(() => {
-    const floating = new Set(
-      compose.entries.flatMap((entry) =>
+    // Another window's are as much its own as this one's are this one's.
+    const floating = new Set([
+      ...compose.entries.flatMap((entry) =>
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
-    );
+      ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
+    ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
     const isKept = (draft: Draft) =>
       draft.chatId !== undefined ||
       holdsSomething(draft) ||
       floating.has(draft.id);
-    // A draft's folder goes with it, and what was pasted into it.
-    for (const draft of drafts) {
-      if (!isKept(draft)) {
-        windowTabs.dropGroup(draftGroupOf(draft.id));
-        removeDraft(draft.id);
+    // A draft's folder goes with it, and what was pasted into it. Once a launch,
+    // since a window opening later finds another's new chat box as empty as these.
+    void rpcClient.window.takeLaunchSweep.call().then((isFirstUp) => {
+      if (isFirstUp) {
+        for (const draft of drafts) {
+          if (!isKept(draft)) {
+            windowTabs.dropGroup(draftGroupOf(draft.id));
+            removeDraft(draft.id);
+          }
+        }
       }
-    }
+    });
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -494,6 +548,7 @@ function WindowShell({
   // record is put aside for as long as Shift+Cmd+T can reopen the tab, which
   // brings the page back at its address.
   const setPutAway = useSetAtom(putAwaySitesAtom);
+  const sitesHeldHere = useRef(new Set<string>());
   const siteGroups = [
     ...new Set(
       windowTabs.allTabs.flatMap((tab) =>
@@ -502,15 +557,10 @@ function WindowShell({
     ),
   ].join("\n");
   useEffect(() => {
-    const groupsOf = (hrefs: string[]) =>
-      hrefs.flatMap((href) => {
-        const group = groupOfHref(href);
-        return group !== undefined && isSiteGroup(group) ? [group] : [];
-      });
     const open = new Set(
       appTabs.model.tabs.flatMap((tab) => {
         const router = routers.get(tab.id);
-        return groupsOf([
+        return siteGroupsOf([
           ...(router
             ? getRouterHistory(router).entries
             : (tab.history?.entries ?? [])),
@@ -520,28 +570,31 @@ function WindowShell({
     );
     const reopenable = new Set(
       appTabs.model.recentlyClosed.flatMap((tab) =>
-        groupsOf([...(tab.history?.entries ?? []), tab.pathname]),
+        siteGroupsOf([...(tab.history?.entries ?? []), tab.pathname]),
       ),
     );
-    const leaving = siteGroups
-      .split("\n")
-      .filter((group) => group && !open.has(group));
-    setPutAway((current) => {
-      const next: typeof current = {};
-      // Kept while a closed tab can bring it back, or while an open one is
-      // on its way to (the site's view takes it back itself).
-      for (const [group, stashed] of Object.entries(current)) {
-        if (reopenable.has(group) || open.has(group)) {
-          next[group] = stashed;
-        }
-      }
-      for (const group of leaving) {
-        if (reopenable.has(group)) {
-          next[group] = windowTabs.allTabs.filter((tab) => tab.group === group);
-        }
-      }
-      return next;
-    });
+    for (const group of open) {
+      sitesHeldHere.current.add(group);
+      forgetMovedAway(group);
+    }
+    const noLongerHere = sitesNoLongerHere(
+      siteGroups.split("\n").filter(Boolean),
+      open,
+      sitesHeldHere.current,
+    );
+    const leaving =
+      noLongerHere.length === 0
+        ? []
+        : sitesLeaving(noLongerHere, siteGroupsInOtherWindows(), hasMovedAway);
+    setPutAway((current) =>
+      sitesPutAway(current, {
+        noLongerHere,
+        open,
+        recordOf: (group) =>
+          windowTabs.allTabs.filter((tab) => tab.group === group),
+        reopenable,
+      }),
+    );
     for (const group of leaving) {
       windowTabs.dropGroup(group);
     }
@@ -801,9 +854,23 @@ function WindowShell({
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
       },
+      // The tab already there comes up rather than a second of the same.
       openScreen: (href) => {
-        openScreen(href, { newTab: true });
+        const there = appTabs.model.tabs.find((tab) =>
+          sameHref(tab.pathname, href),
+        );
+        if (there) {
+          appTabs.select(there.id);
+        } else {
+          openScreen(href, { newTab: true });
+        }
       },
+      moveTabToNewWindow: () => {
+        if (appTabs.model.selectedId) {
+          void moveTabOut(appTabs.model.selectedId, { kind: "new" });
+        }
+      },
+      receiveTab,
       reopenTab: appTabs.reopen,
       search: focusField,
       selectRelative: appTabs.selectRelative,

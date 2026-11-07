@@ -10,9 +10,34 @@
  * bookmarks: they are a synced store every device writes its own file of
  * (`shared/bookmarks.ts`).
  */
-export const KEPT_FILES = ["layout", "view"] as const;
+export const SHARED_KEPT_FILES = ["layout", "view"] as const;
+
+/**
+ * What one window keeps for itself, where the others keep their own: its
+ * strip of tabs and what it had up. A key of `layout` and `view` is the same
+ * for every window, and each window's write reaches the others; a key of
+ * `window` goes with the window it was written in.
+ */
+export const WINDOW_KEPT_FILE = "window";
+
+const KEPT_FILES = [...SHARED_KEPT_FILES, WINDOW_KEPT_FILE] as const;
 
 export type KeptFile = (typeof KEPT_FILES)[number];
+
+/** The key a window keeps its strip of tabs under. */
+export const APP_TABS_KEY = "app-tabs.v2";
+
+/** The key a window keeps its floating drafts and chats under. */
+export const COMPOSE_KEY = "compose.v2";
+
+/** The keys an earlier build kept for its one window in `layout`, which the first window takes as its own. */
+export const WINDOW_KEPT_KEYS = [
+  APP_TABS_KEY,
+  "chat-group.v2",
+  COMPOSE_KEY,
+  "files-folder.v1",
+  "inbox-open.v1",
+] as const;
 
 /** Every kept file's keys and values, as a window loads them. */
 export type KeptSnapshot = Partial<Record<KeptFile, Record<string, unknown>>>;
@@ -24,11 +49,35 @@ export function isKeptFile(file: unknown): file is KeptFile {
 /**
  * The IPC channels between a window and the kept state: `load` is the
  * preload's synchronous read of every file, `set` a window's write of one key
- * (`undefined` removes it), and `changed` the main process telling the other
- * windows about a write.
+ * (`undefined` removes it), `changed` the main process telling the other
+ * windows about a write, and `otherWindows` a synchronous read of one key of
+ * `window` as every other window kept it, closed ones that can come back
+ * included.
  */
 export const KEPT_STATE_CHANNEL = {
+  otherWindows: "kept-state:other-windows",
   changed: "kept-state:changed",
   load: "kept-state:load",
   set: "kept-state:set",
 } as const;
+
+/** The window tabs, kept a group at a time under this key. */
+export const WINDOW_TABS_KEY = "window-tabs.v10";
+
+/** The group of a page drawn inside a surface of one window, such as a file's page in its viewer. */
+export const HOSTED_PAGE_GROUP_PREFIX = "page:";
+
+/**
+ * Which file a group of window tabs is kept in. A chat's or a site's belong to it
+ * whichever window shows it. A page drawn inside a surface is that window's alone,
+ * made when the surface comes and closed when it goes, so another window showing
+ * the same tab draws a page of its own and is not left blank by this one's going.
+ */
+export function fileOfTabGroup(group: string): KeptFile {
+  return group.startsWith(HOSTED_PAGE_GROUP_PREFIX) ? "window" : "layout";
+}
+
+/** Whether a key a window keeps is the tab of a page drawn inside its surfaces, which goes with no other window. */
+export function isHostedPageKey(key: string) {
+  return key.startsWith(`${WINDOW_TABS_KEY}/${HOSTED_PAGE_GROUP_PREFIX}`);
+}

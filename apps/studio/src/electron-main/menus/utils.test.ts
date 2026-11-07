@@ -57,6 +57,15 @@ function bar(menus: MenuItemConstructorOptions[]) {
 }
 
 describe("the app menu and the Window menu", () => {
+  it("off the Mac, is only the items it is given, with none of Electron's chords", async () => {
+    const { createWindowMenu } = await menusOn("linux");
+    const items = [{ label: "Merge All Windows" }];
+    expect(createWindowMenu(items)).toEqual([
+      { label: "Window", submenu: items },
+    ]);
+    expect(createWindowMenu()).toEqual([]);
+  });
+
   it("put the app's rows where each system keeps them, binding only its own chords", async () => {
     const menus: Record<string, unknown> = {};
     for (const platform of ["darwin", "win32", "linux"] as const) {

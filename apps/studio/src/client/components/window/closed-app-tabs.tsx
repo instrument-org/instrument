@@ -8,6 +8,7 @@ import { type ReactNode } from "react";
 import {
   appTabsAtom,
   groupOfHref,
+  isGoneSite,
   INBOX_HREF,
   isChatHref,
   isSiteHref,
@@ -98,10 +99,7 @@ export function useClosedAppTabs(names: {
     if (matchScreen(tab.pathname || INBOX_HREF).kind === "newTab") {
       return [];
     }
-    const group = isSiteHref(tab.pathname)
-      ? groupOfHref(tab.pathname)
-      : undefined;
-    return group !== undefined && !putAway[group] ? [] : [{ entry, tab }];
+    return isGoneSite(tab, putAway) ? [] : [{ entry, tab }];
   });
   return {
     closed: reopenable.map(({ tab }) =>
@@ -109,7 +107,7 @@ export function useClosedAppTabs(names: {
     ),
     /**
      * Whether the first of `closed` is the tab Reopen Closed Tab brings back,
-     * which takes the newest closed whether or not it is listed.
+     * which takes the newest closed that can come back, listed or not.
      */
     firstIsReopenedByKey: reopenable[0]?.entry === 0,
     /** Brings one back, up, by its place in `closed`. */

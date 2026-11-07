@@ -29,3 +29,26 @@ export function takeSignal(
   }
   target.on(signal, listener);
 }
+
+/**
+ * Leaves SIGTRAP ending the process, whatever a library would rather. Chromium
+ * ends the main process on purpose when it cannot go on, as when the GPU process
+ * is gone for good, and on arm64 it does that with a breakpoint, which raises
+ * SIGTRAP. Libraries that run code on every way out (`when-exit`, `signal-exit`)
+ * listen for it. With any listener, libuv's handler takes the trap, queues a
+ * message for a loop that will never run again, and returns to the same
+ * breakpoint, so the main thread spins for good and no JavaScript runs to end it.
+ */
+export function keepTrapFatal(
+  target: Pick<NodeJS.Process, "on" | "removeAllListeners"> = process,
+) {
+  target.removeAllListeners("SIGTRAP");
+  target.on("newListener", (event: string | symbol) => {
+    if (event === "SIGTRAP") {
+      // A new listener is added only after this event.
+      queueMicrotask(() => {
+        target.removeAllListeners("SIGTRAP");
+      });
+    }
+  });
+}

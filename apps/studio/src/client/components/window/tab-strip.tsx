@@ -16,20 +16,23 @@ import {
   animate,
   cancelFrame,
   frame,
+  motion,
   Reorder,
   useMotionValue,
   useReducedMotion,
 } from "motion/react";
 import {
+  type ComponentProps,
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
-import { EDGE_FADE, useEdgeFade } from "./use-edge-fade";
+import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 
 /** A tab on the strip: what it is called and what stands for it. */
 export interface StripTab {
@@ -110,9 +113,10 @@ const TAB_MOTION = {
 
 // What the tab being read stands on: the page's own surface, lifted off the
 // bar as a card, the way a browser draws its selected tab. A tint of
-// the bar's own hue sat too close to the bar to read as chosen.
+// the bar's own hue sat too close to the bar to read as chosen. A strip on
+// another ground names its own in `--tab-selected`.
 const SELECTED = {
-  backgroundColor: "var(--background)",
+  backgroundColor: "var(--tab-selected, var(--background))",
 } satisfies React.CSSProperties;
 
 // What a tab stands on while it is being carried over the others.
@@ -124,6 +128,11 @@ const CARRIED = {
 // tab's shadow, which a row exactly as tall as its tabs would slice flat.
 const TAB_ROW =
   "flex min-w-0 flex-1 items-center gap-1 overflow-clip [overflow-clip-margin:4px]";
+
+// The room around the tabs inside a scrolling row, the `p-1` it draws, in layout
+// px. A scroller clips at its padding edge whatever `overflow-clip-margin` says,
+// so a row exactly as tall as its tabs would slice the selected tab's shadow flat.
+const SCROLL_ROOM = 4;
 
 interface StripLayout {
   density: TabDensity;
@@ -139,8 +148,10 @@ type TabDensity = "compact" | "full" | "icon";
  * the row each, compressing together to icons rather than scrolling, the one
  * being read held wide enough for its name and close, dragged to reorder,
  * closed by the middle button or the cross, and arriving and leaving with a
- * motion rather than a jump. The browser and This Mac both draw theirs with
- * it, so a tab is one thing across the window.
+ * motion rather than a jump. With `overflow="scroll"` each tab keeps the width
+ * its name needs and the row scrolls sideways instead, keeping the tab up in
+ * view. The window's bar and a chat's pane both draw theirs with it, so a tab
+ * is one thing across the window.
  */
 export function TabStrip({
   carriedKey,
@@ -148,6 +159,8 @@ export function TabStrip({
   className,
   groupKey,
   isStill,
+  label = "Open tabs",
+  newControl,
   onClose,
   onContextMenu,
   newMenu,
@@ -157,6 +170,7 @@ export function TabStrip({
   onTabDrag,
   onTabDragEnd,
   onTabDragStart,
+  overflow = "compress",
   selectedKey,
   tabs,
 }: {
@@ -170,6 +184,10 @@ export function TabStrip({
   groupKey?: string;
   /** The tabs are changing with nobody to see it, so nothing comes or goes with a motion. */
   isStill?: boolean;
+  /** What the row is called to a screen reader. */
+  label?: string;
+  /** Drawn where the plus is, for a strip whose new tab is a choice: a menu's trigger around `NewTabButton`. */
+  newControl?: ReactNode;
   onClose: (key: string) => void;
   /** A right click on a tab, for a menu the caller draws. */
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
@@ -184,22 +202,41 @@ export function TabStrip({
   onTabDragEnd?: (key: string, event: PointerEvent) => void;
   /** A tab's drag has started, `moved` px along from where it was pressed. */
   onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
+  /** Past the row's room, tabs compress toward icons, or keep their width and the row scrolls. */
+  overflow?: "compress" | "scroll";
   selectedKey: string | undefined;
   tabs: StripTab[];
 }) {
-  const hasNew = onNew !== undefined;
+  const scrolls = overflow === "scroll";
+  const plus =
+    newControl ??
+    (onNew ? (
+      <ContextMenu>
+        <ToolbarTooltip chord="newTab" label="New tab">
+          <ContextMenuTrigger asChild disabled={newMenu === undefined}>
+            <NewTabButton onClick={onNew} />
+          </ContextMenuTrigger>
+        </ToolbarTooltip>
+        {newMenu}
+      </ContextMenu>
+    ) : null);
+  const hasNew = plus !== null;
   const fixedTabs = tabs.filter((tab) => tab.isFixed);
   const movableTabs = tabs.filter((tab) => !tab.isFixed);
   const movableKeys = movableTabs.map((tab) => tab.key);
   const orderedKeys = tabs.map((tab) => tab.key);
   const prefersReducedMotion = useReducedMotion();
 
+  const rowRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const [draggingKey, setDraggingKey] = useState<string>();
-  useEdgeFade(areaRef, {
-    lifted: draggingKey === undefined ? undefined : '[role="tab"]',
-  });
+  let lifted: string | undefined;
+  if (draggingKey !== undefined) {
+    lifted = scrolls ? `[data-tab-key="${draggingKey}"]` : '[role="tab"]';
+  }
+  useEdgeFade(scrolls ? scrollerRef : areaRef, { lifted, scrolls });
   const [closing, setClosing] = useState<{ index: number; tab: StripTab }[]>(
     [],
   );
@@ -209,8 +246,9 @@ export function TabStrip({
   // a menu, or anything else that closed it.
   const [seen, setSeen] = useState(movableTabs);
   const [group, setGroup] = useState(groupKey);
-  const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
-    useState(() => stripLayout(0, movableTabs.length, fixedTabs.length));
+  const [measuredLayout, setLayout] = useState(() =>
+    stripLayout(0, movableTabs.length, fixedTabs.length),
+  );
 
   const isListChanged =
     movableKeys.length !== seen.length ||
@@ -282,11 +320,15 @@ export function TabStrip({
   const collapsingKeys = new Set(collapsing.map(({ tab }) => tab.key));
   const drawnCount = movableTabs.length + collapsing.length;
   const fixedCount = fixedTabs.length;
+  // A row that scrolls has room for every tab at its full width.
+  const { density, fixedIsNamed, selectedDensity, visibleCount } = scrolls
+    ? stripLayout(0, drawnCount, fixedCount)
+    : measuredLayout;
 
   useLayoutEffect(() => {
     const strip = stripRef.current;
     const area = areaRef.current;
-    if (!strip || !area) {
+    if (scrolls || !strip || !area) {
       return;
     }
     const apply = () => {
@@ -317,7 +359,41 @@ export function TabStrip({
     return () => {
       observer.disconnect();
     };
-  }, [drawnCount, fixedCount, hasNew]);
+  }, [drawnCount, fixedCount, hasNew, scrolls]);
+
+  // A scrolling row keeps the tab up in view, gliding to it as it changes or a
+  // tab opens, and again once an opening tab has grown to its width.
+  useEffect(() => {
+    if (!scrolls) {
+      return;
+    }
+    showTab(scrollerRef.current, selectedKey, "smooth");
+    const timer = setTimeout(() => {
+      showTab(scrollerRef.current, selectedKey, "smooth");
+    }, TAB_MOTION_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [scrolls, selectedKey, tabs.length]);
+  const showSelectedAtOnce = useEffectEvent(() => {
+    showTab(scrollerRef.current, selectedKey, "instant");
+  });
+  // A narrower row would otherwise slide its end over the selected tab's far
+  // side. This watches the row rather than the scroller, whose width also
+  // follows the tabs, so that a tab opening still glides into view.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!scrolls || !row) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      showSelectedAtOnce();
+    });
+    observer.observe(row);
+    return () => {
+      observer.disconnect();
+    };
+  }, [scrolls]);
 
   // The run of tabs there is room for, kept over the selection.
   const selectedIndex = movableKeys.indexOf(selectedKey ?? "");
@@ -362,14 +438,103 @@ export function TabStrip({
     }
   };
 
+  const reorderGroup = (
+    <Reorder.Group
+      as="div"
+      axis="x"
+      className={
+        scrolls ? "flex shrink-0 items-center gap-1" : cn(TAB_ROW, EDGE_FADE)
+      }
+      onReorder={(keys: string[]) => {
+        onReorder?.([
+          ...movableKeys.slice(0, start),
+          ...keys.filter((key) => !collapsingKeys.has(key)),
+          ...movableKeys.slice(start + liveCount),
+        ]);
+      }}
+      ref={areaRef}
+      role="none"
+      values={drawnKeys}
+    >
+      {drawnTabs.map(({ isClosing, tab }, index) => (
+        <Tab
+          density={tab.key === selectedKey ? selectedDensity : density}
+          isArriving={arriving.includes(tab.key)}
+          isCarried={carriedKey === tab.key}
+          isClosing={isClosing}
+          isDragging={draggingKey === tab.key}
+          isScrolled={scrolls}
+          isStill={isStill}
+          isPlacedByOwner={onReorder === undefined}
+          isReordering={isReordering}
+          {...(heldAt?.key === tab.key ? { heldLeft: heldAt.left } : {})}
+          isSelected={tab.key === selectedKey}
+          key={tab.key}
+          nextIsSelected={drawnKeys[index + 1] === selectedKey}
+          onClose={() => {
+            // A tab already on its way out is not closed twice: the
+            // second close would keep it collapsing rather than gone.
+            if (isClosing) {
+              return;
+            }
+            onClose(tab.key);
+          }}
+          onContextMenu={(event) => {
+            onContextMenu?.(tab.key, event);
+          }}
+          onDrag={(event) => {
+            if (event instanceof PointerEvent) {
+              onTabDrag?.(tab.key, event);
+            }
+          }}
+          onDragEnd={(event) => {
+            setDraggingKey(undefined);
+            // The selected tab's new place may be past the row's end.
+            // Dropping any other tab leaves the row where it is.
+            if (scrolls && tab.key === selectedKey) {
+              showTab(scrollerRef.current, tab.key, "smooth");
+            }
+            if (event instanceof PointerEvent) {
+              onTabDragEnd?.(tab.key, event);
+            }
+          }}
+          onDragStart={(event, moved) => {
+            setDraggingKey(tab.key);
+            if (event instanceof PointerEvent) {
+              onTabDragStart?.(tab.key, event, moved);
+            }
+          }}
+          onSelect={() => {
+            onSelect(tab.key);
+          }}
+          onSelectRelative={(direction) => {
+            selectRelative(tab.key, direction);
+          }}
+          // The last tab keeps its hairline against the new-tab control,
+          // so the control reads as part of the row rather than adrift.
+          showSeparator={index < drawnTabs.length - 1 || hasNew}
+          tab={tab}
+          value={tab.key}
+        />
+      ))}
+      {/* Inside the row rather than after it, so it sits against the last
+          tab while the tabs are short of the row and is pushed to the end
+          once they fill it. It is not one of the values, so the drag
+          never counts it. A scrolling row has it after the scroller, where
+          it stays in view. */}
+      {scrolls ? null : plus}
+    </Reorder.Group>
+  );
+
   return (
     <div
       className={cn("flex h-10 shrink-0 items-center gap-1 px-2", className)}
+      ref={rowRef}
       style={TAB_MOTION}
     >
       <div
-        aria-label="Open tabs"
-        className={TAB_ROW}
+        aria-label={label}
+        className={scrolls ? "flex min-w-0 flex-1 items-center gap-1" : TAB_ROW}
         data-density={density}
         data-tab-count={tabs.length}
         ref={stripRef}
@@ -397,102 +562,84 @@ export function TabStrip({
             tab={tab}
           />
         ))}
-        <Reorder.Group
-          as="div"
-          axis="x"
-          className={cn(TAB_ROW, EDGE_FADE)}
-          onReorder={(keys: string[]) => {
-            onReorder?.([
-              ...movableKeys.slice(0, start),
-              ...keys.filter((key) => !collapsingKeys.has(key)),
-              ...movableKeys.slice(start + liveCount),
-            ]);
-          }}
-          ref={areaRef}
-          role="none"
-          values={drawnKeys}
-        >
-          {drawnTabs.map(({ isClosing, tab }, index) => (
-            <Tab
-              density={tab.key === selectedKey ? selectedDensity : density}
-              isArriving={arriving.includes(tab.key)}
-              isCarried={carriedKey === tab.key}
-              isClosing={isClosing}
-              isDragging={draggingKey === tab.key}
-              isStill={isStill}
-              isPlacedByOwner={onReorder === undefined}
-              isReordering={isReordering}
-              {...(heldAt?.key === tab.key ? { heldLeft: heldAt.left } : {})}
-              isSelected={tab.key === selectedKey}
-              key={tab.key}
-              nextIsSelected={drawnKeys[index + 1] === selectedKey}
-              onClose={() => {
-                // A tab already on its way out is not closed twice: the
-                // second close would keep it collapsing rather than gone.
-                if (isClosing) {
-                  return;
-                }
-                onClose(tab.key);
-              }}
-              onContextMenu={(event) => {
-                onContextMenu?.(tab.key, event);
-              }}
-              onDrag={(event) => {
-                if (event instanceof PointerEvent) {
-                  onTabDrag?.(tab.key, event);
+        {scrolls ? (
+          <>
+            <motion.div
+              className={cn(
+                "-m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1",
+                EDGE_FADE,
+              )}
+              layoutScroll
+              // Refusing a middle press takes its mousedown with it, which is
+              // what would start the system's autoscroll in a row that scrolls.
+              onPointerDown={(event) => {
+                if (event.button === 1) {
+                  event.preventDefault();
                 }
               }}
-              onDragEnd={(event) => {
-                setDraggingKey(undefined);
-                if (event instanceof PointerEvent) {
-                  onTabDragEnd?.(tab.key, event);
+              // A wheel that only turns up and down scrolls the row sideways.
+              onWheel={(event) => {
+                const list = event.currentTarget;
+                if (
+                  list.scrollWidth > list.clientWidth &&
+                  Math.abs(event.deltaY) > Math.abs(event.deltaX)
+                ) {
+                  list.scrollLeft += event.deltaY;
                 }
               }}
-              onDragStart={(event, moved) => {
-                setDraggingKey(tab.key);
-                if (event instanceof PointerEvent) {
-                  onTabDragStart?.(tab.key, event, moved);
-                }
-              }}
-              onSelect={() => {
-                onSelect(tab.key);
-              }}
-              onSelectRelative={(direction) => {
-                selectRelative(tab.key, direction);
-              }}
-              // The last tab keeps its hairline against the new-tab control,
-              // so the control reads as part of the row rather than adrift.
-              showSeparator={
-                index < drawnTabs.length - 1 || onNew !== undefined
-              }
-              tab={tab}
-              value={tab.key}
-            />
-          ))}
-          {/* Inside the row rather than after it, so it sits against the last
-              tab while the tabs are short of the row and is pushed to the end
-              once they fill it. It is not one of the values, so the drag
-              never counts it. */}
-          {onNew ? (
-            <ContextMenu>
-              <ToolbarTooltip chord="newTab" label="New tab">
-                <ContextMenuTrigger asChild disabled={newMenu === undefined}>
-                  <button
-                    className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
-                    onClick={onNew}
-                    type="button"
-                  >
-                    <PlusIcon className="size-4" />
-                  </button>
-                </ContextMenuTrigger>
-              </ToolbarTooltip>
-              {newMenu}
-            </ContextMenu>
-          ) : null}
-        </Reorder.Group>
+              ref={scrollerRef}
+            >
+              {reorderGroup}
+            </motion.div>
+            {plus}
+          </>
+        ) : (
+          reorderGroup
+        )}
       </div>
     </div>
   );
+}
+
+/** The strip's plus, for a strip that wraps it in a trigger of its own (`newControl`). */
+export function NewTabButton(props: ComponentProps<"button">) {
+  return (
+    <button
+      aria-label="New tab"
+      className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
+      type="button"
+      {...props}
+    >
+      <PlusIcon className="size-4" />
+    </button>
+  );
+}
+
+/**
+ * Scrolls a tab clear of its row's ends and of their fades, which are there only
+ * where the row goes on: at its very end the scroll stops short, with the
+ * padding's room left. Offsets are layout px, which is what scrollLeft is in
+ * under the window's zoom.
+ */
+function showTab(
+  list: HTMLElement | null,
+  key: string | undefined,
+  behavior: ScrollBehavior,
+) {
+  const tab = [
+    ...(list?.querySelectorAll<HTMLElement>("[data-tab-key]") ?? []),
+  ].find((element) => element.dataset.tabKey === key);
+  if (!list || !tab) {
+    return;
+  }
+  const room = SCROLL_ROOM + EDGE_FADE_WIDTH;
+  const left = tab.offsetLeft - room;
+  const right = tab.offsetLeft + tab.offsetWidth + room;
+  if (left < list.scrollLeft) {
+    list.scrollTo({ behavior, left });
+  } else if (right > list.scrollLeft + list.clientWidth) {
+    list.scrollTo({ behavior, left: right - list.clientWidth });
+  }
 }
 
 /** Move focus one tab along the strip, wrapping, to match the selection. */
@@ -576,6 +723,7 @@ function Tab({
   isFixed,
   isPlacedByOwner,
   isReordering,
+  isScrolled,
   isSelected,
   isStill,
   nextIsSelected,
@@ -603,6 +751,8 @@ function Tab({
   isDragging?: boolean;
   isFixed?: boolean;
   isReordering?: boolean;
+  /** In a row that scrolls: as wide as its name wants, whatever the row's room. */
+  isScrolled?: boolean;
   isSelected: boolean;
   nextIsSelected: boolean;
   onClose?: () => void;
@@ -672,10 +822,14 @@ function Tab({
   const sizing = cn(
     isFixed
       ? cn("shrink-0", density !== "full" && "w-8")
-      : cn(
-          "max-w-60 flex-1",
-          { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],
-        ),
+      : isScrolled
+        ? // A cap and floor to match the width, which the arriving motion
+          // opens from nothing.
+          "w-40 max-w-40 min-w-0 shrink-0"
+        : cn(
+            "max-w-60 flex-1",
+            { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],
+          ),
     density === "full" ? "gap-2 px-2.5" : "justify-center px-1",
   );
 
@@ -719,7 +873,12 @@ function Tab({
         isFixed ? "after:-right-2" : "after:-right-0.5",
       ),
     isClosing &&
-      "pointer-events-none transition-all duration-(--tab-motion) ease-out",
+      cn(
+        "pointer-events-none transition-all duration-(--tab-motion) ease-out",
+        // A tab of its own width has no share to give up, so it gives the
+        // width. A class, since a `Reorder.Item` keeps a style value.
+        isScrolled && "w-0!",
+      ),
   );
 
   const onPointerDown = (event: React.PointerEvent) => {
@@ -766,8 +925,12 @@ function Tab({
             event.stopPropagation();
             onClose();
           }}
+          // A press here is not one on the tab, so it neither selects nor
+          // drags it; a middle press still closes it, as anywhere on the tab.
           onPointerDown={(event) => {
-            event.stopPropagation();
+            if (event.button !== 1) {
+              event.stopPropagation();
+            }
           }}
           type="button"
         >

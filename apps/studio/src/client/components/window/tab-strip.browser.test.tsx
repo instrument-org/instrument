@@ -392,3 +392,77 @@ describe("a tab held over a strip from elsewhere", () => {
       .toBeCloseTo(rowOf().right, 0);
   });
 });
+
+describe("a strip that scrolls", () => {
+  const many = Array.from({ length: 12 }, (_, index) => ({
+    icon: <span />,
+    key: `t${index}`,
+    title: `Tab ${index}`,
+  }));
+  function Scrolling({
+    selectedKey,
+    shown,
+  }: {
+    selectedKey: string;
+    shown: typeof many;
+  }) {
+    return (
+      <div style={{ width: 400 }}>
+        <TabStrip
+          onClose={() => undefined}
+          onReorder={() => undefined}
+          onSelect={() => undefined}
+          overflow="scroll"
+          selectedKey={selectedKey}
+          tabs={shown}
+        />
+      </div>
+    );
+  }
+  const scroller = () => {
+    const element = tab("t0").closest<HTMLElement>(".overflow-x-auto");
+    if (!element) {
+      throw new Error("no scroller");
+    }
+    return element;
+  };
+
+  it("keeps each tab at its width, and the tab up in view", async () => {
+    const screen = await renderInBrowser(
+      <Scrolling selectedKey="t0" shown={many} />,
+    );
+    const width = tab("t0").getBoundingClientRect().width;
+    expect(tab("t11").getBoundingClientRect().width).toBe(width);
+    expect(scroller().scrollWidth).toBeGreaterThan(scroller().clientWidth);
+
+    await screen.rerender(<Scrolling selectedKey="t11" shown={many} />);
+    await expect
+      .poll(() => {
+        const box = scroller().getBoundingClientRect();
+        return tab("t11").getBoundingClientRect().right <= box.right;
+      })
+      .toBe(true);
+  });
+
+  it("grows a tab in and collapses one closed to nothing", async () => {
+    const few = many.slice(0, 2);
+    const screen = await renderInBrowser(
+      <Scrolling selectedKey="t0" shown={few} />,
+    );
+    const whole = tab("t0").getBoundingClientRect().width;
+
+    await screen.rerender(
+      <Scrolling selectedKey="t0" shown={many.slice(0, 3)} />,
+    );
+    // The setup cuts CSS motion to nothing, so what is seen is the motion
+    // being asked for and where it lands.
+    expect(tab("t2").classList).toContain("pane-tab-arriving");
+    await expect
+      .poll(() => tab("t2").getBoundingClientRect().width)
+      .toBe(whole);
+
+    await screen.rerender(<Scrolling selectedKey="t0" shown={few} />);
+    expect(tab("t2").getAttribute("aria-hidden")).toBe("true");
+    await expect.poll(() => tab("t2").getBoundingClientRect().width).toBe(0);
+  });
+});

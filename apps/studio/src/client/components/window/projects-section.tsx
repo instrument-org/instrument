@@ -91,7 +91,7 @@ export function ProjectsSection({
               project={project}
             >
               <div
-                className="group/project flex h-9 items-center rounded-lg bg-(--project-tint-surface)/45 project-tint hover:bg-(--project-tint-surface)/70 has-focus-visible:bg-(--project-tint-surface)/70"
+                className="group/project flex h-9 items-center rounded-lg bg-(--project-tint-surface)/45 project-tint hover:bg-(--project-tint-surface)/70 has-focus-visible:bg-(--project-tint-surface)/70 dark:bg-(--project-tint-surface)/20 dark:hover:bg-(--project-tint-surface)/35"
                 style={projectTint(projectColor(project))}
               >
                 <button
@@ -102,7 +102,11 @@ export function ProjectsSection({
                   type="button"
                 >
                   <span className="grid size-6 shrink-0 place-items-center rounded-md bg-background shadow-xs dark:bg-background/80">
-                    <ProjectMark className="size-4" plain project={project} />
+                    <ProjectMark
+                      className="size-4 text-[13px]"
+                      plain
+                      project={project}
+                    />
                   </span>
                   <span className="truncate">{project.name}</span>
                 </button>

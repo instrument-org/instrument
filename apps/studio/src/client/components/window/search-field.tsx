@@ -158,14 +158,19 @@ export function SearchField<T extends string>({
                 onTokensChange?.(picked.slice(0, -1));
                 return;
               }
-              if (event.key === "Escape" && isSearched) {
-                event.preventDefault();
-                event.stopPropagation();
-                if (value === "") {
-                  onTokensChange?.([]);
-                } else {
-                  onChange("");
-                }
+              if (event.key !== "Escape") {
+                return;
+              }
+              // Emptied a step at a time: the words, then the tokens, then
+              // the keyboard leaves the field.
+              event.preventDefault();
+              event.stopPropagation();
+              if (value !== "") {
+                onChange("");
+              } else if (tokens.length > 0) {
+                onTokensChange?.([]);
+              } else {
+                event.currentTarget.blur();
               }
             }}
             placeholder={tokens.length > 0 ? "" : placeholder}

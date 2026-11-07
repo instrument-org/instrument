@@ -1,5 +1,5 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { getAppWindow } from "@/electron-main/windows/app-window";
+import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
 import {
   isQuitGuardForcedInDev,
@@ -282,8 +282,8 @@ const openWorkspaceFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(getWorkspaceFolder());
 });
 
-const toggleDevTools = devOnly.input(z.void()).handler(() => {
-  getAppWindow()?.webContents.toggleDevTools();
+const toggleDevTools = devOnly.input(z.void()).handler(({ context }) => {
+  getCallingWindow(context.webContentsId)?.webContents.toggleDevTools();
 });
 
 const getQuitGuardForced = devOnly

@@ -266,7 +266,9 @@ export function appWindowShowing(
 /**
  * Which window answers what a chat asks of its tabs and mounts the guests it
  * makes: of the windows whose page can hear it, the one showing the chat, else
- * the one in front. Named once for each ask, so one opens one page.
+ * the one in front. Named once for each ask, so one opens one page, and named
+ * with none hearing, or a spare, which hears everything named to no one, would
+ * host it out of sight.
  */
 export function appWindowForChat(chatId: string | undefined) {
   const hearing = getAppWindows().filter((window) =>
@@ -275,7 +277,9 @@ export function appWindowForChat(chatId: string | undefined) {
   const window =
     (chatId === undefined
       ? null
-      : appWindowShowing(`/chats/${chatId}`, hearing)) ?? hearing[0];
+      : appWindowShowing(`/chats/${chatId}`, hearing)) ??
+    hearing[0] ??
+    getAppWindow();
   return window?.webContents.id;
 }
 
@@ -320,7 +324,12 @@ export function showInWindowHolding(href: string) {
   if (!showing) {
     return false;
   }
-  if (!isHeldOffScreen(showing)) {
+  if (isHeldOffScreen(showing)) {
+    // Held after a restart, the person who followed a link has to be shown one.
+    if (!keepsOffScreen()) {
+      return false;
+    }
+  } else {
     if (showing.isMinimized()) {
       showing.restore();
     }
@@ -648,6 +657,11 @@ function createAppWindow(
     isSpare = false,
   }: { bounds?: ReturnType<typeof cascadedBounds>; isSpare?: boolean } = {},
 ): BrowserWindow {
+  // A second launch or a link can open it while boot is on its way to doing so.
+  const open = openWindows.get(id);
+  if (open && !open.isDestroyed()) {
+    return open;
+  }
   hasOpened = true;
   watchSetup();
   const remembered = rememberedStateOf(id);
@@ -962,7 +976,28 @@ export function takePendingAppWindowAsks(
   }
   adoptedBeforeUp.delete(webContentsId);
   listening.add(webContentsId);
-  return asks.take();
+  // What waited is for the window in front, which a launch restoring several
+  // brings up last or first as their pages happen to load.
+  const front = getAppWindow();
+  return front &&
+    front.webContents.id !== webContentsId &&
+    !listening.has(front.webContents.id)
+    ? []
+    : asks.take();
+}
+
+let hasSweptLaunch = false;
+
+/**
+ * Whether this window is the one to clear what a launch left over, which only
+ * the first window up can tell from what another window is using right now.
+ */
+export function takeLaunchSweep(webContentsId: number) {
+  if (hasSweptLaunch || spareOf(webContentsId)) {
+    return false;
+  }
+  hasSweptLaunch = true;
+  return true;
 }
 
 let isWatchingSetup = false;
@@ -1065,14 +1100,15 @@ export function askWindow(window: BrowserWindow, ask: AppWindowAsk) {
  * (an offscreen one drawing a file's picture) is not a window to be left with:
  * `window-all-closed` counts it and would not fire, leaving a running process
  * with nothing on screen and, outside macOS, no dock or tray to bring one back
- * from.
+ * from. A minimized one is: the taskbar brings it back, and on Windows it does
+ * not count as visible.
  */
 function hasVisibleWindowOtherThan(exclude: BrowserWindow | null) {
   return BrowserWindow.getAllWindows().some(
     (window) =>
       window !== exclude &&
       !window.isDestroyed() &&
-      window.isVisible() &&
+      (window.isVisible() || window.isMinimized()) &&
       !spareOf(window.webContents.id),
   );
 }

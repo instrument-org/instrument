@@ -6,6 +6,7 @@ import {
   openNewAppWindow,
   otherAppWindows,
   reopenClosedAppWindow,
+  takeLaunchSweep as takeSweep,
   takePendingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
 import {
@@ -102,10 +103,15 @@ const openNew = base
     openNewAppWindow(input?.tab);
   });
 
-/** A window closed lately, as it was. False when none can come back. */
-const reopenClosed = base.input(z.void()).handler(() => ({
-  reopened: reopenClosedAppWindow(),
-}));
+/** A window closed lately, as it was, where one can come back. */
+const reopenClosed = base.input(z.void()).handler(() => {
+  reopenClosedAppWindow();
+});
+
+/** Whether this window is the one to clear what the launch left over. */
+const takeLaunchSweep = base
+  .output(z.boolean())
+  .handler(({ context }) => takeSweep(context.webContentsId));
 
 /** A tab moved from a menu, the way a drag let go there would move it: see `windows/tab-carry.ts`. */
 const moveTab = base
@@ -188,5 +194,6 @@ export const window = {
   reopenClosed,
   showAppMenu,
   startTabCarry,
+  takeLaunchSweep,
   takePending,
 };

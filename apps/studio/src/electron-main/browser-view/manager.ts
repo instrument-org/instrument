@@ -32,6 +32,7 @@ import {
   createEntry,
   destroyEntry,
   handleDetach,
+  tellDetached,
   hasGuest,
   nextEntryPhase,
   subscribeEvents,
@@ -837,6 +838,7 @@ function createBrowserViewManager(): BrowserViewManager {
     // The page goes on: what waits for it to go waits on, and its reload is no visit.
     const { destructionListeners } = existing;
     existing.destructionListeners = new Set();
+    tellDetached(existing);
     destroyEntry(entries, existing.targetId);
     if (restoreHistory) {
       noteRestored(existing.targetId, restoreHistory.url);

@@ -341,6 +341,25 @@ describe("getBrowserViewManager", () => {
       expect(gone).toHaveBeenCalledTimes(1);
     });
 
+    it("tells an agent watching a page that it closed when it is handed to another window, so it attaches to the new one", async () => {
+      hostWith(611);
+      hostWith(612);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 611 })
+        .catch(() => undefined);
+      const detached = vi.fn();
+      const events = vi.fn();
+      manager.browser.subscribeEvents(targetId, detached, events);
+
+      void manager.handOffGuest(targetId, 612);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(manager.isHostOf(612, targetId)).toBe(true);
+      expect(detached).toHaveBeenCalledTimes(1);
+    });
+
     it("hands a guest to another window even while its own shows it", async () => {
       hostWith(501);
       hostWith(502);

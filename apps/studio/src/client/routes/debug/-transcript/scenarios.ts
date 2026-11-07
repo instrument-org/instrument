@@ -114,6 +114,7 @@ const shopifyWork: Act[] = [
     text: "# Next.js Commerce\n\nThis repository was archived on October 20.",
     url: "https://vercel.com/templates/next.js/nextjs-commerce",
   }),
+  facts({ hosts: ["vercel.com"] }),
   activity("Building the home page"),
   wrote({
     content:

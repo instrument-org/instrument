@@ -108,7 +108,7 @@ export function SlotCardView({
     drivenPage,
   );
   return (
-    <div className="relative w-full max-w-100 rounded-2xl">
+    <div className="relative w-full max-w-115 rounded-2xl">
       <button
         className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
         data-slot-card={card.kind}

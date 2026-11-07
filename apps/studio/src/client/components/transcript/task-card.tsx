@@ -33,8 +33,8 @@ function WorkingDots() {
 
 /**
  * A task the chat started, where it started it. Two lines, tinted while it
- * works and flat once it has finished, the sites and apps it reached at the
- * right, the task's own Stop on hover, and while it works the task's own live
+ * works and flat once it has finished, the sites and apps it reached after its
+ * first line, the task's own Stop on hover, and while it works the task's own live
  * card, since a chat's visual work is mostly its tasks'. It never folds.
  */
 export function TaskCardRow({
@@ -59,7 +59,7 @@ export function TaskCardRow({
     : (facts?.ended ?? title);
   const span = isWorking ? now - startedAt.getTime() : facts?.ranMs;
   return (
-    <div className="flex max-w-130 flex-col gap-2">
+    <div className="flex max-w-115 flex-col gap-2">
       <div
         className={cn(
           "group/task flex items-center gap-2.5 rounded-2xl border px-3.5 py-2.5",
@@ -97,13 +97,13 @@ export function TaskCardRow({
               ) : (
                 <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
               )}
+              {turn && <Badges apps={turn.apps} sites={turn.sites} />}
             </span>
             <span className="block truncate text-xs text-muted-foreground tabular-nums">
               Task · {title}
               {span !== undefined && ` · ${formatRoughSpan(span)}`}
             </span>
           </span>
-          {turn && <Badges apps={turn.apps} sites={turn.sites} />}
         </button>
         {facts?.stoppable && (
           <button

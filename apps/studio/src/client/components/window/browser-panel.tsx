@@ -132,6 +132,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
+import { tabCarryViewAtom } from "@/client/components/window/tab-carry-view";
 
 /** How many times a page on screen is opened inside `AUTO_OPEN_WINDOW_MS` before its crashing is shown instead. */
 const AUTO_OPENS = 3;
@@ -210,6 +211,9 @@ export function BrowserPanel({
   const targetId = browserTargetOf(tabId);
   const inputRef = useRef<HTMLInputElement>(null);
   const isVisible = useIsTaskPageVisible();
+  // A window waiting beneath a tab's drag shows what it was given only once
+  // it is a window of its own, so it neither opens a page nor keeps one awake.
+  const isBeneath = useAtomValue(tabCarryViewAtom).kind === "beneath";
   const [draftUrl, setDraftUrl] = useState("");
   const [zoomFactor, setZoomFactor] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -363,7 +367,7 @@ export function BrowserPanel({
       opens.delete(targetId);
       return;
     }
-    if (active || isShownElsewhere || !canTake) {
+    if (active || isShownElsewhere || !canTake || isBeneath) {
       return;
     }
     const at = performance.now();
@@ -378,7 +382,15 @@ export function BrowserPanel({
     openHere();
     // The address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, canTake, isShownElsewhere, isVisible, openBrowser, targetId]);
+  }, [
+    active,
+    canTake,
+    isBeneath,
+    isShownElsewhere,
+    isVisible,
+    openBrowser,
+    targetId,
+  ]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);
@@ -665,7 +677,9 @@ export function BrowserPanel({
       data-find-surface
       ref={surfaceRef}
     >
-      {isVisible ? <PageLease targetId={targetId} /> : null}
+      {isVisible && active && !isBeneath ? (
+        <PageLease targetId={targetId} />
+      ) : null}
       {(() => {
         // The page's menu, the same in either shape of the bar.
         const menu = (
@@ -1231,8 +1245,9 @@ export function BrowserPanel({
 /**
  * Tells the browser this page is drawn, for as long as it is mounted: a page
  * nobody draws starts its clock, and its guest is discarded when the clock
- * runs out. Mounted only while the page is on screen, since unmounting is
- * what ends the subscription and with it the hold.
+ * runs out. Mounted only while this window has the page's guest and shows
+ * it, since unmounting is what ends the subscription and with it the hold: a
+ * window saying the page is open in another draws nothing of it.
  */
 function PageLease({ targetId }: { targetId: BrowserTargetId }) {
   useQuery(

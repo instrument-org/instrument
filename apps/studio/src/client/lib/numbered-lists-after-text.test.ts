@@ -9,10 +9,11 @@ import { numberedListsAfterText } from "./numbered-lists-after-text";
 
 const html = (markdown: string) =>
   renderToStaticMarkup(
-    createElement(ReactMarkdown, {
-      children: numberedListsAfterText(markdown),
-      remarkPlugins: [remarkGfm, remarkBreaks],
-    }),
+    createElement(
+      ReactMarkdown,
+      { remarkPlugins: [remarkGfm, remarkBreaks] },
+      numberedListsAfterText(markdown),
+    ),
   );
 
 describe("numberedListsAfterText", () => {

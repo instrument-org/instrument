@@ -5,13 +5,14 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";
 import { chatListOptions } from "./chat-list-query";
+import { groupByDayAtom, rowDensityAtom } from "./chat-list-view";
 import {
   byLastUserMessage,
   type Chat,
@@ -28,17 +29,20 @@ import { ProjectDialog } from "./project-dialog";
 import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
+import { ProjectsSection } from "./projects-section";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useSetChatProject } from "./use-set-chat-project";
+import { useShell } from "./shell-context";
 import { backfillCandidates } from "./use-project-backfill";
 
 /**
- * The chat pane: the inbox under the line that says where it stands and
- * searches it. Nothing is composed here: New in the rail opens
- * a draft, and the chat it starts lands at the top of the list; until it
- * is started it is a row of the Drafts place, which lists the drafts where
- * the chats otherwise go. With one project chosen in the head, the project's
- * banner stands above the rows.
+ * The chat pane: the inbox under the search and the tabs of the places a
+ * chat can be. Nothing is composed here: New in the rail opens a new chat,
+ * and the chat it starts lands at the top of the list; a draft saved and left
+ * is a row of the Drafts place, which lists the drafts where the chats
+ * otherwise go. In the inbox the projects stand above the chats, and
+ * stepping into one makes the list that project, under its own head, in its
+ * tint.
  */
 export function ChatPane({
   arrivedId,
@@ -76,6 +80,7 @@ export function ChatPane({
   outIds?: ReadonlySet<string>;
 }) {
   const appsBySlug = useAppsBySlug();
+  const shell = useShell();
   const chatsQuery = useQuery(chatListOptions());
   const projectsQuery = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
@@ -98,6 +103,8 @@ export function ChatPane({
   const setChatProject = useSetChatProject();
 
   const [filters, setFilters] = useAtom(chatFiltersAtom);
+  const density = useAtomValue(rowDensityAtom);
+  const groupByDay = useAtomValue(groupByDayAtom);
   // A change of filter is a change of subject, and the newest of the new
   // subject is what matters, so the list is taken back to its top with it.
   // Read off the filters rather than counted here, because the pane is not
@@ -117,6 +124,7 @@ export function ChatPane({
   const viewKey = JSON.stringify({ ...filters, search: "" });
   const [widenedIn, setWidenedIn] = useState<string>();
   const isSearching = filters.search.trim() !== "";
+  const isNarrowed = isSearching || filters.tags.length > 0;
   if (widenedIn !== undefined && (!isSearching || widenedIn !== viewKey)) {
     setWidenedIn(undefined);
   }
@@ -189,49 +197,33 @@ export function ChatPane({
     // hairlines never cross; the wash, placed against the padding box,
     // still reaches under the line.
     <div
-      className="relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px"
+      className={cn(
+        "relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px",
+        chosenProject && "project-tint",
+      )}
       data-project={chosenProject ? "" : undefined}
       data-find-surface
+      style={
+        chosenProject ? projectTint(projectColor(chosenProject)) : undefined
+      }
     >
-      {/* The head, and while the list is one project, the project's own line
-          under it, with the project's tint washing down from the card's edge
-          and fading out past the head, behind the first rows. */}
-      <div
-        className={cn("shrink-0", chosenProject && "project-tint")}
-        style={
-          chosenProject ? projectTint(projectColor(chosenProject)) : undefined
-        }
-      >
-        {/* Sized against the whole column, so a taller window washes
-            further down it. */}
-        {chosenProject && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent dark:from-(--project-tint-surface)/25"
-          />
-        )}
-        <FilterHead
-          chats={chats}
-          drafts={drafts.length}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onNewProject={() => {
-            setNewProject({});
-          }}
-          onProjectDetails={(project) => {
-            openProjectDetails(project.id);
-          }}
-          projects={projects}
+      {/* While the list is one project, its tint washes down from the
+          card's edge and fades out past the head, behind the first rows;
+          sized against the whole column, so a taller window washes further
+          down it. */}
+      {chosenProject && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent dark:from-(--project-tint-surface)/25"
         />
-        {chosenProject && (
-          <ProjectBanner
-            onDetails={(project) => {
-              openProjectDetails(project.id);
-            }}
-            project={chosenProject}
-          />
-        )}
-      </div>
+      )}
+      <FilterHead
+        chats={chats}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onLeaveProject={shell.leaveProject}
+        project={chosenProject}
+      />
       {isAISearch && (
         <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
           AI results
@@ -241,7 +233,47 @@ export function ChatPane({
         appsBySlug={appsBySlug}
         arrivedId={arrivedId}
         chats={shown}
+        density={density}
         drafts={shownDrafts}
+        groupByDay={groupByDay && shownDrafts === undefined}
+        head={
+          chosenProject
+            ? {
+                node: (
+                  <ProjectBanner
+                    onDetails={(project) => {
+                      openProjectDetails(project.id);
+                    }}
+                    onOpenInFiles={shell.openProjectInFiles}
+                    project={chosenProject}
+                  />
+                ),
+              }
+            : filters.place === undefined &&
+                filters.apps.length === 0 &&
+                !isNarrowed &&
+                projects.some((project) => !project.retired)
+              ? {
+                  heading: "Chats",
+                  node: (
+                    <ProjectsSection
+                      chats={chats}
+                      onChoose={(project) => {
+                        shell.openProject(project.id);
+                      }}
+                      onDetails={(project) => {
+                        openProjectDetails(project.id);
+                      }}
+                      onNew={() => {
+                        setNewProject({});
+                      }}
+                      projects={projects}
+                    />
+                  ),
+                }
+              : undefined
+        }
+        isProjectShown={chosenProject === undefined}
         emptyLine={
           aiSearch.isLooking
             ? "Looking through your chats…"
@@ -310,13 +342,7 @@ export function ChatPane({
                 setChatProject(forChat.id, created.id);
                 return;
               }
-              // Read at the moment it lands rather than from the render
-              // that opened the dialog: the search may have moved since.
-              setFilters((current) => ({
-                ...current,
-                apps: [],
-                projects: [created.id],
-              }));
+              shell.openProject(created.id);
             },
           });
         }}
@@ -352,10 +378,10 @@ function emptyLineFor(
   if (filters.place === "drafts") {
     return "You don't have any drafts right now";
   }
-  if (filters.place === "unread") {
+  if (filters.tags.includes("unread")) {
     return "You're all caught up";
   }
-  if (filters.place === "starred") {
+  if (filters.tags.includes("starred")) {
     return "Chats you star will show up here";
   }
   if (filters.place === "archived") {

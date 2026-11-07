@@ -105,7 +105,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { NO_FILTERS, railMarkOf } from "./chats";
+import { inPlace, NO_FILTERS, railMarkOf } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -429,7 +429,7 @@ function WindowShell({
   const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
-  const setChatFilters = useSetAtom(chatFiltersAtom);
+  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
@@ -793,6 +793,69 @@ function WindowShell({
     projects,
     windowTabs,
   });
+  // The chat or draft that was up beside the list when it stepped into a
+  // project, which stepping back out brings back.
+  const beforeProject = useRef<string | undefined>(undefined);
+  /**
+   * The list standing in a project, from its row, the command menu, or a
+   * project just made: whatever chat or draft was up beside it is put away
+   * for a new chat filed under the project, and remembered for the way back
+   * out. A search or a place left over from before would hide the chats it
+   * was asked for, so both go.
+   */
+  const enterProject = (projectId: string) => {
+    if (chatFilters.projects.length === 0 && isChat) {
+      beforeProject.current = sameHref(activeHref, newChatHref())
+        ? undefined
+        : activeHref;
+    }
+    setChatFilters({ ...NO_FILTERS, projects: [projectId] });
+    const tabId = appTabs.model.selectedId;
+    if (isChat && tabId) {
+      pickNewChatProject({ projectId, tabId });
+      appTabs.navigate(newChatHref());
+      return;
+    }
+    choosePlace("chat");
+  };
+  /**
+   * The list back in the inbox from its project. The new chat the project
+   * put up, still unwritten, gives way to the chat or draft that was up
+   * before it, and forgets the project; anything opened in the project
+   * since stays.
+   */
+  const leaveProject = () => {
+    const back = beforeProject.current;
+    beforeProject.current = undefined;
+    setChatFilters((current) => inPlace(current, undefined));
+    if (!sameHref(activeHref, newChatHref())) {
+      return;
+    }
+    const tabId = appTabs.model.selectedId;
+    if (tabId) {
+      pickNewChatProject({ projectId: undefined, tabId });
+    }
+    if (back !== undefined) {
+      appTabs.navigate(back);
+    }
+  };
+  // A chat filed elsewhere coming up beside a project's list, from the
+  // command menu, a link or a notice, takes the list out of the project, so
+  // the open chat always has its row.
+  const standingProject =
+    chatFilters.projects.length === 1 ? chatFilters.projects[0] : undefined;
+  const chatUpProject = chats.data?.find((chat) => chat.id === chatUp)?.project;
+  const isChatOutsideProject =
+    standingProject !== undefined &&
+    chatUp !== undefined &&
+    chats.data?.some((chat) => chat.id === chatUp) === true &&
+    chatUpProject !== standingProject;
+  useEffect(() => {
+    if (isChatOutsideProject) {
+      beforeProject.current = undefined;
+      setChatFilters((current) => inPlace(current, undefined));
+    }
+  }, [isChatOutsideProject, setChatFilters]);
   /**
    * The tab up to one of the rail's places, from the rail, its chords, or the
    * command menu. Chat asked for is the inbox asked for too, even where the
@@ -1028,12 +1091,10 @@ function WindowShell({
     onNewProject: (name) => {
       setNewProject(name ? { name } : {});
     },
-    // A project is a view of the inbox, so going to one is the inbox standing
-    // in it and nothing else: a search or a place left over from before
-    // would hide the chats it was asked for.
-    openProject: (projectId) => {
-      setChatFilters({ ...NO_FILTERS, projects: [projectId] });
-      choosePlace("chat");
+    leaveProject,
+    openProject: enterProject,
+    openProjectInFiles: () => {
+      // PENDING: the project dialog branch's helper.
     },
     popOutDraft,
     requestClose,

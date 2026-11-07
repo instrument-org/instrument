@@ -16,10 +16,13 @@ export interface ProjectMarkSpec {
  */
 export function ProjectMark({
   className,
+  plain = false,
   size = "md",
   project,
 }: {
   className?: string;
+  /** The face alone, with no tile of the project's tint under it. */
+  plain?: boolean;
   size?: "lg" | "md" | "sm";
   project: ProjectMarkSpec;
 }) {
@@ -40,7 +43,9 @@ export function ProjectMark({
       style={{
         // A tint rather than a fill: the emoji has to stay legible on it, and a
         // row of solid squares would read as a toolbar.
-        background: "var(--project-tint-surface, var(--card))",
+        ...(plain
+          ? {}
+          : { background: "var(--project-tint-surface, var(--card))" }),
         ...projectTint(projectColor(project)),
       }}
       title={project.name}

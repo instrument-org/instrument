@@ -35,6 +35,8 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
+import { type RowDensity } from "./chat-list-view";
+import { ChatMarkDot } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
 import {
   activityLabel,
@@ -88,8 +90,10 @@ export function ChatRow({
   actions,
   appsBySlug,
   chat,
+  density = "three",
   isArriving = false,
   isOpen,
+  isProjectShown = true,
   now,
   onDelete,
   onNewProject,
@@ -102,10 +106,14 @@ export function ChatRow({
   actions: RowAction[];
   appsBySlug: AppsBySlug;
   chat: Chat;
+  /** How much of the chat the row shows: see `RowDensity`. */
+  density?: RowDensity;
   /** Whether the chat just started from a draft: its row arrives with a wash that settles. */
   isArriving?: boolean;
   /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
+  /** Whether the row names the project the chat is filed under: not in the list of that project, which already says it. */
+  isProjectShown?: boolean;
   /** The moment the row's time is read against. */
   now: Date;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
@@ -171,9 +179,10 @@ export function ChatRow({
       projects={projects}
     />
   );
-  // The project in the row's corner, by name; filing is the control in the
-  // corner's bar.
-  const pill = filed && <ProjectPill quiet project={filed} />;
+  // The project the chat is filed under, by name in its ink; filing is the
+  // control in the corner's bar.
+  const shownProject = isProjectShown ? filed : undefined;
+  const projectWords = shownProject && <ProjectWords project={shownProject} />;
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
   const title = rename.isEditing ? (
@@ -216,22 +225,19 @@ export function ChatRow({
       )}
     </>
   );
-  // When the user last messaged the chat, which the list is ordered by, in
-  // the row's bottom corner, in a column of one width so the times line up
-  // down the list.
+  // When the user last messaged the chat, which the list is ordered by, at
+  // the end of the title's line.
   const time = (
     <span
       className={cn(
-        // `ml-auto` holds it to the corner when the holds' line draws no
-        // marks, as when a chat's only site has no icon yet.
-        "ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
+        "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
         isUnseen && "font-semibold",
       )}
     >
       {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
-  // A starred chat's star, past its project in the row's corner and a mark
+  // A starred chat's star, past its time in the row's corner and a mark
   // rather than a control: starring and unstarring end the corner's bar,
   // which takes the same spot, in a box of a control's size so the star
   // stays put as the bar comes and goes.
@@ -286,49 +292,81 @@ export function ChatRow({
           tabIndex={0}
         >
           <div className="min-w-0 flex-1">
-            {/* The project at the line's end in the row's corner. */}
             <div className="flex h-5 items-center gap-1.5">
+              {density === "one" && shownProject && (
+                <ProjectMark className="size-4" plain project={shownProject} />
+              )}
               {title}
-              {/* The pills step aside for the row's controls while the
-                  pointer is on it. */}
+              {/* The time and the star step aside for the row's controls
+                  while the pointer is on it. */}
               <RowActionBar
                 actions={actions}
                 isHeld={isPickerLeaving}
                 leading={tagControl}
                 resting={
-                  (pill || starMark) && (
-                    <>
-                      {pill}
-                      {starMark}
-                    </>
-                  )
+                  <>
+                    {time}
+                    {starMark}
+                  </>
                 }
               />
             </div>
-            {/* A line's room whatever the latest line takes, and when there
-                is none, so the row keeps one height as its chat starts work. */}
-            <div className="h-5 min-w-0">
-              <Peek chat={chat} search={search} />
-            </div>
-            {/* What the chat holds and the time in the row's bottom corner,
-                on a line every row has whether or not it holds anything, so
-                the list keeps one row height down its length. */}
-            <div className="mt-1 flex h-5 items-center gap-2">
-              {hasHolds && (
-                <HoldsInChat chatId={chat.id}>
-                  <HoldMarks
-                    appsBySlug={appsBySlug}
-                    chatId={chat.id}
-                    className="min-w-0 flex-1 gap-1"
-                    holds={chat.holds}
-                    namedFiles
-                    wrap={false}
-                  />
-                </HoldsInChat>
-              )}
-              {time}
-            </div>
+            {density === "three" && (
+              <>
+                {/* A line's room whatever the latest line takes, and when
+                    there is none, so the row keeps one height as its chat
+                    starts work. */}
+                <div className="h-5 min-w-0">
+                  <Peek chat={chat} search={search} />
+                </div>
+                {/* The project and what the chat holds, the files by name,
+                    on a line every row has whether or not it holds
+                    anything, so the list keeps one row height. */}
+                <div className="mt-1 flex h-5 min-w-0 items-center gap-2">
+                  {projectWords}
+                  {hasHolds && (
+                    <HoldsInChat chatId={chat.id}>
+                      <HoldMarks
+                        appsBySlug={appsBySlug}
+                        chatId={chat.id}
+                        className="min-w-0 flex-1 gap-1"
+                        holds={chat.holds}
+                        namedFiles
+                        wrap={false}
+                      />
+                    </HoldsInChat>
+                  )}
+                </div>
+              </>
+            )}
+            {density === "two" && (
+              // A chat at work, waiting or stopped says so here, since there
+              // is no other line for it; otherwise the project, or the last
+              // reply for a chat filed under none. The marks of what it
+              // holds stand at the line's end, without the files' names.
+              <div className="flex h-5 min-w-0 items-center gap-2">
+                <span className="flex min-w-0 flex-1">
+                  {isBusy(chat) || !projectWords ? (
+                    <Peek chat={chat} search={search} />
+                  ) : (
+                    projectWords
+                  )}
+                </span>
+                {hasHolds && (
+                  <HoldsInChat chatId={chat.id}>
+                    <HoldMarks
+                      appsBySlug={appsBySlug}
+                      chatId={chat.id}
+                      className="max-w-[45%] shrink-0 justify-end gap-1"
+                      holds={chat.holds}
+                      wrap={false}
+                    />
+                  </HoldsInChat>
+                )}
+              </div>
+            )}
           </div>
+          <RowDot chat={chat} density={density} />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent
@@ -422,6 +460,54 @@ export function ChatRow({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/** Whether the chat's latest line says where it stands rather than what it last said. */
+function isBusy(chat: Chat) {
+  return (
+    chat.status === "failed" ||
+    chat.status === "limited" ||
+    chat.status === "waiting" ||
+    chat.status === "working"
+  );
+}
+
+/**
+ * The dot in the row's gutter, the rail's own: green while the chat has
+ * something not yet seen. A one-line row has no line to say where the chat
+ * stands, so there the dot says that too, pulsing green while it works and
+ * gray while it waits on the user, as the rail's Chat does.
+ */
+function RowDot({ chat, density }: { chat: Chat; density: RowDensity }) {
+  const shown =
+    density === "one" && chat.status === "waiting"
+      ? "waiting"
+      : density === "one" && chat.working
+        ? "working"
+        : chat.unread
+          ? "unread"
+          : undefined;
+  if (!shown) {
+    return null;
+  }
+  return (
+    <span className="absolute top-4.5 left-1.5 flex size-1.5">
+      <ChatMarkDot className="static size-1.5 ring-0" mark={shown} />
+    </span>
+  );
+}
+
+/** The project a chat is filed under, as its name in the project's ink. */
+export function ProjectWords({ project }: { project: Project }) {
+  return (
+    <span
+      className="max-w-32 shrink-0 truncate text-[12px] leading-5 font-medium text-(--project-tint-ink) project-tint"
+      data-slot="project-words"
+      style={projectTint(projectColor(project))}
+    >
+      {project.name}
+    </span>
   );
 }
 

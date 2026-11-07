@@ -17,16 +17,21 @@ export type Chat = NonNullable<RPCOutput["workspace"]["chats"]["byId"]>;
 export interface ChatFilters {
   /** App slugs a chat has to have used one of. */
   apps: string[];
-  /** The place the column stands in, when it is not the inbox: the unread, the starred, the drafts, or what was put away. */
+  /** The place the column stands in, when it is not the inbox: the drafts, or what was put away. */
   place?: ChatPlace;
   /** Words that all have to turn up somewhere on a chat's row, whatever their case. */
   search: string;
   /** Project ids a chat has to be filed under one of. */
   projects: string[];
+  /** Marks a chat has to carry every one of, standing in the search as tokens: on top of whatever view the column is. */
+  tags: ChatTag[];
 }
 
-/** The places of the column apart from the inbox: chats holding replies not yet seen, chats the user starred, drafts not yet sent, and chats put away. */
-export type ChatPlace = "archived" | "drafts" | "starred" | "unread";
+/** The places of the column apart from the inbox: drafts not yet sent, and chats put away. */
+export type ChatPlace = "archived" | "drafts";
+
+/** The marks the search narrows by: chats holding replies not yet seen, and chats the user starred. */
+export type ChatTag = "starred" | "unread";
 
 /** A project as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Project = RPCOutput["workspace"]["projects"]["list"][number];
@@ -35,6 +40,7 @@ export const NO_FILTERS: ChatFilters = {
   apps: [],
   search: "",
   projects: [],
+  tags: [],
 };
 
 /** What a search reads the pills by when no projects are in hand: nothing, so a pill's name is not searched. */
@@ -58,31 +64,38 @@ export interface Filterable {
   unread: boolean;
 }
 
-/** One row of the column: which group it is in, and which of that group's ids it stands for. */
-export type FilterChoice =
-  | { group: "apps" | "projects"; id: string }
-  | { group: "place"; id: ChatPlace };
-
 /**
- * The filters with a row turned. The column shows one view at a time: the
- * inbox, one project, one app, or one place (the unread, the starred, the
- * drafts, what was put away, all of it), so choosing any of them leaves the others
- * and choosing the one already on steps back to the inbox. The search is its
- * own thing and stays as it was. The predicate still reads lists, so nothing
- * downstream knows the column only ever fills one.
+ * The column standing in a place: the inbox (none), Drafts or Archived, the
+ * tabs under the search. A place is a view of every chat, so it leaves a
+ * project or an app behind; the marks narrowing the search stay, except in
+ * Drafts, where a draft carries neither.
  */
-export function choose(
+export function inPlace(
   filters: ChatFilters,
-  choice: FilterChoice,
+  place: ChatPlace | undefined,
 ): ChatFilters {
   const { place: _place, ...rest } = filters;
-  const inbox = { ...rest, apps: [], projects: [] };
-  if (choice.group === "place") {
-    return filters.place === choice.id ? inbox : { ...inbox, place: choice.id };
-  }
-  return filters[choice.group].includes(choice.id)
-    ? inbox
-    : { ...inbox, [choice.group]: [choice.id] };
+  return {
+    ...rest,
+    apps: [],
+    projects: [],
+    ...(place === undefined ? {} : { place }),
+    tags: place === "drafts" ? [] : filters.tags,
+  };
+}
+
+/**
+ * The column standing in one project, or back in the inbox for the one it
+ * already stands in. The project is the whole of its collection, so the
+ * place is left; the marks narrowing the search and the search stay.
+ */
+export function inProject(filters: ChatFilters, id: string): ChatFilters {
+  const { place: _place, ...rest } = filters;
+  return {
+    ...rest,
+    apps: [],
+    projects: filters.projects.includes(id) ? [] : [id],
+  };
 }
 
 /** Whether every word searched for turns up in what a row shows, whatever its case. Nothing searched for matches everything. */
@@ -148,11 +161,6 @@ export function projectSearch(words: string): {
   };
 }
 
-/** Whether the column stands in the inbox: no place chosen, whatever project or app narrows it. */
-export function isInbox(filters: ChatFilters) {
-  return filters.place === undefined;
-}
-
 /** Whether a chat passes every filter that is set. */
 export function matchesFilters(
   chat: Filterable,
@@ -162,6 +170,7 @@ export function matchesFilters(
 ) {
   return (
     matchesPlace(chat, filters) &&
+    filters.tags.every((tag) => chat[tag]) &&
     anyOf(filters.projects, chat.project ? [chat.project] : []) &&
     anyOf(filters.apps, chat.holds.apps) &&
     matchesSearch(chat, filters.search, projectNames)
@@ -198,10 +207,10 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 /**
  * Whether a chat is in the place the column stands in. A chat put away
  * is in Archived alone, the way mail keeps what was archived out of the
- * inbox, so the inbox is every other chat and Unread those of them holding
- * replies not yet seen. A project is a label rather
- * than a place, so one chosen shows what is filed under it, put away or
- * not. Drafts are not chats at all yet, so that place holds none.
+ * inbox, so the inbox is every other chat. A project is the whole of its
+ * collection rather than a part of the inbox, so one chosen shows what is
+ * filed under it, put away or not. Drafts are not chats at all yet, so that
+ * place holds none.
  */
 function matchesPlace(chat: Filterable, filters: ChatFilters) {
   switch (filters.place) {
@@ -211,15 +220,8 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
     case "drafts": {
       return false;
     }
-    case "starred": {
-      // A star is the user's own mark, and stays on a chat put away.
-      return chat.starred;
-    }
     case undefined: {
       return !chat.archived || filters.projects.length > 0;
-    }
-    case "unread": {
-      return !chat.archived && chat.unread;
     }
   }
 }
@@ -370,4 +372,51 @@ export function byLastUserMessage<T extends { lastUserMessageAt: number }>(
   chats: T[],
 ): T[] {
   return [...chats].sort((a, b) => b.lastUserMessageAt - a.lastUserMessageAt);
+}
+
+/**
+ * The projects as the list shows them: the one with the newest chat first,
+ * so the project just worked in is never the one folded away, and a project
+ * with no chats yet by when it was made, newest first, after them.
+ */
+export function byNewestChat<
+  P extends { created: Date | number | string; id: string },
+>(
+  projects: P[],
+  chats: { lastUserMessageAt: number; project?: string }[],
+): P[] {
+  const newest = new Map<string, number>();
+  for (const chat of chats) {
+    if (chat.project !== undefined) {
+      newest.set(
+        chat.project,
+        Math.max(newest.get(chat.project) ?? 0, chat.lastUserMessageAt),
+      );
+    }
+  }
+  const made = (project: P) => new Date(project.created).getTime();
+  return [...projects].sort(
+    (a, b) =>
+      (newest.get(b.id) ?? 0) - (newest.get(a.id) ?? 0) || made(b) - made(a),
+  );
+}
+
+/**
+ * The heading of the day a moment falls on, as a list grouped by day says
+ * it: Today, Yesterday, the weekday within the week, and the date past that.
+ */
+export function dayHeading(date: Date, now: Date): string {
+  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+  const startOfDay = new Date(date).setHours(0, 0, 0, 0);
+  const days = Math.round((startOfToday - startOfDay) / DAY_MS);
+  if (days <= 0) {
+    return "Today";
+  }
+  if (days === 1) {
+    return "Yesterday";
+  }
+  if (days < 7) {
+    return format(date, "EEEE");
+  }
+  return format(date, isSameYear(date, now) ? "MMMM d" : "MMMM d, yyyy");
 }

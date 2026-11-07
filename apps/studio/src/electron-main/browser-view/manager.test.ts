@@ -1,6 +1,7 @@
 import { browserPartition } from "@/shared/browser";
 import {
   type AbsolutePath,
+  type BrowserTargetId,
   browserTargetOf,
   StoreId,
 } from "@instrument-org/workspace/electron";
@@ -69,6 +70,42 @@ describe("getBrowserViewManager", () => {
       getBrowserViewManager()
         .getTargets(id)
         .map((target) => target.id);
+    // A guest as far as attaching one goes, which asks a lot of it and uses little.
+    const answersAnything = (): unknown =>
+      new Proxy(() => undefined, {
+        apply: () => answersAnything(),
+        get: (_target, key) => (key === "then" ? undefined : answersAnything()),
+      });
+    const attachGuest = (
+      host: EventEmitter,
+      targetId: BrowserTargetId,
+      guestId: number,
+    ) => {
+      host.emit(
+        "will-attach-webview",
+        { preventDefault: vi.fn() },
+        {},
+        { partition: browserPartition(targetId) },
+      );
+      const guest = new Proxy(
+        Object.assign(new EventEmitter(), {
+          id: guestId,
+          isDestroyed: () => false,
+          navigationHistory: {
+            getActiveIndex: () => 0,
+            getAllEntries: () => [],
+            length: () => 0,
+          },
+        }),
+        {
+          get: (target, key, receiver): unknown =>
+            key in target
+              ? Reflect.get(target, key, receiver)
+              : answersAnything(),
+        },
+      );
+      host.emit("did-attach-webview", {}, guest);
+    };
 
     it("mounts a guest only in the window that asked for it", () => {
       hostWith(101);
@@ -144,37 +181,7 @@ describe("getBrowserViewManager", () => {
       void manager.browser
         .createTarget(targetId, partition, { webContentsId: 901 })
         .catch(() => undefined);
-      leaving.emit(
-        "will-attach-webview",
-        { preventDefault: vi.fn() },
-        {},
-        { partition: browserPartition(targetId) },
-      );
-      // A guest as far as attaching one goes, which asks a lot of it and uses little.
-      const answersAnything = (): unknown =>
-        new Proxy(() => undefined, {
-          apply: () => answersAnything(),
-          get: (_target, key) =>
-            key === "then" ? undefined : answersAnything(),
-        });
-      const guest = new Proxy(
-        Object.assign(new EventEmitter(), {
-          id: 9001,
-          isDestroyed: () => false,
-          navigationHistory: {
-            getActiveIndex: () => 0,
-            getAllEntries: () => [],
-            length: () => 0,
-          },
-        }),
-        {
-          get: (target, key, receiver): unknown =>
-            key in target
-              ? Reflect.get(target, key, receiver)
-              : answersAnything(),
-        },
-      );
-      leaving.emit("did-attach-webview", {}, guest);
+      attachGuest(leaving, targetId, 9001);
       const generation = manager.getTargets(901)[0]?.generation;
 
       manager.handOffGuestsOf(901, 902, [targetId]);
@@ -272,14 +279,15 @@ describe("getBrowserViewManager", () => {
       expect(idsIn(401)).not.toContain(targetId);
     });
 
-    it("leaves a guest where an agent is at work in it", async () => {
-      hostWith(601);
+    it("leaves a guest an agent has used where it is, until a window asks for it", async () => {
+      const having = hostWith(601);
       hostWith(602);
       const manager = getBrowserViewManager();
       const targetId = browserTargetOf(StoreId.newTabId());
       void manager.browser
         .createTarget(targetId, partition, { webContentsId: 601 })
         .catch(() => undefined);
+      attachGuest(having, targetId, 6001);
       await manager.browser
         .sendCommand(targetId, "Input.dispatchMouseEvent", {})
         .catch(() => undefined);
@@ -292,10 +300,29 @@ describe("getBrowserViewManager", () => {
         .catch(() => undefined);
       expect(idsIn(601)).toContain(targetId);
 
+      // Long after its last command, what the agent did there is still there.
       vi.advanceTimersByTime(30_001);
+      console.log(
+        "DBG used2",
+        manager.isPageUsed([targetId]),
+        manager.getTargetsElsewhere(602),
+      );
       void manager.browser
         .createTarget(targetId, partition, {
           take: "parked",
+          webContentsId: 602,
+        })
+        .catch(() => undefined);
+      expect(idsIn(601)).toContain(targetId);
+      expect(manager.getTargetsElsewhere(602)).toContainEqual({
+        canTake: false,
+        isInUse: true,
+        targetId,
+      });
+
+      void manager.browser
+        .createTarget(targetId, partition, {
+          take: "always",
           webContentsId: 602,
         })
         .catch(() => undefined);

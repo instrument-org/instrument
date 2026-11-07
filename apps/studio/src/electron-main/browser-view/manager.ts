@@ -749,10 +749,14 @@ function createBrowserViewManager(): BrowserViewManager {
     });
   }
 
-  // Another window leaves a page alone while its window shows it, and while an
-  // agent is at work in it, since coming over is a reload.
+  // Another window leaves a page alone while its window shows it, while an
+  // agent is at work in it, and once a person or an agent has used it, since
+  // coming over is a reload and would lose what they did there. Only asked
+  // for, with Show Here, does a used page come over.
   const isInUse = (entry: BrowserEntry) =>
-    entry.shown || Date.now() - entry.lastAgentCommandAt < AGENT_KEEPS_GUEST_MS;
+    entry.shown ||
+    Date.now() - entry.lastAgentCommandAt < AGENT_KEEPS_GUEST_MS ||
+    isUsed(entry);
 
   // Whether a window showing a page gets it for asking: not while another window
   // has a use for it, and not while it is a spare, whose drag says which pages it

@@ -50,12 +50,7 @@ import {
 } from "./compose-layout";
 import { useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion } from "./context-chip";
-import {
-  type BandTarget,
-  openInBand,
-  targetsOf,
-  useContextIntoBand,
-} from "./draft-band";
+import { type BandTarget, openInBand, targetsOf } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
@@ -219,22 +214,8 @@ export function ComposeWindow({
       ? selected
       : (tabs.at(-1) ?? undefined)
     : undefined;
-  // What the draft carries besides its words, as its chips: the same list
-  // its chat is told at the press (see draftContextItems).
   const surfaces = useAtomValue(tabSurfaceAtom);
   const inView = useTabInView();
-  const {
-    items: contextItems,
-    leaveOut,
-    suggestion,
-  } = useDraftChips({
-    allTabs: windowTabs.allTabs,
-    band: tabs,
-    draft,
-    finderOf: (id) => surfaces[id]?.finder ?? null,
-    inView,
-    onChange,
-  });
 
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.
@@ -363,10 +344,24 @@ export function ComposeWindow({
     windowTabs.select(id);
     setWellOpen(true);
   };
-  const open = (target: BandTarget) => {
+  const open = (target: BandTarget) =>
     openInBand({ browser, group, target, windowTabs });
-  };
-  useContextIntoBand({ draft, onChange, open });
+  // What the draft carries besides its words, as its chips: the same list
+  // its chat is told at the press (see draftContextItems).
+  const {
+    items: contextItems,
+    leaveOut,
+    suggestion,
+  } = useDraftChips({
+    allTabs: windowTabs.allTabs,
+    band: tabs,
+    closeTab,
+    draft,
+    finderOf: (id) => surfaces[id]?.finder ?? null,
+    inView,
+    onChange,
+    open,
+  });
   // The attached file or folder the well shows, whose chip stands raised.
   const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
 
@@ -614,15 +609,7 @@ export function ComposeWindow({
                           selectedId: up?.id,
                         }}
                         items={contextItems}
-                        onLeaveOut={(item) => {
-                          // A chip of the band's is its tab: taking it off
-                          // closes the tab, and the message goes without it.
-                          if (item.kind === "tab" && item.tab.group === group) {
-                            closeTab(item.tab.id);
-                          } else {
-                            leaveOut(item);
-                          }
-                        }}
+                        onLeaveOut={leaveOut}
                       />
                     ) : undefined
                   }

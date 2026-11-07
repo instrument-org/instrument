@@ -39,7 +39,7 @@ import { PopOutButton } from "./chat-header";
 import { ProjectSlot } from "./compose-window";
 import { useWindow } from "./context";
 import { ContextChips } from "./context-chip";
-import { openInBand, useContextIntoBand } from "./draft-band";
+import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { isHomeTab } from "./tab-model";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -172,27 +172,24 @@ export function NewChatView({
   // chip raised, and a second press puts the panel away.
   const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
   const chips = useNewChatChips(draft, {
-    band: isPaneShown ? [] : tabs.filter((tab) => !isHomeTab(tab)),
+    band: tabs.filter((tab) => !isHomeTab(tab)),
     onSelect: (id) => {
       if (group === undefined) {
+        return;
+      }
+      // A second press of the chip the side panel shows puts the panel away.
+      if (id === up?.id) {
+        shell.setPaneOpen(group, false);
         return;
       }
       windowTabs.select(id);
       onOpenBeside(group);
     },
-  });
-  useContextIntoBand({
-    draft,
-    onChange: (update) => {
-      if (draft) {
-        updateDraft({ id: draft.id, update });
-      }
-    },
-    open: (target) => {
-      if (group !== undefined) {
-        openInBand({ browser: appWindow.browser, group, target, windowTabs });
-      }
-    },
+    open: (target) =>
+      group === undefined
+        ? undefined
+        : openInBand({ browser: appWindow.browser, group, target, windowTabs }),
+    selectedId: up?.id,
   });
 
   // Emptied of everything it had, the draft goes, and the screen is a new
@@ -380,15 +377,26 @@ function MarkedPills({ draftId }: { draftId: string }) {
 const NO_DRAFT: Draft = { createdAt: 0, id: "", updatedAt: 0, words: "" };
 
 /**
- * What the draft carries besides its words, as its chips: its tabs while the
- * side panel is put away, each bringing the panel back up on its tab when
- * pressed, and none while the panel shows them as its own strip; and another
- * chat it names. None at all for a new chat with no draft yet, or with
- * nothing to name, so the row closes when its last chip goes.
+ * What the draft carries besides its words, as its chips, as a docked
+ * draft's window has them: every tab of its band, whether or not the side
+ * panel is showing them too, each bringing the panel up on its tab when
+ * pressed, the one the panel shows raised; then another chat it names. None
+ * at all for a new chat with no draft yet, or with nothing to name, so the
+ * row closes when its last chip goes.
  */
 function useNewChatChips(
   draft: Draft | undefined,
-  { band, onSelect }: { band: WindowTab[]; onSelect: (tabId: string) => void },
+  {
+    band,
+    onSelect,
+    open,
+    selectedId,
+  }: {
+    band: WindowTab[];
+    onSelect: (tabId: string) => void;
+    open: (target: BandTarget) => string | undefined;
+    selectedId: string | undefined;
+  },
 ): ReactNode {
   const windowTabs = useWindowTabs();
   const updateDraft = useSetAtom(updateDraftAtom);
@@ -396,6 +404,7 @@ function useNewChatChips(
   const { items, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
     band,
+    closeTab: windowTabs.close,
     draft: draft ?? NO_DRAFT,
     finderOf: (id) => surfaces[id]?.finder ?? null,
     inView: undefined,
@@ -404,23 +413,13 @@ function useNewChatChips(
         updateDraft({ id: draft.id, update });
       }
     },
+    open,
   });
   return draft && items.length > 0 ? (
     <ContextChips
-      band={{
-        group: draftGroupOf(draft.id),
-        onSelect,
-        selectedId: undefined,
-      }}
+      band={{ group: draftGroupOf(draft.id), onSelect, selectedId }}
       items={items}
-      onLeaveOut={(item) => {
-        // A chip of the band's is its tab: taking it off closes the tab.
-        if (item.kind === "tab" && item.tab.group === draftGroupOf(draft.id)) {
-          windowTabs.close(item.tab.id);
-        } else {
-          leaveOut(item);
-        }
-      }}
+      onLeaveOut={leaveOut}
     />
   ) : undefined;
 }

@@ -4,7 +4,7 @@ import {
   type DraftContextItem,
 } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
-import { instrumentLinkOf } from "@instrument-org/shared";
+import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 import { includedItemsOf, isIncludable } from "./draft-context";
@@ -95,13 +95,54 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 }
 
 /**
+ * The lines of `context` a tab of a draft's band stands for, as the draft's
+ * file keeps them: the files or folders it points at on this computer, else
+ * a page's address or an app's front by its own address. None for a tab
+ * that shows something attached to the draft (`held`), or that names
+ * nothing a line can (a new tab, the list of apps).
+ */
+export function bandTabLines(
+  tab: WindowTab,
+  {
+    finderOf,
+    held,
+  }: {
+    finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
+    held: ChosenItem[];
+  },
+): DraftContextItem[] {
+  const item = itemOfTab(tab, {
+    finderOf,
+    group: tab.group ?? "",
+    held,
+    key: keyOfTab(tab),
+  });
+  if (item?.kind !== "tab") {
+    return [];
+  }
+  if (item.items !== undefined) {
+    return item.items.map((entry) => ({ kind: entry.kind, path: entry.path }));
+  }
+  const url = tab.kind === "page" ? tab.url : instrumentUrlOf(tab.href);
+  return url === undefined ? [] : [{ kind: "link", url }];
+}
+
+/** Which thing a line of `context` names, the same however a folder's path ends: what a band tab and a line are matched by. */
+export function lineKeyOf(entry: DraftContextItem): string {
+  return entry.kind === "file" || entry.kind === "folder"
+    ? `${CHOSEN_KEY}${withoutSlash(entry.path)}`
+    : contextKeyOf(entry);
+}
+
+/**
  * What a draft carries, in the order its chips stand: every tab of the
- * draft's own band, in the band's order, then what is left in its `context`
- * (another chat; the rest becomes tabs as the draft is shown, see
- * `useContextIntoBand`). Each of the band's tabs is a chip, since the chips
- * are the band's tabs: picking one shows it, and taking one off closes it. A
- * tab showing something attached to the draft is no chip of its own: the
- * attachment's chip is it.
+ * draft's own band, in the band's order, then each line of its `context` no
+ * tab of the band stands for (another chat, and a line this window has yet
+ * to open as a tab, see `useBandContext`). The file's lines are the record
+ * and the band is how this window shows them, so a thing is one chip however
+ * both name it. Each of the band's tabs is a chip: picking one shows it, and
+ * taking one off closes it. A tab showing something attached to the draft is
+ * no chip of its own: the attachment's chip is it.
  *
  * What the window has in view behind the draft is never one of them: it is
  * offered beside the chips (`draftSuggestionOf`), and goes only once the
@@ -121,10 +162,17 @@ export function draftContextItems({
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   group: string;
 }): ContextItem[] {
-  const chosen = dedupeChats(
-    (draft.context ?? []).map((entry) => contextItemOf(entry, allTabs)),
-  );
   const attached = attachedPaths(draft);
+  const shown = new Set(
+    band.flatMap((tab) =>
+      bandTabLines(tab, { finderOf, held: attached }).map(lineKeyOf),
+    ),
+  );
+  const chosen = dedupeChats(
+    (draft.context ?? [])
+      .filter((entry) => !shown.has(lineKeyOf(entry)))
+      .map((entry) => contextItemOf(entry, allTabs)),
+  );
   const own: ContextItem[] = [];
   for (const tab of band) {
     const key = keyOfTab(tab);
@@ -197,7 +245,7 @@ export function draftSuggestionOf({
 }
 
 /** What is attached to a draft by its path, which a tab of its band showing the same thing does not say again. */
-function attachedPaths(draft: Draft): ChosenItem[] {
+export function attachedPaths(draft: Draft): ChosenItem[] {
   return [...(draft.attached ?? []), ...(draft.inFolder ?? [])].map(
     (entry) => ({ kind: entry.kind, path: entry.path }),
   );

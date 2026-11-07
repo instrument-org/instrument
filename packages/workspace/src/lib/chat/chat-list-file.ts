@@ -61,7 +61,7 @@ const ROW_FIELDS = [
   "latest",
   "sessionId",
   "starred",
-  "state",
+  "status",
   "title",
   "titled",
   "project",

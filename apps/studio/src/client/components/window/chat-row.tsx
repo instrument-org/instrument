@@ -549,10 +549,10 @@ export function Peek({
   /** The words searched for, marked where they turn up in the line. */
   search?: string;
 }) {
-  const isFailed = chat.state === "failed";
-  const isLimited = chat.state === "limited";
-  const isWaiting = chat.state === "waiting";
-  const isWorking = chat.state === "working";
+  const isFailed = chat.status === "failed";
+  const isLimited = chat.status === "limited";
+  const isWaiting = chat.status === "waiting";
+  const isWorking = chat.status === "working";
   if (!chat.latest && !isFailed && !isLimited && !isWaiting && !isWorking) {
     return null;
   }

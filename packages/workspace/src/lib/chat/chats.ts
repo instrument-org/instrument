@@ -36,7 +36,7 @@ import { excerptOf } from "./reply-excerpt";
 import { saveProjectId } from "./projects";
 import { hasWakeOnItsWay } from "./wake-queue";
 import { isStopNote } from "./wake-event";
-import { chatStateOf, chatWorks } from "./chat-state";
+import { ChatStatusSchema, chatStatusOf, chatWorks } from "./chat-status";
 import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
@@ -117,10 +117,10 @@ export const ChatSchema = z.object({
   ),
   /** The chat's session, which its transcript is read and its messages are sent through. */
   sessionId: StoreId.SessionSchema,
-  /** Where the chat stands, by the one rule in `chatStateOf`. */
-  state: z.enum(["failed", "idle", "limited", "stopped", "waiting", "working"]),
+  /** Where the chat stands, by the one rule in `chatStatusOf`. */
+  status: ChatStatusSchema,
   /**
-   * While `state` is `limited`, what stopped the turn: a plan the account
+   * While `status` is `limited`, what stopped the turn: a plan the account
    * does not have (`plan`, Instrument's refusal for a missing or lapsed
    * plan), a plan whose last payment failed (`payment`), or a usage window
    * spent (`usage`).
@@ -147,8 +147,8 @@ export const ChatSchema = z.object({
   updatedAt: z.number(),
   /**
    * Whether anything of the chat's still moves, by the same rule, whatever
-   * `state` says: a card can wait on the user while a task of its works.
-   * What reads the chat as settled or busy reads this, not `state`.
+   * `status` says: a card can wait on the user while a task of its works.
+   * What reads the chat as settled or busy reads this, not `status`.
    */
   working: z.boolean(),
 });
@@ -201,7 +201,7 @@ export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
   const { running } = await chatActivity(chatId);
   // Whether anything moves does not turn on what waits on the user, so the
   // chat's cards are not read.
-  return stateOf(chatId, digest, running, []).working;
+  return statusOf(chatId, digest, running, []).working;
 }
 
 /**
@@ -387,7 +387,7 @@ export function startChatSettle(): void {
 }
 
 /**
- * Whether the chat may be working, by the rule `chatStateOf` follows, read
+ * Whether the chat may be working, by the rule `chatStatusOf` follows, read
  * without the chat's records: any agent of the chat's alive stands in for
  * both its own turn and a task at work.
  */
@@ -663,9 +663,9 @@ async function chatFor(
   const {
     ask: anyAsk,
     ownWorking,
-    state,
+    status,
     working,
-  } = stateOf(
+  } = statusOf(
     chatId,
     digest,
     filed,
@@ -682,7 +682,7 @@ async function chatFor(
       ),
     ),
   );
-  const ask = state === "working" ? undefined : anyAsk;
+  const ask = status === "working" ? undefined : anyAsk;
 
   const [lead] = runningTasks;
   // A turn under way names its step from what it holds in memory, where a
@@ -698,7 +698,7 @@ async function chatFor(
     // The chat's own turn names its step first, as the line under its title
     // does; a task at work, its step or else its name.
     step: ownStep ?? lead?.step ?? lead?.title,
-    state,
+    status,
   });
 
   const { sent } = digest;
@@ -733,13 +733,13 @@ async function chatFor(
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(ownStep ? { ownStep } : {}),
     ownWorking,
-    ...(state === "limited" && {
+    ...(status === "limited" && {
       stoppedFor: digest.planRefusal ?? ("usage" as const),
     }),
     firstAsk: digest.firstAsk,
     runningTasks,
     sessionId: session.id,
-    state,
+    status,
     title: shownTitleFrom(session.title, digest.firstAsk),
     titleByApp: session.titleByApp === true,
     titled: !isUntitledChatSessionTitle(session.title),
@@ -958,16 +958,16 @@ async function knownAppSlugs(): Promise<Set<string>> {
 function latestFor({
   ask,
   digest,
-  state,
+  status,
   step,
 }: {
   ask: undefined | { at: number; text: string };
   digest: ChatDigest;
-  state: Chat["state"];
+  status: Chat["status"];
   /** What a working chat is on: the step its own turn or a task at work names. */
   step: string | undefined;
 }): Chat["latest"] {
-  if (state === "working") {
+  if (status === "working") {
     if (step && digest.lastMessageAt !== undefined) {
       return { at: digest.lastMessageAt, kind: "step", text: step };
     }
@@ -1186,11 +1186,11 @@ function webHostOf(url: string): string {
 }
 
 /**
- * Where a chat stands by `chatStateOf`, read from its digest, the tasks
+ * Where a chat stands by `chatStatusOf`, read from its digest, the tasks
  * running in it, and what it waits on the user for (`asksOf`), with what its
  * line says it waits on the user for.
  */
-function stateOf(
+function statusOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
@@ -1201,7 +1201,7 @@ function stateOf(
     : undefined;
   return {
     ask: asks[0],
-    ...chatStateOf({
+    ...chatStatusOf({
       askedAt,
       failed: digest.failed,
       limited: digest.limited,

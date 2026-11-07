@@ -268,7 +268,7 @@ export function ChatConversation({
   const { data: isWaiting = false } = useQuery({
     ...chatListOptions(),
     select: (chats) =>
-      chats.find((chat) => chat.id === id)?.state === "waiting",
+      chats.find((chat) => chat.id === id)?.status === "waiting",
   });
 
   // A submit that never becomes a turn would otherwise leave an idle transcript

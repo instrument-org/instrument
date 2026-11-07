@@ -124,9 +124,9 @@ export function MessageError({
   const [expandedPast, setExpandedPast] = useState(false);
   const [reportSent, setReportSent] = useState(false);
   const signInAgain = useSignInAgain();
-  const { data: chatState } = useQuery({
+  const { data: chatStatus } = useQuery({
     ...chatListOptions(),
-    select: (chats) => chats.find((chat) => chat.id === chatId)?.state,
+    select: (chats) => chats.find((chat) => chat.id === chatId)?.status,
   });
   const onlineRetry = useRetryWhenOnline({
     failedAt: message.metadata.createdAt,
@@ -136,7 +136,7 @@ export function MessageError({
     isRetryable:
       isLatestAttempt &&
       onRunAgain !== undefined &&
-      chatState !== "stopped" &&
+      chatStatus !== "stopped" &&
       error !== undefined &&
       "classification" in error &&
       error.classification === "transient",

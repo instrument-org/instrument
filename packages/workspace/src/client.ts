@@ -39,6 +39,7 @@ export type {
   ComputerListing,
   ComputerRefusal,
 } from "./lib/chat/computer";
+export type { ChatStatus } from "./lib/chat/chat-status";
 export { joinedMidTurn, MID_TURN_NOTE } from "./lib/chat/mid-turn";
 export {
   applyFeedEvent,

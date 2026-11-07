@@ -1,14 +1,19 @@
+import { z } from "zod";
+
 /** Where a chat stands, as its row and its line say it. */
-export type ChatState =
-  | "failed"
-  | "idle"
-  | "limited"
-  | "stopped"
-  | "waiting"
-  | "working";
+export const ChatStatusSchema = z.enum([
+  "failed",
+  "idle",
+  "limited",
+  "stopped",
+  "waiting",
+  "working",
+]);
+
+export type ChatStatus = z.output<typeof ChatStatusSchema>;
 
 /**
- * Where a chat stands: the one rule every reader of a chat's state goes
+ * Where a chat stands: the one rule every reader of a chat's status goes
  * through.
  *
  * - **working**: something of the chat's is moving. Its own turn, from the
@@ -26,11 +31,11 @@ export type ChatState =
  *   usage window) rather than something going wrong.
  * - **idle**: none of these.
  *
- * `working` comes back beside `state`, which waiting outranks it in: whether
+ * `working` comes back beside `status`, which waiting outranks it in: whether
  * anything still moves is what marking the chat unread, naming it, and
  * telling the user it is done each read as it settles.
  */
-export function chatStateOf({
+export function chatStatusOf({
   askedAt,
   failed,
   limited,
@@ -56,11 +61,11 @@ export function chatStateOf({
   tasksAtWork: boolean;
   /** A wake is on its way to start a turn in one of the chat's sessions. */
   wakeOnItsWay: boolean;
-}): { ownWorking: boolean; state: ChatState; working: boolean } {
+}): { ownWorking: boolean; status: ChatStatus; working: boolean } {
   const ownWorking = ownTurn;
   const working = chatWorks({ ownTurn, tasksAtWork, wakeOnItsWay });
   const hasAsk = askedAt !== undefined;
-  const state =
+  const status =
     hasAsk && askedAt > spokeAt
       ? "waiting"
       : working
@@ -74,12 +79,12 @@ export function chatStateOf({
               : limited
                 ? "limited"
                 : "idle";
-  return { ownWorking, state, working };
+  return { ownWorking, status, working };
 }
 
 /**
  * Whether anything of the chat's still moves, the `working` that
- * `chatStateOf` returns beside its state: its own turn, a task at work, or a
+ * `chatStatusOf` returns beside its status: its own turn, a task at work, or a
  * wake on its way.
  */
 export function chatWorks({

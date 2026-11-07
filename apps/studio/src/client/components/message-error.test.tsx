@@ -33,11 +33,11 @@ vi.mock("@/client/hooks/use-network-status", () => ({
   useNetworkStatus: () => ({ status: network.status }),
 }));
 
-const chat = vi.hoisted(() => ({ state: "failed" }));
+const chat = vi.hoisted(() => ({ status: "failed" }));
 vi.mock("./window/chat-list-query", () => ({
   chatListOptions: () => ({
     queryFn: () =>
-      Promise.resolve([{ id: "2026-10-29-model-error", state: chat.state }]),
+      Promise.resolve([{ id: "2026-10-29-model-error", status: chat.status }]),
     queryKey: ["chats"],
   }),
 }));
@@ -413,7 +413,7 @@ describe("MessageError", () => {
     };
     afterEach(() => {
       network.status = "online";
-      chat.state = "failed";
+      chat.status = "failed";
     });
 
     it("says so while offline, with nothing to press", () => {
@@ -458,7 +458,7 @@ describe("MessageError", () => {
 
     it("promises nothing once the person has stopped the chat", async () => {
       network.status = "offline";
-      chat.state = "stopped";
+      chat.status = "stopped";
       renderError({ error: NEVER_CONNECTED, provider: "openrouter" });
       expect(
         await screen.findByRole("button", { name: "Try again" }),

@@ -440,7 +440,7 @@ describe("listChats", () => {
         createdAt: chat.createdAt,
         latest: chat.latest,
         firstAsk: chat.firstAsk,
-        state: chat.state,
+        status: chat.status,
         title: chat.title,
         unread: chat.unread,
       })),
@@ -453,7 +453,7 @@ describe("listChats", () => {
           text: "Starting the list.",
         },
         firstAsk: "make me a grocery list",
-        state: "idle",
+        status: "idle",
         title: "Groceries for the week",
         unread: false,
       },
@@ -461,7 +461,7 @@ describe("listChats", () => {
         createdAt: at(4).getTime(),
         latest: undefined,
         firstAsk: "plan a trip to lisbon",
-        state: "idle",
+        status: "idle",
         title: "Trip to Lisbon",
         unread: false,
       },
@@ -659,11 +659,11 @@ describe("listChats", () => {
     await userSays(chatId, sessionId, "hru", 1);
     await agentSays(chatId, sessionId, "", { failed: true, minute: 2 });
     const [failed] = await listChats();
-    expect(failed?.state).toBe("failed");
+    expect(failed?.status).toBe("failed");
 
     await agentSays(chatId, sessionId, "Doing well!", { minute: 3 });
     const [answered] = await listChats();
-    expect(answered?.state).toBe("idle");
+    expect(answered?.status).toBe("idle");
   });
 
   it("says a chat stopped at a usage limit is limited, not failed", async () => {
@@ -680,7 +680,7 @@ describe("listChats", () => {
     });
 
     const [chat] = await listChats();
-    expect(chat?.state).toBe("limited");
+    expect(chat?.status).toBe("limited");
     expect(chat?.stoppedFor).toBe("usage");
   });
 
@@ -704,7 +704,7 @@ describe("listChats", () => {
     });
 
     const [chat] = await listChats();
-    expect(chat).toMatchObject({ state: "limited", stoppedFor: "plan" });
+    expect(chat).toMatchObject({ status: "limited", stoppedFor: "plan" });
   });
 
   it("says a chat Instrument refused for a failed payment stopped for its payment", async () => {
@@ -727,7 +727,7 @@ describe("listChats", () => {
     });
 
     const [chat] = await listChats();
-    expect(chat).toMatchObject({ state: "limited", stoppedFor: "payment" });
+    expect(chat).toMatchObject({ status: "limited", stoppedFor: "payment" });
   });
 
   it("leaves a failed turn behind once the user sends again", async () => {
@@ -738,19 +738,19 @@ describe("listChats", () => {
     await userSays(chatId, sessionId, "hello?", 3);
 
     const [chat] = await listChats();
-    expect(chat?.state).not.toBe("failed");
+    expect(chat?.status).not.toBe("failed");
   });
 
   // A reply cut off by its request timing out never got out, which nobody
   // asked for; one cut off by a stop someone asked for is no error, and nor
   // is one cut off before the reason was kept.
   it.each([
-    { reason: "timeout", state: "failed" },
-    { reason: "manual", state: "idle" },
-    { reason: undefined, state: "idle" },
+    { reason: "timeout", status: "failed" },
+    { reason: "manual", status: "idle" },
+    { reason: undefined, status: "idle" },
   ] as const)(
-    "reads a reply cut off for $reason as $state",
-    async ({ reason, state }) => {
+    "reads a reply cut off for $reason as $status",
+    async ({ reason, status }) => {
       const chatId = await freshChat();
       const sessionId = await session(chatId, "Documents", 1);
       await userSays(chatId, sessionId, "what's in my Documents?", 1);
@@ -779,7 +779,7 @@ describe("listChats", () => {
       expect(reply.isOk()).toBe(true);
 
       const [chat] = await listChats();
-      expect(chat?.state).toBe(state);
+      expect(chat?.status).toBe(status);
     },
   );
 
@@ -903,7 +903,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
     expect(chat?.latest).toEqual({
       at: at(2).getTime(),
       kind: "step",
@@ -926,7 +926,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
     expect(chat?.latest?.kind).toBe("step");
     expect(chat?.latest?.text).toBe("Running a command");
   });
@@ -946,12 +946,12 @@ describe("listChats", () => {
       vi.setSystemTime(at(3).getTime() + 5000);
 
       const [untaken] = await listChats();
-      expect(untaken?.state).toBe("idle");
+      expect(untaken?.status).toBe("idle");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
       alive.value = new Set([sessionId]);
       const [taken] = await listChats();
-      expect(taken?.state).toBe("working");
+      expect(taken?.status).toBe("working");
     } finally {
       vi.useRealTimers();
     }
@@ -988,7 +988,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
     expect(chat?.latest).toMatchObject({
       kind: "step",
       text: "Running a command",
@@ -1005,7 +1005,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
   });
 
   it("is waiting on the question its last turn asked", async () => {
@@ -1016,7 +1016,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("waiting");
+    expect(chat?.status).toBe("waiting");
     expect(chat?.latest).toEqual({
       at: expect.any(Number),
       kind: "question",
@@ -1104,7 +1104,7 @@ describe("listChats", () => {
     );
 
     const [asked] = await listChats();
-    expect(asked?.state).toBe("waiting");
+    expect(asked?.status).toBe("waiting");
     expect(asked?.latest).toEqual({
       at: expect.any(Number),
       kind: "question",
@@ -1122,7 +1122,7 @@ describe("listChats", () => {
       { event: "connected", name: "Reminders", slug: "apple-reminders" },
       {} as WorkspaceActorRef,
     );
-    expect((await listChats())[0]?.state).toBe("idle");
+    expect((await listChats())[0]?.status).toBe("idle");
 
     // Asked again, then written past.
     await connections.set("apple-reminders", {
@@ -1135,10 +1135,10 @@ describe("listChats", () => {
       undefined,
       { id: StoreId.newPartId() },
     );
-    expect((await listChats())[0]?.state).toBe("waiting");
+    expect((await listChats())[0]?.status).toBe("waiting");
     await userSays(chatId, sessionId, "never mind", 7);
     recordChanged(chatId, "state");
-    expect((await listChats())[0]?.state).toBe("idle");
+    expect((await listChats())[0]?.status).toBe("idle");
   });
 
   it("stops waiting on a sign-in card once the user stops the chat", async () => {
@@ -1215,7 +1215,7 @@ describe("listChats", () => {
       [{ name: "Reminders", slug: "apple-reminders" }],
       undefined,
     );
-    expect((await listChats())[0]?.state).toBe("waiting");
+    expect((await listChats())[0]?.status).toBe("waiting");
 
     const stopped = await ChatWrites.stopped(
       await chatFor(sessionId),
@@ -1225,7 +1225,7 @@ describe("listChats", () => {
     );
     expect(stopped.isOk()).toBe(true);
     recordChanged(chatId, "state");
-    expect((await listChats())[0]?.state).not.toBe("waiting");
+    expect((await listChats())[0]?.status).not.toBe("waiting");
   });
 
   it("waits on an open card, even while the turn that raised it winds down", async () => {
@@ -1248,7 +1248,7 @@ describe("listChats", () => {
       alive.value = new Set([sessionId]);
 
       const [winding] = await listChats();
-      expect(winding?.state).toBe("waiting");
+      expect(winding?.status).toBe("waiting");
       expect(winding?.latest).toEqual({
         at: at(3).getTime(),
         kind: "question",
@@ -1257,14 +1257,14 @@ describe("listChats", () => {
 
       alive.value = new Set();
       const [ended] = await listChats();
-      expect(ended?.state).toBe("waiting");
+      expect(ended?.status).toBe("waiting");
 
       // The user sent something else rather than answer: the turn that
       // starts is what the chat is on until it ends.
       await userSays(chatId, sessionId, "never mind, check the fridge", 4);
       alive.value = new Set([sessionId]);
       const [spokenPast] = await listChats();
-      expect(spokenPast?.state).toBe("working");
+      expect(spokenPast?.status).toBe("working");
     } finally {
       vi.useRealTimers();
     }
@@ -1299,7 +1299,7 @@ describe("listChats", () => {
 
       vi.setSystemTime(at(3).getTime() + 5000);
       const [relaunched] = await listChats();
-      expect(relaunched?.state).toBe("idle");
+      expect(relaunched?.status).toBe("idle");
       // What the line says "Done" by once the chat is at rest.
       expect(relaunched?.lastStep?.at).toBe(at(2).getTime());
 
@@ -1313,7 +1313,7 @@ describe("listChats", () => {
       );
       vi.setSystemTime(at(3).getTime() + 5000);
       const [carded] = await listChats();
-      expect(carded?.state).toBe("waiting");
+      expect(carded?.status).toBe("waiting");
     } finally {
       vi.useRealTimers();
     }
@@ -1347,19 +1347,19 @@ describe("listChats", () => {
     // Written, and on its way to the session.
     pendingWakes.value = new Set([await chatFor(sessionId)]);
     const [woken] = await listChats();
-    expect(woken?.state).toBe("working");
+    expect(woken?.status).toBe("working");
 
     pendingWakes.value = new Set();
     alive.value = new Set([sessionId]);
     const [answering] = await listChats();
-    expect(answering?.state).toBe("working");
+    expect(answering?.status).toBe("working");
 
     await agentSays(chatId, sessionId, "Your Documents folder holds Taxes.", {
       minute: 4,
     });
     alive.value = new Set();
     const [settled] = await listChats();
-    expect(settled?.state).toBe("idle");
+    expect(settled?.status).toBe("idle");
   });
 
   // The person's Stop is what says so, however the turn ended: before it
@@ -1373,7 +1373,7 @@ describe("listChats", () => {
     await markChatStopped(await chatFor(sessionId), at(2));
 
     const [beforeStart] = await listChats();
-    expect(beforeStart?.state).toBe("stopped");
+    expect(beforeStart?.status).toBe("stopped");
 
     await noteSays(sessionId, 3, (metadata) => ({
       data: {
@@ -1392,13 +1392,13 @@ describe("listChats", () => {
       type: "data-taskEvent",
     }));
     const [pastNote] = await listChats();
-    expect(pastNote?.state).toBe("stopped");
+    expect(pastNote?.status).toBe("stopped");
 
     // The next turn starting is what ends it.
     await userSays(chatId, sessionId, "try Desktop instead", 4);
     alive.value = new Set([sessionId]);
     const [next] = await listChats();
-    expect(next?.state).toBe("working");
+    expect(next?.status).toBe("working");
 
     // A reply cut off with no Stop of the person's behind it is not theirs.
     alive.value = new Set();
@@ -1428,7 +1428,7 @@ describe("listChats", () => {
     );
     expect(reply.isOk()).toBe(true);
     const [cutOff] = await listChats();
-    expect(cutOff?.state).not.toBe("stopped");
+    expect(cutOff?.status).not.toBe("stopped");
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
@@ -1715,12 +1715,12 @@ describe("liveChatList", () => {
     await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     alive.value = new Set([sessionId]);
     const { first, next, stop } = await open();
-    expect(first?.[0]?.state).toBe("working");
+    expect(first?.[0]?.status).toBe("working");
 
     alive.value = new Set();
     recordChanged(await chatFor(sessionId), "agent");
 
-    expect((await next())?.[0]?.state).toBe("idle");
+    expect((await next())?.[0]?.status).toBe("idle");
     stop();
   });
 
@@ -1765,7 +1765,7 @@ describe("liveChatList", () => {
 
       vi.setSystemTime(at(3).getTime() + 5000);
       const { first, stop } = await open();
-      expect(first?.[0]?.state).toBe("idle");
+      expect(first?.[0]?.status).toBe("idle");
       stop();
     } finally {
       vi.useRealTimers();

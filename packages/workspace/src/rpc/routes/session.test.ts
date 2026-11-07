@@ -463,11 +463,11 @@ describe("session.stop", () => {
   // A Stop before the turn began leaves only the message no turn took up,
   // and the chat still says the person stopped it.
   it.each([
-    { running: true, state: "stopped" },
-    { running: false, state: "idle" },
+    { running: true, status: "stopped" },
+    { running: false, status: "idle" },
   ])(
     "says the chat was stopped once the person stops its own turn (turn running: $running)",
-    async ({ running: turnRunning, state }) => {
+    async ({ running: turnRunning, status }) => {
       const { chatId, own } = await chatWithTask();
       const messageId = StoreId.newMessageId();
       const createdAt = new Date();
@@ -503,7 +503,7 @@ describe("session.stop", () => {
         { context: context() },
       );
 
-      expect((await chatById(chatId))?.state).toBe(state);
+      expect((await chatById(chatId))?.status).toBe(status);
     },
   );
 

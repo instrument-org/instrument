@@ -55,7 +55,7 @@ function chat(): Chat {
     runningTasks: [],
     sessionId,
     starred: false,
-    state: "idle",
+    status: "idle",
     title: TITLE,
     titleByApp: true,
     titled: true,

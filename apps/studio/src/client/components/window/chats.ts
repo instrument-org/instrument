@@ -1,5 +1,5 @@
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
-import { type ChatId } from "@instrument-org/workspace/client";
+import { type ChatId, type ChatStatus } from "@instrument-org/workspace/client";
 import { type RPCOutput } from "@/client/rpc/client";
 import { placeholderTitle } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
@@ -50,7 +50,7 @@ export interface Filterable {
   latest?: { text: string };
   /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
-  state: "failed" | "idle" | "limited" | "stopped" | "waiting" | "working";
+  status: ChatStatus;
   title: string;
   /** The id of the project it is filed under, when it is filed under one. */
   project?: string;
@@ -319,13 +319,13 @@ export type RailChatMark = "unread" | "waiting" | "working";
 export function railMarkOf(
   chats: readonly {
     archived: boolean;
-    state: Filterable["state"];
+    status: Filterable["status"];
     unread: boolean;
     working: boolean;
   }[],
 ): RailChatMark | undefined {
   const inbox = chats.filter((chat) => !chat.archived);
-  if (inbox.some((chat) => chat.state === "waiting")) {
+  if (inbox.some((chat) => chat.status === "waiting")) {
     return "waiting";
   }
   if (inbox.some((chat) => chat.working)) {

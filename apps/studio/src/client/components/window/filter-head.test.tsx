@@ -39,7 +39,7 @@ function chat({
     holds: { apps: [], files: [], sites: [], ...holds },
     firstAsk: "",
     starred: false,
-    state: "idle",
+    status: "idle",
     title: "",
     unread: false,
     ...overrides,
@@ -100,7 +100,7 @@ describe("FilterHead", () => {
       chats: [
         chat({ starred: true, project: "house", unread: true }),
         chat({ archived: true, project: "house", unread: true }),
-        chat({ state: "waiting" }),
+        chat({ status: "waiting" }),
       ],
     });
     const picker = head.getByRole("button", { name: "View: Chats" });

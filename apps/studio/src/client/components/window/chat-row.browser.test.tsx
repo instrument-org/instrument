@@ -159,14 +159,14 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     runningTasks: [],
     sessionId,
     starred: false,
-    state: "idle",
+    status: "idle",
     title: TITLE,
     titleByApp: true,
     titled: true,
     unread: false,
     unreadByUser: false,
     updatedAt: MOVED_AT.getTime(),
-    working: overrides.state === "working",
+    working: overrides.status === "working",
     ...overrides,
   };
 }
@@ -432,7 +432,7 @@ describe("ChatRow", () => {
       }),
       chat(),
       chat({ lastReplyAt: undefined, latest: undefined }),
-      chat({ state: "working" }),
+      chat({ status: "working" }),
     ]);
     const heights = new Set(
       rows.map((row) => Math.round(row.getBoundingClientRect().height)),
@@ -474,8 +474,8 @@ describe("ChatRow", () => {
   it.each<[string, Partial<Chat>]>([
     ["quiet", {}],
     ["unseen", { unread: true }],
-    ["working", { state: "working" }],
-    ["waiting", { state: "waiting" }],
+    ["working", { status: "working" }],
+    ["waiting", { status: "waiting" }],
   ])(
     "wears no dot when %s: the latest line says where it stands",
     async (_, overrides) => {
@@ -559,7 +559,7 @@ describe("ChatRow", () => {
             title: "Nest guard",
           },
         ],
-        state: "working",
+        status: "working",
       }),
       chat({
         latest: {
@@ -567,7 +567,7 @@ describe("ChatRow", () => {
           kind: "question",
           text: "Reuse the old CSR, or generate a new one?",
         },
-        state: "waiting",
+        status: "waiting",
       }),
     ]);
     const [working, waiting] = rows;
@@ -587,7 +587,7 @@ describe("ChatRow", () => {
     const working = chat({
       lastAsk: "Check the Nest schedule",
       latest: undefined,
-      state: "working",
+      status: "working",
     });
     const { row } = await renderRow(working);
     expect(peekOf(row)?.textContent).toBe("Instrument is working");
@@ -598,14 +598,14 @@ describe("ChatRow", () => {
       chat({
         latest: undefined,
         runningTasks: [{ id: NEST_GUARD, title: "Nest guard" }],
-        state: "working",
+        status: "working",
       }),
     );
     expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
   it("says a chat stopped on an error in red, in place of its latest line", async () => {
-    const { row } = await renderRow(chat({ state: "failed" }));
+    const { row } = await renderRow(chat({ status: "failed" }));
     expect(peekOf(row)?.textContent).toBe("Stopped on an error");
   });
 
@@ -619,7 +619,7 @@ describe("ChatRow", () => {
   ])(
     "says $expected, with no mark, for a chat stopped for its $stoppedFor",
     async ({ expected, stoppedFor }) => {
-      const { row } = await renderRow(chat({ state: "limited", stoppedFor }));
+      const { row } = await renderRow(chat({ status: "limited", stoppedFor }));
       const peek = peekOf(row);
       expect(peek?.textContent).toBe(expected);
       expect(peek?.querySelector("svg")).toBeNull();

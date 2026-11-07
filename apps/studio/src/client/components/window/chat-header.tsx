@@ -338,7 +338,7 @@ function ChatMenu({
           }
         }}
       >
-        {chat.state === "working" && (
+        {chat.status === "working" && (
           <>
             <DropdownMenuItem
               onSelect={() => {

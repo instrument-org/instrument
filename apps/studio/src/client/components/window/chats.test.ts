@@ -33,7 +33,7 @@ function chat({
     holds: { apps: [], files: [], sites: [], ...holds },
     firstAsk: "",
     starred: false,
-    state: "idle",
+    status: "idle",
     title: "",
     unread: false,
     ...overrides,
@@ -149,7 +149,7 @@ describe("matchesFilters", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: undefined };
     expect(matchesFilters(chat(), filters)).toBe(true);
     expect(matchesFilters(chat({ unread: true }), filters)).toBe(true);
-    expect(matchesFilters(chat({ state: "waiting" }), filters)).toBe(true);
+    expect(matchesFilters(chat({ status: "waiting" }), filters)).toBe(true);
     expect(matchesFilters(chat({ archived: true }), filters)).toBe(false);
   });
 
@@ -486,13 +486,13 @@ describe("the rail's Chat dot", () => {
   const at = (
     overrides: Partial<{
       archived: boolean;
-      state: Filterable["state"];
+      status: Filterable["status"];
       unread: boolean;
       working: boolean;
     }> = {},
   ) => ({
     archived: false,
-    state: "idle" as const,
+    status: "idle" as const,
     unread: false,
     working: false,
     ...overrides,
@@ -504,19 +504,19 @@ describe("the rail's Chat dot", () => {
     ["one unread", [at(), at({ unread: true })], "unread"],
     [
       "one working",
-      [at({ unread: true }), at({ state: "working", working: true })],
+      [at({ unread: true }), at({ status: "working", working: true })],
       "working",
     ],
     // A card can wait on the user while a task of the chat works.
     ["a task working under a settled chat", [at({ working: true })], "working"],
     [
       "one waiting beside one working",
-      [at({ state: "working", working: true }), at({ state: "waiting" })],
+      [at({ status: "working", working: true }), at({ status: "waiting" })],
       "waiting",
     ],
     [
       "only put away chats",
-      [at({ archived: true, state: "waiting", unread: true, working: true })],
+      [at({ archived: true, status: "waiting", unread: true, working: true })],
       undefined,
     ],
   ])("%s: %j", (_label, chats, mark) => {

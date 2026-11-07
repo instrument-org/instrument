@@ -3,12 +3,17 @@ import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useCopyChatLocation } from "@/client/components/task/copy-chat-location";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { feedbackReport } from "@/client/lib/problem-reports";
-import { showInFolderLabel, showChatFolder } from "@/client/lib/show-in-files";
+import {
+  copyChatFolderPath,
+  showChatFolder,
+  showInFolderLabel,
+} from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
+import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -191,6 +196,15 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         void showChatFolder(chat.id);
       },
     };
+    const copyPath: RowAction = {
+      icon: <ClipboardTextIcon className="size-3.5" />,
+      id: "copy-path",
+      label: "Copy Path",
+      menuOnly: true,
+      run: () => {
+        void copyChatFolderPath(chat.id);
+      },
+    };
     const feedback: RowAction = {
       icon: <ChatTextIcon className="size-3.5" />,
       id: "feedback",
@@ -208,6 +222,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       starred,
       ...(isDeveloperMode ? [location] : []),
       show,
+      copyPath,
       feedback,
     ];
   };

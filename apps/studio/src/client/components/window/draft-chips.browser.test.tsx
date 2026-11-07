@@ -83,10 +83,13 @@ const lineOf = (entry: DraftContextItem) =>
  */
 function Chips({
   draft: given = DRAFT,
+  elsewhere,
   finder = null,
   inView,
 }: {
   draft?: Draft;
+  /** What another device does to the draft's file, on pressing "Elsewhere". */
+  elsewhere?: (draft: Draft) => Draft;
   /** What the Finder on the tab in view shows, when it is a folder's. */
   finder?: null | { folder: string; selected: ChosenItem[] };
   inView: WindowTab;
@@ -117,6 +120,16 @@ function Chips({
       data-testid="chips"
     >
       <ContextChips items={items} onLeaveOut={leaveOut} />
+      {elsewhere ? (
+        <button
+          onClick={() => {
+            setDraft(elsewhere);
+          }}
+          type="button"
+        >
+          Elsewhere
+        </button>
+      ) : undefined}
       {suggestion ? (
         <ContextSuggestion
           item={suggestion}
@@ -219,5 +232,36 @@ describe("a draft's chips", () => {
     await expect.poll(bandSize).toBe("2");
     await expect.poll(() => chipNames().length).toBe(3);
     expect(lines()).toBe(`${report} /Users/casey/Documents/ ${CHAT}`);
+  });
+
+  it("close the tab of a line another device took out, and leave it out of the file", async () => {
+    const report = "https://example.com/report";
+    await renderInBrowser(
+      <Chips
+        draft={{
+          ...DRAFT,
+          context: [
+            { kind: "link", url: report },
+            { kind: "folder", path: "/Users/casey/Documents/" },
+          ],
+        }}
+        elsewhere={(draft) => ({
+          ...draft,
+          context: [{ kind: "folder", path: "/Users/casey/Documents/" }],
+        })}
+        inView={PLAN}
+      />,
+    );
+    await expect.poll(bandSize).toBe("2");
+
+    await userEvent.click(page.getByRole("button", { name: "Elsewhere" }));
+    await expect.poll(bandSize).toBe("1");
+    await expect.poll(chipNames).toEqual(["Leave out Documents"]);
+
+    // Taking something else afterward writes the band back without it.
+    await userEvent.click(page.getByRole("button", { name: "Add plan.md" }));
+    await expect
+      .poll(lines)
+      .toBe("/Users/casey/Documents/ /Users/casey/Notes/plan.md");
   });
 });

@@ -40,7 +40,7 @@ export function useDraftChips({
   open: (target: BandTarget) => string | undefined;
 }) {
   const group = draftGroupOf(draft.id);
-  useBandContext({ band, draft, finderOf, onChange, open });
+  useBandContext({ band, close: closeTab, draft, finderOf, onChange, open });
   const items = draftContextItems({ allTabs, band, draft, finderOf, group });
   const suggestion = draftSuggestionOf({
     allTabs,

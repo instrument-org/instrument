@@ -146,13 +146,28 @@ export function contextFollowingBand(
 interface BandSeen {
   asked: Set<string>;
   draftId: string | undefined;
+  /** The lines the file had when this window last read it; undefined before the first read. */
+  inFile: Set<string> | undefined;
   opening: Map<string, string[]>;
   was: Map<string, string[]>;
 }
 
 function seenFor(draftId: string | undefined): BandSeen {
-  return { asked: new Set(), draftId, opening: new Map(), was: new Map() };
+  return {
+    asked: new Set(),
+    draftId,
+    inFile: undefined,
+    opening: new Map(),
+    was: new Map(),
+  };
 }
+
+/**
+ * Lines a view asked to open in this pass, by draft and line, so a second
+ * view showing the same draft in the same commit does not open it again
+ * before the first one's tab is in the band. Cleared once the pass ends.
+ */
+const openingNow = new Set<string>();
 
 /**
  * Keeps a draft's `context` and the band that shows it as one: the file's
@@ -169,11 +184,14 @@ export function useBandContext({
   band,
   draft,
   finderOf,
+  close,
   onChange,
   open,
 }: {
   /** The tabs of the draft's own band that stand as chips. */
   band: readonly WindowTab[];
+  /** Closes a tab of the band. */
+  close: (tabId: string) => void;
   draft: Draft | undefined;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   onChange: (update: (draft: Draft) => Draft) => void;
@@ -204,6 +222,22 @@ export function useBandContext({
       return;
     }
     const state = seenOf(draft.id);
+    const inFile = new Set((draft.context ?? []).map(lineKeyOf));
+    // A line the file had and has no more was taken out elsewhere (another
+    // device, the file by hand): the tab standing for it goes too, rather
+    // than going with the message here and writing the line back.
+    const taken =
+      state.inFile === undefined
+        ? []
+        : [...state.inFile].filter((key) => !inFile.has(key));
+    state.inFile = inFile;
+    for (const [id, entries] of lines) {
+      const keys = entries.map(lineKeyOf);
+      if (keys.length > 0 && keys.every((key) => taken.includes(key))) {
+        state.was.delete(id);
+        close(id);
+      }
+    }
     const shown = new Set([...lines.values()].flat().map(lineKeyOf));
     for (const entry of draft.context ?? []) {
       const key = lineKeyOf(entry);
@@ -211,6 +245,12 @@ export function useBandContext({
         continue;
       }
       state.asked.add(key);
+      const across = `${draft.id}\n${key}`;
+      if (openingNow.has(across)) {
+        continue;
+      }
+      openingNow.add(across);
+      queueMicrotask(() => openingNow.delete(across));
       const id = open(targetOfLine(entry));
       if (id !== undefined) {
         state.opening.set(id, [...(state.opening.get(id) ?? []), key]);

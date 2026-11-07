@@ -516,13 +516,18 @@ function WindowShell({
       draft.chatId !== undefined ||
       holdsSomething(draft) ||
       floating.has(draft.id);
-    // A draft's folder goes with it, and what was pasted into it.
-    for (const draft of drafts) {
-      if (!isKept(draft)) {
-        windowTabs.dropGroup(draftGroupOf(draft.id));
-        removeDraft(draft.id);
+    // A draft's folder goes with it, and what was pasted into it. Once a launch,
+    // since a window opening later finds another's new chat box as empty as these.
+    void rpcClient.window.takeLaunchSweep.call().then((isFirstUp) => {
+      if (isFirstUp) {
+        for (const draft of drafts) {
+          if (!isKept(draft)) {
+            windowTabs.dropGroup(draftGroupOf(draft.id));
+            removeDraft(draft.id);
+          }
+        }
       }
-    }
+    });
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&

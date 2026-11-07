@@ -76,6 +76,7 @@ import {
   FRONT_MATTER_ID,
   remarkFrontMatterPanel,
 } from "../lib/remark-front-matter-panel";
+import { numberedListsAfterText } from "../lib/numbered-lists-after-text";
 import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
@@ -1101,7 +1102,7 @@ export const Markdown = memo(
     chatId,
   }: MarkdownProps) => {
     const markdown = useMemo(
-      () => bracketPathLinkDestinations(written),
+      () => numberedListsAfterText(bracketPathLinkDestinations(written)),
       [written],
     );
     const setLookAt = useSetAtom(lookAtAtom);

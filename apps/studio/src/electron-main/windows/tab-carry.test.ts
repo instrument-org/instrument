@@ -73,6 +73,7 @@ const state = vi.hoisted(() => ({
   kept: new Map<string, Map<string, unknown>>(),
   listening: true,
   offScreen: false,
+  pagesElsewhere: new Set<string>(),
   platform: "darwin" as NodeJS.Platform,
   sent: [] as unknown[],
   spare: null as null | {
@@ -124,6 +125,8 @@ vi.mock("@/electron-main/browser-view/manager", () => ({
   getBrowserViewManager: () => ({
     handOffGuest,
     handOffGuestsOf,
+    isHostOf: (_webContentsId: number, page: string) =>
+      !state.pagesElsewhere.has(page),
     isPageUsed: (pages: string[]) =>
       pages.some((page) => state.usedPages.has(page)),
   }),
@@ -324,6 +327,7 @@ beforeEach(() => {
   state.cursor = { x: 0, y: 0 };
   state.listening = true;
   state.offScreen = false;
+  state.pagesElsewhere = new Set();
   state.sent = [];
   state.taken = 0;
   state.usedPages = new Set();
@@ -637,6 +641,19 @@ describe("near another window's strip", () => {
   });
 });
 
+describe("a tab whose page another window shows", () => {
+  it("opens fresh and leaves that page where it is, however used", async () => {
+    state.usedPages = new Set(["own-page"]);
+    state.pagesElsewhere = new Set(["own-page"]);
+    press(withUsedPage());
+    moveTo(IN_THE_OPEN);
+
+    expect(await letGo()).toEqual({ kind: "losesTab" });
+    expect(from.bounds).toEqual(BOUNDS);
+    expect(handOffGuest).not.toHaveBeenCalled();
+  });
+});
+
 describe("a window closing for a landing", () => {
   it("sends its pages where its tabs went, whichever window it is", async () => {
     press(withUsedPage());
@@ -667,6 +684,20 @@ describe("a window coming up in place of a strip", () => {
       held: { clientX: OVER_STRIP.x - 1400, pointInTab: 30 },
     });
     expect(views.at(-1)?.view.kind).toBe("row");
+  });
+
+  it("goes full screen where the window it takes over from was", async () => {
+    other.full = true;
+    const moved = moveTabNow({
+      isOnlyTab: false,
+      moving: withUsedPage(),
+      to: { id: "other", kind: "window" },
+      webContentsId: 1,
+    });
+    await vi.runAllTimersAsync();
+    await moved;
+
+    expect(from.setFullScreen).toHaveBeenCalledWith(true);
   });
 
   it("is not brought forward until it has drawn the tabs it now holds", async () => {
@@ -749,6 +780,30 @@ describe("a window waited on to draw what it holds", () => {
     runFrames(frames);
     await expect(answer).resolves.toBe(false);
     expect(frames).toEqual([]);
+  });
+});
+
+describe("a press while a move from a menu is being carried out", () => {
+  it("is refused the window and the picture", async () => {
+    let draw = () => undefined as void;
+    spareWindow.webContents.executeJavaScript = () =>
+      new Promise((resolve) => {
+        draw = () => {
+          resolve(true);
+        };
+      });
+    const moved = moveTabNow({
+      isOnlyTab: false,
+      moving: withUsedPage(),
+      to: { kind: "new" },
+      webContentsId: 1,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(press()).toEqual({ collapsesOffRow: false });
+    draw();
+    await vi.runAllTimersAsync();
+    await moved;
   });
 });
 

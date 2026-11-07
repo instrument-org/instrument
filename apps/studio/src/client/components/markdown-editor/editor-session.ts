@@ -14,7 +14,6 @@ import {
   flushOnLeave,
   type SaveStatus,
 } from "@/client/lib/live-file";
-import { codeHighlighting } from "@/client/components/code-editor/theme";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { splitFrontMatter } from "@instrument-org/shared";
@@ -23,7 +22,6 @@ import {
   commandsCtx,
   editorViewCtx,
   parserCtx,
-  remarkStringifyOptionsCtx,
   serializerCtx,
 } from "@milkdown/kit/core";
 import { uploadConfig } from "@milkdown/kit/plugin/upload";
@@ -43,18 +41,22 @@ import {
 import { $prose, $view } from "@milkdown/kit/utils";
 
 import { installBlockHandle } from "./block-handle";
-import {
-  calloutsPlugin,
-  keepCalloutMarkers,
-  NEW_CALLOUT_MARKER,
-} from "./callouts";
+import { calloutsPlugin, NEW_CALLOUT_MARKER } from "./callouts";
 import { installBlockMenu } from "./block-menu";
 import {
   codeBlockInfo,
   decorateCodeBlocks,
-  languages,
   renderPreview,
 } from "./code-blocks";
+import {
+  BLOCK_EDIT_ICONS,
+  CODE_MIRROR_SETUP,
+  configureMarkdown,
+  LINK_TOOLTIP_ICONS,
+  nearCaretPlugin,
+  TABLE_ICONS,
+  TOOLBAR_ICONS,
+} from "./crepe-setup";
 import {
   childrenOf,
   createDocSync,
@@ -480,50 +482,6 @@ export async function createEditorSession(options: EditorSessionOptions) {
       }),
   );
 
-  /** Marks the top-level blocks around the caret, which the stylesheet always lays out. */
-  const nearCaretPlugin = $prose(
-    () =>
-      new Plugin({
-        props: {
-          decorations(state) {
-            const { doc, selection } = state;
-            const $head = selection.$head;
-            if ($head.depth === 0) {
-              return null;
-            }
-            // The caret's block and one on either side, found from the
-            // caret rather than by walking a document of thousands of blocks.
-            const index = $head.index(0);
-            const at = $head.before(1);
-            const current = doc.child(index);
-            const decos = [
-              Decoration.node(at, at + current.nodeSize, {
-                class: "md-near-caret",
-              }),
-            ];
-            if (index > 0) {
-              const before = doc.child(index - 1);
-              decos.push(
-                Decoration.node(at - before.nodeSize, at, {
-                  class: "md-near-caret",
-                }),
-              );
-            }
-            if (index + 1 < doc.childCount) {
-              const after = doc.child(index + 1);
-              const from = at + current.nodeSize;
-              decos.push(
-                Decoration.node(from, from + after.nodeSize, {
-                  class: "md-near-caret",
-                }),
-              );
-            }
-            return DecorationSet.create(doc, decos);
-          },
-        },
-      }),
-  );
-
   // ---------------------------------------------------------------- boot
 
   const ask = () => {
@@ -568,11 +526,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     defaultValue: splitFrontMatter(initial.content).body,
     featureConfigs: {
       [Crepe.Feature.BlockEdit]: {
-        advancedGroup: {
-          codeBlock: { icon: icon("code", 16) },
-          math: { icon: icon("sigma", 16) },
-          table: { icon: icon("table", 16) },
-        },
+        ...BLOCK_EDIT_ICONS,
         // Close to the text, so the handle fits in the document's gutter.
         blockHandle: { getOffset: () => 4 },
         buildMenu: (builder) => {
@@ -611,31 +565,9 @@ export async function createEditorSession(options: EditorSessionOptions) {
             },
           });
         },
-        handleAddIcon: icon("plus", 14),
-        handleDragIcon: icon("dotsSixVertical", 14),
-        listGroup: {
-          bulletList: { icon: icon("listBullets", 16) },
-          orderedList: { icon: icon("listNumbers", 16) },
-          taskList: { icon: icon("listChecks", 16) },
-        },
-        textGroup: {
-          divider: { icon: icon("minus", 16) },
-          h1: { icon: icon("textHOne", 16) },
-          h2: { icon: icon("textHTwo", 16) },
-          h3: { icon: icon("textHThree", 16) },
-          h4: { icon: icon("textHFour", 16) },
-          h5: { icon: icon("textHFive", 16) },
-          h6: { icon: icon("textHSix", 16) },
-          quote: { icon: icon("quotes", 16) },
-          text: { icon: icon("textT", 16) },
-        },
       },
       [Crepe.Feature.CodeMirror]: {
-        clearSearchIcon: icon("x", 12),
-        copyIcon: icon("copy", 12),
-        expandIcon: icon("caretDown", 10),
-        languages,
-        searchIcon: icon("magnifyingGlass", 14),
+        ...CODE_MIRROR_SETUP,
         // Diagrams, messages and math read as what they draw; "Edit" shows the source.
         previewLabel: "Preview",
         previewOnlyByDefault: true,
@@ -643,28 +575,12 @@ export async function createEditorSession(options: EditorSessionOptions) {
           icon(previewOnly ? "pencilSimple" : "check", 12),
         previewToggleText: (previewOnly) => (previewOnly ? "Edit" : "Done"),
         renderPreview: renderPreview(options.renderFence),
-        theme: codeHighlighting,
       },
-      [Crepe.Feature.LinkTooltip]: {
-        confirmButton: icon("check", 14),
-        editButton: icon("pencilSimple", 14),
-        linkIcon: icon("link", 14),
-        removeButton: icon("linkBreak", 14),
-      },
+      [Crepe.Feature.LinkTooltip]: LINK_TOOLTIP_ICONS,
       [Crepe.Feature.Placeholder]: { mode: "block", text: "Type / for blocks" },
-      [Crepe.Feature.Table]: {
-        addColIcon: icon("plus", 12),
-        addRowIcon: icon("plus", 12),
-        alignCenterIcon: icon("textAlignCenter", 14),
-        alignLeftIcon: icon("textAlignLeft", 14),
-        alignRightIcon: icon("textAlignRight", 14),
-        colDragHandleIcon: icon("dotsSix", 14),
-        deleteColIcon: icon("trash", 14),
-        deleteRowIcon: icon("trash", 14),
-        rowDragHandleIcon: icon("dotsSixVertical", 14),
-      },
+      [Crepe.Feature.Table]: TABLE_ICONS,
       [Crepe.Feature.Toolbar]: {
-        boldIcon: icon("textB", 16),
+        ...TOOLBAR_ICONS,
         buildToolbar: (builder) => {
           builder.addGroup("ask", "Ask").addItem("ask", {
             active: () => false,
@@ -673,11 +589,6 @@ export async function createEditorSession(options: EditorSessionOptions) {
             onRun: ask,
           });
         },
-        codeIcon: icon("code", 16),
-        italicIcon: icon("textItalic", 16),
-        latexIcon: icon("sigma", 16),
-        linkIcon: icon("link", 16),
-        strikethroughIcon: icon("textStrikethrough", 16),
       },
     },
     features: {
@@ -688,10 +599,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     root,
   });
   crepe = editor;
-  // Studio treats only `$$`, ```math and the like as math; `$42,000` is money.
-  editor.editor.config((ctx) => {
-    ctx.set("remarkMath", { singleDollarTextMath: false });
-  });
+  configureMarkdown(editor);
   // A file pasted or dropped in is put beside the file and linked by its
   // relative path; Crepe's own uploader links a picture as a `blob:` address,
   // which is gone once the page reloads, and drops anything else.
@@ -701,15 +609,6 @@ export async function createEditorSession(options: EditorSessionOptions) {
       uploader: fileUploader(folder),
       uploadWidgetFactory: (pos, spec) =>
         Decoration.widget(pos, document.createElement("span"), spec),
-    }));
-  });
-  editor.editor.config(keepCalloutMarkers);
-  // Serialized lists and rules use `-`, the marker most Markdown in the wild (and the agent) writes.
-  editor.editor.config((ctx) => {
-    ctx.update(remarkStringifyOptionsCtx, (prev) => ({
-      ...prev,
-      bullet: "-" as const,
-      rule: "-" as const,
     }));
   });
   editor.editor

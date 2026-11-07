@@ -4800,7 +4800,7 @@ function FileSystemIconsView({
     const glyph = (
       <span
         className={cn(
-          "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
+          "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1",
           isSelected
             ? "bg-accent"
             : entry.path === besideOpenPath && OPEN_BESIDE_ROW_CLASSNAME,
@@ -5813,7 +5813,7 @@ function FileSystemTableView({
                       }
                       aria-selected={isSelected}
                       className={cn(
-                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md pr-1.5 pl-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md pr-1.5 pl-1 text-sm outline-none",
                         isSelected
                           ? SELECTED_ROW_CLASSNAME
                           : entry.path === besideOpenPath &&
@@ -6138,7 +6138,7 @@ function FileSystemListView({
       <div
         aria-selected={isSelected}
         className={cn(
-          "absolute inset-x-1.5 flex items-center gap-2.5 rounded-md pr-2 pl-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          "absolute inset-x-1.5 flex items-center gap-2.5 rounded-md pr-2 pl-1.5 outline-none",
           isSelected
             ? SELECTED_ROW_CLASSNAME
             : entry.path === besideOpenPath
@@ -7004,7 +7004,6 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     aria-selected={isSelected}
                     className={cn(
                       rowClassName,
-                      "focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected
                         ? SELECTED_ROW_CLASSNAME
                         : isOnTrail

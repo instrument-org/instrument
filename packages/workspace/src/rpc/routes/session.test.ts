@@ -200,7 +200,7 @@ async function said(chatId: ChatId, sessionId: StoreId.Session, text: string) {
 }
 
 /** Where a task with no agent at work stands. */
-function standingOf(chatId: ChatId, sessionId: StoreId.Session) {
+function statusOf(chatId: ChatId, sessionId: StoreId.Session) {
   return taskStatus({ chatId, isRunning: false, sessionId });
 }
 
@@ -211,7 +211,7 @@ describe("a task waiting on a card", () => {
     const { chatId, task } = await chatWithTask();
     await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
     await said(chatId, task, "I need the Pantry folder to go on.");
-    expect(await standingOf(chatId, task)).toEqual({
+    expect(await statusOf(chatId, task)).toEqual({
       kind: "waiting",
       line: "Waiting for your OK to use “Pantry”",
     });
@@ -237,7 +237,7 @@ describe("a task waiting on a card", () => {
       summary: "The Pantry has 12 jars of jam.",
     });
     expect((await notesIn(chatId))[0]).not.toHaveProperty("needs");
-    expect(await standingOf(chatId, task)).toEqual({
+    expect(await statusOf(chatId, task)).toEqual({
       kind: "done",
       line: "The Pantry has 12 jars of jam.",
     });
@@ -264,7 +264,7 @@ describe("a task waiting on a card", () => {
     await vi.waitFor(async () => {
       expect((await childTask(chatId, task))?.stoppedBy).toBe("person");
     }, 5000);
-    expect(await standingOf(chatId, task)).toEqual({
+    expect(await statusOf(chatId, task)).toEqual({
       kind: "done",
       line: "I need the Pantry folder to go on.",
     });

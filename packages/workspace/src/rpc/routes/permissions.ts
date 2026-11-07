@@ -31,10 +31,7 @@ import {
   retryAsk,
   withFolderLevel,
 } from "../../lib/chat/drive-asks";
-import {
-  macAppStanding,
-  macosRefusedFolders,
-} from "../../lib/permissions/macos";
+import { macAppStatus, macosRefusedFolders } from "../../lib/permissions/macos";
 import { allowThroughProtection } from "../../lib/permissions/windows-protection";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
@@ -154,7 +151,7 @@ const macos = base
       allowed.map(async (app) => {
         const bundleId = app.bundleId ?? (await appBundleId(app.name));
         return bundleId !== undefined &&
-          (await macAppStanding({ bundleId, name: app.name })) === "denied"
+          (await macAppStatus({ bundleId, name: app.name })) === "denied"
           ? app.name
           : undefined;
       }),

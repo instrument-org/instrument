@@ -81,8 +81,8 @@ export function AppsHome({
   // Connected first, since theirs are the fronts worth opening; the ones
   // still being set up follow, each saying what it waits for.
   const own = [
-    ...apps.filter((app) => app.standing === "connected"),
-    ...apps.filter((app) => app.standing !== "connected"),
+    ...apps.filter((app) => app.status === "connected"),
+    ...apps.filter((app) => app.status !== "connected"),
   ];
   // Every service the directory lists stays in its place, the ones already
   // here included, so a search finds an app whoever forgot it was set up;
@@ -372,7 +372,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
     href,
     kind: "screen",
   });
-  const waiting = app.standing === "connected" ? undefined : waitingLine(app);
+  const waiting = app.status === "connected" ? undefined : waitingLine(app);
   return (
     <button
       className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
@@ -399,7 +399,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
           size="xl"
         />
         {/* The dot the rail's Apps wore, on the app it was for. */}
-        {app.standing === "needs-sign-in" && (
+        {app.status === "needs-sign-in" && (
           <ChatMarkDot className="ring-background" mark="waiting" />
         )}
       </span>
@@ -539,7 +539,7 @@ function AccountTiles({
           icon={app.icon ?? entry.icon}
           key={app.slug}
           line={
-            app.standing === "connected"
+            app.status === "connected"
               ? (app.account ?? "In your apps")
               : waitingLine(app)
           }
@@ -716,7 +716,7 @@ function UnlistedTile({
 
 /** What an app not yet connected is waiting for, in a few words under its name. */
 function waitingLine(app: App): string {
-  switch (app.standing) {
+  switch (app.status) {
     case "declined": {
       return "Not connected";
     }

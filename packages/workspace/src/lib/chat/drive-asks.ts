@@ -31,7 +31,7 @@ import { appBundleId, grantApp } from "../permissions/apps";
 import { setDenied } from "../permissions/denials";
 import {
   lookAsTheApp,
-  macAppStanding,
+  macAppStatus,
   macosRefusalStatus,
   watchMacosPrompt,
 } from "../permissions/macos";
@@ -1110,12 +1110,12 @@ async function macosKeepsOut(
   if (bundleId === undefined) {
     return undefined;
   }
-  const standing = macAppStanding(
+  const status = macAppStatus(
     { bundleId, name: ask.target },
     { request: true },
   );
-  const watched = watchMacosPrompt(standing, onAsking);
-  const standingAnswer = await standing;
+  const watched = watchMacosPrompt(status, onAsking);
+  const answer = await status;
   await watched;
-  return standingAnswer === "denied" ? "macos-refused" : undefined;
+  return answer === "denied" ? "macos-refused" : undefined;
 }

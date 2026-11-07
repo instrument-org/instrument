@@ -106,7 +106,7 @@ export function AppFront({
   const site = drawn?.site;
   const icon = drawn?.icon;
   const home = app?.home ?? entry?.home ?? site;
-  const isConnected = app?.standing === "connected";
+  const isConnected = app?.status === "connected";
   // Worked on its own site in the window's browser: the site is the app, so
   // opening it is what the page leads with.
   const isWeb = app?.type === "web";
@@ -147,7 +147,7 @@ export function AppFront({
           }
         : {}),
       slug,
-      standing: app?.standing ?? "not-set-up",
+      standing: app?.status ?? "not-set-up",
     },
     screen: "apps" as const,
   };
@@ -216,23 +216,23 @@ export function AppFront({
   // One of the Mac's own apps runs on a server the app ships, so connecting
   // it installs nothing; macOS asks the person itself on first use.
   const isBundled = app?.type === "mcp-local" && app.bundled;
-  const bundledToConnect = isBundled && app.standing === "needs-approval";
+  const bundledToConnect = isBundled && app.status === "needs-approval";
   const setupTitle =
     !app || bundledToConnect
       ? `Connect ${name}`
       : isWeb
         ? `Sign in to ${name} on the web`
-        : app.standing === "needs-sign-in"
+        : app.status === "needs-sign-in"
           ? app.connection?.error
             ? `Sign in to ${name} again`
             : `Sign in to ${name}`
-          : app.standing === "needs-key"
+          : app.status === "needs-key"
             ? `Add a key from ${name}`
-            : app.standing === "needs-approval"
+            : app.status === "needs-approval"
               ? `Allow ${name} to run on ${osConventions().thisComputer}`
-              : app.standing === "failed"
+              : app.status === "failed"
                 ? `Couldn’t connect to ${name}`
-                : app.standing === "stale"
+                : app.status === "stale"
                   ? `${name} changed since it last connected`
                   : `Finish connecting ${name}`;
   const setupDetail = !app
@@ -241,9 +241,9 @@ export function AppFront({
       : undefined
     : bundledToConnect
       ? `macOS will ask you once before Instrument uses ${name}.`
-      : app.standing === "needs-sign-in" && !isWeb
+      : app.status === "needs-sign-in" && !isWeb
         ? `Sign in with ${browserName} if you’re already signed in to ${name} there, or here in a tab.`
-        : app.standing === "stale"
+        : app.status === "stale"
           ? "Try again to connect it as it is now."
           : undefined;
   // The way out when the buttons beside it are not getting there: last and
@@ -535,7 +535,7 @@ export function AppFront({
                     </p>
                   ) : null}
                 </div>
-                {app?.standing === "failed" && app.connection?.error ? (
+                {app?.status === "failed" && app.connection?.error ? (
                   <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2 select-text">
                     <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
                       {app.connection.error}
@@ -563,7 +563,7 @@ export function AppFront({
                     name={name}
                     slug={slug}
                   />
-                ) : app?.standing === "needs-sign-in" ? (
+                ) : app?.status === "needs-sign-in" ? (
                   <ConnectControls
                     alongside={withInstrument}
                     describesDestination={false}
@@ -571,7 +571,7 @@ export function AppFront({
                     name={name}
                     slug={slug}
                   />
-                ) : app?.standing === "needs-approval" ? (
+                ) : app?.status === "needs-approval" ? (
                   <ConnectControls
                     alongside={withInstrument}
                     kind="run"
@@ -584,7 +584,7 @@ export function AppFront({
                     }
                     slug={slug}
                   />
-                ) : app?.standing === "needs-key" ? (
+                ) : app?.status === "needs-key" ? (
                   <ConnectControls
                     alongside={withInstrument}
                     kind="key"

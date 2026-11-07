@@ -111,7 +111,7 @@ function outlook(
           ? { signIn: "https://outlook.office.com", type }
           : { type }),
         slug: "outlook",
-        standing: connection.status,
+        status: connection.status,
       },
     ],
   };
@@ -247,7 +247,7 @@ describe("the card for one app", () => {
             status: "connected",
             updatedAt: 1,
           },
-          standing: "connected",
+          status: "connected",
         },
       ],
     });
@@ -419,16 +419,16 @@ const GOOGLE = [
   ["gmail", "Gmail"],
 ] as const;
 
-/** The Google apps as the Apps list draws them, each standing as given. */
-function google(standings: Record<string, string>) {
+/** The Google apps as the Apps list draws them, each status as given. */
+function google(statuses: Record<string, string>) {
   return {
     apps: GOOGLE.map(([slug, name]) => {
-      const standing = standings[slug] ?? "needs-sign-in";
+      const status = statuses[slug] ?? "needs-sign-in";
       return {
         authKind: "oauth",
         connection: {
-          ...(standing === "connected" ? { account: "you@example.com" } : {}),
-          status: standing,
+          ...(status === "connected" ? { account: "you@example.com" } : {}),
+          status,
           updatedAt: 1,
         },
         credentialOrigin: `https://${slug}.example.com`,
@@ -437,7 +437,7 @@ function google(standings: Record<string, string>) {
         hasCredential: false,
         name,
         slug,
-        standing,
+        status,
         type: "mcp",
       };
     }),

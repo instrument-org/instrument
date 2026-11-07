@@ -5,7 +5,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
-  macAppStanding,
+  macAppStatus,
   macosGuardedRoot,
   noteMacosFolderAnswer,
   setMacosForwarder,
@@ -61,7 +61,7 @@ describe("watchMacosPrompt", () => {
   });
 });
 
-describe("macAppStanding", () => {
+describe("macAppStatus", () => {
   it("reads a check macOS holds back as its prompt being up, when the prompt is on screen", async () => {
     macConfig({
       // macOS holds the check while its prompt for the app is up.
@@ -70,7 +70,7 @@ describe("macAppStanding", () => {
     });
 
     expect(
-      await macAppStanding({ bundleId: "com.apple.Notes", name: "Notes" }),
+      await macAppStatus({ bundleId: "com.apple.Notes", name: "Notes" }),
     ).toBe("not-asked");
   });
 
@@ -83,7 +83,7 @@ describe("macAppStanding", () => {
 
     expect(
       await within(
-        macAppStanding({ bundleId: "com.apple.Notes", name: "Notes" }),
+        macAppStatus({ bundleId: "com.apple.Notes", name: "Notes" }),
         400,
       ),
     ).toBe("pending");

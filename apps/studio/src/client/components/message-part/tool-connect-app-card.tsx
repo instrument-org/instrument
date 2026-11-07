@@ -21,7 +21,7 @@ import { ToolCard } from "./tool-card";
 type Row = Extract<ConnectAppResult, { state: "asked" }>;
 
 /** Where a row stands, from its app's connection record. */
-type RowStanding =
+type RowStatus =
   | "connected"
   | "declined"
   | "failed"
@@ -56,7 +56,7 @@ export function ConnectAppCard({
 
   const appOf = (slug: string) =>
     apps.data?.apps.find((entry) => entry.slug === slug);
-  const standings = rows.map((row): RowStanding => {
+  const statuses = rows.map((row): RowStatus => {
     if (apps.data === undefined) {
       return "open";
     }
@@ -65,14 +65,14 @@ export function ConnectAppCard({
       return "removed";
     }
     // Another try at a failed sign-in waits like any other.
-    if (signInsWaiting.has(row.slug) && app.standing !== "connected") {
+    if (signInsWaiting.has(row.slug) && app.status !== "connected") {
       return "waiting";
     }
-    switch (app.standing) {
+    switch (app.status) {
       case "connected":
       case "declined":
       case "stale": {
-        return app.standing;
+        return app.status;
       }
       case "failed": {
         return app.connection?.ended === "refused" ? "refused" : "failed";
@@ -82,29 +82,27 @@ export function ConnectAppCard({
       }
     }
   });
-  const answered = (standing: RowStanding) =>
-    standing === "connected" ||
-    standing === "declined" ||
-    standing === "removed" ||
-    standing === "stale";
+  const answered = (status: RowStatus) =>
+    status === "connected" ||
+    status === "declined" ||
+    status === "removed" ||
+    status === "stale";
   const connected = rows.filter(
     (_, index) =>
-      standings[index] === "connected" || standings[index] === "stale",
+      statuses[index] === "connected" || statuses[index] === "stale",
   );
-  const skipped = rows.filter((_, index) => standings[index] === "declined");
+  const skipped = rows.filter((_, index) => statuses[index] === "declined");
   const left = rows.filter((_, index) => {
-    const standing = standings[index];
-    return standing !== undefined && !answered(standing);
+    const status = statuses[index];
+    return status !== undefined && !answered(status);
   });
   // The row lit as the one to press next: the first with anything to press,
   // and none while the user is off signing in to another.
-  const next = standings.includes("waiting")
+  const next = statuses.includes("waiting")
     ? undefined
     : rows.find((_, index) => {
-        const standing = standings[index];
-        return (
-          standing === "open" || standing === "failed" || standing === "refused"
-        );
+        const status = statuses[index];
+        return status === "open" || status === "failed" || status === "refused";
       });
 
   const skipTheRest = () => {
@@ -118,12 +116,12 @@ export function ConnectAppCard({
   if (apps.data !== undefined && left.length === 0) {
     const [only] = rows;
     const onlyAlone = rows.length === 1 ? only : undefined;
-    const removed = onlyAlone !== undefined && standings[0] === "removed";
+    const removed = onlyAlone !== undefined && statuses[0] === "removed";
     const note = removed
       ? undefined
       : skipped.length > 0
         ? `You skipped ${LIST.format(skipped.map((row) => row.name))}.`
-        : onlyAlone && standings[0] === "stale"
+        : onlyAlone && statuses[0] === "stale"
           ? rowLine("stale", onlyAlone, appOf)
           : onlyAlone && appOf(onlyAlone.slug)?.connection?.account
             ? rowLine("connected", onlyAlone, appOf)
@@ -168,7 +166,7 @@ export function ConnectAppCard({
                 line={undefined}
                 row={row}
                 signInAgain
-                standing="declined"
+                status="declined"
               />
             ))}
           </div>
@@ -190,7 +188,7 @@ export function ConnectAppCard({
             rows' buttons do. */}
           <Button
             className="-my-1.5 -mr-1.5 shrink-0 text-muted-foreground"
-            // Only once each app's standing is read, so nothing connected is skipped.
+            // Only once each app's status is read, so nothing connected is skipped.
             disabled={apps.data === undefined || dismiss.isPending}
             onClick={skipTheRest}
             size="sm"
@@ -203,21 +201,21 @@ export function ConnectAppCard({
       </div>
       <div className="flex flex-col gap-1.5 px-3 pb-3">
         {rows.map((row, index) => {
-          const standing = standings[index] ?? "open";
+          const status = statuses[index] ?? "open";
           return (
             <ConnectRow
               alone={rows.length === 1}
               key={row.slug}
               line={
-                standing === "waiting"
+                status === "waiting"
                   ? signInsWaiting.get(row.slug)?.where === "external"
                     ? `Finish signing in in ${browser.data?.appName ?? "your browser"}.`
                     : "Finish signing in on the page that opened."
-                  : rowLine(standing, row, appOf)
+                  : rowLine(status, row, appOf)
               }
               primary={row === next}
               row={row}
-              standing={standing}
+              status={status}
             />
           );
         })}
@@ -228,14 +226,14 @@ export function ConnectAppCard({
 
 /** The line under a row's name, saying where it stands. */
 function rowLine(
-  standing: RowStanding,
+  status: RowStatus,
   row: Row,
   appOf: (
     slug: string,
   ) => { connection?: { account?: string; ended?: string } } | undefined,
 ): string | undefined {
   const connection = appOf(row.slug)?.connection;
-  switch (standing) {
+  switch (status) {
     case "connected": {
       return connection?.account === undefined
         ? "Connected"
@@ -283,7 +281,7 @@ function ConnectRow({
   primary = false,
   row,
   signInAgain = false,
-  standing,
+  status,
 }: {
   /** The only app on its card, so what it asks for needs no press to open. */
   alone?: boolean;
@@ -292,7 +290,7 @@ function ConnectRow({
   row: Row;
   /** For a skipped app on the folded card: the sign-in, offered again. */
   signInAgain?: boolean;
-  standing: RowStanding;
+  status: RowStatus;
 }) {
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const drawn = useAppsBySlug().get(row.slug);
@@ -302,13 +300,13 @@ function ConnectRow({
   // that the sign-in there is done.
   const [openedSite, setOpenedSite] = useState(false);
   const live =
-    standing === "open" ||
-    standing === "waiting" ||
-    standing === "failed" ||
-    standing === "refused";
+    status === "open" ||
+    status === "waiting" ||
+    status === "failed" ||
+    status === "refused";
   const actionable = live || signInAgain;
   const failure =
-    standing === "failed" || standing === "refused" ? standing : undefined;
+    status === "failed" || status === "refused" ? status : undefined;
   const app = apps.data?.apps.find((entry) => entry.slug === row.slug);
   // An app moved to its site since the card asked signs in there.
   const kind = app?.type === "web" ? "web" : row.kind;
@@ -327,7 +325,7 @@ function ConnectRow({
           <span
             className={cn(
               "truncate text-sm",
-              (standing === "declined" || standing === "removed") &&
+              (status === "declined" || status === "removed") &&
                 "text-muted-foreground",
             )}
           >
@@ -339,7 +337,7 @@ function ConnectRow({
             </span>
           )}
         </div>
-        {standing === "connected" || standing === "stale" ? (
+        {status === "connected" || status === "stale" ? (
           <CheckIcon
             className="size-4 shrink-0 text-brand-600 dark:text-brand-400"
             weight="bold"

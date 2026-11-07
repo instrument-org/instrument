@@ -60,7 +60,7 @@ export function macosGuardedRoot(
 /**
  * What macOS last answered for each folder it guards, by that folder, as the
  * app's own looks and reads found. Asking it fresh would raise its prompt
- * for a folder nobody answered yet, so a page that only shows the standing
+ * for a folder nobody answered yet, so a page that only shows the status
  * reads this instead.
  */
 const folderAnswers = new Map<string, "allowed" | "denied">();
@@ -245,20 +245,19 @@ export async function macosAppCard(
 ): Promise<{ askId: string; message: string } | undefined> {
   // A command asks this while its script runs, where just-bash keeps
   // timers from being set; asking macOS sets the app's own.
-  const standing =
-    known ??
-    (await DefenseInDepthBox.runTrustedAsync(() => macAppStanding(app)));
-  if (standing !== "denied" && standing !== "not-asked") {
+  const macStatus =
+    known ?? (await DefenseInDepthBox.runTrustedAsync(() => macAppStatus(app)));
+  if (macStatus !== "denied" && macStatus !== "not-asked") {
     return undefined;
   }
   const askId = await recordAsk(asker, "app", app.name, {
     allowed: "allowed",
-    status: standing === "denied" ? "macos-refused" : "macos-asking",
+    status: macStatus === "denied" ? "macos-refused" : "macos-asking",
   });
   return {
     askId,
     message:
-      standing === "denied"
+      macStatus === "denied"
         ? `macOS itself keeps ${APP_NAME} out of ${app.name}, not the person's settings. They now see a card that opens the setting, and their answer wakes you; stop here and say what you're waiting for.`
         : `macOS asks the person before ${APP_NAME} first uses ${app.name}. They now see a card beside the system's prompt, and their answer wakes you; stop here and say what you're waiting for.`,
   };
@@ -288,7 +287,7 @@ const MACOS_STATUS_PATIENCE_MS = 10_000;
  * `request` raises the system's prompt when nobody has answered it, and
  * waits for their answer.
  */
-export async function macAppStanding(
+export async function macAppStatus(
   app: MacApp,
   { request = false }: { request?: boolean } = {},
 ): Promise<"allowed" | "denied" | "not-asked" | "unknown"> {

@@ -43,8 +43,8 @@ export function useSignInLanding(openScreen: (href: string) => void) {
     const settled = new Set<string>();
     for (const [slug, { from, inChat }] of waiting) {
       const app = apps.data.apps.find((candidate) => candidate.slug === slug);
-      const standing = app?.standing;
-      if (standing === "connected") {
+      const status = app?.status;
+      if (status === "connected") {
         settled.add(slug);
         const shown = appsBySlug.get(slug);
         toast.success(`Connected ${shown?.name ?? slug}`, {
@@ -65,10 +65,9 @@ export function useSignInLanding(openScreen: (href: string) => void) {
         // Written since the sign-in started: a second failure in a row is
         // news as much as the first.
         app?.connection?.updatedAt !== from &&
-        (standing === "declined" ||
-          standing === "failed" ||
-          (standing === "needs-sign-in" &&
-            app?.connection?.ended === "expired"))
+        (status === "declined" ||
+          status === "failed" ||
+          (status === "needs-sign-in" && app?.connection?.ended === "expired"))
       ) {
         settled.add(slug);
       }
@@ -79,7 +78,7 @@ export function useSignInLanding(openScreen: (href: string) => void) {
           new Map([...current].filter(([slug]) => !settled.has(slug))),
       );
     }
-    // Once, as a standing lands; the opener and names are read then.
+    // Once, as a status lands; the opener and names are read then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waiting, apps.data]);
 }

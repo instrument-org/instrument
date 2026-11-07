@@ -61,9 +61,9 @@ import {
   disconnectApp,
 } from "../../lib/apps";
 import {
-  AppStandingSchema,
+  AppStatusSchema,
   settleConnection,
-  standingOf,
+  statusOf,
 } from "../../lib/app-connection";
 import {
   expectSignIn,
@@ -94,7 +94,7 @@ const AppListItemBaseSchema = z.object({
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
-  standing: AppStandingSchema,
+  status: AppStatusSchema,
 });
 
 /** For an app opened with a key, where the directory says the user makes one, and what to do there. */
@@ -218,7 +218,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           ...withService(catalogEntryForApp(app.slug, app.manifest)?.slug),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
-          standing: standingOf(connection, app.manifestHash),
+          status: statusOf(connection, app.manifestHash),
         };
         const { manifest } = app;
         switch (manifest.type) {

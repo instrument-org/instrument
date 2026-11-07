@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ConnectionOutcome,
   settleConnection,
-  standingOf,
+  statusOf,
 } from "./app-connection";
 
 const mocks = vi.hoisted(() => ({
@@ -52,11 +52,11 @@ const OUTCOMES: ConnectionOutcome[] = [
   { error: "expired", status: "needs-sign-in" },
 ];
 
-describe("standingOf", () => {
+describe("statusOf", () => {
   it("reads a record against the manifest as it is now", () => {
     expect(
       Object.fromEntries(
-        RECORDS.map(([name, record]) => [name, standingOf(record, "now")]),
+        RECORDS.map(([name, record]) => [name, statusOf(record, "now")]),
       ),
     ).toMatchInlineSnapshot(`
       {

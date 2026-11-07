@@ -17,6 +17,7 @@ import {
   openClickGestures,
   showOpenMenu,
   wantsNewTab,
+  wantsNewWindow,
 } from "@/client/hooks/use-open-target";
 import {
   locateTypedPath,
@@ -144,6 +145,13 @@ export function PathChip({ path }: { path: TypedPath }) {
       },
     },
     {
+      id: "openNewWindow",
+      label: "Open in New Window",
+      run: () => {
+        open({ newWindow: true });
+      },
+    },
+    {
       id: "copy",
       label: "Copy Path",
       run: () => {
@@ -167,7 +175,9 @@ export function PathChip({ path }: { path: TypedPath }) {
     <ChipButton
       className={cn(isMissing && "opacity-60")}
       onActivate={(event) => {
-        if (wantsNewTab(event)) {
+        if (wantsNewWindow(event)) {
+          open({ newWindow: true });
+        } else if (wantsNewTab(event)) {
           open({ behind: true, newTab: true });
         } else {
           open();

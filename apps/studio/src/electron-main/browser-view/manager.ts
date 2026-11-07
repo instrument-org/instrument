@@ -76,6 +76,7 @@ import {
   guestWindowOpenHandler,
   isFileUrl,
   newTabOpenOf,
+  newWindowOpenOf,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -386,6 +387,18 @@ function createBrowserViewManager(): BrowserViewManager {
           });
           return response;
         }
+        const newWindow = focusGuard.isGuarded(targetId)
+          ? null
+          : newWindowOpenOf(details, pageDocument());
+        if (newWindow && mayOpenFromPage(newWindow.url)) {
+          publisher.publish("browser.open-in-new-tab", {
+            background: false,
+            newWindow: true,
+            targetId,
+            url: newWindow.url,
+          });
+          return response;
+        }
         // A denied open leaves the click with nowhere to go, so send the ones
         // that mean "show me this page" to the page it came from. This runs
         // even while the guest is agent-guarded, where it is the only way a
@@ -430,6 +443,14 @@ function createBrowserViewManager(): BrowserViewManager {
       openInNewTab: (url: string) => {
         publisher.publish("browser.open-in-new-tab", {
           background: false,
+          targetId,
+          url,
+        });
+      },
+      openInNewWindow: (url: string) => {
+        publisher.publish("browser.open-in-new-tab", {
+          background: false,
+          newWindow: true,
           targetId,
           url,
         });

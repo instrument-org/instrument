@@ -58,7 +58,7 @@ const MIDDLE_BUTTON = 1;
 /** One place a target can be opened, as a row of a menu and the thing that row does. */
 export interface OpenDestination {
   /** Stable across surfaces, and what the native menu hands back. */
-  id: "copy" | "open" | "openBrowser" | "openNewTab";
+  id: "copy" | "open" | "openBrowser" | "openNewTab" | "openNewWindow";
   label: string;
   run: () => void;
 }
@@ -90,10 +90,14 @@ export function useGesturesFor() {
     const separate =
       destinations.find((destination) => destination.id === "openNewTab") ??
       primary;
+    const ownWindow = destinations.find(
+      (destination) => destination.id === "openNewWindow",
+    );
 
     const clicks = openClickGestures({
       open: () => primary?.run(),
       openInNewTab: () => (separate ?? primary)?.run(),
+      ...(ownWindow ? { openInNewWindow: ownWindow.run } : {}),
     });
     return {
       onAuxClick: clicks.onAuxClick,
@@ -116,7 +120,9 @@ export function useGesturesFor() {
         openClickGestures({
           open,
           openInNewTab: () => (separate ?? primary)?.run(),
+          ...(ownWindow ? { openInNewWindow: ownWindow.run } : {}),
         }),
+      ownWindow,
       primary,
       separate,
     };
@@ -155,9 +161,12 @@ export function useOpenGestures(
 export function openClickGestures({
   open,
   openInNewTab,
+  openInNewWindow,
 }: {
   open: () => void;
   openInNewTab: () => void;
+  /** What Shift and a click ask, where the surface has windows to open. */
+  openInNewWindow?: () => void;
 }) {
   return {
     onAuxClick: (event: React.MouseEvent) => {
@@ -171,7 +180,9 @@ export function openClickGestures({
       openInNewTab();
     },
     onClick: (event: React.MouseEvent) => {
-      if (wantsNewTab(event)) {
+      if (openInNewWindow && wantsNewWindow(event)) {
+        openInNewWindow();
+      } else if (wantsNewTab(event)) {
         openInNewTab();
       } else {
         open();
@@ -195,6 +206,21 @@ export function openClickGestures({
  */
 export function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
   return commandKeyHeld(event);
+}
+
+/**
+ * Whether a click on a link is asking for a window of its own: Shift and a
+ * click, as a browser built on Chromium has it. Shift with the command key is
+ * a tab, and Shift on a row that a click selects extends the selection, so
+ * only a link reads it this way.
+ */
+export function wantsNewWindow(event: {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}) {
+  return event.shiftKey && !event.altKey && !commandKeyHeld(event);
 }
 
 /**
@@ -290,6 +316,13 @@ function useDestinationsFor(): (
                   appWindow.openPage(url, { behind: true, newTab: true });
                 },
               },
+              {
+                id: "openNewWindow" as const,
+                label: "Open in New Window",
+                run: () => {
+                  appWindow.openPage(url, { newWindow: true });
+                },
+              },
             ]
           : []),
         ...copy,
@@ -318,6 +351,13 @@ function useDestinationsFor(): (
                   openPathOnSurface(path, { behind: true, newTab: true });
                 },
               },
+              {
+                id: "openNewWindow" as const,
+                label: "Open in New Window",
+                run: () => {
+                  openPathOnSurface(path, { newWindow: true });
+                },
+              },
             ]
           : []),
         ...copy,
@@ -341,6 +381,13 @@ function useDestinationsFor(): (
         label: "Open in New Tab",
         run: () => {
           appWindow.openScreen(href, { behind: true, newTab: true });
+        },
+      },
+      {
+        id: "openNewWindow",
+        label: "Open in New Window",
+        run: () => {
+          appWindow.openScreen(href, { newWindow: true });
         },
       },
       ...copy,

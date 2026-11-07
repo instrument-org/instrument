@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   guestWindowOpenHandler,
   newTabOpenOf,
+  newWindowOpenOf,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -43,9 +44,9 @@ describe("guestWindowOpenHandler", () => {
     width: number;
   }[] = [
     {
-      features: "",
+      features: "popup",
       height: 720,
-      name: "no features -> fallback size",
+      name: "no size -> fallback size",
       width: 520,
     },
     {
@@ -83,9 +84,48 @@ describe("guestWindowOpenHandler", () => {
 
   it("allows plain http popups", () => {
     expect(
-      guestWindowOpenHandler(details({ url: "http://example.test/oauth" }))
-        .action,
+      guestWindowOpenHandler(
+        details({ features: "popup", url: "http://example.test/oauth" }),
+      ).action,
     ).toBe("allow");
+  });
+
+  it("opens no popup for a Shift-click, which names no features", () => {
+    expect(guestWindowOpenHandler(details({})).action).toBe("deny");
+  });
+});
+
+describe("newWindowOpenOf", () => {
+  it.each([
+    {
+      expected: { url: "https://example.com/next" },
+      name: "a Shift-click to the web",
+      overrides: { url: "https://example.com/next" },
+    },
+    {
+      expected: null,
+      name: "a popup, which names its size",
+      overrides: { features: "width=480,height=640" },
+    },
+    {
+      expected: null,
+      name: "a named window",
+      overrides: { frameName: "signin" },
+    },
+    {
+      expected: null,
+      name: "a tab-open",
+      overrides: { disposition: "foreground-tab" as const },
+    },
+    {
+      expected: null,
+      name: "a file from a web page",
+      overrides: { url: "file:///etc/passwd" },
+    },
+  ])("opens a window for $name: $expected", ({ expected, overrides }) => {
+    expect(newWindowOpenOf(details(overrides), "https://example.com/")).toEqual(
+      expected,
+    );
   });
 });
 

@@ -21,6 +21,12 @@ export interface OpenOptions {
    * from: what a middle click, a Cmd-click, or Open in New Tab asks.
    */
   newTab?: boolean;
+  /**
+   * A window of its own beside this one, with the thing as its tab: what
+   * Shift-click and Open in New Window ask. A page opens on its own there,
+   * as a site, whichever chat it was opened from.
+   */
+  newWindow?: boolean;
   /** A tab of its own in the group, beside the one up rather than in its place: what a conversation or an agent opens. */
   ownTab?: boolean;
   /** Takes the place of the address the window's tab stands on rather than stepping on from it: a screen handing its file to the page. */

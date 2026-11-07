@@ -12,7 +12,7 @@ import {
   AvatarImage,
 } from "@/client/components/ui/avatar";
 import { useLiveUser } from "@/client/hooks/use-live-user";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
@@ -61,8 +61,11 @@ export function AppRail({
   chatInView?: ChatId;
   /** The dot Chat wears while the window stands in another place. */
   chatMark?: RailChatMark;
-  /** A place asked for: in the tab up, or in a tab of its own for a middle or modified click or the menu's ask. */
-  onChoose: (place: AppPlace, options: { newTab: boolean }) => void;
+  /** A place asked for: in the tab up, in a tab of its own for a middle or Command click or the menu's ask, or in a window of its own for a Shift click or the menu's ask. */
+  onChoose: (
+    place: AppPlace,
+    options: { newTab: boolean; newWindow: boolean },
+  ) => void;
   /** The pointer come onto Chat or gone from it, for the inbox to peek out while it is nowhere on screen. */
   onHoverChat?: (isOver: boolean) => void;
   /** Opens a draft of a new chat. */
@@ -95,10 +98,13 @@ export function AppRail({
             isOn={place === entry.id}
             key={entry.id}
             label={entry.label}
-            onChoose={(newTab) => {
-              onChoose(entry.id, { newTab });
-              // A new tab hands the keyboard over as it comes up.
-              if (!newTab) {
+            onChoose={(where) => {
+              onChoose(entry.id, {
+                newTab: where === "tab",
+                newWindow: where === "window",
+              });
+              // A new tab or window hands the keyboard over as it comes up.
+              if (where === "here") {
                 focusScreenHome({ leaving: place !== entry.id });
               }
             }}
@@ -141,7 +147,8 @@ function openGeneralSettings() {
  * close under it, the two together in a well that fills while it is the
  * place stood in and tints under the pointer. Never the mark alone. A click
  * takes the tab up there; the middle button, a click with Command or
- * Control, or the menu's Open in New Tab opens a tab there.
+ * Control, or the menu's Open in New Tab opens a tab there, and a click with
+ * Shift or the menu's Open in New Window a window.
  */
 function RailEntry({
   children,
@@ -153,7 +160,7 @@ function RailEntry({
   children: ReactNode;
   isOn: boolean;
   label: string;
-  onChoose: (newTab: boolean) => void;
+  onChoose: (where: "here" | "tab" | "window") => void;
   onHover?: (isOver: boolean) => void;
 }) {
   return (
@@ -171,11 +178,17 @@ function RailEntry({
       onAuxClick={(event) => {
         if (event.button === MIDDLE_BUTTON) {
           event.preventDefault();
-          onChoose(true);
+          onChoose("tab");
         }
       }}
       onClick={(event) => {
-        onChoose(wantsNewTab(event));
+        onChoose(
+          wantsNewWindow(event)
+            ? "window"
+            : wantsNewTab(event)
+              ? "tab"
+              : "here",
+        );
       }}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -184,11 +197,16 @@ function RailEntry({
             items: [
               { id: "open", label: "Open" },
               { id: "newTab", label: "Open in New Tab" },
+              { id: "newWindow", label: "Open in New Window" },
             ],
           })
           .then((picked) => {
-            if (picked.id === "open" || picked.id === "newTab") {
-              onChoose(picked.id === "newTab");
+            if (picked.id === "open") {
+              onChoose("here");
+            } else if (picked.id === "newTab") {
+              onChoose("tab");
+            } else if (picked.id === "newWindow") {
+              onChoose("window");
             }
           });
       }}

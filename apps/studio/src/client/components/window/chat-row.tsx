@@ -3,7 +3,7 @@ import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { openInNewWindow } from "./move-tab";
+import { openInNewWindow } from "./app-tabs";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {

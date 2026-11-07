@@ -13,6 +13,7 @@ import { isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
@@ -32,12 +33,14 @@ export function PlaceMenu({
   hostPath,
   onNewDraft,
   onOpenInNewTab,
+  onOpenInNewWindow,
   pin,
 }: {
   hostPath: string;
   /** Left out where no draft can be opened. */
   onNewDraft: (() => void) | undefined;
   onOpenInNewTab: () => void;
+  onOpenInNewWindow: () => void;
   /** Pinning it to the sidebar, or unpinning it; left out where neither is offered. */
   pin?: { isPinned: boolean; onToggle: () => void } | undefined;
 }) {
@@ -55,6 +58,10 @@ export function PlaceMenu({
       <ContextMenuItem onClick={onOpenInNewTab}>
         <NewTabIcon className="size-4" />
         <span>Open in New Tab</span>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={onOpenInNewWindow}>
+        <AppWindowIcon className="size-4" />
+        <span>Open in New Window</span>
       </ContextMenuItem>
       {/* The Open in list already offers the Finder, so a row of its own
           would name it twice. */}
@@ -163,6 +170,12 @@ export function usePlaceMenuProps() {
             behind: true,
             newTab: true,
           },
+        );
+      },
+      onOpenInNewWindow: () => {
+        openScreen(
+          kind === "folder" ? folderHref(hostPath) : fileHref(hostPath),
+          { newWindow: true },
         );
       },
       ...(kind === "folder"

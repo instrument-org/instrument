@@ -5,7 +5,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { COMPOSER_CHIP_CLASSNAME } from "@/client/components/attached-item-preview";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -88,7 +88,11 @@ export function SentAsksNote({
                   onClick={(event) => {
                     openFile(
                       ask.file.path,
-                      wantsNewTab(event) ? { newTab: true } : {},
+                      wantsNewWindow(event)
+                        ? { newWindow: true }
+                        : wantsNewTab(event)
+                          ? { newTab: true }
+                          : {},
                     );
                   }}
                   type="button"

@@ -83,6 +83,13 @@ export function newSiteGroup(): string {
   return siteGroupOf(crypto.randomUUID());
 }
 
+/** Addresses in a window of their own beside this one, each a tab, the first up. */
+export function openInNewWindow(...hrefs: string[]) {
+  void rpcClient.window.openNew.call({
+    tabs: hrefs.map((pathname) => ({ id: freshTabId(), pathname })),
+  });
+}
+
 /** The address of the tab that shows a site's group. */
 export function pageHrefOf(group: string): string {
   return pathOf(SCREEN_ROUTES.site, { id: group.slice(SITE_PREFIX.length) });
@@ -290,18 +297,20 @@ export function useAppTabs() {
     /** The tab up to a place, at the chat or folder it last had open unless asked for the place's root. */
     goToPlace: (
       place: AppPlace,
-      { behind = false, newTab = false, root = false } = {},
+      { behind = false, newTab = false, newWindow = false, root = false } = {},
     ) => {
-      go(
-        placeHrefOf(place, {
-          lastChat: root ? null : lastChat,
-          lastFolder: root ? folderHref("~") : lastFolder,
-        }),
-        {
-          behind,
-          newTab,
-        },
-      );
+      const href = placeHrefOf(place, {
+        lastChat: root ? null : lastChat,
+        lastFolder: root ? folderHref("~") : lastFolder,
+      });
+      if (newWindow) {
+        openInNewWindow(href);
+        return;
+      }
+      go(href, {
+        behind,
+        newTab,
+      });
     },
     model,
     navigate,

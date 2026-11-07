@@ -1,3 +1,4 @@
+import { offerNewWindowTask } from "@/electron-main/lib/new-window-task";
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -62,6 +63,7 @@ export function createApplicationMenu(): void {
       },
     ]),
   );
+  offerNewWindowTask();
 
   void publisher.subscribe("updates.status", ({ status }) => {
     if (setMenuUpdateReady(status.type === "downloaded")) {

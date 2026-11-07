@@ -30,6 +30,7 @@ function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
   const handlers = new Map<string, (event: unknown, params: unknown) => void>();
   const loadURL = vi.fn(() => Promise.resolve());
   const openInNewTab = vi.fn();
+  const openInNewWindow = vi.fn();
   const step = vi.fn();
   const goBack = vi.fn();
   const copyImageAt = vi.fn();
@@ -52,7 +53,12 @@ function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
     session: { addWordToSpellCheckerDictionary },
   } as unknown as WebContents;
 
-  attachGuestInteractions(guest, { mayOpen: () => true, openInNewTab, step });
+  attachGuestInteractions(guest, {
+    mayOpen: () => true,
+    openInNewTab,
+    openInNewWindow,
+    step,
+  });
   handlers.get("context-menu")?.(null, {
     dictionarySuggestions: [],
     editFlags: { canCopy: true, canCut: false, canPaste: false },
@@ -91,6 +97,7 @@ function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
     loadURL,
     replaceMisspelling,
     openInNewTab,
+    openInNewWindow,
     openLink: items.find((item) => item.label === "Open Link"),
     openLinkInNewTab: items.find(
       (item) => item.label === "Open Link in New Tab",
@@ -132,6 +139,14 @@ describe("the guest context menu", () => {
     (openLinkInNewTab?.click as (() => void) | undefined)?.();
 
     expect(openInNewTab).toHaveBeenCalledWith("file:///Users/me/site/b.html");
+  });
+
+  it("offers the link in a window of the app's own", () => {
+    const { click, openInNewWindow } = buildMenu("https://example.com/next");
+
+    click("Open Link in New Window");
+
+    expect(openInNewWindow).toHaveBeenCalledWith("https://example.com/next");
   });
 
   // Back from a page's first entry is its tab's back (to the screen it was
@@ -204,6 +219,7 @@ describe("the guest context menu", () => {
         "---",
         "Open Link",
         "Open Link in New Tab",
+        "Open Link in New Window",
         "Copy Link",
         "---",
         "Open Image in New Tab",

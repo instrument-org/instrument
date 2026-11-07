@@ -3,6 +3,7 @@ import {
   showOpenMenu,
   useGesturesFor,
   wantsNewTab,
+  wantsNewWindow,
 } from "@/client/hooks/use-open-target";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ReactNode, useContext } from "react";
@@ -14,6 +15,8 @@ import { setMenuLink } from "./menu-link";
 
 /** The middle button, which asks for a place of its own. */
 const MIDDLE_BUTTON = 1;
+
+type Gesture = "menu" | "newTab" | "newWindow" | "open";
 
 /**
  * Keeps every plain link drawn inside it in the app: an anchor no component
@@ -72,6 +75,13 @@ export function LinkSurface({
       },
     },
     {
+      id: "openNewWindow",
+      label: "Open in New Window",
+      run: () => {
+        showFile(hostPath, { newWindow: true });
+      },
+    },
+    {
       id: "copy",
       label: "Copy Path",
       run: () => {
@@ -82,7 +92,7 @@ export function LinkSurface({
     },
   ];
 
-  const follow = (target: LinkTarget, gesture: "menu" | "newTab" | "open") => {
+  const follow = (target: LinkTarget, gesture: Gesture) => {
     if (target.kind === "none" || target.kind === "stay") {
       return;
     }
@@ -92,7 +102,11 @@ export function LinkSurface({
       } else {
         showFile(
           target.path,
-          gesture === "newTab" ? { behind: true, newTab: true } : undefined,
+          gesture === "newWindow"
+            ? { newWindow: true }
+            : gesture === "newTab"
+              ? { behind: true, newTab: true }
+              : undefined,
         );
       }
       return;
@@ -109,13 +123,15 @@ export function LinkSurface({
       }
       return;
     }
-    (gesture === "newTab" ? gestures.separate : gestures.primary)?.run();
+    (gesture === "newWindow"
+      ? (gestures.ownWindow ?? gestures.primary)
+      : gesture === "newTab"
+        ? gestures.separate
+        : gestures.primary
+    )?.run();
   };
 
-  const answer = (
-    event: React.MouseEvent,
-    gesture: "menu" | "newTab" | "open",
-  ) => {
+  const answer = (event: React.MouseEvent, gesture: Gesture) => {
     if (
       !appWindow ||
       event.defaultPrevented ||
@@ -144,7 +160,7 @@ export function LinkSurface({
       );
       return;
     }
-    if (isEditing && gesture !== "newTab") {
+    if (isEditing && gesture !== "newTab" && gesture !== "newWindow") {
       return;
     }
     if (target.kind === "stay") {
@@ -163,7 +179,14 @@ export function LinkSurface({
         }
       }}
       onClick={(event) => {
-        answer(event, wantsNewTab(event) ? "newTab" : "open");
+        answer(
+          event,
+          wantsNewWindow(event)
+            ? "newWindow"
+            : wantsNewTab(event)
+              ? "newTab"
+              : "open",
+        );
       }}
       onContextMenu={(event) => {
         answer(event, "menu");

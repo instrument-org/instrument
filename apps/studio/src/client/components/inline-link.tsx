@@ -1,5 +1,9 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
-import { useOpenGestures } from "@/client/hooks/use-open-target";
+import {
+  useOpenGestures,
+  wantsNewTab,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
 import {
   getFaviconUrl,
   markIconlessThisSession,
@@ -161,7 +165,12 @@ export function ChipButton({
   onActivate,
   ...props
 }: Omit<React.ComponentProps<"span">, "onClick" | "onKeyDown" | "role"> & {
-  onActivate: (event: { ctrlKey: boolean; metaKey: boolean }) => void;
+  onActivate: (event: {
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }) => void;
 }) {
   return (
     <span
@@ -285,7 +294,15 @@ function AppLink({
   const chip = (
     <ChipButton
       className={className}
-      onActivate={open.run}
+      onActivate={(event) => {
+        if (wantsNewWindow(event) && gestures.ownWindow) {
+          gestures.ownWindow.run();
+        } else if (wantsNewTab(event) && gestures.separate) {
+          gestures.separate.run();
+        } else {
+          open.run();
+        }
+      }}
       onAuxClick={gestures.onAuxClick}
       onContextMenu={gestures.onContextMenu}
     >

@@ -75,6 +75,7 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
+import { wantsNewWindow } from "@/client/hooks/use-open-target";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -161,6 +162,7 @@ import {
 } from "@/client/lib/browser-pool";
 import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
+import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
 import { arrivalView } from "./files-step";
 import { type GoFiles } from "./use-files-step";
@@ -1986,6 +1988,9 @@ export function ComputerPage({
   const openPlaceInNewTab = (place: string) => {
     openScreen(folderHref(place), { behind: true, newTab: true });
   };
+  const openPlaceInNewWindow = (place: string) => {
+    openScreen(folderHref(place), { newWindow: true });
+  };
   const placeMenu = (place: string, { isPinned = false } = {}) => (
     <PlaceMenu
       hostPath={place}
@@ -1997,6 +2002,9 @@ export function ComputerPage({
       }
       onOpenInNewTab={() => {
         openPlaceInNewTab(place);
+      }}
+      onOpenInNewWindow={() => {
+        openPlaceInNewWindow(place);
       }}
       pin={
         isPinned
@@ -2074,6 +2082,9 @@ export function ComputerPage({
             onOpenInNewTab: () => {
               openInTabs(group, { behind: true });
             },
+            onOpenInNewWindow: () => {
+              openInWindow(group);
+            },
             onQuickLook: undefined,
             onRename: undefined,
             opensOutside: undefined,
@@ -2106,6 +2117,25 @@ export function ComputerPage({
         { behind: behind || !isFirst, newTab: true },
       );
       isFirst = false;
+    }
+  };
+  // Opening in a window of their own: each a tab there, the first up.
+  const openInWindow = (picked: FileSystemItem[]) => {
+    const hrefs = picked.flatMap((item) => {
+      const itemPath = hostPathOfItem(item);
+      if (!itemPath) {
+        return [];
+      }
+      return [
+        item.kind === "folder"
+          ? folderHref(itemPath)
+          : fileHref(itemPath, {
+              tree: folderOnScreenPath ?? folderOf(itemPath),
+            }),
+      ];
+    });
+    if (hrefs.length > 0) {
+      openInNewWindow(...hrefs);
     }
   };
   // Opening several, as a double-click or ⌘O on a selection does: each file
@@ -2168,6 +2198,9 @@ export function ComputerPage({
     },
     onOpenInNewTab: () => {
       openInTabs(item ? [item] : [], { behind: true });
+    },
+    onOpenInNewWindow: () => {
+      openInWindow(item ? [item] : []);
     },
     onQuickLook: (() => {
       const target = item ? lookTargetOf(item) : undefined;
@@ -2312,6 +2345,7 @@ export function ComputerPage({
           place === RECENTS_ROOT ? undefined : placeMenu(place)
         }
         onOpenInNewTab={openPlaceInNewTab}
+        onOpenInNewWindow={openPlaceInNewWindow}
         onOpen={(folder) => {
           rootTo(folder);
         }}
@@ -2356,6 +2390,7 @@ export function ComputerPage({
         }
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={openPlaceInNewTab}
+        onOpenInNewWindow={openPlaceInNewWindow}
         onOpen={(folder) => {
           rootTo(folder === homePath ? "~" : folder);
         }}
@@ -2374,6 +2409,7 @@ export function ComputerPage({
           place === COMPUTER_ROOT ? undefined : placeMenu(place)
         }
         onOpenInNewTab={openPlaceInNewTab}
+        onOpenInNewWindow={openPlaceInNewWindow}
         onOpen={(folder) => {
           rootTo(folder);
         }}
@@ -3002,6 +3038,8 @@ type FolderMenuActions = {
   onOpen: () => void;
   /** A folder in a tab of its own, which is the Finder's first answer for one. */
   onOpenInNewTab: () => void;
+  /** What it is in a window of its own, several as tabs of one. */
+  onOpenInNewWindow: () => void;
   /** Left out where nothing shows a file over the page. */
   onQuickLook: (() => void) | undefined;
   /** Left out where there is no field to type a name in. */
@@ -3165,6 +3203,7 @@ function FolderMenuItems({
   onNewFolder,
   onOpen,
   onOpenInNewTab,
+  onOpenInNewWindow,
   onQuickLook,
   onRename,
   onReveal,
@@ -3267,6 +3306,10 @@ function FolderMenuItems({
           <Item onClick={onOpenInNewTab}>
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
+          </Item>
+          <Item onClick={onOpenInNewWindow}>
+            <AppWindowIcon className="size-4" />
+            <span>Open in New Window</span>
           </Item>
           {onShowPackageContents && !several ? (
             <Item onClick={onShowPackageContents}>
@@ -4250,6 +4293,7 @@ function PlaceList({
   menu,
   onOpen,
   onOpenInNewTab,
+  onOpenInNewWindow,
   places,
 }: {
   /** Left out for the app's own places, which need no heading. */
@@ -4261,6 +4305,8 @@ function PlaceList({
   onOpen: (path: string) => void;
   /** A middle click: the place in a tab of its own, waiting behind. */
   onOpenInNewTab: (path: string) => void;
+  /** A click with Shift: the place in a window of its own. */
+  onOpenInNewWindow?: (path: string) => void;
   places: {
     icon: ReactNode;
     isActive: boolean;
@@ -4298,8 +4344,12 @@ function PlaceList({
                         onOpenInNewTab(place.path);
                       }
                     }}
-                    onClick={() => {
-                      onOpen(place.path);
+                    onClick={(event) => {
+                      if (onOpenInNewWindow && wantsNewWindow(event)) {
+                        onOpenInNewWindow(place.path);
+                      } else {
+                        onOpen(place.path);
+                      }
                     }}
                     onMouseDown={(event) => {
                       if (event.button === 1) {

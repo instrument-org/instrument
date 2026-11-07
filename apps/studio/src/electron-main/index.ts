@@ -43,6 +43,7 @@ import {
   askAppWindow,
   openAppFile,
   openAppWindow,
+  openNewAppWindow,
   restoreAppWindows,
   showInWindowHolding,
   updateAppWindowBackgroundColor,
@@ -91,6 +92,7 @@ import { timeBootStep } from "./lib/boot-timing";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
+import { asksForNewWindow } from "./lib/new-window-task";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { startAppCatalog } from "./lib/app-catalog";
@@ -170,6 +172,10 @@ if (gotTheLock) {
     // A refused workspace's window is the only one, and takes nothing else.
     if (getWorkspaceRefusal()) {
       BrowserWindow.getAllWindows()[0]?.focus();
+      return;
+    }
+    // The taskbar's New Window task, which opens one unless setup is up.
+    if (asksForNewWindow(commandLine) && openNewAppWindow()) {
       return;
     }
     focusForegroundWindow();

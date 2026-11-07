@@ -804,7 +804,14 @@ function WindowShell({
    * place asked for in a tab of its own waits behind, the way a bookmark
    * middle-clicked in a browser does.
    */
-  const choosePlace = (next: AppPlace, { newTab = false } = {}) => {
+  const choosePlace = (
+    next: AppPlace,
+    { newTab = false, newWindow = false } = {},
+  ) => {
+    if (newWindow) {
+      appTabs.goToPlace(next, { newWindow });
+      return;
+    }
     const bringsInboxBack =
       next === "chat" && chatUp !== undefined && !isInboxOpen;
     if (next === "chat") {

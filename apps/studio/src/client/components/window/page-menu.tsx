@@ -6,7 +6,12 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { useGesturesFor, wantsNewTab } from "@/client/hooks/use-open-target";
+import {
+  useGesturesFor,
+  wantsNewTab,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { LinkSimpleIcon } from "@phosphor-icons/react/LinkSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -25,8 +30,12 @@ const MIDDLE_BUTTON = 1;
 export function usePageClicks() {
   const gesturesFor = useGesturesFor();
   return (url: string, onOpen: (url: string) => void) => {
-    const inNewTab = gesturesFor({ kind: "page", url }).destinations.find(
+    const { destinations } = gesturesFor({ kind: "page", url });
+    const inNewTab = destinations.find(
       (destination) => destination.id === "openNewTab",
+    );
+    const inNewWindow = destinations.find(
+      (destination) => destination.id === "openNewWindow",
     );
     return {
       onAuxClick: (event: MouseEvent) => {
@@ -37,6 +46,10 @@ export function usePageClicks() {
         inNewTab.run();
       },
       onClick: (event: MouseEvent) => {
+        if (inNewWindow && wantsNewWindow(event)) {
+          inNewWindow.run();
+          return;
+        }
         if (inNewTab && wantsNewTab(event)) {
           inNewTab.run();
           return;
@@ -82,6 +95,9 @@ export function PageContextMenu({
   const inNewTab = destinations.find(
     (destination) => destination.id === "openNewTab",
   );
+  const inNewWindow = destinations.find(
+    (destination) => destination.id === "openNewWindow",
+  );
   const copy = destinations.find((destination) => destination.id === "copy");
   // A rename asked for is started as the menu closes: a field focused while
   // the menu still holds the keyboard loses it at once.
@@ -111,6 +127,12 @@ export function PageContextMenu({
           <ContextMenuItem onClick={inNewTab.run}>
             <NewTabIcon className="size-4" />
             <span>Open in New Tab</span>
+          </ContextMenuItem>
+        )}
+        {inNewWindow && (
+          <ContextMenuItem onClick={inNewWindow.run}>
+            <AppWindowIcon className="size-4" />
+            <span>Open in New Window</span>
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />

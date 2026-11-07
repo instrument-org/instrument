@@ -98,9 +98,9 @@ const others = base.handler(async function* ({ context, signal }) {
 
 /** A window of its own, opening on the inbox, or on a tab given it. */
 const openNew = base
-  .input(z.object({ tab: TabSchema.optional() }).optional())
+  .input(z.object({ tabs: z.array(TabSchema).optional() }).optional())
   .handler(({ input }) => {
-    openNewAppWindow(input?.tab);
+    openNewAppWindow(input?.tabs);
   });
 
 /** A window closed lately, as it was, where one can come back. */

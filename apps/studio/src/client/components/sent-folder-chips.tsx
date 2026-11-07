@@ -1,7 +1,7 @@
 import { AttachedItemPreview } from "@/client/components/attached-item-preview";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { showInFolder } from "@/client/lib/show-in-files";
 import {
@@ -35,7 +35,11 @@ export function SentFolderChips({
         if (openFile) {
           openFile(
             isFolderPath(folder.path) ? folder.path : `${folder.path}/`,
-            wantsNewTab(event) ? { newTab: true } : {},
+            wantsNewWindow(event)
+              ? { newWindow: true }
+              : wantsNewTab(event)
+                ? { newTab: true }
+                : {},
           );
           return;
         }

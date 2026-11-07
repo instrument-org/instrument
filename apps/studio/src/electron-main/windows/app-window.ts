@@ -405,17 +405,23 @@ export function restoreAppWindows() {
   }
 }
 
-/** A window of its own, at the inbox, standing off the one in front. */
-export function openNewAppWindow(tab?: Tab): BrowserWindow | null {
+/**
+ * A window of its own, standing off the one in front: at these tabs, the
+ * first up, or at the inbox with none.
+ */
+export function openNewAppWindow(
+  tabs: readonly Tab[] = [],
+): BrowserWindow | null {
   if (isSetupUp()) {
     return null;
   }
   const id = newWindowId();
-  if (tab) {
+  const [first] = tabs;
+  if (first) {
     setWindowKeptState(id, APP_TABS_KEY, {
       recentlyClosed: [],
-      selectedId: tab.id,
-      tabs: [tab],
+      selectedId: first.id,
+      tabs: [...tabs],
     });
   }
   return createAppWindow(id, { bounds: cascadedBounds() });

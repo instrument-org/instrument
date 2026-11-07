@@ -106,13 +106,6 @@ export function letTabGo(key: string) {
   );
 }
 
-/** An address in a window of its own, beside this one. */
-export function openInNewWindow(href: string) {
-  void rpcClient.window.openNew.call({
-    tab: { id: freshTabId(), pathname: href },
-  });
-}
-
 /** A tab from another window comes up here, at the place along the strip it was held at. */
 export function receiveTab(tab: Tab, index?: number) {
   getDefaultStore().set(appTabsAtom, (current) =>

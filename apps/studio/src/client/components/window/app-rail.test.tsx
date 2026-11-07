@@ -73,9 +73,15 @@ describe("AppRail", () => {
     fireEvent.click(rail.getByRole("button", { name: "New" }));
     expect(onNew).toHaveBeenCalledOnce();
     fireEvent.click(rail.getByRole("button", { name: "Files" }));
-    expect(onChoose).toHaveBeenLastCalledWith("files", { newTab: false });
+    expect(onChoose).toHaveBeenLastCalledWith("files", {
+      newTab: false,
+      newWindow: false,
+    });
     fireEvent.click(rail.getByRole("button", { name: "Apps" }));
-    expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: false });
+    expect(onChoose).toHaveBeenLastCalledWith("apps", {
+      newTab: false,
+      newWindow: false,
+    });
   });
 
   it("asks for a tab of its own on a middle click or a click with Command", () => {
@@ -84,11 +90,36 @@ describe("AppRail", () => {
       rail.getByRole("button", { name: "Files" }),
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
-    expect(onChoose).toHaveBeenLastCalledWith("files", { newTab: true });
+    expect(onChoose).toHaveBeenLastCalledWith("files", {
+      newTab: true,
+      newWindow: false,
+    });
     fireEvent.click(rail.getByRole("button", { name: "Apps" }), {
       metaKey: true,
     });
-    expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: true });
+    expect(onChoose).toHaveBeenLastCalledWith("apps", {
+      newTab: true,
+      newWindow: false,
+    });
+  });
+
+  it("asks for a window of its own on a click with Shift, and a tab with Command too", () => {
+    const { onChoose, rail } = renderRail("chat");
+    fireEvent.click(rail.getByRole("button", { name: "Files" }), {
+      shiftKey: true,
+    });
+    expect(onChoose).toHaveBeenLastCalledWith("files", {
+      newTab: false,
+      newWindow: true,
+    });
+    fireEvent.click(rail.getByRole("button", { name: "Apps" }), {
+      metaKey: true,
+      shiftKey: true,
+    });
+    expect(onChoose).toHaveBeenLastCalledWith("apps", {
+      newTab: true,
+      newWindow: false,
+    });
   });
 
   it("opens the feedback dialog about the chat on screen, when there is one", () => {

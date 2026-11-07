@@ -20,6 +20,7 @@ import { toast } from "@/client/lib/toast";
 import {
   isSiteGroup,
   newSiteGroup,
+  openInNewWindow,
   pageHrefOf,
   type useAppTabs,
 } from "./app-tabs";
@@ -112,6 +113,12 @@ export function useOpeners({
    * behind. Opened into the group on screen, it brings the pane up.
    */
   const openPage = (url: string, options: OpenOptions = {}) => {
+    if (options.newWindow) {
+      const group = newSiteGroup();
+      const id = browser?.open(url, { group });
+      openInNewWindow(pageHrefOf(group));
+      return id;
+    }
     const placement = pagePlacementOf(options, placing);
     switch (placement.kind) {
       case "group-behind": {
@@ -205,7 +212,11 @@ export function useOpeners({
     if (chat) {
       // A chat is a place a tab stands: the tab up goes there, a step on in
       // its history, and the chat comes up at the tab it last had up.
-      appTabs.go(chatHref(chat), { behind, newTab });
+      if (options.newWindow) {
+        openInNewWindow(chatHref(chat));
+      } else {
+        appTabs.go(chatHref(chat), { behind, newTab });
+      }
       return;
     }
     const screen = matchScreen(href);
@@ -263,6 +274,18 @@ export function useOpeners({
         windowTabs.navigateScreen(at);
         return;
       }
+      // In a window of its own, the chat comes up there at its task, which
+      // is up in the chat's group every window shares.
+      if (options.newWindow) {
+        windowTabs.openOrFocusScreen(at, {
+          group: owner,
+          isOpened: true,
+          select: true,
+        });
+        setPaneOpen(owner, true);
+        openInNewWindow(chatHref(owner));
+        return;
+      }
       // In a tab of the window's own, the chat comes up there at its tasks.
       if (placement.navigatesWindow) {
         appTabs.go(chatHref(owner), { behind, newTab });
@@ -279,6 +302,10 @@ export function useOpeners({
     // not on screen has nowhere to open, and never takes a window tab.
     if (tasks) {
       sayNoChat();
+      return;
+    }
+    if (options.newWindow) {
+      openInNewWindow(href);
       return;
     }
     const placement = screenPlacementOf(href, options, placing);
@@ -571,13 +598,21 @@ export function useOpeners({
    */
   const openFromPage = ({
     background,
+    newWindow = false,
     targetId,
     url,
   }: {
     background: boolean;
+    newWindow?: boolean;
     targetId: string;
     url: string;
   }) => {
+    // A window of its own has the page on its own, whichever chat's page
+    // asked for it.
+    if (newWindow) {
+      openPage(url, { newWindow });
+      return;
+    }
     const chat = chatOfAskingPage(targetId, windowTabs.allTabs);
     if (chat === undefined) {
       openPage(url, { behind: background, newTab: true });

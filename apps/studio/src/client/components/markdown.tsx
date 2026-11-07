@@ -6,7 +6,7 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { TranscriptSurfaceContext } from "@/client/components/transcript/surface";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import {
   APP_NAME_SLUG,
@@ -501,7 +501,12 @@ const ChatFileLink = ({
     <ChipButton
       className={className}
       onActivate={(event) => {
-        showChatFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
+        showChatFile(
+          filePath,
+          hasTabs && wantsNewWindow(event)
+            ? { newWindow: true }
+            : { newTab: hasTabs && wantsNewTab(event) },
+        );
       }}
       onAuxClick={(event) => {
         if (event.button === 1) {
@@ -559,6 +564,13 @@ const ChatFileLink = ({
               }}
             >
               Open in New Tab
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => {
+                showChatFile(filePath, { newWindow: true });
+              }}
+            >
+              Open in New Window
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
@@ -719,9 +731,12 @@ const MarkdownLink = ({
           }}
           onClick={(event) => {
             event.preventDefault();
-            openFile(hostPath, {
-              newTab: wantsNewTab(event) || event.shiftKey,
-            });
+            openFile(
+              hostPath,
+              wantsNewWindow(event)
+                ? { newWindow: true }
+                : { newTab: wantsNewTab(event) },
+            );
           }}
           title={hostPath}
         >

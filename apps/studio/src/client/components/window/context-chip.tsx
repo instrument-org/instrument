@@ -11,7 +11,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import {
   ChipPresence,
@@ -528,7 +528,13 @@ function ContextChip({
               }
             }}
             onClick={(event) => {
-              onOpen(wantsNewTab(event) ? { newTab: true } : {});
+              onOpen(
+                wantsNewWindow(event)
+                  ? { newWindow: true }
+                  : wantsNewTab(event)
+                    ? { newTab: true }
+                    : {},
+              );
             }}
             type="button"
           >

@@ -50,6 +50,8 @@ interface PublisherEvents {
   // the one up when `background`.
   "browser.open-in-new-tab": {
     background: boolean;
+    /** In a window of the app's own rather than a tab: a Shift-click, or the menu's Open Link in New Window. */
+    newWindow?: boolean;
     targetId: BrowserTargetId;
     url: string;
   };

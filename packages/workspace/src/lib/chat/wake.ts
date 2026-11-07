@@ -46,7 +46,7 @@ import {
 } from "./children";
 import { stepInFlight } from "./in-flight";
 import { cutForNote, lastAssistantText } from "./latest-session";
-import { appClosedLine, endedWithoutWords } from "./standing";
+import { appClosedLine, endedWithoutWords } from "./task-standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
 import { enqueueWake, holdWake, saveNote, type WakePart } from "./wake-queue";

@@ -83,5 +83,5 @@ Looked at and dismissed as feature growth or already restructured: `create-works
 
 ## Not covered
 
-- In the range: the task-waiting standing in `chat/standing.ts` and `chats.ts` (`60bb8e4f3`), the connect-app card (`64467ca10`), the rest of `22dee55fa` beyond `workspace-refusal.ts` and `dataless.ts`, the Excalidraw merge (`2838f1b7f`), the thumbnail queue (`f80616f3e`, `ee83cca0e`, `50ac48366`), the AI gateway's pricing parse in `cd3182e1e`; the live-region follow-up (`78d53f9ac`, `28ea8edfe`) skimmed.
+- In the range: the task-waiting standing in `chat/task-standing.ts` and `chats.ts` (`60bb8e4f3`), the connect-app card (`64467ca10`), the rest of `22dee55fa` beyond `workspace-refusal.ts` and `dataless.ts`, the Excalidraw merge (`2838f1b7f`), the thumbnail queue (`f80616f3e`, `ee83cca0e`, `50ac48366`), the AI gateway's pricing parse in `cd3182e1e`; the live-region follow-up (`78d53f9ac`, `28ea8edfe`) skimmed.
 - Old code: `page-editor-guest/editor/*` beyond the first 140 lines of `source.ts` (how page edits are spliced back into the person's HTML is the riskiest old code left unread), `image-preview`, `probe-media`, `background-output-buffer`, `ai-gateway/fetch-models/*`, `browser-view/{focus-guard,guest-surface,device-emulation}`, and the old renderer components and viewers.

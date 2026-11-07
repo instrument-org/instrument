@@ -2,7 +2,7 @@ import { placeholderTitle } from "@instrument-org/shared";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
-import { excerptOf } from "./standing";
+import { excerptOf } from "./reply-excerpt";
 
 /** How much of the opening ask an untitled chat's placeholder is cut from. */
 const ROOT_EXCERPT_MAX = 160;

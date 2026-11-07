@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldShowAgentCompletionNotification } from "./agent-completion-notifications";
+import {
+  notificationText,
+  shouldShowAgentCompletionNotification,
+} from "./agent-completion-notifications";
 
 const cases: {
   expected: boolean;
@@ -65,5 +68,22 @@ const cases: {
 describe("shouldShowAgentCompletionNotification", () => {
   it.each(cases)("returns $expected for $input", ({ expected, input }) => {
     expect(shouldShowAgentCompletionNotification(input)).toBe(expected);
+  });
+});
+
+describe("notificationText", () => {
+  it.each([
+    [
+      "a message fence by its body",
+      "Here it is.\n\n```message\n---\nmessage: chat\nto: Team\nvia: Slack\n---\nI also **worked** on it.\n```",
+      "Here it is. I also worked on it.",
+    ],
+    [
+      "past a files fence",
+      "Done.\n\n```files\n/Users/mac-user/report.html\n```",
+      "Done.",
+    ],
+  ])("reads %s", (_label, reply, expected) => {
+    expect(notificationText(reply)).toBe(expected);
   });
 });

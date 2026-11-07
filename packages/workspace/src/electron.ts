@@ -175,6 +175,7 @@ export {
 } from "./lib/host-events";
 export { settleIsNews } from "./lib/chat/chats";
 export { FILES_FENCE } from "./lib/parse-files-block";
+export { MESSAGE_FENCE, parseMessage } from "./lib/parse-message";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir, chatIds, loadChatIndex } from "./lib/record-folders";

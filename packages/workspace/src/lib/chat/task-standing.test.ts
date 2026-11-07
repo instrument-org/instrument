@@ -8,7 +8,7 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { ChatWrites } from "../chat-writes";
 import { touchTask } from "./children";
-import { taskStanding } from "./standing";
+import { taskStanding } from "./task-standing";
 
 let counter = 0;
 const freshChat = () =>

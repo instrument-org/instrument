@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask, listChildTasks } from "../../chat/children";
-import { taskStanding } from "../../chat/standing";
+import { taskStanding } from "../../chat/task-standing";
 import { TASK_COMMAND } from "../../shell-commands/task-command";
 import {
   TASK_LIST_WINDOW,

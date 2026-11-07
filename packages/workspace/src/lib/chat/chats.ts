@@ -32,7 +32,7 @@ import { listChildTasks } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { shownTitleFrom } from "./shown-title";
-import { excerptOf } from "./standing";
+import { excerptOf } from "./reply-excerpt";
 import { saveProjectId } from "./projects";
 import { hasWakeOnItsWay } from "./wake-queue";
 import { isStopNote } from "./wake-event";

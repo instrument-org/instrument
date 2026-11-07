@@ -20,7 +20,7 @@ import { taskEventModelNote } from "../task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { leftRunning } from "./activity";
 import { childTask } from "./children";
-import { taskStanding } from "./standing";
+import { taskStanding } from "./task-standing";
 import {
   noteTaskStoppedOnCard,
   noteTasksInterruptedByQuit,

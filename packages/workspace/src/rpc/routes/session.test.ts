@@ -18,7 +18,7 @@ import { chatById } from "../../lib/chat/chats";
 import { childTask } from "../../lib/chat/children";
 import { startJobWake } from "../../lib/chat/job-wake";
 import { hasWakeOnItsWay } from "../../lib/chat/wake-queue";
-import { taskStanding } from "../../lib/chat/standing";
+import { taskStanding } from "../../lib/chat/task-standing";
 import { startChatWake } from "../../lib/chat/wake";
 import { recordAsk } from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";

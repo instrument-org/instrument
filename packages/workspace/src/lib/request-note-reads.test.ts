@@ -15,7 +15,7 @@ import { sessionDeveloperNotes } from "./chat/session-developer-notes";
 import { stepInFlightIn } from "./chat/in-flight";
 import { lastAssistantTextIn } from "./chat/latest-session";
 import { sessionSteps } from "./chat/steps";
-import { taskStanding } from "./chat/standing";
+import { taskStanding } from "./chat/task-standing";
 import { isStopNote } from "./chat/wake-event";
 import { renderChatMarkdown } from "./chat-folders/chat-markdown";
 import { ChatReads } from "./chat-reads";

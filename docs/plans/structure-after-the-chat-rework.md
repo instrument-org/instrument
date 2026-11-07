@@ -78,7 +78,7 @@ Size M, value med-high.
 
 ## 5. Change tracking keyed by session
 
-`lib/store-generation.ts:9-63`, `lib/session-store-storage.ts:219-243`, `lib/workspace-index.ts:84-125`, `lib/chat/chats.ts:329,542-557`, `lib/chat/standing.ts:27`, `lib/store.ts:123-133`, `changed-message-batches.ts`, `record-changes.ts:66-121`.
+`lib/store-generation.ts:9-63`, `lib/session-store-storage.ts:219-243`, `lib/workspace-index.ts:84-125`, `lib/chat/chats.ts:329,542-557`, `lib/chat/task-standing.ts:28`, `lib/store.ts:123-133`, `changed-message-batches.ts`, `record-changes.ts:66-121`.
 
 Since b834385c7 every task writes into the chat's `chat.db`, but the store generation and the cross-launch stamp (file size and mtime) are per database. One task streaming invalidates the chat digest and every sibling's `task_standings` and `task_hosts` rows, and each recompute of a task reads its parent's transcript too. The store also publishes `message.updated` and `part.updated` by hand beside the write layer's `record.changed { messages }`, and the two coalescing iterators are the same code written twice.
 

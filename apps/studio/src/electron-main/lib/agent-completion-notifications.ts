@@ -6,6 +6,8 @@ import {
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   FILES_FENCE,
+  MESSAGE_FENCE,
+  parseMessage,
   type StoreId,
   type ChatId,
   type WorkspaceActorRef,
@@ -198,13 +200,8 @@ function bodyOf(messages: Messages): string | undefined {
         part.type === "text" ? [part.text] : [],
       ),
     )
-    .join("\n")
-    // A files fence is a list of paths for the app to draw as cards, not
-    // words to read.
-    .replaceAll(FILES_FENCE, "");
-  // Notifications render no formatting, so strip Markdown before collapsing
-  // whitespace to avoid showing literal syntax like ** or [text](url).
-  const text = stripMarkdown(raw).replaceAll(/\s+/g, " ").trim();
+    .join("\n");
+  const text = notificationText(raw);
 
   if (text.length === 0) {
     return undefined;
@@ -213,6 +210,22 @@ function bodyOf(messages: Messages): string | undefined {
   return text.length > MAX_NOTIFICATION_BODY_LENGTH
     ? `${text.slice(0, MAX_NOTIFICATION_BODY_LENGTH).trimEnd()}…`
     : text;
+}
+
+/**
+ * A reply as a notification reads it: a files fence is a list of paths for
+ * the app to draw as cards, so it goes; a message fence reads as the message
+ * under its headers; and the rest loses its Markdown, since a notification
+ * renders none, and its line breaks.
+ */
+export function notificationText(reply: string): string {
+  const words = reply
+    .replaceAll(FILES_FENCE, "")
+    .replaceAll(MESSAGE_FENCE, (...match: unknown[]) => {
+      const groups = match.at(-1) as { body?: string }; // named groups of MESSAGE_FENCE
+      return parseMessage(groups.body ?? "").body;
+    });
+  return stripMarkdown(words).replaceAll(/\s+/g, " ").trim();
 }
 
 function canShowAgentCompletionNotification({

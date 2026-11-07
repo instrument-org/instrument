@@ -1,17 +1,13 @@
-import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { z } from "zod";
 
-import {
-  AGENT_FILES_LANGUAGE,
-  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
-} from "../../constants";
+import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
-import { parseFilesBlock } from "../parse-files-block";
 import { cardLine } from "./asks";
 import { openAsksOf } from "./open-asks";
 import { ChatReads } from "../chat-reads";
+import { excerptOf } from "./reply-excerpt";
 import {
   type Derived,
   indexedByRecords,
@@ -98,46 +94,6 @@ export function appClosedLine(step: string | undefined): string {
 }
 
 /**
- * The one line a reply is read by, cut to what a row can show. Fenced blocks
- * are skipped whole: a reply that opens with the files it hands over is read
- * by its words. One that is nothing but that fence is read by what it wrote,
- * named from the fence's basenames, and any other fence with no words around
- * it by its first line, so no excerpt ever shows the fence itself.
- */
-export function excerptOf(text: string, maxLength: number): string {
-  /** The info string of the fence being walked; undefined outside one. */
-  let fence: string | undefined;
-  const fencedFiles: string[] = [];
-  let firstFenced: string | undefined;
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (line.startsWith("```")) {
-      fence = fence === undefined ? line.replace(/^`+/, "").trim() : undefined;
-      continue;
-    }
-    if (!line) {
-      continue;
-    }
-    if (fence === undefined) {
-      // Plain words: a row has no room for a bold marker or a link's target.
-      return cut(stripMarkdown(line).trim(), maxLength);
-    }
-    if (fence === AGENT_FILES_LANGUAGE) {
-      fencedFiles.push(line);
-    }
-    firstFenced ??= line;
-  }
-  const names = parseFilesBlock(fencedFiles.join("\n")).map(basename);
-  const [first, ...more] = names;
-  if (first === undefined) {
-    return cut(firstFenced ?? "", maxLength);
-  }
-  return more.length === 0
-    ? cut(`Wrote ${first}`, maxLength)
-    : cut(`Wrote ${names.length} files: ${names.join(", ")}`, maxLength);
-}
-
-/**
  * Where a task stands and what to say about it.
  *
  * The list reads this rather than the task's own status because the status
@@ -167,15 +123,6 @@ export async function taskStanding({
     return { kind: "waiting", line: cardLine(card) };
   }
   return settledStanding(chatId, sessionId, () => standingAtRest(ref));
-}
-
-/** The last segment of a path, which is how a file is named in a line. */
-function basename(path: string): string {
-  return path.replace(/\/+$/, "").split("/").at(-1) || path;
-}
-
-function cut(line: string, maxLength: number): string {
-  return line.length > maxLength ? `${line.slice(0, maxLength)}…` : line;
 }
 
 /** The same ending, read from a transcript already in hand. */

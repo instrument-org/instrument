@@ -85,6 +85,7 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
  */
 export const TurnView = memo(function TurnView({
   chatInfo,
+  hasCard,
   isLast,
   separator,
   sessionId,
@@ -92,6 +93,8 @@ export const TurnView = memo(function TurnView({
   waitsForStep,
 }: {
   chatInfo: ChatInfo;
+  /** Its card is the one up in the transcript (`slotTurnOf`). */
+  hasCard: boolean;
   isLast: boolean;
   separator: ChatSeparator | undefined;
   sessionId: StoreId.Session;
@@ -118,6 +121,7 @@ export const TurnView = memo(function TurnView({
       >
         <TurnBody
           chatInfo={chatInfo}
+          hasCard={hasCard}
           isLast={isLast}
           sessionId={sessionId}
           turn={turn}
@@ -207,12 +211,14 @@ function AssignmentBubble({
 
 function TurnBody({
   chatInfo,
+  hasCard,
   isLast,
   sessionId,
   turn,
   waitsForStep,
 }: {
   chatInfo: ChatInfo;
+  hasCard: boolean;
   isLast: boolean;
   sessionId: StoreId.Session;
   turn: Turn;
@@ -221,7 +227,7 @@ function TurnBody({
   const isFolded = useIsFolded(turn);
   const [isOpened, setIsOpened] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
-  const card = isFolded ? undefined : slotOf(turn);
+  const card = isFolded || !hasCard ? undefined : slotOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
   const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
   const rows = turn.rows.flatMap((row, index) => {

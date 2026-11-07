@@ -4,7 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
-import { cardsOf, slotOf } from "./slot";
+import { cardsOf, slotOf, slotTurnOf } from "./slot";
 import {
   type TranscriptMessage,
   transcriptMessage,
@@ -971,6 +971,35 @@ describe("the slot", () => {
       { isRunning: true },
     );
     expect(turn && slotOf(turn)).toBeUndefined();
+  });
+
+  it("keeps one card up across a message sent mid-turn", () => {
+    const wrote = (id: Parameters<typeof call>[0], filePath: string) =>
+      call(id, "write_file", { activity: "Writing", content: "a", filePath });
+    const midTurn = message("user", (id) => [
+      said(id, "Also this"),
+      {
+        data: { text: MID_TURN_NOTE },
+        metadata: meta(id),
+        type: "data-intent",
+      } as SessionMessagePart.Type,
+    ]);
+    const before = [
+      typed("Do the thing"),
+      message("assistant", (id) => [wrote(id, "/a.md")]),
+      midTurn,
+    ];
+    const cardIn = (after: Parameters<typeof turnsOf>[0]) => {
+      const turns = turnsOf([...before, ...after], { isRunning: true });
+      return turns.findIndex((turn) => turn.id === slotTurnOf(turns));
+    };
+    expect(cardIn([])).toBe(0);
+    expect(cardIn([message("assistant", (id) => [wrote(id, "/b.md")])])).toBe(
+      1,
+    );
+    expect(cardIn([message("assistant", (id) => [said(id, "On it.")])])).toBe(
+      -1,
+    );
   });
 
   it("says a message is waiting while a step goes on above it", () => {

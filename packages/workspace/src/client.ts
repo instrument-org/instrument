@@ -51,6 +51,7 @@ export {
   type SlotCard,
   type SlotKind,
   slotOf,
+  slotTurnOf,
 } from "./lib/transcript/slot";
 export {
   type StepPart,

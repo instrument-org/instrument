@@ -75,9 +75,36 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
  * its own.
  */
 export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
+  const found = walkBack(turn);
+  return found === "ended" ? undefined : found;
+}
+
+/**
+ * The turn whose card is up, of a session's turns: the same walk as `slotOf`,
+ * carried back across turns, so one card is up in the whole transcript. A
+ * message sent mid-turn starts a turn of its own, and the card stays where it
+ * was until that turn's work shows something, speaks, or starts a task.
+ */
+export function slotTurnOf(
+  turns: readonly Pick<Turn, "id" | "rows">[],
+): Turn["id"] | undefined {
+  for (const turn of turns.toReversed()) {
+    const found = walkBack(turn);
+    if (found === "ended") {
+      return undefined;
+    }
+    if (found) {
+      return turn.id;
+    }
+  }
+  return undefined;
+}
+
+/** The newest card of a turn's work, "ended" if words or a task came after it. */
+function walkBack(turn: Pick<Turn, "rows">): SlotCard | "ended" | undefined {
   for (const row of turn.rows.toReversed()) {
     if (row.kind === "task" || row.kind === "text") {
-      return undefined;
+      return "ended";
     }
     const card = row.kind === "activity" ? cardsOf(row).at(-1) : undefined;
     if (card) {

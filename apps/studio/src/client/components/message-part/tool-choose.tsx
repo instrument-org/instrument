@@ -491,10 +491,12 @@ function SendButton({
 }
 
 /**
- * A card that is no longer open: a line per question with its answer, and
- * the note under them. The line opens to show every choice the agent
- * offered, the picked ones marked, so what else there was stays findable
- * without the card looking answerable.
+ * A card that is no longer open: a line per question with its answer in
+ * full, and the note under them. A card whose questions all went unanswered
+ * the same way, skipped or never answered, says so once over the questions.
+ * The card opens to show every choice the agent offered, the picked ones
+ * marked, so what else there was stays findable without the card looking
+ * answerable.
  */
 function AnsweredCard({
   answer,
@@ -507,70 +509,99 @@ function AnsweredCard({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isSeveral = questions.length > 1;
+  const replies = questions.map((_, index) => answer?.replies[index]);
+  const unanswered = replies.every((reply) => reply && "skipped" in reply)
+    ? "Skipped"
+    : ended && replies.every((reply) => reply === undefined)
+      ? "No answer"
+      : undefined;
+  const caret = (
+    <CaretDownIcon
+      className={cn(
+        "ml-auto size-3 shrink-0 self-center text-muted-foreground transition-transform",
+        isExpanded && "rotate-180",
+      )}
+    />
+  );
   return (
-    <ToolCard className="rounded-xl">
+    <ToolCard className="rounded-[20px]">
       <button
         aria-expanded={isExpanded}
-        className="group/answered flex w-full flex-col gap-0.5 px-3 py-2 text-left text-[13px] outline-none focus-visible:bg-foreground/5"
+        className="flex w-full flex-col gap-1 p-3.5 text-left text-[13px] outline-none focus-visible:bg-foreground/5"
         onClick={() => {
           setIsExpanded((open) => !open);
         }}
         type="button"
       >
-        {questions.map((question, index) => {
-          const reply = answer?.replies[index];
-          const picked = reply && "picked" in reply ? reply.picked : undefined;
-          return (
-            <span className="flex w-full items-center gap-2" key={index}>
-              {picked ? (
-                <CheckIcon
-                  className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-                  weight="bold"
-                />
-              ) : (
-                <MinusIcon className="size-3.5 shrink-0 text-muted-foreground" />
-              )}
-              <span
-                className={cn(
-                  "text-muted-foreground",
-                  isSeveral ? "w-28 shrink-0 truncate" : "min-w-0 truncate",
-                )}
-              >
+        {unanswered ? (
+          <span className="flex w-full items-start gap-2">
+            <MinusIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <span className="flex min-w-0 flex-col">
+              <span className="font-medium">{unanswered}</span>
+              <span className="text-muted-foreground">
                 {isSeveral
-                  ? question.header || question.question
-                  : question.question}
+                  ? questions
+                      .map((question) => question.header || question.question)
+                      .join(", ")
+                  : questions[0]?.question}
               </span>
+            </span>
+            {caret}
+          </span>
+        ) : (
+          questions.map((question, index) => {
+            const reply = replies[index];
+            const picked =
+              reply && "picked" in reply ? reply.picked : undefined;
+            const labels = question.choices.map((choice) => choice.label);
+            const said = picked
+              ?.map((each) => (labels.includes(each) ? each : `“${each}”`))
+              .join(", ");
+            const answerLine = (
               <span
                 className={cn(
-                  "min-w-0 truncate",
+                  "min-w-0 flex-1 text-pretty",
                   picked ? "font-medium" : "text-muted-foreground",
-                  !isSeveral && "shrink-0",
                 )}
               >
-                {picked
-                  ? picked.join(", ")
-                  : reply
-                    ? "Skipped"
-                    : ended
-                      ? "No answer"
-                      : ""}
+                {said ?? (reply ? "Skipped" : ended ? "No answer" : "")}
               </span>
-              {index === 0 ? (
-                <CaretDownIcon
-                  className={cn(
-                    "ml-auto size-3 shrink-0 text-muted-foreground transition-transform",
-                    isExpanded && "rotate-180",
-                  )}
-                />
-              ) : null}
-            </span>
-          );
-        })}
+            );
+            return (
+              <span className="flex w-full items-start gap-2" key={index}>
+                {picked ? (
+                  <CheckIcon
+                    className="mt-0.5 size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
+                    weight="bold"
+                  />
+                ) : (
+                  <MinusIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                )}
+                {isSeveral ? (
+                  <>
+                    <span className="w-28 shrink-0 truncate text-muted-foreground">
+                      {question.header || question.question}
+                    </span>
+                    {answerLine}
+                  </>
+                ) : (
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-muted-foreground">
+                      {question.question}
+                    </span>
+                    {answerLine}
+                  </span>
+                )}
+                {index === 0 ? caret : null}
+              </span>
+            );
+          })
+        )}
       </button>
       {isExpanded ? (
-        <div className="flex flex-col gap-3 px-3 pb-2.5 pl-8.5 text-[13px]">
+        <div className="-mt-1.5 flex flex-col gap-3 px-3.5 pb-3.5 pl-9 text-[13px]">
           {questions.map((question, index) => {
-            const reply = answer?.replies[index];
+            const reply = replies[index];
             const picked = reply && "picked" in reply ? reply.picked : [];
             const labels = question.choices.map((choice) => choice.label);
             const own = picked.filter((each) => !labels.includes(each));
@@ -591,7 +622,7 @@ function AnsweredCard({
                       }
                       key={label}
                     >
-                      {label}
+                      {labels.includes(label) ? label : `“${label}”`}
                     </li>
                   ))}
                 </ul>
@@ -601,7 +632,7 @@ function AnsweredCard({
         </div>
       ) : null}
       {answer?.note ? (
-        <p className="mx-3 mb-2.5 border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">
+        <p className="mx-3.5 -mt-1.5 mb-3.5 border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">
           {answer.note}
         </p>
       ) : null}

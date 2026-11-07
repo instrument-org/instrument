@@ -357,4 +357,46 @@ describe("QuestionCard once answered", () => {
     expect(container.textContent).toContain("Vue");
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
+
+  it("quotes an answer in the person's own words, and not a picked choice", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        onAnswer={vi.fn()}
+        output={{ replies: [{ picked: ["Vue", "Solid, if it's ready"] }] }}
+        questions={ONE}
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toContain("Vue, “Solid, if it's ready”");
+  });
+
+  it.each([
+    {
+      name: "skipped",
+      output: {
+        replies: [{ skipped: true as const }, { skipped: true as const }],
+      },
+      status: "closed" as const,
+      text: "Skipped",
+    },
+    {
+      name: "never answered",
+      output: undefined,
+      status: "ended" as const,
+      text: "No answer",
+    },
+  ])(
+    "says a card of several questions all $name once",
+    ({ output, status, text }) => {
+      const { container } = renderWithProviders(
+        <QuestionCard
+          onAnswer={vi.fn()}
+          output={output}
+          questions={[...ONE, { ...ONE[0]!, header: "Hosting" }]}
+          status={status}
+        />,
+      );
+      expect(container.textContent?.split(text)).toHaveLength(2);
+    },
+  );
 });

@@ -8,10 +8,10 @@ import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import { getGuest } from "@/client/lib/browser-pool";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,14 +22,13 @@ import { PageTooltip } from "@/client/components/window/page-tooltip";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { cn, osConventions } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { motion, Reorder } from "motion/react";
 import {
+  type ReactElement,
   type ReactNode,
   useContext,
   useEffect,
@@ -43,6 +42,8 @@ import { useComputerVolumes } from "./computer-volumes";
 import { WindowContext } from "./context";
 import { useFileTabTitles } from "./file-tab-titles";
 import { screenLocation, screenPresentation } from "./screen-presentation";
+import { tasksOfHref } from "./tab-location";
+import { TabMenuItems } from "./tab-menu-items";
 import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
@@ -109,6 +110,7 @@ export function PaneTabs({
   onAddComputer,
   onAddWeb,
   onClose,
+  onDuplicate,
   onHide,
   onReorder,
   onSelect,
@@ -122,6 +124,8 @@ export function PaneTabs({
   onAddComputer: () => void;
   onAddWeb: () => void;
   onClose: (id: string) => void;
+  /** A copy of the tab beside it in the pane: a page at its address, a screen at its own. */
+  onDuplicate: (tab: WindowTab) => void;
   onHide: () => void;
   /** The chat's tabs in a new order, by their strip keys, oldest first. */
   onReorder: (keys: string[]) => void;
@@ -236,6 +240,31 @@ export function PaneTabs({
                 onClose={() => {
                   onClose(tab.id);
                 }}
+                onCloseOthers={
+                  tabs.length > 1
+                    ? () => {
+                        for (const other of tabs) {
+                          if (other.id !== tab.id) {
+                            onClose(other.id);
+                          }
+                        }
+                      }
+                    : undefined
+                }
+                onCloseToRight={
+                  tabs.at(-1)?.id === tab.id
+                    ? undefined
+                    : () => {
+                        for (const later of tabs.slice(
+                          tabs.findIndex((each) => each.id === tab.id) + 1,
+                        )) {
+                          onClose(later.id);
+                        }
+                      }
+                }
+                onDuplicate={() => {
+                  onDuplicate(tab);
+                }}
                 onSelect={() => {
                   onSelect(tab.id);
                 }}
@@ -307,6 +336,9 @@ function PaneTab({
   isChosen,
   isLifted,
   onClose,
+  onCloseOthers,
+  onCloseToRight,
+  onDuplicate,
   onSelect,
   tab,
   taskTitles,
@@ -316,6 +348,9 @@ function PaneTab({
   isChosen: boolean;
   isLifted: boolean;
   onClose: () => void;
+  onCloseOthers: (() => void) | undefined;
+  onCloseToRight: (() => void) | undefined;
+  onDuplicate: () => void;
   onSelect: () => void;
   tab: WindowTab;
   taskTitles: Presentation["taskTitles"];
@@ -403,49 +438,77 @@ function PaneTab({
       </button>
     </div>
   );
+  const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
+  // Elsewhere, a copy: a page at its address, a screen at its own. A task
+  // stands only in its chat, so it has no tab of the window's own.
+  const openElsewhere = (where: "tab" | "window") => {
+    if (!windowContext) {
+      return;
+    }
+    const options = where === "tab" ? { newTab: true } : { newWindow: true };
+    if (tab.kind === "page") {
+      if (pageUrl !== undefined) {
+        windowContext.openPage(pageUrl, options);
+      }
+    } else {
+      windowContext.openScreen(tab.href, options);
+    }
+  };
+  const canGoElsewhere =
+    windowContext !== null && (tab.kind !== "page" || pageUrl !== undefined);
+  const withMenu = (trigger: ReactElement) => (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{trigger}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-52">
+        <TabMenuItems
+          components={contextMenuComponents}
+          isSelected={isChosen}
+          onClose={onClose}
+          onCloseOthers={onCloseOthers}
+          onCloseToRight={onCloseToRight}
+          onCopyUrl={
+            pageUrl === undefined
+              ? undefined
+              : () => {
+                  void navigator.clipboard.writeText(pageUrl);
+                }
+          }
+          onDuplicate={onDuplicate}
+          onOpenInNewWindow={
+            canGoElsewhere
+              ? () => {
+                  openElsewhere("window");
+                }
+              : undefined
+          }
+          onOpenInTabBar={
+            canGoElsewhere &&
+            (tab.kind === "page" || tasksOfHref(tab.href) === undefined)
+              ? () => {
+                  openElsewhere("tab");
+                }
+              : undefined
+          }
+          onReload={
+            tab.kind === "page"
+              ? () => {
+                  getGuest(browserTargetOf(tab.id))?.reload();
+                }
+              : undefined
+          }
+        />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
   if (tab.kind !== "page") {
-    return body(false);
+    return withMenu(body(false));
   }
-  const pageUrl = tab.url ?? tab.openedUrl;
-  const page = (isWorking: boolean) => {
-    const tooltipped = (
+  const page = (isWorking: boolean) =>
+    withMenu(
       <PageTooltip title={tab.title} url={pageUrl ?? ""}>
         {body(isWorking)}
-      </PageTooltip>
+      </PageTooltip>,
     );
-    return pageUrl === undefined ? (
-      tooltipped
-    ) : (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{tooltipped}</ContextMenuTrigger>
-        <ContextMenuContent>
-          {windowContext && (
-            <ContextMenuItem
-              onSelect={() => {
-                windowContext.openPage(pageUrl, { newTab: true });
-              }}
-            >
-              <BrowsersIcon className="size-4" />
-              Open in Browser Tab
-            </ContextMenuItem>
-          )}
-          <ContextMenuItem
-            onSelect={() => {
-              void navigator.clipboard.writeText(pageUrl);
-            }}
-          >
-            <CopyIcon className="size-4" />
-            Copy URL
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={onClose}>
-            <XIcon className="size-4" />
-            Close
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    );
-  };
   return (
     <PageWorking isChatWorking={isChatWorking} tabId={tab.id}>
       {page}

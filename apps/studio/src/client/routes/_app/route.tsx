@@ -403,6 +403,18 @@ function ChatView({
                       }}
                       onAddWeb={addWeb}
                       onClose={shell.requestClose}
+                      onDuplicate={(tab) => {
+                        if (tab.kind === "page") {
+                          appWindow.browser?.open(tab.url ?? tab.openedUrl, {
+                            group,
+                          });
+                        } else {
+                          windowTabs.openScreen(tab.href, {
+                            group,
+                            select: true,
+                          });
+                        }
+                      }}
                       onHide={() => {
                         setPaneOpen(group, false);
                       }}

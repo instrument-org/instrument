@@ -6,32 +6,25 @@ import {
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { displayPath } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { expandHomePath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
-import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
-import { XIcon } from "@phosphor-icons/react/X";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
-import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useState } from "react";
 
@@ -53,6 +46,7 @@ import { siteTabTitles } from "./site-tab-titles";
 import { useTabCarry } from "./use-tab-carry";
 import { type StripTab, TabStrip } from "./tab-strip";
 import { moveTabOut } from "./move-tab";
+import { TabMenuItems } from "./tab-menu-items";
 import {
   measureCarryIndex,
   stripIndexAt,
@@ -367,117 +361,93 @@ function TabMenu({
 
   return (
     <DropdownMenuContent align="start" className="min-w-52" sideOffset={0}>
-      {reload && (
-        <DropdownMenuItem onClick={reload}>
-          <ArrowClockwiseIcon className="size-4" />
-          <span>Reload</span>
-          {isSelected ? (
-            <DropdownMenuShortcut>
-              {formatAcceleratorText(WINDOW_SHORTCUTS.reloadPage.accelerator)}
-            </DropdownMenuShortcut>
-          ) : null}
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem
-        onClick={() => {
-          onDuplicate(id);
-        }}
-      >
-        <NewTabIcon className="size-4" />
-        <span>Duplicate Tab</span>
-      </DropdownMenuItem>
-      {others && others.length > 0 ? (
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <AppWindowIcon className="size-4" />
-            <span>Move Tab to Another Window</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {isOnly ? null : (
-              <>
-                <DropdownMenuItem
-                  onClick={() => {
-                    void moveTabOut(id, { kind: "new" });
-                  }}
-                >
-                  <span>New Window</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {others.map((other) => (
-              <DropdownMenuItem
-                key={other.id}
-                onClick={() => {
-                  void moveTabOut(id, { id: other.id, kind: "window" });
-                }}
-              >
-                <span className="truncate">{other.title}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      ) : isOnly ? null : (
-        <DropdownMenuItem
-          onClick={() => {
-            void moveTabOut(id, { kind: "new" });
-          }}
-        >
-          <AppWindowIcon className="size-4" />
-          <span>Move Tab to New Window</span>
-        </DropdownMenuItem>
-      )}
-      {/* A site's page shows nothing developer mode adds, so only a
-          screen's tab offers it. */}
-      {isDeveloperMode && !reload && (
-        <DropdownMenuCheckboxItem
-          checked={!tabsWithout.has(id)}
-          className="text-dev-700 dark:text-dev-300"
-          onCheckedChange={(checked) => {
-            const next = new Set(tabsWithout);
-            if (checked) next.delete(id);
-            else next.add(id);
-            setTabsWithout(next);
-          }}
-        >
-          <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
-          <span>Developer Mode in This Tab</span>
-        </DropdownMenuCheckboxItem>
-      )}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onClick={() => {
+      <TabMenuItems
+        components={dropdownMenuComponents}
+        isSelected={isSelected}
+        moving={
+          others && others.length > 0 ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <AppWindowIcon className="size-4" />
+                <span>Move Tab to Another Window</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {isOnly ? null : (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        void moveTabOut(id, { kind: "new" });
+                      }}
+                    >
+                      <span>New Window</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {others.map((other) => (
+                  <DropdownMenuItem
+                    key={other.id}
+                    onClick={() => {
+                      void moveTabOut(id, { id: other.id, kind: "window" });
+                    }}
+                  >
+                    <span className="truncate">{other.title}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ) : isOnly ? null : (
+            <DropdownMenuItem
+              onClick={() => {
+                void moveTabOut(id, { kind: "new" });
+              }}
+            >
+              <AppWindowIcon className="size-4" />
+              <span>Move Tab to New Window</span>
+            </DropdownMenuItem>
+          )
+        }
+        onClose={() => {
           onClose(id);
         }}
-      >
-        <XIcon className="size-4" />
-        <span>Close Tab</span>
-        {isSelected ? (
-          <DropdownMenuShortcut>
-            {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
-          </DropdownMenuShortcut>
-        ) : null}
-      </DropdownMenuItem>
-      {isOnly ? null : (
-        <DropdownMenuItem
-          onClick={() => {
-            onCloseOthers(id);
-          }}
-        >
-          <XSquareIcon className="size-4" />
-          <span>Close Other Tabs</span>
-        </DropdownMenuItem>
-      )}
-      {isLast ? null : (
-        <DropdownMenuItem
-          onClick={() => {
-            onCloseToRight(id);
-          }}
-        >
-          <ArrowLineRightIcon className="size-4" />
-          <span>Close Tabs to the Right</span>
-        </DropdownMenuItem>
-      )}
+        onCloseOthers={
+          isOnly
+            ? undefined
+            : () => {
+                onCloseOthers(id);
+              }
+        }
+        onCloseToRight={
+          isLast
+            ? undefined
+            : () => {
+                onCloseToRight(id);
+              }
+        }
+        onDuplicate={() => {
+          onDuplicate(id);
+        }}
+        onReload={reload}
+        own={
+          // A site's page shows nothing developer mode adds, so only a
+          // screen's tab offers it.
+          isDeveloperMode && !reload ? (
+            <DropdownMenuCheckboxItem
+              checked={!tabsWithout.has(id)}
+              className="text-dev-700 dark:text-dev-300"
+              onCheckedChange={(checked) => {
+                const next = new Set(tabsWithout);
+                if (checked) next.delete(id);
+                else next.add(id);
+                setTabsWithout(next);
+              }}
+            >
+              <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
+              <span>Developer Mode in This Tab</span>
+            </DropdownMenuCheckboxItem>
+          ) : null
+        }
+      />
     </DropdownMenuContent>
   );
 }

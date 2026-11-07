@@ -12,6 +12,7 @@ const tab = (id: string) => ({
 
 const row = () => {
   const onClose = vi.fn();
+  const onDuplicate = vi.fn();
   const onSelect = vi.fn();
   renderWithProviders(
     <PaneTabs
@@ -21,6 +22,7 @@ const row = () => {
       onAddComputer={() => {}}
       onAddWeb={() => {}}
       onClose={onClose}
+      onDuplicate={onDuplicate}
       onHide={() => {}}
       onReorder={() => {}}
       onSelect={onSelect}
@@ -32,7 +34,13 @@ const row = () => {
   if (!second?.parentElement) {
     throw new Error("the row has no second tab");
   }
-  return { onClose, onSelect, second, surface: second.parentElement };
+  return {
+    onClose,
+    onDuplicate,
+    onSelect,
+    second,
+    surface: second.parentElement,
+  };
 };
 
 describe("PaneTabs", () => {
@@ -61,6 +69,29 @@ describe("PaneTabs", () => {
 
     expect(pane.onClose).toHaveBeenCalledTimes(1);
     expect(pane.onSelect).not.toHaveBeenCalled();
+  });
+
+  // Drawn with no window around it, so with nowhere else to open a copy.
+  it("offers a screen's tab the menu a window's tab has, without a reload", async () => {
+    const pane = row();
+
+    fireEvent.contextMenu(pane.second);
+
+    const rows = (await screen.findAllByRole("menuitem")).map(
+      (item) => item.textContent,
+    );
+    expect(rows).toEqual(["Duplicate Tab", "Close Tab", "Close Other Tabs"]);
+  });
+
+  it("closes the tabs other than the one its menu is for", async () => {
+    const pane = row();
+
+    fireEvent.contextMenu(pane.second);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Close Other Tabs" }),
+    );
+
+    expect(pane.onClose).toHaveBeenCalledExactlyOnceWith("a");
   });
 
   it("keeps a tab on a left press on it", () => {

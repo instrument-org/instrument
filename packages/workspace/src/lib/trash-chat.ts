@@ -31,11 +31,12 @@ const SESSIONS_END_MS = STOP_FAILSAFE_MS + ms("3 seconds");
 const SESSIONS_POLL_MS = 50;
 
 /**
- * Waits between tries at moving a folder to the trash. On Windows a folder
- * will not move while anything has a file in it open, and what had one
- * (a command just ended, the indexer, a virus scan) lets go within moments.
+ * Waits between tries at deleting a folder or moving it to the trash. On
+ * Windows neither works while anything has a file in it open, and what had
+ * one (a command just ended, the indexer, a virus scan) lets go within
+ * moments.
  */
-const TRASH_RETRY_DELAYS_MS = [ms("500 milliseconds"), ms("1.5 seconds")];
+const RETRY_DELAYS_MS = [ms("500 milliseconds"), ms("1.5 seconds")];
 
 /**
  * Puts a chat in the trash with every task it started, which are sessions in
@@ -192,9 +193,29 @@ async function sessionsEnded(workspaceRef: WorkspaceActorRef, id: ChatId) {
 
 /** Moves a folder to the trash, trying again while something lets go of it. */
 async function toTrash(workspaceConfig: WorkspaceConfig, item: AbsolutePath) {
-  for (const delay of TRASH_RETRY_DELAYS_MS) {
+  await whileLetGo(item, () => workspaceConfig.trashItem(item));
+}
+
+/**
+ * Deletes a folder, trying again while something lets go of it. Node's own
+ * `maxRetries` is not used: on Windows it keeps retrying a file another
+ * program holds open for as long as that program does, which left a delete
+ * waiting on a dev server that never lets go.
+ */
+async function rmrf(path: AbsolutePath): Promise<void> {
+  await whileLetGo(path, () =>
+    fs.rm(path, { force: true, maxRetries: 0, recursive: true }),
+  );
+}
+
+/**
+ * Runs `act` on `item`, again after each of {@link RETRY_DELAYS_MS} while it
+ * fails and the item is still there, and throws the last failure.
+ */
+async function whileLetGo(item: AbsolutePath, act: () => Promise<void>) {
+  for (const delay of RETRY_DELAYS_MS) {
     try {
-      await workspaceConfig.trashItem(item);
+      await act();
       return;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -203,14 +224,5 @@ async function toTrash(workspaceConfig: WorkspaceConfig, item: AbsolutePath) {
       }
     }
   }
-  await workspaceConfig.trashItem(item);
-}
-
-async function rmrf(path: string): Promise<void> {
-  await fs.rm(path, {
-    force: true,
-    maxRetries: 3,
-    recursive: true,
-    retryDelay: ms("2 seconds"),
-  });
+  await act();
 }

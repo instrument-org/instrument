@@ -50,22 +50,23 @@ function ContextMenuCheckboxItem({
  */
 const OPENING_RELEASE_MS = 400;
 
-function ContextMenuContent({
-  className,
-  collisionPadding,
+/**
+ * Holds back the release of the right-click that opened a menu at the pointer.
+ * A menu item picks itself on a release it saw no press for, which is how a
+ * press dragged onto it and let go chooses it. The press that opened the menu
+ * is released over the menu as well, and where the menu opened under the
+ * pointer (flipped at a window edge) that release chose whatever item it
+ * landed on, Move to Trash included. Held back for a moment only, so pressing,
+ * dragging to an item and letting go still chooses it. Mounted with the
+ * menu's content, and spread onto it.
+ */
+export function useOpeningReleaseGuard({
   onPointerDownCapture,
   onPointerUpCapture,
-  style,
-  ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
-  const container = usePortalContainer();
-  const chromeCollisionPadding = useChromeCollisionPadding();
-  // A menu item picks itself on a release it saw no press for, which is how a
-  // press dragged onto it and let go chooses it. The press that opened the
-  // menu is released over the menu as well, and where the menu opened under
-  // the pointer (flipped at a window edge) that release chose whatever item
-  // it landed on, Move to Trash included. Held back here, for a moment only,
-  // so pressing, dragging to an item and letting go still chooses it.
+}: {
+  onPointerDownCapture?: React.PointerEventHandler<HTMLDivElement> | undefined;
+  onPointerUpCapture?: React.PointerEventHandler<HTMLDivElement> | undefined;
+} = {}) {
   const openedAt = React.useRef(0);
   const pressedInside = React.useRef(false);
   // A right-click while the menu is up moves it rather than opening a new one.
@@ -80,6 +81,38 @@ function ContextMenuContent({
       document.removeEventListener("contextmenu", opened, true);
     };
   }, []);
+  return {
+    onPointerDownCapture: (event: React.PointerEvent<HTMLDivElement>) => {
+      pressedInside.current = true;
+      onPointerDownCapture?.(event);
+    },
+    onPointerUpCapture: (event: React.PointerEvent<HTMLDivElement>) => {
+      if (
+        !pressedInside.current &&
+        performance.now() - openedAt.current < OPENING_RELEASE_MS
+      ) {
+        event.stopPropagation();
+        return;
+      }
+      onPointerUpCapture?.(event);
+    },
+  };
+}
+
+function ContextMenuContent({
+  className,
+  collisionPadding,
+  onPointerDownCapture,
+  onPointerUpCapture,
+  style,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+  const container = usePortalContainer();
+  const chromeCollisionPadding = useChromeCollisionPadding();
+  const releaseGuard = useOpeningReleaseGuard({
+    onPointerDownCapture,
+    onPointerUpCapture,
+  });
 
   return (
     <ContextMenuPrimitive.Portal container={container}>
@@ -95,20 +128,7 @@ function ContextMenuContent({
         )}
         collisionPadding={collisionPadding ?? chromeCollisionPadding}
         data-slot="context-menu-content"
-        onPointerDownCapture={(event) => {
-          pressedInside.current = true;
-          onPointerDownCapture?.(event);
-        }}
-        onPointerUpCapture={(event) => {
-          if (
-            !pressedInside.current &&
-            performance.now() - openedAt.current < OPENING_RELEASE_MS
-          ) {
-            event.stopPropagation();
-            return;
-          }
-          onPointerUpCapture?.(event);
-        }}
+        {...releaseGuard}
         style={useAppZoomStyle(style)}
         {...props}
       />

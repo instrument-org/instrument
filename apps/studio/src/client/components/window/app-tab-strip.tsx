@@ -1,4 +1,3 @@
-import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import {
   tabsWithoutDeveloperModeAtom,
   useDeveloperMode,
@@ -8,15 +7,12 @@ import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { displayPath } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -46,7 +42,7 @@ import { siteTabTitles } from "./site-tab-titles";
 import { useTabCarry } from "./use-tab-carry";
 import { type StripTab, TabStrip } from "./tab-strip";
 import { moveTabOut } from "./move-tab";
-import { TabMenuItems } from "./tab-menu-items";
+import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import {
   measureCarryIndex,
   stripIndexAt,
@@ -100,7 +96,6 @@ export function AppTabStrip({
     childTitles,
   });
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
-  const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
   useTabCarryView();
@@ -229,25 +224,12 @@ export function AppTabStrip({
         selectedKey={shownSelectedId ?? undefined}
         tabs={presented}
       />
-      {/* The menu a right click on a tab raises, anchored at the pointer:
-          what a browser's tab menu offers, marks and all, the way the
-          system's own menus draw them. */}
-      <DropdownMenu
-        modal={false}
-        onOpenChange={(open) => {
-          if (!open) {
-            setMenu(undefined);
-          }
+      <TabMenuAtPoint
+        at={menu}
+        onDismiss={() => {
+          setMenu(undefined);
         }}
-        open={menu !== undefined}
       >
-        <DropdownMenuTrigger asChild>
-          <span
-            aria-hidden
-            className="pointer-events-none fixed size-0"
-            style={menuStyle}
-          />
-        </DropdownMenuTrigger>
         {menu && (
           <TabMenu
             id={menu.id}
@@ -261,7 +243,7 @@ export function AppTabStrip({
             reload={onReload(menu.id)}
           />
         )}
-      </DropdownMenu>
+      </TabMenuAtPoint>
     </div>
   );
 }
@@ -360,94 +342,92 @@ function TabMenu({
   const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
 
   return (
-    <DropdownMenuContent align="start" className="min-w-52" sideOffset={0}>
-      <TabMenuItems
-        components={dropdownMenuComponents}
-        isSelected={isSelected}
-        moving={
-          others && others.length > 0 ? (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <AppWindowIcon className="size-4" />
-                <span>Move Tab to Another Window</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {isOnly ? null : (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        void moveTabOut(id, { kind: "new" });
-                      }}
-                    >
-                      <span>New Window</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {others.map((other) => (
+    <TabMenuItems
+      components={dropdownMenuComponents}
+      isSelected={isSelected}
+      moving={
+        others && others.length > 0 ? (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <AppWindowIcon className="size-4" />
+              <span>Move Tab to Another Window</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {isOnly ? null : (
+                <>
                   <DropdownMenuItem
-                    key={other.id}
                     onClick={() => {
-                      void moveTabOut(id, { id: other.id, kind: "window" });
+                      void moveTabOut(id, { kind: "new" });
                     }}
                   >
-                    <span className="truncate">{other.title}</span>
+                    <span>New Window</span>
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ) : isOnly ? null : (
-            <DropdownMenuItem
-              onClick={() => {
-                void moveTabOut(id, { kind: "new" });
-              }}
-            >
-              <AppWindowIcon className="size-4" />
-              <span>Move Tab to New Window</span>
-            </DropdownMenuItem>
-          )
-        }
-        onClose={() => {
-          onClose(id);
-        }}
-        onCloseOthers={
-          isOnly
-            ? undefined
-            : () => {
-                onCloseOthers(id);
-              }
-        }
-        onCloseToRight={
-          isLast
-            ? undefined
-            : () => {
-                onCloseToRight(id);
-              }
-        }
-        onDuplicate={() => {
-          onDuplicate(id);
-        }}
-        onReload={reload}
-        own={
-          // A site's page shows nothing developer mode adds, so only a
-          // screen's tab offers it.
-          isDeveloperMode && !reload ? (
-            <DropdownMenuCheckboxItem
-              checked={!tabsWithout.has(id)}
-              className="text-dev-700 dark:text-dev-300"
-              onCheckedChange={(checked) => {
-                const next = new Set(tabsWithout);
-                if (checked) next.delete(id);
-                else next.add(id);
-                setTabsWithout(next);
-              }}
-            >
-              <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
-              <span>Developer Mode in This Tab</span>
-            </DropdownMenuCheckboxItem>
-          ) : null
-        }
-      />
-    </DropdownMenuContent>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {others.map((other) => (
+                <DropdownMenuItem
+                  key={other.id}
+                  onClick={() => {
+                    void moveTabOut(id, { id: other.id, kind: "window" });
+                  }}
+                >
+                  <span className="truncate">{other.title}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : isOnly ? null : (
+          <DropdownMenuItem
+            onClick={() => {
+              void moveTabOut(id, { kind: "new" });
+            }}
+          >
+            <AppWindowIcon className="size-4" />
+            <span>Move Tab to New Window</span>
+          </DropdownMenuItem>
+        )
+      }
+      onClose={() => {
+        onClose(id);
+      }}
+      onCloseOthers={
+        isOnly
+          ? undefined
+          : () => {
+              onCloseOthers(id);
+            }
+      }
+      onCloseToRight={
+        isLast
+          ? undefined
+          : () => {
+              onCloseToRight(id);
+            }
+      }
+      onDuplicate={() => {
+        onDuplicate(id);
+      }}
+      onReload={reload}
+      own={
+        // A site's page shows nothing developer mode adds, so only a
+        // screen's tab offers it.
+        isDeveloperMode && !reload ? (
+          <DropdownMenuCheckboxItem
+            checked={!tabsWithout.has(id)}
+            className="text-dev-700 dark:text-dev-300"
+            onCheckedChange={(checked) => {
+              const next = new Set(tabsWithout);
+              if (checked) next.delete(id);
+              else next.add(id);
+              setTabsWithout(next);
+            }}
+          >
+            <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            <span>Developer Mode in This Tab</span>
+          </DropdownMenuCheckboxItem>
+        ) : null
+      }
+    />
   );
 }

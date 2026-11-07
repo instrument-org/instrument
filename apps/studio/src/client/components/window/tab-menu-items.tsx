@@ -1,5 +1,12 @@
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { useOpeningReleaseGuard } from "@/client/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { type MenuComponents } from "@/client/components/ui/menu-components";
+import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -10,6 +17,61 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode } from "react";
+
+/**
+ * The menu a right click on a tab raises, anchored at the pointer, in the
+ * window's strip and a chat's pane alike: what a browser's tab menu offers,
+ * the way the system's own menus draw it. Its rows are `TabMenuItems`, drawn
+ * with `dropdownMenuComponents`, and the right-click's own release picks none
+ * of them, as a context menu's does not.
+ */
+export function TabMenuAtPoint({
+  at,
+  children,
+  onDismiss,
+}: {
+  /** Where the right click was, on screen; nothing while the menu is down. */
+  at: { x: number; y: number } | undefined;
+  children: ReactNode;
+  onDismiss: () => void;
+}) {
+  const style = useWindowPointStyle(at ?? { x: 0, y: 0 });
+  return (
+    <DropdownMenu
+      modal={false}
+      onOpenChange={(open) => {
+        if (!open) {
+          onDismiss();
+        }
+      }}
+      open={at !== undefined}
+    >
+      <DropdownMenuTrigger asChild>
+        <span
+          aria-hidden
+          className="pointer-events-none fixed size-0"
+          style={style}
+        />
+      </DropdownMenuTrigger>
+      {at && <TabMenuContent>{children}</TabMenuContent>}
+    </DropdownMenu>
+  );
+}
+
+/** The menu's panel, mounted as it opens, which is when its guard starts. */
+function TabMenuContent({ children }: { children: ReactNode }) {
+  const releaseGuard = useOpeningReleaseGuard();
+  return (
+    <DropdownMenuContent
+      align="start"
+      className="min-w-52"
+      sideOffset={0}
+      {...releaseGuard}
+    >
+      {children}
+    </DropdownMenuContent>
+  );
+}
 
 /**
  * What a tab's menu offers, the same in the window's strip and a chat's

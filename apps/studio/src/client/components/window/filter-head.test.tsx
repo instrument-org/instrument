@@ -84,7 +84,7 @@ describe("FilterHead", () => {
       ["Drafts", "false"],
       ["Archived", "true"],
     ]);
-    expect(head.getByRole("textbox").getAttribute("placeholder")).toBe(
+    expect(head.getByRole("combobox").getAttribute("placeholder")).toBe(
       "Search Archived",
     );
   });
@@ -105,7 +105,7 @@ describe("FilterHead", () => {
     const { head, onFiltersChange } = renderHead({
       chats: [chat({ unread: true }), chat({ archived: true, starred: true })],
     });
-    fireEvent.focus(head.getByRole("textbox"));
+    fireEvent.focus(head.getByRole("combobox"));
     expect(
       screen.getAllByRole("option").map((option) => option.textContent),
     ).toEqual(["Unread"]);
@@ -121,7 +121,7 @@ describe("FilterHead", () => {
       chats: [chat({ unread: true, starred: true })],
       filters: { ...NO_FILTERS, place: "drafts" },
     });
-    fireEvent.focus(head.getByRole("textbox"));
+    fireEvent.focus(head.getByRole("combobox"));
     expect(screen.queryAllByRole("option")).toEqual([]);
   });
 
@@ -130,7 +130,7 @@ describe("FilterHead", () => {
       filters: { ...NO_FILTERS, tags: ["unread", "starred"] },
     });
     expect(head.getByRole("button", { name: "Remove Starred" })).toBeDefined();
-    fireEvent.keyDown(head.getByRole("textbox"), { key: "Backspace" });
+    fireEvent.keyDown(head.getByRole("combobox"), { key: "Backspace" });
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
       tags: ["unread"],

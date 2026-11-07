@@ -6,7 +6,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
-import { type ReactNode, type Ref, useState } from "react";
+import { type ReactNode, type Ref, useId, useState } from "react";
 
 /** A mark the search can narrow by, as it is offered and as its token reads. */
 export interface SearchToken<T extends string> {
@@ -49,6 +49,7 @@ export function SearchField<T extends string>({
   tokens?: SearchToken<T>[];
   value: string;
 }) {
+  const listId = useId();
   const [isFocused, setFocused] = useState(false);
   // Put away by a pick, so the rows it narrowed show, and brought back by ↓.
   const [isOffering, setOffering] = useState(true);
@@ -111,7 +112,14 @@ export function SearchField<T extends string>({
             </span>
           ))}
           <input
+            aria-activedescendant={
+              highlighted >= 0 ? `${listId}-${highlighted}` : undefined
+            }
+            aria-autocomplete="list"
+            aria-controls={suggestions.length > 0 ? listId : undefined}
+            aria-expanded={suggestions.length > 0}
             aria-label="Search chats"
+            role="combobox"
             className="h-full w-0 min-w-12 flex-1 bg-transparent text-ellipsis outline-hidden placeholder:text-muted-foreground"
             onBlur={() => {
               setFocused(false);
@@ -207,10 +215,11 @@ export function SearchField<T extends string>({
         <div className="px-2 pt-1 pb-1 text-xs text-muted-foreground">
           Show only
         </div>
-        <div aria-label="Show only" role="listbox">
+        <div aria-label="Show only" id={listId} role="listbox">
           {suggestions.map((token, at) => (
             <div
               aria-selected={at === highlighted}
+              id={`${listId}-${at}`}
               className={cn(
                 "flex h-8 items-center gap-2 rounded-md px-2 text-sm [&_svg]:size-4",
                 at === highlighted && "bg-accent",

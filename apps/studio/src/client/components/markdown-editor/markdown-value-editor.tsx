@@ -52,21 +52,26 @@ export function MarkdownValueEditor({
       root,
       value: initial.current,
     });
+    // The cleanup destroys whatever session resolves, once; one that fails
+    // is said only while the editor is still wanted.
     void created.then(
       (next) => {
         if (live) {
           setSession(next);
-        } else {
-          void next.destroy();
         }
       },
       (error: unknown) => {
-        toast.error("Couldn't open the editor", { cause: error });
+        if (live) {
+          toast.error("Couldn't open the editor", { cause: error });
+        }
       },
     );
     return () => {
       live = false;
-      void created.then((next) => next.destroy());
+      void created.then(
+        (next) => next.destroy(),
+        () => undefined,
+      );
     };
     // The session is the value's for the component's life; a new value is
     // handed over below rather than starting the editor over.

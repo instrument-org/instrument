@@ -276,7 +276,7 @@
     "@vscode/ripgrep-win32-x64": "1.18.0"
   },
   "engines": {
-    "node": ">=24.22.0"
+    "node": ">=24.22.2"
   },
   "productName": "Instrument"
 }

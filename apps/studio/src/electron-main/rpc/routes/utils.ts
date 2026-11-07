@@ -41,7 +41,6 @@ import { ExceptionEventSchema } from "@instrument-org/shared/exceptions";
 import { eventIterator } from "@orpc/server";
 import {
   app,
-  BrowserWindow,
   clipboard,
   ClipboardItem,
   dialog,
@@ -122,11 +121,12 @@ async function mailTarget() {
 const shareText = base
   .input(z.object({ text: z.string().min(1) }))
   .output(z.object({ shown: z.boolean() }))
-  .handler(({ input }) => {
+  .handler(({ context, input }) => {
     if (process.platform !== "darwin") {
       return { shown: false };
     }
-    const window = BrowserWindow.getFocusedWindow();
+    // Over the window that asked, which a click in a window behind need not have focused.
+    const window = getCallingWindow(context.webContentsId);
     new ShareMenu({ texts: [input.text] }).popup(window ? { window } : {});
     return { shown: true };
   });
@@ -157,7 +157,7 @@ const showContextMenu = base
     }),
   )
   .output(z.object({ id: z.string().nullable() }))
-  .handler(async ({ input }) => {
+  .handler(async ({ context, input }) => {
     // Held in an object so the close callback below reads what a click wrote:
     // read back off a plain binding, the compiler has it as the initial value.
     const picked: { id: null | string } = { id: null };
@@ -173,7 +173,9 @@ const showContextMenu = base
             },
       ),
     );
-    const window = BrowserWindow.getFocusedWindow();
+    // Over the window that asked, which a right click in a window behind need
+    // not have focused.
+    const window = getCallingWindow(context.webContentsId);
     await new Promise<void>((resolve) => {
       menu.popup({
         // Deferred by a tick: a row's own handler and the close callback are

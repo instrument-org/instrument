@@ -15,13 +15,17 @@ import {
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const OTHER = ChatIdSchema.parse("2026-10-02-porto");
 
-const page = (id: string, group: string): WindowTab => ({
+const page = (
+  id: string,
+  group: string,
+  url = "https://example.com/",
+): WindowTab => ({
   group,
   id,
   kind: "page",
   openedAt: 1,
   title: "Example",
-  url: "https://example.com/",
+  url,
 });
 
 const offered = (inView: WindowTab, taken: ContextItem[] = []) =>
@@ -90,7 +94,7 @@ describe("a draft's chips", () => {
       forDraft({
         band: [
           page("band", "draft:d"),
-          { ...page("second", "draft:d"), url: "https://example.org/" },
+          page("second", "draft:d", "https://example.org/"),
         ],
         draft: {
           ...draft,

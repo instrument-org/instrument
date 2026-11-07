@@ -62,6 +62,12 @@ export interface GuestRecord {
   /** Whether the contents' page is in HTML full screen, from Electron's `enter-` and `leave-html-full-screen`. */
   htmlFullScreen: boolean;
   readonly id: number;
+  /**
+   * Where in the page a person last pressed the mouse, in the page's own
+   * pixels, and when: where a download that press starts is drawn leaving
+   * from.
+   */
+  pressedAt?: { at: number; x: number; y: number };
   readonly role: GuestRole;
   /**
    * When a person last clicked, tapped or pressed a key in this contents, by

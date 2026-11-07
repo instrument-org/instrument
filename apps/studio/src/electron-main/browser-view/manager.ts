@@ -531,6 +531,17 @@ function createBrowserViewManager(): BrowserViewManager {
         input.type,
         focusGuard.isGuarded(targetId),
       );
+      if (
+        record &&
+        byPerson &&
+        input.type === "mouseDown" &&
+        "x" in input &&
+        "y" in input &&
+        typeof input.x === "number" &&
+        typeof input.y === "number"
+      ) {
+        record.pressedAt = { at: Date.now(), x: input.x, y: input.y };
+      }
       if (byPerson && guest.isAudioMuted()) {
         guest.setAudioMuted(false);
       }

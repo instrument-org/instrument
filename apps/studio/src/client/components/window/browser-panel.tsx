@@ -928,7 +928,10 @@ export function BrowserPanel({
         const controls = (
           <>
             {pageControls}
-            <BrowserDownloadsButton />
+            <BrowserDownloadsButton
+              surfaceRef={surfaceRef}
+              targetId={targetId}
+            />
             {menu}
           </>
         );
@@ -1109,7 +1112,10 @@ export function BrowserPanel({
               </InputGroup>
             </form>
             <BrowserExtensionButtons />
-            <BrowserDownloadsButton />
+            <BrowserDownloadsButton
+              surfaceRef={surfaceRef}
+              targetId={targetId}
+            />
             {menu}
           </>
         );

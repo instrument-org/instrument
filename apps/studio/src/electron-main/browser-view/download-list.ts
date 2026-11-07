@@ -16,6 +16,19 @@ const PROGRESS_INTERVAL_MS = 250;
 let downloads: BrowserDownload[] | null = null;
 // The transfers still running, for a cancel to reach.
 const running = new Map<string, DownloadItem>();
+
+/**
+ * The page a download started from and, when a press there started it, where
+ * in the page: what the window draws the download leaving from. Kept for this
+ * run alone, since it only means something the moment the download begins.
+ */
+export interface DownloadOrigin {
+  targetId: string;
+  x?: number;
+  y?: number;
+}
+
+const origins = new Map<string, DownloadOrigin>();
 let progressTimer: null | ReturnType<typeof setTimeout> = null;
 
 // The list as last saved. A download that was running when the app last quit
@@ -65,9 +78,15 @@ function update(id: string, patch: Partial<BrowserDownload>) {
 export function trackDownload(
   item: DownloadItem,
   savePath: null | string,
-  { asked = false }: { asked?: boolean } = {},
+  {
+    asked = false,
+    origin = null,
+  }: { asked?: boolean; origin?: DownloadOrigin | null } = {},
 ) {
   const id = crypto.randomUUID();
+  if (origin) {
+    origins.set(id, origin);
+  }
   const download: BrowserDownload = {
     filename: item.getFilename(),
     id,
@@ -116,9 +135,13 @@ export function trackDownload(
  * The list, newest first, each finished download saying whether its file is
  * still where it was saved.
  */
-export function listDownloads(): (BrowserDownload & { exists: boolean })[] {
+export function listDownloads(): (BrowserDownload & {
+  exists: boolean;
+  origin?: DownloadOrigin;
+})[] {
   return list().map((download) => ({
     ...download,
+    ...(origins.has(download.id) ? { origin: origins.get(download.id) } : {}),
     exists:
       download.state === "completed" &&
       download.path !== null &&
@@ -136,12 +159,37 @@ export function removeDownload(id: string) {
   if (running.has(id)) {
     return;
   }
+  origins.delete(id);
   downloads = list().filter((download) => download.id !== id);
   changed();
 }
 
+/**
+ * Starts a download that stopped or failed again from its address, the new
+ * download taking its row's place, as a browser's Retry does. `start` begins
+ * the download and says whether it could.
+ */
+export function retryDownload(id: string, start: (url: string) => boolean) {
+  const download = list().find((each) => each.id === id);
+  if (
+    download === undefined ||
+    running.has(id) ||
+    (download.state !== "canceled" && download.state !== "failed")
+  ) {
+    return;
+  }
+  if (start(download.url)) {
+    removeDownload(id);
+  }
+}
+
 /** Takes every finished download off the list, keeping the running ones. */
 export function clearDownloads() {
+  for (const id of origins.keys()) {
+    if (!running.has(id)) {
+      origins.delete(id);
+    }
+  }
   downloads = list().filter((download) => running.has(download.id));
   changed();
 }

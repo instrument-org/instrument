@@ -9,7 +9,10 @@ import {
   clearDownloads,
   listDownloads,
   removeDownload,
+  retryDownload,
 } from "@/electron-main/browser-view/download-list";
+import { retryDownloadFrom } from "@/electron-main/browser-view/downloads";
+import { configureGuestSession } from "@/electron-main/browser-view/guest-session";
 import {
   certificateExceptions,
   getBrowserViewManager,
@@ -33,6 +36,7 @@ import { type BrowserGuestTarget } from "@/shared/browser";
 import {
   type BrowserTargetId,
   BrowserTargetIdSchema,
+  getBrowserSessionDir,
 } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import { z } from "zod";
@@ -291,6 +295,12 @@ const downloads = {
   }),
   remove: base.input(z.object({ id: z.string() })).handler(({ input }) => {
     removeDownload(input.id);
+  }),
+  /** Downloads a stopped or failed one again, in the in-app browser's session. */
+  retry: base.input(z.object({ id: z.string() })).handler(({ input }) => {
+    retryDownload(input.id, (url) =>
+      retryDownloadFrom(configureGuestSession(getBrowserSessionDir()), url),
+    );
   }),
 };
 

@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import type { BrowserEntry } from "./entry";
 
-import { trackDownload } from "./download-list";
+import { type DownloadOrigin, trackDownload } from "./download-list";
 import { type GuestRegistry } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
 
@@ -89,9 +89,15 @@ function takeAskedSave(webContentsId: number, item: DownloadItem) {
 // them where it goes, whatever the agent authorized.
 export function routeGuestDownloads(
   session: Session,
-  registry: Pick<GuestRegistry, "documentOf" | "entryOf">,
+  registry: Pick<GuestRegistry, "documentOf" | "entryOf" | "get">,
 ) {
   session.on("will-download", (_event, item, webContents) => {
+    // A download the person asked for again from the list comes from the
+    // session rather than a page, so it is theirs whatever page is open.
+    if (takeRetry(item)) {
+      saveForPerson(item, null);
+      return;
+    }
     const entry = registry.entryOf(webContents.id);
     if (!entry) {
       item.cancel();
@@ -115,14 +121,53 @@ export function routeGuestDownloads(
     item.once("done", () => {
       entry.downloadsRunning -= 1;
     });
+    const pressed = registry.get(webContents.id)?.pressedAt;
+    const origin: DownloadOrigin = {
+      targetId: entry.targetId,
+      ...(pressed && Date.now() - pressed.at < PRESS_STARTS_DOWNLOAD_MS
+        ? { x: pressed.x, y: pressed.y }
+        : {}),
+    };
     if (takeAskedSave(webContents.id, item)) {
-      askWhereToSave(item);
+      askWhereToSave(item, origin);
     } else if (entry.authorizedDownloadPath) {
       saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
     } else {
-      saveForPerson(item);
+      saveForPerson(item, origin);
     }
   });
+}
+
+/**
+ * How soon after a press in a page a download it starts still counts as the
+ * press's: a link's download begins once its response arrives, which a slow
+ * server can hold for a while.
+ */
+const PRESS_STARTS_DOWNLOAD_MS = 10_000;
+
+// The addresses a person asked to download again from the list. Each is taken
+// by the download it starts.
+const retries = new Set<string>();
+
+function takeRetry(item: DownloadItem): boolean {
+  return [item.getURLChain()[0], item.getURL()].some(
+    (url) => url !== undefined && retries.delete(url),
+  );
+}
+
+/**
+ * Downloads an address on the list again, as a browser's Retry does: into the
+ * person's Downloads folder and onto the list. Only a web address, since a
+ * page's own file is only ever downloaded from that page. Says whether it
+ * started.
+ */
+export function retryDownloadFrom(session: Session, url: string): boolean {
+  if (!/^https?:/i.test(url)) {
+    return false;
+  }
+  retries.add(url);
+  session.downloadURL(url);
+  return true;
 }
 
 // Capture the GUID from Page.downloadWillBegin so will-download can
@@ -249,9 +294,9 @@ function saveForAgent(
 }
 
 // No save path and no cancel is what puts the system's question up.
-function askWhereToSave(item: DownloadItem) {
+function askWhereToSave(item: DownloadItem, origin: DownloadOrigin | null) {
   item.setSaveDialogOptions({ defaultPath: item.getFilename() });
-  trackDownload(item, null, { asked: true });
+  trackDownload(item, null, { asked: true, origin });
 }
 
 // Where a download from any other browser goes, without a chooser: the
@@ -265,13 +310,13 @@ function askWhereToSave(item: DownloadItem) {
 // place is theirs to pick; what the app used to do instead was keep a
 // `downloads` folder of its own at the top of the Instrument folder, where
 // they had no reason to look.
-function saveForPerson(item: DownloadItem) {
+function saveForPerson(item: DownloadItem, origin: DownloadOrigin | null) {
   const dir = personDownloadsDir();
   if (!dir) {
-    askWhereToSave(item);
+    askWhereToSave(item, origin);
     return;
   }
   const savePath = path.join(dir, availableFilename(dir, item.getFilename()));
   item.setSavePath(savePath);
-  trackDownload(item, savePath);
+  trackDownload(item, savePath, { origin });
 }

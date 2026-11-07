@@ -15,6 +15,7 @@ import { clearDownloads, listDownloads } from "./download-list";
 import {
   applyDownloadBehavior,
   captureDownloadWillBeginGuid,
+  retryDownloadFrom,
   routeGuestDownloads,
   saveAsFromPage,
 } from "./downloads";
@@ -178,6 +179,7 @@ function lookupIn(entries: Map<BrowserTargetId, BrowserEntry>) {
     documentOf: (id: number | undefined) =>
       entryOf(id)?.webContents?.mainFrame.url,
     entryOf,
+    get: () => undefined,
   };
 }
 
@@ -190,6 +192,7 @@ function makeSession() {
   ) => void;
   const listeners: Record<string, Listener[]> = {};
   const session = {
+    downloadURL: vi.fn(),
     on(eventName: string, cb: Listener) {
       (listeners[eventName] ??= []).push(cb);
       return session;
@@ -211,6 +214,33 @@ function makeSession() {
 }
 
 describe("routeGuestDownloads", () => {
+  describe("a download the person asked for again", () => {
+    it("lands in their Downloads folder though no page's guest asked for it", () => {
+      const stray = makeEntry();
+      const { session, trigger } = makeSession();
+      routeGuestDownloads(session, lookupIn(new Map()));
+
+      expect(retryDownloadFrom(session, "https://example.com/report.pdf")).toBe(
+        true,
+      );
+      const item = makeFakeItem();
+      trigger(item, stray);
+
+      expect(item.cancel).not.toHaveBeenCalled();
+      expect(item.setSavePath).toHaveBeenCalledWith(
+        path.join(home.downloads, "report.pdf"),
+      );
+    });
+
+    it.each(["file:///Users/someone/report.pdf", "blob:https://example.com/1"])(
+      "is not asked of %s, which only its page downloads",
+      (url) => {
+        const { session } = makeSession();
+        expect(retryDownloadFrom(session, url)).toBe(false);
+      },
+    );
+  });
+
   describe("a download the person started", () => {
     it("lands in their Downloads folder under its own name", () => {
       const entries = new Map<BrowserTargetId, BrowserEntry>();

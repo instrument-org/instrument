@@ -15,7 +15,7 @@ import { sessionDeveloperNotes } from "./chat/session-developer-notes";
 import { stepInFlightIn } from "./chat/in-flight";
 import { lastAssistantTextIn } from "./chat/latest-session";
 import { sessionSteps } from "./chat/steps";
-import { taskStanding } from "./chat/task-standing";
+import { taskStatus } from "./chat/task-status";
 import { isStopNote } from "./chat/wake-event";
 import { renderChatMarkdown } from "./chat-folders/chat-markdown";
 import { ChatReads } from "./chat-reads";
@@ -345,7 +345,7 @@ describe("a message whose only other part is a request's note", () => {
       ),
       rowsAtRest: turnsOf(light, { isRunning: false, sessionId }),
       rowsRunning: turnsOf(light, { isRunning: true, sessionId }),
-      standing: await taskStanding({ ...ref, isRunning: false }),
+      status: await taskStatus({ ...ref, isRunning: false }),
       steps: await sessionSteps(ref),
       transcript,
       stopNotes: transcript.filter(isStopNote).map(({ id }) => id),

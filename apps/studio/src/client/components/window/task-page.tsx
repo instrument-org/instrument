@@ -60,7 +60,7 @@ export function TaskPage({
             {task.working && ` · ${formatSpan(now - task.createdAt.getTime())}`}
           </Button>
         )}
-        {!task.stoppable && task.standing.kind === "done" && (
+        {!task.stoppable && task.status.kind === "done" && (
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
             Done in{" "}
             {formatSpan(task.updatedAt.getTime() - task.createdAt.getTime())}

@@ -8,12 +8,12 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { ChatWrites } from "../chat-writes";
 import { touchTask } from "./children";
-import { taskStanding } from "./task-standing";
+import { taskStatus } from "./task-status";
 
 let counter = 0;
 const freshChat = () =>
   createMockChatConfig(
-    ChatIdSchema.parse(`standing-${Date.now()}-${(counter += 1)}`),
+    ChatIdSchema.parse(`status-${Date.now()}-${(counter += 1)}`),
   );
 
 interface PartIds {
@@ -78,7 +78,7 @@ async function withSession(chatId: ReturnType<typeof freshChat>) {
   return sessionId;
 }
 
-describe("taskStanding", () => {
+describe("taskStatus", () => {
   it("says what a finished task said, in one line", async () => {
     const chatId = freshChat();
     const sessionId = await withSession(chatId);
@@ -93,13 +93,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({
+    expect(status).toEqual({
       kind: "done",
       line: "Done: 52 posts, ads skipped.",
     });
@@ -119,13 +119,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({ kind: "done", line: "Wrote compared.html" });
+    expect(status).toEqual({ kind: "done", line: "Wrote compared.html" });
   });
 
   it("reads a reply past the files it opens with, and cuts the line after that", async () => {
@@ -143,13 +143,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing.line).toBe(`${words.slice(0, 90)}…`);
+    expect(status.line).toBe(`${words.slice(0, 90)}…`);
   });
 
   it("says what a task stopped in the middle of when the stop cut its reply off", async () => {
@@ -180,13 +180,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({
+    expect(status).toEqual({
       kind: "done",
       line: "Stopped while locating any bundled QuickJS runtime",
     });
@@ -218,13 +218,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({
+    expect(status).toEqual({
       kind: "failed",
       line: "Timed out while reading the vault",
     });
@@ -255,13 +255,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing.line).toBe("Stopped while completing repository copy");
+    expect(status.line).toBe("Stopped while completing repository copy");
   });
 
   it("says the app's closing cut a task off, rather than calling it done", async () => {
@@ -307,13 +307,13 @@ describe("taskStanding", () => {
     );
     await touchTask(chatId, sessionId, { stoppedBy: "app" });
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toMatchInlineSnapshot(`
+    expect(status).toMatchInlineSnapshot(`
       {
         "kind": "failed",
         "line": "The app closed while counting to a million",
@@ -346,13 +346,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toMatchInlineSnapshot(`
+    expect(status).toMatchInlineSnapshot(`
       {
         "kind": "failed",
         "line": "The app closed while fetching page 7 of 20",
@@ -371,13 +371,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing.line).toBe("Stopped while PDF export of the report");
+    expect(status.line).toBe("Stopped while PDF export of the report");
   });
 
   it("says a task stopped when nothing says what it was doing", async () => {
@@ -391,13 +391,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({ kind: "done", line: "Stopped" });
+    expect(status).toEqual({ kind: "done", line: "Stopped" });
   });
 
   it("names a model error in the words the transcript uses", async () => {
@@ -415,13 +415,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({ kind: "failed", line: "Model is busy" });
+    expect(status).toEqual({ kind: "failed", line: "Model is busy" });
   });
 
   it("says a reply that stopped partway was cut off rather than stopped", async () => {
@@ -439,13 +439,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({ kind: "failed", line: "Reply was cut off" });
+    expect(status).toEqual({ kind: "failed", line: "Reply was cut off" });
   });
 
   it("names the step limit a task ran into", async () => {
@@ -471,13 +471,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({
+    expect(status).toEqual({
       kind: "done",
       line: "Stopped at the 200-step limit",
     });
@@ -506,13 +506,13 @@ describe("taskStanding", () => {
       chatId,
     );
 
-    const standing = await taskStanding({
+    const status = await taskStatus({
       isRunning: false,
       sessionId,
       chatId,
     });
 
-    expect(standing).toEqual({
+    expect(status).toEqual({
       kind: "done",
       line: "Cut off at the output limit",
     });
@@ -522,9 +522,9 @@ describe("taskStanding", () => {
     const chatId = freshChat();
     const sessionId = await withSession(chatId);
 
-    const standing = await taskStanding({ isRunning: true, sessionId, chatId });
+    const status = await taskStatus({ isRunning: true, sessionId, chatId });
 
-    expect(standing.kind).toBe("running");
-    expect(standing.line).toBe("Working");
+    expect(status.kind).toBe("running");
+    expect(status.line).toBe("Working");
   });
 });

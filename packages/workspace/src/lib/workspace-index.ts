@@ -18,15 +18,18 @@ import { versionMatches, workspaceTables } from "./workspace-db";
  * built under another version is thrown away and rebuilt from the records as it
  * is read: the index is derived, so it is never migrated. Its tables are in `workspace.db`, beside tables it never touches.
  */
-const INDEX_VERSION = 22;
+const INDEX_VERSION = 23;
 
 /**
  * What the index keeps, one row per session: each a value derived from that
  * session in its chat's store, and the stamp of the store it was derived from.
  */
-export type IndexTable = "chat_digests" | "task_hosts" | "task_standings";
+export type IndexTable = "chat_digests" | "task_hosts" | "task_statuses";
 
-const TABLES: IndexTable[] = ["chat_digests", "task_hosts", "task_standings"];
+const TABLES: IndexTable[] = ["chat_digests", "task_hosts", "task_statuses"];
+
+/** Tables an index of an earlier version kept, dropped with the rest of it. */
+const RETIRED_TABLES = ["task_standings"];
 
 /**
  * A derived value, and whether it may be kept. A value read around a failure
@@ -136,7 +139,7 @@ const indexTables = workspaceTables((database) => {
   database.exec("BEGIN");
   try {
     if (!versionMatches(database, "workspace-index", expectedVersion())) {
-      for (const table of TABLES) {
+      for (const table of [...TABLES, ...RETIRED_TABLES]) {
         database.exec(`DROP TABLE IF EXISTS ${table}`);
       }
     }

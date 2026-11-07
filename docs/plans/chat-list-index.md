@@ -26,7 +26,7 @@ Every chat-list build derives all 353 rows of a real workspace from their transc
 One table per derived value, each row keyed by the chat's or task's id and carrying the value (superjson) and the stamp of the store it was derived from, plus a `meta` table holding the version:
 
 - **`chat_digests`**: what a chat's row is made from that its own store holds: its session record and what its messages say, boiled down to what the row reads (`ChatDigest` in `lib/orchestrator/chats.ts`).
-- **`task_standings`**: a filed task's standing when no agent is at work on it.
+- **`task_statuses`**: a filed task's standing when no agent is at work on it.
 - **`task_apps`** and **`task_hosts`**: a filed task's apps (from its settings, so their stamp includes `settings.json`) and the hosts its browser visited, which a chat's holds gather.
 - **`linked_files`**: the files each chat's replies put on screen, which the Files screen's recents reads instead of every chat's transcript.
 
@@ -42,11 +42,11 @@ A value is looked up when it is read (`indexedByStore` in `lib/workspace-index.t
 2. In the index, by stamp: the size and modification time of the store (`task.db` and its `-wal`) and of any other file the value reads, taken before the value is derived. A row whose stamp matches is used.
 3. Otherwise derived from the store, as before the index, and written to the index with its stamp.
 
-Nothing subscribes to events to keep rows current and nothing marks rows dirty: a write moves the stamp, and the next read derives the row again. A write landing while a value is derived leaves the saved stamp older than the store, which costs one more derivation and never serves a stale row. The derivations are the code that ran before the index (`digestOf` from `chatFor`, `standingAtRest`, the filed-task holds, `shownIn`); the index stores their output and does not reimplement them.
+Nothing subscribes to events to keep rows current and nothing marks rows dirty: a write moves the stamp, and the next read derives the row again. A write landing while a value is derived leaves the saved stamp older than the store, which costs one more derivation and never serves a stale row. The derivations are the code that ran before the index (`digestOf` from `chatFor`, `statusAtRest`, the filed-task holds, `shownIn`); the index stores their output and does not reimplement them.
 
 ## Read path
 
-`listChats` and `chatById` read rows from the index and lay the live state over them. `chats.tasks` reads each filed task's standing from `task_standings` and its chat's title from that chat's digest. `ChatSchema` and the routes do not change, so no client code changes. The server's other readers get the speedup with no change of their own: completion notifications, the chat list in the conversation's prompt (`chat-context.ts`), and the agent's `chat` command.
+`listChats` and `chatById` read rows from the index and lay the live state over them. `chats.tasks` reads each filed task's standing from `task_statuses` and its chat's title from that chat's digest. `ChatSchema` and the routes do not change, so no client code changes. The server's other readers get the speedup with no change of their own: completion notifications, the chat list in the conversation's prompt (`chat-context.ts`), and the agent's `chat` command.
 
 ## Boot
 
@@ -54,7 +54,7 @@ There is no separate boot pass. The first list build reads every row through the
 
 ## What it touches
 
-Server: `lib/workspace-index.ts` (open, version, rebuild, read through), `chatFor` split into `digestOf` and the overlay in `lib/orchestrator/chats.ts`, `standingAtRest` in `standing.ts`, `shownIn` in `linked-files.ts`, and filed tasks' chat titles in `rpc/routes/chats.ts`. Studio main passes `indexesDir` under its data folder to the workspace actor. Client: nothing.
+Server: `lib/workspace-index.ts` (open, version, rebuild, read through), `chatFor` split into `digestOf` and the overlay in `lib/orchestrator/chats.ts`, `statusAtRest` in `standing.ts`, `shownIn` in `linked-files.ts`, and filed tasks' chat titles in `rpc/routes/chats.ts`. Studio main passes `indexesDir` under its data folder to the workspace actor. Client: nothing.
 
 ## Out of scope: stage B
 

@@ -18,9 +18,9 @@ Both halves were seen separately. In one lost paste the keystroke reached the pa
 
 ## What holds the main thread
 
-The app window polls `workspace.chats.tasks` every two seconds (`REFRESH_MS` in `app-window.tsx`, `chat-tasks-view.tsx`, and three others). For every task the window has filed, the route computes `taskStanding`, and on the common path that is `pendingAsk`, then `lastAssistantText`, then sometimes `endedWithoutWords`, each of which calls `Store.getMessagesWithParts` and reads, parses, and validates the task's whole transcript. With 103 tasks that is one to two seconds of work per call, in small interleaved slices, repeated every two seconds. The window reads only each task's title and chat from the answer; the standing is used by the tasks screen and the created-task card.
+The app window polls `workspace.chats.tasks` every two seconds (`REFRESH_MS` in `app-window.tsx`, `chat-tasks-view.tsx`, and three others). For every task the window has filed, the route computes `taskStatus`, and on the common path that is `pendingAsk`, then `lastAssistantText`, then sometimes `endedWithoutWords`, each of which calls `Store.getMessagesWithParts` and reads, parses, and validates the task's whole transcript. With 103 tasks that is one to two seconds of work per call, in small interleaved slices, repeated every two seconds. The window reads only each task's title and chat from the answer; the standing is used by the tasks screen and the created-task card.
 
-A CPU profile of main with no turn running spent about a third of wall time in `getItemRaw`, `getKeys`, superjson `deserialize`, and zod parsing under `getMessagesWithParts`. A logpoint there counted 574 calls in ten seconds, every one of them from `taskStanding` under that route's handler.
+A CPU profile of main with no turn running spent about a third of wall time in `getItemRaw`, `getKeys`, superjson `deserialize`, and zod parsing under `getMessagesWithParts`. A logpoint there counted 574 calls in ten seconds, every one of them from `taskStatus` under that route's handler.
 
 The renderer pays too: each poll's answer costs an 80 ms TanStack Query timer task, and long animation frames up to 285 ms appeared only with the poll running.
 

@@ -25,10 +25,7 @@ import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
-import {
-  TaskStandingKindSchema,
-  taskStanding,
-} from "../../lib/chat/task-standing";
+import { TaskStatusKindSchema, taskStatus } from "../../lib/chat/task-status";
 import { answerQuestionAsk, declineSignInAsk } from "../../lib/chat/drive-asks";
 import { openAsksOf, openAsksUntil } from "../../lib/chat/open-asks";
 import { AskSchema, SignInAskSchema } from "../../schemas/chat-state";
@@ -52,8 +49,8 @@ import { chatNextMessage, watchNextMessage } from "../../lib/chat/next-message";
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
   /** Where it stands and the line the list says about it. */
-  standing: z.object({
-    kind: TaskStandingKindSchema,
+  status: z.object({
+    kind: TaskStatusKindSchema,
     line: z.string(),
     summary: z.string().optional(),
   }),
@@ -80,7 +77,7 @@ async function childTasks(id: ChatId) {
       const step = await latestStep(ref);
       return {
         ...task,
-        standing: await taskStanding({ ...ref, isRunning: running }),
+        status: await taskStatus({ ...ref, isRunning: running }),
         ...(step ? { step } : {}),
         stoppable: running || (await openAsksOf(id, task.id)).length > 0,
         working: running,
@@ -91,7 +88,7 @@ async function childTasks(id: ChatId) {
 
 /**
  * Whether a change is to the chat whose tasks a list shows: what one of its
- * rows shows (its title, its standing, its step) is in the chat's store and
+ * rows shows (its title, its status, its step) is in the chat's store and
  * the cards in its state, and whether it works is its session's agent.
  */
 function inChat(chatId: ChatId) {

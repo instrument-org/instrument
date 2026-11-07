@@ -75,7 +75,7 @@ describe("chats.tasks", () => {
 
     expect(await call(chats.tasks, { id: pantry }, { context })).toEqual([
       expect.objectContaining({
-        standing: {
+        status: {
           kind: "waiting",
           line: "Waiting for your OK to use “Pantry”",
         },

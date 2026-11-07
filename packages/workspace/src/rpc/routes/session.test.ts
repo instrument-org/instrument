@@ -18,7 +18,7 @@ import { chatById } from "../../lib/chat/chats";
 import { childTask } from "../../lib/chat/children";
 import { startJobWake } from "../../lib/chat/job-wake";
 import { hasWakeOnItsWay } from "../../lib/chat/wake-queue";
-import { taskStanding } from "../../lib/chat/task-standing";
+import { taskStatus } from "../../lib/chat/task-status";
 import { startChatWake } from "../../lib/chat/wake";
 import { recordAsk } from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";
@@ -201,7 +201,7 @@ async function said(chatId: ChatId, sessionId: StoreId.Session, text: string) {
 
 /** Where a task with no agent at work stands. */
 function standingOf(chatId: ChatId, sessionId: StoreId.Session) {
-  return taskStanding({ chatId, isRunning: false, sessionId });
+  return taskStatus({ chatId, isRunning: false, sessionId });
 }
 
 // A task whose turn ended with the card it ran into still up waits on the

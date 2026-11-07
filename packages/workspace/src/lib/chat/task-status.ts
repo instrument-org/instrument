@@ -25,7 +25,7 @@ const LINE_MAX = 90;
  * holds until something writes there. The list asks for every task it shows
  * each time it is read, and this is a whole transcript or more per task.
  */
-const settledStanding = indexedByRecords<TaskStanding>("task_standings");
+const settledStatus = indexedByRecords<TaskStatus>("task_statuses");
 
 /**
  * How a turn ended when it ended without words: whether a model error ended
@@ -40,8 +40,8 @@ export interface TaskEnding {
   stoppedWhile?: string;
 }
 
-export interface TaskStanding {
-  kind: TaskStandingKind;
+export interface TaskStatus {
+  kind: TaskStatusKind;
   /**
    * The line under the title: the step while it runs, what it waits for while
    * it waits, what it made once it is done, and how it ended when it ended
@@ -60,14 +60,14 @@ export interface TaskStanding {
  * did not finish on its own and was nobody's decision is `failed`: a model
  * error, a request that timed out, or the app quitting while the task worked.
  */
-export const TaskStandingKindSchema = z.enum([
+export const TaskStatusKindSchema = z.enum([
   "done",
   "failed",
   "running",
   "waiting",
 ]);
 
-type TaskStandingKind = z.output<typeof TaskStandingKindSchema>;
+type TaskStatusKind = z.output<typeof TaskStatusKindSchema>;
 
 /**
  * How a turn that ended before the agent wrote any words ended. That happens
@@ -106,11 +106,11 @@ export function appClosedLine(step: string | undefined): string {
  * whatever it last said: the person's answer wakes it, and until they answer
  * or stop it, it is waiting on them.
  */
-export async function taskStanding({
+export async function taskStatus({
   isRunning,
   sessionId,
   chatId,
-}: SessionRef & { isRunning: boolean }): Promise<TaskStanding> {
+}: SessionRef & { isRunning: boolean }): Promise<TaskStatus> {
   const ref = { sessionId, chatId };
   if (isRunning) {
     return { kind: "running", line: (await latestStep(ref)) ?? "Working" };
@@ -122,7 +122,7 @@ export async function taskStanding({
   if (card) {
     return { kind: "waiting", line: cardLine(card) };
   }
-  return settledStanding(chatId, sessionId, () => standingAtRest(ref));
+  return settledStatus(chatId, sessionId, () => statusAtRest(ref));
 }
 
 /** The same ending, read from a transcript already in hand. */
@@ -183,7 +183,7 @@ async function endingIn(
   };
 }
 
-async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
+async function statusAtRest(ref: SessionRef): Promise<Derived<TaskStatus>> {
   // One read answers all three: what it is asking, what it last said, and
   // how it ended when it said nothing. Its own messages alone, since what it
   // carries on from is the chat's.

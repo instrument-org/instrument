@@ -101,10 +101,10 @@ function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
   const task = useChildTask(useLiveChat(), id);
   return (
     task && {
-      ...(task.standing && {
-        ended: task.standing.summary ?? task.standing.line,
+      ...(task.status && {
+        ended: task.status.summary ?? task.status.line,
       }),
-      failed: task.standing?.kind === "failed",
+      failed: task.status?.kind === "failed",
       ...(!task.working && {
         ranMs: task.updatedAt.getTime() - task.createdAt.getTime(),
       }),

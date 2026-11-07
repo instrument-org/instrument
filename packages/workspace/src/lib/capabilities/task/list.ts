@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask, listChildTasks } from "../../chat/children";
-import { taskStanding } from "../../chat/task-standing";
+import { TaskStatusKindSchema, taskStatus } from "../../chat/task-status";
 import { TASK_COMMAND } from "../../shell-commands/task-command";
 import {
   TASK_LIST_WINDOW,
@@ -21,7 +21,7 @@ const Day = (description: string) =>
 const TaskRow = z.object({
   /** Its handle in the chat, `t1`. */
   id: z.string(),
-  status: z.enum(["done", "failed", "running", "waiting"]),
+  status: TaskStatusKindSchema,
   /** Whether an agent turn is live in it. */
   working: z.boolean(),
   /** How many processes it has running in the background. */
@@ -134,7 +134,7 @@ function listRowsOf(tasks: ChatTask[]): Promise<TaskListRow[]> {
   return Promise.all(
     tasks.map(async (task) => {
       const isRunning = isWorking(task.chatId, task.id);
-      const standing = await taskStanding({
+      const status = await taskStatus({
         isRunning,
         sessionId: task.id,
         chatId: task.chatId,
@@ -143,8 +143,8 @@ function listRowsOf(tasks: ChatTask[]): Promise<TaskListRow[]> {
         id: task.handle,
         isRunning,
         leftRunning: leftRunning(task.id).length,
-        line: standing.line,
-        status: standing.kind,
+        line: status.line,
+        status: status.kind,
         title: task.title,
         updatedAt: task.updatedAt,
       };

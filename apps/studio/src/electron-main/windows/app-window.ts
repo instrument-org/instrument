@@ -49,6 +49,7 @@ import {
   isHeldOffScreen,
   keepsOffScreen,
   putOnScreen,
+  showHeldWindows,
 } from "@/electron-main/windows/on-screen";
 import {
   type AppWindowAsk,
@@ -324,12 +325,11 @@ export function showInWindowHolding(href: string) {
   if (!showing) {
     return false;
   }
-  if (isHeldOffScreen(showing)) {
-    // Held after a restart, the person who followed a link has to be shown one.
-    if (!keepsOffScreen()) {
-      return false;
-    }
-  } else {
+  // Held after a restart, the person who followed a link has to be shown it.
+  if (isHeldOffScreen(showing) && !keepsOffScreen()) {
+    showHeldWindows();
+  }
+  if (!isHeldOffScreen(showing)) {
     if (showing.isMinimized()) {
       showing.restore();
     }
@@ -379,22 +379,28 @@ export function restoreAppWindows() {
   // that was in front goes back there once they all have.
   const front = windows.at(-1);
   if (front && windows.length > 1) {
+    comingToFront = front;
     let waiting = windows.length;
-    for (const window of windows) {
-      window.once("ready-to-show", () => {
-        waiting -= 1;
-        if (
-          waiting === 0 &&
-          takesFocus &&
-          !front.isDestroyed() &&
-          !isHeldOffScreen(front)
-        ) {
-          front.moveTop();
-          if (!is.dev) {
-            front.focus();
-          }
+    const onUp = () => {
+      waiting -= 1;
+      if (waiting > 0) {
+        return;
+      }
+      comingToFront = null;
+      if (takesFocus && !front.isDestroyed() && !isHeldOffScreen(front)) {
+        front.moveTop();
+        if (!is.dev) {
+          front.focus();
         }
-      });
+      }
+    };
+    for (const window of windows) {
+      // A link during boot can have opened one already, and it will not say so again.
+      if (window.isVisible()) {
+        onUp();
+      } else {
+        window.once("ready-to-show", onUp);
+      }
     }
   }
 }
@@ -660,6 +666,8 @@ function createAppWindow(
   // A second launch or a link can open it while boot is on its way to doing so.
   const open = openWindows.get(id);
   if (open && !open.isDestroyed()) {
+    inFront = [open, ...inFront.filter((each) => each !== open)];
+    rememberWindowInFront(id);
     return open;
   }
   hasOpened = true;
@@ -831,6 +839,9 @@ function createAppWindow(
     }
     openWindows.delete(id);
     inFront = inFront.filter((each) => each !== window);
+    if (comingToFront === window) {
+      comingToFront = null;
+    }
     forgetAppWindowName(webContentsId);
     if (setupSized === window) {
       setupSized = null;
@@ -978,13 +989,19 @@ export function takePendingAppWindowAsks(
   listening.add(webContentsId);
   // What waited is for the window in front, which a launch restoring several
   // brings up last or first as their pages happen to load.
-  const front = getAppWindow();
+  const front = comingToFront ?? getAppWindow();
   return front &&
     front.webContents.id !== webContentsId &&
     !listening.has(front.webContents.id)
     ? []
     : asks.take();
 }
+
+/**
+ * The window a launch restoring several puts in front once they are all up. Until
+ * then each that shows takes the focus, so the one last in front is no guide.
+ */
+let comingToFront: BrowserWindow | null = null;
 
 let hasSweptLaunch = false;
 

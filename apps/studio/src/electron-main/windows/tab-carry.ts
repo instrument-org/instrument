@@ -878,7 +878,9 @@ async function placeWhenDrawn(
   if (stands.isMaximized && process.platform !== "darwin") {
     from.maximize();
   }
-  if (stands.isFullScreen) {
+  // On a Mac that is a Space of its own, reached by an animation while the window
+  // it stands in for closes, so there it keeps the size it was given.
+  if (stands.isFullScreen && process.platform !== "darwin") {
     from.setFullScreen(true);
   }
   setOpacity(from, 1);
@@ -1064,7 +1066,11 @@ async function takeStrip(
     },
     point ? incomingView(ending, target, point) : undefined,
   );
-  void placeWhenDrawn(ending, target.getBounds(), tabs, {
+  // Its own size where it is full screen, which is what leaving that comes back to.
+  const place = target.isFullScreen()
+    ? target.getNormalBounds()
+    : target.getBounds();
+  void placeWhenDrawn(ending, place, tabs, {
     isFullScreen: target.isFullScreen(),
     isMaximized: target.isMaximized(),
   }).then(() => {

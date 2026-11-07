@@ -33,6 +33,11 @@ export function settleWords(key: string, write: () => void) {
   });
 }
 
+/** Whether a composer has words on their way into its draft. */
+export function hasWaitingWords(key: string) {
+  return waiting.has(key);
+}
+
 /** Makes a composer's waiting write now. */
 export function flushWords(key: string) {
   const entry = waiting.get(key);

@@ -19,6 +19,7 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { dialogMaxSize } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +30,7 @@ import { type LookFolder, lookAtAtom, type LookTarget } from "./look-at";
 import { useHostedPage } from "./hosted-page";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
-const QUICK_LOOK_GROUP = "page:quick-look";
+const QUICK_LOOK_GROUP = `${HOSTED_PAGE_GROUP_PREFIX}quick-look`;
 
 /**
  * The window layer a looked-at page's guest is shown on: over the panel

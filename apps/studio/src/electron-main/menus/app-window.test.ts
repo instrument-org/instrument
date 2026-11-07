@@ -2,8 +2,20 @@ import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { type Input, type WebContents } from "electron";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const inFront = vi.hoisted(() => ({
+  window: null as null | {
+    isDestroyed: () => boolean;
+    webContents: { id: number };
+  },
+}));
 vi.mock("electron", () => ({
-  BrowserWindow: { getFocusedWindow: () => null },
+  BrowserWindow: {
+    fromWebContents: () => ({
+      isDestroyed: () => false,
+      webContents: { id: 1 },
+    }),
+    getFocusedWindow: () => inFront.window,
+  },
 }));
 const publish = vi.hoisted(() =>
   vi.fn<(name: string, data: unknown) => void>(),
@@ -26,9 +38,26 @@ vi.mock("./utils", () => ({
 
 const PLATFORM = process.platform;
 
+const NO_WINDOW_ACTIONS = {
+  canMerge: false,
+  canReopenClosed: false,
+  mergeAll: () => {},
+  openNew: () => {},
+  reopenClosed: () => {},
+};
+
 afterEach(() => {
   Object.defineProperty(process, "platform", { value: PLATFORM });
 });
+
+/** The command a publish on the window's stream carried. */
+function commandOf(published: unknown) {
+  return published !== null &&
+    typeof published === "object" &&
+    "command" in published
+    ? published.command
+    : null;
+}
 
 type Press = Pick<Input, "alt" | "code" | "control" | "key" | "meta" | "shift">;
 
@@ -70,7 +99,7 @@ async function windowOn(platform: NodeJS.Platform) {
         ...input,
         type: "keyDown",
       });
-      const ran = publish.mock.calls[0]?.[1] ?? null;
+      const ran = commandOf(publish.mock.calls[0]?.[1]);
       expect(event.preventDefault).toHaveBeenCalledTimes(ran === null ? 0 : 1);
       return ran;
     },
@@ -153,7 +182,9 @@ describe("Info", () => {
       Object.defineProperty(process, "platform", { value: platform });
       vi.resetModules();
       const { createAppWindowMenu } = await import("./app-window");
-      const file = createAppWindowMenu().find((menu) => menu.label === "File");
+      const file = createAppWindowMenu(NO_WINDOW_ACTIONS).find(
+        (menu) => menu.label === "File",
+      );
       const row = (Array.isArray(file?.submenu) ? file.submenu : []).find(
         (item) => item.label === label,
       );
@@ -162,8 +193,12 @@ describe("Info", () => {
       const click = row?.click as
         | ((item: unknown, window: unknown, event: unknown) => void)
         | undefined;
+      inFront.window = { isDestroyed: () => false, webContents: { id: 7 } };
       click?.({}, {}, {});
-      expect(publish).toHaveBeenCalledWith("window.command", "fileInfo");
+      expect(publish).toHaveBeenCalledWith("window.command", {
+        command: "fileInfo",
+        webContentsId: 7,
+      });
     },
   );
 });
@@ -172,7 +207,7 @@ describe("a window chord from the menu", () => {
   it("does nothing with no window focused, as with the window held off screen", async () => {
     vi.resetModules();
     const { createAppWindowMenu } = await import("./app-window");
-    const closeTab = createAppWindowMenu()
+    const closeTab = createAppWindowMenu(NO_WINDOW_ACTIONS)
       .flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []))
       .find((item) => item.label === "Close Tab");
     // Electron types the click's arguments as real menu items and windows;
@@ -183,10 +218,15 @@ describe("a window chord from the menu", () => {
     expect(click).toBeDefined();
 
     publish.mockClear();
+    inFront.window = null;
     click?.({}, undefined, {});
     expect(publish).not.toHaveBeenCalled();
 
+    inFront.window = { isDestroyed: () => false, webContents: { id: 7 } };
     click?.({}, {}, {});
-    expect(publish).toHaveBeenCalledWith("window.command", "closeTab");
+    expect(publish).toHaveBeenCalledWith("window.command", {
+      command: "closeTab",
+      webContentsId: 7,
+    });
   });
 });

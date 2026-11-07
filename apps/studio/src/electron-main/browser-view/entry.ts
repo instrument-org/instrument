@@ -1,4 +1,4 @@
-import type { WebContents } from "electron";
+import type { NavigationEntry, WebContents } from "electron";
 
 import {
   type AbsolutePath,
@@ -111,7 +111,21 @@ export interface BrowserEntry {
   // commands that only read existing state, so an entry existing does not mean
   // anything asked for a browser to be shown.
   navigated: boolean;
+  // An agent has clicked or typed in it, which leaves state a reload loses.
+  hasAgentInput: boolean;
+  // When an agent's command last reached the guest, which keeps another window
+  // from taking the page out from under it.
+  lastAgentCommandAt: number;
+  // The window whose renderer mounts this guest, by its web contents; none
+  // until there is a window to ask.
+  hostId: null | number;
   phase: EntryPhase;
+  // What the guest was showing in the window it left, to come back to in this
+  // one, its history with it. Spent as the guest attaches.
+  restoreHistory: null | { behind: NavigationEntry[]; url: string };
+  // The page the guest's element opens on: its own blank page, or the one a
+  // guest brought over from another window stood on.
+  src: string | undefined;
   // Workspace browser profile directory, threaded through BrowserConfig so the
   // task lifecycle can correlate a target with its storage without re-deriving
   // the path.
@@ -150,10 +164,16 @@ interface AttachSignal {
 }
 
 export function createEntry({
+  hostId = null,
   partitionDir,
+  restoreHistory = null,
+  src,
   targetId,
 }: {
+  hostId?: null | number;
   partitionDir: AbsolutePath;
+  restoreHistory?: BrowserEntry["restoreHistory"];
+  src?: string;
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {
@@ -167,10 +187,15 @@ export function createEntry({
     downloadsRunning: 0,
     eventListeners: new Set(),
     generation: ++generationCounter,
+    hostId,
+    hasAgentInput: false,
+    lastAgentCommandAt: 0,
     navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),
     phase: "pending",
+    restoreHistory,
+    src,
     screencastInterval: null,
     screencastSessionId: 0,
     shown: false,
@@ -193,6 +218,20 @@ export function destroyEntry(
   clearGuestSurface(targetId);
 }
 
+/**
+ * Tells everything watching an entry's guest that it has gone, and stops
+ * sending them its events. A guest replaced by one in another window has gone
+ * too: what an agent switched on in the old one is not on in the new one, so a
+ * watcher has to attach again.
+ */
+export function tellDetached(entry: BrowserEntry) {
+  for (const listener of entry.detachListeners) {
+    listener();
+  }
+  entry.detachListeners.clear();
+  entry.eventListeners.clear();
+}
+
 export function handleDetach(
   entries: Map<BrowserTargetId, BrowserEntry>,
   targetId: BrowserTargetId,
@@ -202,12 +241,7 @@ export function handleDetach(
     return;
   }
 
-  for (const listener of entry.detachListeners) {
-    listener();
-  }
-  entry.detachListeners.clear();
-  entry.eventListeners.clear();
-
+  tellDetached(entry);
   drainDisposers(entry);
   fireDestruction(entry);
   entries.delete(targetId);

@@ -344,6 +344,13 @@ function prepareWorkspace(name, { dirName = name, fresh, keepTabs }) {
   );
   if (!keepTabs && machineDir) {
     rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
+    rmSync(path.join(machineDir, "window", "windows"), {
+      force: true,
+      recursive: true,
+    });
+    rmSync(path.join(machineDir, "window", "window-state.json"), {
+      force: true,
+    });
   }
   if (machineDir) {
     repinSettings(name, machineDir);

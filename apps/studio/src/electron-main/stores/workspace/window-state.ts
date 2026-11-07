@@ -12,13 +12,20 @@ export interface WindowBounds {
 }
 
 /**
- * Which window a remembered size belongs to. Each top-level window is its own
- * record: they are different windows of different shapes, open at the same
+ * Which window a remembered size belongs to, by the id it keeps its state
+ * under. Each top-level window is its own record: they are open at the same
  * time, and one record between them is each window resizing the other.
  */
-export type WindowStateName = "app";
+export type WindowStateName = string;
+
+/** How many closed windows can come back, newest first; past that, what one kept goes. */
+const MAX_CLOSED_WINDOWS = 10;
 
 interface StoredWindowState {
+  /** The windows closed while the app ran on, newest first, which can come back. */
+  closedIds?: string[];
+  /** The windows open now, the one last in front at the end; what a launch brings back. */
+  openIds?: string[];
   /** By window, keyed by its name. */
   windows?: Partial<
     Record<string, { bounds?: Partial<WindowBounds>; isMaximized?: boolean }>
@@ -101,6 +108,77 @@ export function getWindowState(
 /** Whether a size and place was ever remembered for the window. */
 export function hasWindowState(name: WindowStateName) {
   return getStore().store.windows?.[name]?.bounds !== undefined;
+}
+
+/**
+ * The windows to bring back, the one last in front at the end, and those
+ * closed that can still come back, newest first. A workspace last opened by a
+ * build with one window has that window, whose record is `first`.
+ */
+export function rememberedWindowIds(first: string) {
+  const { closedIds = [], openIds, windows = {} } = getStore().store;
+  return {
+    closed: closedIds,
+    open: openIds ?? (first in windows ? [first] : []),
+  };
+}
+
+/** Records a window open, and in front of the others. */
+export function rememberWindowInFront(id: string) {
+  const { closedIds = [], openIds = [] } = getStore().store;
+  getStore().set({
+    closedIds: closedIds.filter((closed) => closed !== id),
+    openIds: [...openIds.filter((open) => open !== id), id],
+  });
+}
+
+/**
+ * Records a window closed by the person, which can come back. Answers those
+ * pushed off the end of what can, whose kept state is the caller's to remove.
+ */
+export function rememberWindowClosed(id: string): string[] {
+  const { closedIds = [], openIds = [], windows } = getStore().store;
+  const closed = [id, ...closedIds.filter((other) => other !== id)];
+  const gone = closed.slice(MAX_CLOSED_WINDOWS);
+  getStore().set({
+    closedIds: closed.slice(0, MAX_CLOSED_WINDOWS),
+    openIds: openIds.filter((open) => open !== id),
+    windows: Object.fromEntries(
+      Object.entries(windows ?? {}).filter(([name]) => !gone.includes(name)),
+    ),
+  });
+  return gone;
+}
+
+/** Forgets a window altogether: its place, and that it was open. */
+export function forgetWindow(id: string) {
+  const { closedIds = [], openIds = [], windows } = getStore().store;
+  getStore().set({
+    closedIds: closedIds.filter((other) => other !== id),
+    openIds: openIds.filter((other) => other !== id),
+    windows: Object.fromEntries(
+      Object.entries(windows ?? {}).filter(([name]) => name !== id),
+    ),
+  });
+}
+
+/** A window's bounds kept on some display, with its size as it asked for. */
+export function keepBoundsOnScreen(bounds: WindowBounds): WindowBounds {
+  const { workArea } = screen.getDisplayMatching(bounds);
+  const width = Math.min(bounds.width, workArea.width);
+  const height = Math.min(bounds.height, workArea.height);
+  return {
+    height,
+    width,
+    x: Math.min(
+      Math.max(bounds.x, workArea.x),
+      workArea.x + workArea.width - width,
+    ),
+    y: Math.min(
+      Math.max(bounds.y, workArea.y),
+      workArea.y + workArea.height - height,
+    ),
+  };
 }
 
 export function isWindowBoundsVisible(bounds: WindowBounds) {

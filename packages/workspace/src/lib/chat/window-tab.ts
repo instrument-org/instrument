@@ -1,5 +1,6 @@
 import { ulid } from "ulid";
 
+import { getWorkspaceConfig } from "../workspace-config";
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
 import {
@@ -46,11 +47,13 @@ export async function askWindow({
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
+  const window = getWorkspaceConfig().windowForChat?.(group);
   publisher.publish("window.tab", {
     action,
     id: askedBy,
     requestId,
     ...(group ? { chatId: group } : {}),
+    ...(window === undefined ? {} : { window }),
   });
   try {
     for await (const answer of answers) {

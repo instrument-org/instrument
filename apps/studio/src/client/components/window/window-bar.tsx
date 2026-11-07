@@ -1,9 +1,12 @@
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
 import { NotificationsBell } from "@/client/components/window/notifications-bell";
+import { Button } from "@/client/components/ui/button";
 import { WindowControls } from "@/client/components/window-controls";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { ListIcon } from "@phosphor-icons/react/List";
 import { type ReactNode } from "react";
 
 /**
@@ -47,6 +50,7 @@ export function WindowBar({
           : {}),
       }}
     >
+      {isMacOS() ? null : <AppMenuButton />}
       {leading ? (
         <div className="flex shrink-0 items-center gap-2">{leading}</div>
       ) : null}
@@ -65,6 +69,29 @@ export function WindowBar({
         end; the row is their band on the platforms that do not. */}
       <WindowControls />
     </div>
+  );
+}
+
+/**
+ * The app's menu, off the Mac, whose menu bar is the only place the system would
+ * show it. The system draws it under the button, so it is the one list on every
+ * platform.
+ */
+function AppMenuButton() {
+  return (
+    <Button
+      aria-label="Menu"
+      className="size-7 shrink-0 text-foreground/80"
+      onClick={({ currentTarget }) => {
+        const { bottom, left } = currentTarget.getBoundingClientRect();
+        void rpcClient.window.showAppMenu.call({ x: left, y: bottom });
+      }}
+      size="icon"
+      title="Menu"
+      variant="ghost-toolbar"
+    >
+      <ListIcon className="size-4" />
+    </Button>
   );
 }
 

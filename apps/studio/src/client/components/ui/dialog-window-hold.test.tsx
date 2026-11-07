@@ -47,6 +47,8 @@ function Commands({
       selectChat: vi.fn(),
       selectRelative: vi.fn(),
       selectTab: vi.fn(),
+      moveTabToNewWindow: vi.fn(),
+      receiveTab: vi.fn(),
       toggleInbox: vi.fn(),
     },
     { isReady: false },

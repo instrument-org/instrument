@@ -8,6 +8,7 @@ import {
   idleRestartTimings,
   nextAttempts,
   relaunchViewOf,
+  relaunchViewOfWindows,
   stepIdleRestart,
 } from "./idle-restart-policy";
 
@@ -329,6 +330,23 @@ describe("attempts at one update", () => {
     const attempts = { count: 2, from: "2.0.0", to: "2.1.0" };
     expect(attemptsAt({ attempts, ...at })).toBe(0);
     expect(nextAttempts({ attempts, ...at }).count).toBe(1);
+  });
+});
+
+describe("how the windows are left for a restart", () => {
+  const inView = { isMinimized: false, isVisible: true };
+  const minimized = { isMinimized: true, isVisible: false };
+  const hidden = { isMinimized: false, isVisible: false };
+
+  it.each([
+    ["no window", [], "hidden"],
+    ["one in view", [inView], "front"],
+    ["one minimized", [minimized], "minimized"],
+    ["one hidden", [hidden], "hidden"],
+    ["a minimized one in front of one in view", [minimized, inView], "front"],
+    ["one minimized and one hidden", [hidden, minimized], "minimized"],
+  ] as const)("with %s", (_, windows, expected) => {
+    expect(relaunchViewOfWindows(windows)).toBe(expected);
   });
 });
 

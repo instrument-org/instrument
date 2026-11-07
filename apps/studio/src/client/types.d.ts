@@ -59,6 +59,9 @@ declare global {
       // the writes other windows make. Absent outside Electron.
       keptState?: {
         initial: KeptSnapshot;
+        // One key of `window` as every other window kept it, closed ones that
+        // can come back included.
+        otherWindows: (key: string) => unknown[];
         onChange: (
           listener: (file: KeptFile, key: string, value: unknown) => void,
         ) => () => void;

@@ -207,6 +207,15 @@ function connect() {
         onDetach();
       }
     },
+    /** A tab's page taken by another window: the page goes, and a new one stands in its place. */
+    movesWindow: async (targetId: BrowserTargetId) => {
+      const watching = subscribers.get(targetId) ?? [];
+      subscribers.delete(targetId);
+      for (const { onDetach } of watching) {
+        onDetach();
+      }
+      await flush();
+    },
     /** A tab's page moving on by itself, as a clicked link takes it. */
     command,
     events,
@@ -695,6 +704,36 @@ describe("a task's browser", () => {
         (info) => info.title,
       ),
     ).toEqual(["Glass - Wikipedia"]);
+  });
+
+  it("tells the agent a tab whose page another window took is back, to attach to again", async () => {
+    const moving = tab();
+    record.browserTabs = [moving.held];
+    const { command, events, movesWindow } = connect();
+    await command("Target.setDiscoverTargets", { discover: true });
+    await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: moving.tabId,
+    });
+
+    await movesWindow(moving.held.id);
+
+    expect(events("Target.detachedFromTarget")).toEqual([
+      { sessionId: `session-${moving.tabId}`, targetId: moving.tabId },
+    ]);
+    expect(
+      events("Target.targetCreated").map(
+        (params) =>
+          (params as { targetInfo: { targetId: string } }).targetInfo.targetId,
+      ),
+    ).toEqual([moving.tabId, moving.tabId]);
+    const reply = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: moving.tabId,
+    });
+    expect(reply).toMatchObject({
+      result: { sessionId: `session-${moving.tabId}` },
+    });
   });
 
   it("tells the agent of a tab handed over while it is connected", async () => {

@@ -17,7 +17,7 @@ export function isDrivenInstance() {
  * Whether this run's windows wait off screen until someone asks for one.
  * `studio-drive boot --visible` puts them up as a development run would.
  */
-function keepsOffScreen() {
+export function keepsOffScreen() {
   return isDrivenInstance() && process.env.STUDIO_DRIVE_VISIBLE !== "1";
 }
 
@@ -40,9 +40,22 @@ const held = new Map<ScreenWindow, { maximized: boolean }>();
  */
 let relaunchView: RelaunchView | undefined;
 
+/** How many windows the launch still brings back that way. */
+let relaunchWindows = 1;
+
 /** Called once at launch, before any window, with what the restart left. */
 export function comeBackAsLeft(view: RelaunchView | undefined) {
   relaunchView = view;
+}
+
+/** Whether this launch is the app restarting itself, its windows to come back as they were. */
+export function isComingBackAsLeft() {
+  return relaunchView !== undefined;
+}
+
+/** How many windows this launch brings back at once, each of which comes back that way. */
+export function expectRestoredWindows(count: number) {
+  relaunchWindows = Math.max(count, 1);
 }
 
 /**
@@ -61,7 +74,10 @@ export function putOnScreen(
   { maximized = false }: { maximized?: boolean } = {},
 ) {
   const view = relaunchView;
-  relaunchView = undefined;
+  relaunchWindows -= 1;
+  if (relaunchWindows <= 0) {
+    relaunchView = undefined;
+  }
   // A window left hidden waits the same way, until the Dock icon is clicked
   // (macOS only).
   if (keepsOffScreen() || view === "hidden") {

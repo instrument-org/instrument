@@ -212,10 +212,11 @@ export const MAIN_OVERRIDES: {
   // it to the panel, and the request takes over again once it parks. Sizes past
   // what this window can rasterize are refused rather than clamped, because a
   // clamped guest still reports the size it was asked for.
-  "Emulation.setDeviceMetricsOverride": ({ params, targetId }) => {
+  "Emulation.setDeviceMetricsOverride": ({ entry, params, targetId }) => {
     const p = (params ??
       {}) as Protocol.Emulation.SetDeviceMetricsOverrideRequest;
     const requested = requestGuestSurface({
+      hostId: entry.hostId,
       size: { height: p.height, width: p.width },
       targetId,
     });

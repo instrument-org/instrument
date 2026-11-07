@@ -96,6 +96,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Go to Files: ⌃⌘2 / Alt+2
 - Keyboard Shortcuts: ? / ?
 - New Chat: ⌘N / Ctrl+N
+- New Window: ⇧⌘N / Ctrl+Shift+N
 - Quit: ⌘Q / Ctrl+Q
 - Search or Ask: ⌘L / Ctrl+L
 - Settings…: ⌘, / Ctrl+,

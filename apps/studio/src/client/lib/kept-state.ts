@@ -53,6 +53,11 @@ export function writeKept(file: KeptFile, key: string, value: unknown) {
   bridge()?.set(file, key, value);
 }
 
+/** One key of `window` as every other window kept it, closed ones that can come back included. */
+export function keptInOtherWindows(key: string): unknown[] {
+  return bridge()?.otherWindows(key) ?? [];
+}
+
 /**
  * Whether a kept value is the same kind of thing as the default: a number
  * for a number, an array for an array, and so on. A key's version guards
@@ -129,4 +134,89 @@ export function keptAtom<T>(
 /** Forgets everything kept, for tests, which share one module between them. */
 export function clearKeptState() {
   values = new Map();
+}
+
+/** A value kept and taken back out, for what an earlier build kept under another key. */
+export function takeKept(file: KeptFile, key: string): unknown {
+  const value = kept().get(slotOf(file, key));
+  if (value !== undefined) {
+    writeKept(file, key, undefined);
+  }
+  return value;
+}
+
+/**
+ * A value kept member by member, each under a key of its own, in the file
+ * `fileOf` names for it. A window writes only the members it changed, so two
+ * windows changing different ones at once never undo each other, as whole
+ * writes crossing on their way through the main process would.
+ */
+export function keptMembersAtom<T>(
+  fileOf: (member: string) => KeptFile,
+  key: string,
+  {
+    join,
+    split,
+  }: {
+    join: (members: Map<string, unknown>) => T;
+    split: (value: T) => Map<string, unknown>;
+  },
+) {
+  const prefix = `${key}/`;
+  const memberOf = (slot: string) => {
+    const at = slot.indexOf(`/${prefix}`);
+    const member = at === -1 ? "" : slot.slice(at + 1 + prefix.length);
+    return member !== "" && slot === slotOf(fileOf(member), prefix + member)
+      ? [member]
+      : [];
+  };
+  const memberKeys = () => [...kept().keys()].flatMap(memberOf);
+  const read = (): T =>
+    join(
+      new Map(
+        memberKeys().map((member) => [
+          member,
+          kept().get(slotOf(fileOf(member), prefix + member)),
+        ]),
+      ),
+    );
+  return atomWithStorage<T>(
+    key,
+    join(new Map()),
+    {
+      getItem: read,
+      removeItem: () => {
+        for (const member of memberKeys()) {
+          writeKept(fileOf(member), prefix + member, undefined);
+        }
+      },
+      setItem: (_, value) => {
+        const members = split(value);
+        for (const member of memberKeys()) {
+          if (!members.has(member)) {
+            writeKept(fileOf(member), prefix + member, undefined);
+          }
+        }
+        for (const [member, entry] of members) {
+          const file = fileOf(member);
+          const before = kept().get(slotOf(file, prefix + member));
+          if (JSON.stringify(before) !== JSON.stringify(entry)) {
+            writeKept(file, prefix + member, entry);
+          }
+        }
+      },
+      subscribe: (_, callback) => {
+        const listener = (_file: KeptFile, changedKey: string) => {
+          if (changedKey.startsWith(prefix)) {
+            callback(read());
+          }
+        };
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+    },
+    { getOnInit: true },
+  );
 }

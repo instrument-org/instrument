@@ -48,7 +48,7 @@ import {
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
 } from "./compose-layout";
-import { useWindow, WindowContext } from "./context";
+import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion } from "./context-chip";
 import { type BandTarget, openInBand, targetsOf } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
@@ -448,7 +448,7 @@ export function ComposeWindow({
             moveAsks(ids, { draftId: draft.id, kind: "draft" });
           },
           openPage: (url, options) => {
-            if (options?.newTab) {
+            if (asksOwnPlace(options)) {
               appWindow.openPage(url, options);
             } else {
               openPage(url);
@@ -457,11 +457,11 @@ export function ComposeWindow({
           openPath: (path, options) => {
             appWindow.openPath(
               path,
-              options?.newTab ? options : { ...options, group },
+              asksOwnPlace(options) ? options : { ...options, group },
             );
           },
           openScreen: (href, options) => {
-            if (options?.newTab) {
+            if (asksOwnPlace(options)) {
               appWindow.openScreen(href, options);
             } else {
               openScreen(href);
@@ -471,7 +471,7 @@ export function ComposeWindow({
       >
         <FileOpenContext
           value={(path, options) => {
-            if (options?.newTab) {
+            if (asksOwnPlace(options)) {
               appWindow.openScreen(
                 path.endsWith("/")
                   ? folderHref(path.slice(0, -1))
@@ -487,7 +487,7 @@ export function ComposeWindow({
         >
           <PageOpenContext
             value={(url, options) => {
-              if (options?.newTab) {
+              if (asksOwnPlace(options)) {
                 appWindow.openPage(url, options);
               } else {
                 openPage(url);

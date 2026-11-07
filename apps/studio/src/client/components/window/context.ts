@@ -34,6 +34,26 @@ export interface OpenOptions {
   show?: boolean;
 }
 
+/**
+ * The part of an open that asks for a place of the window's own, a tab or a
+ * window, which a surface drawing things in its own place passes on as it
+ * was asked; nothing for an open the surface answers itself.
+ */
+export function ownPlaceOf(options?: OpenOptions): OpenOptions | undefined {
+  if (options?.newWindow) {
+    return { newWindow: true };
+  }
+  if (options?.newTab) {
+    return { behind: options.behind, newTab: true };
+  }
+  return undefined;
+}
+
+/** Whether an open asks for a tab or a window of the window's own rather than the surface's place. */
+export function asksOwnPlace(options?: OpenOptions): boolean {
+  return ownPlaceOf(options) !== undefined;
+}
+
 /** What every screen of the window shares. */
 export interface WindowContextValue {
   /** Opens a draft of a new chat with the line already in it, to be read and sent by the person; inside a chat, sends the line there. */

@@ -19,7 +19,12 @@ import { type ReactNode, useContext, useEffect, useState } from "react";
 
 import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
-import { type OpenOptions, useWindow, WindowContext } from "./context";
+import {
+  type OpenOptions,
+  ownPlaceOf,
+  useWindow,
+  WindowContext,
+} from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { useReadOnView } from "./use-read-on-view";
 
@@ -157,10 +162,10 @@ function ChatScreenOfRecord({
   // Into this chat's own group, shown: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
-  // A new-tab gesture over any of it asks for a tab of the window's own.
+  // A new-tab or new-window gesture over any of it asks for a place of the
+  // window's own.
   const into = { group: chatId, ownTab: true, show: true };
-  const intoOr = (options?: OpenOptions) =>
-    options?.newTab ? { behind: options.behind, newTab: true } : into;
+  const intoOr = (options?: OpenOptions) => ownPlaceOf(options) ?? into;
   return (
     // The chat is the drop region, so a file let go anywhere over it lands
     // in the reply, and the pane beside it stays outside.

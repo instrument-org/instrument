@@ -57,7 +57,7 @@ import {
   NotPermitted,
   RECENTS_ROOT,
 } from "./computer-page";
-import { useWindow } from "./context";
+import { asksOwnPlace, type OpenOptions, useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { useGroupTab } from "./group-tab";
@@ -689,10 +689,10 @@ export function FilesScreen({
   // What the document links to opens where the folder's rows do: in this
   // tab, unless a tab of its own is asked for; a folder opens as the Finder
   // standing in it.
-  const openLinkedFile = (hostPath: string, options?: { newTab?: boolean }) => {
+  const openLinkedFile = (hostPath: string, options?: OpenOptions) => {
     if (hostPath.endsWith("/")) {
       openScreen(folderHref(hostPath.slice(0, -1)), options);
-    } else if (options?.newTab) {
+    } else if (asksOwnPlace(options)) {
       openScreen(
         fileHref(hostPath, tree === undefined ? {} : { tree }),
         options,

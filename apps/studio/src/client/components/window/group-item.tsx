@@ -18,7 +18,7 @@ import {
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
 import { WebStart } from "./web-start";
-import { useWindow, WindowContext } from "./context";
+import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAskButton } from "./file-ask-button";
@@ -261,7 +261,7 @@ export function GroupItem({
               : { askAbout: undefined }),
             // A chat's tasks and each task's page walk this tab in place.
             openScreen: (href, options) => {
-              if (tasksOfHref(href) && !options?.newTab && router) {
+              if (tasksOfHref(href) && !asksOwnPlace(options) && router) {
                 router.history.push(href);
                 return;
               }

@@ -30,7 +30,7 @@ import {
   COMPOSE_MOTION,
 } from "./compose-layout";
 import { WindowButton } from "./compose-window";
-import { useWindow, WindowContext } from "./context";
+import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion } from "./context-chip";
 import { type ContextItem } from "./context-items";
 import { computerTabOf } from "./file-tabs";
@@ -319,14 +319,14 @@ export function ChatWindow({
             value={{
               ...appWindow,
               openPage: (url, options) => {
-                if (options?.show && !options.newTab) {
+                if (options?.show && !asksOwnPlace(options)) {
                   openPage(url);
                   return;
                 }
                 appWindow.openPage(url, options);
               },
               openPath: (path, options) => {
-                if (options?.show && !options.newTab) {
+                if (options?.show && !asksOwnPlace(options)) {
                   appWindow.openPath(path, {
                     activate: true,
                     group: chatId,
@@ -338,7 +338,7 @@ export function ChatWindow({
                 appWindow.openPath(path, options);
               },
               openScreen: (href, options) => {
-                if (options?.newTab) {
+                if (asksOwnPlace(options)) {
                   appWindow.openScreen(href, options);
                   return;
                 }
@@ -359,7 +359,7 @@ export function ChatWindow({
                 it is shown the same way. */}
             <FileOpenContext
               value={(path, options) => {
-                if (options?.newTab) {
+                if (asksOwnPlace(options)) {
                   appWindow.openPath(path, options);
                   return;
                 }

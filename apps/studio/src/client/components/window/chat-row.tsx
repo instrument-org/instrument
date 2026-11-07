@@ -45,7 +45,12 @@ import {
   type Project,
   wordRanges,
 } from "./chats";
-import { type OpenOptions, useWindow, WindowContext } from "./context";
+import {
+  type OpenOptions,
+  ownPlaceOf,
+  useWindow,
+  WindowContext,
+} from "./context";
 import { HoldMarks } from "./hold-marks";
 import { ROW_CONTROL, RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
@@ -585,9 +590,8 @@ function HoldsInChat({
 }) {
   const appWindow = useWindow();
   const inChat = { group: chatId, ownTab: true, show: true };
-  // A new-tab gesture asks for a tab of the window's own instead.
-  const options = (asked?: OpenOptions) =>
-    asked?.newTab ? { behind: asked.behind, newTab: true } : inChat;
+  // A new-tab or new-window gesture asks for a place of the window's own instead.
+  const options = (asked?: OpenOptions) => ownPlaceOf(asked) ?? inChat;
   return (
     <WindowContext
       value={{

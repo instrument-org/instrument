@@ -242,6 +242,8 @@ export class ChatRecords {
   #live = new Map<ChatId, Map<StoreId.Session, LiveState>>();
   readonly #now: () => Date;
   readonly #onError: (error: unknown) => void;
+  /** Chats being trashed, which take no reads or writes (`refuse`). */
+  #refused = new Set<ChatId>();
   /** Chats whose interrupted calls this process has settled. */
   #swept = new Set<ChatId>();
   #throttles = new Map<string, LiveThrottle>();
@@ -313,6 +315,19 @@ export class ChatRecords {
       await settled(chat);
       await this.#commitAll(chat);
     }
+  }
+
+  /**
+   * Lets the chat go as `close` does, then refuses every read and write of
+   * it until the returned release: for a chat whose folder is on its way to
+   * the trash, which a late write would otherwise make again.
+   */
+  async refuse(chatId: ChatId): Promise<() => void> {
+    this.#refused.add(chatId);
+    await this.close(chatId);
+    return () => {
+      this.#refused.delete(chatId);
+    };
   }
 
   /** Lands and syncs every chat's writes, and takes no more. */
@@ -1216,6 +1231,9 @@ export class ChatRecords {
   ): Promise<T> {
     if (this.#disposed) {
       return Promise.reject(new Error("The chat records are closed"));
+    }
+    if (this.#refused.has(chatId)) {
+      return Promise.reject(new Error("The chat is being deleted"));
     }
     const entry = this.#entry(chatId);
     entry.lastUsed = ++this.#uses;

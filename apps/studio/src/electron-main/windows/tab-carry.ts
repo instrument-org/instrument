@@ -198,7 +198,7 @@ function beginCarry({
   grab,
   isOffRow,
   isOnlyTab,
-  moving,
+  moving: standing,
   pointInTab = 0,
   webContentsId,
 }: {
@@ -232,6 +232,16 @@ function beginCarry({
   const followsCursor = canPlace && !keepsOffScreen();
   const isFullScreen = from.isFullScreen();
   const isMaximized = from.isMaximized();
+  // A chat open in two windows has its pages in only one, which are not this
+  // tab's to weigh or to take along from a window showing them.
+  const manager = getBrowserViewManager();
+  const inFrom = (page: BrowserTargetId) =>
+    manager.isHostOf(from.webContents.id, page);
+  const moving = {
+    ...standing,
+    neighborPages: standing.neighborPages.filter(inFrom),
+    pages: standing.pages.filter(inFrom),
+  };
   const goes = whatGoes({
     canPlace,
     isFullScreen,
@@ -369,30 +379,16 @@ function showSpare({ from, spare }: Carry) {
   window.showInactive();
 }
 
-/** Resolves when a window has drawn what it was just told, or soon anyway. */
-async function drawn(window: BrowserWindow) {
-  if (window.isDestroyed()) {
-    return;
-  }
-  await Promise.race([
-    window.webContents
-      .executeJavaScript(
-        "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))",
-      )
-      .catch(() => undefined),
-    new Promise((resolve) => {
-      setTimeout(resolve, DRAWN_LIMIT_MS);
-    }),
-  ]);
-}
-
 /**
- * Resolves when a window told what it holds has drawn those tabs, or soon anyway: its
- * strip has that many, and draws none but those, since an over-full strip draws only
- * some. Being told reaches its strip some time later, the later the more tabs it has
- * to bring up, and a window brought forward before then would show what it had.
+ * Resolves when a window has drawn, two frames after what its page is asked is
+ * true, or within the limit anyway. The page stops looking at the limit too, and the
+ * limit here stands for a window that draws no frames to look in.
  */
-async function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
+async function drawnOnce(
+  window: BrowserWindow,
+  isReady: string,
+  limitMs: number,
+) {
   if (window.isDestroyed()) {
     return;
   }
@@ -400,13 +396,9 @@ async function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
     window.webContents
       .executeJavaScript(
         `new Promise((resolve) => {
-          const holds = new Set(${JSON.stringify(tabs.map((tab) => tab.id))});
-          const until = performance.now() + ${BRINGS_UP_LIMIT_MS};
+          const until = performance.now() + ${limitMs};
           const check = () => {
-            const strip = document.querySelector("[data-app-tab-strip] [data-tab-count]");
-            const shown = [...(strip?.querySelectorAll("[data-tab-key]") ?? [])]
-              .filter((tab) => !tab.hasAttribute("aria-hidden"));
-            if (Number(strip?.dataset.tabCount) === holds.size && shown.every((tab) => holds.has(tab.dataset.tabKey))) {
+            if (${isReady}) {
               requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
             } else if (performance.now() < until) {
               requestAnimationFrame(check);
@@ -419,9 +411,34 @@ async function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
       )
       .catch(() => undefined),
     new Promise((resolve) => {
-      setTimeout(resolve, BRINGS_UP_LIMIT_MS);
+      setTimeout(resolve, limitMs);
     }),
   ]);
+}
+
+/** Resolves when a window has drawn what it was just told, or soon anyway. */
+function drawn(window: BrowserWindow) {
+  return drawnOnce(window, "true", DRAWN_LIMIT_MS);
+}
+
+/**
+ * Resolves when a window told what it holds has drawn those tabs, or soon anyway: its
+ * strip has that many, and draws none but those, since an over-full strip draws only
+ * some. Being told reaches its strip some time later, the later the more tabs it has
+ * to bring up, and a window brought forward before then would show what it had.
+ */
+function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
+  return drawnOnce(
+    window,
+    `(() => {
+      const holds = new Set(${JSON.stringify(tabs.map((tab) => tab.id))});
+      const strip = document.querySelector("[data-app-tab-strip] [data-tab-count]");
+      const shown = [...(strip?.querySelectorAll("[data-tab-key]") ?? [])]
+        .filter((tab) => !tab.hasAttribute("aria-hidden"));
+      return Number(strip?.dataset.tabCount) === holds.size && shown.every((tab) => holds.has(tab.dataset.tabKey));
+    })()`,
+    BRINGS_UP_LIMIT_MS,
+  );
 }
 
 /**
@@ -714,18 +731,26 @@ export async function endTabCarry({
     stopCarry();
     return NONE;
   }
-  isReleasing = true;
   try {
     const place = placeAtRelease(ending, at);
-    return phase.kind === "free"
-      ? await standAlone(ending, place)
-      : await land(ending, phase.window, place);
+    return await releasing(() =>
+      phase.kind === "free"
+        ? standAlone(ending, place)
+        : land(ending, phase.window, place),
+    );
   } catch (error) {
     // A window gone partway. Nothing holds the picture from here, and it stands over everything.
     ending.picture?.close();
     setOpacity(ending.from, 1);
     tell(ending.from, { kind: "row" });
     throw error;
+  }
+}
+
+async function releasing(carryOut: () => Promise<TabCarryEnd>) {
+  isReleasing = true;
+  try {
+    return await carryOut();
   } finally {
     isReleasing = false;
   }
@@ -756,18 +781,17 @@ export async function moveTabNow({
   if (!current) {
     return NONE;
   }
-  const place = canPlaceWindows()
-    ? { ...current.size, x: cascadedBounds().x, y: cascadedBounds().y }
-    : undefined;
+  const { x, y } = cascadedBounds();
+  const place = canPlaceWindows() ? { ...current.size, x, y } : undefined;
   if (to.kind === "new") {
-    return standAlone(current, place);
+    return releasing(() => standAlone(current, place));
   }
   const target = appWindowById(to.id);
   if (!target || target.isDestroyed()) {
     stopCarry();
     return NONE;
   }
-  return land(current, target, place);
+  return releasing(() => land(current, target, place));
 }
 
 /** The tab is let go: nothing follows the pointer from here, and a picture still stands in until what it stood in for is up. */
@@ -831,7 +855,10 @@ async function placeWhenDrawn(
   { from, picture, spare }: Carry,
   place: Bounds | undefined,
   holding: readonly Tab[],
-  isPlaceMaximized = false,
+  stands: { isFullScreen: boolean; isMaximized: boolean } = {
+    isFullScreen: false,
+    isMaximized: false,
+  },
 ) {
   await drawnHolding(from, holding);
   if (place) {
@@ -848,8 +875,11 @@ async function placeWhenDrawn(
   if (place) {
     from.setBounds(place);
   }
-  if (isPlaceMaximized && process.platform !== "darwin") {
+  if (stands.isMaximized && process.platform !== "darwin") {
     from.maximize();
+  }
+  if (stands.isFullScreen) {
+    from.setFullScreen(true);
   }
   setOpacity(from, 1);
   from.moveTop();
@@ -895,7 +925,6 @@ async function standAlone(
   const { spare } = ending;
   dressSpare(ending);
   if (place) {
-    leaveMaximized(spare.window);
     spare.window.setBounds(place);
   }
   // A window that cannot be kept unseen is drawn as it comes up.
@@ -1035,12 +1064,10 @@ async function takeStrip(
     },
     point ? incomingView(ending, target, point) : undefined,
   );
-  void placeWhenDrawn(
-    ending,
-    target.getBounds(),
-    tabs,
-    target.isMaximized(),
-  ).then(() => {
+  void placeWhenDrawn(ending, target.getBounds(), tabs, {
+    isFullScreen: target.isFullScreen(),
+    isMaximized: target.isMaximized(),
+  }).then(() => {
     if (!target.isDestroyed() && !from.isDestroyed()) {
       closeInto(target, from);
     }

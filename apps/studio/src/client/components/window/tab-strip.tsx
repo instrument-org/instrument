@@ -87,7 +87,7 @@ const MAKE_WAY = { layout: { duration: 0.2, ease: [0.4, 0, 0.1, 1] } } as const;
 // beside it following: a transition on real layout, and the one thing about a tab
 // being dragged that does not follow the pointer.
 const GIVES_PLACE_UP =
-  "transition-[flex-grow,margin-right,min-width,opacity,padding] duration-(--tab-motion) ease-out";
+  "transition-[flex-grow,margin-right,min-width,opacity,padding] duration-(--tab-motion) ease-out motion-reduce:transition-none";
 
 // A closing tab gives its share of the row up rather than being taken out of
 // it, so the tabs beside it widen as it narrows: a transition on real layout

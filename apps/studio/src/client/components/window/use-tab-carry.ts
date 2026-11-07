@@ -2,7 +2,7 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { type TabId } from "@/shared/tabs";
+import { neighborAt, type TabId } from "@/shared/tabs";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -68,8 +68,7 @@ export function useTabCarry({
     const isGone = drag.isOffRow && drag.collapsesOffRow && !drag.canceled;
     setCarriedKey(isGone ? drag.key : undefined);
     if (isGone && !drag.isNeighborUp) {
-      const at = order.indexOf(drag.key);
-      const neighbor = order[at + 1] ?? order[at - 1];
+      const neighbor = neighborAt(order, order.indexOf(drag.key));
       if (neighbor !== undefined) {
         drag.isNeighborUp = true;
         onSelect(neighbor);
@@ -179,7 +178,10 @@ export function useTabCarry({
     if (drag.lastEvent === event) {
       // With the pointer at rest the row can still be moving under the tab, opening
       // for it or closing behind it, and once it has stopped there is nothing to do.
-      if (!drag.isOffRow && event.timeStamp > performance.now() - ROW_MOVES_MS) {
+      if (
+        !drag.isOffRow &&
+        event.timeStamp > performance.now() - ROW_MOVES_MS
+      ) {
         onPlace(key, event.clientX - drag.pointInTab);
       }
       return;
@@ -237,10 +239,6 @@ export function useTabCarry({
     if (drag.canceled) {
       return;
     }
-    const backOnRow = () => {
-      showTabCarryView({ kind: "row" });
-      setCarriedKey(undefined);
-    };
     void rpcClient.window.endTabCarry
       .call({
         canceled: false,
@@ -253,7 +251,10 @@ export function useTabCarry({
         }
         setCarriedKey(undefined);
       })
-      .catch(backOnRow);
+      .catch(() => {
+        showTabCarryView({ kind: "row" });
+        setCarriedKey(undefined);
+      });
   };
 
   return {

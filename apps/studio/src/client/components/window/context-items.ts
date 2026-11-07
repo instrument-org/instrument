@@ -142,7 +142,8 @@ export function lineKeyOf(entry: DraftContextItem): string {
  * and the band is how this window shows them, so a thing is one chip however
  * both name it. Each of the band's tabs is a chip: picking one shows it, and
  * taking one off closes it. A tab showing something attached to the draft is
- * no chip of its own: the attachment's chip is it.
+ * no chip of its own: the attachment's chip is it. Two tabs showing the same
+ * thing are one chip, the first in the band's order.
  *
  * What the window has in view behind the draft is never one of them: it is
  * offered beside the chips (`draftSuggestionOf`), and goes only once the
@@ -174,7 +175,17 @@ export function draftContextItems({
       .map((entry) => contextItemOf(entry, allTabs)),
   );
   const own: ContextItem[] = [];
+  const lined = new Set<string>();
   for (const tab of band) {
+    const lines = bandTabLines(tab, { finderOf, held: attached }).map(
+      lineKeyOf,
+    );
+    if (lines.length > 0 && lines.every((line) => lined.has(line))) {
+      continue;
+    }
+    for (const line of lines) {
+      lined.add(line);
+    }
     const key = keyOfTab(tab);
     const item = itemOfTab(tab, {
       finderOf,

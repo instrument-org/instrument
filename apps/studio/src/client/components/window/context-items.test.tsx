@@ -88,7 +88,10 @@ describe("a draft's chips", () => {
   it("are every tab of the band, then what the person chose", () => {
     expect(
       forDraft({
-        band: [page("band", "draft:d"), page("second", "draft:d")],
+        band: [
+          page("band", "draft:d"),
+          { ...page("second", "draft:d"), url: "https://example.org/" },
+        ],
         draft: {
           ...draft,
           context: [
@@ -103,6 +106,14 @@ describe("a draft's chips", () => {
       `chat:${OTHER}`,
       "chosen:/Users/sam/a.pdf",
     ]);
+  });
+
+  it("are one chip for two tabs at the same address, the first in the band", () => {
+    expect(
+      forDraft({
+        band: [page("first", "draft:d"), page("again", "draft:d")],
+      }).map((item) => item.key),
+    ).toEqual(["tab:first"]);
   });
 
   it("are offered what is in view", () => {

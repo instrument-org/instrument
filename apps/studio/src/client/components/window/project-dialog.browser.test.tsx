@@ -18,6 +18,14 @@ vi.mock("@/client/rpc/client", () => ({
           }),
         },
       },
+      storage: {
+        location: {
+          queryOptions: () => ({
+            queryFn: () => ({ rootDir: "/Users/me/Instrument" }),
+            queryKey: ["storage-location"],
+          }),
+        },
+      },
     },
   },
 }));
@@ -137,4 +145,84 @@ it("keeps a folder with a long path inside the dialog", async () => {
   const edge = dialog.getBoundingClientRect().right;
   expect(row.getBoundingClientRect().right).toBeLessThan(edge);
   expect(save.getBoundingClientRect().right).toBeLessThan(edge);
+});
+
+/** A project being changed, with what its Save hands back and whether it closed. */
+async function editingInstructions() {
+  const onChange = vi.fn();
+  const onOpenChange = vi.fn();
+  await renderInBrowser(
+    <ProjectDialog
+      mode="edit"
+      onChange={onChange}
+      onDelete={vi.fn()}
+      onOpenChange={onOpenChange}
+      open
+      otherNames={[]}
+      project={{
+        color: "#3b6ef6",
+        id: "top_1",
+        instructions: "Answer in metric.",
+        name: "Garden",
+      }}
+    />,
+  );
+  const find = () =>
+    document.querySelector<HTMLElement>(
+      "[role=dialog] .ProseMirror[aria-label='Instructions']",
+    );
+  await expect.poll(find).toBeTruthy();
+  const editor = find();
+  if (!editor) {
+    throw new Error("the dialog did not render the instructions editor");
+  }
+  return { editor, onChange, onOpenChange };
+}
+
+function dialogButton(label: string) {
+  const found = [...document.querySelectorAll("[role=dialog] button")].find(
+    (each) => each.textContent === label,
+  );
+  if (!(found instanceof HTMLElement)) {
+    throw new Error(`the dialog did not render ${label}`);
+  }
+  return found;
+}
+
+it("draws a heading as it is typed and saves the instructions as Markdown", async () => {
+  const { editor, onChange } = await editingInstructions();
+  await userEvent.click(editor);
+  // To the end of the text, by whichever system's chord does it.
+  await userEvent.keyboard(
+    "{Control>}{End}{/Control}{Meta>}{ArrowDown}{/Meta}",
+  );
+  await userEvent.keyboard("{Enter}# Units{Enter}Grams, not ounces.");
+
+  await expect
+    .poll(() => editor.querySelector("h1")?.textContent)
+    .toBe("Units");
+  await userEvent.click(dialogButton("Save"));
+
+  expect(onChange).toHaveBeenCalledWith({
+    instructions: expect.stringMatching(
+      /^Answer in metric\.\n\n# Units\n\nGrams, not ounces\.\n?$/,
+    ),
+  });
+});
+
+it("throws the instructions' edits away on Cancel", async () => {
+  const { editor, onChange, onOpenChange } = await editingInstructions();
+  await userEvent.click(editor);
+  await userEvent.keyboard(" Always.");
+  await userEvent.click(dialogButton("Cancel"));
+
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it("keeps the instructions as written when Save follows no edit", async () => {
+  const { onChange } = await editingInstructions();
+  await userEvent.click(dialogButton("Save"));
+
+  expect(onChange).toHaveBeenCalledWith({});
 });

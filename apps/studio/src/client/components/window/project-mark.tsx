@@ -1,4 +1,5 @@
 import { projectColor } from "@/client/components/window/project-colors";
+import { projectIcon } from "@/client/components/window/project-icons";
 import { projectTint } from "@/client/components/window/project-tint";
 import { cn } from "@/client/lib/utils";
 
@@ -6,13 +7,16 @@ import { cn } from "@/client/lib/utils";
 export interface ProjectMarkSpec {
   color?: string;
   emoji?: string;
+  /** A Phosphor icon's name, drawn in the project's ink; a name outside this build's set is passed over. */
+  icon?: string;
   name?: string;
 }
 
 /**
- * The mark that stands for a project wherever one is named: its emoji on a tile
- * of its color, never a word. Sized for where it sits, from a row's header
- * line up to the dialog that chooses it.
+ * The mark that stands for a project wherever one is named: its icon or its
+ * emoji on a tile of its color, never a word. Sized for where it sits, from a
+ * row's header line up to the dialog that chooses it. `plain` leaves the tile
+ * out, for a mark set on a surface of its own.
  */
 export function ProjectMark({
   className,
@@ -21,7 +25,6 @@ export function ProjectMark({
   project,
 }: {
   className?: string;
-  /** The face alone, with no tile of the project's tint under it. */
   plain?: boolean;
   size?: "lg" | "md" | "sm";
   project: ProjectMarkSpec;
@@ -50,17 +53,34 @@ export function ProjectMark({
       }}
       title={project.name}
     >
-      <ProjectFace project={project} />
+      <ProjectFace plain={plain} project={project} />
     </span>
   );
 }
 
 /**
- * What stands for a project with no tile under it: its emoji if it has one, and
- * otherwise the first letter of its name, so a project whose emoji the user never
- * chose still has to be told apart from its neighbors at a glance.
+ * What stands for a project on its tile: its icon or its emoji if it has one,
+ * and otherwise the first letter of its name, so a project whose mark the user
+ * never chose still has to be told apart from its neighbors at a glance.
  */
-function ProjectFace({ project }: { project: ProjectMarkSpec }) {
+function ProjectFace({
+  plain,
+  project,
+}: {
+  plain: boolean;
+  project: ProjectMarkSpec;
+}) {
+  // The tint's ink rather than the color itself: a pale pick's own hex
+  // would vanish on its own tile.
+  const ink = { color: "var(--project-tint-ink, currentColor)" };
+  const icon = projectIcon(project.icon);
+  if (icon) {
+    // A share of the box rather than of the type, so the glyph sits in the
+    // tile with a margin, and fills the box where there is no tile.
+    return (
+      <icon.Icon size={plain ? "100%" : "62%"} style={ink} weight="fill" />
+    );
+  }
   if (project.emoji) {
     return <span>{project.emoji}</span>;
   }
@@ -68,12 +88,7 @@ function ProjectFace({ project }: { project: ProjectMarkSpec }) {
   // gives one character rather than half of one.
   const [first] = new Intl.Segmenter().segment(project.name ?? "?");
   return (
-    <span
-      className="font-semibold uppercase"
-      // The tint's ink rather than the color itself: a pale pick's own hex
-      // would vanish on its own tile.
-      style={{ color: "var(--project-tint-ink, currentColor)" }}
-    >
+    <span className="font-semibold uppercase" style={ink}>
       {first?.segment ?? "?"}
     </span>
   );

@@ -64,7 +64,6 @@ function clip(text: string, length: number): string {
 export function needsSummary(turn: Turn): boolean {
   if (
     turn.inherited ||
-    !turn.foldsWhenDone ||
     !turn.rows.some(
       (row) => row.kind === "activity" && turn.foldedRowIds.has(row.id),
     )

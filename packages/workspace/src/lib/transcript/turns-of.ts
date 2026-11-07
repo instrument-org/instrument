@@ -3,6 +3,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { askedOnCard } from "../../tools/connect-app-output";
+import { chooseAnswer } from "../choose-call";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
 import { type ErrorOutcome, errorOutcomeOf } from "./error-outcome";
@@ -106,8 +107,6 @@ export interface Turn {
   foldedRowIds: ReadonlySet<string>;
   /** The folded row the Worked row draws at: where the work starts, under what was said before it. */
   foldLineAt?: string;
-  /** It folds on finishing, rather than because a message cut across it. */
-  foldsWhenDone: boolean;
   id: StoreId.Message;
   /** Taken over from the chat a task forked from, ahead of the task's own work. */
   inherited: boolean;
@@ -190,8 +189,12 @@ export function turnsOf(
       kept &&
       kept.isLive === isLive &&
       kept.cutAcross === cutAcross &&
+      // Being followed tells an error it is not the last message and closes
+      // a question written past.
       (kept.holdsLast === holdsLast ||
-        !kept.turn.rows.some((row) => row.kind === "error")) &&
+        !kept.turn.rows.some(
+          (row) => row.kind === "error" || (row.kind === "ask" && row.isOpen),
+        )) &&
       kept.slice.length === slice.length &&
       kept.slice.every((message, at) => message === slice[at])
     ) {
@@ -202,6 +205,7 @@ export function turnsOf(
       isLive,
       lastMessage,
       sessionId,
+      writtenPast: !holdsLast,
     });
     cache?.set(first.id, { cutAcross, holdsLast, isLive, slice, turn });
     return [turn];
@@ -209,16 +213,12 @@ export function turnsOf(
 }
 
 /**
- * Whether a turn is folded at this moment: it finished with words, and either
- * its summary has arrived or it has waited long enough for it. A turn a
- * message cut across folds at once.
+ * Whether a turn is folded at this moment: it folds (see `foldedRows`), and
+ * either its summary has arrived or it has waited long enough for it.
  */
 export function isTurnFolded(turn: Turn, now: number): boolean {
   if (turn.foldedRowIds.size === 0) {
     return false;
-  }
-  if (!turn.foldsWhenDone) {
-    return true;
   }
   return (
     turn.summary !== undefined ||
@@ -315,6 +315,8 @@ function joinedMidTurn(message: TranscriptMessage): boolean {
 
 interface BuildOptions {
   cutAcross: boolean;
+  /** A message the person typed comes after this turn. */
+  writtenPast: boolean;
   isLive: boolean;
   lastMessage: TranscriptMessage | undefined;
   sessionId: StoreId.Session | undefined;
@@ -361,7 +363,6 @@ function buildTurn(
     ...(endedAt && { endedAt }),
     foldedRowIds: folded.ids,
     ...(folded.lineAt !== undefined && { foldLineAt: folded.lineAt }),
-    foldsWhenDone: folded.whenDone,
     id: first.id,
     inherited:
       sessionId !== undefined && first.metadata.sessionId !== sessionId,
@@ -421,7 +422,7 @@ function openerOf(message: TranscriptMessage): TurnOpener {
 
 function rowsOf(
   body: readonly TranscriptMessage[],
-  { isLive, lastMessage }: BuildOptions,
+  { isLive, lastMessage, writtenPast }: BuildOptions,
 ): TurnRow[] {
   const rows: TurnRow[] = [];
   const facts = factsByStep(body);
@@ -507,7 +508,7 @@ function rowsOf(
         open = undefined;
         rows.push({
           id: part.metadata.id,
-          isOpen: stillAsks(part, body.slice(index + 1)),
+          isOpen: stillAsks(part, body.slice(index + 1), writtenPast),
           kind: "ask",
           part,
         });
@@ -629,10 +630,17 @@ function isShownRatingCard(part: TranscriptPart): part is RatingCardPart {
 function stillAsks(
   part: SessionMessagePart.ToolPart,
   later: readonly TranscriptMessage[],
+  writtenPast: boolean,
 ): boolean {
   switch (part.type) {
     case "tool-choose": {
-      return part.state !== "output-available";
+      // The call ends as the card goes up and the answer is written onto it;
+      // a message the person typed after it closes it unanswered.
+      return (
+        !writtenPast &&
+        (part.state !== "output-available" ||
+          chooseAnswer(part.output) === undefined)
+      );
     }
     case "tool-connect_app": {
       if (part.state !== "output-available") {
@@ -757,11 +765,14 @@ function isRunningRow(row: ActivityRow): boolean {
 }
 
 /**
- * Which rows the Worked row stands for. A turn that finished with words folds
- * everything before them. One a message cut across folds what it has finished,
- * since the agent went on to answer. Anything else stays open: a turn stopped
- * or failed partway is there to read. A task may still be running, and notes
- * and errors are things to read, so none of those is ever folded.
+ * Which rows the Worked row stands for: all of a turn's work or none of it.
+ * It folds only when nothing in it is left to read, so the reply after it is
+ * the whole of what the person needs: the turn finished on its own with
+ * words, no message cut across it, and every row between the first piece of
+ * work and the reply is a finished step, a card already answered, or words
+ * said along the way. A note, an error, a task, a step still running or a
+ * card still waiting keeps the whole turn open. What the agent said before
+ * it did anything answers the message at once, so it stays above the fold.
  */
 function foldedRows(
   rows: readonly TurnRow[],
@@ -769,53 +780,34 @@ function foldedRows(
     cutAcross,
     phase,
   }: { cutAcross: boolean; phase: "done" | "interrupted" | "working" },
-): {
-  ids: ReadonlySet<string>;
-  lineAt: string | undefined;
-  whenDone: boolean;
-} {
-  const none = { ids: new Set<string>(), lineAt: undefined, whenDone: false };
-  const settled = (row: TurnRow) =>
-    (row.kind === "ask" && !row.isOpen) ||
-    row.kind === "text" ||
-    (row.kind === "activity" && !isRunningRow(row));
-  // What the agent said before it did anything answers the message at once, so
-  // it stays above the fold.
-  const firstWork = rows.findIndex(
-    (row) => row.kind === "ask" || row.kind === "activity",
-  );
-  const foldable = (row: TurnRow, index: number) =>
-    settled(row) &&
-    (row.kind !== "text" || (firstWork !== -1 && index > firstWork));
-  const folding = (ids: ReadonlySet<string>, whenDone: boolean) => ({
-    ids,
-    lineAt: (
-      rows.find((row, index) => ids.has(row.id) && index >= firstWork) ??
-      rows.find((row) => ids.has(row.id))
-    )?.id,
-    whenDone,
-  });
-  if (cutAcross) {
-    return folding(new Set(rows.filter(foldable).map((row) => row.id)), false);
-  }
-  if (phase !== "done" || rows.findLast(settled)?.kind !== "text") {
+): { ids: ReadonlySet<string>; lineAt: string | undefined } {
+  const none = { ids: new Set<string>(), lineAt: undefined };
+  const isWork = (row: TurnRow) =>
+    row.kind === "activity" || row.kind === "ask";
+  const firstWork = rows.findIndex(isWork);
+  const lastWork = rows.findLastIndex(isWork);
+  if (
+    cutAcross ||
+    phase !== "done" ||
+    firstWork === -1 ||
+    rows.at(-1)?.kind !== "text"
+  ) {
     return none;
   }
-  // The reply is the words after the last step, however many parts they are.
-  const lastWork = rows.findLastIndex(
-    (row) => row.kind === "activity" || row.kind === "ask",
-  );
-  return lastWork === -1
-    ? none
-    : folding(
-        new Set(
-          rows
-            .slice(0, lastWork + 1)
-            .filter(foldable)
-            .map((row) => row.id),
-        ),
-        true,
-      );
+  const work = rows.slice(firstWork, lastWork + 1);
+  const isSettled = (row: TurnRow) =>
+    row.kind === "text" ||
+    (row.kind === "ask" && !row.isOpen) ||
+    (row.kind === "activity" && !isRunningRow(row));
+  const isWords = (row: TurnRow) => row.kind === "text";
+  if (
+    !rows.slice(0, firstWork).every(isWords) ||
+    !work.every(isSettled) ||
+    !rows.slice(lastWork + 1).every(isWords)
+  ) {
+    return none;
+  }
+  return { ids: new Set(work.map((row) => row.id)), lineAt: work[0]?.id };
 }
 
 function liveOf(

@@ -410,7 +410,7 @@ describe("turnsOf", () => {
     expect(turn && isTurnFolded(turn, Number.MAX_SAFE_INTEGER)).toBe(false);
   });
 
-  it("never folds a task's card, and never folds while it works", () => {
+  it("keeps a turn that started a task open, and never folds while it works", () => {
     const task = StoreId.newSessionId();
     const messages = [
       typed("Do the thing"),
@@ -431,11 +431,7 @@ describe("turnsOf", () => {
       ]),
     ];
     const [done] = turnsOf(messages, { isRunning: false });
-    expect(
-      done?.rows
-        .filter((row) => done.foldedRowIds.has(row.id))
-        .map((row) => row.kind),
-    ).toEqual(["activity"]);
+    expect(done?.foldedRowIds.size).toBe(0);
     const [working] = turnsOf(messages, { isRunning: true });
     expect(working?.foldedRowIds.size).toBe(0);
     expect(working?.phase).toBe("working");
@@ -478,7 +474,7 @@ describe("turnsOf", () => {
     expect(isTurnFolded({ ...turn, summary: "Did it" }, end)).toBe(true);
   });
 
-  it("folds the work a message cut across at once, leaving what still runs", () => {
+  it("never folds a turn a message cut across", () => {
     const [cut] = turnsOf(
       [
         typed("Do the thing"),
@@ -507,13 +503,8 @@ describe("turnsOf", () => {
       throw new Error("Expected the first turn");
     }
     expect(cut.phase).toBe("done");
-    expect(cut.foldsWhenDone).toBe(false);
-    expect(isTurnFolded(cut, 0)).toBe(true);
-    expect(
-      cut.rows
-        .filter((row) => cut.foldedRowIds.has(row.id))
-        .map((row) => row.kind === "activity" && row.title),
-    ).toEqual(["Finished"]);
+    expect(cut.foldedRowIds.size).toBe(0);
+    expect(isTurnFolded(cut, Number.MAX_SAFE_INTEGER)).toBe(false);
   });
 
   it("says a repeated line once", () => {
@@ -730,6 +721,13 @@ describe("the slot", () => {
       "input-available",
     ],
     [
+      "a question up on its card, not answered",
+      "choose",
+      { questions: [] },
+      { asked: true },
+      "output-available",
+    ],
+    [
       "a sign-in nothing has settled",
       "connect_app",
       { apps: ["notion"] },
@@ -737,7 +735,7 @@ describe("the slot", () => {
       "output-available",
     ],
   ] as const)(
-    "keeps %s out of the fold",
+    "keeps the whole turn open for %s",
     (_name, tool, input, output, state) => {
       const [turn] = turnsOf(
         [
@@ -750,11 +748,103 @@ describe("the slot", () => {
         ],
         { isRunning: false },
       );
-      const ask = turn?.rows.find((row) => row.kind === "ask");
-      expect(ask && turn?.foldedRowIds.has(ask.id)).toBe(false);
-      expect(turn?.foldedRowIds.size).toBe(1);
+      expect(turn?.rows.find((row) => row.kind === "ask")).toMatchObject({
+        isOpen: true,
+      });
+      expect(turn?.foldedRowIds.size).toBe(0);
     },
   );
+
+  it.each([
+    ["a task started before any step", "task"],
+    ["a note before any step", "note"],
+  ] as const)("keeps the whole turn open for %s", (_name, first) => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          first === "task"
+            ? call(
+                id,
+                "bash",
+                { command: "task new" },
+                {
+                  exitCode: 0,
+                  handOffs: [
+                    { kind: "created", sessionId: StoreId.newSessionId() },
+                  ],
+                },
+              )
+            : ({
+                data: { answer: "allowed", kind: "app", target: "notion" },
+                metadata: meta(id),
+                type: "data-permissionAnswer",
+              } as SessionMessagePart.Type),
+          call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+          said(id, "Done."),
+        ]),
+      ],
+      { isRunning: false },
+    );
+    expect(turn?.foldedRowIds.size).toBe(0);
+  });
+
+  it("folds a turn whose question the person wrote past without answering", () => {
+    const cache: TurnsCache = new Map();
+    const asked = [
+      typed("Plan the trip"),
+      message("assistant", (id) => [
+        call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+        call(
+          id,
+          "choose",
+          { questions: [] },
+          { asked: true },
+          "output-available",
+        ),
+        said(id, "Two questions for you above."),
+      ]),
+    ];
+    expect(
+      turnsOf(asked, { isRunning: false }, cache)[0]?.foldedRowIds.size,
+    ).toBe(0);
+    expect(
+      turnsOf(
+        [...asked, typed("Actually, never mind")],
+        { isRunning: false },
+        cache,
+      )[0]?.foldedRowIds.size,
+    ).toBe(2);
+  });
+
+  it("keeps a question open through a task's wake until its answer is on the call, then folds the turn", () => {
+    const turn = (output: unknown) =>
+      turnsOf(
+        [
+          typed("Plan the trip"),
+          message("assistant", (id) => [
+            call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+            call(id, "choose", { questions: [] }, output, "output-available"),
+          ]),
+          message("user", (id) => [
+            {
+              data: { events: [] },
+              metadata: meta(id),
+              type: "data-taskEvent",
+            } as SessionMessagePart.Type,
+          ]),
+          message("assistant", (id) => [said(id, "The flights are in.")]),
+        ],
+        { isRunning: false },
+      )[0];
+    expect(turn({ asked: true })?.foldedRowIds.size).toBe(0);
+    expect(
+      turn({
+        answer: { replies: [{ picked: ["Friday"] }] },
+        asked: true,
+      })?.foldedRowIds.size,
+    ).toBe(2);
+  });
 
   it.each([
     ["connecting", ["notion"], [["connected", "notion"]], true],

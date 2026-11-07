@@ -37,7 +37,6 @@ function describeRow(
             folded: turn.rows
               .filter((row) => turn.foldedRowIds.has(row.id))
               .map((row) => `${row.kind} ${row.id}`),
-            foldsWhenDone: turn.foldsWhenDone,
             phase: turn.phase,
             sites: turn.sites,
             summary: turn.summary,

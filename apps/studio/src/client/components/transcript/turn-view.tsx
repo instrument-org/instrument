@@ -363,7 +363,7 @@ function CommandCards({
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */
 function useIsFolded(turn: Turn): boolean {
   const foldsAt =
-    turn.foldsWhenDone && turn.endedAt
+    turn.foldedRowIds.size > 0 && turn.endedAt
       ? turn.endedAt.getTime() + FOLD_WAIT_MS
       : undefined;
   const hasPassed = usePassed(foldsAt);

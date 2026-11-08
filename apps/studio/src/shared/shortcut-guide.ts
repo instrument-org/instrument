@@ -41,6 +41,8 @@ export interface ShortcutGuideEntry {
   group: ShortcutGuideGroup;
   id: string;
   label: string;
+  /** Bound on a Mac and Linux only. */
+  noChordOnWindows?: true;
 }
 
 /**
@@ -88,7 +90,7 @@ const WINDOW_GROUPS: Record<
 
 const WINDOW_CHORDS: Record<
   WindowMenuShortcutId | WindowShortcutId,
-  { accelerator: ShortcutAccelerator; label: string }
+  { accelerator: ShortcutAccelerator; label: string; noChordOnWindows?: true }
 > = { ...WINDOW_SHORTCUTS, ...WINDOW_MENU_SHORTCUTS };
 
 /**
@@ -199,13 +201,16 @@ export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...PASTE_AS_TEXT, group: "Chats", id: "pasteAsText" },
   ...LIST_KEYS,
   ...PICTURE_KEYS,
-  ...Object.entries(WINDOW_CHORDS).map(([id, { accelerator, label }]) => ({
-    accelerator,
-    // `Object.entries` widens the keys to `string`; they are the tables' ids.
-    group: WINDOW_GROUPS[id as WindowMenuShortcutId | WindowShortcutId],
-    id,
-    label,
-  })),
+  ...Object.entries(WINDOW_CHORDS).map(
+    ([id, { accelerator, label, noChordOnWindows }]) => ({
+      accelerator,
+      ...(noChordOnWindows && { noChordOnWindows }),
+      // `Object.entries` widens the keys to `string`; they are the tables' ids.
+      group: WINDOW_GROUPS[id as WindowMenuShortcutId | WindowShortcutId],
+      id,
+      label,
+    }),
+  ),
   ...SHORTCUT_ENTRIES.map(({ descriptor, id }) => ({
     accelerator: descriptor.accelerator,
     group: descriptor.group,

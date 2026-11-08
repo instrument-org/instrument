@@ -73,8 +73,14 @@ function appRows() {
   return {
     about: { role: "about" as const },
     quit: {
-      accelerator: resolveAccelerator(WINDOW_MENU_SHORTCUTS.quit.accelerator, {
-        isMac: IS_MAC,
+      ...(!(
+        process.platform === "win32" &&
+        WINDOW_MENU_SHORTCUTS.quit.noChordOnWindows
+      ) && {
+        accelerator: resolveAccelerator(
+          WINDOW_MENU_SHORTCUTS.quit.accelerator,
+          { isMac: IS_MAC },
+        ),
       }),
       // Electron names it Exit on Windows and Quit on Linux.
       role: "quit" as const,

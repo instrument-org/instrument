@@ -97,7 +97,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Keyboard Shortcuts: ? / ?
 - New Chat: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
-- Quit: ⌘Q / Ctrl+Q
+- Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search or Ask: ⌘L / Ctrl+L
 - Settings…: ⌘, / Ctrl+,
 

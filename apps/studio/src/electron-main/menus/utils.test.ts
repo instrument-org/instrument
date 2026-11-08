@@ -140,7 +140,7 @@ describe("the app menu and the Window menu", () => {
               "---",
               "settings",
               "---",
-              "quit (CmdOrCtrl+Q)",
+              "quit",
               "Show Menu (F10)",
             ],
             "&Help": [

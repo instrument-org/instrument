@@ -109,7 +109,9 @@ function shortcutsSection() {
         accelerator: entry.accelerator,
         os: "windows",
       }).join("+");
-      lines.push(`- ${entry.label}: ${mac} / ${other}`);
+      lines.push(
+        `- ${entry.label}: ${mac} / ${other}${entry.noChordOnWindows ? " (not on Windows)" : ""}`,
+      );
     }
     lines.push("");
   }

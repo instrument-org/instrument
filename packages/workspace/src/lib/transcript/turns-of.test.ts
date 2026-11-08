@@ -456,6 +456,28 @@ describe("turnsOf", () => {
     expect(card({ outcome: "dismissed" })?.ratingCard).toBeUndefined();
   });
 
+  it("keeps a branch's note on its last copied turn, out of the rows", () => {
+    const data = {
+      chat: "2026-11-08-pricing-7k3q",
+      records: "/records",
+      title: "Pricing",
+      work: "/work",
+    };
+    const turns = turnsOf(
+      [
+        typed("Compare the prices"),
+        message("assistant", (id) => [said(id, "Done.")]),
+        message("user", (id) => [
+          { data, metadata: meta(id), type: "data-branchedFrom" },
+        ]),
+      ],
+      { isRunning: false },
+    );
+    expect(turns).toHaveLength(1);
+    expect(turns[0]?.branchedFrom?.data).toEqual(data);
+    expect(turns[0]?.rows.map((row) => row.kind)).toEqual(["text"]);
+  });
+
   it("waits for the summary or the wait, whichever comes first", () => {
     const messages = [
       typed("Do the thing"),

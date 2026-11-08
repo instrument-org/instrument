@@ -36,6 +36,13 @@ export const DATA_PART_SAMPLES = {
     ended: [],
     running: [{ command: "pnpm build", id: "bg_1", runningForMs: 1000 }],
   },
+  branchedFrom: {
+    chat: "2026-11-08-help-desk-pricing-7k3q",
+    folder: "/work/Chats/Help desk pricing",
+    records: "/work/.instrument/chats/2026-11-08-help-desk-pricing-7k3q",
+    title: "Help desk pricing",
+    work: "/home/.instrument/work/Instrument/2026-11-08-help-desk-pricing-7k3q",
+  },
   browserStatus: {
     status: "tabs",
     tabs: [{ id: "t1", openedBy: "task", url: "https://example.com" }],

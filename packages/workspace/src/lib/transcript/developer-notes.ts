@@ -113,6 +113,7 @@ const MARK_OF_PART: Record<
   "data-asks": "files",
   "data-attachments": "files",
   "data-backgroundProcesses": "command",
+  "data-branchedFrom": "chats",
   "data-browserStatus": "tabs",
   "data-chatContext": "chats",
   "data-contextRollover": "cut",
@@ -270,6 +271,9 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
           [...part.data.added, ...part.data.removed].map((one) => one.path),
         ),
       );
+    }
+    case "data-branchedFrom": {
+      return named("Branched from", part.data.title);
     }
     case "data-fromChat": {
       return named("From the chat", part.data.text);

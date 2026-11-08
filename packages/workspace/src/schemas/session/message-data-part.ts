@@ -22,6 +22,7 @@ export namespace SessionMessageDataPart {
     "questionAnswer",
     "attachments",
     "backgroundProcesses",
+    "branchedFrom",
     "browserStatus",
     "contextRollover",
     "dateChange",
@@ -88,6 +89,7 @@ export namespace SessionMessageDataPart {
     asks: "event",
     attachments: "event",
     backgroundProcesses: "diff",
+    branchedFrom: "event",
     browserStatus: "state",
     chatContext: "unwritten",
     contextRollover: "event",
@@ -750,6 +752,29 @@ export namespace SessionMessageDataPart {
   });
 
   export type FromChatDataPart = z.output<typeof FromChatDataPartSchema>;
+
+  /**
+   * The chat a branch was copied from, and where that chat's things are:
+   * written as the branch's last message, a user message with no text, so
+   * the agent reads it as a note rather than something to answer, and the
+   * transcript draws it as one quiet line after the copied conversation.
+   * `folder` and `records` are kept by their place in the workspace like
+   * any path the app writes (`part-paths.ts`); `work` is this computer's,
+   * which is where that chat's work folder is.
+   */
+  export const BranchedFromDataPartSchema = z.object({
+    /** The chat's id, which the line links to. */
+    chat: z.string().min(1),
+    /** Its own folder under `Chats/`, when the person opens it. */
+    folder: z.string().optional(),
+    records: z.string().min(1),
+    title: z.string(),
+    work: z.string().min(1),
+  });
+
+  export type BranchedFromDataPart = z.output<
+    typeof BranchedFromDataPartSchema
+  >;
 
   /**
    * Where each app on a sign-in card the agent put up stands, as the card
@@ -1449,6 +1474,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.questionAnswer]: QuestionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
+    [NameSchema.enum.branchedFrom]: BranchedFromDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.project]: ProjectDataPartSchema,

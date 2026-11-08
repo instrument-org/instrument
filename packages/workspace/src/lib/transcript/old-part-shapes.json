@@ -204,6 +204,18 @@
   },
   {
     "data": {
+      "chat": "2026-11-08-help-desk-pricing-7k3q",
+      "folder": "workspace:/Chats/Help desk pricing",
+      "records": "workspace:/.instrument/chats/2026-11-08-help-desk-pricing-7k3q",
+      "title": "Help desk pricing",
+      "work": "/Users/mac-user/.instrument/work/Instrument/2026-11-08-help-desk-pricing-7k3q"
+    },
+    "note": "as written on 2026-11-08",
+    "reads": "data-branchedFrom",
+    "type": "data-branchedFrom"
+  },
+  {
+    "data": {
       "text": "Words from a sample."
     },
     "note": "as written on 2026-11-06",

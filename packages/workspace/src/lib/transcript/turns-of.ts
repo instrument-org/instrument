@@ -83,6 +83,11 @@ type RatingCardPart = Extract<
   { type: "data-ratingCard" }
 >;
 
+type BranchedFromPart = Extract<
+  SessionMessagePart.DataPart,
+  { type: "data-branchedFrom" }
+>;
+
 /**
  * What the working line says of a turn in flight. `thought` is the thought
  * nothing has followed yet, which the line opens onto, since no row draws one.
@@ -101,6 +106,8 @@ export type TurnLive =
 export interface Turn {
   /** The apps its work reached. */
   apps: string[];
+  /** On a branch's last copied turn, the chat it was copied from, drawn after the turn and its footer. */
+  branchedFrom?: BranchedFromPart;
   /** When it stopped working and writing; absent while it works. */
   endedAt?: Date;
   /** The rows the Worked row stands for. Empty when the turn does not fold. */
@@ -358,8 +365,14 @@ function buildTurn(
   const ratingCard = body
     .flatMap((message) => message.parts)
     .find(isShownRatingCard);
+  const branchedFrom = body
+    .flatMap((message) => message.parts)
+    .find(
+      (part): part is BranchedFromPart => part.type === "data-branchedFrom",
+    );
   return {
     apps: unique(activities.flatMap((row) => row.apps)),
+    ...(branchedFrom && { branchedFrom }),
     ...(endedAt && { endedAt }),
     foldedRowIds: folded.ids,
     ...(folded.lineAt !== undefined && { foldLineAt: folded.lineAt }),
@@ -690,6 +703,8 @@ function drawsNote(part: SessionMessagePart.DataPart): boolean {
   }
   switch (part.type) {
     case "data-appEvent":
+    // Drawn after the turn's footer.
+    case "data-branchedFrom":
     // Drawn with the message it came on, or by the line above it.
     case "data-fromChat":
     case "data-modelChange": {

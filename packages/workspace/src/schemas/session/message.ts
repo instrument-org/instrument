@@ -28,6 +28,7 @@ import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { environmentChangeModelNote } from "../../lib/environment-model-text";
+import { branchedFromModelNote } from "../../lib/branched-from-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -738,6 +739,9 @@ const USER_TURN_NOTES = [
   noted("memory", ({ data }) => memoryModelNote(data)),
   noted("setupNews", ({ data }) => setupNewsModelNote(data)),
   noted("modelChange", ({ data }) => modelChangeModelNote(data)),
+  noted("branchedFrom", ({ data }, { shellPath }) =>
+    branchedFromModelNote(data, shellPath),
+  ),
 ];
 
 /**

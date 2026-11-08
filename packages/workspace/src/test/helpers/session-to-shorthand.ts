@@ -176,6 +176,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(", ");
       return `<data-fileChanges>${files}</data-fileChanges>`;
     }
+    case "data-branchedFrom": {
+      return `<data-branchedFrom chat="${part.data.chat}">${part.data.title}</data-branchedFrom>`;
+    }
     case "data-fromChat": {
       return `<data-fromChat kind="${part.data.kind}">${part.data.text}</data-fromChat>`;
     }

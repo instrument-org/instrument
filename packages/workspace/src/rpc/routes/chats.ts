@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { ChatWrites } from "../../lib/chat-writes";
 import { isWorking, latestStep } from "../../lib/chat/activity";
+import { branchChat } from "../../lib/chat/branch-chat";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
@@ -310,6 +311,21 @@ const ensureChatRoute = base
   }));
 
 /**
+ * A new chat with a chat's conversation up to one of its replies, `upTo`
+ * being that reply's last message: see `branchChat`.
+ */
+const branchChatRoute = base
+  .input(z.object({ id: ChatIdSchema, upTo: StoreId.MessageSchema }))
+  .output(z.object({ id: ChatIdSchema }))
+  .handler(async ({ errors, input }) => {
+    const chatId = resolveChat(input.id);
+    if (!chatId) {
+      throw errors.NOT_FOUND({ message: `${input.id} is not a chat` });
+    }
+    return { id: await branchChat({ chatId, upTo: input.upTo }) };
+  });
+
+/**
  * A chat's session, which its transcript is read and its messages are sent
  * through, or none for an id that is no chat's.
  */
@@ -573,6 +589,7 @@ export const chats = {
   settleFeedbackOffer: settleFeedbackOfferRoute,
   settleRatingCard: settleRatingCardRoute,
   archive: archiveChatRoute,
+  branch: branchChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
   live: {

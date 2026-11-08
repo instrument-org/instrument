@@ -40,6 +40,7 @@ interface HistoryOptions {
 const CONVERSATION_PARTS = new Set<string>([
   "data-asks",
   "data-attachments",
+  "data-branchedFrom",
   "data-fileChanges",
   "data-folderChanges",
   "data-fromChat",

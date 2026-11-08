@@ -29,6 +29,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // status out of tool results. The header pill is the live surface; this is
   // context for the model, and a debug peek for us.
   "data-backgroundProcesses": "dev",
+  // The line after a branch's copied conversation naming the chat it came
+  // from; the folders it names are for the agent.
+  "data-branchedFrom": "always",
   "data-browserStatus": "dev",
   // Developer-mode only, deliberately. What happens here is a rollover, not a
   // compaction: assembly stops sending the model's own earlier turns and

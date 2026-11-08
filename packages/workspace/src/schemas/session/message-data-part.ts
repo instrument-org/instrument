@@ -1367,6 +1367,8 @@ export namespace SessionMessageDataPart {
         emoji: z.string().optional(),
         /** The paths of the project's folders in the chat. */
         folders: z.array(z.string()).optional(),
+        /** The project's id, which a rename of its folder keeps; absent on a part stored before it was recorded. */
+        id: z.string().optional(),
         /** The project's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),
         name: z.string(),

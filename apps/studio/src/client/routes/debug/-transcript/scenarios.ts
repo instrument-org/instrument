@@ -167,6 +167,21 @@ const memoryNote = (count: number): DataPart => ({
   },
   type: "data-memory",
 });
+const projectNote = (instructions?: string): DataPart => ({
+  data: {
+    project: {
+      emoji: "🎮",
+      id: "gaming",
+      ...(instructions && { instructions }),
+      name: "Gaming",
+    },
+  },
+  type: "data-project",
+});
+const workspaceNote = (instructions: string): DataPart => ({
+  data: { file: "AGENTS.md", instructions },
+  type: "data-workspaceInstructions",
+});
 const dateNote: DataPart = {
   data: { date: "2026-11-06" },
   type: "data-dateChange",
@@ -419,6 +434,28 @@ export const scenarios: DebugScenario[] = [
       }),
       prose("Freshdesk is still cheapest, and I updated the comparison."),
       notes({ data: {}, type: "data-ratingCard" }),
+    ],
+  },
+  {
+    id: "instructions-changes",
+    name: "Instructions changed between messages",
+    script: [
+      user("hi", projectNote(), workspaceNote("Answer briefly.")),
+      prose("Hey."),
+      stop(),
+      user(
+        "What can you help me with?",
+        projectNote("I play WoW and soon GTA VI."),
+        workspaceNote("Answer briefly, in plain words."),
+      ),
+      prose("Raids, builds and GTA VI news, to start."),
+      stop(),
+      user("Move this somewhere else.", {
+        data: { project: { emoji: "💼", id: "work", name: "Work" } },
+        type: "data-project",
+      }),
+      prose("Done."),
+      stop(),
     ],
   },
   {

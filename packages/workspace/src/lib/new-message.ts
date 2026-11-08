@@ -413,6 +413,7 @@ async function createProjectPart({
             ...(filed.about ? { about: filed.about } : {}),
             ...(filed.emoji ? { emoji: filed.emoji } : {}),
             ...(folders.length > 0 ? { folders } : {}),
+            id: filed.id,
             ...(filed.instructions ? { instructions: filed.instructions } : {}),
             name: filed.name,
           }

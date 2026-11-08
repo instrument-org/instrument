@@ -1,4 +1,5 @@
 import { type ChatSeparator } from "@/client/lib/chat-separators";
+import { type InstructionsChange } from "@/client/lib/instructions-changes";
 import { workedLine } from "@/client/lib/worked-line";
 import {
   type ChatId,
@@ -21,6 +22,7 @@ import { AssistantMessagesFooter } from "../assistant-messages-footer";
 import { SentFileChips } from "../sent-file-chips";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
+import { InstructionsChangesNote } from "../instructions-changes-note";
 import { WorkingMark } from "../icons/working-mark";
 import { MessageError } from "../message-error";
 import { RatingCard } from "../message-part/rating-card";
@@ -86,6 +88,7 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
  */
 export const TurnView = memo(function TurnView({
   chatId,
+  changes,
   hasCard,
   isLast,
   separator,
@@ -94,6 +97,8 @@ export const TurnView = memo(function TurnView({
   waitsForStep,
 }: {
   chatId: ChatId;
+  /** What its message brought to the agent's project and workspace instructions. */
+  changes: readonly InstructionsChange[] | undefined;
   /** Its card is the one up in the transcript (`slotTurnOf`). */
   hasCard: boolean;
   isLast: boolean;
@@ -114,6 +119,7 @@ export const TurnView = memo(function TurnView({
         >
           {separator && <ChatSeparatorRow separator={separator} />}
           <OpenerView chatId={chatId} opener={turn.opener} />
+          {changes && <InstructionsChangesNote changes={changes} />}
         </MessageScrollerItem>
       )}
       <MessageScrollerItem

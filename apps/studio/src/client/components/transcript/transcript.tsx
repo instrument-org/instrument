@@ -1,4 +1,5 @@
 import { chatSeparators } from "@/client/lib/chat-separators";
+import { instructionsChanges } from "@/client/lib/instructions-changes";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type ChatId,
@@ -81,6 +82,7 @@ export function Transcript({
   const [cache] = useState<TurnsCache>(() => new Map());
   const turns = turnsOf(messages, { isRunning, sessionId }, cache);
   const separators = useMemo(() => chatSeparators(messages), [messages]);
+  const changes = useMemo(() => instructionsChanges(messages), [messages]);
   const actions = useStableActions({
     isRunning,
     onBranch,
@@ -97,6 +99,7 @@ export function Transcript({
   const drawTurn = (turn: Turn) => (
     <TurnView
       chatId={chatId}
+      changes={turn.opener && changes.get(turn.opener.message.id)}
       hasCard={turn.id === cardTurn}
       isLast={turn === last}
       key={turn.id}

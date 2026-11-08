@@ -214,6 +214,7 @@ export function WebStart({
             title="Recent pages"
           >
             <VisitedPageRows
+              hasHost
               isCompact
               onOpen={onOpenPage}
               visits={recent.map((page) => ({ page }))}

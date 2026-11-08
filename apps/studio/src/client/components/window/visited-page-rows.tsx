@@ -16,12 +16,15 @@ import { PageTooltip } from "./page-tooltip";
  * window does, and the menu takes a page off the list.
  */
 export function VisitedPageRows({
+  hasHost = false,
   isCompact = false,
   onOpen,
   visits,
 }: {
+  /** Whether a compact entry names its page's site, for a list of many sites. */
+  hasHost?: boolean;
   /**
-   * As a grid of entries showing the title, hostname, and relative visit time.
+   * As a grid of entries showing the title and relative visit time.
    * The whole title and address are available on hover.
    */
   isCompact?: boolean;
@@ -64,11 +67,17 @@ export function VisitedPageRows({
                       {page.title || shownAddress(page.url)}
                     </span>
                     <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className="truncate">
-                        {URL.parse(page.url)?.hostname.replace(/^www\./, "") ||
-                          page.url}
-                      </span>
-                      <span aria-hidden>·</span>
+                      {hasHost && (
+                        <>
+                          <span className="truncate">
+                            {URL.parse(page.url)?.hostname.replace(
+                              /^www\./,
+                              "",
+                            ) || page.url}
+                          </span>
+                          <span aria-hidden>·</span>
+                        </>
+                      )}
                       <RelativeTime
                         className="shrink-0"
                         date={new Date(page.at)}

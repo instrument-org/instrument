@@ -30,7 +30,7 @@ describe("InstructionsChangesNote", () => {
     );
     queryClient.setQueryData(
       rpcClient.workspace.projects.list.queryOptions().queryKey,
-      [{ ...gaming, created: "2026-11-01" }],
+      [{ ...gaming, created: new Date("2026-11-01") }],
     );
     await expect
       .element(page.getByRole("button", { name: /Gaming/ }))

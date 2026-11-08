@@ -1,5 +1,8 @@
 import { BROWSER_HREF, type WindowTab } from "@/client/atoms/window";
-import { setTabRouter } from "@/client/lib/tab-router-registry";
+import {
+  pruneTabRouters,
+  setTabRouter,
+} from "@/client/lib/tab-router-registry";
 import { TabIdSchema } from "@/shared/tabs";
 import { draftFileOf, draftOf } from "@/electron-main/drafts/draft-record";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -13,6 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { pageHrefOf, siteGroupOf } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { forgetTakenTab, putBackTakenTab } from "./take-tab";
 
 import { bandTabLines, draftContextItems } from "./context-items";
 import { contextFollowingBand, openInBand, targetsOf } from "./draft-band";
@@ -171,10 +175,22 @@ describe("taking the page chip", () => {
   function take(allTabs: WindowTab[]) {
     const moveToGroup = vi.fn();
     const openBehind = vi.fn(() => StoreId.newTabId());
-    const replace = vi.fn();
+    // The Browser tab's history: where it is, and who hears it move.
+    const history = {
+      listeners: new Set<() => void>(),
+      location: { href: pageHrefOf(site) },
+      replace: vi.fn((href: string) => {
+        history.location = { href };
+      }),
+      subscribe: (listener: () => void) => {
+        history.listeners.add(listener);
+        return () => history.listeners.delete(listener);
+      },
+    };
+    const replace = history.replace;
     // Only the history of the Browser tab's router is read here.
     setTabRouter(browserTab, {
-      history: { replace },
+      history,
     } as unknown as Parameters<typeof setTabRouter>[1]);
     // The page chip as the offer makes it; `targetsOf` reads only its tab.
     const [target] = targetsOf({
@@ -195,7 +211,14 @@ describe("taking the page chip", () => {
           },
         })
       : undefined;
-    return { id, moveToGroup, openBehind, replace };
+    /** The person takes their Browser tab somewhere else. */
+    const browse = (href: string) => {
+      history.location = { href };
+      for (const listener of history.listeners) {
+        listener();
+      }
+    };
+    return { browse, id, moveToGroup, openBehind, replace };
   }
 
   it("moves the person's own tab into the draft, page and all, and puts their Browser back at its start", () => {
@@ -215,5 +238,48 @@ describe("taking the page chip", () => {
       "https://shop.example/checkout",
       GROUP,
     );
+  });
+
+  it("puts the tab back in its Browser tab when the chip comes out while that tab is still at its start", () => {
+    const { id, moveToGroup, replace } = take([theirs]);
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(true);
+    expect(moveToGroup).toHaveBeenLastCalledWith(theirs.id, site);
+    expect(replace).toHaveBeenLastCalledWith(pageHrefOf(site));
+    // Once.
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+  });
+
+  it("leaves the tab to close once its Browser tab has shown anything else", () => {
+    const { browse, id, moveToGroup } = take([theirs]);
+    browse("/browser/site/other");
+    browse(BROWSER_HREF);
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+    expect(moveToGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the tab to close once its Browser tab is gone", () => {
+    const { id, moveToGroup } = take([theirs]);
+    pruneTabRouters(new Set());
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+  });
+
+  it("forgets where the tab came from once it goes on to a chat", () => {
+    const { id, moveToGroup } = take([theirs]);
+    forgetTakenTab(id ?? "");
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
   });
 });

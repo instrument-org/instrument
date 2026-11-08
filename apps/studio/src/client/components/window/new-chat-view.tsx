@@ -49,6 +49,7 @@ import { ProjectSlot } from "./compose-window";
 import { useWindow } from "./context";
 import { ContextChips } from "./context-chip";
 import { appTabsAtom } from "./app-tabs";
+import { putBackTakenTab } from "./take-tab";
 import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { isHomeTab } from "./tab-model";
@@ -455,7 +456,12 @@ function useNewChatChips(
   const { items, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
     band,
-    closeTab: windowTabs.close,
+    // A tab of the person's own goes back where it came from, if it still can.
+    closeTab: (id) => {
+      if (!putBackTakenTab({ tabId: id, windowTabs })) {
+        windowTabs.close(id);
+      }
+    },
     draft: draft ?? NO_DRAFT,
     finderOf: (id) => surfaces[id]?.finder ?? null,
     inView: undefined,

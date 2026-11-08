@@ -51,6 +51,7 @@ import {
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion } from "./context-chip";
 import { appTabsAtom } from "./app-tabs";
+import { putBackTakenTab } from "./take-tab";
 import { type BandTarget, openInBand, targetsOf } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { GroupItem } from "./group-item";
@@ -335,7 +336,10 @@ export function ComposeWindow({
     if (id === up?.id) {
       setWellOpen(false);
     }
-    windowTabs.close(id);
+    // A tab of the person's own goes back where it came from, if it still can.
+    if (!putBackTakenTab({ tabId: id, windowTabs })) {
+      windowTabs.close(id);
+    }
   };
   /** A chip pressed: its tab comes up in the well, or the well closes when it already shows it. */
   const showTab = (id: string) => {

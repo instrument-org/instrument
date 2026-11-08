@@ -41,6 +41,7 @@ import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
 import { type useWindowTabs } from "./window-tabs";
+import { forgetTakenTab, putBackTakenTab } from "./take-tab";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const CHAT_ARRIVAL_MS = ms("3 seconds");
@@ -243,6 +244,13 @@ export function useDrafts({
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
     const removed = removeDraft(id);
+    // A tab of the person's own goes back where it came from, if it still
+    // can; the rest go with the draft.
+    for (const tab of windowTabs.allTabs) {
+      if (tab.group === draftGroupOf(id)) {
+        putBackTakenTab({ tabId: tab.id, windowTabs });
+      }
+    }
     windowTabs.dropGroup(draftGroupOf(id));
     return removed;
   };
@@ -467,6 +475,10 @@ export function useDrafts({
   const handOverTabs = (id: string, chatId: ChatId) => {
     const group = draftGroupOf(id);
     const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+    // Its tabs are the chat's now, and none goes back to a Browser.
+    for (const tab of own) {
+      forgetTakenTab(tab.id);
+    }
     const homes = own.filter((tab) => isHomeTab(tab));
     for (const home of homes) {
       windowTabs.close(home.id);

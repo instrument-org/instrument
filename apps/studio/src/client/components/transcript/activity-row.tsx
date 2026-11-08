@@ -333,5 +333,18 @@ export function StepDetail({
       />
     );
   }
-  return <ToolCallBody chatId={chatId} onRetry={onRetry} part={part} />;
+  const counts = countsText({ counts: step.facts?.counts ?? [] });
+  const apps = [...new Set((step.facts?.apps ?? []).map((call) => call.app))];
+  return (
+    <>
+      <ToolCallBody chatId={chatId} onRetry={onRetry} part={part} />
+      {/* What the call did in the apps it reached, as its row counts it. */}
+      {counts && (
+        <p className="mt-1.5 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+          <Badges apps={apps} sites={[]} />
+          <span className="text-foreground/70">{counts}</span>
+        </p>
+      )}
+    </>
+  );
 }

@@ -34,6 +34,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Whether ChatGPT citation markers have become common enough to strip](chatgpt-citation-marker-rate.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24
 - [Why Claude account sessions cold-start, counted over real use](claude-account-cold-starts.md): open · Check after: 2026-11-07, after a week of chats on a Claude account · Last checked: 2026-10-24 (no Claude account turns on the primary Mac since the lo...
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-11, after a week on a beta with the cause capture · Last checked: never
+- [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the log volume warnings · Last checked: never
 - [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-11-14, after a week on the first beta that carries the attribution fix below · Last checked: 2026-10-24
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24

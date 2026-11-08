@@ -7,7 +7,11 @@ vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   workspaceBrowserDir: () => "/unused",
 }));
 
-import { createHistoryStore, rewriteRecentFiles } from "./history-store";
+import {
+  createHistoryStore,
+  rewriteRecentFiles,
+  touchesPage,
+} from "./history-store";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -249,6 +253,92 @@ describe("opened files", () => {
     history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
     history.clear();
     expect(history.openedFiles(10)).toHaveLength(1);
+  });
+});
+
+describe("what a write tells live readers", () => {
+  it("names the pages it touched, says files apart, and says nothing for a write that changed nothing", () => {
+    const history = store();
+    const told: unknown[] = [];
+    history.changes.subscribe("pages", (change) => {
+      told.push(change);
+    });
+    history.changes.subscribe("files", () => {
+      told.push("files");
+    });
+    const first = history.addVisit({
+      actor: "agent",
+      at: 1,
+      transition: "link",
+      url: "https://a.test/",
+    });
+    const second = history.addVisit({
+      actor: "user",
+      at: 2,
+      transition: "link",
+      url: "https://b.test/",
+    });
+    history.setTitle([first, second], "Same");
+    history.setTitle([first, second], "Same");
+    history.hideVisit(second, "redirect");
+    history.setFavicon("https://a.test/", "data:,");
+    history.setFetchedTitle("https://c.test/", "C", 3);
+    history.remove("https://b.test/");
+    history.addFileOpen({ at: 4, path: "/a/doc.txt", via: "tab" });
+    history.moveFiles("/a", "/b");
+    history.clear();
+    expect(told).toMatchInlineSnapshot(`
+      [
+        {
+          "urls": [
+            "https://a.test/",
+          ],
+        },
+        {
+          "urls": [
+            "https://b.test/",
+          ],
+        },
+        {
+          "urls": [
+            "https://a.test/",
+            "https://b.test/",
+          ],
+        },
+        {
+          "urls": [
+            "https://b.test/",
+          ],
+        },
+        {
+          "urls": [
+            "https://a.test/",
+          ],
+        },
+        {
+          "urls": [
+            "https://c.test/",
+          ],
+        },
+        {
+          "urls": [
+            "https://b.test/",
+          ],
+        },
+        "files",
+        "files",
+        {},
+      ]
+    `);
+  });
+
+  it.each([
+    [{ urls: ["https://a.test/page"] }, "https://a.test/page/", true],
+    [{ urls: ["https://a.test/page/"] }, "https://a.test/page", true],
+    [{ urls: ["https://a.test/other"] }, "https://a.test/page", false],
+    [{}, "https://a.test/page", true],
+  ])("takes %o as touching %s: %s", (change, url, touches) => {
+    expect(touchesPage(change, url)).toBe(touches);
   });
 });
 

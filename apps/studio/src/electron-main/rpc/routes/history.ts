@@ -2,8 +2,9 @@ import { noteTyped } from "@/electron-main/browser-view/history-intents";
 import {
   getHistoryStore,
   recordFileOpen,
+  touchesPage,
 } from "@/electron-main/browser-view/history-store";
-import { distinct, liveRead } from "@instrument-org/workspace/electron";
+import { distinct, liveRead, where } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -46,6 +47,11 @@ const PageSchema = z.object({
 /** Enough pages for the lists drawn from history to filter down to what they show. */
 const LIMIT_MAX = 500;
 
+/** How many to answer: as many as the caller shows, or enough to filter down from. */
+const LimitSchema = z.object({
+  limit: z.number().int().positive().max(LIMIT_MAX).default(LIMIT_MAX),
+});
+
 /**
  * Tells history the person is opening a page by its address, typed in the
  * address field or picked from a bookmark, which a guest's events cannot
@@ -85,14 +91,16 @@ const OpenedFileSchema = z.object({
 const live = {
   /** The files the person opened, most recently opened first. */
   files: base
-    .input(z.object({ limit: z.number().max(LIMIT_MAX).default(LIMIT_MAX) }))
+    .input(LimitSchema)
     .output(eventIterator(z.array(OpenedFileSchema)))
     .handler(async function* ({ input, signal }) {
       const store = getHistoryStore();
-      yield* liveRead({
-        changes: [store.changes.subscribe("changed", { signal })],
-        read: () => store.openedFiles(input.limit),
-      });
+      yield* distinct(
+        liveRead({
+          changes: [store.changes.subscribe("files", { signal })],
+          read: () => store.openedFiles(input.limit),
+        }),
+      );
     }),
   /**
    * The pages the address field completes to: Chromium's significant ones,
@@ -100,13 +108,17 @@ const live = {
    * days. Newest first.
    */
   completions: base
+    .input(LimitSchema)
     .output(eventIterator(z.array(PageSchema)))
-    .handler(async function* ({ signal }) {
+    .handler(async function* ({ input, signal }) {
       const store = getHistoryStore();
-      yield* liveRead({
-        changes: [store.changes.subscribe("changed", { signal })],
-        read: () => store.significant(LIMIT_MAX, Date.now()),
-      });
+      // An agent's visit is a change that no completion shows.
+      yield* distinct(
+        liveRead({
+          changes: [store.changes.subscribe("pages", { signal })],
+          read: () => store.significant(input.limit, Date.now()),
+        }),
+      );
     }),
   /**
    * The title a page set when last opened in the app's browser, for a link
@@ -117,23 +129,32 @@ const live = {
     .output(eventIterator(z.string().nullable()))
     .handler(async function* ({ input, signal }) {
       const store = getHistoryStore();
-      // Every visit anywhere is a change; only one to this title is news.
+      // Read again only for a write to this page; a visit to it can still
+      // leave its title as it was.
       yield* distinct(
         liveRead({
-          changes: [store.changes.subscribe("changed", { signal })],
+          changes: [
+            where(store.changes.subscribe("pages", { signal }), (change) =>
+              touchesPage(change, input.url),
+            ),
+          ],
           read: () => store.titleOf(input.url) ?? null,
         }),
       );
     }),
   /** The person's visible pages, newest first. */
   recent: base
+    .input(LimitSchema)
     .output(eventIterator(z.array(PageSchema)))
-    .handler(async function* ({ signal }) {
+    .handler(async function* ({ input, signal }) {
       const store = getHistoryStore();
-      yield* liveRead({
-        changes: [store.changes.subscribe("changed", { signal })],
-        read: () => store.recent(LIMIT_MAX),
-      });
+      // An agent's visit is a change that no recent page shows.
+      yield* distinct(
+        liveRead({
+          changes: [store.changes.subscribe("pages", { signal })],
+          read: () => store.recent(input.limit),
+        }),
+      );
     }),
 };
 

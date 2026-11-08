@@ -52,6 +52,7 @@ export function Transcript({
   isLoadingOlder = false,
   isRunning,
   messages,
+  onBranch,
   onContinue,
   onLoadOlder,
   onModelChange,
@@ -68,6 +69,8 @@ export function Transcript({
   /** The session is at work on its last turn, or about to be. */
   isRunning: boolean;
   messages: readonly TranscriptMessage[];
+  /** Starts a new chat up to a reply; given only for a chat's own conversation. */
+  onBranch?: (upTo: StoreId.Message) => Promise<void>;
   onContinue?: () => void;
   onLoadOlder?: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
@@ -80,6 +83,7 @@ export function Transcript({
   const separators = useMemo(() => chatSeparators(messages), [messages]);
   const actions = useStableActions({
     isRunning,
+    onBranch,
     onModelChange,
     onRetry,
     onRunAgain,
@@ -231,7 +235,9 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
   useLayoutEffect(() => {
     latest.current = actions;
   });
-  const [handlers] = useState(() => ({
+  const [{ onBranch, ...handlers }] = useState(() => ({
+    onBranch: (upTo: StoreId.Message) =>
+      latest.current.onBranch?.(upTo) ?? Promise.resolve(),
     onModelChange: (modelURI: AIGatewayModelURI.Type) => {
       latest.current.onModelChange?.(modelURI);
     },
@@ -242,11 +248,14 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
       latest.current.onRunAgain?.(options);
     },
   }));
+  // Whether the transcript offers Branch at all, which a task's never does.
+  const canBranch = actions.onBranch !== undefined;
   return useMemo(
     () => ({
       ...handlers,
       isRunning: actions.isRunning,
+      ...(canBranch && { onBranch }),
     }),
-    [actions.isRunning, handlers],
+    [actions.isRunning, canBranch, handlers, onBranch],
   );
 }

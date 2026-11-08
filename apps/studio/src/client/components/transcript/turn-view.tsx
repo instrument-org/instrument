@@ -37,6 +37,7 @@ import {
   useCardOpens,
 } from "./card-motion";
 import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
+import { BranchedFromLine } from "./branched-from-line";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
 import { SlotCardView } from "./slot-card";
@@ -199,6 +200,9 @@ function TurnBody({
   const isFolded = useIsFolded(turn);
   const [isOpened, setIsOpened] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
+  const { onBranch } = use(TranscriptActionsContext);
+  // A branch carries the conversation through the reply's last message.
+  const branchesAt = turn.inherited ? undefined : turn.replies.at(-1)?.id;
   const card = isFolded || !hasCard ? undefined : slotOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
   const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
@@ -278,9 +282,17 @@ function TurnBody({
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
-        <AssistantMessagesFooter messages={turn.replies} />
+        <AssistantMessagesFooter
+          messages={turn.replies}
+          onBranch={
+            onBranch && branchesAt !== undefined
+              ? () => onBranch(branchesAt)
+              : undefined
+          }
+        />
       )}
       {turn.ratingCard && <RatingCard chatId={chatId} part={turn.ratingCard} />}
+      {turn.branchedFrom && <BranchedFromLine part={turn.branchedFrom} />}
     </>
   );
 }

@@ -11,14 +11,19 @@ export interface TaskCardFacts {
   /** The line it finished on. */
   ended?: string;
   failed: boolean;
-  /** It stopped on something the person has to answer, which its line names. */
-  waiting?: boolean;
+  /**
+   * The chat has no such task: a branch's copy of a card whose task stayed
+   * with the chat it came from. Its card is finished and opens nothing.
+   */
+  gone?: boolean;
   /** How long it took, once it has finished. */
   ranMs?: number;
   /** What it is doing now. */
   step?: string;
   stoppable: boolean;
   title: string;
+  /** It stopped on something the person has to answer, which its line names. */
+  waiting?: boolean;
   working: boolean;
 }
 

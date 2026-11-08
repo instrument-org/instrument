@@ -74,6 +74,7 @@ export function TaskCardRow({
       >
         <button
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none"
+          disabled={facts?.gone}
           onClick={() => {
             surface?.onOpenTask(sessionId);
           }}

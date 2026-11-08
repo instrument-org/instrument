@@ -35,7 +35,7 @@ import {
 } from "react";
 
 import { PageFavicon } from "../favicon";
-import { useChatTasks, useChildTask } from "../window/child-tasks-query";
+import { useChatTasks } from "../window/child-tasks-query";
 import { WindowContext } from "../window/context";
 import { taskHref } from "../window/tab-location";
 import { thumbnailKey } from "../window/use-page-thumbnail-housekeeping";
@@ -98,7 +98,17 @@ function useCommands() {
 }
 
 function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
-  const task = useChildTask(useLiveChat(), id);
+  const tasks = useChatTasks(useLiveChat());
+  const task = tasks.data?.find((each) => each.id === id);
+  if (tasks.data && !task) {
+    return {
+      failed: false,
+      gone: true,
+      stoppable: false,
+      title: "Task",
+      working: false,
+    };
+  }
   return (
     task && {
       ...(task.status && {

@@ -10,6 +10,7 @@ import { formatDuration } from "../lib/format-time";
 import { modelsAnswering } from "../lib/models-answered";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "../lib/styles";
 import { cn } from "../lib/utils";
+import { BranchFromReply } from "./branch-from-reply";
 import { CopyButton } from "./copy-button";
 import { Favicon } from "./favicon";
 import { ModelUsageChip, TooltipRow } from "./model-usage-chip";
@@ -45,12 +46,15 @@ interface AssistantMessagesFooterProps {
   messages: readonly (SessionMessage.Assistant & {
     parts: readonly (SessionMessagePart.Type | TranscriptPart)[];
   })[];
+  /** Starts a new chat from this reply; absent where the transcript can't branch, such as a task's. */
+  onBranch?: () => Promise<void>;
 }
 
 export function AssistantMessagesFooter({
   alwaysVisible = false,
   isTurnLive = false,
   messages,
+  onBranch,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
@@ -167,6 +171,13 @@ export function AssistantMessagesFooter({
               </TooltipTrigger>
               <TooltipContent>Copy message</TooltipContent>
             </Tooltip>
+            {onBranch && (
+              <BranchFromReply
+                at={latestCreatedAt}
+                onBranch={onBranch}
+                text={messageText}
+              />
+            )}
           </div>
           <div className="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground">
             {[

@@ -83,6 +83,7 @@ import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
 import { chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
+import { chatHref } from "../window/window-href";
 import {
   type PendingPrompt,
   pendingPrompt,
@@ -292,6 +293,15 @@ export function ChatConversation({
     modelURI: selectedModelURI,
     sessionId: selectedSessionId,
   });
+
+  // A new chat up to the reply, opened in a tab of its own beside this one.
+  const handleBranch = async (upTo: StoreId.Message) => {
+    const { id: branch } = await rpcClient.workspace.chats.branch.call({
+      id: chatId,
+      upTo,
+    });
+    appWindow?.openScreen(chatHref(branch), { newTab: true });
+  };
 
   const handleRetry = (prompt: string) => {
     if (!selectedModelURI) {
@@ -663,6 +673,7 @@ export function ChatConversation({
                         shownMessages.length > messages.length
                       }
                       messages={shownMessages}
+                      onBranch={handleBranch}
                       onLoadOlder={messagesQuery.loadOlder}
                       slideToSentRef={slideToSentRef}
                       sessionId={selectedSessionId}

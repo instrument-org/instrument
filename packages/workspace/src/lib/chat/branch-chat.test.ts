@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway/schemas";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, RelativePathSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { sessionToShorthand } from "../../test/helpers/session-to-shorthand";
@@ -39,22 +39,38 @@ function said(
   sessionId: StoreId.Session,
   role: "assistant" | "user",
   text: string,
-  extra: SessionMessage.WithParts["parts"] = [],
+  /** A file the person sent with it, by its name in the chat's `attachments/`. */
+  sent?: string,
 ): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
   const createdAt = nextMoment();
-  const part = {
+  const part = () => ({
     createdAt,
     id: StoreId.newPartId(),
     messageId: id,
     sessionId,
-  };
-  const parts = [
-    { metadata: part, state: "done" as const, text, type: "text" as const },
-    ...extra.map((each) => ({
-      ...each,
-      metadata: { ...each.metadata, messageId: id, sessionId },
-    })),
+  });
+  const parts: SessionMessage.WithParts["parts"] = [
+    { metadata: part(), state: "done", text, type: "text" },
+    ...(sent === undefined
+      ? []
+      : [
+          {
+            data: {
+              files: [
+                {
+                  filename: sent,
+                  filePath: RelativePathSchema.parse(`attachments/${sent}`),
+                  mimeType: "text/csv",
+                  modifiedAt: 0,
+                  size: 11,
+                },
+              ],
+            },
+            metadata: part(),
+            type: "data-attachments" as const,
+          },
+        ]),
   ];
   return role === "user"
     ? { id, metadata: { createdAt, sessionId }, parts, role }
@@ -88,30 +104,9 @@ async function pricingChat(title: string) {
   const attachments = path.join(chatDir(chatId), "attachments");
   await fs.mkdir(attachments, { recursive: true });
   await fs.writeFile(path.join(attachments, "plans.csv"), "tier,price\n");
-  const createdAt = nextMoment();
   await write(
     chatId,
-    said(sessionId, "user", "Compare our pricing with Zendesk.", [
-      {
-        data: {
-          files: [
-            {
-              filename: "plans.csv",
-              filePath: "attachments/plans.csv",
-              mimeType: "text/csv",
-              size: 11,
-            },
-          ],
-        },
-        metadata: {
-          createdAt,
-          id: StoreId.newPartId(),
-          messageId: StoreId.newMessageId(),
-          sessionId,
-        },
-        type: "data-attachments",
-      },
-    ]),
+    said(sessionId, "user", "Compare our pricing with Zendesk.", "plans.csv"),
   );
   const reply = await write(
     chatId,
@@ -141,21 +136,21 @@ describe("branchChat", () => {
     expect((await chatById(branch))?.title).toBe("Help desk pricing 2");
     expect((await conversationOf(branch)).replaceAll(chatId, "<original>"))
       .toMatchInlineSnapshot(`
-      "<session title="Help desk pricing 2" count="3">
-        <user>
-          <data-attachments>
-            <file filename="plans.csv" mimeType="text/csv" size="11" />
-          </data-attachments>
-          <text state="done">Compare our pricing with Zendesk.</text>
-        </user>
-        <assistant finishReason="stop" model="m" provider="openai">
-          <text state="done">At 10 agents we're 18% under Zendesk.</text>
-        </assistant>
-        <user>
-          <data-branchedFrom chat="<original>">Help desk pricing</data-branchedFrom>
-        </user>
-      </session>"
-    `);
+        "<session title="Help desk pricing 2" count="3">
+          <user>
+            <text state="done">Compare our pricing with Zendesk.</text>
+            <data-attachments>
+              <file filename="plans.csv" mimeType="text/csv" size="11" />
+            </data-attachments>
+          </user>
+          <assistant finishReason="stop" model="m" provider="openai">
+            <text state="done">At 10 agents we're 18% under Zendesk.</text>
+          </assistant>
+          <user>
+            <data-branchedFrom chat="<original>">Help desk pricing</data-branchedFrom>
+          </user>
+        </session>"
+      `);
   });
 
   it("leaves the chat it came from as it was", async () => {

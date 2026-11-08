@@ -62,6 +62,7 @@ vi.mock("@/client/rpc/client", () => ({
 }));
 
 import {
+  chatListed,
   chatListOptions,
   chromeOfChats,
   paintChatRow,
@@ -233,5 +234,60 @@ describe("the chat list query", () => {
     painting.failed();
     expect(starred()).toBe(false);
     void queryClient.cancelQueries();
+  });
+
+  it("waits for the row a request made before saying the list has it", async () => {
+    const queryClient = new QueryClient();
+    const { queryKey } = chatListOptions();
+    void queryClient.fetchQuery(chatListOptions());
+    await settle();
+    const stream = streams.opened.at(-1);
+    stream?.push({ epoch: "one", kind: "snapshot", rev: 0, rows: [row("a")] });
+    await settle();
+
+    let listed = false;
+    const waiting = chatListed(queryClient, { epoch: "one", rev: 1 }).then(
+      () => {
+        listed = true;
+      },
+    );
+    await settle();
+    expect(listed).toBe(false);
+    stream?.push({
+      epoch: "one",
+      from: 0,
+      kind: "patch",
+      removed: [],
+      rev: 1,
+      upserts: [row("branch")],
+    });
+    await waiting;
+    expect(
+      queryClient
+        .getQueryData<Chat[]>(queryKey)
+        ?.some(({ id }) => id === "branch"),
+    ).toBe(true);
+
+    // Nothing to wait for, or a list already past it.
+    await chatListed(queryClient, null);
+    await chatListed(queryClient, { epoch: "one", rev: 1 });
+    void queryClient.cancelQueries();
+  });
+
+  it("stops waiting on a list that never gets there", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      let listed = false;
+      void chatListed(queryClient, { epoch: "one", rev: 5 }).then(() => {
+        listed = true;
+      });
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(listed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(listed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

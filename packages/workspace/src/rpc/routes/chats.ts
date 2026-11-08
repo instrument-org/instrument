@@ -365,13 +365,16 @@ const ensureChatRoute = base
  */
 const branchChatRoute = base
   .input(z.object({ id: ChatIdSchema, upTo: StoreId.MessageSchema }))
-  .output(z.object({ id: ChatIdSchema }))
+  .output(z.object({ id: ChatIdSchema, listed: ListedAtSchema }))
   .handler(async ({ errors, input }) => {
     const chatId = resolveChat(input.id);
     if (!chatId) {
       throw errors.NOT_FOUND({ message: `${input.id} is not a chat` });
     }
-    return { id: await branchChat({ chatId, upTo: input.upTo }) };
+    const id = await branchChat({ chatId, upTo: input.upTo });
+    // Where the list stands with the new chat in it, so a window can wait
+    // for its row before opening it.
+    return { id, listed: await refreshChatRow(id) };
   });
 
 /**

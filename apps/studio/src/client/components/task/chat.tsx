@@ -82,7 +82,7 @@ import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
-import { chatListOptions } from "../window/chat-list-query";
+import { chatListed, chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
 import { chatHref } from "../window/window-href";
 import {
@@ -307,19 +307,11 @@ export function ChatConversation({
     latestWindow.current = appWindow;
   });
   const handleBranch = async (upTo: StoreId.Message) => {
-    const { id: branch } = await rpcClient.workspace.chats.branch.call({
+    const { id: branch, listed } = await rpcClient.workspace.chats.branch.call({
       id: chatId,
       upTo,
     });
-    const row = await rpcClient.workspace.chats.byId.call({ id: branch });
-    if (row) {
-      queryClient.setQueryData(chatListOptions().queryKey, (chats) =>
-        chats === undefined || chats.some((chat) => chat.id === branch)
-          ? chats
-          : [...chats, row],
-      );
-    }
-    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await chatListed(queryClient, listed);
     latestWindow.current?.openScreen(chatHref(branch), { newTab: true });
   };
 

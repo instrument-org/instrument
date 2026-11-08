@@ -29,13 +29,54 @@ function stateOf(client: QueryClient): ChatListState {
 
 const CHAT_LIST_KEY = ["chat-list"] as const;
 
+/** Callers waiting on the held list to reach a revision, by the window's query client. */
+const waiters = new WeakMap<QueryClient, Set<() => boolean>>();
+
+/** How long `chatListed` waits before giving up on the list. */
+const LISTED_WAIT_MS = 2000;
+
+/** Whether the held list has taken in what `at` names, or was read again since. */
+function hasReached(state: ChatListState, at: ListedAt) {
+  const { held } = state;
+  return held !== undefined && (held.epoch !== at.epoch || held.rev >= at.rev);
+}
+
 /** Puts what the window shows of the list into its query, once it holds a list. */
 function show(client: QueryClient, state: ChatListState) {
   const shown = shownChats(state);
   if (shown) {
     client.setQueryData(CHAT_LIST_KEY, shown);
   }
+  for (const settled of waiters.get(client) ?? []) {
+    settled();
+  }
   return shown;
+}
+
+/**
+ * Resolves once the list this window holds has taken in what a request
+ * answered with (`at`), so a reader of the list finds the row the request
+ * made; at once when there is no list to wait for, and after a short wait
+ * at most, so a list that stopped never holds up what waits on it.
+ */
+export function chatListed(client: QueryClient, at: ListedAt | null) {
+  const state = stateOf(client);
+  if (!at || hasReached(state, at)) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const set = waiters.get(client) ?? new Set();
+    waiters.set(client, set);
+    const settle = () => {
+      clearTimeout(timer);
+      set.delete(settled);
+      resolve();
+      return true;
+    };
+    const settled = () => hasReached(state, at) && settle();
+    const timer = setTimeout(settle, LISTED_WAIT_MS);
+    set.add(settled);
+  });
 }
 
 /**

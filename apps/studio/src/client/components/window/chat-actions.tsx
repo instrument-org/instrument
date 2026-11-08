@@ -44,7 +44,7 @@ export function chatMenuGroups(actions: RowAction[]) {
     actions.filter((action) => ids.includes(action.id));
   return {
     feedback: of(["feedback"]),
-    files: of(["location", "reveal"]),
+    files: of(["location", "reveal", "copy-path"]),
     marks: of(["read", "unread", "star", "unstar"]),
     put: of(["archive", "unarchive"]),
   };

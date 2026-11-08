@@ -50,6 +50,7 @@ import {
 } from "./compose-layout";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion } from "./context-chip";
+import { appTabsAtom } from "./app-tabs";
 import { type BandTarget, openInBand, targetsOf } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { GroupItem } from "./group-item";
@@ -193,6 +194,7 @@ export function ComposeWindow({
   // it left, so it takes no input then.
   const isPresent = useIsPresent();
   const appWindow = useWindow();
+  const appTabs = useAtomValue(appTabsAtom).tabs;
   const windowTabs = useWindowTabs();
   const filesHref = useAtomValue(filesHrefAtom);
   const group = draftGroupOf(draft.id);
@@ -345,7 +347,7 @@ export function ComposeWindow({
     setWellOpen(true);
   };
   const open = (target: BandTarget) =>
-    openInBand({ browser, group, target, windowTabs });
+    openInBand({ appTabs, browser, group, target, windowTabs });
   // What the draft carries besides its words, as its chips: the same list
   // its chat is told at the press (see draftContextItems).
   const {

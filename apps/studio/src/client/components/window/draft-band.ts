@@ -9,6 +9,7 @@ import { instrumentLinkOf } from "@instrument-org/shared";
 import { useEffect, useRef } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { takePersonsTab } from "./take-tab";
 import {
   attachedPaths,
   bandTabLines,
@@ -17,32 +18,62 @@ import {
 } from "./context-items";
 import { type useWindowTabs } from "./window-tabs";
 
-/** Something a draft can have open in its band: a file or folder, a page, or a screen such as an app's front. */
+/**
+ * Something a draft can have open in its band: a file or folder, a page, a
+ * screen such as an app's front, or a tab of the person's own, which moves
+ * in as it is (`url` is where it stands, for when it has gone since).
+ */
 export type BandTarget =
   | ChosenItem
   | { kind: "page"; url: string }
-  | { href: string; kind: "screen" };
+  | { href: string; kind: "screen" }
+  | { kind: "tab"; tabId: string; url?: string };
 
 /**
  * Opens a target as a tab of a draft's band without putting it up: it joins
  * the draft's chips, and the well or the side panel shows it only once its
- * chip is pressed. A target the band already has open is left as it is.
- * Answers the id of the tab that shows it, when there is one.
+ * chip is pressed. A target the band already has open is left as it is. A
+ * tab of the person's own moves into the band itself, page and all
+ * (`takePersonsTab`), and goes with the draft to its chat at the send; one
+ * gone since opens again at its address. Answers the id of the tab that
+ * shows it, when there is one.
  */
 export function openInBand({
+  appTabs,
   browser,
   group,
   target,
   windowTabs,
 }: {
+  appTabs: Parameters<typeof takePersonsTab>[0]["appTabs"];
   browser: BrowserTabsHandle | null;
   group: string;
   target: BandTarget;
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
-    "allTabs" | "openOrFocusScreen"
+    "allTabs" | "moveToGroup" | "openOrFocusScreen"
   >;
 }): string | undefined {
+  if (target.kind === "tab") {
+    const taken = takePersonsTab({
+      appTabs,
+      group,
+      tabId: target.tabId,
+      windowTabs,
+    });
+    if (taken) {
+      return taken.id;
+    }
+    return target.url === undefined
+      ? undefined
+      : openInBand({
+          appTabs,
+          browser,
+          group,
+          target: { kind: "page", url: target.url },
+          windowTabs,
+        });
+  }
   if (target.kind === "page") {
     const open = windowTabs.allTabs.find(
       (tab) =>
@@ -72,9 +103,13 @@ export function targetsOf(item: ContextItem): BandTarget[] {
     return item.items;
   }
   return item.tab.kind === "page"
-    ? item.tab.url === undefined
-      ? []
-      : [{ kind: "page", url: item.tab.url }]
+    ? [
+        {
+          kind: "tab",
+          tabId: item.tab.id,
+          ...(item.tab.url === undefined ? {} : { url: item.tab.url }),
+        },
+      ]
     : [{ href: item.tab.href, kind: "screen" }];
 }
 

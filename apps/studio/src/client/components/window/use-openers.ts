@@ -1,5 +1,3 @@
-import { BROWSER_HREF } from "@/client/atoms/window";
-import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -26,6 +24,7 @@ import {
 } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
+import { takePersonsTab } from "./take-tab";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
 import { openMenuLink } from "./menu-link";
@@ -467,19 +466,14 @@ export function useOpeners({
       if (group === undefined) {
         return { error: "only a chat can be given a tab." };
       }
-      // The window tab that showed the page goes back to the Browser's
-      // start, still a browser of the person's, and the page itself, guest
-      // and all, becomes the chat's tab, up in its pane. Nothing else on
-      // screen moves.
-      const site = theirs.group;
-      const shownIn =
-        site === undefined
-          ? undefined
-          : appTabs.model.tabs.find((tab) => tab.pathname === pageHrefOf(site));
-      if (shownIn) {
-        getTabRouter(shownIn.id)?.history.replace(BROWSER_HREF);
-      }
-      windowTabs.moveToGroup(theirs.id, group);
+      // The page itself, guest and all, becomes the chat's tab, up in its
+      // pane. Nothing else on screen moves.
+      takePersonsTab({
+        appTabs: appTabs.model.tabs,
+        group,
+        tabId: theirs.id,
+        windowTabs,
+      });
       windowTabs.select(theirs.id);
       setPaneOpen(group, true);
       return { tabId: theirs.id };

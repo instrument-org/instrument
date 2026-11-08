@@ -48,6 +48,7 @@ import { projectTint } from "./project-tint";
 import { ProjectSlot } from "./compose-window";
 import { useWindow } from "./context";
 import { ContextChips } from "./context-chip";
+import { appTabsAtom } from "./app-tabs";
 import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { isHomeTab } from "./tab-model";
@@ -98,6 +99,7 @@ export function NewChatView({
 }) {
   const shell = useShell();
   const appWindow = useWindow();
+  const appTabs = useAtomValue(appTabsAtom).tabs;
   const router = useRouter();
   const windowTabs = useWindowTabs();
   const filesHref = useAtomValue(filesHrefAtom);
@@ -197,7 +199,13 @@ export function NewChatView({
     open: (target) =>
       group === undefined
         ? undefined
-        : openInBand({ browser: appWindow.browser, group, target, windowTabs }),
+        : openInBand({
+            appTabs,
+            browser: appWindow.browser,
+            group,
+            target,
+            windowTabs,
+          }),
     selectedId: up?.id,
   });
 

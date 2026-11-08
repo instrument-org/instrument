@@ -1,4 +1,6 @@
-import { type WindowTab } from "@/client/atoms/window";
+import { BROWSER_HREF, type WindowTab } from "@/client/atoms/window";
+import { setTabRouter } from "@/client/lib/tab-router-registry";
+import { TabIdSchema } from "@/shared/tabs";
 import { draftFileOf, draftOf } from "@/electron-main/drafts/draft-record";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -6,11 +8,14 @@ import {
   type DraftContextItem,
   draftGroupOf,
 } from "@/shared/drafts";
-import { ChatIdSchema } from "@instrument-org/workspace/client";
-import { describe, expect, it } from "vitest";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { describe, expect, it, vi } from "vitest";
+
+import { pageHrefOf, siteGroupOf } from "./app-tabs";
+import { type BrowserTabsHandle } from "./browser-tabs";
 
 import { bandTabLines, draftContextItems } from "./context-items";
-import { contextFollowingBand } from "./draft-band";
+import { contextFollowingBand, openInBand, targetsOf } from "./draft-band";
 
 const DRAFT: Draft = { createdAt: 0, id: "d1", updatedAt: 0, words: "" };
 const GROUP = draftGroupOf(DRAFT.id);
@@ -149,5 +154,66 @@ describe("a draft shown with its band", () => {
     expect(
       draftOf({ dir, draft: file, file: `${dir}/DRAFT.md` }, rootDir).context,
     ).toEqual(draft.context);
+  });
+});
+
+describe("taking the page chip", () => {
+  const site = siteGroupOf("s1");
+  const browserTab = TabIdSchema.parse("app-browser");
+  const theirs: WindowTab = {
+    group: site,
+    id: "tab_theirs",
+    kind: "page",
+    openedAt: 0,
+    url: "https://shop.example/checkout",
+  };
+
+  function take(allTabs: WindowTab[]) {
+    const moveToGroup = vi.fn();
+    const openBehind = vi.fn(() => StoreId.newTabId());
+    const replace = vi.fn();
+    // Only the history of the Browser tab's router is read here.
+    setTabRouter(browserTab, {
+      history: { replace },
+    } as unknown as Parameters<typeof setTabRouter>[1]);
+    // The page chip as the offer makes it; `targetsOf` reads only its tab.
+    const [target] = targetsOf({
+      key: "k",
+      kind: "tab",
+      tab: theirs,
+    } as Parameters<typeof targetsOf>[0]);
+    const id = target
+      ? openInBand({
+          appTabs: [{ id: browserTab, pathname: pageHrefOf(site) }],
+          browser: { openBehind } as unknown as BrowserTabsHandle,
+          group: GROUP,
+          target,
+          windowTabs: {
+            allTabs,
+            moveToGroup,
+            openOrFocusScreen: vi.fn(),
+          },
+        })
+      : undefined;
+    return { id, moveToGroup, openBehind, replace };
+  }
+
+  it("moves the person's own tab into the draft, page and all, and puts their Browser back at its start", () => {
+    const { id, moveToGroup, openBehind, replace } = take([theirs]);
+
+    expect(id).toBe(theirs.id);
+    expect(moveToGroup).toHaveBeenCalledWith(theirs.id, GROUP);
+    expect(replace).toHaveBeenCalledWith(BROWSER_HREF);
+    expect(openBehind).not.toHaveBeenCalled();
+  });
+
+  it("opens the page at its address when the tab has gone since", () => {
+    const { moveToGroup, openBehind } = take([]);
+
+    expect(moveToGroup).not.toHaveBeenCalled();
+    expect(openBehind).toHaveBeenCalledWith(
+      "https://shop.example/checkout",
+      GROUP,
+    );
   });
 });

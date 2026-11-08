@@ -52,8 +52,14 @@ let opened = 0;
 /** The tab a target opens as in the band, as the window opens it. */
 function bandTabOf(target: BandTarget): WindowTab {
   const id = `band-${opened++}`;
-  if (target.kind === "page") {
-    return { group: GROUP, id, kind: "page", openedAt: 0, url: target.url };
+  if (target.kind === "page" || target.kind === "tab") {
+    return {
+      group: GROUP,
+      id,
+      kind: "page",
+      openedAt: 0,
+      url: target.url ?? "about:blank",
+    };
   }
   return {
     group: GROUP,

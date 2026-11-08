@@ -540,7 +540,11 @@ function RowView({
       return (
         // As tall as the row it replaces, so the transcript does not shrink under
         // a message held at the top when Thinking gives way to a one-line reply.
-        <div className="min-h-7" data-reply-row={row.part.metadata.id}>
+        <div
+          className="min-h-7"
+          data-reply-row={row.part.metadata.id}
+          data-reply-tail={isNewest || undefined}
+        >
           <AssistantMessage chatId={chatId} part={row.part} />
         </div>
       );

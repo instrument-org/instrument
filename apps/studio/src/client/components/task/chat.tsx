@@ -803,20 +803,21 @@ function TranscriptStream({
   /** What a send calls, so the move to its message animates. */
   slideToSentRef: RefObject<() => void>;
 }) {
-  const { releaseAutoScroll } = useMessageScroller();
-  useHoldAtReplyStart({
+  const { releaseAutoScroll, scrollToEnd } = useMessageScroller();
+  const releaseForReader = useHoldAtReplyStart({
     contentRef,
     isFollowing,
     release: releaseAutoScroll,
+    resume: scrollToEnd,
   });
   useSlideToSent({
     armRef: slideToSentRef,
     contentRef,
-    release: releaseAutoScroll,
+    release: releaseForReader,
   });
 
   return (
-    <TranscriptScrollContext value={releaseAutoScroll}>
+    <TranscriptScrollContext value={releaseForReader}>
       <Transcript {...props} />
     </TranscriptScrollContext>
   );

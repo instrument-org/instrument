@@ -7,6 +7,7 @@ import {
 import { DeveloperNotesSourceContext } from "@/client/components/transcript/developer-notes-source";
 import { Transcript } from "@/client/components/transcript/transcript";
 import { useHoldAtReplyStart } from "@/client/components/transcript/use-hold-at-reply-start";
+import { TranscriptScrollContext } from "@/client/components/transcript-scroll-context";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -65,6 +66,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { z } from "zod";
 
@@ -492,19 +494,26 @@ function Toggle({
 
 /** The chat's hold at a reply's first line, inside the scroller it needs. */
 function HoldAtReplyStart({
+  children,
   contentRef,
   isFollowing,
 }: {
+  children: ReactNode;
   contentRef: React.RefObject<HTMLElement | null>;
   isFollowing: boolean;
 }) {
-  const { releaseAutoScroll } = useMessageScroller();
-  useHoldAtReplyStart({
+  const { releaseAutoScroll, scrollToEnd } = useMessageScroller();
+  const releaseForReader = useHoldAtReplyStart({
     contentRef,
     isFollowing,
     release: releaseAutoScroll,
+    resume: scrollToEnd,
   });
-  return null;
+  return (
+    <TranscriptScrollContext value={releaseForReader}>
+      {children}
+    </TranscriptScrollContext>
+  );
 }
 
 /** With `frames` it is a real chat's, drawn in place of a script. */
@@ -619,24 +628,25 @@ function Viewer({ scenario }: { scenario: Playable }) {
                 <HoldAtReplyStart
                   contentRef={contentRef}
                   isFollowing={frame.isAgentRunning}
-                />
-                <Profiler
-                  id="transcript"
-                  onRender={(_id, _phase, actualDuration) => {
-                    renderMs.current = actualDuration;
-                  }}
                 >
-                  <FrameTranscript
-                    chat={scenario.chat}
-                    commands={scenario.commands}
-                    frame={frame}
-                    frameIndex={shown}
-                    frames={frames}
-                    isDeveloperMode={isDeveloperMode}
-                    pageTurns={scenario.pageTurns}
-                    tasks={tasks}
-                  />
-                </Profiler>
+                  <Profiler
+                    id="transcript"
+                    onRender={(_id, _phase, actualDuration) => {
+                      renderMs.current = actualDuration;
+                    }}
+                  >
+                    <FrameTranscript
+                      chat={scenario.chat}
+                      commands={scenario.commands}
+                      frame={frame}
+                      frameIndex={shown}
+                      frames={frames}
+                      isDeveloperMode={isDeveloperMode}
+                      pageTurns={scenario.pageTurns}
+                      tasks={tasks}
+                    />
+                  </Profiler>
+                </HoldAtReplyStart>
               </MessageScrollerContent>
             </MessageScrollerViewport>
           </MessageScroller>

@@ -55,11 +55,21 @@ interface ChatScreenProps {
  * One chat's conversation: its transcript, opening at the end, and a
  * composer that replies in it. Nothing above the transcript: the row over
  * it names the chat, and the top of the scroll is the ask itself. The chat's
- * transcript is in its session, which is asked for by the chat's id first.
+ * transcript is in its session, read off the chat's list row, or asked for
+ * by the chat's id while the list does not have it.
  */
 export function ChatScreen(props: ChatScreenProps) {
+  // The session as the chat list has it, which a chat already listed opens
+  // on without a request.
+  const { data: listedSessionId } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      chats.find((entry) => entry.id === props.chatId)?.sessionId,
+  });
   const chat = useQuery(
     rpcClient.workspace.chats.session.queryOptions({
+      // Asked only of a chat the list does not have, yet or any longer.
+      enabled: listedSessionId === undefined,
       input: { id: props.chatId },
       // A chat keeps its session for as long as it exists; a chat with none
       // is asked again, since the record that holds it may be on its way.
@@ -69,7 +79,7 @@ export function ChatScreen(props: ChatScreenProps) {
         query.state.data?.sessionId ? Number.POSITIVE_INFINITY : 0,
     }),
   );
-  const sessionId = chat.data?.sessionId;
+  const sessionId = listedSessionId ?? chat.data?.sessionId;
   const isGone = useStaysMissing(
     chat.data !== undefined && !sessionId && props.sentPrompt === undefined,
   );

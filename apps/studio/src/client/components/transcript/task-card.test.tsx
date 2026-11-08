@@ -113,4 +113,17 @@ describe("TaskCardRow for a task sent more work", () => {
       first: "Noted every tier on three pricing pagesTask · Pricing · 3 min",
     });
   });
+
+  it("shows the bottom card starting, timed from its call, while the list has not read the send yet", () => {
+    const finished = resumed(false);
+    const before = {
+      ...finished,
+      slices: finished.slices.slice(0, 1),
+      status: { kind: "done" as const, line: "Our Team plan is 18% under." },
+    };
+    expect(renderBoth(before)).toStrictEqual({
+      bottom: "StartingTask · Pricing · 41s",
+      first: "Our Team plan is 18% under.Task · Pricing · 3 min",
+    });
+  });
 });

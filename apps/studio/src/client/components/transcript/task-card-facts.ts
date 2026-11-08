@@ -27,15 +27,23 @@ export function taskCardFacts(
   if (span && index < task.slices.length - 1) {
     return {
       ...(slice.line !== undefined && { ended: slice.line }),
-      failed: false,
+      failed: slice.failed === true,
       ...span,
       stoppable: false,
       title: task.title,
       working: false,
     };
   }
-  // The task's last stretch, or a send the list has not read yet, which is
-  // newer than every stretch it has.
+  // A send the list has not read yet is newer than every stretch it has, and
+  // nothing of the task's own is known of it but that it was sent.
+  if (index === -1) {
+    return {
+      failed: false,
+      stoppable: false,
+      title: task.title,
+      working: true,
+    };
+  }
   return {
     ended: task.status.summary ?? task.status.line,
     failed: task.status.kind === "failed",

@@ -44,16 +44,30 @@ function step(
   until: number,
   {
     activity,
+    failed,
     said,
     summary,
-  }: { activity: string; said?: string; summary?: string },
+    summaryAt = until,
+  }: {
+    activity: string;
+    /** It ended on a model error. */
+    failed?: true;
+    said?: string;
+    summary?: string;
+    /** When the separate call after the turn wrote the summary. */
+    summaryAt?: number;
+  },
 ): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
   return {
     id,
     metadata: {
       createdAt: at(minute),
+      ...(failed && {
+        error: { kind: "disk-full" as const, message: "No space left" },
+      }),
       finishReason: said === undefined ? "tool-calls" : "stop",
+      finishedAt: at(until),
       modelId: "mock-model",
       providerId: "mock-provider",
       sessionId,
@@ -85,7 +99,7 @@ function step(
         : [
             SessionMessagePart.coerce({
               data: { words: summary },
-              metadata: meta(id, until),
+              metadata: meta(id, summaryAt),
               type: "data-workSummary",
             }),
           ]),
@@ -179,5 +193,71 @@ describe("taskSlices", () => {
       from: sent.id,
       startedAt: at(40),
     });
+  });
+
+  it("leaves what a step in flight wrote after the send to the next slice", () => {
+    const sent = fromChat("message", "Include Freshdesk's add-ons.", 2);
+    const slices = taskSlices([
+      fromChat("assignment", "Compare the three pricing pages.", 0),
+      // Its call ran on to 09:05 and its words came then, after the send.
+      step(0, 5, {
+        activity: "Reading pricing pages",
+        said: "Read all three.",
+      }),
+      sent,
+      step(5, 6, { activity: "Reading add-ons on freshdesk.com" }),
+    ]);
+    expect(shape(slices)[0]).toStrictEqual({
+      from: slices[0]?.from,
+      line: "Reading pricing pages",
+      span: "09:00-09:02",
+    });
+  });
+
+  it("keeps a work summary written after the work out of its span, and out of an earlier slice once a send came first", () => {
+    const late = [
+      fromChat("assignment", "Compare the three pricing pages.", 0),
+      step(0, 3, {
+        activity: "Noting every tier",
+        said: "Our Team plan is 18% under Zendesk.",
+        summary: "Noted every tier on three pricing pages",
+        summaryAt: 5,
+      }),
+    ];
+    expect(shape(taskSlices(late))).toStrictEqual([
+      {
+        from: late[0]?.id,
+        line: "Noted every tier on three pricing pages",
+        span: "09:00-09:03",
+      },
+    ]);
+    const sent = fromChat("message", "Check last year's prices too.", 4);
+    expect(shape(taskSlices([...late, sent]))[0]).toStrictEqual({
+      from: late[0]?.id,
+      line: "Our Team plan is 18% under Zendesk.",
+      span: "09:00-09:03",
+    });
+  });
+
+  it("keeps a failed run failed after the chat sends it on", () => {
+    const slices = taskSlices([
+      fromChat("assignment", "Compare the three pricing pages.", 0),
+      step(0, 1, { activity: "Reading pricing pages", failed: true }),
+      fromChat("message", "Try again.", 5),
+      step(5, 6, { activity: "Reading pricing pages" }),
+    ]);
+    expect(slices.map(({ failed, line }) => ({ failed, line })))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "failed": true,
+            "line": "Disk is full",
+          },
+          {
+            "failed": undefined,
+            "line": "Reading pricing pages",
+          },
+        ]
+      `);
   });
 });

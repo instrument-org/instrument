@@ -65,6 +65,7 @@ const ChildTaskSchema = ChatTaskSchema.extend({
   slices: z.array(
     z.object({
       endedAt: z.date(),
+      failed: z.literal(true).optional(),
       from: StoreId.MessageSchema,
       line: z.string().optional(),
       startedAt: z.date(),

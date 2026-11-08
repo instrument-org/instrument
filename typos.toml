@@ -102,7 +102,7 @@ extend-exclude = [
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
   "apps/studio/licenses/",
-  "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
+  "packages/workspace/src/model-text/guides/agent-browser-core-guide.generated.ts",
   "patches/",
   "apps/studio/resources/tailwind-browser.js",
   # Minified bundles, whose two-letter names read as misspellings; a write

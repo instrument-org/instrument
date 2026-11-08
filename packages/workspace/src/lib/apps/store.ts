@@ -11,7 +11,7 @@ import { shellPath } from "../shell-path";
 import { CachedReads } from "../workspace-files";
 import { macAppNamed } from "../mac-apps/apps";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
-import { macAppGuide } from "./mac-app-guide";
+import { macAppGuide } from "../../model-text/guides/mac-app-guide";
 import {
   type AppFile,
   APP_FILE_NAME,

@@ -12,7 +12,7 @@ import {
   upstreamCoreGuide,
   withoutParagraphs,
   withoutSections,
-} from "./agent-browser-guide-source";
+} from "../../lib/agent-browser-guide-source";
 import {
   AGENT_BROWSER_CORE_GUIDE,
   AGENT_BROWSER_CORE_GUIDE_READ_FROM,
@@ -21,8 +21,8 @@ import {
 import {
   BLOCKED_FLAGS,
   BLOCKED_SUBCOMMANDS,
-} from "./shell-commands/agent-browser";
-import { SKILL_CONTENT_LIMIT } from "./skills";
+} from "../../lib/shell-commands/agent-browser";
+import { SKILL_CONTENT_LIMIT } from "../../lib/skills";
 
 /**
  * The guide is the agent-browser release's own text, generated into the

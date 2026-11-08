@@ -11,6 +11,7 @@ import { EventEmitter } from "node:events";
 import { breadcrumbRPC } from "../lib/breadcrumbs";
 import { captureServerException } from "../lib/capture-server-exception";
 import { trackRPCForStalls } from "../lib/main-thread-stalls";
+import { meterRPCPayloads } from "../lib/rpc-payloads";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
 import { type InitialRPCContext } from "./context";
 import { createErrorClientInterceptor } from "./error-interceptor";
@@ -101,6 +102,7 @@ export function initializeRPC({
     const webContentsId = event.sender.id;
     const run = getWorkspaceRun();
 
+    meterRPCPayloads(serverPort, webContentsId);
     handler.upgrade(serverPort, {
       context: {
         appUpdater,

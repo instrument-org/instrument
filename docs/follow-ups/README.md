@@ -37,6 +37,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24
 - [Why Responses streams end without a terminal event](responses-streams-ending-early.md): open · Check after: 2026-11-13, after a week on a beta with the stream guard · Last checked: never
+- [Which RPC procedures send a window megabytes](rpc-payload-sizes.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the payload warnings · Last checked: never
 - [Whether the unattended-step and output-limit caps ever trip](step-and-output-caps.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24
 - [Why the stopped-reply test fails on Linux CI](stopped-reply-words-on-disk.md): closed 2026-10-26 · Check after: 2026-11-08, or the next CI failure of the test · Last checked: 2026-10-26
 - [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md): open · Check after: 2026-11-21, or once a beta carrying cd075493c has run on the Linux and Windows test hosts for a week, whichever is later · Last checked:...

@@ -76,22 +76,26 @@ function imageOptionsFor(runsOn: AIGatewayModelURI.Type | undefined) {
 }
 
 /**
- * Every output folder any session of the chat was told, in the shell's
- * spelling: its baselines' and each note's since. A chat's own folder moves
- * when its title settles, so a path the agent wrote into the folder as it
- * was told it then names the folder by a name it no longer has. Empty for a
+ * Every environment any session of the chat was told, in the shell's
+ * spelling: each baseline's, and each as it stood after every note since. A
+ * path a message kept is spelled as the computer that wrote it laid things
+ * out, and a chat's own folder moves when its title settles, so these are
+ * what a stored path is read against: the computer it came from, where that
+ * computer kept the workspace, and every name the chat's folder was told
+ * under. A note with no baseline before it is its facts alone. Empty for a
  * chat whose records cannot be read.
  *
  * A branch's copied conversation was told the folders of the chat it came
- * from, which are that chat's and not the branch's: those are `copied`,
- * with that chat's id, apart from what the branch itself was told.
+ * from, which are that chat's and not the branch's: what was told before a
+ * branch's note is `copied`, with that chat's id, apart from what the branch
+ * itself was told.
  */
-export async function toldOutputFolders(chatId: ChatId): Promise<{
-  copied?: { chat: string; folders: Set<string> };
-  told: Set<string>;
+export async function toldEnvironments(chatId: ChatId): Promise<{
+  copied?: { chat: string; told: EnvironmentChange[] };
+  told: EnvironmentChange[];
 }> {
-  const told = new Set<string>();
-  let copied: { chat: string; folders: Set<string> } | undefined;
+  const told: EnvironmentChange[] = [];
+  let copied: { chat: string; told: EnvironmentChange[] } | undefined;
   const sessions = await ChatReads.sessions({
     chatId,
     includeChildSessions: true,
@@ -107,30 +111,28 @@ export async function toldOutputFolders(chatId: ChatId): Promise<{
     if (history.isErr()) {
       continue;
     }
-    let mine = new Set<string>();
+    let current: EnvironmentChange = {};
+    let mine: EnvironmentChange[] = [];
     for (const message of history.value) {
-      if (message.role === "session-context") {
-        const folder = message.metadata.environment?.outputFolder;
-        if (folder !== undefined) {
-          mine.add(folder);
-        }
+      if (
+        message.role === "session-context" &&
+        message.metadata.environment !== undefined
+      ) {
+        current = message.metadata.environment;
+        mine.push(current);
       }
       for (const part of message.parts) {
         if (part.type === "data-branchedFrom") {
-          copied = { chat: part.data.chat, folders: mine };
-          mine = new Set();
+          copied = { chat: part.data.chat, told: mine };
+          mine = [];
         }
-        if (
-          part.type === "data-environmentChange" &&
-          part.data.outputFolder !== undefined
-        ) {
-          mine.add(part.data.outputFolder);
+        if (part.type === "data-environmentChange") {
+          current = { ...current, ...part.data };
+          mine.push(current);
         }
       }
     }
-    for (const folder of mine) {
-      told.add(folder);
-    }
+    told.push(...mine);
   }
   return { ...(copied && { copied }), told };
 }

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { resolveWorkspaceFilePaths } from "../../../lib/resolve-workspace-file-path";
+import {
+  computersHolding as computersHoldingFiles,
+  resolveWorkspaceFilePaths,
+} from "../../../lib/resolve-workspace-file-path";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { base } from "../../base";
 
@@ -27,6 +30,25 @@ const hostPaths = base
     Object.fromEntries(await resolveWorkspaceFilePaths({ filePaths, chatId })),
   );
 
+/**
+ * The computer that has each file a message written on another computer
+ * named in a folder only that computer has, by its name, for a card to say
+ * where the file is rather than only that it is not here. A path that has a
+ * place here, or is in the workspace, is left out.
+ */
+const computersHolding = base
+  .input(
+    z.object({
+      filePaths: z.array(z.string()),
+      chatId: ChatIdSchema,
+    }),
+  )
+  .output(z.record(z.string(), z.string()))
+  .handler(async ({ input: { filePaths, chatId } }) =>
+    Object.fromEntries(await computersHoldingFiles({ filePaths, chatId })),
+  );
+
 export const chatFiles = {
+  computersHolding,
   hostPaths,
 };

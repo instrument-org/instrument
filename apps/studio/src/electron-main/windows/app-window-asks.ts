@@ -6,7 +6,9 @@
 export type AppWindowAsk =
   | { hostPath: string; type: "openFile" }
   | { href: string; type: "openScreen" }
-  | { project?: string; type: "newChat"; words: string };
+  | { project?: string; type: "newChat"; words: string }
+  /** New Chat pressed with no window open, for the window it opens. */
+  | { type: "openNewChat" };
 
 /**
  * Where asks from outside the window wait until it can take them: while its

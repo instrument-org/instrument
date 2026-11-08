@@ -460,9 +460,10 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, or a new chat's words. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a new chat's words, or a new chat. */
 function answer(
   handlers: {
+    newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
     openScreen: (href: string) => void;
@@ -472,6 +473,10 @@ function answer(
   switch (ask.type) {
     case "newChat": {
       handlers.newChatFromLink(ask.words, ask.project);
+      break;
+    }
+    case "openNewChat": {
+      handlers.newChat();
       break;
     }
     case "openFile": {

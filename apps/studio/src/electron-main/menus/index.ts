@@ -2,6 +2,7 @@ import { offerNewWindowTask } from "@/electron-main/lib/new-window-task";
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  askWindow,
   canMergeWindows,
   canReopenClosedAppWindow,
   isAppWindow,
@@ -87,6 +88,12 @@ function updateApplicationMenu(): void {
           canReopenClosed: canReopenClosedAppWindow(),
           mergeAll: mergeAllWindows,
           openNew: openNewAppWindow,
+          openNewWithChat: () => {
+            const window = openNewAppWindow();
+            if (window) {
+              askWindow(window, { type: "openNewChat" });
+            }
+          },
           reopenClosed: reopenClosedAppWindow,
         })),
   ];

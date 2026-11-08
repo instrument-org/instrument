@@ -43,6 +43,7 @@ const NO_WINDOW_ACTIONS = {
   canReopenClosed: false,
   mergeAll: () => {},
   openNew: () => {},
+  openNewWithChat: () => {},
   reopenClosed: () => {},
 };
 
@@ -228,5 +229,41 @@ describe("a window chord from the menu", () => {
       command: "closeTab",
       webContentsId: 7,
     });
+  });
+
+  it("opens a window for New Chat, New Tab and Reopen Closed Tab with none focused, as a browser does", async () => {
+    vi.resetModules();
+    const { createAppWindowMenu } = await import("./app-window");
+    const opened: string[] = [];
+    const rows = (canReopenClosed: boolean) =>
+      createAppWindowMenu({
+        ...NO_WINDOW_ACTIONS,
+        canReopenClosed,
+        openNew: () => opened.push("window"),
+        openNewWithChat: () => opened.push("window with a chat"),
+        reopenClosed: () => opened.push("window closed last"),
+      }).flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []));
+    const choose = (canReopenClosed: boolean, label: string) => {
+      const click = rows(canReopenClosed).find(
+        (item) => item.label === label && item.visible !== false,
+      )?.click as
+        | ((item: unknown, window: unknown, event: unknown) => void)
+        | undefined;
+      click?.({}, undefined, {});
+    };
+
+    inFront.window = null;
+    publish.mockClear();
+    choose(true, "New Chat");
+    choose(true, "New Tab");
+    choose(true, "Reopen Closed Tab");
+    choose(false, "Reopen Closed Tab");
+    choose(true, "Close Tab");
+    expect(opened).toEqual([
+      "window with a chat",
+      "window",
+      "window closed last",
+    ]);
+    expect(publish).not.toHaveBeenCalled();
   });
 });

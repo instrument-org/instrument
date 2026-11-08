@@ -36,6 +36,7 @@ const AskSchema = z.discriminatedUnion("type", [
     type: z.literal("newChat"),
     words: z.string(),
   }),
+  z.object({ type: z.literal("openNewChat") }),
 ]);
 
 const events = {

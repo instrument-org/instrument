@@ -248,6 +248,8 @@ export interface WindowMenuActions {
   canReopenClosed: boolean;
   mergeAll: () => void;
   openNew: () => void;
+  /** A new window, with a new chat up in it. */
+  openNewWithChat: () => void;
   reopenClosed: () => void;
 }
 
@@ -261,11 +263,11 @@ export function createAppWindowMenu(
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
-      ...menuItems(FILE_CHORDS.slice(0, 1)),
+      ...menuItems(FILE_CHORDS.slice(0, 1), windows),
       { type: "separator" },
-      ...menuItems(FILE_CHORDS.slice(1)),
-      ...menuItems(FILE_ALIAS_CHORDS),
-      ...menuItems(FILE_INFO_CHORDS),
+      ...menuItems(FILE_CHORDS.slice(1), windows),
+      ...menuItems(FILE_ALIAS_CHORDS, windows),
+      ...menuItems(FILE_INFO_CHORDS, windows),
       { type: "separator" },
       {
         ...resolvedMenuShortcut(WINDOW_MENU_SHORTCUTS.newWindow),
@@ -273,8 +275,8 @@ export function createAppWindowMenu(
           windows.openNew();
         },
       },
-      ...menuItems(TAB_CHORDS),
-      ...menuItems(TAB_ALIAS_CHORDS),
+      ...menuItems(TAB_CHORDS, windows),
+      ...menuItems(TAB_ALIAS_CHORDS, windows),
       {
         click: () => {
           windows.reopenClosed();
@@ -288,16 +290,16 @@ export function createAppWindowMenu(
 
   const chatsMenu: MenuItemConstructorOptions = {
     label: "Chats",
-    submenu: menuItems(CHAT_CHORDS),
+    submenu: menuItems(CHAT_CHORDS, windows),
   };
 
   const tabMenu: MenuItemConstructorOptions = {
     label: "Tabs",
     submenu: [
-      ...menuItems(TAB_SWITCH_CHORDS.slice(0, 2)),
-      ...menuItems(TAB_SWITCH_ALIAS_CHORDS),
+      ...menuItems(TAB_SWITCH_CHORDS.slice(0, 2), windows),
+      ...menuItems(TAB_SWITCH_ALIAS_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(TAB_SWITCH_CHORDS.slice(2)),
+      ...menuItems(TAB_SWITCH_CHORDS.slice(2), windows),
     ],
   };
 
@@ -306,7 +308,7 @@ export function createAppWindowMenu(
   const historyMenu: MenuItemConstructorOptions = {
     label: "History",
     submenu: [
-      ...menuItems(HISTORY_CHORDS),
+      ...menuItems(HISTORY_CHORDS, windows),
       { type: "separator" },
       {
         click: () => {
@@ -338,10 +340,10 @@ export function createAppWindowMenu(
   const viewMenu: MenuItemConstructorOptions = {
     ...shared,
     submenu: [
-      ...menuItems(VIEW_CHORDS),
-      ...menuItems(VIEW_ALIAS_CHORDS),
+      ...menuItems(VIEW_CHORDS, windows),
+      ...menuItems(VIEW_ALIAS_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(PLACE_CHORDS),
+      ...menuItems(PLACE_CHORDS, windows),
       { type: "separator" },
       ...(Array.isArray(shared.submenu)
         ? shared.submenu.filter(
@@ -409,18 +411,49 @@ function resolvedMenuShortcut({
 }
 
 /**
- * A chord's menu row, answered only while a window is focused. This menu is
- * up with no window focused too (menus/index.ts), where the app window may
- * be minimized or held off screen, and a chord there would act on a window
- * nobody can see: Cmd+W on its last tab closes it.
+ * What a chord does with no window focused, as a browser's do: New Chat
+ * opens a window with a new chat in it, New Tab a window, and Reopen Closed
+ * Tab the window closed last. The rest do nothing then.
  */
-function menuItems(chords: WindowChord[]): MenuItemConstructorOptions[] {
-  return chords.map(({ accelerator, label, run, visible }) => ({
+function noWindowAction(
+  id: WindowShortcutId | undefined,
+  windows: WindowMenuActions,
+): (() => void) | undefined {
+  switch (id) {
+    case "newChat": {
+      return windows.openNewWithChat;
+    }
+    case "newTab": {
+      return windows.openNew;
+    }
+    case "reopenTab": {
+      return windows.canReopenClosed ? windows.reopenClosed : undefined;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * A chord's menu row, answered by the focused window. This menu is up with
+ * no window focused too (menus/index.ts), where the app window may be
+ * minimized or held off screen, and a chord there would act on a window
+ * nobody can see (Cmd+W on its last tab closes it), so only the chords with
+ * a `noWindowAction` answer then, each by opening a window.
+ */
+function menuItems(
+  chords: WindowChord[],
+  windows: WindowMenuActions,
+): MenuItemConstructorOptions[] {
+  return chords.map(({ accelerator, id, label, run, visible }) => ({
     accelerator,
     click: () => {
       const window = BrowserWindow.getFocusedWindow();
       if (window) {
         run(window);
+      } else {
+        noWindowAction(id, windows)?.();
       }
     },
     label,

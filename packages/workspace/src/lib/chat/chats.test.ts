@@ -28,6 +28,7 @@ import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { recordAsk, recordQuestion, recordSignIn } from "./asks";
+import { openAsks } from "./open-asks";
 import { refreshSignIn } from "./drive-asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
@@ -155,7 +156,11 @@ afterEach(() => {
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 
 /** A reply that asked the user with `choose`, and the question it left open. */
-async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
+async function agentAsks(
+  _chatId: ChatId,
+  sessionId: StoreId.Session,
+  question = "Which one?",
+) {
   const messageId = StoreId.newMessageId();
   const part = {
     input: {
@@ -163,7 +168,7 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
         {
           choices: [{ label: "Yes" }, { label: "No" }],
           header: "Pick",
-          question: "Which one?",
+          question,
         },
       ],
     },
@@ -196,7 +201,7 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   // What the call's own run records.
   await recordQuestion(
     { chatId, messageId, partId: part.metadata.id, sessionId },
-    ["Which one?"],
+    [question],
   );
 }
 
@@ -1022,6 +1027,45 @@ describe("listChats", () => {
       kind: "question",
       text: "Which one?",
     });
+  });
+
+  it("waits only on the newest question once a later turn asks again", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Planets");
+    await userSays(chatId, sessionId, "ask me my favorite planet", 1);
+    await agentAsks(chatId, sessionId, "Which planet?");
+    // A note no one typed wakes the chat, which asks again.
+    const noteId = StoreId.newMessageId();
+    const woke = await ChatWrites.saveMessageWithParts(
+      {
+        id: noteId,
+        metadata: { createdAt: at(6), sessionId },
+        parts: [
+          {
+            data: { answer: "allowed", kind: "folder", target: "/Users/me" },
+            metadata: partMetadata({ messageId: noteId, sessionId }),
+            type: "data-permissionAnswer",
+          },
+        ],
+        role: "user",
+      },
+      await chatFor(sessionId),
+    );
+    expect(woke.isOk()).toBe(true);
+    await agentAsks(chatId, sessionId, "Which planet, again?");
+
+    const [chat] = await listChats();
+
+    expect(chat?.latest).toEqual({
+      at: expect.any(Number),
+      kind: "question",
+      text: "Which planet, again?",
+    });
+    expect(
+      (await openAsks(await chatFor(sessionId))).map((ask) =>
+        ask.kind === "question" ? ask.question : ask.kind,
+      ),
+    ).toEqual(["Which planet, again?"]);
   });
 
   it("waits on a sign-in card until its app is answered, and not once the user writes past it", async () => {

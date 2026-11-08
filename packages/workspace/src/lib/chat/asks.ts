@@ -235,7 +235,9 @@ export async function recordAsk(
  * Records the questions the chat's agent put to the person with `choose`,
  * by the call that asked them, whose part's id is the ask's: the card under
  * that call, on every device, until it is answered or the person moves
- * past it.
+ * past it. Asking again replaces what the session asked in an earlier
+ * step: this computer's questions still open from then close, waking
+ * nobody, so only the newest card waits on the person.
  */
 export async function recordQuestion(
   asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
@@ -244,10 +246,30 @@ export async function recordQuestion(
   if (questions.length === 0) {
     return;
   }
-  const at = getCurrentDate();
   // Only the chat's own session asks, so its log is the one asking.
-  await askWrites(asker.chatId, () =>
-    askWriter(asker.chatId).ask(asker.chatId, asker.sessionId, {
+  await askWrites(asker.chatId, async () => {
+    const writer = askWriter(asker.chatId);
+    for (const { ask, live } of await chatAskStates(asker.chatId)) {
+      if (
+        live &&
+        ask.kind === "question" &&
+        ask.device === thisDevice() &&
+        ask.messageId !== asker.messageId &&
+        ask.askers.some((one) => one.sessionId === asker.sessionId)
+      ) {
+        await writer.ask(asker.chatId, asker.sessionId, {
+          ...ask,
+          stage: {
+            closedAt: getCurrentDate(),
+            is: "closed",
+            outcome: { kind: "left" },
+            woken: true,
+          },
+        });
+      }
+    }
+    const at = getCurrentDate();
+    await writer.ask(asker.chatId, asker.sessionId, {
       askedAt: at,
       askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
       device: thisDevice(),
@@ -257,8 +279,8 @@ export async function recordQuestion(
       partId: asker.partId,
       questions,
       stage: { is: "open" },
-    }),
-  );
+    });
+  });
 }
 
 /**

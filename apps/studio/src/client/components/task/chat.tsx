@@ -38,7 +38,7 @@ import {
   StoreId,
   type ChatId,
 } from "@instrument-org/workspace/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { noop } from "radashi";
 import {
@@ -295,12 +295,28 @@ export function ChatConversation({
   });
 
   // A new chat up to the reply, opened in a tab of its own beside this one.
+  // The window opens only a chat its list has, so the branch's row goes in
+  // the list first, and the open waits for the window drawn with it.
+  const queryClient = useQueryClient();
+  const latestWindow = useRef(appWindow);
+  useLayoutEffect(() => {
+    latestWindow.current = appWindow;
+  });
   const handleBranch = async (upTo: StoreId.Message) => {
     const { id: branch } = await rpcClient.workspace.chats.branch.call({
       id: chatId,
       upTo,
     });
-    appWindow?.openScreen(chatHref(branch), { newTab: true });
+    const row = await rpcClient.workspace.chats.byId.call({ id: branch });
+    if (row) {
+      queryClient.setQueryData(chatListOptions().queryKey, (chats) =>
+        chats === undefined || chats.some((chat) => chat.id === branch)
+          ? chats
+          : [...chats, row],
+      );
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    latestWindow.current?.openScreen(chatHref(branch), { newTab: true });
   };
 
   const handleRetry = (prompt: string) => {

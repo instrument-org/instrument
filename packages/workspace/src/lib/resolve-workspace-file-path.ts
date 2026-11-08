@@ -16,6 +16,7 @@ import {
 import { type ChatId } from "../schemas/chat-id";
 import { toldOutputFolders } from "./environment";
 import { normalizePath } from "./normalize-path";
+import { chatDir, chatOwnFolder, resolveChat } from "./record-folders";
 import { relativeWithin } from "./path-containment";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import { sessionLayout } from "./session-layout";
@@ -92,16 +93,17 @@ export async function resolveWorkspaceFilePaths<Given extends string>({
  * settles, after the first turn, so a file that turn made is named in the
  * folder under its first name and found in the titled folder after it.
  */
-interface MovedChatFolder {
-  from: string[];
-  to: string;
-}
+type MovedChatFolder = { from: string[]; to: string }[];
 
 /**
  * The names the chat's folder had are the output folders its sessions were
  * told, which is the path the agent wrote with. A name another chat holds
  * now still means this chat's folder in this chat's messages. Read only when
  * a path names something in `Chats/`, since it reads the chat's history.
+ *
+ * A branch's copied conversation names the folder of the chat it came from,
+ * under whichever name it had then, so those names mean that chat's folder
+ * as it is named now, while that chat is there.
  */
 async function movedChatFolder(
   layout: WorkspaceFsLayout,
@@ -121,10 +123,21 @@ async function movedChatFolder(
   if (!inChats) {
     return undefined;
   }
-  const from = [...(await toldOutputFolders(chatId))].filter(
-    (folder) => folder !== to && path.posix.dirname(folder) === chats,
-  );
-  return from.length === 0 ? undefined : { from, to };
+  const { copied, told } = await toldOutputFolders(chatId);
+  const inChatsBut = (folders: Iterable<string>, target: string) =>
+    [...folders].filter(
+      (folder) => folder !== target && path.posix.dirname(folder) === chats,
+    );
+  const moves: MovedChatFolder = [];
+  const origin = copied && resolveChat(copied.chat);
+  const originFolder = origin && chatOwnFolder(chatDir(origin));
+  if (copied && originFolder !== undefined) {
+    const originTo = shellPath(originFolder);
+    moves.push({ from: inChatsBut(copied.folders, originTo), to: originTo });
+  }
+  moves.push({ from: inChatsBut(told, to), to });
+  const kept = moves.filter((move) => move.from.length > 0);
+  return kept.length === 0 ? undefined : kept;
 }
 
 /** A path in the chat's folder under a name it had, spelled under the one it has. */
@@ -136,10 +149,12 @@ function underCurrentName(
     return spelled;
   }
   const normalized = normalizePath(spelled);
-  for (const folder of moved.from) {
-    const rest = relativeWithin(folder, normalized);
-    if (rest !== null) {
-      return rest === "/" ? moved.to : `${moved.to}${rest}`;
+  for (const { from, to } of moved) {
+    for (const folder of from) {
+      const rest = relativeWithin(folder, normalized);
+      if (rest !== null) {
+        return rest === "/" ? to : `${to}${rest}`;
+      }
     }
   }
   return spelled;

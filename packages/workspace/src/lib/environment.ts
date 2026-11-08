@@ -81,15 +81,23 @@ function imageOptionsFor(runsOn: AIGatewayModelURI.Type | undefined) {
  * when its title settles, so a path the agent wrote into the folder as it
  * was told it then names the folder by a name it no longer has. Empty for a
  * chat whose records cannot be read.
+ *
+ * A branch's copied conversation was told the folders of the chat it came
+ * from, which are that chat's and not the branch's: those are `copied`,
+ * with that chat's id, apart from what the branch itself was told.
  */
-export async function toldOutputFolders(chatId: ChatId): Promise<Set<string>> {
+export async function toldOutputFolders(chatId: ChatId): Promise<{
+  copied?: { chat: string; folders: Set<string> };
+  told: Set<string>;
+}> {
   const told = new Set<string>();
+  let copied: { chat: string; folders: Set<string> } | undefined;
   const sessions = await ChatReads.sessions({
     chatId,
     includeChildSessions: true,
   });
   if (sessions.isErr()) {
-    return told;
+    return { told };
   }
   for (const session of sessions.value) {
     const history = await ChatReads.history({
@@ -99,24 +107,32 @@ export async function toldOutputFolders(chatId: ChatId): Promise<Set<string>> {
     if (history.isErr()) {
       continue;
     }
+    let mine = new Set<string>();
     for (const message of history.value) {
       if (message.role === "session-context") {
         const folder = message.metadata.environment?.outputFolder;
         if (folder !== undefined) {
-          told.add(folder);
+          mine.add(folder);
         }
       }
       for (const part of message.parts) {
+        if (part.type === "data-branchedFrom") {
+          copied = { chat: part.data.chat, folders: mine };
+          mine = new Set();
+        }
         if (
           part.type === "data-environmentChange" &&
           part.data.outputFolder !== undefined
         ) {
-          told.add(part.data.outputFolder);
+          mine.add(part.data.outputFolder);
         }
       }
     }
+    for (const folder of mine) {
+      told.add(folder);
+    }
   }
-  return told;
+  return { ...(copied && { copied }), told };
 }
 
 /** Each fact of `current` that differs from `told`, or undefined when none does. */

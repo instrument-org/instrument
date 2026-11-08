@@ -1,4 +1,4 @@
-**Status:** open · **Check after:** 2026-11-11, after a week on a beta with the cause capture · **Last checked:** never
+**Status:** open · **Check after:** 2026-11-22, or when production exception reports are accessible · **Last checked:** 2026-11-08
 
 # Why reply streams drop partway
 
@@ -29,3 +29,13 @@ PostHog error tracking for the desktop app, filtered to area `llm-request`. The 
 - **Parse errors:** a provider changed its stream shape. Pin or patch the provider SDK.
 
 ## Result
+
+Checked 2026-11-08. The cause capture first shipped in beta.111 (fa147968e, October 28). All three computers ran qualifying betas: the primary Mac and Windows from October 29, and the laptop also ran later builds through beta.135.
+
+No `Failed to process successful response` signature appeared in their retained main logs, and none of their current local exception stores contained a matching stream exception. The primary Mac recorded 371 activity requests from October 29 onward; the laptop's daily-use workspace recorded 296 from October 29 onward; Windows recorded 295 from November 4 through 7. These are request rows, including tasks and helper calls, not counts of user turns. Older test-workspace activity is excluded from this exposure sample.
+
+The local evidence is encouraging: these computers show no recurrence after the cause capture shipped. It does not establish a fleet-wide rate or a breakdown by cause. PostHog rejected the read with an authentication error, so production exceptions were not inspected. Local exception stores are bounded snapshots. Keep this open for the production check rather than treating unavailable telemetry as zero.
+
+## Next check
+
+Reconnect the PostHog app to restore access to production exception reports, then count matching exceptions since beta.111 by cause, provider and version. No retry or timeout changes are justified by the local sample.

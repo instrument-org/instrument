@@ -64,7 +64,7 @@ import {
   unarchiveChat,
 } from "./chats";
 import { updateSessionTitle } from "../update-session-title";
-import { chatRowAsked, liveChatRows } from "./live-chat-list";
+import { liveChatRows, refreshChatRow } from "./live-chat-list";
 import {
   type ChatListEvent,
   foldChatList,
@@ -1963,26 +1963,40 @@ describe("liveChatRows", () => {
     stop();
   });
 
-  // A window paints the project from the click; a project removed before the
-  // request lands files the chat under none, which writes nothing, so the
-  // only answer that takes the paint back is the same list sent again.
-  it("answers a request to change a row with the row as it stands, though nothing changed", async () => {
+  // A window paints the project from the click and keeps the paint until its
+  // list reaches the revision the request answers with. A project removed
+  // before the request lands files the chat under none, which writes nothing,
+  // so the answer is the revision the list already stands at.
+  it("answers a request for a row with the revision the row stands at, and sends nothing for one that changed nothing", async () => {
+    expect(await refreshChatRow(ChatIdSchema.parse("chats-no-list"))).toBe(
+      null,
+    );
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
     const id = await chatFor(sessionId);
-    const { first, next, stop } = await open();
+    const { events, next, stop } = await open();
+    const [snapshot] = events;
 
     await setChatProject(id, "top_removed");
     recordChanged(id, "settings");
+    expect(await refreshChatRow(id)).toEqual({
+      epoch: snapshot?.epoch,
+      rev: snapshot?.rev,
+    });
+    expect(await refreshChatRow(ChatIdSchema.parse("chats-not-there"))).toEqual(
+      { epoch: snapshot?.epoch, rev: snapshot?.rev },
+    );
     expect(await next()).toBeUndefined();
 
-    chatRowAsked(id);
-    expect(await next()).toEqual(first);
-    expect(await next()).toBeUndefined();
-
-    chatRowAsked(ChatIdSchema.parse("chats-not-there"));
-    expect(await next()).toEqual(first);
+    await setChatStarred(id, true);
+    const starredAt = await refreshChatRow(id);
+    expect((await next())?.[0]?.starred).toBe(true);
+    expect(starredAt).toEqual({
+      epoch: snapshot?.epoch,
+      rev: events.at(-1)?.rev,
+    });
+    expect(events).toHaveLength(2);
     stop();
   });
 

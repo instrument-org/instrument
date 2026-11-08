@@ -78,15 +78,6 @@ export const publisher = new EventPublisher<{
     id: ChatId;
   };
   /**
-   * A request to change what a chat's row shows (a mark, its project, its
-   * title) has finished, whether or not it wrote anything. Published by
-   * `chatRowAsked`; the live chat list answers it even when its answer is
-   * the same as the last, since a window paints the request before it lands.
-   */
-  "chat.rowAsked": {
-    id: ChatId;
-  };
-  /**
    * A chat stopped working: its agent, every task filed from it and every
    * wake on its way to it are done. Published by `startChatSettle` once per
    * stretch of work, for whatever treats a chat at rest as news.

@@ -61,7 +61,11 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-import { chatListOptions, chromeOfChats } from "./chat-list-query";
+import {
+  chatListOptions,
+  chromeOfChats,
+  paintChatRow,
+} from "./chat-list-query";
 import { type Chat } from "./chats";
 
 /** A row with what these readers look at; the rest of a wire row never reaches them. */
@@ -71,6 +75,7 @@ function row(id: string, overrides: Partial<Chat> = {}): Chat {
     archived: false,
     id,
     sessionId: `ses_${id}`,
+    starred: false,
     status: "idle",
     title: id,
     unread: false,
@@ -195,6 +200,38 @@ describe("the chat list query", () => {
     expect(after?.map((chat) => chat.id)).toEqual(["a", "c"]);
     // Sent again the same, so the same object.
     expect(after?.[1]).toBe(patched?.[1]);
+    void queryClient.cancelQueries();
+  });
+
+  it("hands every reader the rows with the window's paints over them", async () => {
+    const queryClient = new QueryClient();
+    const { queryKey } = chatListOptions();
+    void queryClient.fetchQuery(chatListOptions());
+    await settle();
+    const stream = streams.opened.at(-1);
+    stream?.push({ epoch: "one", kind: "snapshot", rev: 0, rows: [row("a")] });
+    await settle();
+    const starred = () =>
+      queryClient.getQueryData<Chat[]>(queryKey)?.[0]?.starred;
+
+    const painting = paintChatRow(queryClient, "a" as Chat["id"], {
+      starred: true,
+    });
+    expect(starred()).toBe(true);
+    // Read before the star was written.
+    stream?.push({
+      epoch: "one",
+      from: 0,
+      kind: "patch",
+      removed: [],
+      rev: 1,
+      upserts: [row("a", { title: "Moved" })],
+    });
+    await settle();
+    expect(starred()).toBe(true);
+
+    painting.failed();
+    expect(starred()).toBe(false);
     void queryClient.cancelQueries();
   });
 });

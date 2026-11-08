@@ -1,6 +1,6 @@
 # Plan: send the chat list as rows that changed
 
-Status: open. Steps 1 to 3 landed: a row's digest is read from written records, re-reads for changes only in memory are held to one per chat per 500 ms, one reading of the list per process serves every follower (`liveChatList`), and `chats.live.rows` sends a snapshot and then patches, which the window folds into `chatListOptions()`. Takes up the step [record-change-feed.md](record-change-feed.md) left under "Next" and [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md) closed without.
+Status: open. Steps 1 to 4 landed: a row's digest is read from written records, re-reads for changes only in memory are held to one per chat per 500 ms, one reading of the list per process serves every follower (`liveChatList`), `chats.live.rows` sends a snapshot and then patches, which the window folds into `chatListOptions()`, and a window's paints are an overlay over the folded rows, each dropped once the list reaches the revision its request answered with. Takes up the step [record-change-feed.md](record-change-feed.md) left under "Next" and [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md) closed without.
 
 ## Problem
 

@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { chatListOptions } from "./chat-list-query";
+import { paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { childTasksOptions } from "./child-tasks-query";
 
@@ -108,10 +108,12 @@ export function DeleteChatDialog({
       items={[chat]}
       onDelete={async () => {
         try {
-          await rpcClient.workspace.chats.trash.call({
+          const at = await rpcClient.workspace.chats.trash.call({
             id: chat.id,
             itsFolder,
           });
+          // Kept out of the list until the list has it gone.
+          paintChatRow(queryClient, chat.id, "gone").landed(at);
         } catch (error) {
           toast.error("Couldn't delete the chat", {
             cause: error,
@@ -120,9 +122,6 @@ export function DeleteChatDialog({
           });
           throw error;
         }
-        queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>
-          chats?.filter((each) => each.id !== chat.id),
-        );
         queryClient.removeQueries({
           queryKey: rpcClient.workspace.chats.session.queryKey({
             input: { id: chat.id },

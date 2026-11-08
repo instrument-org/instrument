@@ -100,6 +100,7 @@ describe("a chat's folder following its title", () => {
     });
 
     expect(await call(chats.retitle, { id: chatId }, { context })).toEqual({
+      listed: null,
       title: "Flights to Lisbon",
     });
 

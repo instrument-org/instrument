@@ -24,7 +24,7 @@ import {
 } from "../../lib/chat-folders/follow-title";
 import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
-import { chatRowAsked, liveChatRows } from "../../lib/chat/live-chat-list";
+import { liveChatRows, refreshChatRow } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStatusKindSchema, taskStatus } from "../../lib/chat/task-status";
 import { answerQuestionAsk, declineSignInAsk } from "../../lib/chat/drive-asks";
@@ -41,6 +41,7 @@ import {
 import { trashChat } from "../../lib/trash-chat";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
+import { type ListedAt } from "../../lib/chat/chat-list-events";
 import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
 import { atMoment, distinct, liveRead, where } from "../live-read";
@@ -166,22 +167,28 @@ const liveTaskTitlesRoute = base
   });
 
 /**
- * Acts on the chat an id names; an id that is no chat's does nothing. Every
- * live chat list answers once it has finished, changed or not, which takes
- * back what a window painted ahead of the request.
+ * Where the live chat list stands once a request is in its rows: the run of
+ * the list and its revision, or none when no list is read.
+ */
+const ListedAtSchema = z
+  .object({ epoch: z.string(), rev: z.number() })
+  .nullable();
+
+/**
+ * Acts on the chat an id names; an id that is no chat's does nothing.
+ * Answers with where the live chat list stands once it has read the chat's
+ * row again after the act, changed or not, which is what a window waits for
+ * before it takes back what it painted ahead of the request.
  */
 async function whenChat(
   id: ChatId,
   act: (chatId: ChatId) => Promise<unknown>,
-): Promise<void> {
+): Promise<ListedAt | null> {
   const chatId = resolveChat(id);
-  try {
-    if (chatId) {
-      await act(chatId);
-    }
-  } finally {
-    chatRowAsked(chatId ?? id);
+  if (chatId) {
+    await act(chatId);
   }
+  return await refreshChatRow(chatId ?? id);
 }
 
 /** One chat as the list shows it, or none for an id that is not a chat's. */
@@ -223,15 +230,17 @@ const liveChatRowsRoute = base
 /** Takes a chat's unread mark off: the user has looked at it, or said so. */
 const readChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, markChatRead);
+    return await whenChat(input.id, markChatRead);
   });
 
 /** Marks a chat unread by the user's hand, which holds until they come back to it. */
 const unreadChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) =>
+    return await whenChat(input.id, (chatId) =>
       markChatUnread(chatId, { byUser: true }),
     );
   });
@@ -239,45 +248,51 @@ const unreadChatRoute = base
 /** Puts a chat away: out of the inbox, still in the list, marked. */
 const archiveChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, archiveChat);
+    return await whenChat(input.id, archiveChat);
   });
 
 /** Stars a chat, or takes the star off. */
 const starChatRoute = base
   .input(z.object({ id: ChatIdSchema, starred: z.boolean() }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => setChatStarred(chatId, input.starred));
+    return await whenChat(input.id, (chatId) =>
+      setChatStarred(chatId, input.starred),
+    );
   });
 
 /** Brings a chat back into the inbox. */
 const unarchiveChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, unarchiveChat);
+    return await whenChat(input.id, unarchiveChat);
   });
 
 /**
  * Names a chat again from where it stands now, on the user's ask, as
- * often as they ask; answers with the title it has afterward, or nothing when
- * there was nothing to name it from. A name the user asked for settles the
- * title the same as one they typed.
+ * often as they ask; answers with the title it has afterward and where the
+ * live chat list stands once its row shows it, or nothing when there was
+ * nothing to name it from. A name the user asked for settles the title the
+ * same as one they typed.
  */
 const retitleChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
-  .output(z.object({ title: z.string().optional() }))
+  .output(z.object({ listed: ListedAtSchema, title: z.string().optional() }))
   .handler(async ({ input }) => {
     const sessionId = sessionOfChat(input.id);
     if (!sessionId) {
-      return {};
+      return { listed: null };
     }
     const title = await retitleChat({ id: input.id, sessionId });
     if (title === undefined) {
-      return {};
+      return { listed: null };
     }
     await settleChatTitle(input.id);
     await followTitleBetweenTurns(input.id, title);
-    return { title };
+    return { listed: await refreshChatRow(input.id), title };
   });
 
 /**
@@ -298,8 +313,9 @@ async function followTitleBetweenTurns(chatId: ChatId, title: string) {
 /** Names a chat as the user typed it, and its folder with it. */
 const renameChatRoute = base
   .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, async (chatId) => {
+    return await whenChat(input.id, async (chatId) => {
       const renamed = await renameChat(chatId, input.title);
       if (renamed) {
         await followTitleBetweenTurns(chatId, cappedTitle(input.title));
@@ -311,8 +327,11 @@ const renameChatRoute = base
 /** Files a chat under a project, or under none with `null`. */
 const setChatProjectRoute = base
   .input(z.object({ id: ChatIdSchema, project: z.string().nullable() }))
+  .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => setChatProject(chatId, input.project));
+    return await whenChat(input.id, (chatId) =>
+      setChatProject(chatId, input.project),
+    );
   });
 
 /**
@@ -377,6 +396,8 @@ const chatOfSessionRoute = base
  * is the person's: a transcript they can read and whatever the agent
  * finished for them, and deleting a chat to tidy a list is not a request to
  * throw that away.
+ *
+ * Answers with where the live chat list stands once the chat has left it.
  */
 const trashChatRoute = base
   .input(
@@ -386,6 +407,7 @@ const trashChatRoute = base
       itsFolder: z.boolean().optional(),
     }),
   )
+  .output(ListedAtSchema)
   .handler(async ({ context, errors, input }) => {
     const id = resolveChat(input.id);
     if (!id) {
@@ -400,6 +422,7 @@ const trashChatRoute = base
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
+    return await refreshChatRow(id);
   });
 
 /**

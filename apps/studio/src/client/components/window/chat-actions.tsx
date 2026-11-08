@@ -16,7 +16,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
 
-import { chatListOptions } from "./chat-list-query";
+import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { type RowAction } from "./row-shell";
 
@@ -63,48 +63,49 @@ export function useChatActions(chat: Chat): RowAction[] {
  */
 export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const queryClient = useQueryClient();
-  const paint = (id: ChatId, change: (chat: Chat) => Chat) => {
-    paintChat(queryClient, { id }, change);
-  };
-  const repaint = () => {
-    repaintChats(queryClient);
-  };
   // The rest are each held as their stable `mutate` rather than as the
   // mutation object, which is new on every render and would make the
   // function returned below new with it, and every row the list memoizes on
   // it render again.
   const { mutate: read } = useMutation(
-    rpcClient.workspace.chats.read.mutationOptions({
-      onError: repaint,
-      onMutate: (input) => {
-        paint(input.id, (chat) => ({
-          ...chat,
+    rpcClient.workspace.chats.read.mutationOptions<ChatRowPainting>({
+      onError: (_error, _input, painting) => {
+        painting?.failed();
+      },
+      onMutate: (input) =>
+        paintChatRow(queryClient, input.id, {
           unread: false,
           unreadByUser: false,
-        }));
+        }),
+      onSuccess: (at, _input, painting) => {
+        painting.landed(at);
       },
     }),
   );
   const { mutate: unread } = useMutation(
-    rpcClient.workspace.chats.unread.mutationOptions({
-      onError: repaint,
-      onMutate: (input) => {
-        paint(input.id, (chat) => ({
-          ...chat,
+    rpcClient.workspace.chats.unread.mutationOptions<ChatRowPainting>({
+      onError: (_error, _input, painting) => {
+        painting?.failed();
+      },
+      onMutate: (input) =>
+        paintChatRow(queryClient, input.id, {
           unread: true,
           unreadByUser: true,
-        }));
+        }),
+      onSuccess: (at, _input, painting) => {
+        painting.landed(at);
       },
     }),
   );
   const { mutate: star } = useMutation(
-    rpcClient.workspace.chats.star.mutationOptions({
-      onError: repaint,
-      onMutate: (input) => {
-        paint(input.id, (chat) => ({
-          ...chat,
-          starred: input.starred,
-        }));
+    rpcClient.workspace.chats.star.mutationOptions<ChatRowPainting>({
+      onError: (_error, _input, painting) => {
+        painting?.failed();
+      },
+      onMutate: (input) =>
+        paintChatRow(queryClient, input.id, { starred: input.starred }),
+      onSuccess: (at, _input, painting) => {
+        painting.landed(at);
       },
     }),
   );
@@ -191,28 +192,6 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
 }
 
 /**
- * Paints a mark onto one chat in the list from the click rather than from
- * the round trip: the row moves, or its mark changes, the moment it is asked
- * for. The live list's next answer is the truth either way.
- */
-function paintChat(
-  queryClient: QueryClient,
-  { id }: { id: ChatId },
-  change: (chat: Chat) => Chat,
-) {
-  queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>
-    chats?.map((chat) => (chat.id === id ? change(chat) : chat)),
-  );
-}
-
-/** Asks for the list's truth again at once, after a paint the workspace refused. */
-function repaintChats(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({
-    queryKey: chatListOptions().queryKey,
-  });
-}
-
-/**
  * Puts a chat away or brings it back. Each way's toast offers the other
  * way back, so an undo can be undone; the toast hangs off the call's answer
  * rather than off a row, since the row is gone from the list by the time it
@@ -224,12 +203,15 @@ function setArchived(
   input: ChatInput,
   archived: boolean,
 ) {
-  paintChat(queryClient, input, (chat) => ({ ...chat, archived }));
+  // A quick Undo paints over the paint it undoes, so the row never shows
+  // the first request's answer in between.
+  const painting = paintChatRow(queryClient, input.id, { archived });
   const call = archived
     ? rpcClient.workspace.chats.archive.call(input)
     : rpcClient.workspace.chats.unarchive.call(input);
   call.then(
-    () => {
+    (at) => {
+      painting.landed(at);
       toast(archived ? "Archived" : "Moved to Inbox", {
         action: {
           label: "Undo",
@@ -240,7 +222,7 @@ function setArchived(
       });
     },
     (error: unknown) => {
-      repaintChats(queryClient);
+      painting.failed();
       toast.error(
         archived
           ? "Couldn't archive the chat"

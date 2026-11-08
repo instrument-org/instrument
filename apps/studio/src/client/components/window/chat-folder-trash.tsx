@@ -6,8 +6,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { chatListOptions } from "./chat-list-query";
-import { type Chat } from "./chats";
+import { chatListOptions, paintChatRow } from "./chat-list-query";
 
 /** How many chats the dialog names before it counts the rest. */
 const CHATS_NAMED = 5;
@@ -149,14 +148,14 @@ function ChatFolderDialog({
       }
       items={asking.chats}
       onDelete={async (chats) => {
-        const gone = new Set<ChatId>();
         try {
           for (const chat of chats) {
-            await rpcClient.workspace.chats.trash.call({
+            const at = await rpcClient.workspace.chats.trash.call({
               id: chat.id,
               itsFolder: true,
             });
-            gone.add(chat.id);
+            // Kept out of the list until the list has it gone.
+            paintChatRow(queryClient, chat.id, "gone").landed(at);
           }
         } catch (error) {
           toast.error(
@@ -168,13 +167,6 @@ function ChatFolderDialog({
             },
           );
           throw error;
-        } finally {
-          if (gone.size > 0) {
-            queryClient.setQueryData<Chat[]>(
-              chatListOptions().queryKey,
-              (rows) => rows?.filter((each) => !gone.has(each.id)),
-            );
-          }
         }
         settle({ kind: "chats", rest });
       }}

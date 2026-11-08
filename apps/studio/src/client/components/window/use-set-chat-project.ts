@@ -3,35 +3,28 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
 
-import { chatListOptions } from "./chat-list-query";
-import { type Chat } from "./chats";
+import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 
 /**
  * Files a chat under a project, or under none with `null`, and paints the
  * pill from the click rather than from the round trip: the list beside the
  * chat is a live read of every chat's messages, re-run on the change, and
- * the pill waiting on that read made filing feel slow. The live read's next
- * answer is the truth, and replaces the paint either way.
+ * the pill waiting on that read made filing feel slow.
  */
 export function useSetChatProject() {
   const queryClient = useQueryClient();
-  const key = chatListOptions().queryKey;
   const mutation = useMutation(
-    rpcClient.workspace.chats.setProject.mutationOptions({
-      onError: (error) => {
+    rpcClient.workspace.chats.setProject.mutationOptions<ChatRowPainting>({
+      onError: (error, _input, painting) => {
+        painting?.failed();
         toast.error("Couldn't change the chat's project", { cause: error });
-        void queryClient.invalidateQueries({ queryKey: key });
       },
-      onMutate: (input) => {
-        queryClient.setQueryData<Chat[]>(key, (chats) =>
-          chats?.map((chat) => {
-            if (chat.id !== input.id) {
-              return chat;
-            }
-            const { project: _was, ...rest } = chat;
-            return input.project ? { ...rest, project: input.project } : rest;
-          }),
-        );
+      onMutate: (input) =>
+        paintChatRow(queryClient, input.id, {
+          project: input.project ?? undefined,
+        }),
+      onSuccess: (at, _input, painting) => {
+        painting.landed(at);
       },
     }),
   );

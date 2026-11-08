@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { isEqual, unique } from "radashi";
 
-import { publisher } from "../../rpc/publisher";
 import { collapsed, everyOne } from "../../rpc/live-read";
 import { type ChatId } from "../../schemas/chat-id";
 import { appListChanges } from "../host-events";
@@ -14,6 +13,7 @@ import {
   foldChatList,
   type HeldChatList,
   listedBefore,
+  type ListedAt,
 } from "./chat-list-events";
 import { listChatIds } from "./chat-records";
 import { type Chat, knownAppSlugs, listedChats } from "./chats";
@@ -55,10 +55,10 @@ function sameSlugs(a: Set<string>, b: Set<string>): boolean {
  * lists that no change named (made behind its back) is read when the next
  * change lands, and one it no longer lists goes. Subscribed before the first
  * read, so nothing lands unheard between the two. A row read again the same
- * as it was is not sent, except to a request to change it (`chatRowAsked`):
- * a window paints that request before it lands, and a request that changed
- * nothing (a project just removed, a chat already gone) leaves the row as it
- * was, so the same row is what takes the paint back.
+ * as it was is not sent. A request that changes a row reads it again once
+ * it has written (`refreshChatRow`) and answers with the `rev` the row
+ * stands at, changed or not, which is what a window waits for before it
+ * takes back what it painted.
  *
  * One reading of the list serves every follower in the process (each
  * window's `chats.live.rows`, and the phone's `chat-list.json`), so a moved
@@ -163,9 +163,21 @@ interface Reading {
   followers: Set<Follower>;
   /** How many patches it has sent; none until the first read is in. */
   rev?: number;
+  /** Requests for a row read again, not yet answered. */
+  refreshes: Refresh[];
   /** Each chat's row as last read. */
   rows: Map<ChatId, Chat>;
   stop: AbortController;
+  /** Wakes the reading for the requests in `refreshes`. */
+  wakeRefreshes?: () => void;
+}
+
+/** A request for a chat's row read again, answered with where the list stands once it is. */
+interface Refresh {
+  done: (at: ListedAt | null) => void;
+  id: ChatId;
+  /** Whether the reading has taken it to read. */
+  taken?: boolean;
 }
 
 let reading: Reading | undefined;
@@ -174,6 +186,7 @@ function startReading(): Reading {
   const current: Reading = {
     epoch: randomUUID(),
     followers: new Set(),
+    refreshes: [],
     rows: new Map(),
     stop: new AbortController(),
   };
@@ -196,11 +209,15 @@ function startReading(): Reading {
       if (reading === current) {
         reading = undefined;
       }
-      // A reading that ended under its followers ends them too.
+      // A reading that ended under its followers ends them too, and leaves
+      // no list for a request to wait on.
       const left = [...current.followers];
       current.followers.clear();
       for (const follower of left) {
         follower.wake?.();
+      }
+      for (const refresh of current.refreshes.splice(0)) {
+        refresh.done(null);
       }
     }
   })();
@@ -219,7 +236,7 @@ async function readChatList(
   const { rows } = current;
   const records = recordChanges(signal);
   const apps = collapsed(everyOne(appListChanges(signal)));
-  const asked = publisher.subscribe("chat.rowAsked", { signal });
+  const refreshes = refreshesOf(current);
   const held = heldReads(signal);
   /** Chats read at least once, whether or not they had a row to show. */
   const read = new Set<ChatId>();
@@ -229,12 +246,9 @@ async function readChatList(
   const readAt = new Map<ChatId, number>();
   /**
    * Reads `ids` again and takes `gone` out, and says which rows that
-   * changed: `resend` among them whether or not it moved.
+   * changed.
    */
-  const readAgain = async (
-    ids: ChatId[],
-    { gone = [], resend = [] }: { gone?: ChatId[]; resend?: ChatId[] } = {},
-  ) => {
+  const readAgain = async (ids: ChatId[], gone: ChatId[] = []) => {
     const now = performance.now();
     for (const id of ids) {
       readAt.set(id, now);
@@ -254,7 +268,7 @@ async function readChatList(
       const was = rows.get(id);
       if (row) {
         rows.set(id, row);
-        if (!was || resend.includes(id) || !isEqual(was, row)) {
+        if (!was || !isEqual(was, row)) {
           upserts.push(row);
         }
       } else if (rows.delete(id)) {
@@ -297,7 +311,7 @@ async function readChatList(
     for await (const moved of mergeGenerators([
       all(records),
       apps,
-      all(asked),
+      refreshes,
       held.due,
     ])) {
       let appsMoved = false;
@@ -317,10 +331,6 @@ async function readChatList(
           gone.push(id);
         }
       }
-      const askedFor =
-        moved !== null && !Array.isArray(moved) && !(moved instanceof Held)
-          ? moved.id
-          : undefined;
       const { removed, upserts } = await readAgain(
         unique([
           ...(moved === null
@@ -331,13 +341,13 @@ async function readChatList(
               ? moved.ids
               : Array.isArray(moved)
                 ? movedNow(moved)
-                : [moved.id]
+                : moved.refreshes.map((refresh) => refresh.id)
           ).filter((id) => known.has(id)),
           ...listed.filter((id) => !read.has(id)),
         ]),
-        { gone, resend: askedFor ? [askedFor] : [] },
+        gone,
       );
-      if (askedFor || upserts.length > 0 || removed.length > 0) {
+      if (upserts.length > 0 || removed.length > 0) {
         const from = rev;
         rev += 1;
         current.rev = rev;
@@ -350,15 +360,78 @@ async function readChatList(
           upserts,
         });
       }
+      if (moved instanceof Refreshes) {
+        for (const refresh of moved.refreshes) {
+          refresh.done({ epoch: current.epoch, rev });
+        }
+      }
     }
   } finally {
     await records.return();
     // Not awaited: it may be waiting on an app change that ends only when
     // the request's signal does.
     void apps.return(undefined);
-    void asked.return(undefined);
+    void refreshes.return(undefined);
     held.stop();
   }
+}
+
+/** Requests for rows read again, taken together. */
+class Refreshes {
+  constructor(readonly refreshes: Refresh[]) {}
+}
+
+/**
+ * The requests for rows read again as they come, all those waiting at once.
+ * Each stays in `current.refreshes` until it is answered, so a reading that
+ * ends answers every one, those it was reading for included.
+ */
+async function* refreshesOf(current: Reading): AsyncGenerator<Refreshes> {
+  const { signal } = current.stop;
+  signal.addEventListener("abort", () => current.wakeRefreshes?.(), {
+    once: true,
+  });
+  while (!signal.aborted) {
+    const batch = current.refreshes.filter((refresh) => !refresh.taken);
+    if (batch.length === 0) {
+      await new Promise<void>((resolve) => {
+        current.wakeRefreshes = resolve;
+      });
+      delete current.wakeRefreshes;
+      continue;
+    }
+    for (const refresh of batch) {
+      refresh.taken = true;
+    }
+    yield new Refreshes(batch);
+  }
+}
+
+/**
+ * Reads a chat's row again once what was asked of it is written, and
+ * answers with where the list stands once it has: the `rev` from which the
+ * row shows the request, whether or not it changed. None when no list is
+ * read in the process, so no reader has anything to wait for.
+ */
+export function refreshChatRow(id: ChatId): Promise<ListedAt | null> {
+  const current = reading;
+  if (!current || current.stop.signal.aborted) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const refresh: Refresh = {
+      done: (at) => {
+        const index = current.refreshes.indexOf(refresh);
+        if (index !== -1) {
+          current.refreshes.splice(index, 1);
+        }
+        resolve(at);
+      },
+      id,
+    };
+    current.refreshes.push(refresh);
+    current.wakeRefreshes?.();
+  });
 }
 
 /** Chats whose read was held, now due. */
@@ -423,14 +496,6 @@ function heldReads(signal: AbortSignal | undefined) {
     },
     stop,
   };
-}
-
-/**
- * Says a request to change what a chat's row shows has finished, written or
- * not, so every live chat list sends the row as it stands.
- */
-export function chatRowAsked(id: ChatId) {
-  publisher.publish("chat.rowAsked", { id });
 }
 
 /** An iterator as a generator, for merging. */

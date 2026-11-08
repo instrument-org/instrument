@@ -18,8 +18,11 @@ export function useAgentSessionStatus({
   const { data: taskActivity } = useChatActivity({ id });
   const sessionActors = taskActivity?.sessionActors ?? [];
 
+  // The activity lists only sessions whose agent is alive, its tasks' included.
+  const isChatAlive = sessionActors.length > 0;
+
   if (!sessionId || sessionId === skipToken) {
-    return { isAgentAlive: false, isAgentRunning: false };
+    return { isAgentAlive: false, isAgentRunning: false, isChatAlive };
   }
 
   const tags = getSessionTags({ sessionActors, sessionId });
@@ -27,6 +30,7 @@ export function useAgentSessionStatus({
   return {
     isAgentAlive: isSessionAlive(tags),
     isAgentRunning: isSessionRunning(tags),
+    isChatAlive,
   };
 }
 

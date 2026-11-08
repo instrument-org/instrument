@@ -252,7 +252,7 @@ export function ChatConversation({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
+  const { isAgentAlive, isAgentRunning, isChatAlive } = useAgentSessionStatus({
     id,
     sessionId: selectedSessionId,
   });
@@ -263,7 +263,10 @@ export function ChatConversation({
     setIsFollowingSubmit(false);
   }
 
-  const isSettlingTurn = useTurnSettleWindow(isAgentAlive);
+  // A task's preview grows in this transcript after the session that started
+  // it stops, so any live session of the chat is output arriving.
+  const isSettlingTurn = useTurnSettleWindow(isChatAlive);
+  const isFollowingOutput = isChatAlive || isFollowingSubmit || isSettlingTurn;
 
   // A question the chat is stopped on, which a reader scrolled back from the
   // end is told about by the scroll button rather than taken down to.
@@ -601,7 +604,7 @@ export function ChatConversation({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll while the session is alive, while a just-submitted prompt is
+  // autoScroll while a session of the chat is alive, while a just-submitted prompt is
   // waiting for one, and through the moment a turn takes to settle: past that,
   // on a transcript nothing is arriving into, follow-bottom has only the
   // reader's own clicks left to read as output. What it would misread there is
@@ -613,7 +616,7 @@ export function ChatConversation({
     <ComposerDraftContext value={draftKey}>
       <LiveTranscriptSurface chat={id}>
         <MessageScrollerProvider
-          autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
+          autoScroll={isFollowingOutput}
           defaultScrollPosition="end"
           key={selectedSessionId}
           scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
@@ -674,9 +677,7 @@ export function ChatConversation({
                     <TranscriptStream
                       chatId={chatId}
                       contentRef={contentRef}
-                      isFollowing={
-                        isAgentAlive || isFollowingSubmit || isSettlingTurn
-                      }
+                      isFollowing={isFollowingOutput}
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
                       isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}

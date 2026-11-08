@@ -2,6 +2,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/message-port";
 import { os, type RouterClient } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
+import { createAlarmGate } from "@instrument-org/shared/alarms";
 import { EventEmitter } from "node:events";
 import { expect, it, vi } from "vitest";
 
@@ -9,12 +10,8 @@ vi.mock("./electron-logger", () => ({
   createScopedLogger: () => ({ warn: vi.fn() }),
 }));
 
-const {
-  createPayloadMeter,
-  createWarningGate,
-  meterRPCPayloads,
-  readFrameHead,
-} = await import("./rpc-payloads");
+const { createPayloadMeter, meterRPCPayloads, readFrameHead } =
+  await import("./rpc-payloads");
 
 const MB = 1_000_000;
 const HOUR = 60 * 60_000;
@@ -35,12 +32,13 @@ const abort = (id: string) => JSON.stringify({ i: id, t: 4 });
 
 function setup(limits = { messageBytes: MB, minuteBytes: 10 * MB }) {
   let clock = 0;
+  const now = () => clock;
   const warn = vi.fn<(message: string) => void>();
   const meter = createPayloadMeter({
     window: 7,
     warn,
-    now: () => clock,
-    allowWarning: createWarningGate(),
+    now,
+    gate: createAlarmGate({ now }),
     limits,
   });
   return {
@@ -130,7 +128,7 @@ it("warns of each kind at most once an hour per procedure", () => {
 });
 
 it("shares the hourly limit between windows", () => {
-  const gate = createWarningGate();
+  const gate = createAlarmGate({ now: () => 0 });
   const warn = vi.fn();
   const limits = { messageBytes: MB, minuteBytes: 100 * MB };
   for (const window of [1, 2]) {
@@ -138,7 +136,7 @@ it("shares the hourly limit between windows", () => {
       window,
       warn,
       now: () => 0,
-      allowWarning: gate,
+      gate,
       limits,
     });
     meter.received(request("1", "chats.live.list"));
@@ -260,7 +258,7 @@ it("attributes real oRPC frames and forgets each call once it ends", async () =>
   const warn = vi.fn<(message: string) => void>();
   const meter = meterRPCPayloads(serverPort, 3, {
     warn,
-    allowWarning: createWarningGate(),
+    gate: createAlarmGate(),
   });
   new RPCHandler(router).upgrade(serverPort);
   const client: RouterClient<typeof router> = createORPCClient(

@@ -1,3 +1,5 @@
+import { alarms } from "@instrument-org/shared/alarms";
+
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
 
 /**
@@ -15,8 +17,6 @@ const PAYLOAD_LIMITS = {
 /** The rolling minute is six ten-second buckets, so a total costs six adds. */
 const BUCKET_MS = 10_000;
 const BUCKETS = 6;
-/** One warning of each kind per procedure per hour, across every window. */
-const WARN_EVERY_MS = 60 * 60_000;
 /**
  * Calls a window can have open before the one idle longest is forgotten. A
  * stream counts as open until it ends, and is moved to the back each time it
@@ -91,35 +91,16 @@ function sizeOf(data: unknown) {
 /** A procedure's rolling minute: one bucket per ten seconds, by epoch. */
 type Minute = { epoch: number; bytes: number; messages: number }[];
 
-/**
- * Remembers when each kind of warning last went out per procedure, shared by
- * every window's meter so the log has at most one line of each per hour.
- */
-export function createWarningGate(everyMs = WARN_EVERY_MS) {
-  const last = new Map<string, number>();
-  return (key: string, now: number) => {
-    const at = last.get(key);
-    if (at !== undefined && now - at < everyMs) {
-      return false;
-    }
-    // Keys are a kind and a procedure, so this only trips on a renderer
-    // making up paths; forgetting them all then costs a repeat warning.
-    if (last.size >= MAX_PATHS * 2) {
-      last.clear();
-    }
-    last.set(key, now);
-    return true;
-  };
-}
-
-const processGate = createWarningGate();
-
 type MeterOptions = {
   /** The window the port belongs to, named in each warning. */
   window: number;
   warn: (message: string) => void;
   now?: () => number;
-  allowWarning?: (key: string, now: number) => boolean;
+  /**
+   * The limit on warnings, shared by every window's meter, so each kind of
+   * warning goes out at most once an hour per procedure.
+   */
+  gate?: Pick<typeof alarms, "raise">;
   limits?: typeof PAYLOAD_LIMITS;
 };
 
@@ -132,7 +113,7 @@ export function createPayloadMeter({
   window,
   warn,
   now = Date.now,
-  allowWarning = processGate,
+  gate = alarms,
   limits = PAYLOAD_LIMITS,
 }: MeterOptions) {
   /** Open calls by id, the one idle longest first. */
@@ -223,18 +204,20 @@ export function createPayloadMeter({
         }
         const at = now();
         const { total, messages } = count(path, bytes, at);
-        const lastMinute = `${messages} ${messages === 1 ? "message" : "messages"}, ${megabytes(total)} in the last minute`;
-        if (
-          bytes > limits.messageBytes &&
-          allowWarning(`message:${path}`, at)
-        ) {
-          warn(
-            `RPC payload: ${path} sent ${megabytes(bytes)} in one message to window ${window} (${lastMinute})`,
+        if (bytes > limits.messageBytes) {
+          gate.raise(
+            `rpc:message:${path}`,
+            () =>
+              `RPC payload: ${path} sent ${megabytes(bytes)} in one message to window ${window} (${messages} ${messages === 1 ? "message" : "messages"}, ${megabytes(total)} in the last minute)`,
+            warn,
           );
         }
-        if (total > limits.minuteBytes && allowWarning(`minute:${path}`, at)) {
-          warn(
-            `RPC payload: ${path} sent ${megabytes(total)} in ${messages} messages to window ${window} within a minute`,
+        if (total > limits.minuteBytes) {
+          gate.raise(
+            `rpc:minute:${path}`,
+            () =>
+              `RPC payload: ${path} sent ${megabytes(total)} in ${messages} messages to window ${window} within a minute`,
+            warn,
           );
         }
       } catch {

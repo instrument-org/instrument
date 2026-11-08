@@ -8,7 +8,7 @@ Whether any procedure besides the one that prompted this sends a window far more
 
 ## The signal
 
-Two warnings in the main log, scope `rpc`, at most one of each per procedure per hour per launch:
+Two warnings in the main log, scope `rpc`, at most one of each per procedure per hour, through the alarm gate every such warning shares (`packages/shared/src/alarms.ts`), which also stops at 40 alarm lines a launch and then logs one line saying the rest are held back:
 
 - `RPC payload: <procedure> sent <N> MB in one message to window <id> (<n> messages, <M> MB in the last minute)`: one message over 1 MB. A procedure that sends a whole collection, a file or a picture as one answer.
 - `RPC payload: <procedure> sent <N> MB in <n> messages to window <id> within a minute`: one procedure sent one window over 10 MB within a rolling minute, in messages of any size. A stream that resends what it already sent.

@@ -123,7 +123,9 @@ The tests are here for the agents working in this repo: they are how a change ge
 - Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.
 - Use `it.each` for repetitive cases.
 
-## Commit trailers
+## Commit messages
+
+Load the `instrument-commit-message` skill before writing any commit message, and take the style from it rather than from `git log`, whose older subjects break its rules. The `commit-msg` hook and `scripts/commit.sh` refuse a subject that says "draw" (`scripts/commit-subject.sh`).
 
 A commit that makes a choice ends with decision trailers, so the reasoning outlives the session that held it: `Rejected: <alternative> | <reason>`, `Commits-to: <contract later code must keep>`, `Not-tested: <what was not checked>`, `Related: <sha>`, `Follow-up: docs/follow-ups/<file>.md` on a commit that installs logging or another signal to look at later, and `Tested:` only for checks beyond the unit suites. Each line must make sense to a reader who never saw the session; leave one out rather than pad it. A commit that makes no choice carries none. Vocabulary and examples: `instrument-commit-message` skill. A brief for a subagent that commits points at that skill rather than listing trailers or pasting example ones, which the subagent reads as required.
 

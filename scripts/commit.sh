@@ -38,6 +38,8 @@ fi
 [[ "${1:-}" == "-F" && -n "${2:-}" ]] || fail "$usage"
 message=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
 [[ -s "$message" ]] || fail "$2 is empty or missing"
+# commit-tree runs no hooks, so the commit-msg hook's check runs here.
+"$(dirname "$0")/commit-subject.sh" "$message"
 shift 2
 [[ "${1:-}" == "--" ]] && shift
 [[ -n "$amend" ]] || (($# > 0)) || fail "name the paths to commit"

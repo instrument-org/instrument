@@ -175,9 +175,8 @@ function streamStep({
       try {
         controller.enqueue({ type: "stream-start", warnings: [] });
         // A live process for this slot, or else the transcript its last one
-        // left, resumed at its last finished step, or else for a task's
-        // first step, its chat's transcript forked where the task branched
-        // off.
+        // left, resumed at its last finished step, or else for a branch's
+        // first step, its parent's transcript forked where it branched off.
         const { frames, plan } = withResumeFrames(
           await planStep(
             {
@@ -357,7 +356,7 @@ function startOn(
       // branches where the stopped step's reply did, and Claude Code loads a
       // branched transcript from its newest `last-prompt` checkpoint, which
       // the stopped process wrote on its dead branch as it exited: until the
-      // resumed process ends a turn, a task forking at an entry on the live
+      // resumed process ends a turn, a branch forking at an entry on the live
       // branch is refused ("No message found with message.uuid").
       const session = open({
         at: plan.at,
@@ -529,8 +528,8 @@ function builtInToolsOf(options: LanguageModelV4CallOptions) {
 /**
  * Which of our sessions a request belongs to, and so which process and
  * transcript answer it: `{ "claude-account": { sessionId } }`, its own even
- * for a task, whose client session header names its chat's for the caches
- * other providers route by. The header stands in where no id is given.
+ * for a branch, whose client session header may name its parent's for the
+ * caches other providers route by. The header stands in where no id is given.
  */
 function sessionKeyOf(options: LanguageModelV4CallOptions) {
   const asked =
@@ -541,7 +540,7 @@ function sessionKeyOf(options: LanguageModelV4CallOptions) {
 }
 
 /**
- * The session a task branched from, `{ "claude-account": { parentSessionId } }`,
+ * The session a branch left, `{ "claude-account": { parentSessionId } }`,
  * whose transcript its first step can fork rather than replay.
  */
 function parentKeyOf(options: LanguageModelV4CallOptions) {

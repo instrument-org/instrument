@@ -19,7 +19,7 @@ const ResumeRecordSchema = z.object({
   claudeSessionId: z.string(),
   /**
    * The transcript entry that ends the step's input, just before its reply:
-   * where a task forked from this session at that step branches off.
+   * where a session branching off this one at that step forks it.
    */
   forkPoint: z.string().optional(),
   /** The transcript entry the step's reply ended on. */
@@ -144,13 +144,13 @@ export type RecordRead = { missing: string } | { record: ResumeRecord };
  * The slot's record, when it has one whose transcript is still there and
  * still reads as the conversation it was, or why it has none. The transcript
  * has to hold the entry the record is read for: its `leaf`, which resuming
- * the slot cuts back to, or for a task branching off, its `forkPoint`.
+ * the slot cuts back to, or for a session branching off, its `forkPoint`.
  *
  * A resume reads the transcript once `settled` says nothing still writes it:
  * Claude Code writes a step's entries a moment after it reports them, and its
- * last ones as it exits. A fork reads its parent's as it is, since the chat's
- * process is waiting on the task and its fork point was written as its step
- * began.
+ * last ones as it exits. A fork reads its parent's as it is, since the
+ * parent's process is waiting on the branch and its fork point was written as
+ * its step began.
  */
 export async function readResumeRecord(
   configDir: string | undefined,

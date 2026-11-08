@@ -160,8 +160,8 @@ function claudeToolId(id: string) {
  * `answering` names tool calls the transcript these frames go onto ended
  * on, for messages that carry on a resumed transcript: their results are
  * replayed like those of a call in `messages`. `afterUser` says the
- * transcript ends on the user's side, as a task's fork of its chat's does,
- * so the frames may start with a reply.
+ * transcript ends on the user's side, as a fork of its parent's does, so the
+ * frames may start with a reply.
  */
 export function replayFrames(
   messages: LanguageModelV4Message[],

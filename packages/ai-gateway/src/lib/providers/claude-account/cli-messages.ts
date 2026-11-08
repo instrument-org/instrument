@@ -157,7 +157,7 @@ export function planError(
     message: message || kind,
     requestBodyValues: {},
     // A spent plan carries when it comes back (seconds since the epoch), so
-    // the chat can say until when.
+    // the caller can say until when.
     responseBody: JSON.stringify({
       error: {
         message,

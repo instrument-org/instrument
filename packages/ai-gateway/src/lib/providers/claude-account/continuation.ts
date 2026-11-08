@@ -11,9 +11,8 @@ export type Continuation =
       kind: "tool-results";
       results: LanguageModelV4ToolResultPart[];
       /**
-       * Messages that came in after the results, as a task finishing does
-       * when the step before handed work off, and the notes that come with
-       * them: read in the same turn, once the results are in.
+       * Messages that came in after the results, and the notes that come
+       * with them: read in the same turn, once the results are in.
        */
       followedBy: LanguageModelV4Message[];
     }
@@ -204,12 +203,11 @@ export function continuationOf(
 
 /**
  * The new messages a branch of a session starts with, when it carries on
- * from exactly the input of the session's last step, as a task's first
- * request carries on from the chat step that started it: everything the
- * session saw, unchanged, then what the branch adds, ending on the user's
- * side. A task's adds the chat's step itself, its calls answered for the
- * task, before its assignment; those are replayed onto the branch
- * (`replayFrames`), and only user or system messages are sent as a turn.
+ * from exactly the input of the session's last step: everything the session
+ * saw, unchanged, then what the branch adds, ending on the user's side. An
+ * addition that holds more than user or system messages, such as the parent's
+ * step and its answered calls, is replayed onto the branch (`replayFrames`);
+ * one of only user or system messages is sent as a turn.
  */
 export function branchOf(
   parent: { seen: string[] },
@@ -312,8 +310,8 @@ export type StepStart<Live> =
  *   and its transcript cannot take what the request adds either.
  * - `transcript`: no live process, and the transcript its record names does not
  *   line up with the request.
- * - `fork`: a task with nothing of its own, whose parent's transcript it could
- *   not branch from.
+ * - `fork`: a branch with nothing of its own, whose parent's transcript it
+ *   could not fork.
  * - `no-record`: nothing to carry on: no live process and no usable record.
  * - `shape`: the session's system prompt, tools, effort or built-in tools
  *   changed, and a step of another shape needs a process of its own.

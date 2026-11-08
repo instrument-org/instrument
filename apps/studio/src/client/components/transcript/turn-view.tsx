@@ -539,7 +539,11 @@ function RowView({
     }
     case "task": {
       return (
-        <TaskCardRow sessionId={row.sessionId} startedAt={row.startedAt} />
+        <TaskCardRow
+          {...(row.from && { from: row.from })}
+          sessionId={row.sessionId}
+          startedAt={row.startedAt}
+        />
       );
     }
     case "text": {

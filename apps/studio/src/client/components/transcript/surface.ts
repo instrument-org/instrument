@@ -16,8 +16,10 @@ export interface TaskCardFacts {
    * with the chat it came from. Its card is finished and opens nothing.
    */
   gone?: boolean;
-  /** How long it took, once it has finished. */
+  /** How long its card's stretch of the task took, once that has ended. */
   ranMs?: number;
+  /** When its card's stretch of the task began, once the task's log says. */
+  startedAt?: Date;
   /** What it is doing now. */
   step?: string;
   stoppable: boolean;
@@ -71,7 +73,14 @@ export interface TranscriptSurface {
     | SessionMessagePart.ReasoningPart
     | SessionMessagePart.ToolPart
     | undefined;
-  useTaskFacts: (id: StoreId.Session) => TaskCardFacts | undefined;
+  /**
+   * What a task's card says: the stretch of its log from `from`, the message
+   * a send put there, or from its start without one.
+   */
+  useTaskFacts: (
+    id: StoreId.Session,
+    from?: StoreId.Message,
+  ) => TaskCardFacts | undefined;
   useTaskMessages: (
     id: StoreId.Session,
     isWorking: boolean,

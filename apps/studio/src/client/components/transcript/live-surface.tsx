@@ -35,6 +35,7 @@ import {
   type TranscriptSurface,
   TranscriptSurfaceContext,
 } from "./surface";
+import { taskCardFacts } from "./task-card-facts";
 import { usePagePicture } from "./use-page-picture";
 import { useTranscriptFeed } from "./use-transcript-feed";
 
@@ -79,7 +80,10 @@ function useCommands() {
   return useChatCommands(useLiveChat());
 }
 
-function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
+function useTaskFacts(
+  id: StoreId.Session,
+  from?: StoreId.Message,
+): TaskCardFacts | undefined {
   const tasks = useChatTasks(useLiveChat());
   const task = tasks.data?.find((each) => each.id === id);
   if (tasks.data && !task) {
@@ -91,22 +95,7 @@ function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
       working: false,
     };
   }
-  return (
-    task && {
-      ...(task.status && {
-        ended: task.status.summary ?? task.status.line,
-      }),
-      failed: task.status?.kind === "failed",
-      ...(task.status?.kind === "waiting" && { waiting: true }),
-      ...(!task.working && {
-        ranMs: task.updatedAt.getTime() - task.createdAt.getTime(),
-      }),
-      ...(task.step && { step: task.step }),
-      stoppable: task.stoppable,
-      title: task.title,
-      working: task.working,
-    }
-  );
+  return task && taskCardFacts(task, from);
 }
 
 function useTaskMessages(id: StoreId.Session, isWorking: boolean) {

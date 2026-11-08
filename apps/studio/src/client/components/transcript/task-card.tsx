@@ -35,20 +35,24 @@ function WorkingDots() {
 }
 
 /**
- * A task the chat started, where it started it. Two lines, tinted while it
+ * A task the chat started or sent work to, where it did, standing for the
+ * stretch of the task's log from there to the next message the chat sent it:
+ * only the task's last stretch is ever live. Two lines, tinted while it
  * works and flat once it has finished, the sites and apps it reached after its
  * first line, the task's own Stop on hover, and while it works the task's own live
  * card, since a chat's visual work is mostly its tasks'. It never folds.
  */
 export function TaskCardRow({
+  from,
   sessionId,
   startedAt,
 }: {
+  from?: StoreId.Message;
   sessionId: StoreId.Session;
   startedAt: Date;
 }) {
   const surface = use(TranscriptSurfaceContext);
-  const facts = surface?.useTaskFacts(sessionId);
+  const facts = surface?.useTaskFacts(sessionId, from);
   const isWorking = facts?.working !== false;
   const messages = surface?.useTaskMessages(sessionId, isWorking) ?? [];
   const now = useTicking(isWorking);
@@ -61,7 +65,9 @@ export function TaskCardRow({
   const firstLine = isWorking
     ? (facts?.step ?? "Starting")
     : (facts?.ended ?? title);
-  const span = isWorking ? now - startedAt.getTime() : facts?.ranMs;
+  const span = isWorking
+    ? now - (facts?.startedAt ?? startedAt).getTime()
+    : facts?.ranMs;
   return (
     <div className="flex max-w-115 flex-col gap-2">
       <div

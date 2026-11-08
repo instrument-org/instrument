@@ -2,7 +2,9 @@ import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { ChatWrites } from "../../lib/chat-writes";
-import { isWorking, latestStep } from "../../lib/chat/activity";
+import { isWorking, ownMessages } from "../../lib/chat/activity";
+import { latestStepIn } from "../../lib/chat/step-label";
+import { taskSlices } from "../../lib/chat/task-slices";
 import { branchChat } from "../../lib/chat/branch-chat";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
@@ -56,6 +58,18 @@ const ChildTaskSchema = ChatTaskSchema.extend({
     line: z.string(),
     summary: z.string().optional(),
   }),
+  /**
+   * Its own log cut into the stretches its cards in the chat stand for, oldest
+   * first: from its start, and from each message the chat sent it after.
+   */
+  slices: z.array(
+    z.object({
+      endedAt: z.date(),
+      from: StoreId.MessageSchema,
+      line: z.string().optional(),
+      startedAt: z.date(),
+    }),
+  ),
   /** The label of its newest step of its own, when it gave one. */
   step: z.string().optional(),
   /**
@@ -76,9 +90,11 @@ async function childTasks(id: ChatId) {
     tasks.map(async (task) => {
       const ref = { sessionId: task.id, chatId: id };
       const running = isWorking(id, task.id);
-      const step = await latestStep(ref);
+      const messages = await ownMessages(ref);
+      const step = latestStepIn(messages);
       return {
         ...task,
+        slices: taskSlices(messages),
         status: await taskStatus({ ...ref, isRunning: running }),
         ...(step ? { step } : {}),
         stoppable: running || (await openAsksOf(id, task.id)).length > 0,

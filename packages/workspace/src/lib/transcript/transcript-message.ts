@@ -68,6 +68,8 @@ export interface StepPart {
   processId?: string;
   shows?: StepShows;
   status: StepStatus;
+  /** The tasks this call sent work to, each from the message it put in its log. */
+  sentTasks?: { messageId: StoreId.Message; sessionId: StoreId.Session }[];
   /** The tasks this call started, whose cards stand for it. */
   startedTasks?: StoreId.Session[];
   tool: "reasoning" | SessionMessagePart.ToolPart["type"];
@@ -242,7 +244,11 @@ const StepOutputSchema = z
     exitCode: z.number(),
     filePath: z.string(),
     handOffs: z.array(
-      z.looseObject({ kind: z.string(), sessionId: z.string() }),
+      z.looseObject({
+        kind: z.string(),
+        messageId: z.string().optional(),
+        sessionId: z.string(),
+      }),
     ),
     images: z.array(
       z.looseObject({
@@ -285,6 +291,17 @@ function toolStep(
   const startedTasks = (output.handOffs ?? []).flatMap((handOff) =>
     handOff.kind === "created" ? [handOff.sessionId as StoreId.Session] : [],
   );
+  // A send recorded before sends named their message draws no card.
+  const sentTasks = (output.handOffs ?? []).flatMap((handOff) =>
+    handOff.kind === "sent" && handOff.messageId !== undefined
+      ? [
+          {
+            messageId: handOff.messageId as StoreId.Message,
+            sessionId: handOff.sessionId as StoreId.Session,
+          },
+        ]
+      : [],
+  );
   const status = stepStatus(part, siblings, output);
   const shows = stepShows(part.type, input, output, status);
   return {
@@ -292,6 +309,7 @@ function toolStep(
     ...(explanation && { explanation }),
     metadata: part.metadata,
     ...(output.processId && { processId: output.processId }),
+    ...(sentTasks.length > 0 && { sentTasks }),
     ...(shows && { shows }),
     ...(startedTasks.length > 0 && { startedTasks }),
     status,

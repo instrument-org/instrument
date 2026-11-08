@@ -246,6 +246,44 @@ describe("turnsOf", () => {
     `);
   });
 
+  it("draws a card for a send that names its message, and none for one that does not", () => {
+    const task = StoreId.newSessionId();
+    const delivered = StoreId.newMessageId();
+    const sendCall = (handOff: Record<string, string>) =>
+      message("assistant", (id) => [
+        call(
+          id,
+          "bash",
+          { activity: "Asking the task", command: "task send t1" },
+          { exitCode: 0, handOffs: [handOff] },
+        ),
+      ]);
+    const [named] = turnsOf(
+      [
+        typed("Check last year too"),
+        sendCall({ kind: "sent", messageId: delivered, sessionId: task }),
+      ],
+      { isRunning: false },
+    );
+    const [legacy] = turnsOf(
+      [
+        typed("Check last year too"),
+        sendCall({ kind: "sent", sessionId: task }),
+      ],
+      { isRunning: false },
+    );
+    expect(
+      named?.rows.map((row) =>
+        row.kind === "task"
+          ? { from: row.from, id: row.id, sessionId: row.sessionId }
+          : row.kind,
+      ),
+    ).toStrictEqual([{ from: delivered, id: delivered, sessionId: task }]);
+    expect(legacy && shape(legacy)).toStrictEqual([
+      "activity: Asking the task x1",
+    ]);
+  });
+
   it("folds the work between what the agent said first and the words it ended on", () => {
     const [turn] = turnsOf(
       [

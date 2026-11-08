@@ -32,14 +32,14 @@ export const taskSend = defineCapability({
         "send: a message is required, on stdin through a quoted heredoc.",
       );
     }
-    const { running } = await deliver({
+    const { message: sent, running } = await deliver({
       command: "send",
       context: ctx,
       interrupt: now,
       prompt,
       task,
     });
-    recordHandOff({ kind: "sent", sessionId: task.id });
+    recordHandOff({ kind: "sent", messageId: sent.id, sessionId: task.id });
     return { id: task.handle, now, running };
   },
   summary:

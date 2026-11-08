@@ -20,7 +20,7 @@ import { needsNamedIn } from "../parse-needs-block";
 import { sessionOfChat } from "../record-folders";
 
 /** How much of the agent's own words the list shows on a task's second line. */
-const LINE_MAX = 90;
+export const LINE_MAX = 90;
 
 /**
  * Where a task with no agent at work stands, read from its store alone, so it

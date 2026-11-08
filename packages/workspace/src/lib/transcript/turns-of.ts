@@ -57,7 +57,13 @@ export type TurnRow =
     }
   | { id: StoreId.Part; kind: "note"; part: SessionMessagePart.DataPart }
   | {
-      id: StoreId.Session;
+      /**
+       * Where its stretch of the task's log starts: the message a send put
+       * there. Absent on the card of the call that started the task, whose
+       * stretch is the task's first.
+       */
+      from?: StoreId.Message;
+      id: StoreId.Message | StoreId.Session;
       kind: "task";
       sessionId: StoreId.Session;
       startedAt: Date;
@@ -502,19 +508,25 @@ function rowsOf(
           continue;
         }
         const started = part.startedTasks ?? [];
-        if (started.length === 0) {
+        const sent = part.sentTasks ?? [];
+        if (started.length === 0 && sent.length === 0) {
           stepInto(part);
           continue;
         }
-        // A task's card stands for the call that started it and ends the
-        // activity above it. Calls after it open a new row.
+        // A task's card stands for the call that started it or sent it work,
+        // and ends the activity above it. Calls after it open a new row.
         open = undefined;
+        const startedAt = part.metadata.startedAt ?? part.metadata.createdAt;
         for (const sessionId of started) {
+          rows.push({ id: sessionId, kind: "task", sessionId, startedAt });
+        }
+        for (const { messageId, sessionId } of sent) {
           rows.push({
-            id: sessionId,
+            from: messageId,
+            id: messageId,
             kind: "task",
             sessionId,
-            startedAt: part.metadata.startedAt ?? part.metadata.createdAt,
+            startedAt,
           });
         }
       } else if (isAsk(part)) {

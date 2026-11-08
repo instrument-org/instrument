@@ -46,6 +46,7 @@ export function RowLine({
   right,
   rollKey,
   rowId,
+  sweepsIn = false,
 }: {
   children?: ReactNode;
   isLive?: boolean;
@@ -59,7 +60,18 @@ export function RowLine({
   rollKey?: string;
   /** Names the row for the transcript debug page. */
   rowId?: string;
+  /**
+   * Sweeps a new label in left to right, as a chat's title arrives, for a
+   * line that changes once its work is done: a roll reads as work going on.
+   */
+  sweepsIn?: boolean;
 }) {
+  const [shownLabel, setShownLabel] = useState(label);
+  const [isSweeping, setIsSweeping] = useState(false);
+  if (label !== shownLabel) {
+    setShownLabel(label);
+    setIsSweeping(sweepsIn);
+  }
   const words = (
     <span
       className={cn(
@@ -67,7 +79,15 @@ export function RowLine({
         isLive
           ? "brand-shiny-text"
           : "text-muted-foreground group-hover/row:text-foreground",
+        isSweeping && "title-arrival",
       )}
+      // A label that changes again mid-sweep starts its own sweep.
+      key={isSweeping ? label : undefined}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) {
+          setIsSweeping(false);
+        }
+      }}
     >
       {label}
       {isLive && <ShimmerSweep text={label} />}

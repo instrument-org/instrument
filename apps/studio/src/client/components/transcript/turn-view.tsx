@@ -455,7 +455,7 @@ function WorkedRow({
         }
         onClick={onToggle}
         places={<Badges apps={turn.apps} sites={turn.sites} />}
-        rollKey={workedLine(turn)}
+        sweepsIn
       >
         <AnimatePresence initial={false}>
           {isOpened && (

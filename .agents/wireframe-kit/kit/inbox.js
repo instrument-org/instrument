@@ -374,6 +374,7 @@ const chatMenu = ({ left = 120, top = 140, starred = false, unread = false, arch
       { icon: "cards-three", label: "Project", sub: true },
       "rule",
       { icon: "folder-simple", label: "Open in Files" },
+      { icon: "clipboard-text", label: "Copy Path" },
       "rule",
       { icon: "chat-text", label: "Send feedback…" },
       "rule",

@@ -1,11 +1,11 @@
 import ms from "ms";
 
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { asClause } from "./as-clause";
-import { describeLeftRunning } from "./chat/left-running";
-import { WINDOW_COMMAND } from "./shell-commands/window-command";
-import { TASK_COMMAND } from "./shell-commands/task-command";
-import { TOOL_NAMES } from "../tools/name";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { asClause } from "../../lib/as-clause";
+import { describeLeftRunning } from "../../lib/chat/left-running";
+import { WINDOW_COMMAND } from "../../lib/shell-commands/window-command";
+import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
+import { TOOL_NAMES } from "../../tools/name";
 import { systemNote } from "./system-note";
 
 /**

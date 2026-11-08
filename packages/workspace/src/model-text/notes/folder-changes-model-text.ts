@@ -1,8 +1,8 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { folderNameFromPath } from "@instrument-org/shared";
 
 import { systemNote } from "./system-note";
-import { shellPath } from "./workspace-fs-layout";
+import { shellPath } from "../../lib/workspace-fs-layout";
 
 /**
  * What changed about the folders granted in the chat since the model last

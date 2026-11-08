@@ -4,7 +4,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { MID_TURN_NOTE } from "./chat/mid-turn";
-import { systemNoteBody } from "./system-note";
+import { systemNoteBody } from "../model-text/notes/system-note";
 import { cutOffAtOutputLimit, opensTypedTurn, TURN_NOTE } from "./turn-note";
 
 const sessionId = StoreId.newSessionId();

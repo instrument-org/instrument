@@ -1,4 +1,4 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
 export function workspaceInstructionsModelNote({

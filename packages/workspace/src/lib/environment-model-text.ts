@@ -6,7 +6,7 @@ import {
   type EnvironmentChange,
 } from "../schemas/environment";
 import { TOOL_NAMES } from "../tools/name";
-import { systemNote } from "./system-note";
+import { systemNote } from "../model-text/notes/system-note";
 
 /**
  * A time zone by its region's name ("Central Time") rather than its IANA id

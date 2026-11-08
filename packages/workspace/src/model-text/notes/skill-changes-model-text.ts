@@ -1,4 +1,4 @@
-import { TOOL_NAMES } from "../tools/name";
+import { TOOL_NAMES } from "../../tools/name";
 import { systemNote } from "./system-note";
 
 /**

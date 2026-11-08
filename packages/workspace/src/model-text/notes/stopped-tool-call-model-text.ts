@@ -1,6 +1,6 @@
-import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../constants";
-import { SessionMessagePart } from "../schemas/session/message-part";
-import { isToolPart } from "./is-tool-part";
+import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../constants";
+import { SessionMessagePart } from "../../schemas/session/message-part";
+import { isToolPart } from "../../lib/is-tool-part";
 
 /**
  * A call a stop cut off, as the model reads it: who stopped it, and that a

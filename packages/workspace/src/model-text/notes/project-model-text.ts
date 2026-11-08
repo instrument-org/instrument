@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { PROJECT_FILE_NAME, PROJECTS_FOLDER_NAME } from "../constants";
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { instructionsInContext } from "./instructions-in-context";
+import { PROJECT_FILE_NAME, PROJECTS_FOLDER_NAME } from "../../constants";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { instructionsInContext } from "../../lib/instructions-in-context";
 import { systemNote } from "./system-note";
 
 /**

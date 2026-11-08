@@ -1,8 +1,8 @@
 import { type ModelMessage } from "ai";
 
-import { type SessionMessage } from "../schemas/session/message";
-import { type SessionMessagePart } from "../schemas/session/message-part";
-import { isToolPart } from "./is-tool-part";
+import { type SessionMessage } from "../../schemas/session/message";
+import { type SessionMessagePart } from "../../schemas/session/message-part";
+import { isToolPart } from "../../lib/is-tool-part";
 
 /** A call of the step that started a task, as the task reads its result. */
 interface HandOffResult {

@@ -66,7 +66,7 @@ import {
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
 import { withRaisedAsks } from "../lib/shell-commands/raised-asks";
-import { systemNote } from "../lib/system-note";
+import { systemNote } from "../model-text/notes/system-note";
 import { sessionToolFs } from "../lib/tool-fs";
 import { truncateMiddle } from "../lib/truncate-buffer";
 import { RelativePathSchema } from "../schemas/paths";

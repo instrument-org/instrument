@@ -28,7 +28,7 @@ import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
 import { currentEnvironment } from "../lib/environment";
-import { runningModelText } from "../lib/model-change-model-text";
+import { runningModelText } from "../model-text/notes/model-change-model-text";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";

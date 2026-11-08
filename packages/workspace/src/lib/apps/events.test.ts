@@ -16,7 +16,7 @@ import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { writeMessage } from "../../test/helpers/told-history";
 import { ChatWrites } from "../chat-writes";
-import { questionAnswerModelNote } from "../question-answer-model-text";
+import { questionAnswerModelNote } from "../../model-text/notes/question-answer-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { openAsks } from "../chat/open-asks";

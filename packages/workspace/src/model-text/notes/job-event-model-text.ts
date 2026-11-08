@@ -1,10 +1,10 @@
 import ms from "ms";
 
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import {
   FG_COMMAND,
   MAX_RUNNING_AGE_MS,
-} from "./shell-commands/background-job-commands";
+} from "../../lib/shell-commands/background-job-commands";
 import { systemNote } from "./system-note";
 
 type JobEvent = SessionMessageDataPart.JobEventDataPart["events"][number];

@@ -1,6 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
 
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
 /**

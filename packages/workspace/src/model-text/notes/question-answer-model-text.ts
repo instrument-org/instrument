@@ -1,5 +1,5 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { answerModelLines } from "./choose-call";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { answerModelLines } from "../../lib/choose-call";
 import { signInProgressLine } from "./sign-in-progress-model-text";
 import { systemNote } from "./system-note";
 

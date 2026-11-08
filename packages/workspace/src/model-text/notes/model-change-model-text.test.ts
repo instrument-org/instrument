@@ -1,7 +1,7 @@
 import { OUR_MODELS } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
-import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { runningModelText } from "./model-change-model-text";
 
 describe("runningModelText", () => {

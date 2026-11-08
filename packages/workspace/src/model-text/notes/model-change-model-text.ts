@@ -5,7 +5,7 @@ import {
 } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
 const WHEN_ASKED = `Asked what model you are, name it plainly; you are still ${APP_NAME}.`;

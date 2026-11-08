@@ -1,5 +1,5 @@
 import { PNPM_COMMAND } from "./shell-commands/pnpm";
-import { systemNote } from "./system-note";
+import { systemNote } from "../model-text/notes/system-note";
 
 /**
  * Guidance for packages whose install scripts pnpm skipped, or undefined when

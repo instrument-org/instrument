@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { StoreId } from "../schemas/store-id";
+import { StoreId } from "../../schemas/store-id";
 import { taskEventModelNote } from "./task-event-model-text";
 
 const TASK_ID = StoreId.SessionSchema.parse("ses_01K4M7V0A7T2B9S6QH4Z3X1C5D");

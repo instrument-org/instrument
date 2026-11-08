@@ -1,6 +1,6 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { APP_COMMAND } from "./shell-commands/app-command";
-import { WINDOW_COMMAND } from "./shell-commands/window-command";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { APP_COMMAND } from "../../lib/shell-commands/app-command";
+import { WINDOW_COMMAND } from "../../lib/shell-commands/window-command";
 import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;

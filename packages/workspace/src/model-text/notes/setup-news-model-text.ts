@@ -1,5 +1,5 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { TOOL_NAMES } from "../tools/name";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { TOOL_NAMES } from "../../tools/name";
 import { systemNote } from "./system-note";
 
 /** Tells the agent which of the workspace's skills changed since its catalog was written. */

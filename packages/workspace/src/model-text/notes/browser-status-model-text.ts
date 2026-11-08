@@ -1,5 +1,5 @@
-import { CHAT_HIDDEN_TAB_CAP } from "../schemas/chat-state";
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { CHAT_HIDDEN_TAB_CAP } from "../../schemas/chat-state";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
 type Status = SessionMessageDataPart.BrowserStatusDataPart;

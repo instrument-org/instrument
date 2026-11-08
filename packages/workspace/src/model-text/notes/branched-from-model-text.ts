@@ -1,4 +1,4 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 
 /**
  * What a branch's agent is told after the conversation it was copied, about

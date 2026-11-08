@@ -1,11 +1,11 @@
 import ms from "ms";
 
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
   KILL_COMMAND,
-} from "./shell-commands/background-job-commands";
+} from "../../lib/shell-commands/background-job-commands";
 import { systemNote } from "./system-note";
 
 export function backgroundProcessesModelNote(

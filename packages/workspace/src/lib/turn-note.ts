@@ -5,7 +5,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { sessionRole } from "./chat/children";
 import { ChatReads } from "./chat-reads";
-import { systemNote } from "./system-note";
+import { systemNote } from "../model-text/notes/system-note";
 import { isTypedByUser } from "./typed-by-user";
 
 /**

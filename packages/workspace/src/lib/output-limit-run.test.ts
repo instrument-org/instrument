@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { outputLimitModelNote } from "./output-limit-model-text";
+import { outputLimitModelNote } from "../model-text/notes/output-limit-model-text";
 import { MAX_OUTPUT_LIMIT_REPLIES, outputLimitRun } from "./output-limit-run";
-import { systemNoteBody } from "./system-note";
+import { systemNoteBody } from "../model-text/notes/system-note";
 
 const sessionId = StoreId.newSessionId();
 const createdAt = new Date("2026-10-16T12:00:00Z");

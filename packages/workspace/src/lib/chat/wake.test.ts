@@ -16,7 +16,7 @@ import { recordAsk } from "./asks";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { sessionOfChat } from "../record-folders";
-import { taskEventModelNote } from "../task-event-model-text";
+import { taskEventModelNote } from "../../model-text/notes/task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { leftRunning } from "./activity";
 import { childTask } from "./children";

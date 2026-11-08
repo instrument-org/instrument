@@ -1,10 +1,10 @@
-import { AGENT_FILES_LANGUAGE, AGENT_NEEDS_LANGUAGE } from "../constants";
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { MEMORY_COMMAND } from "./shell-commands/memory-command";
-import { WINDOW_COMMAND } from "./shell-commands/window-command";
-import { TASK_COMMAND } from "./shell-commands/task-command";
+import { AGENT_FILES_LANGUAGE, AGENT_NEEDS_LANGUAGE } from "../../constants";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { MEMORY_COMMAND } from "../../lib/shell-commands/memory-command";
+import { WINDOW_COMMAND } from "../../lib/shell-commands/window-command";
+import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
 import { systemNote } from "./system-note";
-import { TOOL_NAMES } from "../tools/name";
+import { TOOL_NAMES } from "../../tools/name";
 
 /**
  * What a task reads for words its chat wrote to it: a later message as it

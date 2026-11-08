@@ -1,5 +1,5 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { formatContextDate } from "./context-date";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { formatContextDate } from "../../lib/context-date";
 import { systemNote } from "./system-note";
 
 /**

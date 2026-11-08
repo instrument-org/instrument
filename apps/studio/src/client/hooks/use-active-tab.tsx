@@ -44,6 +44,28 @@ export function useIsActiveTab() {
   return useContext(ActiveTabContext);
 }
 
+/**
+ * Query options for a read kept fresh on a clock that matters only while its
+ * tab is up. A tab behind another makes its first read and then waits, and
+ * coming back up reads again at once, since what it has is stale by then
+ * (with the default `staleTime` of 0).
+ */
+export function refreshWhileShown(
+  isShown: boolean,
+  refetchInterval: false | number,
+) {
+  return {
+    enabled: (query: { state: { data: unknown } }) =>
+      isShown || query.state.data === undefined,
+    refetchInterval: isShown ? refetchInterval : false,
+  };
+}
+
+/** `refreshWhileShown` for the tab this is called from. */
+export function useRefreshWhileShown(refetchInterval: false | number) {
+  return refreshWhileShown(useIsActiveTab(), refetchInterval);
+}
+
 export function useTabId() {
   return useContext(TabIdContext);
 }

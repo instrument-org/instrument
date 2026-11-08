@@ -71,7 +71,10 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import {
+  useIsActiveTab,
+  useRefreshWhileShown,
+} from "@/client/hooks/use-active-tab";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
@@ -513,6 +516,9 @@ export function ComputerPage({
   // The browser itself, asked to type over a name where it sits.
   const fileSystemRef = useRef<FileSystemHandle>(null);
 
+  // Tabs behind the one up stay mounted, so the clock stops in them and
+  // coming back up re-reads at once.
+  const refresh = useRefreshWhileShown(refreshInterval);
   const listings = useQueries({
     combine: combineListings,
     queries: isFolderless
@@ -520,7 +526,7 @@ export function ComputerPage({
       : prefixes.map((prefix) =>
           rpcClient.workspace.computer.list.queryOptions({
             input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-            refetchInterval: refreshInterval,
+            ...refresh,
             retry: false,
           }),
         ),

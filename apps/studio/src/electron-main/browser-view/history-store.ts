@@ -1,3 +1,5 @@
+import { readStartPages } from "./history-start-pages";
+
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { EventPublisher } from "@orpc/server";
@@ -400,6 +402,11 @@ export function createHistoryStore(file: string) {
           openCount: Number(row.open_count),
           path: String(row.path),
         }));
+    },
+
+    /** The start page's host-limited recents and frequently visited sites. */
+    startPages(excludedUrls: readonly string[], now: number) {
+      return readStartPages(database, excludedUrls, now);
     },
 
     /** The person's visible pages, newest first. */

@@ -89,6 +89,26 @@ const OpenedFileSchema = z.object({
 });
 
 const live = {
+  /** Selections for the browser start, excluding destinations already bookmarked. */
+  startPages: base
+    .input(z.object({ excludedUrls: z.array(z.string()) }))
+    .output(
+      eventIterator(
+        z.object({
+          frequent: z.array(PageSchema),
+          recent: z.array(PageSchema),
+        }),
+      ),
+    )
+    .handler(async function* ({ input, signal }) {
+      const store = getHistoryStore();
+      yield* distinct(
+        liveRead({
+          changes: [store.changes.subscribe("pages", { signal })],
+          read: () => store.startPages(input.excludedUrls, Date.now()),
+        }),
+      );
+    }),
   /** The files the person opened, most recently opened first. */
   files: base
     .input(LimitSchema)

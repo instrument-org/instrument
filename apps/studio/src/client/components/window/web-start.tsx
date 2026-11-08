@@ -1,10 +1,12 @@
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { type Bookmark } from "@/shared/bookmarks";
+import { PageFavicon } from "@/client/components/favicon";
 import {
   noteTypedPage,
-  useRecentPages,
+  useBrowserStartPages,
 } from "@/client/hooks/use-browser-history";
 import { rpcClient } from "@/client/rpc/client";
+import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -16,9 +18,6 @@ import { AppIcon } from "./app-icon";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageSection } from "./page-section";
 import { VisitedPageRows } from "./visited-page-rows";
-
-/** How many pages lately seen the view lists. */
-const RECENT_SHOWN = 12;
 
 /**
  * The web's starting view, laid out as a browser's new tab: the sites kept
@@ -36,15 +35,12 @@ export function WebStart({
 }) {
   const bookmarks = useAtomValue(bookmarksAtom);
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
-  // Enough that the dozen are left once the bookmarked ones are set aside.
-  const visited = useRecentPages({ limit: RECENT_SHOWN + bookmarks.length });
+  const { recent, frequent } = useBrowserStartPages(
+    bookmarks.map((bookmark) => bookmark.url),
+  );
   const clicksFor = usePageClicks();
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
-  const recent = visited
-    .filter((page) => !bookmarks.some((bookmark) => bookmark.url === page.url))
-    .slice(0, RECENT_SHOWN)
-    .map((page) => ({ page }));
   const rename = (bookmark: Bookmark, title: string) => {
     setRenamingId(undefined);
     const named = title.trim();
@@ -79,9 +75,9 @@ export function WebStart({
         toast.error("Couldn't clear Recent Pages", { cause: error });
       });
   };
-  // A bookmark is an address the person chose, so opening one counts the
+  // A shortcut is an address the person chose, so opening one counts the
   // way typing it would.
-  const openBookmark = (url: string) => {
+  const openShortcut = (url: string) => {
     noteTypedPage(url);
     onOpenPage(url);
   };
@@ -92,7 +88,19 @@ export function WebStart({
       <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-20 pb-14">
         <PageSection title="Bookmarks">
           {bookmarks.length === 0 ? (
-            <NoBookmarks />
+            recent.length > 0 || frequent.length > 0 ? (
+              <div className="flex items-center gap-3 rounded-xl bg-black/2 px-4 py-4 dark:bg-white/3">
+                <BookmarkSimpleIcon
+                  aria-hidden
+                  className="size-5 shrink-0 text-muted-foreground"
+                />
+                <p className="text-[13px] text-muted-foreground">
+                  Save a page from its ⋮ menu to keep it here.
+                </p>
+              </div>
+            ) : (
+              <NoBookmarks />
+            )
           ) : (
             // Pulled in by the gap between a mark's box and its icon, so the
             // icons line up under the heading.
@@ -132,7 +140,7 @@ export function WebStart({
                 return (
                   <PageContextMenu
                     key={bookmark.id}
-                    onOpen={openBookmark}
+                    onOpen={openShortcut}
                     onRemove={() => {
                       remove(bookmark);
                     }}
@@ -144,7 +152,7 @@ export function WebStart({
                   >
                     <button
                       className="group flex w-24 flex-col items-center gap-2 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
-                      {...clicksFor(bookmark.url, openBookmark)}
+                      {...clicksFor(bookmark.url, openShortcut)}
                       title={`${name}\n${bookmark.url}`}
                       type="button"
                     >
@@ -161,6 +169,41 @@ export function WebStart({
             </div>
           )}
         </PageSection>
+        {frequent.length > 0 && (
+          <PageSection title="Frequently visited">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))] gap-3">
+              {frequent.map((page) => (
+                <PageContextMenu
+                  key={page.url}
+                  onOpen={openShortcut}
+                  url={page.url}
+                >
+                  <button
+                    className="group flex min-w-0 flex-col items-start gap-3 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/50 data-[state=open]:bg-accent/50"
+                    {...clicksFor(page.url, openShortcut)}
+                    title={`${page.title || hostOf(page.url)}\n${page.url}`}
+                    type="button"
+                  >
+                    <PageFavicon
+                      className="size-7"
+                      favicon={page.favicon}
+                      hasTooltip={false}
+                      url={page.url}
+                    />
+                    <span className="w-full min-w-0">
+                      <span className="block truncate text-[13px] font-medium">
+                        {hostOf(page.url)}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">
+                        {page.title || hostOf(page.url)}
+                      </span>
+                    </span>
+                  </button>
+                </PageContextMenu>
+              ))}
+            </div>
+          </PageSection>
+        )}
         {recent.length > 0 && (
           <PageSection
             action={{
@@ -170,7 +213,11 @@ export function WebStart({
             }}
             title="Recent pages"
           >
-            <VisitedPageRows isCompact onOpen={onOpenPage} visits={recent} />
+            <VisitedPageRows
+              isCompact
+              onOpen={onOpenPage}
+              visits={recent.map((page) => ({ page }))}
+            />
           </PageSection>
         )}
       </div>

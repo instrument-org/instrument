@@ -28,6 +28,17 @@ export function useRecentPages({
   return recent.data ?? [];
 }
 
+/** Start-page selections, re-read when the tab becomes active or bookmarks change. */
+export function useBrowserStartPages(excludedUrls: string[]) {
+  const isActiveTab = useIsActiveTab();
+  const pages = useQuery(
+    rpcClient.history.live.startPages.experimental_liveOptions({
+      input: isActiveTab ? { excludedUrls } : skipToken,
+    }),
+  );
+  return pages.data ?? { frequent: [], recent: [] };
+}
+
 /** A page as history lists it. */
 export type HistoryPage = ReturnType<typeof useRecentPages>[number];
 

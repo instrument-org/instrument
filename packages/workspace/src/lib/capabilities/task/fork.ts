@@ -14,7 +14,7 @@ import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { normalizeId } from "../../shell-commands/background-jobs";
-import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { TASK_COMMAND } from "../../../model-text/commands/task-command";
 import { recordHandOff } from "../../shell-commands/task-hand-off";
 import { defineCapability } from "../define";
 import { chatModel } from "./model-choice";

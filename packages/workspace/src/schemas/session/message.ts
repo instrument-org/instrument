@@ -18,38 +18,38 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES } from "../../constants";
-import { appEventModelNote } from "../../lib/app-event-model-text";
-import { permissionAnswerModelNote } from "../../lib/permission-answer-model-text";
-import { questionAnswerModelNote } from "../../lib/question-answer-model-text";
-import { pageTakeoverModelNote } from "../../lib/page-takeover-model-text";
-import { signedInModelNote } from "../../lib/signed-in-model-text";
-import { asksModelNote } from "../../lib/asks-model-text";
-import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
-import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
-import { dateChangeModelNote } from "../../lib/date-change-model-text";
-import { environmentChangeModelNote } from "../../lib/environment-model-text";
-import { branchedFromModelNote } from "../../lib/branched-from-model-text";
+import { appEventModelNote } from "../../model-text/notes/app-event-model-text";
+import { permissionAnswerModelNote } from "../../model-text/notes/permission-answer-model-text";
+import { questionAnswerModelNote } from "../../model-text/notes/question-answer-model-text";
+import { pageTakeoverModelNote } from "../../model-text/notes/page-takeover-model-text";
+import { signedInModelNote } from "../../model-text/notes/signed-in-model-text";
+import { asksModelNote } from "../../model-text/notes/asks-model-text";
+import { folderChangesModelNote } from "../../model-text/notes/folder-changes-model-text";
+import { backgroundProcessesModelNote } from "../../model-text/notes/background-processes-model-text";
+import { dateChangeModelNote } from "../../model-text/notes/date-change-model-text";
+import { environmentChangeModelNote } from "../../model-text/context/environment-model-text";
+import { branchedFromModelNote } from "../../model-text/notes/branched-from-model-text";
 import { formatBytes } from "../../lib/format-bytes";
-import { fromChatModelText } from "../../lib/from-chat-model-text";
+import { fromChatModelText } from "../../model-text/notes/from-chat-model-text";
 import {
   withHandOffCalls,
   withHandOffResults,
-} from "../../lib/hand-off-model-text";
+} from "../../model-text/notes/hand-off-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
-import { jobEventModelNote } from "../../lib/job-event-model-text";
-import { maxStepsModelNote } from "../../lib/max-steps-model-text";
-import { outputLimitModelNote } from "../../lib/output-limit-model-text";
-import { memoryModelNote } from "../../lib/memory-model-text";
-import { setupNewsModelNote } from "../../lib/setup-news-model-text";
-import { messageGapModelNote } from "../../lib/message-gap-model-text";
-import { modelChangeModelNote } from "../../lib/model-change-model-text";
-import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { jobEventModelNote } from "../../model-text/notes/job-event-model-text";
+import { maxStepsModelNote } from "../../model-text/notes/max-steps-model-text";
+import { outputLimitModelNote } from "../../model-text/notes/output-limit-model-text";
+import { memoryModelNote } from "../../model-text/notes/memory-model-text";
+import { setupNewsModelNote } from "../../model-text/notes/setup-news-model-text";
+import { messageGapModelNote } from "../../model-text/notes/message-gap-model-text";
+import { modelChangeModelNote } from "../../model-text/notes/model-change-model-text";
+import { skillChangesModelNote } from "../../model-text/notes/skill-changes-model-text";
 import { stateNotes } from "../../lib/state-notes";
 import {
   withStoppedToolCallModelText,
   withUnansweredToolCallResult,
-} from "../../lib/stopped-tool-call-model-text";
-import { taskEventModelNote } from "../../lib/task-event-model-text";
+} from "../../model-text/notes/stopped-tool-call-model-text";
+import { taskEventModelNote } from "../../model-text/notes/task-event-model-text";
 import { workspaceHostPath } from "../../lib/workspace-relative-path";
 import { TOOL_NAMES } from "../../tools/name";
 import { EnvironmentSchema } from "../environment";

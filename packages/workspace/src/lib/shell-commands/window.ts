@@ -1,6 +1,6 @@
 import { generatedCommand } from "../capabilities/cli";
 import { type CapabilityScope } from "../capabilities/context";
-import { WINDOW_COMMAND } from "./window-command";
+import { WINDOW_COMMAND } from "../../model-text/commands/window-command";
 
 /**
  * `instrument window`, what is in front of the person: the chat's tabs in

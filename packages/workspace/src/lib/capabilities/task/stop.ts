@@ -11,7 +11,7 @@ import { noteTaskStoppedOnCard } from "../../chat/wake";
 import { closeAsksOf } from "../../chat/asks";
 import { openAsksOf } from "../../chat/open-asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
-import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { TASK_COMMAND } from "../../../model-text/commands/task-command";
 import { type CapabilityContext, defineCapability } from "../define";
 import { requireChild } from "./children";
 import { TASKS_ARE_THE_CHATS } from "./roles";

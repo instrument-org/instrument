@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { runtimeLayout } from "../runtime-dir";
-import { INSTRUMENT_COMMAND } from "../shell-commands/instrument-command";
+import { INSTRUMENT_COMMAND } from "../../model-text/commands/instrument-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { writeRuntimeFile } from "./runtime-file";
 import { scriptSurfaceOpen } from "./script-surface";

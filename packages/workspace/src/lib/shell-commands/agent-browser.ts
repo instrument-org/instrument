@@ -25,7 +25,7 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { agentBrowserGuide } from "../agent-browser-guide";
+import { agentBrowserGuide } from "../../model-text/guides/agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";

@@ -25,7 +25,7 @@ import {
   usableContextTokens,
 } from "./context-budget";
 import { ChatWrites } from "./chat-writes";
-import { contextBudgetNotice } from "./context-budget-notice";
+import { contextBudgetNotice } from "../model-text/request/context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 import {
   dropRepeatingReplies,
@@ -37,9 +37,9 @@ import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import {
   agentHandoffNotesPath,
   agentTranscriptPath,
-  contextRolloverNotice,
   readHandoffNotes,
 } from "./handoff-notes";
+import { contextRolloverNotice } from "../model-text/request/context-rollover-notice";
 import { modelChangeSincePreviousTurn } from "./model-change";
 import { modelWindow } from "./model-window";
 import { limitModelImages } from "./limit-model-images";

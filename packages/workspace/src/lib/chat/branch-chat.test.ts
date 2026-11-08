@@ -9,7 +9,7 @@ import { AbsolutePathSchema, RelativePathSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { sessionToShorthand } from "../../test/helpers/session-to-shorthand";
-import { branchedFromModelNote } from "../branched-from-model-text";
+import { branchedFromModelNote } from "../../model-text/notes/branched-from-model-text";
 import { chatAttachmentsDir } from "../chat-dir-utils";
 import { ChatReads } from "../chat-reads";
 import { chatModelURI, setChatModel } from "../chat-settings";

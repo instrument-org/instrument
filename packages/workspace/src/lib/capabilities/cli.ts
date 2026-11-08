@@ -2,7 +2,7 @@ import { type Command, defineCommand, type ExecResult } from "just-bash";
 import { isPlainObject } from "radashi";
 import { z } from "zod";
 
-import { INSTRUMENT_COMMAND } from "../shell-commands/instrument-command";
+import { INSTRUMENT_COMMAND } from "../../model-text/commands/instrument-command";
 import { subprocessStdin } from "../shell-commands/utils";
 import { refusedForRole, unavailableReason } from "./admit";
 import { noteRoleRefusal } from "./role-refusals";

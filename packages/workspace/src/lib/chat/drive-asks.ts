@@ -20,7 +20,7 @@ import { appEventOf } from "../apps/changed";
 import { appChanged } from "../apps/changed";
 import { readConnection, recordConnection } from "../apps/connection";
 import { signInProgress } from "../apps/sign-in-group";
-import { signInsSettled } from "../sign-in-progress-model-text";
+import { signInsSettled } from "../../model-text/notes/sign-in-progress-model-text";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";

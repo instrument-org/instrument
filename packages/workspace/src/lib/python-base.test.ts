@@ -12,7 +12,7 @@ import path from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { pythonBaseText } from "../agents/instrument";
+import { pythonBaseText } from "../model-text/system-prompt";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import {

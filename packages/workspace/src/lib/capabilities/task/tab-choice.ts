@@ -3,8 +3,8 @@ import { type WindowTabAnswer } from "../../../schemas/window-tab";
 import { type BrowserTargetId, parseBrowserTargetId } from "../../../types";
 import { askWindow, tabHolders } from "../../chat/window-tab";
 import { resolveChat } from "../../record-folders";
-import { TASK_COMMAND } from "../../shell-commands/task-command";
-import { WINDOW_COMMAND } from "../../shell-commands/window-command";
+import { TASK_COMMAND } from "../../../model-text/commands/task-command";
+import { WINDOW_COMMAND } from "../../../model-text/commands/window-command";
 import { isLocalAddress } from "../../local-page-address";
 
 type ChatTab = NonNullable<WindowTabAnswer["tabs"]>[number];

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask, listChildTasks } from "../../chat/children";
 import { TaskStatusKindSchema, taskStatus } from "../../chat/task-status";
-import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { TASK_COMMAND } from "../../../model-text/commands/task-command";
 import {
   TASK_LIST_WINDOW,
   type TaskListQuery,

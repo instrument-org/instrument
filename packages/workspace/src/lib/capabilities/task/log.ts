@@ -5,7 +5,7 @@ import { type ChatId } from "../../../schemas/chat-id";
 import { isWorking } from "../../chat/activity";
 import { stepInFlight } from "../../chat/in-flight";
 import { renderSteps, sessionSteps } from "../../chat/steps";
-import { TASK_COMMAND } from "../../shell-commands/task-command";
+import { TASK_COMMAND } from "../../../model-text/commands/task-command";
 import { defineCapability } from "../define";
 import { requireChild } from "./children";
 import { TASKS_ARE_THE_CHATS } from "./roles";

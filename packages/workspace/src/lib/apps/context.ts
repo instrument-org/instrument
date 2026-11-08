@@ -1,5 +1,5 @@
 import { instructionsInContext } from "../instructions-in-context";
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_FILE_NAME, APPS_FOLDER_NAME } from "./app-file";

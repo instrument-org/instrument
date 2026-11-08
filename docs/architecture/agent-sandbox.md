@@ -95,4 +95,4 @@ A folder inside one already reached is reached through the outer mount, because 
 
 ## Soft layer
 
-The agent system prompt in `src/agents/instrument.ts` tells the model it reaches the person's files at their real paths, that the home folder is open to look through, and that changing anything in it or opening a place kept closed until asked needs the person's yes, asked for with `ask_permission`, which ends the turn. It also asks the LLM to behave (refuse malicious code, work in the chat's folder, etc.). It is not a security boundary.
+The agent system prompt in `src/model-text/system-prompt.ts` tells the model it reaches the person's files at their real paths, that the home folder is open to look through, and that changing anything in it or opening a place kept closed until asked needs the person's yes, asked for with `ask_permission`, which ends the turn. It also asks the LLM to behave (refuse malicious code, work in the chat's folder, etc.). It is not a security boundary.

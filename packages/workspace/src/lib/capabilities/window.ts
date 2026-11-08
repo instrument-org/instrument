@@ -18,7 +18,7 @@ import {
   WAITING_IS_THE_CHATS,
   WINDOW_COMMAND,
   WINDOW_IS_THE_CHATS,
-} from "../shell-commands/window-command";
+} from "../../model-text/commands/window-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type CapabilityContext, defineCapability } from "./define";
 

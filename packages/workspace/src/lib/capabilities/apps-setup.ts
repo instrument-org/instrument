@@ -55,7 +55,7 @@ import {
   APP_COMMAND,
   APP_SETUP_IS_THE_CHATS,
   APPS_ARE_THE_CHATS,
-} from "../shell-commands/app-command";
+} from "../../model-text/commands/app-command";
 import { AppField, appsFolder, requireApp, withTimeout } from "./apps";
 import {
   CapabilityFailure,

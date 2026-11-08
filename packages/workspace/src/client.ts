@@ -10,7 +10,7 @@ export {
   PROJECTS_FOLDER_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
-export { appEventModelNote } from "./lib/app-event-model-text";
+export { appEventModelNote } from "./model-text/notes/app-event-model-text";
 export {
   askedOnCard,
   type CardRow,
@@ -18,10 +18,10 @@ export {
   connectAppResults,
 } from "./tools/connect-app-output";
 export { isChatTranscript } from "./lib/chat-folders/chat-transcript";
-export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
-export { projectModelNote } from "./lib/project-model-text";
-export { dateChangeModelNote } from "./lib/date-change-model-text";
-export { environmentChangeModelNote } from "./lib/environment-model-text";
+export { backgroundProcessesModelNote } from "./model-text/notes/background-processes-model-text";
+export { projectModelNote } from "./model-text/notes/project-model-text";
+export { dateChangeModelNote } from "./model-text/notes/date-change-model-text";
+export { environmentChangeModelNote } from "./model-text/context/environment-model-text";
 export { describeMessageError } from "./lib/describe-message-error";
 export { PLAN_NOT_ELIGIBLE_CODES } from "./lib/plan-not-eligible-codes";
 export { formatBytes } from "./lib/format-bytes";
@@ -29,11 +29,11 @@ export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export * from "./lib/is-chat-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { askTargetName } from "./lib/permissions/ask-target";
-export { jobEventModelNote } from "./lib/job-event-model-text";
-export { maxStepsModelNote } from "./lib/max-steps-model-text";
-export { setupNewsModelNote } from "./lib/setup-news-model-text";
-export { outputLimitModelNote } from "./lib/output-limit-model-text";
-export { messageGapModelNote } from "./lib/message-gap-model-text";
+export { jobEventModelNote } from "./model-text/notes/job-event-model-text";
+export { maxStepsModelNote } from "./model-text/notes/max-steps-model-text";
+export { setupNewsModelNote } from "./model-text/notes/setup-news-model-text";
+export { outputLimitModelNote } from "./model-text/notes/output-limit-model-text";
+export { messageGapModelNote } from "./model-text/notes/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";
 export type {
@@ -103,8 +103,8 @@ export {
   type DeveloperNote,
   type DeveloperNoteBody,
 } from "./lib/transcript/developer-notes";
-export { systemNoteBody } from "./lib/system-note";
-export { taskEventModelNote } from "./lib/task-event-model-text";
+export { systemNoteBody } from "./model-text/notes/system-note";
+export { taskEventModelNote } from "./model-text/notes/task-event-model-text";
 export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
 export { isDriveHref } from "./lib/normalize-chat-file-path";
 export {

@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { isEqual, unique } from "radashi";
 
@@ -7,6 +9,12 @@ import { type ChatId } from "../../schemas/chat-id";
 import { appListChanges } from "../host-events";
 import { type RecordChanged, recordChanges } from "../record-changes";
 import { resolveChat } from "../record-folders";
+import {
+  type ChatListEvent,
+  foldChatList,
+  type HeldChatList,
+  listedBefore,
+} from "./chat-list-events";
 import { listChatIds } from "./chat-records";
 import { type Chat, knownAppSlugs, listedChats } from "./chats";
 
@@ -33,44 +41,44 @@ function sameSlugs(a: Set<string>, b: Set<string>): boolean {
 }
 
 /**
- * The chats, oldest first, and again after every burst of changes. Each
- * change to a record moves the row of the chat it is or is in, and only
- * those rows are read again, a change only to a running turn's memory at
- * most once per chat per `LIVE_READ_MS`: a row is made from nothing but its chat's
- * records and its tasks', so whatever a row comes to show is heard without
- * a list of what to listen for. The one other thing a row shows is which of
- * the apps it names the workspace has, kept here and read again on each
- * change to the apps folder or an app; a change that adds or takes away an
- * app reads every row, and one that leaves the same apps (an edit to an
- * app's guide, a stray file) reads none. A chat the index lists that no
- * change named (made behind its back) is read when the next change lands,
- * and one it no longer lists goes. Subscribed before the first read, so
- * nothing lands unheard between the two. An answer the same
- * as the last is not sent again, except to a request to change a row
- * (`chatRowAsked`): a window paints that request before it lands, and a
- * request that changed nothing (a project just removed, a chat already gone)
- * leaves the list as it was, so the same answer is what takes the paint back.
+ * The chats, oldest first, as a snapshot of every row and then a patch for
+ * every burst of changes that moved a row: the rows it changed and the ids
+ * of the chats gone. Each change to a record moves the row of the chat it is
+ * or is in, and only those rows are read again, a change only to a running
+ * turn's memory at most once per chat per `LIVE_READ_MS`: a row is made from
+ * nothing but its chat's records and its tasks', so whatever a row comes to
+ * show is heard without a list of what to listen for. The one other thing a
+ * row shows is which of the apps it names the workspace has, kept here and
+ * read again on each change to the apps folder or an app; a change that adds
+ * or takes away an app reads every row, and one that leaves the same apps
+ * (an edit to an app's guide, a stray file) reads none. A chat the index
+ * lists that no change named (made behind its back) is read when the next
+ * change lands, and one it no longer lists goes. Subscribed before the first
+ * read, so nothing lands unheard between the two. A row read again the same
+ * as it was is not sent, except to a request to change it (`chatRowAsked`):
+ * a window paints that request before it lands, and a request that changed
+ * nothing (a project just removed, a chat already gone) leaves the row as it
+ * was, so the same row is what takes the paint back.
  *
  * One reading of the list serves every follower in the process (each
- * window's `chats.live.list`, and the phone's `chat-list.json`), so a moved
- * row is read once however many follow it. A follower that comes while the
- * list is read for the first time is sent that first answer, and one that
- * comes later the last answer sent, then whatever follows. A follower busy
- * with one answer is sent only the newest of those that came meanwhile.
+ * window's `chats.live.rows`, and the phone's `chat-list.json`), so a moved
+ * row is read once however many follow it. Each reading has an `epoch` of
+ * its own and counts its patches in `rev`. A follower is sent a snapshot of
+ * the rows as they stand first, once the first read is in, and then each
+ * patch; one still busy with a patch when the next comes is sent a snapshot
+ * of where the list stands once it is ready, rather than a queue of patches.
  * The reading starts with its first follower and stops with its last, so
  * nothing is read, watched or kept while no one follows it; the phone's
  * file follows it for as long as the app runs.
  */
-export async function* liveChatList(
+export async function* liveChatRows(
   signal: AbortSignal | undefined,
-): AsyncGenerator<Chat[]> {
+): AsyncGenerator<ChatListEvent<Chat>> {
   if (signal?.aborted) {
     return;
   }
   const current = (reading ??= startReading());
-  const follower: Follower = {
-    ...(current.answer && { pending: current.answer }),
-  };
+  const follower: Follower = { owed: "snapshot" };
   current.followers.add(follower);
   const leave = () => {
     if (!current.followers.delete(follower)) {
@@ -93,10 +101,22 @@ export async function* liveChatList(
       if (!current.followers.has(follower)) {
         return;
       }
-      if (follower.pending) {
-        const answer = follower.pending;
-        delete follower.pending;
-        yield answer;
+      const owed = follower.owed;
+      if (owed === "snapshot" && current.rev !== undefined) {
+        delete follower.owed;
+        yield {
+          epoch: current.epoch,
+          kind: "snapshot",
+          rev: current.rev,
+          rows: [...current.rows.values()].sort((a, b) =>
+            listedBefore(a.sessionId, b.sessionId),
+          ),
+        };
+        continue;
+      }
+      if (owed !== undefined && owed !== "snapshot") {
+        delete follower.owed;
+        yield owed;
         continue;
       }
       await new Promise<void>((resolve) => {
@@ -110,18 +130,41 @@ export async function* liveChatList(
   }
 }
 
-/** One follower of the list: the newest answer it has not been sent yet. */
+/** The chats, oldest first, whole after every change: `liveChatRows` folded. */
+export async function* liveChatList(
+  signal: AbortSignal | undefined,
+): AsyncGenerator<Chat[]> {
+  let held: HeldChatList<Chat> | undefined;
+  for await (const event of liveChatRows(signal)) {
+    held = foldChatList(held, event);
+    if (!held) {
+      throw new Error("The chat list skipped a change.");
+    }
+    yield held.rows;
+  }
+}
+
+type ChatListPatch = Extract<ChatListEvent<Chat>, { kind: "patch" }>;
+
+/**
+ * One follower of the list: what it is owed next, a snapshot of where the
+ * list stands or the one patch sent since its last.
+ */
 interface Follower {
   failed?: { error: unknown };
-  pending?: Chat[];
+  owed?: "snapshot" | ChatListPatch;
   wake?: () => void;
 }
 
 /** The process's reading of the list, while anyone follows it. */
 interface Reading {
-  /** The last answer sent, which a follower that comes later starts from. */
-  answer?: Chat[];
+  /** This reading's own, so a reader never takes another's revisions for its. */
+  epoch: string;
   followers: Set<Follower>;
+  /** How many patches it has sent; none until the first read is in. */
+  rev?: number;
+  /** Each chat's row as last read. */
+  rows: Map<ChatId, Chat>;
   stop: AbortController;
 }
 
@@ -129,18 +172,19 @@ let reading: Reading | undefined;
 
 function startReading(): Reading {
   const current: Reading = {
+    epoch: randomUUID(),
     followers: new Set(),
+    rows: new Map(),
     stop: new AbortController(),
   };
   void (async () => {
     try {
-      for await (const answer of readChatList(current.stop.signal)) {
-        current.answer = answer;
+      await readChatList(current, (patch) => {
         for (const follower of current.followers) {
-          follower.pending = answer;
+          follower.owed = follower.owed === undefined ? patch : "snapshot";
           follower.wake?.();
         }
-      }
+      });
     } catch (error) {
       if (!current.stop.signal.aborted) {
         for (const follower of current.followers) {
@@ -163,37 +207,62 @@ function startReading(): Reading {
   return current;
 }
 
-/** The list's answers, read for every follower at once: see `liveChatList`. */
-async function* readChatList(signal: AbortSignal): AsyncGenerator<Chat[]> {
+/**
+ * Reads the list into `current` for every follower at once, and hands each
+ * patch to `send`: see `liveChatRows`.
+ */
+async function readChatList(
+  current: Reading,
+  send: (patch: ChatListPatch) => void,
+): Promise<void> {
+  const { signal } = current.stop;
+  const { rows } = current;
   const records = recordChanges(signal);
   const apps = collapsed(everyOne(appListChanges(signal)));
   const asked = publisher.subscribe("chat.rowAsked", { signal });
   const held = heldReads(signal);
-  const rows = new Map<ChatId, Chat>();
   /** Chats read at least once, whether or not they had a row to show. */
   const read = new Set<ChatId>();
   /** The apps the workspace has, as last read; filled in before the first read. */
   let knownApps = new Set<string>();
   /** When each chat's row was last read, by `performance.now()`. */
   const readAt = new Map<ChatId, number>();
-  const readAgain = async (ids: ChatId[]) => {
+  /**
+   * Reads `ids` again and takes `gone` out, and says which rows that
+   * changed: `resend` among them whether or not it moved.
+   */
+  const readAgain = async (
+    ids: ChatId[],
+    { gone = [], resend = [] }: { gone?: ChatId[]; resend?: ChatId[] } = {},
+  ) => {
     const now = performance.now();
     for (const id of ids) {
       readAt.set(id, now);
       held.drop(id);
     }
     const fresh = await listedChats(ids, knownApps);
+    const upserts: Chat[] = [];
+    const removed: ChatId[] = [];
+    for (const id of gone) {
+      if (rows.delete(id)) {
+        removed.push(id);
+      }
+    }
     for (const id of ids) {
       read.add(id);
       const row = fresh.get(id);
+      const was = rows.get(id);
       if (row) {
         rows.set(id, row);
-      } else {
-        rows.delete(id);
+        if (!was || resend.includes(id) || !isEqual(was, row)) {
+          upserts.push(row);
+        }
+      } else if (rows.delete(id)) {
+        removed.push(id);
       }
     }
+    return { removed, upserts };
   };
-  const ordered = () => listChatIds().flatMap((id) => rows.get(id) ?? []);
   /**
    * The chats a burst moves to read now: every chat a write moved, and one
    * moved only in memory once `LIVE_READ_MS` has passed since its last read,
@@ -220,8 +289,11 @@ async function* readChatList(signal: AbortSignal): AsyncGenerator<Chat[]> {
   try {
     knownApps = await knownAppSlugs();
     await readAgain(listChatIds());
-    let last = ordered();
-    yield last;
+    let rev = 0;
+    current.rev = rev;
+    for (const follower of current.followers) {
+      follower.wake?.();
+    }
     for await (const moved of mergeGenerators([
       all(records),
       apps,
@@ -236,15 +308,20 @@ async function* readChatList(signal: AbortSignal): AsyncGenerator<Chat[]> {
       }
       const listed = listChatIds();
       const known = new Set(listed);
+      const gone: ChatId[] = [];
       for (const id of read) {
         if (!known.has(id)) {
           read.delete(id);
-          rows.delete(id);
           readAt.delete(id);
           held.drop(id);
+          gone.push(id);
         }
       }
-      await readAgain(
+      const askedFor =
+        moved !== null && !Array.isArray(moved) && !(moved instanceof Held)
+          ? moved.id
+          : undefined;
+      const { removed, upserts } = await readAgain(
         unique([
           ...(moved === null
             ? appsMoved
@@ -258,13 +335,20 @@ async function* readChatList(signal: AbortSignal): AsyncGenerator<Chat[]> {
           ).filter((id) => known.has(id)),
           ...listed.filter((id) => !read.has(id)),
         ]),
+        { gone, resend: askedFor ? [askedFor] : [] },
       );
-      const next = ordered();
-      const wasAsked =
-        moved !== null && !Array.isArray(moved) && !(moved instanceof Held);
-      if (wasAsked || !isEqual(next, last)) {
-        last = next;
-        yield next;
+      if (askedFor || upserts.length > 0 || removed.length > 0) {
+        const from = rev;
+        rev += 1;
+        current.rev = rev;
+        send({
+          epoch: current.epoch,
+          from,
+          kind: "patch",
+          removed,
+          rev,
+          upserts,
+        });
       }
     }
   } finally {
@@ -343,7 +427,7 @@ function heldReads(signal: AbortSignal | undefined) {
 
 /**
  * Says a request to change what a chat's row shows has finished, written or
- * not, so every live chat list answers with the row as it stands.
+ * not, so every live chat list sends the row as it stands.
  */
 export function chatRowAsked(id: ChatId) {
   publisher.publish("chat.rowAsked", { id });

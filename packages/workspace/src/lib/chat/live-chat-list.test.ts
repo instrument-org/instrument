@@ -18,7 +18,9 @@ vi.mock("./chats", () => ({
   knownAppSlugs: vi.fn(async () => new Set(slugs.known)),
   listedChats: vi.fn(async (read: readonly ChatId[]) => {
     reads.count += 1;
-    return new Map(read.map((id) => [id, { id, reads: reads.count }]));
+    return new Map(
+      read.map((id) => [id, { id, reads: reads.count, sessionId: id }]),
+    );
   }),
 }));
 vi.mock(import("../record-folders"), async (importOriginal) => ({

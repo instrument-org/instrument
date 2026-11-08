@@ -102,10 +102,10 @@ vi.mock("@/client/rpc/client", () => {
       workspace: {
         chats: {
           archive: routeOf(calls.archive),
-          // Only for its key, which the actions paint their marks onto.
+          // A list that never answers, which the actions paint their marks onto.
           live: {
-            list: {
-              experimental_liveOptions: () => ({ queryKey: ["chats"] }),
+            rows: {
+              call: () => new Promise(() => undefined),
             },
           },
           rename: routeOf(calls.rename),

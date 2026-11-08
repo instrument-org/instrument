@@ -42,6 +42,12 @@ export type {
   ComputerRefusal,
 } from "./lib/chat/computer";
 export type { ChatStatus } from "./lib/chat/chat-status";
+export {
+  type ChatListEvent,
+  foldChatList,
+  type HeldChatList,
+  type ListedAt,
+} from "./lib/chat/chat-list-events";
 export { joinedMidTurn, MID_TURN_NOTE } from "./lib/chat/mid-turn";
 export {
   applyFeedEvent,

@@ -13,7 +13,7 @@ Two warnings in the main log, scope `rpc`, at most one of each per procedure per
 - `RPC payload: <procedure> sent <N> MB in one message to window <id> (<n> messages, <M> MB in the last minute)`: one message over 1 MB. A procedure that sends a whole collection, a file or a picture as one answer.
 - `RPC payload: <procedure> sent <N> MB in <n> messages to window <id> within a minute`: one procedure sent one window over 10 MB within a rolling minute, in messages of any size. A stream that resends what it already sent.
 
-`<procedure>` is the dotted path (`workspace.chats.live.list`). `(unknown)` means the message's call was not one the meter had seen start, such as a call older than the thousand calls a window's meter follows. Sizes are each frame's string length, which for oRPC's JSON is its size in bytes give or take non-ASCII text. A launch with neither line sent no procedure past either limit.
+`<procedure>` is the dotted path (`workspace.chats.live.rows`). `(unknown)` means the message's call was not one the meter had seen start, such as a call older than the thousand calls a window's meter follows. Sizes are each frame's string length, which for oRPC's JSON is its size in bytes give or take non-ASCII text. A launch with neither line sent no procedure past either limit.
 
 ## Where to look
 

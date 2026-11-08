@@ -15,8 +15,8 @@ vi.mock("@/client/rpc/client", () => ({
     workspace: {
       chats: {
         live: {
-          list: {
-            experimental_liveOptions: () => ({ queryKey: ["chats"] }),
+          rows: {
+            call: () => new Promise(() => undefined),
           },
           tasks: {
             experimental_liveOptions: () => ({

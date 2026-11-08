@@ -24,7 +24,7 @@ import {
 } from "../../lib/chat-folders/follow-title";
 import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
-import { chatRowAsked, liveChatList } from "../../lib/chat/live-chat-list";
+import { chatRowAsked, liveChatRows } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStatusKindSchema, taskStatus } from "../../lib/chat/task-status";
 import { answerQuestionAsk, declineSignInAsk } from "../../lib/chat/drive-asks";
@@ -190,11 +190,34 @@ const chatByIdRoute = base
   .output(ChatSchema.optional())
   .handler(({ input }) => chatById(input.id));
 
-/** The chats, oldest first, kept current: see `liveChatList`. */
-const liveListChatsRoute = base
-  .output(eventIterator(ChatSchema.array()))
+/**
+ * The chats, oldest first: every row, then the rows each change moved and
+ * the chats gone, numbered so a reader that misses one starts over. See
+ * `liveChatRows`.
+ */
+const liveChatRowsRoute = base
+  .output(
+    eventIterator(
+      z.discriminatedUnion("kind", [
+        z.object({
+          epoch: z.string(),
+          kind: z.literal("snapshot"),
+          rev: z.number(),
+          rows: ChatSchema.array(),
+        }),
+        z.object({
+          epoch: z.string(),
+          from: z.number(),
+          kind: z.literal("patch"),
+          removed: ChatIdSchema.array(),
+          rev: z.number(),
+          upserts: ChatSchema.array(),
+        }),
+      ]),
+    ),
+  )
   .handler(async function* ({ signal }) {
-    yield* liveChatList(signal);
+    yield* liveChatRows(signal);
   });
 
 /** Takes a chat's unread mark off: the user has looked at it, or said so. */
@@ -597,7 +620,7 @@ export const chats = {
     asks: liveAsksRoute,
     nextMessage: liveNextMessageRoute,
     signIn: liveSignInRoute,
-    list: liveListChatsRoute,
+    rows: liveChatRowsRoute,
     tasks: liveChildTasksRoute,
     taskTitles: liveTaskTitlesRoute,
   },

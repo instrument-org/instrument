@@ -64,7 +64,12 @@ import {
   unarchiveChat,
 } from "./chats";
 import { updateSessionTitle } from "../update-session-title";
-import { chatRowAsked, liveChatList } from "./live-chat-list";
+import { chatRowAsked, liveChatRows } from "./live-chat-list";
+import {
+  type ChatListEvent,
+  foldChatList,
+  type HeldChatList,
+} from "./chat-list-events";
 import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
 import { closeWorkspaceDb } from "../workspace-db";
 import { workspaceLayout } from "../workspace-layout";
@@ -1683,19 +1688,27 @@ describe("listChats", () => {
   });
 });
 
-describe("liveChatList", () => {
+describe("liveChatRows", () => {
   /**
-   * The live list, followed: `next` answers with the list's next answer, or
-   * none if nothing comes within `wait` ms.
+   * The live list, followed as a window folds it: `next` answers with the
+   * list after its next event, or none if nothing comes within `wait` ms,
+   * and `events` with every event sent so far.
    */
   async function open() {
     const controller = new AbortController();
     const answers: Chat[][] = [];
+    const events: ChatListEvent<Chat>[] = [];
+    let held: HeldChatList<Chat> | undefined;
     let wake: (() => void) | undefined;
     // Ends with the abort's error, as a live route does when its request goes.
     void (async () => {
-      for await (const answer of liveChatList(controller.signal)) {
-        answers.push(answer);
+      for await (const event of liveChatRows(controller.signal)) {
+        events.push(event);
+        held = foldChatList(held, event);
+        if (!held) {
+          throw new Error("A patch did not go on from the list held");
+        }
+        answers.push(held.rows);
         wake?.();
       }
     })().catch(() => undefined);
@@ -1709,6 +1722,7 @@ describe("liveChatList", () => {
       return answers.shift();
     };
     return {
+      events,
       first: await next(),
       next,
       stop: () => {
@@ -1716,6 +1730,68 @@ describe("liveChatList", () => {
       },
     };
   }
+
+  it("sends a change to one chat as a patch carrying that row alone", async () => {
+    const chatId = await freshChat();
+    const groceries = await session(chatId, "Groceries", 1);
+    await userSays(chatId, groceries, "make me a grocery list", 1);
+    const taxes = await session(chatId, "Taxes", 2);
+    await userSays(chatId, taxes, "file my taxes", 2);
+    const { events, next, stop } = await open();
+
+    await setChatStarred(await chatFor(taxes), true);
+    await next();
+
+    expect(events.map((event) => event.kind)).toEqual(["snapshot", "patch"]);
+    const [snapshot, patch] = events;
+    expect(patch).toMatchObject({
+      epoch: snapshot?.epoch,
+      from: snapshot?.rev,
+      removed: [],
+      rev: (snapshot?.rev ?? 0) + 1,
+    });
+    expect(
+      patch?.kind === "patch" &&
+        patch.upserts.map((row) => [row.sessionId, row.starred]),
+    ).toEqual([[taxes, true]]);
+    stop();
+  });
+
+  // What one change sends has to stay the size of the row it moved, however
+  // many chats the workspace has: the whole list on every change was tens of
+  // megabytes a turn in a workspace of a few hundred.
+  it.each([50, 400])(
+    "sends a star in a workspace of %i chats in under 8 KB",
+    async (count) => {
+      const chatId = await freshChat();
+      const sessions: StoreId.Session[] = [];
+      for (let index = 0; index < count; index++) {
+        const sessionId = await session(chatId, `Chat ${index}`, index % 60);
+        await userSays(
+          chatId,
+          sessionId,
+          `make me list number ${index}`,
+          index % 60,
+        );
+        sessions.push(sessionId);
+      }
+      const { events, first, next, stop } = await open();
+      expect(first).toHaveLength(count);
+
+      const starred = sessions[Math.floor(count / 2)];
+      if (!starred) {
+        throw new Error("No chat to star");
+      }
+      await setChatStarred(await chatFor(starred), true);
+      await next();
+
+      const patch = events.at(-1);
+      expect(patch?.kind).toBe("patch");
+      expect(JSON.stringify(patch).length).toBeLessThan(8 * 1024);
+      stop();
+    },
+    60_000,
+  );
 
   it("drops a deleted chat's row, though the index forgot the chat before anything heard", async () => {
     const chatId = await freshChat();

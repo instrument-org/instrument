@@ -20,7 +20,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
-import { askLine } from "../choose-call";
+import { askLine, type ChooseQuestion } from "../choose-call";
 import { askTargetName, siteOf } from "../permissions/ask-target";
 import { sessionOfChat } from "../record-folders";
 import { readDeviceName } from "../records/device-file";
@@ -232,54 +232,93 @@ export async function recordAsk(
 }
 
 /**
- * Records the questions the chat's agent put to the person with `choose`,
- * by the call that asked them, whose part's id is the ask's: the card under
- * that call, on every device, until it is answered or the person moves
- * past it. Asking again replaces what the session asked in an earlier
- * step: this computer's questions still open from then close, waking
- * nobody, so only the newest card waits on the person.
+ * Records the card the chat's agent put to the person with `choose`, by
+ * the call that asked it, whose part's id is the ask's, on every device,
+ * until it is answered or the person moves past it. One asked while its
+ * turn runs is `held` (`releaseQuestions` lets it go once the session is at
+ * rest) and joins the set of the questions held with it, which the person
+ * goes through together. Asking replaces what the session asked in an
+ * earlier turn: this computer's questions of any other set still open
+ * close, waking nobody, so only the newest set waits on the person.
  */
 export async function recordQuestion(
   asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
-  questions: string[],
+  card: ChooseQuestion[],
+  { held = false }: { held?: boolean } = {},
 ): Promise<void> {
+  const questions = card.map(({ question }) => question);
   if (questions.length === 0) {
     return;
   }
   // Only the chat's own session asks, so its log is the one asking.
   await askWrites(asker.chatId, async () => {
     const writer = askWriter(asker.chatId);
-    for (const { ask, live } of await chatAskStates(asker.chatId)) {
-      if (
-        live &&
-        ask.kind === "question" &&
-        ask.device === thisDevice() &&
-        ask.messageId !== asker.messageId &&
-        ask.askers.some((one) => one.sessionId === asker.sessionId)
-      ) {
-        await writer.ask(asker.chatId, asker.sessionId, {
-          ...ask,
-          stage: {
-            closedAt: getCurrentDate(),
-            is: "closed",
-            outcome: { kind: "left" },
-            woken: true,
-          },
-        });
+    const own = (await chatAskStates(asker.chatId)).flatMap(({ ask, live }) =>
+      live &&
+      ask.kind === "question" &&
+      ask.device === thisDevice() &&
+      ask.askers.some((one) => one.sessionId === asker.sessionId)
+        ? [ask]
+        : [],
+    );
+    const set =
+      (held ? own.find((ask) => ask.held)?.set : undefined) ?? asker.partId;
+    for (const ask of own) {
+      if (ask.set === set) {
+        continue;
       }
+      await writer.ask(asker.chatId, asker.sessionId, {
+        ...ask,
+        stage: {
+          closedAt: getCurrentDate(),
+          is: "closed",
+          outcome: { kind: "left" },
+          woken: true,
+        },
+      });
     }
     const at = getCurrentDate();
     await writer.ask(asker.chatId, asker.sessionId, {
       askedAt: at,
       askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
+      card,
       device: thisDevice(),
+      ...(held && { held: true as const }),
       id: asker.partId,
       kind: "question",
       messageId: asker.messageId,
       partId: asker.partId,
       questions,
+      set,
       stage: { is: "open" },
     });
+  });
+}
+
+/**
+ * Lets the person see and answer the questions a session asked during its
+ * turn, now the turn is over: this computer's held questions of that
+ * session, written again without `held`.
+ */
+export async function releaseQuestions(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  if (sessionOfChat(chatId) !== sessionId) {
+    return;
+  }
+  await askWrites(chatId, async () => {
+    for (const { ask, live } of await chatAskStates(chatId)) {
+      if (
+        live &&
+        ask.kind === "question" &&
+        ask.held &&
+        ask.device === thisDevice()
+      ) {
+        const { held: _held, ...shown } = ask;
+        await askWriter(chatId).ask(chatId, sessionId, shown);
+      }
+    }
   });
 }
 
@@ -412,7 +451,8 @@ export async function computerName(device: DeviceId): Promise<string> {
  * Whether a device other than the ask's computer may answer it: while it
  * is open with no answer pending, and not about a tab or a page, which is
  * moved or finished on the screen it is on, as the system's own prompts and
- * blocks are answered there.
+ * blocks are answered there, nor a question held while the turn that asked
+ * it runs.
  */
 export function answerableElsewhere(state: AskState): boolean {
   return (
@@ -422,7 +462,8 @@ export function answerableElsewhere(state: AskState): boolean {
     !(
       state.ask.kind === "permission" &&
       (state.ask.on === "tab" || state.ask.on === "page")
-    )
+    ) &&
+    !(state.ask.kind === "question" && state.ask.held)
   );
 }
 
@@ -497,8 +538,10 @@ async function questionAskOf(
     askedAt: ask.askedAt,
     askers,
     ...(away && { away: { by: await computerName(away.device) } }),
+    ...(ask.card && { card: ask.card }),
     computer: await computerName(ask.device),
     device: ask.device,
+    ...(ask.held && { held: true as const }),
     here: ask.device === thisDevice(),
     id: ask.id,
     kind: "question",

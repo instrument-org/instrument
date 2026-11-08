@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
 import { AskerSchema, PermissionDecisionSchema, SystemWaitSchema } from "./ask";
+import { ChooseQuestionSchema } from "./choose-question";
 import { DeviceIdSchema } from "./device-id";
 import { SessionMessageDataPart } from "./session/message-data-part";
 import { StoreId } from "./store-id";
@@ -147,9 +148,16 @@ const QuestionAskSchema = z.object({
   askers: z.array(AskerSchema),
   /** An answer given while the computer that asked was away, which it never takes. */
   away: z.object({ by: z.string() }).optional(),
+  /**
+   * Every question with its choices, for the card by the composer; absent
+   * on a question an earlier build asked, whose card is under its call.
+   */
+  card: z.array(ChooseQuestionSchema).optional(),
   /** The name of the computer that asked. */
   computer: z.string(),
   device: DeviceIdSchema,
+  /** Asked during a turn still going, so nobody sees or answers it yet. */
+  held: z.literal(true).optional(),
   /** Whether this computer asked it, and alone acts on its answer. */
   here: z.boolean(),
   id: z.string(),

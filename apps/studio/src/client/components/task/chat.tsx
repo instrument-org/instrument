@@ -28,6 +28,7 @@ import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
+import { QuestionDock } from "@/client/components/question-dock";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -733,6 +734,7 @@ export function ChatConversation({
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
               <PermissionAsksFoot chatId={id} />
+              <QuestionDock chatId={id} />
               {draftKey.scope === "chat" && (
                 <RepliesWaiting
                   chatId={draftKey.chatId}

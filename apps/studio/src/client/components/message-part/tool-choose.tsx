@@ -62,16 +62,19 @@ function hasReply(draft: Draft) {
  * what else was offered.
  *
  * `sending` is an answer on its way, drawn as given before the agent has it.
+ * `place` says where an open card is among several waiting ("1 of 2").
  */
 export function QuestionCard({
   onAnswer,
   output,
+  place,
   questions,
   sending,
   status,
 }: {
   onAnswer: (output: ChooseOutput) => void;
   output?: ChooseOutput;
+  place?: string;
   questions: ChooseQuestion[];
   sending?: ChooseOutput;
   status: "closed" | "ended" | "open";
@@ -245,20 +248,25 @@ export function QuestionCard({
         {/* Pulled out by the buttons' padding, so their words line up with
             the question's edges rather than sitting indented under it. */}
         <div className="-mx-2.5 mt-2 flex items-center justify-between gap-2">
-          {isSeveral || isNoteOpen ? (
-            <span />
-          ) : (
-            <Button
-              className="text-muted-foreground"
-              onClick={() => {
-                setIsNoteOpen(true);
-              }}
-              size="xs"
-              variant="ghost"
-            >
-              Add a note
-            </Button>
-          )}
+          <span className="flex items-center gap-1">
+            {place ? (
+              <span className="px-2.5 text-xs text-muted-foreground tabular-nums">
+                {place}
+              </span>
+            ) : null}
+            {isSeveral || isNoteOpen ? null : (
+              <Button
+                className="text-muted-foreground"
+                onClick={() => {
+                  setIsNoteOpen(true);
+                }}
+                size="xs"
+                variant="ghost"
+              >
+                Add a note
+              </Button>
+            )}
+          </span>
           <span className="flex items-center gap-1">
             {isReview ? (
               <>
@@ -657,7 +665,8 @@ export function ToolChoose({
 
   // The card stays open on the chat until it is answered, skipped, or the
   // person writes in the chat instead, whatever has happened to the turn
-  // that asked it.
+  // that asked it. One that carries its card waits by the composer instead
+  // (`QuestionDock`), once the turn that asked it is over.
   const asks = useQuery(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
@@ -691,6 +700,19 @@ export function ToolChoose({
     ask.answerable &&
     output === undefined &&
     part.state === "output-available";
+  if (
+    ask?.card !== undefined &&
+    output === undefined &&
+    given === undefined &&
+    sending === undefined
+  ) {
+    return ask.held ? null : (
+      <p className="mt-2 px-1 text-[13px] text-muted-foreground">
+        {`${ask.question} `}
+        <span className="text-muted-foreground/70">You can answer below.</span>
+      </p>
+    );
+  }
   const line =
     ask === undefined || output !== undefined
       ? undefined

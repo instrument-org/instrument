@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ChooseQuestionSchema } from "./choose-question";
 import { DeviceIdSchema } from "./device-id";
 import { SessionMessageDataPart } from "./session/message-data-part";
 import { StoreId } from "./store-id";
@@ -224,12 +225,29 @@ export const AskRecordSchema = z.discriminatedUnion("kind", [
     target: z.string(),
   }),
   AskBaseSchema.extend({
+    /**
+     * Every question on the card with its choices, as the call asked them,
+     * so any device can put the card up from the ask alone. Absent on an ask
+     * an earlier build wrote, whose card draws under its call.
+     */
+    card: z.array(ChooseQuestionSchema).optional(),
+    /**
+     * Asked during a turn still going: nobody answers it until its computer
+     * writes it again without this once the session is at rest.
+     */
+    held: z.literal(true).optional(),
     kind: z.literal("question"),
     /** The message holding the `choose` call, whose part's id is `partId`. */
     messageId: StoreId.MessageSchema,
     partId: StoreId.PartSchema,
     /** Every question on the card as the agent asked it, in order. */
     questions: z.array(z.string()).min(1),
+    /**
+     * The questions the session asked in one turn share a set, by the id of
+     * the first of them: the person goes through them together once the
+     * turn is over, and their answers wake the session once.
+     */
+    set: z.string().optional(),
   }),
   AskBaseSchema.extend({
     /** Each app on the card as it stood when its computer last wrote the ask. */

@@ -27,7 +27,12 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { recordAsk, recordQuestion, recordSignIn } from "./asks";
+import {
+  recordAsk,
+  recordQuestion,
+  recordSignIn,
+  releaseQuestions,
+} from "./asks";
 import { openAsks } from "./open-asks";
 import { refreshSignIn } from "./drive-asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -160,6 +165,7 @@ async function agentAsks(
   _chatId: ChatId,
   sessionId: StoreId.Session,
   question = "Which one?",
+  { held = false }: { held?: boolean } = {},
 ) {
   const messageId = StoreId.newMessageId();
   const part = {
@@ -201,7 +207,8 @@ async function agentAsks(
   // What the call's own run records.
   await recordQuestion(
     { chatId, messageId, partId: part.metadata.id, sessionId },
-    [question],
+    part.input.questions,
+    { held },
   );
 }
 
@@ -1027,6 +1034,19 @@ describe("listChats", () => {
       kind: "question",
       text: "Which one?",
     });
+  });
+
+  it("waits on no question while the turn that asked it is held", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Planets");
+    await userSays(chatId, sessionId, "ask me my favorite planet", 1);
+    await agentAsks(chatId, sessionId, "Which planet?", { held: true });
+
+    expect((await listChats())[0]?.status).not.toBe("waiting");
+
+    await releaseQuestions(await chatFor(sessionId), sessionId);
+
+    expect((await listChats())[0]?.status).toBe("waiting");
   });
 
   it("waits only on the newest question once a later turn asks again", async () => {

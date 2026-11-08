@@ -673,9 +673,11 @@ async function chatFor(
     filed,
     asksOf(
       sortAsks(
-        // A sign-in waits on the person while an app on it does.
+        // A sign-in waits on the person while an app on it does, and a
+        // question once the turn that asked it is over.
         digest.asks.flatMap(({ ask, live }) =>
           live &&
+          !(ask.kind === "question" && ask.held) &&
           (ask.kind !== "sign-in" ||
             ask.apps.some((app) => app.standing === "waiting"))
             ? [ask]

@@ -40,6 +40,7 @@ import {
   type PermissionSettings,
   updatePermissionSettings,
 } from "../permissions/rules";
+import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AskState } from "./ask-states";
 import {
@@ -48,8 +49,10 @@ import {
   changeAsk,
   chatAskStates,
   computerName,
+  releaseQuestions,
   thisDevice,
 } from "./asks";
+import { isWorking } from "./activity";
 import { listChatIds } from "./chat-records";
 import { chatAskStatesOf } from "./chats";
 import { grantFolder } from "./grants";
@@ -146,7 +149,14 @@ async function step(
     if (stage.woken) {
       return false;
     }
-    await wake(chatId, state, workspaceRef);
+    const { delivering } = await wake(chatId, state, workspaceRef);
+    if (delivering) {
+      // Written woken by the pass after it lands, which finds its note.
+      delivering
+        .then(() => driveAsks(chatId, workspaceRef))
+        .catch(getWorkspaceConfig().captureException);
+      return false;
+    }
     return write(chatId, ask.id, (now) =>
       now.ask.stage.is === "closed"
         ? { ...now.ask, stage: { ...now.ask.stage, woken: true } }
@@ -496,6 +506,9 @@ function startLook(
   return look.then(() => driveAsks(chatId, workspaceRef));
 }
 
+/** How long the wake for a set of questions waits for another call under its key. */
+const QUESTION_SET_WAKE_DEBOUNCE_MS = 300;
+
 /**
  * Wakes each asker of a closed ask with its outcome: every one still on
  * it, but for a yes, one whose own command waits on what it asked for and
@@ -503,18 +516,21 @@ function startLook(
  * not woken again. An answer from before this process started that is no
  * longer fresh leaves its note without starting a turn, read with the
  * person's next message.
+ *
+ * A question of a set wakes once for the set: each of its questions but
+ * the last to be told leaves its note without starting a turn, and the
+ * last wakes the session once it is at rest, which the returned promise
+ * settles on. The ask is written woken only after that, by the pass that
+ * finds its note.
  */
 async function wake(
   chatId: ChatId,
   { ask, askers }: AskState,
   workspaceRef: WorkspaceActorRef,
-): Promise<void> {
+): Promise<{ delivering?: Promise<void> }> {
   const { stage } = ask;
-  if (stage.is !== "closed") {
-    return;
-  }
-  if (stage.outcome.kind === "left") {
-    return;
+  if (stage.is !== "closed" || stage.outcome.kind === "left") {
+    return {};
   }
   const yes =
     stage.outcome.kind === "permission" &&
@@ -529,6 +545,11 @@ async function wake(
     stage.quiet === true ||
     stage.closedAt === undefined ||
     stage.closedAt.getTime() < launchedAt;
+  const ofSet =
+    ask.kind === "question" && ask.set !== undefined && !quiet
+      ? { last: await lastOfSet(chatId, ask), set: ask.set }
+      : undefined;
+  let delivering: Promise<void> | undefined;
   for (const asker of askers) {
     if (
       (yes && asker.waits === true) ||
@@ -554,8 +575,20 @@ async function wake(
     if (part === undefined) {
       continue;
     }
-    if (quiet) {
+    if (quiet || ofSet?.last === false) {
       await saveNote(chatId, asker.sessionId, part);
+    } else if (ofSet) {
+      delivering = enqueueWake({
+        chatId,
+        debounceMs: QUESTION_SET_WAKE_DEBOUNCE_MS,
+        key: `questions:${ofSet.set}`,
+        // The set's wake is already on its way: it stays as it is.
+        merge: () => undefined,
+        part,
+        restingOnly: true,
+        sessionId: asker.sessionId,
+        workspaceRef,
+      });
     } else {
       await enqueueWake({
         chatId,
@@ -565,6 +598,30 @@ async function wake(
       });
     }
   }
+  return delivering ? { delivering } : {};
+}
+
+/**
+ * Whether a closed question is the last of its set to be told: every other
+ * question asked with it is closed, and none that closed and was not told
+ * yet was asked after it, so the set wakes its session once.
+ */
+async function lastOfSet(
+  chatId: ChatId,
+  ask: Extract<AskRecord, { kind: "question" }>,
+): Promise<boolean> {
+  const after = (other: AskRecord) =>
+    other.askedAt.getTime() === ask.askedAt.getTime()
+      ? other.id > ask.id
+      : other.askedAt.getTime() > ask.askedAt.getTime();
+  return (await chatAskStates(chatId)).every(
+    ({ ask: other }) =>
+      other.id === ask.id ||
+      other.kind !== "question" ||
+      other.set !== ask.set ||
+      other.device !== ask.device ||
+      (other.stage.is === "closed" && (other.stage.woken || !after(other))),
+  );
 }
 
 /**
@@ -945,6 +1002,12 @@ export function startAskDriver(workspaceRef: WorkspaceActorRef): void {
       drive(id);
     }
   });
+  // The questions a turn asked go up once it is over.
+  publisher.subscribe("session.done", ({ id, sessionId }) => {
+    releaseQuestions(id, sessionId).catch(
+      getWorkspaceConfig().captureException,
+    );
+  });
   driveOwedAsks(workspaceRef).catch(getWorkspaceConfig().captureException);
 }
 
@@ -965,6 +1028,17 @@ export async function driveOwedAsks(
       const states = (await chatAskStatesOf(chatId)).filter(
         ({ ask }) => ask.device === thisDevice(),
       );
+      // Held by a turn that ended while the app was not running to hear it.
+      const sessionId = sessionOfChat(chatId);
+      if (
+        sessionId !== undefined &&
+        states.some(
+          ({ ask, live }) => live && ask.kind === "question" && ask.held,
+        ) &&
+        !workingNow(chatId, sessionId)
+      ) {
+        await releaseQuestions(chatId, sessionId);
+      }
       let refreshed = false;
       for (const { ask, live, pending } of states) {
         if (
@@ -1154,4 +1228,13 @@ async function macosKeepsOut(
   const answer = await status;
   await watched;
   return answer === "denied" ? "macos-refused" : undefined;
+}
+
+/** Whether the session has a turn running, or false where no workspace is running to ask. */
+function workingNow(chatId: ChatId, sessionId: StoreId.Session): boolean {
+  try {
+    return isWorking(chatId, sessionId);
+  } catch {
+    return false;
+  }
 }

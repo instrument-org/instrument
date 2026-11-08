@@ -1,5 +1,6 @@
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { captureFrame } from "@/electron-main/browser-view/capture-frame";
+import { log } from "@/electron-main/browser-view/log";
 import { webContents } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
@@ -18,17 +19,22 @@ const HELD = 48;
 /** The pictures read or taken lately, by their key, as data URLs, oldest first. */
 const pictures = new Map<string, string>();
 
-/** The newest capture started for each key, so an older one finishing late is dropped. */
-const latest = new Map<string, number>();
+/**
+ * The newest capture kept for each key, by the order they were asked for, so
+ * an older one finishing late never replaces a newer one. A capture still on
+ * its way, or one that failed, holds nothing back.
+ */
+const keptCapture = new Map<string, number>();
 let captures = 0;
 
 /**
  * A picture of a browser guest's page as it is drawn now, kept under `key`
  * (the tab's id) in memory and on disk, so a rail reopened later, or after
  * the app was quit, shows the page at once without loading it. Only a
- * `<webview>` guest is captured; any other contents is refused. Nothing when
- * the guest is gone, drew nothing, or a newer capture of the same key
- * started meanwhile.
+ * `<webview>` guest is captured; any other contents is refused. The window
+ * is kept drawing while the picture is taken, so a page behind another app's
+ * window or a minimized one still gives a frame. Nothing when the guest is
+ * gone, drew nothing, or a newer capture of the same key was kept meanwhile.
  */
 export async function capturePageThumbnail({
   key,
@@ -43,26 +49,33 @@ export async function capturePageThumbnail({
   }
   captures += 1;
   const mine = captures;
-  latest.set(key, mine);
   let image: Electron.NativeImage;
   try {
     image = await captureFrame(guest, {
       deadlineMs: CAPTURE_DEADLINE_MS,
+      forceDraw: true,
       rejectEmpty: true,
     });
-  } catch {
+  } catch (error) {
     // A guest closing as the picture is taken refuses it, and one that drew
     // nothing has nothing to keep.
+    log.info(
+      `page picture not taken key=${key} reason=${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
-  if (latest.get(key) !== mine) {
+  if ((keptCapture.get(key) ?? 0) > mine) {
     return null;
   }
+  keptCapture.set(key, mine);
   const jpeg = image.resize({ quality: "good", width: WIDTH }).toJPEG(QUALITY);
   const url = asDataUrl(jpeg);
   hold(key, url);
   await fs.mkdir(folder(), { recursive: true });
-  await fs.writeFile(path.join(folder(), nameOf(key)), jpeg);
+  // A newer picture kept while the folder was made writes its own file.
+  if (keptCapture.get(key) === mine) {
+    await fs.writeFile(path.join(folder(), nameOf(key)), jpeg);
+  }
   return url;
 }
 
@@ -71,7 +84,7 @@ export async function forgetPageThumbnails(keys: string[]): Promise<void> {
   await Promise.all(
     keys.map(async (key) => {
       pictures.delete(key);
-      latest.delete(key);
+      keptCapture.delete(key);
       await fs.rm(path.join(folder(), nameOf(key)), { force: true });
     }),
   );

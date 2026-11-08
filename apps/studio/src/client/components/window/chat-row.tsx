@@ -298,10 +298,14 @@ export function ChatRow({
         >
           <div className="min-w-0 flex-1">
             <div className="flex h-5 items-center gap-1.5">
-              {density === "one" && shownProject && (
-                <ProjectMark className="size-4" plain project={shownProject} />
-              )}
               {title}
+              {/* At one line the project stands just before the time, so
+                  every title starts at the same edge. */}
+              {density === "one" && projectWords && (
+                <span className="flex shrink-0 grow justify-end pl-1">
+                  {projectWords}
+                </span>
+              )}
               {/* The time and the star step aside for the row's controls
                   while the pointer is on it. */}
               <RowActionBar
@@ -348,7 +352,9 @@ export function ChatRow({
               // A chat at work, waiting or stopped says so here, since there
               // is no other line for it; otherwise the project, or the last
               // reply for a chat filed under none. The marks of what it
-              // holds stand at the line's end, without the files' names.
+              // holds stand at the row's right edge, under the time, without
+              // the files' names; the count of the rest keeps them from
+              // needing a fade.
               <div className="flex h-5 min-w-0 items-center gap-2">
                 <span className="flex min-w-0 flex-1">
                   {isBusy(chat) || !projectWords ? (
@@ -362,9 +368,8 @@ export function ChatRow({
                     <HoldMarks
                       appsBySlug={appsBySlug}
                       chatId={chat.id}
-                      className="max-w-[45%] shrink-0 justify-end gap-1"
+                      className="max-w-[45%] shrink-0 justify-end gap-1 overflow-hidden"
                       holds={chat.holds}
-                      wrap={false}
                     />
                   </HoldsInChat>
                 )}

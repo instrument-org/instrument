@@ -256,6 +256,15 @@ function peekOf(row: HTMLElement) {
 }
 
 /** The name of the project the chat is filed under: a label, not a control. */
+/** The time at the end of the title's line. */
+function timeOf(row: HTMLElement) {
+  const time = row.querySelector<HTMLElement>(".tabular-nums");
+  if (!time) {
+    throw new Error("no time");
+  }
+  return time;
+}
+
 function pillOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>('[data-slot="project-words"]');
 }
@@ -428,6 +437,38 @@ describe("ChatRow", () => {
     if (second) {
       expect(pillOf(row)?.textContent).toBe(second);
     }
+  });
+
+  it("at one line, names the project just before the time rather than ahead of the title", async () => {
+    const { rows } = await renderRows(
+      [chat({ project: "house" }), chat({ project: undefined })],
+      { density: "one" },
+    );
+    const [filed, loose] = rows;
+    if (!filed || !loose) {
+      throw new Error("no rows");
+    }
+    const project = pillOf(filed);
+    expect(project?.textContent).toBe("House");
+    expect(firstLineOf(filed).contains(project)).toBe(true);
+    // Every title starts at the same edge, filed or not.
+    expect(titleOf(filed).getBoundingClientRect().left).toBe(
+      titleOf(loose).getBoundingClientRect().left,
+    );
+    const time = timeOf(filed).getBoundingClientRect();
+    const words = project?.getBoundingClientRect();
+    expect(words?.right).toBeLessThanOrEqual(time.left);
+    expect(words?.right).toBeGreaterThan(time.left - 16);
+  });
+
+  it("at two lines, ends what the chat holds at the time's right edge", async () => {
+    const { row } = await renderRow(
+      chat({ holds: { apps: ["github"], files: [], sites: [] } }),
+      { density: "two" },
+    );
+    expect(marksOf(row).at(-1)?.getBoundingClientRect().right).toBe(
+      timeOf(row).getBoundingClientRect().right,
+    );
   });
 
   it("keeps one row height whether a chat holds anything or has said anything", async () => {

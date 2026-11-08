@@ -65,6 +65,10 @@ function list() {
   return call(projects.list, undefined, { context: createContext() });
 }
 
+function get(projectId: string) {
+  return call(projects.get, { projectId }, { context: createContext() });
+}
+
 it("makes a project with its instructions and folders in one call", async () => {
   const created = await call(
     projects.create,
@@ -78,13 +82,16 @@ it("makes a project with its instructions and folders in one call", async () => 
     { context: createContext() },
   );
 
-  const [listed] = await list();
-  expect(listed).toMatchObject({
+  expect(await get(created.id)).toMatchObject({
     folders: [{ path: folder }],
     id: created.id,
     instructions: "Answer in metric.",
     name: "Garden",
   });
+  const [listed] = await list();
+  expect(listed).toMatchObject({ id: created.id, name: "Garden" });
+  expect(listed).not.toHaveProperty("instructions");
+  expect(listed).not.toHaveProperty("folders");
   expect(
     fs.readFileSync(
       path.join(projectsDir(), "Garden", PROJECT_FILE_NAME),
@@ -153,8 +160,7 @@ it("puts a retired project back as it was when its folders cannot be granted", a
     ),
   ).rejects.toThrow();
 
-  const [listed] = await list();
-  expect(listed).toMatchObject({
+  expect(await get(first.id)).toMatchObject({
     id: first.id,
     instructions: "Old words",
     retired: true,
@@ -178,7 +184,7 @@ it("returns a project in use under the name as it is, given only the name", asyn
 });
 
 it("refuses a name in use given instructions or folders, leaving that project alone", async () => {
-  await call(
+  const first = await call(
     projects.create,
     { instructions: "Keep these", name: "Garden" },
     { context: createContext() },
@@ -198,7 +204,7 @@ it("refuses a name in use given instructions or folders, leaving that project al
     code: "BAD_REQUEST",
     message: "There is already a project called “Garden”",
   });
-  const [listed] = await list();
-  expect(listed?.instructions).toBe("Keep these");
-  expect(listed?.folders).toBeUndefined();
+  const kept = await get(first.id);
+  expect(kept?.instructions).toBe("Keep these");
+  expect(kept?.folders).toBeUndefined();
 });

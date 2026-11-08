@@ -1,4 +1,6 @@
+import { rpcClient } from "@/client/rpc/client";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+import { useQuery } from "@tanstack/react-query";
 
 import { type Project } from "./chats";
 import { ProjectMark } from "./project-mark";
@@ -20,7 +22,14 @@ export function ProjectBanner({
   onOpenInFiles: (project: Project) => void;
   project: Project;
 }) {
-  const instructions = stripMarkdown(project.instructions ?? "").trim();
+  // The list names projects without their instructions, which are read
+  // here for the one project shown.
+  const { data: whole } = useQuery(
+    rpcClient.workspace.projects.get.queryOptions({
+      input: { projectId: project.id },
+    }),
+  );
+  const instructions = stripMarkdown(whole?.instructions ?? "").trim();
   return (
     <div className="flex shrink-0 flex-col items-start px-4 pt-1 pb-4">
       <span className="grid size-11 place-items-center rounded-xl bg-background shadow-xs dark:bg-background/80">

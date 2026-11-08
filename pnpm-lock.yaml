@@ -76,6 +76,7 @@ overrides:
 
 patchedDependencies:
   '@milkdown/plugin-block@7.22.3': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
+  '@shadcn/react@0.2.11': da1bf28bb1f6016f67560c8850b6dc0c60acb8e50ff0e178e97cac6f1e1ebaff
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
   electron-chrome-extensions@4.10.0: 8a5791fc3069fd871f8b288ca0100d2edfd4acc832895a939534ca5041db26ab
   ffmpeg-ffprobe-static@7.1.0-rc.1: 0afc9f1613d36470c5a3d362ccf967a1cc39125f5e44dd41e21bbe366ecc1fd6
@@ -470,7 +471,7 @@ importers:
         version: 0.2.3(@babel/core@7.29.7(supports-color@10.1.0))(@babel/runtime@7.29.7)(rolldown@1.2.15)(vite@8.3.5(@types/node@24.13.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.39.0)(tsx@4.23.15)(yaml@2.9.1))
       '@shadcn/react':
         specifier: github:mutewinter/ui#83bafff9a6312d885ff152be2e594a18ab82122c
-        version: https://codeload.github.com/mutewinter/ui/tar.gz/83bafff9a6312d885ff152be2e594a18ab82122c(@types/react@19.3.0)(react@19.3.0)
+        version: https://codeload.github.com/mutewinter/ui/tar.gz/83bafff9a6312d885ff152be2e594a18ab82122c(patch_hash=da1bf28bb1f6016f67560c8850b6dc0c60acb8e50ff0e178e97cac6f1e1ebaff)(@types/react@19.3.0)(react@19.3.0)
       '@sqlite.org/sqlite-wasm':
         specifier: 3.53.4-build2
         version: 3.53.4-build2
@@ -13217,7 +13218,7 @@ snapshots:
 
   '@sec-ant/readable-stream@0.4.1': {}
 
-  '@shadcn/react@https://codeload.github.com/mutewinter/ui/tar.gz/83bafff9a6312d885ff152be2e594a18ab82122c(@types/react@19.3.0)(react@19.3.0)':
+  '@shadcn/react@https://codeload.github.com/mutewinter/ui/tar.gz/83bafff9a6312d885ff152be2e594a18ab82122c(patch_hash=da1bf28bb1f6016f67560c8850b6dc0c60acb8e50ff0e178e97cac6f1e1ebaff)(@types/react@19.3.0)(react@19.3.0)':
     optionalDependencies:
       '@types/react': 19.3.0
       react: 19.3.0

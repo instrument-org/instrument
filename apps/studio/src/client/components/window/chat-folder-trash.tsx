@@ -84,11 +84,17 @@ function ChatFolderDialog({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
-  const list = useQuery(chatListOptions());
-  const titleOf = (id: ChatId) =>
-    list.data?.find((chat) => chat.id === id)?.title ?? "Untitled chat";
   const one = asking.chats.length === 1;
   const named = asking.chats.slice(0, CHATS_NAMED);
+  // The titles of the chats named, so the dialog stays put as other chats move.
+  const { data: titles } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      named.map(
+        (each) =>
+          chats.find((chat) => chat.id === each.id)?.title ?? "Untitled chat",
+      ),
+  });
   const more = asking.chats.length - named.length;
   const chatPaths = new Set(asking.chats.map((chat) => chat.path));
   const rest = asking.paths.filter((at) => !chatPaths.has(at));
@@ -113,9 +119,9 @@ function ChatFolderDialog({
         <div className="flex flex-col gap-3">
           <div className="overflow-hidden rounded-lg border bg-muted/50 px-4 py-3 text-sm">
             <ul className="flex flex-col gap-0.5 text-foreground">
-              {named.map((chat) => (
+              {named.map((chat, index) => (
                 <li className="truncate font-medium" key={chat.id}>
-                  {titleOf(chat.id)}
+                  {titles?.[index] ?? "Untitled chat"}
                 </li>
               ))}
               {more > 0 && (

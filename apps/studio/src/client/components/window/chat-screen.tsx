@@ -111,8 +111,10 @@ function ChatScreenOfRecord({
   );
   // The chat as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
-  const chats = useQuery(chatListOptions());
-  const chat = chats.data?.find((entry) => entry.id === chatId);
+  const { data: chat } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((entry) => entry.id === chatId),
+  });
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());

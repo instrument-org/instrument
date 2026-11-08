@@ -856,8 +856,10 @@ function MemoryGroupList({
   const groupNames = group.memories.map((memory) => memory.name);
   const isAllPicked = groupNames.every((name) => picked.has(name));
   // The chat by the title it goes by now; a chat since deleted names nothing.
-  const { data: chats } = useQuery(chatListOptions());
-  const title = chats?.find((chat) => chat.id === group.chat)?.title;
+  const { data: title } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === group.chat)?.title,
+  });
 
   return (
     <div>

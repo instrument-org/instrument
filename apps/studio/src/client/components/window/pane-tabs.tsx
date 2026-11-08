@@ -48,8 +48,8 @@ function keyOf(tab: WindowTab): string {
 /**
  * A chat's tabs, across the head of the pane beside it, the one place they
  * show: what its agent browses and the person opened, oldest at the left,
- * scrolling sideways when there are many. They are the window's own strip in
- * its scrolling mode, so they open, close, reorder and answer the keyboard as
+ * narrowing to icons when there are many and scrolling sideways past that.
+ * They are the window's own strip, so they open, close, reorder and answer the keyboard as
  * the window's tabs do. The × at the row's far end puts the whole pane away and
  * keeps the tabs.
  */
@@ -216,7 +216,7 @@ export function PaneTabs({
             onSelect(tab.id);
           }
         }}
-        overflow="scroll"
+        overflow="squeeze"
         selectedKey={chosen ? keyOf(chosen) : undefined}
         tabs={presented}
       />

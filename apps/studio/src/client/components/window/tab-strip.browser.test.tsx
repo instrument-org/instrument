@@ -466,3 +466,41 @@ describe("a strip that scrolls", () => {
     await expect.poll(() => tab("t2").getBoundingClientRect().width).toBe(0);
   });
 });
+
+describe("a strip that squeezes", () => {
+  const many = Array.from({ length: 30 }, (_, index) => ({
+    icon: <span />,
+    key: `t${index}`,
+    title: `Tab ${index}`,
+  }));
+  function Squeezing({ count, width }: { count: number; width: number }) {
+    return (
+      <div style={{ width }}>
+        <TabStrip
+          onClose={() => undefined}
+          onReorder={() => undefined}
+          onSelect={() => undefined}
+          overflow="squeeze"
+          selectedKey="t0"
+          tabs={many.slice(0, count)}
+        />
+      </div>
+    );
+  }
+  const scroller = () => document.querySelector(".overflow-x-auto");
+
+  it("narrows its tabs before it scrolls", async () => {
+    await renderInBrowser(<Squeezing count={8} width={400} />);
+    expect(scroller()).toBeNull();
+    expect(tab("t7").getBoundingClientRect().width).toBeLessThan(80);
+  });
+
+  it("scrolls its tabs as icons, the one up named, once icons no longer fit", async () => {
+    await renderInBrowser(<Squeezing count={30} width={400} />);
+    await expect.poll(() => scroller() !== null).toBe(true);
+    expect(tab("t29").getBoundingClientRect().width).toBe(32);
+    expect(tab("t0").getBoundingClientRect().width).toBeGreaterThan(32);
+    const row = scroller();
+    expect(row && row.scrollWidth > row.clientWidth).toBe(true);
+  });
+});

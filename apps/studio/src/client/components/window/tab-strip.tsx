@@ -69,6 +69,8 @@ const NAME_FITS = 80;
 const NEW_TAB_ROOM = 32 + GAP;
 // The `mr-3` holding a fixed tab off the rest, on top of the gap.
 const FIXED_MARGIN = 12;
+// The row's own `px-2` on each side, which its tabs cannot use.
+const ROW_PADDING = 16;
 
 // Lands a tab at its new place rather than moving it there; the projection
 // stays on so a drag can still reorder around it.
@@ -202,12 +204,19 @@ export function TabStrip({
   onTabDragEnd?: (key: string, event: PointerEvent) => void;
   /** A tab's drag has started, `moved` px along from where it was pressed. */
   onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
-  /** Past the row's room, tabs compress toward icons, or keep their width and the row scrolls. */
-  overflow?: "compress" | "scroll";
+  /**
+   * Past the row's room, tabs compress toward icons; or keep their width and
+   * the row scrolls; or compress, and once even icons do not fit, the row
+   * scrolls its icons with the one up still named (`squeeze`).
+   */
+  overflow?: "compress" | "scroll" | "squeeze";
   selectedKey: string | undefined;
   tabs: StripTab[];
 }) {
-  const scrolls = overflow === "scroll";
+  const squeezes = overflow === "squeeze";
+  // Whether a squeezing row has room for every tab as at least an icon.
+  const [iconsFit, setIconsFit] = useState(true);
+  const scrolls = overflow === "scroll" || (squeezes && !iconsFit);
   const plus =
     newControl ??
     (onNew ? (
@@ -320,10 +329,41 @@ export function TabStrip({
   const collapsingKeys = new Set(collapsing.map(({ tab }) => tab.key));
   const drawnCount = movableTabs.length + collapsing.length;
   const fixedCount = fixedTabs.length;
-  // A row that scrolls has room for every tab at its full width.
-  const { density, fixedIsNamed, selectedDensity, visibleCount } = scrolls
-    ? stripLayout(0, drawnCount, fixedCount)
-    : measuredLayout;
+  // A row that scrolls has room for every tab at its full width, or, squeezed
+  // past its icons, for every tab as an icon and the one up named.
+  let layout = measuredLayout;
+  if (scrolls) {
+    layout = squeezes
+      ? {
+          density: "icon",
+          fixedIsNamed: false,
+          selectedDensity: "full",
+          visibleCount: drawnCount,
+        }
+      : stripLayout(0, drawnCount, fixedCount);
+  }
+  const { density, fixedIsNamed, selectedDensity, visibleCount } = layout;
+
+  // A squeezing row measures itself whichever way it is drawn, since the
+  // strip inside it is as wide as its tabs once it scrolls.
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!squeezes || !row) {
+      return;
+    }
+    const apply = () => {
+      const room = row.clientWidth - ROW_PADDING - (hasNew ? NEW_TAB_ROOM : 0);
+      setIconsFit(
+        stripLayout(room, drawnCount, fixedCount).visibleCount >= drawnCount,
+      );
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(row);
+    return () => {
+      observer.disconnect();
+    };
+  }, [drawnCount, fixedCount, hasNew, squeezes]);
 
   useLayoutEffect(() => {
     const strip = stripRef.current;
@@ -825,7 +865,9 @@ function Tab({
       : isScrolled
         ? // A cap and floor to match the width, which the arriving motion
           // opens from nothing.
-          "w-40 max-w-40 min-w-0 shrink-0"
+          density === "icon"
+          ? "w-8 max-w-8 min-w-0 shrink-0"
+          : "w-40 max-w-40 min-w-0 shrink-0"
         : cn(
             "max-w-60 flex-1",
             { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],

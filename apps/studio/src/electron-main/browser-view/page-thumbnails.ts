@@ -28,6 +28,15 @@ const keptCapture = new Map<string, number>();
 let captures = 0;
 
 /**
+ * How many times each key's pictures were thrown away, so a capture that
+ * started before its tab closed keeps nothing of it once it finishes.
+ */
+const forgotten = new Map<string, number>();
+
+/** Each key's writes and removals of its file, one after another, the newest last. */
+const fileWork = new Map<string, Promise<void>>();
+
+/**
  * A picture of a browser guest's page as it is drawn now, kept under `key`
  * (the tab's id) in memory and on disk, so a rail reopened later, or after
  * the app was quit, shows the page at once without loading it. Only a
@@ -49,6 +58,8 @@ export async function capturePageThumbnail({
   }
   captures += 1;
   const mine = captures;
+  const era = forgotten.get(key) ?? 0;
+  const isForgotten = () => (forgotten.get(key) ?? 0) !== era;
   let image: Electron.NativeImage;
   try {
     image = await captureFrame(guest, {
@@ -64,18 +75,25 @@ export async function capturePageThumbnail({
     );
     return null;
   }
-  if ((keptCapture.get(key) ?? 0) > mine) {
+  // A tab closed while its picture was taken keeps nothing of it.
+  if (isForgotten() || (keptCapture.get(key) ?? 0) > mine) {
     return null;
   }
   keptCapture.set(key, mine);
   const jpeg = image.resize({ quality: "good", width: WIDTH }).toJPEG(QUALITY);
   const url = asDataUrl(jpeg);
   hold(key, url);
-  await fs.mkdir(folder(), { recursive: true });
-  // A newer picture kept while the folder was made writes its own file.
-  if (keptCapture.get(key) === mine) {
-    await fs.writeFile(path.join(folder(), nameOf(key)), jpeg);
-  }
+  await inTurn(key, async () => {
+    // A newer picture kept, or the tab gone, while an earlier write ran.
+    if (isForgotten() || keptCapture.get(key) !== mine) {
+      return;
+    }
+    const file = path.join(folder(), nameOf(key));
+    const partial = `${file}.${mine.toString()}.partial`;
+    await fs.mkdir(folder(), { recursive: true });
+    await fs.writeFile(partial, jpeg);
+    await fs.rename(partial, file);
+  });
   return url;
 }
 
@@ -84,8 +102,10 @@ export async function forgetPageThumbnails(keys: string[]): Promise<void> {
   await Promise.all(
     keys.map(async (key) => {
       pictures.delete(key);
-      keptCapture.delete(key);
-      await fs.rm(path.join(folder(), nameOf(key)), { force: true });
+      forgotten.set(key, (forgotten.get(key) ?? 0) + 1);
+      await inTurn(key, () =>
+        fs.rm(path.join(folder(), nameOf(key)), { force: true }),
+      );
     }),
   );
 }
@@ -104,7 +124,12 @@ export async function keepOnlyPageThumbnails(keys: string[]): Promise<void> {
   }
   await Promise.all(
     names
-      .filter((name) => name.endsWith(".jpg") && !kept.has(name))
+      .filter(
+        (name) =>
+          // A write the app quit in the middle of left its partial file.
+          name.endsWith(".partial") ||
+          (name.endsWith(".jpg") && !kept.has(name)),
+      )
       .map((name) => fs.rm(path.join(folder(), name), { force: true })),
   );
   for (const key of pictures.keys()) {
@@ -127,6 +152,24 @@ export async function readPageThumbnail(key: string): Promise<null | string> {
     return url;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Runs `work` on `key`'s file once everything already asked of it is done, so
+ * two writes never interleave and a removal comes after the write before it.
+ * A step that fails leaves the next to run all the same.
+ */
+async function inTurn(key: string, work: () => Promise<void>): Promise<void> {
+  const mine = (fileWork.get(key) ?? Promise.resolve()).then(work);
+  const settled = mine.catch(() => undefined);
+  fileWork.set(key, settled);
+  try {
+    await mine;
+  } finally {
+    if (fileWork.get(key) === settled) {
+      fileWork.delete(key);
+    }
   }
 }
 

@@ -1,9 +1,14 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
-import { capturePageThumbnail, readPageThumbnail } from "./page-thumbnails";
+import {
+  capturePageThumbnail,
+  forgetPageThumbnails,
+  readPageThumbnail,
+} from "./page-thumbnails";
 
 const folder = fs.mkdtempSync(path.join(os.tmpdir(), "page-thumbnails-"));
 
@@ -72,5 +77,31 @@ describe("capturePageThumbnail", () => {
     first?.show("older");
     await expect(older).resolves.toBeNull();
     await expect(readPageThumbnail("tab_b")).resolves.toBe(pictureOf("newer"));
+  });
+
+  it("keeps nothing of a picture that finishes after its tab closed", async () => {
+    const taking = capturePageThumbnail({ key: "tab_c", webContentsId: 1 });
+    const [frame] = frames.splice(0);
+    await forgetPageThumbnails(["tab_c"]);
+    frame?.show("closed");
+    await expect(taking).resolves.toBeNull();
+    await expect(readPageThumbnail("tab_c")).resolves.toBeNull();
+  });
+
+  it("leaves the newer picture on disk when two finish one after the other", async () => {
+    const older = capturePageThumbnail({ key: "tab_d", webContentsId: 1 });
+    const newer = capturePageThumbnail({ key: "tab_d", webContentsId: 1 });
+    const [first, second] = frames.splice(0);
+    first?.show("older");
+    second?.show("newer");
+    await Promise.all([older, newer]);
+    const pictures = path.join(folder, "page-thumbnails");
+    const name = createHash("sha1").update("tab_d").digest("hex");
+    expect(fs.readFileSync(path.join(pictures, `${name}.jpg`), "utf8")).toBe(
+      "newer",
+    );
+    expect(
+      fs.readdirSync(pictures).filter((each) => each.endsWith(".partial")),
+    ).toEqual([]);
   });
 });

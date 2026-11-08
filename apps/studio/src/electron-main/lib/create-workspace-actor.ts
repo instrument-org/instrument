@@ -1,4 +1,7 @@
-import { appWindowForChat } from "@/electron-main/windows/app-window";
+import {
+  appWindowForChat,
+  getAppWindows,
+} from "@/electron-main/windows/app-window";
 import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
@@ -29,6 +32,10 @@ import {
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import { workspaceModelRoutes } from "@/electron-main/stores/workspace/state";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
+import {
+  FINISH_BEFORE_LEAVING_MS,
+  finishBeforeLeaving,
+} from "@/electron-main/windows/finish-before-leaving";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
@@ -106,6 +113,7 @@ const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
 // and systemd gives a stopping session 90 s by default before it kills what is
 // left.
 const QUIT_TEARDOWN_MS =
+  FINISH_BEFORE_LEAVING_MS +
   BROWSER_SESSIONS_CLOSE_MS +
   BACKGROUND_PROCESS_TEARDOWN_MS +
   QUIT_TEARDOWN_SLACK_MS;
@@ -413,6 +421,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           );
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
+        finishWindows: fromPromise(() =>
+          finishBeforeLeaving(
+            getAppWindows().map((window) => window.webContents),
+          ),
+        ),
         stopServices: fromPromise(async () => {
           // Agent-started servers and watchers outlive the turn that started
           // them, so quitting is what ends them. The tasks at work are

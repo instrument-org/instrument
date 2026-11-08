@@ -31,6 +31,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import ms from "ms";
 import { useEffect, useState } from "react";
+import { finishBeforeLeaving } from "@/client/lib/before-leaving";
 import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
@@ -233,19 +234,25 @@ export function useDrafts({
       ),
     );
   }, [draftIds, setDraftSnapshots]);
-  /** Throws a draft away: its window, its folder with what its composer held, and its tabs. */
+  /**
+   * Throws a draft away: its window, its folder with what its composer held,
+   * and its tabs. Answers once main has taken it away.
+   */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
-    removeDraft(id);
+    const removed = removeDraft(id);
     windowTabs.dropGroup(draftGroupOf(id));
+    return removed;
   };
   /**
    * Throws a draft away on the person's say, from its window or from Drafts,
    * with a moment to take it back: its window goes and it leaves Drafts at
-   * once, and it is deleted only once the toast offering Undo is gone. Undo
-   * puts it back in Drafts, with its window back up if it had one.
+   * once, and it is deleted only once the toast offering Undo is gone, or
+   * the window goes or the app quits first, since nothing is left to offer
+   * Undo then. Undo puts it back in Drafts, with its window back up if it
+   * had one.
    */
   const discardDraft = (id: string) => {
     const wasOpen = compose.entries.some(
@@ -256,28 +263,32 @@ export function useDrafts({
     let isSettled = false;
     const settle = (keep: boolean) => {
       if (isSettled) {
-        return;
+        return undefined;
       }
       isSettled = true;
+      leave();
       setDiscardingIds((current) => withoutId(current, id));
       if (!keep) {
-        deleteDraft(id);
-      } else if (wasOpen) {
+        return deleteDraft(id);
+      }
+      if (wasOpen) {
         showDraft(id);
       }
+      return undefined;
     };
+    const leave = finishBeforeLeaving(() => settle(false));
     toast("Your draft was discarded", {
       action: {
         label: "Undo",
         onClick: () => {
-          settle(true);
+          void settle(true);
         },
       },
       onAutoClose: () => {
-        settle(false);
+        void settle(false);
       },
       onDismiss: () => {
-        settle(false);
+        void settle(false);
       },
     });
   };
@@ -296,7 +307,7 @@ export function useDrafts({
       (tab) => tab.group === draftGroupOf(id) && !isHomeTab(tab),
     );
     if (!dictating && (!draft || isLeftEmpty(draft, { hasTabs, words }))) {
-      deleteDraft(id);
+      void deleteDraft(id);
       return;
     }
     compose.remove(draftGroupOf(id));

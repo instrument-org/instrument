@@ -540,7 +540,7 @@ function WindowShell({
         for (const draft of drafts) {
           if (!isKept(draft)) {
             windowTabs.dropGroup(draftGroupOf(draft.id));
-            removeDraft(draft.id);
+            void removeDraft(draft.id);
           }
         }
       }

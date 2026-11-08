@@ -211,7 +211,7 @@ export function NewChatView({
     if (!isEmptied || !draft) {
       return;
     }
-    removeDraft(draft.id);
+    void removeDraft(draft.id);
     bindBox({ draftId: null, tabId });
     router.history.replace(newChatHref());
   }, [bindBox, draft, isEmptied, removeDraft, router, tabId]);

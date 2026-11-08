@@ -1269,7 +1269,11 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     setHostFocus,
     teardown: () => {
-      for (const targetId of entries.keys()) {
+      // A copy: a tab destroyed and made again under its id while the loop
+      // runs would otherwise come round again, and again. Each line names the
+      // tab, so a quit that never finishes says which one it stopped on.
+      for (const targetId of [...entries.keys()]) {
+        log.info(`quit: closing targetId=${targetId}`);
         destroyEntry(entries, targetId);
       }
       notifyEntriesChanged();

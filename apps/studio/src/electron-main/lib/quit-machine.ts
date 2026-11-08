@@ -29,6 +29,8 @@ export const quitMachine = setup({
     /** Brings a window back to the front after a canceled quit. */
     reveal: () => {},
     announce: (_, _params: { stage: string }) => {},
+    /** Ends the process off the main thread if teardown outlives its deadline. */
+    armWatchdog: () => {},
     reportBrowserSessionsTimeout: () => {},
     teardownBrowserViews: () => {},
     exit: () => {},
@@ -119,7 +121,10 @@ export const quitMachine = setup({
       // stage announces itself: a quit that never finishes is otherwise
       // indistinguishable from one that did, and the log is all there is.
       after: { teardown: "exiting" },
-      entry: { params: { stage: "started" }, type: "announce" },
+      entry: [
+        { params: { stage: "started" }, type: "announce" },
+        "armWatchdog",
+      ],
       onDone: {
         actions: {
           params: { stage: "services settled" },

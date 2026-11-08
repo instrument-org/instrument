@@ -8,6 +8,9 @@ import {
 } from "./chat-for-agent";
 
 const id = ChatIdSchema.parse("2026-11-08-help-desk-pricing");
+
+/** The text with the platform's separator written as `/`, since each folder ends in `path.sep`. */
+const posix = (text: string) => text.replaceAll("\\", "/");
 const root = "/Users/mac-user/Instrument";
 
 const filed: ChatPlaces = {
@@ -22,7 +25,7 @@ const filed: ChatPlaces = {
 
 describe("chatForAgentText", () => {
   it("names every folder of a chat filed under a project", () => {
-    expect(chatForAgentText(filed)).toMatchInlineSnapshot(`
+    expect(posix(chatForAgentText(filed))).toMatchInlineSnapshot(`
       "This is a chat from Instrument, a desktop app where a person works with an AI agent on their own computer. They copied it so you can pick up from what it did.
 
       Chat: Help desk pricing
@@ -44,12 +47,14 @@ describe("chatForAgentText", () => {
 
   it("leaves out what a chat in the app's own data has no folder for", () => {
     expect(
-      chatForAgentText({
-        id,
-        recordsFolder: filed.recordsFolder,
-        title: "Help desk pricing",
-        workFolder: filed.workFolder,
-      }),
+      posix(
+        chatForAgentText({
+          id,
+          recordsFolder: filed.recordsFolder,
+          title: "Help desk pricing",
+          workFolder: filed.workFolder,
+        }),
+      ),
     ).toMatchInlineSnapshot(`
       "This is a chat from Instrument, a desktop app where a person works with an AI agent on their own computer. They copied it so you can pick up from what it did.
 
@@ -64,12 +69,14 @@ describe("chatForAgentText", () => {
 describe("chatDeveloperDetailsText", () => {
   it("names each line for what it is", () => {
     expect(
-      chatDeveloperDetailsText(filed, {
-        app: "2.0.0-beta.133 (packaged)",
-        computer: "macOS 25.6.0 (arm64), named mac-user-mac",
-        mainThread: "ses_01M6VW5654CWFMKTVCKZFNS5CX",
-        startedWith: "2.0.0-beta.131",
-      }),
+      posix(
+        chatDeveloperDetailsText(filed, {
+          app: "2.0.0-beta.133 (packaged)",
+          computer: "macOS 25.6.0 (arm64), named mac-user-mac",
+          mainThread: "ses_01M6VW5654CWFMKTVCKZFNS5CX",
+          startedWith: "2.0.0-beta.131",
+        }),
+      ),
     ).toMatchInlineSnapshot(`
       "Chat: Help desk pricing
       Chat ID: 2026-11-08-help-desk-pricing

@@ -9,7 +9,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { type AnyAgent } from "../agents/types";
 import { instrumentAgent } from "../agents/instrument";
-import { createContextMessage, getSystemInfoText } from "../agents/shared";
+import { createContextMessage } from "../agents/shared";
+import { getSystemInfoText } from "../model-text/context/context-message";
 import { HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";

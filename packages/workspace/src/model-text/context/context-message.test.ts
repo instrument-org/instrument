@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
-} from "../lib/workspace-config";
-import { getUserText } from "./shared";
+} from "../../lib/workspace-config";
+import { getUserText } from "./context-message";
 
 describe("getUserText", () => {
   it("names the signed-in user, by email alone when the account has no name, and nobody while signed out or where there is no account to read", async () => {

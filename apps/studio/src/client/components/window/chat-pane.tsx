@@ -6,7 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -31,6 +31,7 @@ import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
+import { useProjectShift } from "./use-project-shift";
 import { useSetChatProject } from "./use-set-chat-project";
 import { useShell } from "./shell-context";
 import { backfillCandidates } from "./use-project-backfill";
@@ -175,6 +176,17 @@ export function ChatPane({
     filters.projects.length === 1
       ? projects.find((project) => project.id === filters.projects[0])
       : undefined;
+  // The head and the rows slide in together as the list steps into a
+  // project or back out of one.
+  const shiftRef = useRef<HTMLDivElement>(null);
+  useProjectShift(shiftRef, chosenProject?.id);
+  // The wash keeps the last project's color while it fades out, since the
+  // column's own tint goes the moment the list leaves.
+  const washRef = useRef<Project>(undefined);
+  if (chosenProject) {
+    washRef.current = chosenProject;
+  }
+  const washProject = chosenProject ?? washRef.current;
 
   // Whether the new-project dialog is up, and for which chat when a row
   // opened it: a project made from a row is filed on that chat as it lands,
@@ -211,104 +223,110 @@ export function ChatPane({
           card's edge and fades out past the head, behind the first rows;
           sized against the whole column, so a taller window washes further
           down it. */}
-      {chosenProject && (
+      {washProject && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent dark:from-(--project-tint-surface)/25"
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:from-(--project-tint-surface)/25 starting:opacity-0",
+            !chosenProject && "opacity-0",
+          )}
+          style={projectTint(projectColor(washProject))}
         />
       )}
-      <FilterHead
-        chats={chats}
-        filters={filters}
-        onFiltersChange={setFilters}
-        onLeaveProject={shell.leaveProject}
-        project={chosenProject}
-      />
-      {isAISearch && (
-        <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-          AI results
-        </p>
-      )}
-      <ChatList
-        appsBySlug={appsBySlug}
-        arrivedId={arrivedId}
-        chats={shown}
-        density={density}
-        drafts={shownDrafts}
-        groupByDay={groupByDay && shownDrafts === undefined}
-        head={
-          chosenProject
-            ? {
-                node: (
-                  <ProjectBanner
-                    onDetails={(project) => {
-                      openProjectDetails(project.id);
-                    }}
-                    onOpenInFiles={shell.openProjectInFiles}
-                    project={chosenProject}
-                  />
-                ),
-              }
-            : filters.place === undefined &&
-                filters.apps.length === 0 &&
-                !isNarrowed &&
-                projects.some((project) => !project.retired)
+      <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
+        <FilterHead
+          chats={chats}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onLeaveProject={shell.leaveProject}
+          project={chosenProject}
+        />
+        {isAISearch && (
+          <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+            AI results
+          </p>
+        )}
+        <ChatList
+          appsBySlug={appsBySlug}
+          arrivedId={arrivedId}
+          chats={shown}
+          density={density}
+          drafts={shownDrafts}
+          groupByDay={groupByDay && shownDrafts === undefined}
+          head={
+            chosenProject
               ? {
-                  heading: "Chats",
                   node: (
-                    <ProjectsSection
-                      chats={chats}
-                      onChoose={(project) => {
-                        shell.openProject(project.id);
-                      }}
+                    <ProjectBanner
                       onDetails={(project) => {
                         openProjectDetails(project.id);
                       }}
-                      onNew={() => {
-                        setNewProject({});
-                      }}
-                      projects={projects}
+                      onOpenInFiles={shell.openProjectInFiles}
+                      project={chosenProject}
                     />
                   ),
                 }
-              : undefined
-        }
-        isProjectShown={chosenProject === undefined}
-        emptyLine={
-          aiSearch.isLooking
-            ? "Looking through your chats…"
-            : emptyLineFor(filters, chats.length, chosenProject)
-        }
-        // The drafts are kept on this computer, so they are never on
-        // their way.
-        isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
-        onArchiveOpen={onArchiveOpen}
-        onDelete={(chat) => {
-          setDeletingId(chat.id);
-        }}
-        onDeleteDraft={onDeleteDraft}
-        onNewProject={(chat, name) => {
-          setNewProject({ forChat: chat, ...(name ? { name } : {}) });
-        }}
-        onOpen={onOpenChat}
-        onOpenDraft={onOpenDraft}
-        onPopOut={onPopOut}
-        onSetProject={(chat, next) => {
-          setChatProject(chat.id, next);
-        }}
-        onWiden={() => {
-          setWidenedIn(viewKey);
-        }}
-        openId={openChatId}
-        outIds={outIds}
-        outside={outside.length}
-        outsideChats={shownOutside}
-        scrollSignal={scrollSignal}
-        // The decision model's finds are not matches of the words, so
-        // nothing on them is marked.
-        search={isAISearch ? "" : filters.search}
-        projects={projects}
-      />
+              : filters.place === undefined &&
+                  filters.apps.length === 0 &&
+                  !isNarrowed &&
+                  projects.some((project) => !project.retired)
+                ? {
+                    heading: "Chats",
+                    node: (
+                      <ProjectsSection
+                        chats={chats}
+                        onChoose={(project) => {
+                          shell.openProject(project.id);
+                        }}
+                        onDetails={(project) => {
+                          openProjectDetails(project.id);
+                        }}
+                        onNew={() => {
+                          setNewProject({});
+                        }}
+                        projects={projects}
+                      />
+                    ),
+                  }
+                : undefined
+          }
+          isProjectShown={chosenProject === undefined}
+          emptyLine={
+            aiSearch.isLooking
+              ? "Looking through your chats…"
+              : emptyLineFor(filters, chats.length, chosenProject)
+          }
+          // The drafts are kept on this computer, so they are never on
+          // their way.
+          isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
+          onArchiveOpen={onArchiveOpen}
+          onDelete={(chat) => {
+            setDeletingId(chat.id);
+          }}
+          onDeleteDraft={onDeleteDraft}
+          onNewProject={(chat, name) => {
+            setNewProject({ forChat: chat, ...(name ? { name } : {}) });
+          }}
+          onOpen={onOpenChat}
+          onOpenDraft={onOpenDraft}
+          onPopOut={onPopOut}
+          onSetProject={(chat, next) => {
+            setChatProject(chat.id, next);
+          }}
+          onWiden={() => {
+            setWidenedIn(viewKey);
+          }}
+          openId={openChatId}
+          outIds={outIds}
+          outside={outside.length}
+          outsideChats={shownOutside}
+          scrollSignal={scrollSignal}
+          // The decision model's finds are not matches of the words, so
+          // nothing on them is marked.
+          search={isAISearch ? "" : filters.search}
+          projects={projects}
+        />
+      </div>
       {deletingChat && (
         <DeleteChatDialog
           chat={deletingChat}

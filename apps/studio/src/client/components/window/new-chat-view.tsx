@@ -331,7 +331,7 @@ export function NewChatView({
         <div className="flex h-8 shrink-0 items-center gap-x-1">{trailing}</div>
       </div>
       <div className="grid min-h-0 flex-1 place-items-center overflow-hidden px-6">
-        {roomOf && <ProjectRoom project={roomOf} />}
+        {roomOf && <ProjectRoom key={roomOf.id} project={roomOf} />}
       </div>
       <div className="isolate mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">
         <PromptInput
@@ -389,7 +389,7 @@ export function NewChatView({
 function ProjectRoom({ project }: { project: Project }) {
   return (
     <div
-      className="flex flex-col items-center pb-16 text-center project-tint"
+      className="project-room-in flex flex-col items-center pb-16 text-center project-tint"
       style={projectTint(projectColor(project))}
     >
       <span className="grid size-12 place-items-center rounded-xl bg-background shadow-xs ring-1 ring-border/60">

@@ -151,7 +151,8 @@ export function FilterHead({
         )}
         <span className="flex-1" hidden={isFieldShown} />
         {isFieldShown ? (
-          search
+          // Grows out of the glass it stood in for.
+          <div className="head-field-in flex min-w-0 flex-1">{search}</div>
         ) : (
           <button
             aria-label="Search"

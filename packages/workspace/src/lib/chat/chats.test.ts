@@ -1695,7 +1695,8 @@ describe("liveChatRows", () => {
    * list after its next event, or none if nothing comes within `wait` ms,
    * and `events` with every event sent so far.
    */
-  async function open() {
+  /** `firstWait` is how long the first answer may take, for a list with many chats to read. */
+  async function open(firstWait?: number) {
     const controller = new AbortController();
     const answers: Chat[][] = [];
     const events: ChatListEvent<Chat>[] = [];
@@ -1724,7 +1725,7 @@ describe("liveChatRows", () => {
     };
     return {
       events,
-      first: await next(),
+      first: await next(firstWait),
       next,
       stop: () => {
         controller.abort();
@@ -1776,7 +1777,8 @@ describe("liveChatRows", () => {
         );
         sessions.push(sessionId);
       }
-      const { events, first, next, stop } = await open();
+      // Reading every row first can take seconds on a busy machine.
+      const { events, first, next, stop } = await open(20_000);
       expect(first).toHaveLength(count);
 
       const starred = sessions[Math.floor(count / 2)];
@@ -1784,7 +1786,7 @@ describe("liveChatRows", () => {
         throw new Error("No chat to star");
       }
       await setChatStarred(await chatFor(starred), true);
-      await next();
+      await next(20_000);
 
       const patch = events.at(-1);
       expect(patch?.kind).toBe("patch");

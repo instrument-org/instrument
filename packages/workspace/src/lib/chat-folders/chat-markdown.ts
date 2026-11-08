@@ -291,24 +291,15 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
           ? `You skipped what Instrument waited for on ${site}.`
           : `You finished on ${site}.`;
       }
-      const name =
-        kind === "tab" ? `your tab “${page?.title || target}”` : target;
       switch (answer) {
         case "allowed": {
-          return kind === "tab"
-            ? `You moved ${name} into this chat.`
-            : `You allowed ${name}.`;
+          return `You allowed ${target}.`;
         }
         case "always": {
-          return `You allowed ${name} from now on.`;
+          return `You allowed ${target} from now on.`;
         }
         case "declined": {
-          return kind === "tab"
-            ? `You kept ${name}.`
-            : `You said no to ${name}.`;
-        }
-        case "gone": {
-          return `${name.charAt(0).toUpperCase()}${name.slice(1)} closed before you answered.`;
+          return `You said no to ${target}.`;
         }
       }
     }

@@ -15,7 +15,6 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { AbsolutePathSchema, type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
-import { parseBrowserTargetId } from "../../types";
 import { appEventOf } from "../apps/changed";
 import { appChanged } from "../apps/changed";
 import { readConnection, recordConnection } from "../apps/connection";
@@ -332,18 +331,6 @@ async function carryOut(
         ...data,
         page: await pageNow(chatId, ask),
         answer: "allowed",
-      }),
-      answer,
-    );
-    return undefined;
-  }
-  if (ask.on === "tab") {
-    await close(
-      chatId,
-      ask.id,
-      permissionOutcome({
-        ...data,
-        answer: (await moveTabIn(chatId, ask)) ? "allowed" : "gone",
       }),
       answer,
     );
@@ -1107,27 +1094,6 @@ async function pageNow(
 }
 
 /**
- * Moves the tab an ask is for out of the person's own tabs and into the
- * chat, page and all, where every session of the chat drives it; it stays
- * the person's, never closed by an agent. Answers whether it moved.
- */
-async function moveTabIn(
-  chatId: ChatId,
-  ask: PermissionAskRecord,
-): Promise<boolean> {
-  const took = await askWindow({
-    action: { kind: "take", tabId: ask.target },
-    askedBy: chatId,
-    group: chatId,
-  });
-  return (
-    took !== undefined &&
-    took.error === undefined &&
-    parseBrowserTargetId(ask.target) !== null
-  );
-}
-
-/**
  * Settings with a folder set to `level`. A folder that is a built-in place
  * on its own (Documents, Desktop, Downloads) changes that place instead, so
  * the list never shows one folder twice with two answers. A place made of
@@ -1174,7 +1140,7 @@ async function grant(
   decision: "allowed" | "always",
 ): Promise<void> {
   const { on, target } = ask;
-  if (on === "tab" || on === "page") {
+  if (on === "page") {
     return;
   }
   await setDenied(chatId, on, target, false);

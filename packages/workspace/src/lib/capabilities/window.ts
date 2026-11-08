@@ -377,60 +377,6 @@ export const windowClose = defineCapability({
   where: CHATS,
 });
 
-export const windowRequest = defineCapability({
-  input: z.object({
-    tab: TabField("request", "<id> --reason '<one sentence to the user>'"),
-    reason: z
-      .string({
-        error:
-          "request needs --reason '<one sentence to the user>', which the card shows them.",
-      })
-      .meta({
-        description: "One sentence to the user, which the card shows them.",
-      }),
-  }),
-  name: "window.request",
-  output: z.string(),
-  async run({ reason, tab }, ctx) {
-    if (!reason.trim()) {
-      throw new Error(
-        "request needs --reason '<one sentence to the user>', which the card shows them.",
-      );
-    }
-    const own = await ask({ kind: "list" }, ctx);
-    if (own?.tabs?.some((each) => each.id === tab)) {
-      throw new Error(
-        `tab ${tab} is already this chat's: \`${NAME} read ${tab}\` reads it, and \`agent-browser tab ${tab}\` works in it.`,
-      );
-    }
-    const answer = await ask({ kind: "theirs", tabId: tab }, ctx);
-    if (!answer) {
-      throw new Error(NO_WINDOW);
-    }
-    const page = answer.tabs?.[0];
-    if (answer.error || page?.kind !== "page") {
-      throw new Error(
-        `no tab ${tab} of the user's is open outside this chat. A request names the tab a note on the user's message showed as theirs.`,
-      );
-    }
-    const askId = await recordAsk(
-      { ...ctx.asker, reason: reason.trim() },
-      "tab",
-      tab,
-      { page: { title: page.title, url: page.url } },
-    );
-    recordRaisedAsk(askId);
-    return `Asked the user to move tab ${tab} ("${page.title || page.url}") into this chat. The card shows your reason with Move tab here and Skip. Your turn ends here; their answer wakes you.`;
-  },
-  summary:
-    "Ask the user to move a tab of their own, which the note on their message named outside this chat, into it: a card shows them your reason with Move tab here and Skip, your turn ends, and their answer wakes you.",
-  surfaces: {
-    cli: { help: "", positional: ["tab"], words: ["window", "request"] },
-  },
-  text: (said) => said,
-  where: CHATS,
-});
-
 /**
  * Hands the user a page of the chat's to do there what only they can (a
  * sign-in, a check that they are a person) and waits on them: a card says

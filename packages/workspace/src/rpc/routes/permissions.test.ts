@@ -282,83 +282,6 @@ describe("permissions.answer", () => {
     expect(await openAsks(chatId)).toEqual([]);
   });
 
-  describe("a tab of the user's the chat asked for", () => {
-    const tab = StoreId.newTabId();
-    const page = {
-      title: "Shopping Cart",
-      url: "https://www.amazon.com/gp/cart/view.html",
-    };
-    let stop = () => {};
-    afterEach(() => {
-      stop();
-    });
-
-    /** A window that answers a Move with the tab, or that it is gone. */
-    function windowWith(open: boolean) {
-      stop = publisher.subscribe("window.tab", (ask) => {
-        publisher.publish("window.tabDone", {
-          id: ask.id,
-          requestId: ask.requestId,
-          ...(open
-            ? { tabId: tab }
-            : { error: `no tab ${tab} of the user's is open outside a chat.` }),
-        });
-      });
-    }
-
-    it.each([
-      [true, "allowed"],
-      [false, "gone"],
-    ] as const)(
-      "moves it in on Move when it is open (%s), and wakes the chat with %s",
-      async (open, answer) => {
-        windowWith(open);
-        const { chatId, own } = await chatWithTask();
-        await recordAsk(
-          { chatId, reason: "To pick up the cart.", sessionId: own },
-          "tab",
-          tab,
-          { page },
-        );
-        const [card] = await openAsks(chatId);
-        expect(card).toMatchObject({ kind: "tab", page, target: tab });
-        const sentBefore = sent.length;
-
-        await call(
-          permissions.answer,
-          { askId: card?.id ?? "", decision: "allowed", id: chatId },
-          { context: context() },
-        );
-
-        expect(wokenSince(sentBefore)).toEqual([
-          { answer: [answer], sessionId: own },
-        ]);
-        expect(await openAsks(chatId)).toEqual([]);
-      },
-    );
-
-    it("leaves the tab where it is on Skip, and records no denial", async () => {
-      windowWith(true);
-      const { chatId, own } = await chatWithTask();
-      await recordAsk({ chatId, sessionId: own }, "tab", tab, { page });
-      const [card] = await openAsks(chatId);
-      const sentBefore = sent.length;
-
-      await call(
-        permissions.answer,
-        { askId: card?.id ?? "", decision: "declined", id: chatId },
-        { context: context() },
-      );
-
-      expect(wokenSince(sentBefore)).toEqual([
-        { answer: ["declined"], sessionId: own },
-      ]);
-      expect(await chatDenials(chatId)).toEqual([]);
-    });
-  });
-
-  // "Not now" is the chat's, whoever asked: one denial, and every asker
-  // hears it.
   it("records one denial for the chat when the person says not now to a card two sessions asked on", async () => {
     const { chatId, own, task } = await chatWithTask();
     await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
@@ -1038,12 +961,12 @@ describe("permissions.answer", () => {
     });
 
     // The write of the owner's own answer wakes the watcher, which may take
-    // it first; the call still waits for the tab to move.
+    // it first; the call still waits for the window to say where the page is.
     it("settles the owner's own answer with the watcher running", async () => {
       const { chatId, own } = await chatWithTask();
       chatIdNow = chatId;
       const tab = StoreId.newTabId();
-      await recordAsk({ chatId, sessionId: own }, "tab", tab, {
+      await recordAsk({ chatId, sessionId: own }, "page", tab, {
         page: { title: "Cart", url: "https://example.com/cart" },
       });
       const [card] = await openAsks(chatId);
@@ -1053,7 +976,14 @@ describe("permissions.answer", () => {
           publisher.publish("window.tabDone", {
             id: ask.id,
             requestId: ask.requestId,
-            tabId: tab,
+            tabs: [
+              {
+                id: tab,
+                kind: "page",
+                title: "Cart",
+                url: "https://example.com/cart",
+              },
+            ],
           });
         };
       });
@@ -1070,7 +1000,7 @@ describe("permissions.answer", () => {
         const answering = answer(chatId, card?.id ?? "", "allowed").then(() => {
           settled = true;
         });
-        // The window was asked to move the tab, and has not yet.
+        // The window was asked where the page is, and has not said yet.
         await vi.waitFor(() => {
           expect(moveTab).toBeDefined();
         });

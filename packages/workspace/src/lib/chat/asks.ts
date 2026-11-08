@@ -444,10 +444,7 @@ export function answerableElsewhere(state: AskState): boolean {
     state.live &&
     state.pending === undefined &&
     state.ask.stage.is === "open" &&
-    !(
-      state.ask.kind === "permission" &&
-      (state.ask.on === "tab" || state.ask.on === "page")
-    ) &&
+    !(state.ask.kind === "permission" && state.ask.on === "page") &&
     !(state.ask.kind === "question" && state.ask.held)
   );
 }
@@ -650,9 +647,6 @@ export function cardLine(
         ? card.stage.on
         : "open"
       : card.status;
-  if (kind === "tab") {
-    return `Waiting for you to move your tab “${card.page?.title || "a page"}” here`;
-  }
   if (kind === "page") {
     const title = "askers" in card ? card.askers[0]?.title : undefined;
     return title ?? `Waiting for you on ${siteOf(card.page?.url) ?? "a page"}`;

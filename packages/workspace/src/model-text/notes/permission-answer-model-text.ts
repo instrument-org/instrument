@@ -10,9 +10,6 @@ import { systemNote } from "./system-note";
 export function permissionAnswerModelNote(
   data: SessionMessageDataPart.PermissionAnswerDataPart,
 ): string {
-  if (data.kind === "tab") {
-    return systemNote`${tabAnswer(data)}`;
-  }
   if (data.kind === "page") {
     return systemNote`${pageAnswer(data)}`;
   }
@@ -26,28 +23,6 @@ export function permissionAnswerModelNote(
           ? `macOS now lets ${APP_NAME} into ${what}. Run again what needed it.`
           : `The person allowed ${what}${data.answer === "always" ? " for every chat" : " in this chat"}. Run again what needed it.`;
   return systemNote`${said}`;
-}
-
-/** What the person did with a tab of theirs the agent asked to work in. */
-function tabAnswer({
-  answer,
-  page,
-  target,
-}: SessionMessageDataPart.PermissionAnswerDataPart): string {
-  const named = page
-    ? `tab ${target} ("${page.title || page.url}")`
-    : `tab ${target}`;
-  switch (answer) {
-    case "declined": {
-      return `The user kept ${named} for themselves.${page ? ` Open ${page.url} in a tab of your own if the work still needs the page; it has their sign-ins, not what they had typed or scrolled to.` : ""}`;
-    }
-    case "gone": {
-      return `${named.charAt(0).toUpperCase()}${named.slice(1)} closed before the user answered.`;
-    }
-    default: {
-      return `The user moved ${named} into this chat, the page as they left it. It is this chat's now: \`agent-browser tab ${target}\` works in it, from the chat or any of its tasks.`;
-    }
-  }
 }
 
 /** What the person did on a page of the chat's the agent waited on them in. */

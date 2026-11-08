@@ -98,7 +98,7 @@ const PermissionAskSchema = z.object({
   programs: z.array(z.string()).optional(),
   /** What it waits on: the person's answer (`open`), or the system's. */
   status: z.enum(["open", ...SystemWaitSchema.options]),
-  /** The folder's absolute path, the app's name, or the tab's id. */
+  /** The folder's absolute path, the app's name, or the page's tab id. */
   target: z.string(),
 });
 

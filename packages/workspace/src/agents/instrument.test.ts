@@ -244,7 +244,8 @@ describe("shouldContinueAfterHandingOff", () => {
   });
 
   it("ends the turn on a card a bash command raised, with no step after it", async () => {
-    const request = "instrument window request tab_01K4M8C2B5N7R0T3V6X9Z1D4F7";
+    const request =
+      "instrument window wait tab_01K4M8C2B5N7R0T3V6X9Z1D4F7 --title 'Sign in' --reason 'Only you can sign in.'";
     await expect(
       shouldContinueAfterHandingOff({
         messages: [
@@ -252,7 +253,7 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant((messageId) => {
             const part = bash(
               request,
-              "Asked the user to move tab …\n",
+              "Waiting for the user on tab …\n",
             )(messageId);
             return part.type === "tool-bash" &&
               part.state === "output-available"

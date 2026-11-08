@@ -2,7 +2,7 @@
  * Does the conversation arrange the user's tabs the way it is told to?
  *
  * The conversation acts on the window's tabs with `instrument window` (show,
- * close, request), and browses with `agent-browser` in any tab of the chat,
+ * close), and browses with `agent-browser` in any tab of the chat,
  * as each of its tasks does. Showing a
  * new page is for putting something in front of the user and never a step in
  * starting work. Every case here starts from a note naming the tabs the user
@@ -193,7 +193,8 @@ function workedInTab(tabId: string): Assertion {
 
 /**
  * Every tab `agent-browser` was switched to is one of the chat's own: never
- * the user's own tab outside the chat, which only a request brings in.
+ * the user's own tab outside the chat, which comes in only as the user adds
+ * it to a message.
  */
 const usedOnlyChatTabs: Assertion = {
   check: ({ sessions }) => {
@@ -227,6 +228,23 @@ function replies(sessions: Session.WithMessagesAndParts[]): string {
     )
     .join("\n");
 }
+
+/**
+ * Asked the user to add their own tab to a message, the one way a tab of
+ * theirs outside the chat reaches it.
+ */
+const askedToAddTheirTab: Assertion = {
+  check: ({ sessions }) => {
+    const said = replies(sessions);
+    const asked = /\badd\b[^.\n]*\b(?:tab|page)\b/i.exec(said);
+    return {
+      evidence: asked?.[0] ?? (said.slice(-400) || "no reply"),
+      passed: asked !== null,
+      text: "Asked the user to add their tab to a message",
+    };
+  },
+  text: "Asked the user to add their tab to a message",
+};
 
 const neverLinkedATask: Assertion = {
   check: ({ sessions }) => {
@@ -379,11 +397,8 @@ export const WINDOW_TABS_EVALS = [
 
   defineEval({
     // What is on the page exists only in the user's tab, so the tab itself
-    // is what the work needs, and asking for it is the way to it.
-    assertions: [
-      ranWindow("request", { matching: new RegExp(`^${THEIR_TAB}$`) }),
-      usedOnlyChatTabs,
-    ],
+    // is what the work needs, and asking the user to add it is the way to it.
+    assertions: [askedToAddTheirTab, usedOnlyChatTabs],
     kind: "chat",
     name: "window-tabs-their-tab-as-it-stands",
     prompt:

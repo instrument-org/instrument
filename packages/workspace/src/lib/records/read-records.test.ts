@@ -80,6 +80,39 @@ describe("readLog", () => {
     expect(seqs(read)).toEqual([0, 1, 6]);
   });
 
+  it("skips an ask this build cannot read, and reads the rest of the chat", () => {
+    const ask = (on: string) =>
+      `${JSON.stringify({
+        ask: {
+          askedAt: at(5).toISOString(),
+          askers: [{ at: at(5).toISOString(), sessionId: session }],
+          device: DEVICE_A,
+          id: "ask-1",
+          kind: "permission",
+          on,
+          stage: { is: "open" },
+          target: "/Users/sam/Pantry",
+        },
+        at: at(5).toISOString(),
+        seq: 5,
+        t: "ask",
+      })}\n`;
+    // The same record with a kind this build knows reads.
+    expect(readOrThrow(bytes(HEADER, ask("folder"))).records).toHaveLength(2);
+
+    const read = readLog(
+      bytes(
+        HEADER,
+        recordLine(message(1)),
+        ask("retired"),
+        recordLine(message(6)),
+      ),
+    );
+
+    expect(read).toMatchObject({ kind: "read", skipped: 1 });
+    expect(seqs(read)).toEqual([0, 1, 6]);
+  });
+
   it("counts and skips a line that is not UTF-8", () => {
     const file = Buffer.concat([
       bytes(HEADER),

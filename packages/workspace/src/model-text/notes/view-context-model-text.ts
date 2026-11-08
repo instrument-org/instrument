@@ -138,7 +138,7 @@ function pageNote(data: ViewContext) {
         : ` (this chat's tab ${page.tab}${heldClause(shown?.heldBy)})`;
   const ways =
     theirs && page.tab !== undefined
-      ? ` To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`${WINDOW_COMMAND.name} request ${page.tab}\` asks them to move this tab into the chat as it stands.`
+      ? " To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to. To act in this very tab as it stands, say so in your reply and ask them to add it to their next message."
       : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =

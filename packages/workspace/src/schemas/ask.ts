@@ -214,14 +214,14 @@ export const AskRecordSchema = z.discriminatedUnion("kind", [
   AskBaseSchema.extend({
     kind: z.literal("permission"),
     on: SessionMessageDataPart.PermissionOnSchema,
-    /** A tab's page as it was when the agent asked, for the card and the note that answers it. */
+    /** The waited-on page as it was when the agent asked, for the card and the note that answers it. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
     /**
      * The programs Windows' ransomware protection kept out of the folder,
      * by their paths, which the card's Allow lets through.
      */
     programs: z.array(z.string()).optional(),
-    /** The folder's absolute path, the app's name, or the tab's id. */
+    /** The folder's absolute path, the app's name, or the page's tab id. */
     target: z.string(),
   }),
   AskBaseSchema.extend({

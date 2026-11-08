@@ -22,7 +22,7 @@ function showAsks(
       answerable: boolean;
       answered?: { by: string; decision: "allowed"; taken: boolean };
     };
-    kind?: "app" | "folder" | "tab";
+    kind?: "app" | "folder";
     reason?: string;
     status?: "macos-asking" | "macos-private" | "macos-refused" | "open";
     target: string;
@@ -308,13 +308,6 @@ describe("PermissionAsksFoot", () => {
 
     it.each([
       [
-        "a tab, which moves on the screen it is on",
-        { answerable: false },
-        "tab",
-        "open",
-        "You can answer this on Studio Mac.",
-      ],
-      [
         "an answer that computer has not picked up yet",
         {
           answerable: false,
@@ -348,9 +341,7 @@ describe("PermissionAsksFoot", () => {
         showAsks([{ elsewhere, kind, status, target: "/Users/sam/Pantry" }]);
 
         expect(await screen.findByText(line)).toBeDefined();
-        expect(
-          screen.queryByRole("button", { name: /allow|Skip|Move tab/i }),
-        ).toBeNull();
+        expect(screen.queryByRole("button", { name: /allow/i })).toBeNull();
       },
     );
   });

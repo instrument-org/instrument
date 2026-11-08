@@ -16,7 +16,6 @@ import { useEffect, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
 import {
-  isSiteGroup,
   newSiteGroup,
   openInNewWindow,
   pageHrefOf,
@@ -24,7 +23,6 @@ import {
 } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
-import { takePersonsTab } from "./take-tab";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
 import { openMenuLink } from "./menu-link";
@@ -438,45 +436,6 @@ export function useOpeners({
         setPaneOpen(into, true);
       }
       return { tabId };
-    }
-    if (action.kind === "theirs" || action.kind === "take") {
-      const theirs = windowTabs.allTabs.find(
-        (entry) =>
-          entry.id === action.tabId &&
-          entry.kind === "page" &&
-          (entry.group === undefined || isSiteGroup(entry.group)),
-      );
-      if (theirs?.kind !== "page") {
-        return {
-          error: `no tab ${action.tabId} of the user's is open outside a chat.`,
-        };
-      }
-      if (action.kind === "theirs") {
-        return {
-          tabs: [
-            {
-              id: theirs.id,
-              kind: "page" as const,
-              title: theirs.title ?? "",
-              url: theirs.url ?? "about:blank",
-            },
-          ],
-        };
-      }
-      if (group === undefined) {
-        return { error: "only a chat can be given a tab." };
-      }
-      // The page itself, guest and all, becomes the chat's tab, up in its
-      // pane. Nothing else on screen moves.
-      takePersonsTab({
-        appTabs: appTabs.model.tabs,
-        group,
-        tabId: theirs.id,
-        windowTabs,
-      });
-      windowTabs.select(theirs.id);
-      setPaneOpen(group, true);
-      return { tabId: theirs.id };
     }
     if (action.kind === "list") {
       if (group === undefined) {

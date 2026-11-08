@@ -35,8 +35,6 @@ export interface StandInTab {
 
 export function createStandInWindow(chrome?: SharedChrome) {
   const tabs = new Map<string, StandInTab>();
-  /** The user's own tabs outside the chat that a note named, which `window request` asks for and a Move takes into `tabs`. */
-  const theirs = new Map<string, StandInTab>();
   /** The tab in front: the last one opened, shown or moved in. */
   let front: string | undefined;
 
@@ -74,23 +72,6 @@ export function createStandInWindow(chrome?: SharedChrome) {
             : { id: tab.id, kind: "screen" as const }),
         })),
       };
-    }
-    if (action.kind === "theirs" || action.kind === "take") {
-      const own = theirs.get(action.tabId);
-      if (!own) {
-        return {
-          error: `no tab ${action.tabId} of the user's is open outside a chat.`,
-        };
-      }
-      if (action.kind === "theirs") {
-        return {
-          tabs: [{ id: own.id, kind: "page", title: "", url: own.at }],
-        };
-      }
-      theirs.delete(own.id);
-      tabs.set(own.id, own);
-      front = own.id;
-      return { tabId: own.id };
     }
     const tab = tabs.get(action.tabId);
     if (!tab) {
@@ -232,10 +213,6 @@ export function createStandInWindow(chrome?: SharedChrome) {
     },
     /** Opens the tabs a case's note names, under the ids the note gives them. */
     seed(viewing: SessionMessageDataPart.ViewContextDataPart | undefined) {
-      const shown = viewing?.page;
-      if (shown?.tab !== undefined && shown.theirs === true) {
-        theirs.set(shown.tab, { at: shown.url, id: shown.tab, kind: "page" });
-      }
       for (const tab of [
         ...(viewing?.tabs ?? []),
         ...(viewing?.page?.tabs ?? []).map((page) => ({

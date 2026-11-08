@@ -43,29 +43,4 @@ describe("permissionAnswerModelNote", () => {
   ] as const)("tells what the person said: %o", (data, said) => {
     expect(permissionAnswerModelNote(data)).toContain(said);
   });
-
-  it.each([
-    [
-      "kept",
-      {
-        answer: "declined",
-        kind: "tab",
-        page: { title: "", url: "https://example.com/inbox" },
-        target: "t3",
-      },
-      'The user kept tab t3 ("https://example.com/inbox") for themselves. Open https://example.com/inbox in a tab of your own',
-    ],
-    [
-      "closed",
-      { answer: "gone", kind: "tab", target: "t3" },
-      "Tab t3 closed before the user answered.",
-    ],
-    [
-      "handed over",
-      { answer: "allowed", kind: "tab", target: "t3" },
-      "The user moved tab t3 into this chat",
-    ],
-  ] as const)("tells what became of a tab the person %s", (_, data, said) => {
-    expect(permissionAnswerModelNote(data)).toContain(said);
-  });
 });

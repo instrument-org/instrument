@@ -907,30 +907,28 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
-   * What a permission card is about: a folder, a Mac app, a tab of the
-   * person's outside the chat (which Move tab here moves into it), or a page
-   * of the chat's own the agent waits on the person to finish something in
+   * What a permission card is about: a folder, a Mac app, or a page of the
+   * chat's own the agent waits on the person to finish something in
    * (`instrument window wait`), which Done hands back.
    */
-  export const PermissionOnSchema = z.enum(["app", "folder", "tab", "page"]);
+  export const PermissionOnSchema = z.enum(["app", "folder", "page"]);
 
   export type PermissionOn = z.output<typeof PermissionOnSchema>;
 
   /**
    * The person's answer to a card the agent's work raised: a folder that asks
-   * first, an app it may not use, a tab of theirs it asked to work in, or a
-   * page it waited on them in (`allowed` is Done there, `declined` Skip).
-   * Like an app event, it wakes the session that ran into it, or joins its
-   * turn if it is still going. `gone` is a tab closed before the answer.
+   * first, an app it may not use, or a page it waited on them in (`allowed`
+   * is Done there, `declined` Skip). Like an app event, it wakes the session
+   * that ran into it, or joins its turn if it is still going.
    */
   export const PermissionAnswerDataPartSchema = z.object({
     /** The ask it answers, by id: a session holds one note per ask. */
     ask: z.string().optional(),
-    answer: z.enum(["allowed", "always", "declined", "gone"]),
+    answer: z.enum(["allowed", "always", "declined"]),
     kind: PermissionOnSchema,
-    /** A tab's page as the card showed it; a waited-on page as it stood when answered. */
+    /** A waited-on page as it stood when answered. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
-    /** The folder's path, the app's name, or the tab's id. */
+    /** The folder's path, the app's name, or the page's tab id. */
     target: z.string(),
     /**
      * Where the yes went when it was not to Instrument's own rules: Windows'
@@ -1082,8 +1080,8 @@ export namespace SessionMessageDataPart {
     /** The tab on screen, by its id. */
     tab: z.string().optional(),
     /**
-     * Whether that tab is the person's own, outside the chat: one the chat
-     * may ask them for (`window request`), not one it may drive.
+     * Whether that tab is the person's own, outside the chat: one it may
+     * not drive until the person adds it to a message.
      */
     theirs: z.boolean().optional(),
     /** The chat's other tabs, on screen or not. */

@@ -68,6 +68,28 @@ describe("browserStatusModelNote", () => {
     `);
   });
 
+  it("says which tabs closed with the last turn, apart from the cap's", () => {
+    expect(
+      browserStatusModelNote({
+        closed: [
+          {
+            id: "t2",
+            reason: "turnEnd",
+            title: "Field guide",
+            url: "https://example.com/list",
+          },
+        ],
+        status: "tabs",
+        tabs: [],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Your browser has no tabs of the user's chat now. The app closed a tab you opened that the user never used, t2 at https://example.com/list ("Field guide"), as your last turn ended. Open the address again if the work needs it.
+      </instrument-system-note>"
+    `);
+  });
+
   it("reads a picture stored before tabs had a standing", () => {
     expect(
       browserStatusModelNote({

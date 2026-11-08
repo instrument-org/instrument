@@ -169,10 +169,24 @@ describe("task send", () => {
     });
   });
 
-  it("reports the send as a hand-off to the bash call", async () => {
+  it("reports the send as a hand-off to the bash call, naming the message it delivered", async () => {
     const handOffs: HandOff[] = [];
     await withHandOffs(handOffs, () => send([]));
-    expect(handOffs).toEqual([{ kind: "sent", sessionId: CHILD_ID }]);
+    const delivered = sent.events.flatMap((event) =>
+      typeof event === "object" &&
+      event !== null &&
+      "type" in event &&
+      event.type === "addMessage" &&
+      "value" in event &&
+      typeof event.value === "object" &&
+      event.value !== null &&
+      "message" in event.value
+        ? [event.value.message as SessionMessage.WithParts]
+        : [],
+    )[0];
+    expect(handOffs).toEqual([
+      { kind: "sent", messageId: delivered?.id, sessionId: CHILD_ID },
+    ]);
   });
 
   it("runs the task on the model the chat's picker is on now", async () => {

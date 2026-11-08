@@ -553,6 +553,22 @@ export const scenarios: DebugScenario[] = [
     ],
   },
   {
+    id: "narrated-browsing",
+    name: "A line said before each command",
+    script: [
+      user("Find the cheapest flight to Lisbon next Friday."),
+      activity("Searching flights"),
+      browse("open https://example.com/flights", "Opening the flight search"),
+      prose("Now the destination."),
+      browse("fill @e3 Lisbon", "Typing Lisbon"),
+      prose("And the date."),
+      browse("click @e7", "Picking next Friday"),
+      prose("Sorting by price."),
+      browse("click @e12", "Sorting by price"),
+      prose("The cheapest is **$412** on TAP, leaving at 7:05 AM."),
+    ],
+  },
+  {
     id: "burst",
     name: "A burst of files",
     script: [

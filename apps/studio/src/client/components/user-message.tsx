@@ -35,17 +35,51 @@ const COLLAPSED_MAX_HEIGHT_PX = 310;
 const TOGGLE_ROW_CLASS =
   "flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground";
 
+// Each tone's fill, and the fade over a clipped message's last lines in it.
+// The brand's tint is rebuilt light and soft from its hue since no token of
+// the scale sits there.
+const TONES = {
+  chat: { fade: "from-muted to-muted/0", fill: "bg-muted" },
+  you: {
+    fade: "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]",
+    fill: "bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]",
+  },
+};
+
 export const UserMessage = memo(function UserMessage({
   part,
 }: {
   part: SessionMessagePart.TextPart;
 }) {
+  return (
+    <div className="group flex w-full flex-col items-end">
+      <MessageBubble text={part.text} tone="you" />
+      {isAllDictated(part.text) && (
+        <div className="mt-1 flex items-center gap-1 pr-1 text-xs text-muted-foreground">
+          <MicrophoneIcon className="size-3.5" />
+          <span>Dictated</span>
+        </div>
+      )}
+    </div>
+  );
+});
+
+/**
+ * Words sent into a session, on the sender's side: yours in the brand's tint,
+ * the chat's to a task in gray. Links, paths and skills read as they do in the
+ * composer, and a long message clips with Show more.
+ */
+export function MessageBubble({
+  text: messageText,
+  tone,
+}: {
+  text: string;
+  tone: keyof typeof TONES;
+}) {
   const releaseAutoScroll = useReleaseAutoScroll();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  const messageText = part.text;
 
   const handleCopy = async () => {
     // Copy what is on screen. Neither form round trips back into the composer
@@ -80,7 +114,7 @@ export const UserMessage = memo(function UserMessage({
   }, [messageText]);
 
   return (
-    <div className="group flex w-full flex-col items-end">
+    <>
       {/* The bubble's row, full width so the bubble's share is of the column,
           with Copy in the room beside it, showing while the pointer is on the
           row and holding its place either way, so the bubble never moves. */}
@@ -94,9 +128,12 @@ export const UserMessage = memo(function UserMessage({
             tooltip="Copy message"
           />
         </div>
-        {/* The brand's tint, rebuilt light and soft from its hue since no token
-            of the scale sits there. */}
-        <div className="relative max-w-[80%] rounded-2xl rounded-br-md bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 text-foreground dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]">
+        <div
+          className={cn(
+            "relative max-w-[80%] rounded-2xl rounded-br-md px-3.5 py-2 text-foreground",
+            TONES[tone].fill,
+          )}
+        >
           <Collapsible
             onOpenChange={(open) => {
               releaseAutoScroll();
@@ -129,7 +166,12 @@ export const UserMessage = memo(function UserMessage({
               {/* Over the text rather than the bubble's edge, so the last lines
                   visibly thin out above the row that says there is more. */}
               {!isExpanded && isOverflowing && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]" />
+                <div
+                  className={cn(
+                    "pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t",
+                    TONES[tone].fade,
+                  )}
+                />
               )}
             </div>
 
@@ -172,12 +214,6 @@ export const UserMessage = memo(function UserMessage({
           </Collapsible>
         </div>
       </div>
-      {isAllDictated(messageText) && (
-        <div className="mt-1 flex items-center gap-1 pr-1 text-xs text-muted-foreground">
-          <MicrophoneIcon className="size-3.5" />
-          <span>Dictated</span>
-        </div>
-      )}
-    </div>
+    </>
   );
-});
+}

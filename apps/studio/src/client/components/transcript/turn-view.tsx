@@ -1,6 +1,5 @@
 import { type ChatSeparator } from "@/client/lib/chat-separators";
 import { workedLine } from "@/client/lib/worked-line";
-import { cn } from "@/client/lib/utils";
 import {
   type ChatInfo,
   FOLD_WAIT_MS,
@@ -29,7 +28,7 @@ import { ToolCallBody } from "../message-part/tool-call";
 import { SentFolderChips } from "../sent-folder-chips";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
-import { UserMessage } from "../user-message";
+import { MessageBubble, UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
 import {
   CardPresence,
@@ -163,48 +162,20 @@ function OpenerView({
   );
 }
 
-/** How many lines of an assignment show before Show all, by its breaks and by its length. */
-const ASSIGNMENT_LINES = 6;
-const ASSIGNMENT_CHARS = 360;
-
 /** What the chat told a task: its words, not the person's, so gray and labeled. */
 function AssignmentBubble({
   fromChat,
 }: {
   fromChat: NonNullable<TurnOpener["fromChat"]>;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const isLong =
-    fromChat.text.length > ASSIGNMENT_CHARS ||
-    fromChat.text.split("\n").length > ASSIGNMENT_LINES;
   return (
-    <div className="ml-auto flex w-fit max-w-[85%] flex-col items-end gap-1">
+    <div className="group flex w-full flex-col items-end gap-1">
       <span className="pr-1 text-xs text-muted-foreground">
         {fromChat.kind === "assignment"
           ? "Assignment from the chat"
           : "From the chat"}
       </span>
-      <div className="flex flex-col gap-1 rounded-2xl bg-muted px-3.5 py-2.5 text-sm">
-        <p
-          className={cn(
-            "whitespace-pre-wrap",
-            isLong && !isOpen && "line-clamp-6",
-          )}
-        >
-          {fromChat.text}
-        </p>
-        {isLong && (
-          <button
-            className="w-fit text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setIsOpen((open) => !open);
-            }}
-            type="button"
-          >
-            {isOpen ? "Show less" : "Show all"}
-          </button>
-        )}
-      </div>
+      <MessageBubble text={fromChat.text} tone="chat" />
     </div>
   );
 }

@@ -351,8 +351,10 @@ function PageWaitCard({
     `Waiting for you on ${hostOf(ask.page?.url) || "this page"}`;
   return (
     <div className="relative animate-in rounded-2xl border border-border bg-card p-3 shadow-xs duration-200 ease-out fade-in-0 fill-mode-both slide-in-from-bottom-2 motion-reduce:animate-none">
+      {/* Narrow, the reason runs under the icon rather than beside it, so
+          the words get the card's whole width. */}
       <button
-        className="flex w-full items-start gap-3 text-left outline-none"
+        className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 text-left outline-none"
         data-page-wait={ask.target}
         onClick={() => {
           windowTabs.select(ask.target);
@@ -360,26 +362,26 @@ function PageWaitCard({
         }}
         type="button"
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-background">
+        <span className="row-span-2 grid size-9 place-items-center rounded-lg border border-border bg-background @max-sm/asks:row-span-1">
           <PageFavicon
             className="size-5"
             hasTooltip={false}
             url={ask.page?.url}
           />
         </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-sm font-medium">{title}</span>
-          {asker?.reason ? (
-            <span className="text-[13px] text-muted-foreground">
-              {asker.reason}
-            </span>
-          ) : null}
+        <span className="text-sm font-medium @max-sm/asks:self-center">
+          {title}
         </span>
+        {asker?.reason ? (
+          <span className="text-[13px] text-muted-foreground @max-sm/asks:col-span-2 @max-sm/asks:mt-1.5">
+            {asker.reason}
+          </span>
+        ) : null}
       </button>
       {elsewhere ? (
         <p className="mt-2.5 text-[13px] text-muted-foreground">{elsewhere}</p>
       ) : (
-        <div className="mt-3 flex flex-wrap items-center gap-2 pl-12">
+        <div className="mt-3 flex flex-wrap items-center gap-2 pl-12 @max-sm/asks:pl-0">
           <span className="mr-auto flex items-center gap-1.5 text-[13px] whitespace-nowrap text-muted-foreground">
             <ArrowRightIcon className="size-3.5 shrink-0" />
             Finish on the page beside the chat.

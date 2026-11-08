@@ -484,7 +484,9 @@ async function withTabHolders(
   }
   const mark = <Tab extends { id?: string }>(tab: Tab) => {
     const holder = tab.id === undefined ? undefined : holders.get(tab.id);
-    return holder ? { ...tab, heldBy: holder } : tab;
+    return holder
+      ? { ...tab, heldBy: { id: holder.id, title: holder.title } }
+      : tab;
   };
   return {
     ...viewing,

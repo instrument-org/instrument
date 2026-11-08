@@ -95,15 +95,23 @@ export function workingIn(targetId: BrowserTargetId) {
   return actsIn(targetId).filter((act) => isWorkingNow(act));
 }
 
+/** A task at work in a tab: by its handle, its session and its title. */
+interface TabHolder {
+  id: string;
+  session: StoreId.Session;
+  title: string;
+}
+
 /**
  * The tasks of a chat at work in each of its tabs, by the tab's id, the one
  * that acted last when several are: what lets the conversation see who is
- * using a page before it closes or replaces it.
+ * using a page before it closes or replaces it, and a task tell its own
+ * work from another's.
  */
 export async function tabHolders(
   chatId: ChatId,
-): Promise<Map<string, { id: string; title: string }>> {
-  const holders = new Map<string, { id: string; title: string }>();
+): Promise<Map<string, TabHolder>> {
+  const holders = new Map<string, TabHolder>();
   const working = await listChildTasks(chatId, (id) =>
     isWorkingNow({ chatId, sessionId: id }),
   );
@@ -117,7 +125,11 @@ export async function tabHolders(
       .find((task) => task !== undefined);
     if (holder) {
       // By its handle, which is what the conversation steers it by.
-      holders.set(tab.id, { id: holder.handle, title: holder.title });
+      holders.set(tab.id, {
+        id: holder.handle,
+        session: holder.id,
+        title: holder.title,
+      });
     }
   }
   return holders;

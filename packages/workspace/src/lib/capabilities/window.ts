@@ -152,8 +152,10 @@ export const windowList = defineCapability({
       kind: z.enum(["page", "screen"]),
       title: z.string().optional(),
       url: z.string().optional(),
-      /** The task at work in it, by its handle. */
-      task: z.object({ id: z.string(), title: z.string() }).optional(),
+      /** The task at work in it, by its handle, and whether that is the session asking. */
+      task: z
+        .object({ id: z.string(), title: z.string(), you: z.boolean() })
+        .optional(),
     }),
   ),
   async run(_, ctx) {
@@ -172,7 +174,15 @@ export const windowList = defineCapability({
         id: tab.id,
         kind: tab.kind,
         ...(tab.kind === "page" ? { title: tab.title, url: tab.url } : {}),
-        ...(holder ? { task: holder } : {}),
+        ...(holder
+          ? {
+              task: {
+                id: holder.id,
+                title: holder.title,
+                you: holder.session === ctx.sessionId,
+              },
+            }
+          : {}),
       };
     });
   },
@@ -193,7 +203,7 @@ export const windowList = defineCapability({
                   ? `${tab.title} · ${tab.url ?? ""}`
                   : (tab.url ?? "")
                 : "a screen of the app, not a page";
-            return `${tab.id}  ${tab.front ? "in front" : "behind  "}  ${shows}${tab.task ? `  task ${tab.task.id} is working in it` : ""}`;
+            return `${tab.id}  ${tab.front ? "in front" : "behind  "}  ${shows}${tab.task ? (tab.task.you ? "  you are working in it" : `  task ${tab.task.id} is working in it`) : ""}`;
           })
           .join("\n"),
 });

@@ -28,7 +28,7 @@ let pageUrls: string[];
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
   string,
-  { id: ReturnType<typeof ChatIdSchema.parse>; title: string }
+  { id: string; session: StoreId.Session; title: string }
 >();
 // How long a call waits on the window, short where a test has none answer.
 let windowTimeoutMs = 2000;
@@ -105,7 +105,11 @@ function answeringWindow() {
 }
 
 function run(
-  options: { role?: "chat" | "task"; timeoutMs?: number },
+  options: {
+    role?: "chat" | "task";
+    sessionId?: StoreId.Session;
+    timeoutMs?: number;
+  },
   ...args: string[]
 ) {
   const fsTree = new InMemoryFs();
@@ -115,7 +119,7 @@ function run(
     chatId,
     layout,
     role: options.role ?? "chat",
-    sessionId: StoreId.newSessionId(),
+    sessionId: options.sessionId ?? StoreId.newSessionId(),
   }).execute(
     args,
     createCommandContext({
@@ -230,7 +234,8 @@ describe("window close, show and read on a tab", () => {
 
   it("says which task was working in a tab it closed", async () => {
     holders.set("tab_known", {
-      id: ChatIdSchema.parse("read-the-page"),
+      id: "read-the-page",
+      session: StoreId.newSessionId(),
       title: "Read the page",
     });
 
@@ -354,7 +359,8 @@ describe("window close, show and read on a tab", () => {
 describe("window list", () => {
   it("names what is in the window by the ids the other subcommands and agent-browser tab take", async () => {
     holders.set(pageTab, {
-      id: ChatIdSchema.parse("t1"),
+      id: "t1",
+      session: StoreId.newSessionId(),
       title: "Compare plans",
     });
     const result = await run({}, "list");
@@ -363,6 +369,19 @@ describe("window list", () => {
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
       "tab_known  behind    a screen of the app, not a page
       <page>  in front  Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
+      "
+    `);
+  });
+
+  it("tells a task the tab it is working in is its own", async () => {
+    const session = StoreId.newSessionId();
+    holders.set(pageTab, { id: "t2", session, title: "Checkout details" });
+    const result = await run({ role: "task", sessionId: session }, "list");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "tab_known  behind    a screen of the app, not a page
+      <page>  in front  Suite plans · https://www.zendesk.com/pricing/  you are working in it
       "
     `);
   });

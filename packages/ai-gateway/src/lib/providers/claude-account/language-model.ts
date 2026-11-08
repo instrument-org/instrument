@@ -13,6 +13,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
 import { noteReportedContextLength } from "../../reported-context-windows";
 import {
+  branchIsSaid,
   coldStartReason,
   planStep,
   splitPrompt,
@@ -244,7 +245,10 @@ function streamStep({
                 `[claude-account] session ${slot} cold start (${why.tag}), ${how} replay of ${rest.length} messages: ${why.detail}`,
               );
             }
-          } else if (plan.kind === "resume") {
+          } else if (
+            plan.kind === "resume" ||
+            (plan.kind === "fork" && frames.length > 0)
+          ) {
             session.noteGiven(plan.messages, { newTurn: true });
             await session.replay(frames);
           } else {
@@ -379,14 +383,21 @@ function startOn(
 }
 
 /**
- * The frames a resume replays onto its transcript, or a cold start in its
- * place when what the request adds cannot be told as frames.
+ * The frames a resume, or a fork adding its parent's step, replays onto its
+ * transcript, or a cold start in its place when what the request adds cannot
+ * be told as frames.
  */
 function withResumeFrames(plan: StepStart<ClaudeCodeSession>): {
   frames: ReplayFrame[];
   plan: StepStart<ClaudeCodeSession>;
 } {
-  if (plan.kind !== "resume") {
+  // A fork adding only said messages sends them as a turn; one adding its
+  // parent's step replays it.
+  if (
+    plan.kind === "live" ||
+    plan.kind === "cold" ||
+    (plan.kind === "fork" && branchIsSaid(plan.messages))
+  ) {
     return { frames: [], plan };
   }
   try {
@@ -394,7 +405,8 @@ function withResumeFrames(plan: StepStart<ClaudeCodeSession>): {
       frames: replayFrames(
         plan.messages,
         TOOL_PREFIX,
-        plan.awaitingToolCallIds,
+        plan.kind === "resume" ? plan.awaitingToolCallIds : [],
+        plan.kind === "fork",
       ),
       plan,
     };
@@ -405,9 +417,11 @@ function withResumeFrames(plan: StepStart<ClaudeCodeSession>): {
       plan: {
         kind: "cold",
         why:
-          plan.restart === undefined
-            ? { detail, tag: "transcript" }
-            : { detail: `${plan.restart}; ${detail}`, tag: "restart" },
+          plan.kind === "fork"
+            ? { detail, tag: "fork" }
+            : plan.restart === undefined
+              ? { detail, tag: "transcript" }
+              : { detail: `${plan.restart}; ${detail}`, tag: "restart" },
       },
     };
   }

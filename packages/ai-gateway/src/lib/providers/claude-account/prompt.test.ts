@@ -1,3 +1,4 @@
+import { type LanguageModelV4Message } from "@ai-sdk/provider";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -288,6 +289,44 @@ describe("replayFrames", () => {
         },
       ]
     `);
+  });
+
+  // A task's fork of its chat's transcript ends on the user's request, and
+  // carries on with the chat's step that started it.
+  it("starts on a reply only onto a transcript that ends on the user's side", () => {
+    const step: LanguageModelV4Message[] = [
+      {
+        content: [
+          {
+            input: {},
+            toolCallId: "call-task-new",
+            toolName: "bash",
+            type: "tool-call",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        content: [
+          {
+            output: { type: "text", value: "Started task t1. That is you." },
+            toolCallId: "call-task-new",
+            toolName: "bash",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+      { content: [{ text: "Your assignment", type: "text" }], role: "user" },
+    ];
+    expect(() => replayFrames(step, "mcp__instrument__")).toThrow(
+      "neither starts nor ends",
+    );
+    expect(
+      replayFrames(step, "mcp__instrument__", [], true).map(
+        (frame) => frame.role,
+      ),
+    ).toEqual(["assistant", "user"]);
   });
 
   it("leaves out reasoning Claude did not sign, and answers a call that never finished", () => {

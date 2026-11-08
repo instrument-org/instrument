@@ -159,12 +159,15 @@ function claudeToolId(id: string) {
  *
  * `answering` names tool calls the transcript these frames go onto ended
  * on, for messages that carry on a resumed transcript: their results are
- * replayed like those of a call in `messages`.
+ * replayed like those of a call in `messages`. `afterUser` says the
+ * transcript ends on the user's side, as a task's fork of its chat's does,
+ * so the frames may start with a reply.
  */
 export function replayFrames(
   messages: LanguageModelV4Message[],
   toolPrefix: string,
   answering: string[] = [],
+  afterUser = false,
 ): ReplayFrame[] {
   const frames: ReplayFrame[] = [];
   const userSide = (blocks: ContentBlockParam[]) => {
@@ -302,7 +305,10 @@ export function replayFrames(
     }
   }
   answerUnanswered();
-  if (frames.at(-1)?.role !== "user" || frames[0]?.role !== "user") {
+  if (
+    frames.at(-1)?.role !== "user" ||
+    (frames[0]?.role !== "user" && !afterUser)
+  ) {
     throw new Error("The history neither starts nor ends on the user's side.");
   }
   return frames;

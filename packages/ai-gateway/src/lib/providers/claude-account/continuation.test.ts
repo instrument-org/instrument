@@ -316,13 +316,20 @@ describe("branchOf", () => {
     });
   });
 
-  it("does not branch past a reply the parent never saw", () => {
+  // A task carries on through the chat's step that started it, which the
+  // branch replays before the assignment.
+  it("branches past the parent's step, to replay it", () => {
     const chat = [system, user("one")];
     expect(
       branch(after(chat), [...chat, reply("a"), user("the assignment")]),
-    ).toEqual({
+    ).toEqual([reply("a"), user("the assignment")]);
+  });
+
+  it("does not branch to end on a reply", () => {
+    const chat = [system, user("one")];
+    expect(branch(after(chat), [...chat, reply("a")])).toEqual({
       kind: "restart",
-      reason: "what the parent saw is followed by assistant, user",
+      reason: "what the parent saw is followed by assistant",
     });
   });
 });

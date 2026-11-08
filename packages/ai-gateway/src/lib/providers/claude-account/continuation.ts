@@ -206,7 +206,10 @@ export function continuationOf(
  * The new messages a branch of a session starts with, when it carries on
  * from exactly the input of the session's last step, as a task's first
  * request carries on from the chat step that started it: everything the
- * session saw, unchanged, then only user or system messages.
+ * session saw, unchanged, then what the branch adds, ending on the user's
+ * side. A task's adds the chat's step itself, its calls answered for the
+ * task, before its assignment; those are replayed onto the branch
+ * (`replayFrames`), and only user or system messages are sent as a turn.
  */
 export function branchOf(
   parent: { seen: string[] },
@@ -216,9 +219,17 @@ export function branchOf(
   if (!Array.isArray(added)) {
     return added;
   }
-  return added.length > 0 && added.every(isSaid)
-    ? [...added, ...prompt.transient]
+  const branch = [...added, ...prompt.transient];
+  return added.length > 0 &&
+    added[0]?.role !== "tool" &&
+    branch.at(-1)?.role !== "assistant"
+    ? branch
     : restart(`what the parent saw is followed by ${rolesOf(added)}`);
+}
+
+/** Whether a branch's messages are only said, and so go as one turn rather than a replay. */
+export function branchIsSaid(messages: LanguageModelV4Message[]): boolean {
+  return messages.every(isSaid);
 }
 
 /**

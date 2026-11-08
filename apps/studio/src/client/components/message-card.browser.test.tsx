@@ -116,3 +116,35 @@ test("a message file named in a files fence draws as the card", async () => {
     - button "Share""
   `);
 });
+
+test("a message the agent sends itself keeps Copy and drops Share", async () => {
+  const screen = await renderInBrowser(
+    <div style={{ width: 560 }}>
+      <AssistantMessage
+        chatId={chatId}
+        part={textPart(
+          [
+            "```message",
+            "---",
+            "message: chat",
+            "to: Amazon Customer Service",
+            "sender: agent",
+            "---",
+            "I'd like to return the motion sickness tablets I bought by mistake.",
+            "```",
+          ].join("\n"),
+        )}
+      />
+    </div>,
+  );
+
+  await expect
+    .element(screen.getByText("Amazon Customer Service"))
+    .toBeVisible();
+  await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
+    "- text: Message to Amazon Customer Service
+    - paragraph: I'd like to return the motion sickness tablets I bought by mistake.
+    - button "Copy body"
+    - button "Copy""
+  `);
+});

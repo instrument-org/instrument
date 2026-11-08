@@ -527,6 +527,7 @@ function LiveDocument({
                   return parseMessage(text);
                 }}
                 kind={message.kind}
+                sender={message.sender}
               />
             </div>
           )}

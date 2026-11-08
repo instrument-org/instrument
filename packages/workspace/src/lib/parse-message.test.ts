@@ -36,6 +36,17 @@ describe("parseMessage", () => {
     expect(message.to).toBe(to);
   });
 
+  it.each([
+    ["agent", "agent"],
+    ["Agent", "agent"],
+    ["user", undefined],
+    ["", undefined],
+  ])("reads sender %j as %j", (written, sender) => {
+    expect(
+      parseMessage(`---\nmessage: chat\nsender: ${written}\n---\nHi`).sender,
+    ).toBe(sender);
+  });
+
   it("keeps a first line that only looks like a header in the body", () => {
     expect(parseMessage("Note: I'm late\nsorry").body).toBe(
       "Note: I'm late\nsorry",

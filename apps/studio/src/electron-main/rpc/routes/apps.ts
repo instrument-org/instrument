@@ -285,10 +285,33 @@ const live = {
   catalog: base.handler(async function* ({ signal }) {
     yield* liveRead({
       changes: [appCatalogChanges(signal)],
-      read: () => Promise.all(getAppCatalog().map(withIcon)),
+      read: readCatalog,
+    });
+  }),
+  /**
+   * `catalog` with only what a screen draws a service by (its name, site,
+   * home and icon), for the window's shell, which names apps everywhere and
+   * reads none of the rest. A tenth of the whole directory's size.
+   */
+  catalogMarks: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [appCatalogChanges(signal)],
+      read: async () =>
+        (await readCatalog()).map(({ domain, home, icon, name, slug }) => ({
+          domain,
+          ...(home === undefined ? {} : { home }),
+          ...(icon === undefined ? {} : { icon }),
+          name,
+          slug,
+        })),
     });
   }),
 };
+
+/** The directory, each entry with the icon it is drawn with. */
+function readCatalog() {
+  return Promise.all(getAppCatalog().map(withIcon));
+}
 
 /**
  * The directory's services a search means without naming them, most likely

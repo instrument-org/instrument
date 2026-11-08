@@ -43,7 +43,7 @@ vi.mock("@/client/rpc/client", () => ({
         }),
       },
       live: {
-        catalog: query("catalog", () => Promise.resolve([])),
+        catalogMarks: query("catalogMarks", () => Promise.resolve([])),
         list: query("apps", mocks.apps),
       },
       markWebSignedIn: mutation(),

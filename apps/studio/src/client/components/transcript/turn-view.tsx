@@ -511,7 +511,7 @@ function RowView({
     case "note": {
       return row.part.type === "data-pageTakeover" ? (
         <PageTakeoverNote
-          chatId={chatInfo.id}
+          chatId={chatId}
           data={row.part.data}
           isNewest={isNewest}
         />

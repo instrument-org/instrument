@@ -41,6 +41,38 @@ function hasReached(state: ChatListState, at: ListedAt) {
   return held !== undefined && (held.epoch !== at.epoch || held.rev >= at.rev);
 }
 
+/** The first wait before reading the list again after it failed, doubling each time. */
+const READ_AGAIN_FIRST_MS = 1000;
+/** The longest wait between tries. */
+const READ_AGAIN_MAX_MS = 30_000;
+
+/**
+ * Waits before the `failures`th try in a row to read the list again: 1 s,
+ * then twice as long each time, at most 30 s. Ends early, throwing, when the
+ * window stops wanting the list.
+ */
+function waitToReadAgain(failures: number, signal: AbortSignal) {
+  const ms = Math.min(
+    READ_AGAIN_FIRST_MS * 2 ** (failures - 1),
+    READ_AGAIN_MAX_MS,
+  );
+  return new Promise<void>((resolve, reject) => {
+    const stop = () => {
+      clearTimeout(timer);
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error("The chat list was no longer wanted"),
+      );
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", stop);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", stop, { once: true });
+  });
+}
+
 /** Puts what the window shows of the list into its query, once it holds a list. */
 function show(client: QueryClient, state: ChatListState) {
   const shown = shownChats(state);
@@ -94,33 +126,46 @@ export function chatListed(client: QueryClient, at: ListedAt | null) {
  */
 export function chatListOptions() {
   return queryOptions({
+    // Never settles while the window wants the list: a list that failed or
+    // ended is read again from the start after a wait that grows with each
+    // try in a row, and the window shows what it last had meanwhile.
     queryFn: async ({ client, signal }): Promise<Chat[]> => {
       const state = stateOf(client);
-      let shown: Chat[] | undefined;
-      let again = true;
-      while (again) {
-        again = false;
-        const events = await rpcClient.workspace.chats.live.rows.call(
-          undefined,
-          { signal },
-        );
-        for await (const event of events) {
+      let failures = 0;
+      for (;;) {
+        let missed = false;
+        try {
+          const events = await rpcClient.workspace.chats.live.rows.call(
+            undefined,
+            { signal },
+          );
+          for await (const event of events) {
+            if (signal.aborted) {
+              throw signal.reason;
+            }
+            if (!takeChatListEvent(state, event)) {
+              // Leaving the loop ends this subscription; the next one opens
+              // with every row, at once.
+              missed = true;
+              break;
+            }
+            failures = 0;
+            show(client, state);
+          }
+        } catch (error) {
           if (signal.aborted) {
-            throw signal.reason;
+            throw error;
           }
-          if (!takeChatListEvent(state, event)) {
-            // Leaving the loop ends this subscription; the next one opens
-            // with every row.
-            again = true;
-            break;
-          }
-          shown = show(client, state);
+        }
+        if (signal.aborted) {
+          throw signal.reason;
+        }
+        if (!missed) {
+          // Failed, or ended though nothing asked it to.
+          failures += 1;
+          await waitToReadAgain(failures, signal);
         }
       }
-      if (!shown) {
-        throw new Error("The chat list closed before it sent anything.");
-      }
-      return shown;
     },
     queryKey: CHAT_LIST_KEY,
     structuralSharing: shareChatList,

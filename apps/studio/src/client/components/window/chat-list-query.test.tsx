@@ -9,12 +9,21 @@ import { describe, expect, it, vi } from "vitest";
  * test pushes, and ends when its request does.
  */
 const streams = vi.hoisted(() => {
-  const opened: { closed: boolean; push: (event: unknown) => void }[] = [];
+  const opened: {
+    closed: boolean;
+    fail: (error: Error) => void;
+    push: (event: unknown) => void;
+  }[] = [];
   const open = (signal: AbortSignal) => {
     const queued: unknown[] = [];
     let wake: (() => void) | undefined;
+    let failure: Error | undefined;
     const stream = {
       closed: false,
+      fail: (error: Error) => {
+        failure = error;
+        wake?.();
+      },
       push: (event: unknown) => {
         queued.push(event);
         wake?.();
@@ -29,6 +38,9 @@ const streams = vi.hoisted(() => {
     return (async function* () {
       try {
         while (!stream.closed) {
+          if (failure) {
+            throw failure;
+          }
           const event = queued.shift();
           if (event === undefined) {
             await new Promise<void>((resolve) => {
@@ -286,6 +298,51 @@ describe("the chat list query", () => {
       expect(listed).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
       expect(listed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads the list again after it failed, keeping what it showed meanwhile", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const { queryKey } = chatListOptions();
+      void queryClient.fetchQuery(chatListOptions());
+      await vi.advanceTimersByTimeAsync(0);
+      const first = streams.opened.at(-1);
+      first?.push({ epoch: "one", kind: "snapshot", rev: 0, rows: [row("a")] });
+      await vi.advanceTimersByTimeAsync(0);
+
+      first?.fail(new Error("The reading failed"));
+      await vi.advanceTimersByTimeAsync(999);
+      expect(streams.opened.at(-1)).toBe(first);
+      expect(
+        queryClient.getQueryData<Chat[]>(queryKey)?.map(({ id }) => id),
+      ).toEqual(["a"]);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const second = streams.opened.at(-1);
+      expect(second).not.toBe(first);
+      // Fails again before sending anything: the next wait is twice as long.
+      second?.fail(new Error("Still failing"));
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(streams.opened.at(-1)).toBe(second);
+      await vi.advanceTimersByTimeAsync(1);
+      const third = streams.opened.at(-1);
+      expect(third).not.toBe(second);
+
+      third?.push({
+        epoch: "two",
+        kind: "snapshot",
+        rev: 0,
+        rows: [row("a"), row("b")],
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        queryClient.getQueryData<Chat[]>(queryKey)?.map(({ id }) => id),
+      ).toEqual(["a", "b"]);
+      void queryClient.cancelQueries();
     } finally {
       vi.useRealTimers();
     }

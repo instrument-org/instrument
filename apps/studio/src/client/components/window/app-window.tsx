@@ -42,7 +42,7 @@ import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-s
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { getGuest } from "@/client/lib/browser-pool";
+import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
@@ -295,23 +295,39 @@ function AppTabView({
     if (!isActive) {
       return;
     }
-    const focused = document.activeElement;
-    const kept = lastFocused.current;
-    const isOnScreen =
-      focused instanceof HTMLElement &&
-      focused !== document.body &&
-      focused.checkVisibility({
-        opacityProperty: true,
-        visibilityProperty: true,
-      });
-    if (isOnScreen || arrivesWithFocus) {
+    const restore = () => {
+      const focused = document.activeElement;
+      const kept = lastFocused.current;
+      const isOnScreen =
+        focused instanceof HTMLElement &&
+        focused !== document.body &&
+        (focused.tagName === "WEBVIEW"
+          ? pageHoldingKeyboard() !== null
+          : focused.checkVisibility({
+              opacityProperty: true,
+              visibilityProperty: true,
+            }));
+      if (isOnScreen || arrivesWithFocus) {
+        return;
+      }
+      if (kept?.isConnected) {
+        kept.focus({ preventScroll: true });
+      } else {
+        focusScreenHome({ leaving: false });
+      }
+    };
+    // A page is drawn outside every tab, and the one the tab going away
+    // showed holds the keyboard until its slot lets it go and the pool hands
+    // the keyboard back, which is after this commit: the keyboard is read
+    // once that has settled.
+    if (document.activeElement?.tagName !== "WEBVIEW") {
+      restore();
       return;
     }
-    if (kept?.isConnected) {
-      kept.focus({ preventScroll: true });
-    } else {
-      focusScreenHome({ leaving: false });
-    }
+    const frame = requestAnimationFrame(restore);
+    return () => {
+      cancelAnimationFrame(frame);
+    };
   }, [arrivesWithFocus, isActive]);
   useEffect(() => {
     const unsubscribe = router.subscribe("onResolved", () => {

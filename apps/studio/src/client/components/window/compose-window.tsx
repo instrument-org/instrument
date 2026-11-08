@@ -554,13 +554,11 @@ export function ComposeWindow({
                   </WindowButton>
                 </div>
               </div>
-              {/* The composer on a card of its own: what goes with the
-                  message over the words, always shown, since in a draft
-                  they are what is attached; a few lines for the words; and
-                  along the foot the plus at the left and the model, the mic
-                  and send at the right. Over the well the words scroll past
-                  a few lines, so the page keeps its room. */}
-              <div className="mx-2 mb-2 shrink-0 rounded-[18px] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.05),0_4px_12px_-4px_rgb(0_0_0/0.08)] ring-1 ring-black/6 select-text dark:ring-white/8 [&_.prompt-editor]:min-h-12 [&_.prompt-editor]:text-[14px] [&_.prompt-editor]:leading-6 [&_[data-slot=composer-frame]]:px-3 [&_[data-slot=composer-frame]]:pt-3 [&_[data-slot=composer-frame]]:pb-2">
+              {/* What goes with the message over the words, always shown,
+                  since in a draft they are what is attached. Over the well
+                  the words scroll past a few lines, so the page keeps its
+                  room. */}
+              <div className="mx-2 mb-2 shrink-0">
                 <PromptInput
                   attachmentsLead={
                     marked.length > 0 ? <AskPills asks={marked} /> : undefined
@@ -627,7 +625,6 @@ export function ComposeWindow({
                   placeholder="What do you need?"
                   places={places}
                   ref={inputRef}
-                  variant="bare"
                 />
               </div>
               {/* The well: the draft's own pane, a card of its own under the

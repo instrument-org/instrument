@@ -40,6 +40,8 @@ interface ChatScreenProps {
   chatId: ChatId;
   /** Drawn at the head of the composer: what goes with a message besides its words. */
   composerLead?: ReactNode;
+  /** What stands beside the composer's plus: something offered to the message. */
+  composerOffer?: ReactNode;
   /** Whether this is the chat on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
   /** Puts away a chat no record holds any more, the way deleting one does. */
@@ -103,6 +105,7 @@ export function ChatScreen(props: ChatScreenProps) {
 function ChatScreenOfRecord({
   chatId,
   composerLead,
+  composerOffer,
   isUp,
   sendContext,
   sentPrompt,
@@ -242,6 +245,7 @@ function ChatScreenOfRecord({
                   }
                   // What the chat holds, over the composer.
                   composerLead={composerLead}
+                  composerOffer={composerOffer}
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
                   draftKey={{ chatId, scope: "chat" }}

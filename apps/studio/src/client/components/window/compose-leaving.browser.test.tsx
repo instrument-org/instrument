@@ -103,7 +103,6 @@ describe("the attachments row on its way out", () => {
               </button>
             )
           }
-          layout="bare"
           maxHeight={null}
         >
           Words

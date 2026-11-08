@@ -61,22 +61,12 @@ const UNMEASURED: ComposerMenuPlacement = {
 export function useComposerMenuPlacement({
   anchorRef,
   bounds,
-  maxHeight = COMPOSER_MENU_MAX_HEIGHT,
-  minWidth = 0,
   open,
 }: {
   /** What Radix positions against, somewhere inside the composer. */
   anchorRef: RefObject<HTMLElement | null>;
   /** The composer box the menu hangs off. */
   bounds: HTMLElement | null;
-  /** Layout px: the most room the menu can ask for, which decides its side. */
-  maxHeight?: number;
-  /**
-   * Layout px: the narrowest the menu reads at. Over a composer narrower than
-   * this it takes this width, as much as the window has, and moves in from
-   * the window's far edge where it would cross it.
-   */
-  minWidth?: number;
   open: boolean;
 }): ComposerMenuPlacement {
   const zoom = useAtomValue(zoomAtom);
@@ -98,27 +88,17 @@ export function useComposerMenuPlacement({
       // but the window edge. Failing that, whichever side has more room.
       const roomBelow = window.innerHeight - box.bottom - gap;
       const side =
-        roomBelow >= maxHeight * zoom || roomBelow >= box.top
+        roomBelow >= COMPOSER_MENU_MAX_HEIGHT * zoom || roomBelow >= box.top
           ? "bottom"
           : "top";
-      // A composer at least as wide as the menu's minimum sets its width and
-      // edge as they are; only a menu wider than the composer is kept off the
-      // window's edges.
-      const widened = minWidth * zoom > box.width;
-      const width = widened
-        ? Math.min(minWidth * zoom, window.innerWidth - 2 * gap)
-        : box.width;
-      const left = widened
-        ? Math.max(gap, Math.min(box.left, window.innerWidth - gap - width))
-        : box.left;
       const next: ComposerMenuPlacement = {
-        alignOffset: left - anchorBox.left,
+        alignOffset: box.left - anchorBox.left,
         side,
         sideOffset:
           (side === "bottom"
             ? box.bottom - anchorBox.bottom
             : anchorBox.top - box.top) + gap,
-        width: width / zoom,
+        width: box.width / zoom,
       };
       setPlacement((current) =>
         current.alignOffset === next.alignOffset &&
@@ -139,7 +119,7 @@ export function useComposerMenuPlacement({
     return () => {
       observer.disconnect();
     };
-  }, [anchorRef, bounds, maxHeight, minWidth, open, zoom]);
+  }, [anchorRef, bounds, open, zoom]);
 
   return placement;
 }

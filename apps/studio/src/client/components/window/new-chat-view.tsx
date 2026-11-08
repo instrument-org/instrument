@@ -386,7 +386,6 @@ export function NewChatView({
           placeholder="What do you need?"
           places={places}
           ref={inputRef}
-          variant="pill"
         />
       </div>
       {draft && <ProjectSuggestion draft={draft} />}

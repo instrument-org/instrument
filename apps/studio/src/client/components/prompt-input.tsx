@@ -18,12 +18,10 @@ import {
 } from "@/client/components/composer-add-menu";
 import { ComposerFrame } from "@/client/components/composer-frame";
 import {
-  DictationButton,
   DictationControls,
   landingWords,
 } from "@/client/components/dictation-controls";
 import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
-import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { type ChatNote } from "@/client/components/billing/chat-note";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
@@ -69,7 +67,6 @@ import {
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -187,7 +184,7 @@ interface PromptInputProps {
   actionsInto?: HTMLElement | null;
   /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
   addMenu?: boolean;
-  /** What stands beside the plus along a bare box's foot: something offered to the message, such as what is in view behind a draft. */
+  /** What stands beside the plus along the box's foot: something offered to the message, such as what is in view behind a draft or a popped-out chat. */
   besidePlus?: React.ReactNode;
   /** Shows an attached file or folder on disk where the host shows what goes with the message; without it a picture opens large. */
   onShowItem?: (item: { kind: "file" | "folder"; path: string }) => void;
@@ -198,7 +195,7 @@ interface PromptInputProps {
   autoFocus?: boolean;
   /** Whether the screen showing the box is worked from it, so the keyboard lands in it as the screen comes up (`keyboard-home.ts`). */
   keyboardHome?: boolean;
-  /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
+  /** Where the box stops growing and the draft starts scrolling. Null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
   className?: string;
   draftKey: PromptDraftKey;
@@ -210,11 +207,10 @@ interface PromptInputProps {
   lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
   /**
-   * The chat's note about the account its model runs on. A pill draws one
-   * note above itself, outside the box: a note that the next turn can't run,
-   * then a problem with the model, then the rest of the chat's note, then a
-   * newer-model offer. A model problem, or a note that says it holds sends,
-   * holds a send and flashes the note.
+   * The chat's note about the account its model runs on, drawn above the box,
+   * outside it, while the model has no problem or the note says the next turn
+   * can't run; the model's own row stays inside the box. A model problem, or a
+   * note that says it holds sends, holds a send and flashes the note.
    */
   note?: ChatNote;
   /** Stops the chat's work, offered in Send's place while the box is empty. */
@@ -248,8 +244,6 @@ interface PromptInputProps {
   selectedSessionId?: StoreId.Session;
   /** A next message to offer in the empty box (`PromptEditor`), while nothing is attached. */
   suggestion?: string;
-  /** A pill is one row, the height of a text field, that grows with the draft; bare is the editor above its button row with no box drawn around them, for a host that draws its own. */
-  variant: "bare" | "pill";
 }
 
 /**
@@ -287,7 +281,6 @@ export const PromptInput = ({
   ref,
   selectedSessionId,
   suggestion,
-  variant,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -305,7 +298,6 @@ export const PromptInput = ({
     }
   }, [attachedItems]);
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
-  // A pill is one row until it is written in, then opens a row for the rest.
   const [pickerOpen, setPickerOpen] = useState(false);
   const setLookAt = useSetAtom(lookAtAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
@@ -474,18 +466,18 @@ export const PromptInput = ({
       : undefined;
   const noticeRow = modelNotice && (
     <ModelNoticeRow
-      floating={variant === "pill"}
       notice={modelNotice}
       nudge={noticeNudge}
       onAction={handleModelAction}
       onDismiss={dismissOffer}
     />
   );
-  // A pill has one note, over the box: the chat's when the next turn can't
-  // run, the model's when it has a problem, then the chat's quieter one, then
-  // the model's offer.
+  // The chat's note over the box, unless the model has a problem to fix
+  // first: the model's row says that inside the box, and only a note that
+  // the next turn can't run outranks it.
+  const isModelProblem = modelNotice?.tone === "problem";
   const chatNote =
-    variant === "pill" && note
+    note && (note.rank === "stop" || !isModelProblem)
       ? note.render({
           nudge: noticeNudge,
           openModelPicker: () => {
@@ -493,17 +485,7 @@ export const PromptInput = ({
           },
         })
       : undefined;
-  const isModelProblem = modelNotice?.tone === "problem";
-  const pillNote =
-    variant !== "pill"
-      ? undefined
-      : note?.rank === "stop"
-        ? chatNote
-        : isModelProblem
-          ? noticeRow
-          : (chatNote ?? noticeRow);
-  const holdsSend =
-    isModelProblem || (variant === "pill" && note?.holdsSend === true);
+  const holdsSend = isModelProblem || note?.holdsSend === true;
 
   useEffect(() => {
     const editor = promptEditorRef.current;
@@ -800,35 +782,6 @@ export const PromptInput = ({
         void handleFolderPick();
       },
     },
-    // A pill has no room for the model beside the words, so the menu offers
-    // it, and the picker opens where the menu was.
-    ...(variant === "pill"
-      ? [
-          {
-            // The picker opens once this menu has closed, and takes the caret
-            // from there.
-            handsOff: true,
-            icon: CpuIcon,
-            // Where the chosen model is billed, as the draft's model control
-            // shows it, so the entry says which model before it is read.
-            ...(selectedModel && {
-              iconElement: (
-                <AIProviderIcon
-                  className="size-4 shrink-0"
-                  type={selectedModel.params.provider}
-                />
-              ),
-            }),
-            id: "model",
-            label: selectedModel
-              ? `Model · ${selectedModel.name.trim()}`
-              : "Choose a model",
-            onSelect: () => {
-              setPickerOpen(true);
-            },
-          },
-        ]
-      : []),
   ];
 
   // A typed slash offers what the plus does: in a chat, the places it opens
@@ -881,15 +834,8 @@ export const PromptInput = ({
     modelURI &&
     selectedModel;
 
-  // A pill stands beside the work in a column it shares with the conversation
-  // it is part of, so it gives way to that conversation sooner than a block on
-  // a page of its own does: a handful of lines, then the draft scrolls.
   const maxHeight =
-    autoResizeMaxHeight === undefined
-      ? variant === "pill"
-        ? 200
-        : 400
-      : autoResizeMaxHeight;
+    autoResizeMaxHeight === undefined ? 400 : autoResizeMaxHeight;
 
   const validateSubmission = () => {
     if (modelStatus.kind === "loading") {
@@ -1064,9 +1010,9 @@ export const PromptInput = ({
       className={cn("relative flex flex-col", className)}
       data-keyboard-home={keyboardHome ? "1" : undefined}
     >
-      {pillNote && (
+      {chatNote && (
         <div className="mb-2" data-slot="reply-note-slot">
-          {pillNote}
+          {chatNote}
         </div>
       )}
       <ComposerFrame
@@ -1076,7 +1022,6 @@ export const PromptInput = ({
               {addMenu && (
                 <ComposerAddMenu
                   actions={actions}
-                  bounds={composerBounds}
                   disabled={isLoading}
                   onReturnFocus={() => {
                     promptEditorRef.current?.focus();
@@ -1087,9 +1032,6 @@ export const PromptInput = ({
                     );
                   }}
                   onViewChange={setMenuView}
-                  // A bare box is a draft's, tall enough that a menu hung
-                  // off its edge would open far from the press.
-                  opensOnTrigger
                   places={composerPlaces}
                   skills={userInvocableSkills}
                   triggerClassName="size-7 rounded-full [&_svg]:size-4"
@@ -1146,7 +1088,17 @@ export const PromptInput = ({
                   Send is back once the words land; Enter stops and sends. */}
               <div className="flex shrink-0 items-center gap-1.5">
                 <DictationControls dictation={dictation} disabled={isLoading} />
-                {!dictating && (
+                {!dictating && onStop && !canSubmit && !isLoading && (
+                  <Button
+                    aria-label="Stop"
+                    className="size-8 shrink-0 rounded-full p-0"
+                    onClick={onStop}
+                    variant="brand"
+                  >
+                    <StopIcon className="size-4" weight="fill" />
+                  </Button>
+                )}
+                {!dictating && (!onStop || canSubmit || isLoading) && (
                   <Button
                     aria-label="Send"
                     className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
@@ -1167,9 +1119,7 @@ export const PromptInput = ({
         }
         actionsInto={actionsInto}
         attachments={
-          ((variant !== "pill" && lead) ||
-            hasAttachmentsLead ||
-            attachedItems.length > 0) && (
+          (lead || hasAttachmentsLead || attachedItems.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
@@ -1177,7 +1127,7 @@ export const PromptInput = ({
             // Every child here needs a key of its own: presence tells them
             // apart by key, and two keyless ones read as the same child.
             <AnimatePresence initial={false}>
-              <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
+              <Fragment key="lead">{lead}</Fragment>
               <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
               {attachedItems.map((item) => (
                 <ChipPresence key={item.id}>
@@ -1236,138 +1186,9 @@ export const PromptInput = ({
             </AnimatePresence>
           )
         }
-        // What goes with the message, and what is offered to it, whether or
-        // not the box is being written in.
-        extras={variant === "pill" ? lead : undefined}
-        layout={variant}
-        // A pill shows it only while open, with the rest of its second row;
-        // a draft always has room over its words.
-        notice={variant === "pill" ? undefined : noticeRow}
-        leading={
-          variant === "pill" ? (
-            // The picker has no button of its own here: it hangs off an empty
-            // box over the plus, so its panel opens from the plus when the menu
-            // or the notice asks for it.
-            <div className="relative">
-              <ComposerAddMenu
-                actions={actions}
-                bounds={composerBounds}
-                disabled={isLoading}
-                onReturnFocus={() => {
-                  promptEditorRef.current?.focus();
-                }}
-                onSelectSkill={(skill) => {
-                  promptEditorRef.current?.insertText(
-                    skillMentionToken(skill.id),
-                  );
-                }}
-                onViewChange={setMenuView}
-                places={composerPlaces}
-                skills={userInvocableSkills}
-                triggerClassName="size-7 rounded-full [&_svg]:size-4"
-                view={menuView}
-              />
-              <ModelPicker
-                anchorOnly
-                bounds={composerBounds}
-                className="pointer-events-none absolute inset-0"
-                disabled={isLoading}
-                errors={modelsErrors}
-                isError={modelsIsError}
-                isLoading={modelsIsLoading}
-                models={models}
-                modelURI={reached.uri}
-                notice={modelNotice}
-                onAction={handleModelAction}
-                onAddProvider={addProvider}
-                onClose={() => {
-                  setPickerOpen(false);
-                  if (modelURI) {
-                    promptEditorRef.current?.focus();
-                  }
-                }}
-                onOpenChange={(open) => {
-                  setPickerOpen(open);
-                  if (open && modelsErrors && modelsErrors.length > 0) {
-                    void modelsRefetch();
-                  }
-                }}
-                onValueChange={onModelChange}
-                open={pickerOpen}
-                selectedModel={selectedModel}
-              />
-            </div>
-          ) : undefined
-        }
+        notice={noticeRow}
         maxHeight={maxHeight}
-        below={
-          // While dictating, under the words: the wave, then Cancel and Stop
-          // together. Send is back once the words land; Enter stops and sends.
-          variant === "pill" && dictating ? (
-            <DictationControls
-              className="justify-end"
-              dictation={dictation}
-              disabled={isLoading}
-              size="sm"
-            />
-          ) : undefined
-        }
         ref={setComposerBounds}
-        trailing={
-          variant === "pill" ? (
-            <>
-              {!dictating &&
-                features.context_ring &&
-                id &&
-                selectedSessionId && (
-                  <SessionContextRing
-                    id={id}
-                    model={selectedModel}
-                    selectedSessionId={selectedSessionId}
-                  />
-                )}
-              {dictating ? (
-                // Holds the room the mic and Send take, so the words keep the
-                // width they will land at while the controls sit below them.
-                <div aria-hidden="true" className="flex gap-1">
-                  <span className="size-7" />
-                  <span className="size-7" />
-                </div>
-              ) : (
-                <DictationButton
-                  dictation={dictation}
-                  disabled={isLoading}
-                  size="sm"
-                />
-              )}
-              {!dictating && onStop && !canSubmit && !isLoading && (
-                <Button
-                  aria-label="Stop"
-                  className="size-7 shrink-0 rounded-full p-0"
-                  onClick={onStop}
-                  variant="brand"
-                >
-                  <StopIcon className="size-3.5" weight="fill" />
-                </Button>
-              )}
-              {!dictating && (!onStop || canSubmit || isLoading) && (
-                <Button
-                  aria-label="Send"
-                  className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-                  disabled={!canSubmit}
-                  onClick={send}
-                  variant="brand"
-                >
-                  {isLoading ? (
-                    <Spinner className="size-4" delay={0} />
-                  ) : (
-                    <ArrowUpIcon className="size-4" />
-                  )}
-                </Button>
-              )}
-            </>
-          ) : undefined
-        }
       >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to

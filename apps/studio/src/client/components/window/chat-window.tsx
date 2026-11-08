@@ -375,29 +375,32 @@ export function ChatWindow({
                 <ActiveTabProvider isActive>
                   <ChatScreen
                     composerLead={
-                      context.chips.length > 0 || context.suggestion ? (
-                        <>
-                          <ContextChips
-                            items={context.chips}
-                            onLeaveOut={context.leaveOut}
-                            onShow={showBehind}
-                          />
-                          <AnimatePresence initial={false}>
-                            {context.suggestion && (
-                              <ChipPresence key={context.suggestion.key}>
-                                <ContextSuggestion
-                                  item={context.suggestion}
-                                  onTake={() => {
-                                    if (context.suggestion) {
-                                      context.take(context.suggestion);
-                                    }
-                                  }}
-                                />
-                              </ChipPresence>
-                            )}
-                          </AnimatePresence>
-                        </>
+                      context.chips.length > 0 ? (
+                        <ContextChips
+                          items={context.chips}
+                          onLeaveOut={context.leaveOut}
+                          onShow={showBehind}
+                        />
                       ) : undefined
+                    }
+                    // What is behind is offered beside the plus, as a
+                    // docked draft offers it, and goes over the words once
+                    // taken.
+                    composerOffer={
+                      <AnimatePresence initial={false}>
+                        {context.suggestion && (
+                          <ChipPresence key={context.suggestion.key}>
+                            <ContextSuggestion
+                              item={context.suggestion}
+                              onTake={() => {
+                                if (context.suggestion) {
+                                  context.take(context.suggestion);
+                                }
+                              }}
+                            />
+                          </ChipPresence>
+                        )}
+                      </AnimatePresence>
                     }
                     isUp
                     onGone={onClose}

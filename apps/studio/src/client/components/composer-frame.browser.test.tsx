@@ -27,33 +27,18 @@ const LONG_URL = `https://example.com/${"a".repeat(400)}`;
 
 // The 48px square an attached file renders as, and the 40px button the composer
 // sends with, without the icons and image loading either one really carries.
-// A pill ends in smaller ones: the add menu and the send button.
 const CHIP_SIZE = 48;
 const ACTION_SIZE = 40;
-const PILL_END_SIZE = 28;
 
 async function renderFrame({
   attachmentCount = 0,
   draft = "",
-  layout = "bare",
   maxHeight = 400,
-  withExtras = false,
 }: {
   attachmentCount?: number;
   draft?: string;
-  layout?: "bare" | "pill";
   maxHeight?: number;
-  withExtras?: boolean;
 } = {}) {
-  const end = (label: string) => (
-    <button
-      style={{ height: PILL_END_SIZE, width: PILL_END_SIZE }}
-      type="button"
-    >
-      {label}
-    </button>
-  );
-
   await render(
     <div style={{ width: 480 }}>
       <ComposerFrame
@@ -74,13 +59,6 @@ async function renderFrame({
             />
           ))
         }
-        {...(withExtras
-          ? { extras: <span style={{ height: PILL_END_SIZE }}>Chip</span> }
-          : {})}
-        layout={layout}
-        {...(layout === "pill"
-          ? { leading: end("Add"), trailing: end("Send") }
-          : {})}
         maxHeight={maxHeight}
       >
         <PromptEditor
@@ -161,7 +139,7 @@ describe("ComposerFrame in a browser", () => {
         buttons.top,
       );
       // Inside the box's padding, not merely inside its border.
-      expect(buttons.bottom).toBeLessThanOrEqual(box.bottom - 12);
+      expect(buttons.bottom).toBeLessThanOrEqual(box.bottom - 8);
       // The draft is long enough that the box is full: without this the
       // assertions above would hold for a composer with nothing in it.
       expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
@@ -192,105 +170,52 @@ describe("ComposerFrame in a browser", () => {
   });
 });
 
-describe("ComposerFrame as a pill", () => {
-  // One 20px line in a 28px row inside the box's own 6px padding.
-  it("is one row tall with a line in it", async () => {
-    const { frame } = await renderFrame({ draft: "hello", layout: "pill" });
-
-    expect(frame.getBoundingClientRect().height).toBe(40);
-  });
-
-  // A chip's remove button hangs 8px off its corner, and the row scrolls, so
-  // anything nearer the row's edge than that is cut by the row's own clip.
-  it("leaves room inside the attachments row for a chip's remove button", async () => {
-    const { attachments } = await renderFrame({
-      attachmentCount: 1,
-      layout: "pill",
-    });
-
-    const row = attachments().getBoundingClientRect();
-    const chip = attachments().firstElementChild?.getBoundingClientRect();
-    expect(chip).toBeDefined();
-    expect((chip?.top ?? 0) - row.top).toBeGreaterThanOrEqual(8);
-    expect((chip?.left ?? 0) - row.left).toBeGreaterThanOrEqual(8);
-  });
-
-  // The regression: the editor took the height of the draft rather than the
-  // height the box had for it, so a long one grew past the cap and, being
-  // centered in its row, painted out of both ends of the pill. Both with and
-  // without the row above the editor, which the conversation's pill keeps open.
-  it.each([{ withExtras: false }, { withExtras: true }])(
-    "stops growing at its cap and scrolls the draft inside it, extras $withExtras",
-    async ({ withExtras }) => {
-      const { frame, scroller } = await renderFrame({
-        draft: LONG_DRAFT,
-        layout: "pill",
-        maxHeight: 200,
-        withExtras,
-      });
-
-      const box = frame.getBoundingClientRect();
-      const text = scroller.getBoundingClientRect();
-      expect(box.height).toBeLessThanOrEqual(200);
-      expect(text.top).toBeGreaterThanOrEqual(box.top);
-      expect(text.bottom).toBeLessThanOrEqual(box.bottom);
-      // The draft is long enough to fill the box: without this the assertions
-      // above would hold for a pill with nothing in it.
-      expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
-    },
-  );
-});
-
 describe("a chip at the head of the composer", () => {
   // A chip's ring is drawn a pixel outside its box, so a clip along the
   // chip's own edge cut the ring off its top and left.
-  it.each(["bare", "pill"] as const)(
-    "keeps its ring clear of every clip in a %s",
-    async (layout) => {
-      const chip = (
-        <span
-          className="inline-flex h-6 items-center self-center rounded-full pl-2 ring-1 ring-border"
-          data-testid="chip"
+  it("keeps its ring clear of every clip", async () => {
+    const chip = (
+      <span
+        className="inline-flex h-6 items-center self-center rounded-full pl-2 ring-1 ring-border"
+        data-testid="chip"
+      >
+        plan.md
+      </span>
+    );
+    await render(
+      <div style={{ padding: 40, width: 480 }}>
+        <ComposerFrame
+          actions={<button type="button">Send</button>}
+          attachments={chip}
+          maxHeight={400}
         >
-          plan.md
-        </span>
-      );
-      await render(
-        <div style={{ padding: 40, width: 480 }}>
-          <ComposerFrame
-            actions={<button type="button">Send</button>}
-            {...(layout === "pill" ? { extras: chip } : { attachments: chip })}
-            layout={layout}
-            maxHeight={400}
-          >
-            <div>words</div>
-          </ComposerFrame>
-        </div>,
-      );
-      const chipElement = document.querySelector<HTMLElement>(
-        '[data-testid="chip"]',
-      );
-      if (!chipElement) {
-        throw new Error("the chip is not mounted");
+          <div>words</div>
+        </ComposerFrame>
+      </div>,
+    );
+    const chipElement = document.querySelector<HTMLElement>(
+      '[data-testid="chip"]',
+    );
+    if (!chipElement) {
+      throw new Error("the chip is not mounted");
+    }
+    const ring = chipElement.getBoundingClientRect();
+    const cuts: string[] = [];
+    for (
+      let clip = chipElement.parentElement;
+      clip;
+      clip = clip.parentElement
+    ) {
+      const style = getComputedStyle(clip);
+      if (style.overflowX === "visible" && style.overflowY === "visible") {
+        continue;
       }
-      const ring = chipElement.getBoundingClientRect();
-      const cuts: string[] = [];
-      for (
-        let clip = chipElement.parentElement;
-        clip;
-        clip = clip.parentElement
-      ) {
-        const style = getComputedStyle(clip);
-        if (style.overflowX === "visible" && style.overflowY === "visible") {
-          continue;
-        }
-        const box = clip.getBoundingClientRect();
-        if (ring.left - 1 < box.left || ring.top - 1 < box.top) {
-          cuts.push(clip.className);
-        }
+      const box = clip.getBoundingClientRect();
+      if (ring.left - 1 < box.left || ring.top - 1 < box.top) {
+        cuts.push(clip.className);
       }
+    }
 
-      expect(cuts).toEqual([]);
-    },
-  );
+    expect(cuts).toEqual([]);
+  });
 });

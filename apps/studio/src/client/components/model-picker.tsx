@@ -8,7 +8,6 @@ import {
 } from "@/client/components/ui/command";
 import {
   Popover,
-  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
@@ -37,7 +36,6 @@ import {
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
-import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
@@ -93,8 +91,6 @@ type RailEntry = Connection & { failed?: ListError };
 
 export function ModelPicker({
   align = "start",
-  anchorOnly = false,
-  bounds,
   className = "",
   disabled = false,
   errors,
@@ -113,22 +109,6 @@ export function ModelPicker({
 }: {
   /** Which edge of the trigger the panel lines up with: the end for a trigger at the right of its row. */
   align?: "end" | "start";
-  /**
-   * Render no button of its own: the panel hangs off an empty box the caller
-   * places, for a surface that offers the picker from a menu instead.
-   *
-   * Not the same as hiding the button, which is what this replaced. A trigger
-   * held at `opacity-0` keeps its place in the tab order, is announced as a
-   * combobox over whatever it covers, and paints at half opacity the moment it
-   * is disabled, since `disabled:opacity-50` outranks a plain `opacity-0`.
-   */
-  anchorOnly?: boolean;
-  /**
-   * The composer box to hang the panel off, the way its plus menu hangs: as
-   * wide as the box and clear of its edge, rather than over the prompt it is
-   * choosing a model for.
-   */
-  bounds?: HTMLElement | null;
   className?: string;
   disabled?: boolean;
   errors?: ListError[];
@@ -150,20 +130,6 @@ export function ModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const isOpen = openProp ?? open;
-  // Whichever the panel is positioned against: the trigger, or the empty box
-  // standing in for one.
-  const anchorRef = useRef<HTMLElement | null>(null);
-  const setAnchor = (element: HTMLElement | null) => {
-    anchorRef.current = element;
-  };
-  const placement = useComposerMenuPlacement({
-    anchorRef,
-    bounds: bounds ?? null,
-    maxHeight: PANEL_HEIGHT_REM * 16,
-    minWidth: PANEL_WIDTH_REM * 16,
-    open: isOpen,
-  });
-  const hangsOff = bounds != null;
 
   const closePopover = () => {
     setOpen(false);
@@ -197,78 +163,65 @@ export function ModelPicker({
       }}
       open={isOpen}
     >
-      {anchorOnly ? (
-        <PopoverAnchor className={className} ref={setAnchor} />
-      ) : (
-        <PopoverTrigger asChild>
-          <Button
-            aria-expanded={isOpen}
-            aria-label="Model"
-            className={cn(
-              "flex h-auto max-w-full items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
-              "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
-              isProblem &&
-                "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
-              // An invitation to connect something rather than a fault.
-              isEmpty &&
-                "text-brand-700 not-disabled:hover:text-brand-700 dark:text-brand-300 dark:not-disabled:hover:text-brand-300",
-              className,
-            )}
-            disabled={disabled || isLoading}
-            ref={setAnchor}
-            role="combobox"
-            size="sm"
-            variant="ghost"
-          >
-            {selectedName ? (
-              <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="flex shrink-0">
-                      {selectedModel && !isProblem ? (
-                        <AIProviderIcon
-                          className="size-4"
-                          type={selectedModel.params.provider}
-                        />
-                      ) : (
-                        <WarningIcon className="size-4" />
-                      )}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      {isProblem ? notice.text : selectedModel?.providerName}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-                <span className="min-w-0 flex-1 truncate">{selectedName}</span>
-              </span>
-            ) : isEmpty ? (
-              <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
-                <InfoIcon className="size-4 shrink-0" />
-                Add a model
-              </span>
-            ) : (
-              <span className="text-xs leading-4 font-medium opacity-50">
-                {placeholderText}
-              </span>
-            )}
-            <CaretDownIcon className="size-3 shrink-0" />
-          </Button>
-        </PopoverTrigger>
-      )}
+      <PopoverTrigger asChild>
+        <Button
+          aria-expanded={isOpen}
+          aria-label="Model"
+          className={cn(
+            "flex h-auto max-w-full items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
+            "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
+            isProblem &&
+              "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
+            // An invitation to connect something rather than a fault.
+            isEmpty &&
+              "text-brand-700 not-disabled:hover:text-brand-700 dark:text-brand-300 dark:not-disabled:hover:text-brand-300",
+            className,
+          )}
+          disabled={disabled || isLoading}
+          role="combobox"
+          size="sm"
+          variant="ghost"
+        >
+          {selectedName ? (
+            <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex shrink-0">
+                    {selectedModel && !isProblem ? (
+                      <AIProviderIcon
+                        className="size-4"
+                        type={selectedModel.params.provider}
+                      />
+                    ) : (
+                      <WarningIcon className="size-4" />
+                    )}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isProblem ? notice.text : selectedModel?.providerName}</p>
+                </TooltipContent>
+              </Tooltip>
+              <span className="min-w-0 flex-1 truncate">{selectedName}</span>
+            </span>
+          ) : isEmpty ? (
+            <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
+              <InfoIcon className="size-4 shrink-0" />
+              Add a model
+            </span>
+          ) : (
+            <span className="text-xs leading-4 font-medium opacity-50">
+              {placeholderText}
+            </span>
+          )}
+          <CaretDownIcon className="size-3 shrink-0" />
+        </Button>
+      </PopoverTrigger>
       <PopoverContent
-        align={hangsOff ? "start" : align}
-        alignOffset={hangsOff ? placement.alignOffset : undefined}
-        // Off where it hangs off the composer, which picks its side instead.
-        // See `useComposerMenuPlacement`.
-        avoidCollisions={!hangsOff}
+        align={align}
         // The composer's corner, which its menus wear too. What sits inside
         // is 8px in, so it rounds at 12px and curves alongside it.
         className="flex flex-col rounded-[20px] p-0"
         maxHeight={PANEL_HEIGHT}
-        side={hangsOff ? placement.side : undefined}
-        sideOffset={hangsOff ? placement.sideOffset : undefined}
         style={
           isEmpty
             ? {
@@ -277,12 +230,8 @@ export function ModelPicker({
               }
             : {
                 height: PANEL_HEIGHT,
-                ...(hangsOff
-                  ? { width: placement.width }
-                  : {
-                      maxWidth: "var(--radix-popover-content-available-width)",
-                      width: PANEL_WIDTH,
-                    }),
+                maxWidth: "var(--radix-popover-content-available-width)",
+                width: PANEL_WIDTH,
               }
         }
       >

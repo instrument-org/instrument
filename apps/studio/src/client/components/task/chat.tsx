@@ -97,6 +97,9 @@ import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 // that a submit that never becomes one hands the idle transcript back.
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 
+// Layout px: the composer's whole box, notes inside it and buttons included.
+const CONVERSATION_COMPOSER_MAX_HEIGHT = 280;
+
 /**
  * A chat's conversation: its transcript and its composer.
  *
@@ -109,6 +112,7 @@ const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 export function ChatConversation({
   asks,
   composerLead,
+  composerOffer,
   draftKey,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
@@ -130,6 +134,8 @@ export function ChatConversation({
   };
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
+  /** What stands beside the composer's plus: something offered to the message, such as what is behind a popped-out chat. */
+  composerOffer?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;
   selectedModelURI?: AIGatewayModelURI.Type;
@@ -480,6 +486,11 @@ export function ChatConversation({
     <PromptInput
       attachmentsLead={asks?.pills}
       autoFocus
+      // The box shares a column with the conversation, so it gives way to
+      // it sooner than a box on a page of its own: a handful of lines, then
+      // the words scroll.
+      autoResizeMaxHeight={CONVERSATION_COMPOSER_MAX_HEIGHT}
+      besidePlus={composerOffer}
       keyboardHome
       className="relative z-10"
       draftKey={draftKey}
@@ -586,7 +597,6 @@ export function ChatConversation({
           ? (nextMessage ?? undefined)
           : undefined
       }
-      variant="pill"
     />
   );
 

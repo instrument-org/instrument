@@ -36,7 +36,6 @@ Each entry is the plan's title and the opening of its status.
 - [Auto mode](auto-mode.md): Design only, nothing scheduled.
 - [Background shell processes](background-shell-processes.md): Active.
 - [Chrome extensions in the in-app browser, starting with 1Password](browser-extensions-and-1password.md): Phases 1, 3 and 4 are landed and extensions are on for everyone.
-- [Send the chat list as rows that changed](chat-list-rows-on-the-wire.md): Not started.
 - [Chat records as append-only logs, one per session per device](chat-records.md): Built and landed, but for the two parts named here.
 - [Chat stream turn-model refactor](chat-stream-turn-model-refactor.md): Proposed, not started.
 - [The user chooses where Instrument keeps files](choose-where-instrument-keeps-files.md): The step is built, as setup's first step (`9246172a7`, with the Welcome page before it from `b92123c54`).
@@ -94,6 +93,7 @@ Each entry is the plan's title and the opening of its status.
 - [One identity for a chat](chat-identity.md): Completed.
 - [A workspace index the chat list reads from](chat-list-index.md): Stage A landed in `0f1ba5277` and `ba658eeaa` (`lib/workspace-index.ts`);
 - [A cheaper chat list rebuild](chat-list-payload-and-parentage.md): Both changes landed.
+- [Send the chat list as rows that changed](chat-list-rows-on-the-wire.md): All six steps landed.
 - [The chat's status line and loading states](chat-status-line-and-loading-states.md): Done.
 - [Chat surface](chat-surface.md): Landed, then partly reshaped.
 - [Chat transcript redesign](chat-transcript-redesign.md): Built as the transcript's map describes, which holds wherever it and this file differ: one card up at a time where this says a card per page, tabs only in th...

@@ -27,7 +27,6 @@ import { type RowAction } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
 
-const NEST_GUARD = StoreId.newSessionId();
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
   developerDetails: vi.fn(),
@@ -151,24 +150,18 @@ const LONG_REPLY =
 function chat(overrides: Partial<Chat> = {}): Chat {
   return {
     archived: false,
-    createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
     firstAsk: ASK,
-    lastReplyAt: MOVED_AT.getTime(),
     lastUserMessageAt: STARTED_AT.getTime(),
-    ownWorking: false,
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
-    runningTasks: [],
     sessionId,
     starred: false,
     status: "idle",
     title: TITLE,
     titleByApp: true,
-    titled: true,
     unread: false,
     unreadByUser: false,
-    updatedAt: MOVED_AT.getTime(),
     working: overrides.status === "working",
     ...overrides,
   };
@@ -483,7 +476,7 @@ describe("ChatRow", () => {
         },
       }),
       chat(),
-      chat({ lastReplyAt: undefined, latest: undefined }),
+      chat({ latest: undefined }),
       chat({ status: "working" }),
     ]);
     const heights = new Set(
@@ -604,13 +597,6 @@ describe("ChatRow", () => {
           kind: "step",
           text: "Reading the automation",
         },
-        runningTasks: [
-          {
-            id: NEST_GUARD,
-            step: "Reading the automation",
-            title: "Nest guard",
-          },
-        ],
         status: "working",
       }),
       chat({
@@ -637,22 +623,10 @@ describe("ChatRow", () => {
 
   it("shows only Instrument is working until a task starts", async () => {
     const working = chat({
-      lastAsk: "Check the Nest schedule",
       latest: undefined,
       status: "working",
     });
     const { row } = await renderRow(working);
-    expect(peekOf(row)?.textContent).toBe("Instrument is working");
-  });
-
-  it("shows only Instrument is working until the task's first step lands", async () => {
-    const { row } = await renderRow(
-      chat({
-        latest: undefined,
-        runningTasks: [{ id: NEST_GUARD, title: "Nest guard" }],
-        status: "working",
-      }),
-    );
     expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
@@ -679,9 +653,7 @@ describe("ChatRow", () => {
   );
 
   it("has no latest line for an idle chat with nothing to say", async () => {
-    const { row } = await renderRow(
-      chat({ lastReplyAt: undefined, latest: undefined }),
-    );
+    const { row } = await renderRow(chat({ latest: undefined }));
     expect(peekOf(row)).toBeNull();
     expect(row.textContent).toBe(`${TITLE}8:46 AM`);
   });
@@ -1179,9 +1151,7 @@ describe("the row's actions", () => {
   );
 
   it("offers Mark as unread on a chat with nothing said in it yet", async () => {
-    const { row } = await renderRow(
-      chat({ lastReplyAt: undefined, latest: undefined, unread: false }),
-    );
+    const { row } = await renderRow(chat({ latest: undefined, unread: false }));
     expect(barOf(row).labels).toEqual(["Archive", "Mark as unread", "Star"]);
   });
 

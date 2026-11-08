@@ -46,22 +46,17 @@ function chat(): Chat {
   const at = new Date(2026, 8, 16, 9, 0);
   return {
     archived: false,
-    createdAt: at.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
     lastUserMessageAt: at.getTime(),
-    ownWorking: false,
     firstAsk: "make me a grocery list",
-    runningTasks: [],
     sessionId,
     starred: false,
     status: "idle",
     title: TITLE,
     titleByApp: true,
-    titled: true,
     unread: false,
     unreadByUser: false,
-    updatedAt: at.getTime(),
     working: false,
   };
 }

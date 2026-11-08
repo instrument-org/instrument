@@ -9,7 +9,6 @@ import {
   archiveChat,
   chatById,
   chatIsWorking,
-  ChatSchema,
   markChatRead,
   markChatUnread,
   renameChat,
@@ -24,6 +23,7 @@ import {
 } from "../../lib/chat-folders/follow-title";
 import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
+import { chatRow, ChatRowSchema } from "../../lib/chat/chat-row";
 import { liveChatRows, refreshChatRow } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStatusKindSchema, taskStatus } from "../../lib/chat/task-status";
@@ -194,8 +194,11 @@ async function whenChat(
 /** One chat as the list shows it, or none for an id that is not a chat's. */
 const chatByIdRoute = base
   .input(z.object({ id: ChatIdSchema }))
-  .output(ChatSchema.optional())
-  .handler(({ input }) => chatById(input.id));
+  .output(ChatRowSchema.optional())
+  .handler(async ({ input }) => {
+    const chat = await chatById(input.id);
+    return chat && chatRow(chat);
+  });
 
 /**
  * The chats, oldest first: every row, then the rows each change moved and
@@ -210,7 +213,7 @@ const liveChatRowsRoute = base
           epoch: z.string(),
           kind: z.literal("snapshot"),
           rev: z.number(),
-          rows: ChatSchema.array(),
+          rows: ChatRowSchema.array(),
         }),
         z.object({
           epoch: z.string(),
@@ -218,13 +221,17 @@ const liveChatRowsRoute = base
           kind: z.literal("patch"),
           removed: ChatIdSchema.array(),
           rev: z.number(),
-          upserts: ChatSchema.array(),
+          upserts: ChatRowSchema.array(),
         }),
       ]),
     ),
   )
   .handler(async function* ({ signal }) {
-    yield* liveChatRows(signal);
+    for await (const event of liveChatRows(signal)) {
+      yield event.kind === "snapshot"
+        ? { ...event, rows: event.rows.map(chatRow) }
+        : { ...event, upserts: event.upserts.map(chatRow) };
+    }
   });
 
 /** Takes a chat's unread mark off: the user has looked at it, or said so. */

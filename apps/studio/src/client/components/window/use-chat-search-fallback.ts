@@ -2,7 +2,7 @@ import { type DecisionAnswer, useDecision } from "@/client/hooks/use-decision";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { useEffect, useState } from "react";
 
-import { byActivity, type Chat } from "./chats";
+import { byLastUserMessage, type Chat } from "./chats";
 
 /**
  * Most questions one request carries: the API refuses more than 512, and the
@@ -55,7 +55,7 @@ export function useChatSearchFallback({
   search: string;
 }) {
   const candidates =
-    all.length > MOST_ASKED ? byActivity(all).slice(0, MOST_ASKED) : all;
+    all.length > MOST_ASKED ? byLastUserMessage(all).slice(0, MOST_ASKED) : all;
   const [settled, setSettled] = useState(search.trim());
   useEffect(() => {
     const timer = setTimeout(() => {

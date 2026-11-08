@@ -68,15 +68,19 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
 }
 
 /**
- * The card up now: the newest of the work since the agent last spoke. An activity
- * with nothing to show yet keeps the card of the one before it, so the card holds
+ * The card up now: the newest of the work in the turn. An activity with
+ * nothing to show yet keeps the card of the one before it, so the card holds
  * through the gaps between activities rather than blinking, at the cost of
- * showing the earlier one's a little longer. It goes as the agent speaks, since
- * words go under the work they follow and never move, and a task's card takes
- * over the same way, since the task is what is moving now and carries a card of
- * its own.
+ * showing the earlier one's a little longer. While the turn works it holds
+ * through what the agent says too: a line before each command is how agents
+ * narrate, and a card that went at each one would close and open again at
+ * every step. Once the turn has ended, words after the work end the card, and
+ * a task's card takes over the same way at any time, since the task is what
+ * is moving now and carries a card of its own.
  */
-export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
+export function slotOf(
+  turn: Pick<Turn, "phase" | "rows">,
+): SlotCard | undefined {
   const found = walkBack(turn);
   return found === "ended" ? undefined : found;
 }
@@ -85,10 +89,11 @@ export function slotOf(turn: Pick<Turn, "rows">): SlotCard | undefined {
  * The turn whose card is up, of a session's turns: the same walk as `slotOf`,
  * carried back across turns, so one card is up in the whole transcript. A
  * message sent mid-turn starts a turn of its own, and the card stays where it
- * was until that turn's work shows something, speaks, or starts a task.
+ * was until that turn's work shows something, ends with words, or starts a
+ * task.
  */
 export function slotTurnOf(
-  turns: readonly Pick<Turn, "id" | "rows">[],
+  turns: readonly Pick<Turn, "id" | "phase" | "rows">[],
 ): Turn["id"] | undefined {
   for (const turn of turns.toReversed()) {
     const found = walkBack(turn);
@@ -102,10 +107,13 @@ export function slotTurnOf(
   return undefined;
 }
 
-/** The newest card of a turn's work, "ended" if words or a task came after it. */
-function walkBack(turn: Pick<Turn, "rows">): SlotCard | "ended" | undefined {
+/** The newest card of a turn's work, "ended" if a task, or words once the turn ended, came after it. */
+function walkBack(
+  turn: Pick<Turn, "phase" | "rows">,
+): SlotCard | "ended" | undefined {
+  const isWorking = turn.phase === "working";
   for (const row of turn.rows.toReversed()) {
-    if (row.kind === "task" || row.kind === "text") {
+    if (row.kind === "task" || (row.kind === "text" && !isWorking)) {
       return "ended";
     }
     const card = row.kind === "activity" ? cardsOf(row).at(-1) : undefined;

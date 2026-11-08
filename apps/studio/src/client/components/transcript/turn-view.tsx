@@ -211,7 +211,13 @@ function TurnBody({
   const branchesAt = turn.inherited ? undefined : turn.replies.at(-1)?.id;
   const card = isFolded || !hasCard ? undefined : slotOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
-  const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
+  // While the turn works its card sits under everything it has drawn, so
+  // what the agent says and does next comes in above the card rather than
+  // moving it; once it has ended, the card is under the work it shows.
+  const cardAt =
+    turn.phase === "working"
+      ? turn.rows.length - 1
+      : turn.rows.findLastIndex((row) => row.kind === "activity");
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
@@ -245,7 +251,7 @@ function TurnBody({
           />
         </FoldingRow>,
       );
-      if (index === lastWork && card) {
+      if (index === cardAt && card) {
         out.push(
           // One key among the rows, so going from under one activity to under
           // the next keeps it mounted, with its picture and its sweep going.

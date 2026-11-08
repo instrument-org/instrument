@@ -1034,17 +1034,17 @@ describe("the slot", () => {
     expect(shows?.kind === "file" && shows.words).toBe(words);
   });
 
-  it("takes the card away when the agent speaks, so its words never move", () => {
+  it("holds the card through what the agent says while it works, and takes it away once the turn ends", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
       call(id, "web_search", { activity: "Looking", query: "x" }, {});
-    const [speaking] = turnsOf(
-      [
-        typed("Do the thing"),
-        message("assistant", (id) => [searched(id), said(id, "Found it.")]),
-      ],
-      { isRunning: true },
-    );
-    expect(speaking && slotOf(speaking)).toBeUndefined();
+    const spoke = [
+      typed("Do the thing"),
+      message("assistant", (id) => [searched(id), said(id, "Found it.")]),
+    ];
+    const [speaking] = turnsOf(spoke, { isRunning: true });
+    expect(speaking && slotOf(speaking)?.kind).toBe("web");
+    const [ended] = turnsOf(spoke, { isRunning: false });
+    expect(ended && slotOf(ended)).toBeUndefined();
     const [movedOn] = turnsOf(
       [
         typed("Do the thing"),
@@ -1151,8 +1151,9 @@ describe("the slot", () => {
     expect(cardIn([message("assistant", (id) => [wrote(id, "/b.md")])])).toBe(
       1,
     );
+    // Words in the turn still working leave the card where it was.
     expect(cardIn([message("assistant", (id) => [said(id, "On it.")])])).toBe(
-      -1,
+      0,
     );
   });
 
@@ -1253,10 +1254,10 @@ describe("the slot", () => {
       ).toBe("files");
     });
 
-    it("goes when the agent speaks, and doesn't come back for an activity after it", () => {
-      const spoke = (id: StoreId.Message) => said(id, "Found it.");
-      expect(slotAfter(browsed, spoke)).toBeUndefined();
-      expect(slotAfter(browsed, spoke, addingUp)).toBeUndefined();
+    it("holds through what the agent says between them", () => {
+      const spoke = (id: StoreId.Message) => said(id, "Now the next page.");
+      expect(slotAfter(browsed, spoke)?.kind).toBe("page");
+      expect(slotAfter(browsed, spoke, addingUp)?.kind).toBe("page");
     });
 
     it("goes for a task's card, and doesn't come back for an activity after it", () => {
@@ -1356,7 +1357,7 @@ describe("the slot", () => {
         "text: Found",
       ]);
       expect(turn?.rows[1]?.id).toBe(going.parts[1]?.metadata.id);
-      expect(turn && slotOf(turn)).toBeUndefined();
+      expect(turn && slotOf(turn)?.kind).toBe("web");
       expect(turn?.live?.kind).toBe("writing");
     });
   });
